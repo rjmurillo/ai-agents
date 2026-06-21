@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "cohesion": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "coupling": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "encapsulation": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "testability": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "non_redundancy": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "overall": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "findings": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 4 }
+  },
+  "required": ["cohesion", "coupling", "encapsulation", "testability", "non_redundancy", "overall", "findings"],
+  "additionalProperties": false
+}

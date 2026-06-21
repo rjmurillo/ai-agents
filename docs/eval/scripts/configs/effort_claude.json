@@ -1,0 +1,6 @@
+[
+  {"label": "opus-4-8/medium", "transport": "claude", "model": "claude-opus-4-8", "effort": "medium"},
+  {"label": "opus-4-8/high",   "transport": "claude", "model": "claude-opus-4-8", "effort": "high"},
+  {"label": "opus-4-8/xhigh",  "transport": "claude", "model": "claude-opus-4-8", "effort": "xhigh"},
+  {"label": "opus-4-8/max",    "transport": "claude", "model": "claude-opus-4-8", "effort": "max"}
+]

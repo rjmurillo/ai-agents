@@ -1,0 +1,5 @@
+[
+  {"label": "gpt-5.4-mini/xhigh", "transport": "codex",  "model": "gpt-5.4-mini",      "effort": "xhigh"},
+  {"label": "sonnet-4-6/xhigh",   "transport": "claude", "model": "claude-sonnet-4-6", "effort": "xhigh"},
+  {"label": "haiku-4-5/xhigh",    "transport": "claude", "model": "claude-haiku-4-5",  "effort": "xhigh"}
+]

@@ -1,0 +1,5 @@
+[
+  {"label": "gpt-5.5/medium", "transport": "codex", "model": "gpt-5.5", "effort": "medium"},
+  {"label": "gpt-5.5/high",   "transport": "codex", "model": "gpt-5.5", "effort": "high"},
+  {"label": "gpt-5.5/xhigh",  "transport": "codex", "model": "gpt-5.5", "effort": "xhigh"}
+]

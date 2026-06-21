@@ -1,6 +1,6 @@
 <!-- Eval artifact generated 2026-06-21. Cross-provider comparison of the
 code-qualities-assessment skill on rjmurillo/moq.analyzers via the #2710
-EVAL_PROVIDER transports. Reproduce with the driver referenced below. -->
+EVAL_PROVIDER transports. Tools checked in under scripts/ (see scripts/README.md). -->
 
 # Cross-provider eval comparison: code-qualities-assessment on moq.analyzers
 
@@ -87,18 +87,20 @@ duplication across the `IsValid*` methods. The signal is model-independent.
 
 ## Method / reproduce
 
-Driver: `/tmp/eval_compare.py` (imports #2710's `_anthropic_api` + `_providers`).
-Raw results: `/tmp/eval_compare_report.json`.
+All tools are checked in under [`scripts/`](scripts/) with a README mapping each
+table below to a command. This first table (multi-vendor via github-models, the `_providers` transport from
+PR #2710):
 
 ```bash
+export MOQ_REPO=~/src/moq.analyzers          # a checkout of rjmurillo/moq.analyzers
 export GITHUB_TOKEN="$(gh auth token)"
-export ANTHROPIC_API_KEY="$(grep ^ANTHROPIC_API_KEY= <ai-agents>/.env | cut -d= -f2-)"
-python3 /tmp/eval_compare.py   # 3 files x 7 provider entries
+pip install openai tiktoken
+python3 scripts/run_github_comparison.py     # 24 files x github-models vendors
 ```
 
-Caveat: the openai package is required for the openai/github transports
-(`pip install openai`). github-models model IDs come from
-`https://models.github.ai/catalog/models`.
+github-models model IDs come from `https://models.github.ai/catalog/models`. Every
+other table is `scripts/run_sweep.py --configs scripts/configs/<table>.json`
+followed by `scripts/analyze.py`; see [`scripts/README.md`](scripts/README.md).
 
 ---
 
@@ -186,11 +188,11 @@ milder than Opus, stricter than GPT-5. (One outlier: it rated
   `xhigh`. No parse failures (contrast llama-3.3's JSON breakage on the github
   transport).
 
-Reproduce (strong models): Opus via `claude -p --output-format json
---append-system-prompt <rubric> --model claude-opus-4-8`; gpt-5.5 via `codex exec
--m gpt-5.5 -s read-only --ephemeral --output-schema <schema.json> -o <out> "<rubric>"`
-with the `.cs` file piped on stdin. Both bypass the API budget through CLI
-subscription auth.
+Reproduce (strong models): `python3 scripts/run_sweep.py --configs
+scripts/configs/flagship_xhigh.json --out out/flagship.json`. Opus runs via
+`claude -p` and gpt-5.x via `codex exec`, both with the file on stdin and an
+output schema forcing the JSON; both use CLI subscription auth, bypassing the
+metered API budget. See [`scripts/README.md`](scripts/README.md).
 
 ## Within-family version sweep: does the point release move the grade?
 

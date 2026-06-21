@@ -1,0 +1,7 @@
+[
+  {"label": "opus-4-8/xhigh", "transport": "claude", "model": "claude-opus-4-8", "effort": "xhigh"},
+  {"label": "opus-4-7/xhigh", "transport": "claude", "model": "claude-opus-4-7", "effort": "xhigh"},
+  {"label": "opus-4-6/xhigh", "transport": "claude", "model": "claude-opus-4-6", "effort": "xhigh"},
+  {"label": "gpt-5.5/xhigh",  "transport": "codex",  "model": "gpt-5.5",         "effort": "xhigh"},
+  {"label": "gpt-5.4/xhigh",  "transport": "codex",  "model": "gpt-5.4",         "effort": "xhigh"}
+]
