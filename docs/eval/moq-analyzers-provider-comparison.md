@@ -229,16 +229,18 @@ Claude family (4.8 vs 4.7 vs 4.6):
 
 codex family (gpt-5.5 vs gpt-5.4):
 
-- Identical overall on all three files (8 / 7 / 8). Per-quality wobble is minor
-  (gpt-5.4 rates encapsulation a touch higher, cohesion a touch lower; same mean).
-- Two real differences, neither in the score:
-  - Latency: gpt-5.4 at `xhigh` took ~107-125s per file, roughly 4x gpt-5.5's
-    ~28-35s. The newer release is much faster for the same grade.
-  - Findings: gpt-5.4 was MORE bug-grounded than gpt-5.5. It flagged the
-    imprecise `GetDiagnosticLocation` (first `GenericNameSyntax` descendant) and
-    the `Constructor != null` over-constraint, two of the correctness issues
-    gpt-5.5 missed and GPT-5 caught. It also cites line ranges. So the terse,
-    bug-light register of gpt-5.5 is a 5.5 trait, not an OpenAI-family trait.
+- On these three files the overall scores looked identical (8 / 7 / 8). The 24-file
+  run below CORRECTS this: at N=24 gpt-5.5 grades 0.38 higher (CI excludes 0). The
+  three-file read was underpowered. Trust the N=24 numbers.
+- Two differences hold up at scale:
+  - Latency: gpt-5.4 is slower at `xhigh`. On these three files it ran ~3-4x slower;
+    across 24 files the mean is ~1.7x slower (61s vs 35s). Either way, slower.
+  - Findings: in the one file inspected closely, gpt-5.4 was more bug-grounded than
+    gpt-5.5: it flagged the imprecise `GetDiagnosticLocation` (first
+    `GenericNameSyntax` descendant) and the `Constructor != null` over-constraint,
+    two correctness issues gpt-5.5 missed and GPT-5 caught. This is a single-file
+    qualitative read, not measured across all 24. Net at scale, gpt-5.4 still loses:
+    lower score, slower, and ~2.3x the tokens (see Statistical run + economics).
 
 Reliability note: `claude -p` has no output-schema flag, so its JSON is
 best-effort; `opus-4-6` returned one fenced, truncated object (MockBehaviorBase)
@@ -359,6 +361,60 @@ tokens of harness context per call (~$0.08-0.09 input), still pennies. The Copil
 seat subscription and the codex/Claude CLI subscriptions are separate fixed costs
 not modeled here; this is marginal per-eval cost.
 
+## Statistical run (N=24 files)
+
+The sections above deep-read three files. To put confidence intervals on the
+headline claims, the same rubric ran across **24 size-diverse product files**
+(271 bytes to 30 KB; Analyzers, CodeFixes, Common) at three flagship configs, all
+at xhigh, capturing scores + output tokens + latency per cell (72 cells, one
+flaky empty-result retried to green).
+
+Overall score, mean +/- sd (n=24):
+
+| config | mean | sd | median | min | max |
+| :--- | :-- | :-- | :-- | :-- | :-- |
+| opus-4-8 / xhigh | 7.29 | 0.79 | 7 | 6 | 9 |
+| gpt-5.5 / xhigh | 8.21 | 0.64 | 8 | 7 | 10 |
+| gpt-5.4 / xhigh | 7.83 | 0.69 | 8 | 7 | 9 |
+
+Paired gaps (same 24 files, so differences are within-file):
+
+| comparison | mean gap | 95% CI | win/tie/loss |
+| :--- | :-- | :-- | :-- |
+| opus-4-8 minus gpt-5.5 | -0.92 | [-1.15, -0.69] | lower on 19, tied 5, higher 0 |
+| gpt-5.4 minus gpt-5.5 | -0.38 | [-0.57, -0.18] | lower on 9, tied 15, higher 0 |
+| opus-4-8 minus gpt-5.4 | -0.54 | [-0.77, -0.31] | lower on 12, tied 12, higher 0 |
+
+What N=24 confirms and what it corrects:
+
+- **Family gap is real and ~1 point.** Opus grades a full point below gpt-5.5
+  (-0.92, CI excludes 0), lower on 19 of 24 files and never higher. The earlier
+  "1-2 point" estimate from three files tightens to 0.9 +/- 0.1. The gap lives in
+  encapsulation (7.50 vs 8.83), testability (6.12 vs 7.46), and non-redundancy
+  (7.25 vs 8.50); cohesion is near-equal (8.5 vs 8.9).
+- **Version gap is real but small, and it CORRECTS the 3-file read.** At N=3 gpt-5.4
+  and gpt-5.5 looked identical (8/7/8). At N=24 gpt-5.5 grades 0.38 higher (CI
+  excludes 0): slightly more lenient, tied on 15 files, never lower. The three-file
+  snapshot was underpowered; the version dial does move the number a little.
+- **gpt-5.4 is dominated, not just slower.** It is the cheapest per token ($2.50 in
+  / $15 out, half gpt-5.5) yet loses on every real axis: it emits ~2.3x the output
+  (mean 4974 vs 2198 tokens, max 11758), runs ~1.7x slower (mean 61s vs 35s, max
+  116s), and scores lower. There is no eval reason to pick gpt-5.4 over gpt-5.5.
+
+Economics at scale, mean per file (n=24, $184/hr human):
+
+| config | out tok | latency | token $ (std) | token $ (batch) | human $ (block) | all-in (block) | human/token |
+| :--- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| opus-4-8 / xhigh | 1927 | 28s | $0.056 | $0.028 | $1.45 | $1.50 | 26x |
+| gpt-5.5 / xhigh | 2198 | 35s | $0.073 | $0.037 | $1.77 | $1.84 | 24x |
+| gpt-5.4 / xhigh | 4974 | 61s | $0.078 | $0.039 | $3.12 | $3.19 | 40x |
+
+The 24-file means hold the single-file story: token cost is a few cents, human wait
+is 24-40x that. Opus is the cheapest all-in ($1.50: fastest, fewest tokens) and
+also the strictest grader, so "strict + cheap" is one model, not a tradeoff.
+gpt-5.5 costs more all-in ($1.84) for the more lenient, calibrated score. gpt-5.4
+is the worst all-in ($3.19) for a lower score.
+
 ## Takeaway
 
 - Stronger models do not just move the number; they change the finding type.
@@ -372,12 +428,13 @@ not modeled here; this is marginal per-eval cost.
   want a number you trust without manual recalibration. The mid-tier agreement in
   the first comparison was a false comfort: it agreed because it missed the hard
   parts.
-- The grade is set by model FAMILY, not point release. Across 4.8/4.7/4.6 and
-  5.5/5.4 the overall scores barely move within a family (<=1 point), while the
-  Claude-vs-OpenAI gap is a steady 1-2 points. Pin the family for a comparable
-  baseline; a point upgrade does not silently re-baseline your scores. Latency and
-  finding quality DO shift with the release (gpt-5.5 is ~4x faster than gpt-5.4 but
-  terser and less bug-aware), so re-check those, not the number, on upgrade.
+- The grade is set by model FAMILY, not point release (N=24 paired). The
+  Claude-vs-OpenAI gap is -0.92 [CI -1.15, -0.69], Opus stricter on 19/24 files.
+  The within-OpenAI version gap is smaller, -0.38 [CI -0.57, -0.18], but real:
+  gpt-5.5 grades slightly above gpt-5.4 (the 3-file "identical" was underpowered).
+  Pin the family AND the version for a comparable baseline. gpt-5.5 is ~1.7x faster
+  than gpt-5.4 and emits ~2.3x fewer tokens, so the newer model wins on score,
+  speed, and all-in cost at once.
 - Reasoning effort moves the grade even less than the point release, on BOTH
   families. codex: medium = high on every file, xhigh adds at most 1 point. Claude
   (`--effort low/medium/high/xhigh/max`, max is Claude-only): grade wobbles
