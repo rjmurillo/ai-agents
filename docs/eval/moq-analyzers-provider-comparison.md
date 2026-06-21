@@ -300,6 +300,65 @@ findings the top tiers tend to produce, not for a different number. Caveat: one
 sample per cell, so treat single-point score wobbles as noise and the latency
 direction as real.
 
+## Token economics
+
+Pricing basis (verified 2026-06-21 against three sources that agree to the dollar:
+GitHub Copilot models-and-pricing, OpenAI API pricing, Anthropic API pricing).
+Copilot resells at the model providers' direct per-token rates, no markup. All per
+1M tokens, standard tier:
+
+| model | input | output | batch input | batch output |
+| :--- | :-- | :-- | :-- | :-- |
+| gpt-5.5 | $5.00 | $30.00 | $2.50 | $15.00 |
+| gpt-5.4 | $2.50 | $15.00 | $1.25 | $7.50 |
+| gpt-5.3-codex | $1.75 | $14.00 | ~$0.88 | ~$7.00 |
+| Claude Opus 4.8 / 4.7 / 4.6 | $5.00 | $25.00 | $2.50 | $12.50 |
+
+Batch API is 50% off on both families. Evals are asynchronous and batchable, so
+batch is the correct rate for an eval pipeline. (gpt-5.3-codex is priced but was
+unreachable via the codex CLI on a ChatGPT account, so it has no measured tokens.)
+
+Measured cost per single-file eval (the largest file, MockBehaviorBase: 2193 clean
+input tokens; output tokens captured live). Human opportunity cost is the wall-clock
+wait priced at $384k/yr = $184/hr = $0.0511/sec:
+
+| model / effort | output tok | latency | token $ (std) | token $ (batch) | human $ (blocking) | all-in (blocking) |
+| :--- | :-- | :-- | :-- | :-- | :-- | :-- |
+| gpt-5.5 / high | 957 | 18s | $0.040 | $0.020 | $0.93 | **$0.96** |
+| opus-4-8 / medium | 965 | 20s | $0.035 | $0.018 | $1.00 | $1.04 |
+| gpt-5.5 / xhigh | 1298 | 19s | $0.050 | $0.025 | $0.98 | $1.03 |
+| opus-4-8 / high | 1284 | 20s | $0.043 | $0.022 | $1.03 | $1.07 |
+| opus-4-8 / xhigh | 2243 | 29s | $0.067 | $0.034 | $1.46 | $1.53 |
+| opus-4-8 / max | 4088 | 61s | $0.113 | $0.057 | $3.13 | $3.24 |
+| gpt-5.4 / xhigh | 5482 | 72s | $0.088 | $0.044 | $3.67 | $3.76 |
+
+**Token cost is noise; human wait time is the bill.** Every eval's token cost is a
+few cents (3.5 to 11 cents standard, half that batched). The human wait at $184/hr
+is **20x to 42x** the token cost in every row. If a person blocks on the result,
+you pay dollars in time for pennies in tokens.
+
+This flips the optimization target by scenario:
+
+- Human blocks on the result: minimize LATENCY, not tokens. gpt-5.5 is fast at any
+  effort (~18-20s, ~$1 all-in). Avoid the slow tail: gpt-5.4/xhigh and opus-4-8/max
+  both cost ~$3.2-3.8 all-in because they emit 4x the tokens AND take 3x the time,
+  for the same or worse score.
+- Async / batch pipeline (no human waiting): token cost is all that remains, and
+  it is pennies. opus-4-8/medium batched is the floor at ~$0.018/file. Pick on
+  quality, not price; the spread is noise.
+
+The trap is the per-token sticker price. gpt-5.5 costs 2x gpt-5.4 per token, yet
+gpt-5.5/xhigh is **3.6x cheaper all-in** than gpt-5.4/xhigh ($1.03 vs $3.76) for an
+identical 8/7/8 score, because it emits a quarter of the tokens and finishes 4x
+faster. What you pay is rate x tokens-emitted x (latency if blocking), not the rate
+on the price sheet.
+
+Caveats: one file, one sample per cell; output tokens vary per file and run. Costs
+use clean input (2193 tokens); driving through `claude -p`/`codex` adds ~16-18k
+tokens of harness context per call (~$0.08-0.09 input), still pennies. The Copilot
+seat subscription and the codex/Claude CLI subscriptions are separate fixed costs
+not modeled here; this is marginal per-eval cost.
+
 ## Takeaway
 
 - Stronger models do not just move the number; they change the finding type.
@@ -327,6 +386,13 @@ direction as real.
   richer findings, not a different score. The two knobs that actually change the
   verdict are model FAMILY (posture) and prompt RIGOR (bug-hunt vs rubric-only),
   not the version or effort dial.
+- Economics: the token bill is pennies; the human wait is the cost. At $184/hr a
+  blocking eval costs 20-42x its tokens in human time. So if a person waits,
+  minimize LATENCY (gpt-5.5 at any effort, ~$1 all-in) and avoid the slow tail
+  (gpt-5.4/xhigh, opus/max ~$3+). If it runs async/batched, only tokens remain and
+  they are noise (pick on quality). Ignore the per-token sticker price: gpt-5.5 is
+  2x gpt-5.4 per token but 3.6x cheaper all-in for the same score, because it emits
+  fewer tokens and finishes faster. Cost = rate x tokens-emitted x latency-if-blocking.
 
 ## #2710 limitation found (now fixed)
 
