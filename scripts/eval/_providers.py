@@ -31,6 +31,7 @@ no SDK and existing baselines do not move.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -126,6 +127,19 @@ def _normalize_and_raise(provider_label: str, exc: Exception) -> None:
     ) from exc
 
 
+# OpenAI reasoning models (o1/o3/o4 series, gpt-5 family) reject `max_tokens`
+# and a non-default `temperature` with HTTP 400; they require
+# `max_completion_tokens` and the provider's default temperature. Match by id,
+# tolerating a vendor prefix like "openai/". A new reasoning family is one more
+# alternative in this pattern, no other change.
+_REASONING_MODEL_RE = re.compile(r"^(?:[a-z0-9-]+/)?(?:o\d|gpt-5)", re.IGNORECASE)
+
+
+def _is_reasoning_model(model: str) -> bool:
+    """True for OpenAI reasoning models that need max_completion_tokens."""
+    return bool(_REASONING_MODEL_RE.match(model or ""))
+
+
 class _OpenAICompatibleProvider:
     """OpenAI Chat Completions transport. Backs both the OpenAI provider and
     the GitHub Models provider (GitHub Models mirrors the OpenAI API, differing
@@ -179,13 +193,16 @@ class _OpenAICompatibleProvider:
         if system:
             full_messages.append({"role": "system", "content": system})
         full_messages.extend(messages)
+        # Reasoning models reject max_tokens + custom temperature; send
+        # max_completion_tokens and omit temperature so o-series / gpt-5 work.
+        create_kwargs: dict[str, object] = {"model": model, "messages": full_messages}
+        if _is_reasoning_model(model):
+            create_kwargs["max_completion_tokens"] = max_tokens
+        else:
+            create_kwargs["max_tokens"] = max_tokens
+            create_kwargs["temperature"] = temperature
         try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=full_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
+            resp = client.chat.completions.create(**create_kwargs)
         except Exception as exc:  # noqa: BLE001 - normalize then re-raise
             _normalize_and_raise(self._provider_label, exc)
             raise  # unreachable; _normalize_and_raise always raises
