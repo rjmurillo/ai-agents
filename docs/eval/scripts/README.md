@@ -41,9 +41,15 @@ python3 analyze.py out/flagship.json \
   --pair opus-4-8/xhigh gpt-5.5/xhigh \
   --pair gpt-5.4/xhigh gpt-5.5/xhigh
 
-# Lesser / cheaper-tier models
+# Lesser / cheaper-tier models (xhigh)
 python3 run_sweep.py --configs configs/lesser_xhigh.json --out out/lesser.json
 python3 analyze.py out/flagship.json out/lesser.json   # combined ranking
+
+# Lesser-model effort sweep (sweet spot) + workflow cross-check configs
+python3 run_sweep.py --configs configs/lesser_effort.json --out out/lesser_effort.json
+python3 run_sweep.py --configs configs/crosscheck.json    --out out/crosscheck.json
+python3 analyze.py out/flagship.json out/lesser.json out/lesser_effort.json out/crosscheck.json \
+  --pair opus-4-8/high opus-4-8/xhigh --pair gpt-5.5/high gpt-5.5/xhigh
 
 # Within-family version sweep (Opus 4.8/4.7/4.6, codex 5.5/5.4)
 python3 run_sweep.py --configs configs/versions.json --out out/versions.json

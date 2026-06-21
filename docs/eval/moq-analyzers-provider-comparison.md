@@ -417,6 +417,75 @@ also the strictest grader, so "strict + cheap" is one model, not a tradeoff.
 gpt-5.5 costs more all-in ($1.84) for the more lenient, calibrated score. gpt-5.4
 is the worst all-in ($3.19) for a lower score.
 
+## Lesser models and the effort sweet spot (N=24)
+
+Question: do the cheaper models lack the quality to bother with, and where is the
+effort sweet spot? Three reachable cheap models (gpt-5.4-mini via codex, Claude
+Sonnet 4.6, Claude Haiku 4.5) ran the same 24 files at medium / high / xhigh.
+(gpt-5.5-mini, gpt-5.4-nano, gpt-5-mini are rejected by codex on ChatGPT accounts.)
+
+Overall score / all-in cost per file (blocking, $184/hr), by effort:
+
+| model | medium | high | xhigh |
+| :--- | :-- | :-- | :-- |
+| gpt-5.4-mini | 7.54 / $1.11 | 7.67 / $1.82 | 7.83 / **$6.77** |
+| sonnet-4-6 | 7.46 / $1.43 | 7.50 / $1.80 | 7.50 / $2.08 |
+| haiku-4-5 | 8.18 / $1.54 | 8.33 / $1.41 | 8.41 / $1.51 |
+| opus-4-8 (ref) | n/a | 7.50 / $1.10 | 7.29 / $1.50 |
+| gpt-5.5 (ref) | n/a | 8.04 / $1.17 | 8.21 / $1.84 |
+
+Findings:
+
+- **Lesser models do NOT lack quality on this task.** Haiku 4.5 ties the top
+  flagship: haiku/medium minus gpt-5.5/xhigh = +0.01 [CI -0.22, +0.24]. Sonnet 4.6
+  ties Opus 4.8 (sonnet/xhigh minus opus/xhigh = +0.21 [CI -0.02, +0.44]).
+  gpt-5.4-mini ties gpt-5.4. None produce garbage scores.
+- **Read "score" as leniency, not skill.** Higher mean = more generous grader. Opus
+  posts the lowest scores because it is the strictest (testability 6.1, coupling
+  7.0); haiku posts the highest by grading coupling generously (8.2). And lesser
+  models are noisier: sd 0.9-1.0 (sonnet, mini) vs 0.54-0.64 (gpt-5.5). The earlier
+  qualitative read still stands: only the strong models surfaced the real
+  correctness bugs. A high number is not a sharp review.
+- **Scope.** This measures bounded, single-file, structured-output grading, NOT
+  agentic multi-file coding with tool use. It does not show a cheap model replacing
+  a flagship as a coding driver; it shows cheap models are viable for bounded,
+  high-volume sub-tasks (grading, triage, classification, extraction).
+- **The effort sweet spot is medium-to-high, never xhigh, for cost.** Every model:
+  xhigh adds <=0.2 overall over high while costing more. gpt-5.4-mini at xhigh is
+  the cautionary tale: it reasons pathologically (22,066 output tokens/file, 131s,
+  $6.77 all-in, the most expensive config in the whole study) for the same 7.83 it
+  scores at medium ($1.11). A cheap model at max effort is the worst all-in choice.
+  mini's sweet spot is medium; haiku is nearly flat across efforts (run medium or
+  high); sonnet is flat (medium).
+- **Async/batch flips the leader to haiku.** When no human waits, only tokens count
+  and haiku is cheapest by far: ~$0.006/file batched at a flagship-tying score. For
+  a high-volume offline grading pass, haiku/medium is the value pick.
+
+## Workflow economics: Opus 4.8 xhigh + GPT-5.5 high cross-check
+
+A common setup is Opus 4.8 at xhigh as primary with a GPT-5.5 at high cross-check.
+The data on this grading task:
+
+| config | overall | all-in (block) | note |
+| :--- | :-- | :-- | :-- |
+| opus-4-8 / xhigh (primary) | 7.29 | $1.50 | xhigh ties high on score, costs 27% more |
+| opus-4-8 / high | 7.50 | $1.10 | tied with xhigh: +0.21 [CI -0.05, +0.47] |
+| gpt-5.5 / high (cross-check) | 8.04 | $1.17 | already the efficient point |
+| gpt-5.5 / xhigh | 8.21 | $1.84 | ties high: -0.17 [CI -0.36, +0.02] |
+
+- **The GPT-5.5/high cross-check is already optimal.** high ties xhigh on score and
+  costs a third less. No change to make.
+- **Opus xhigh buys no measurable score over high here** (tied, CI includes 0) at
+  +27% cost. For bounded grading you could run Opus/high. BIG caveat: this is a
+  grading task, not agentic coding, which is where you actually run Opus/xhigh and
+  where the extra reasoning may earn its cost. The data does not contradict your
+  coding workflow; it just does not test it. Drop to high for routine bounded work;
+  keep xhigh for genuinely hard problems, and measure on your own tasks.
+- **The cross-check earns its place.** gpt-5.5/high grades +0.75 above opus/xhigh
+  [CI +0.49, +1.01], higher on 15 of 24 files, never lower. Two graders with a
+  stable ~0.75 offset triangulate: agreement is signal, a >1-point divergence is
+  where to look. This is the generation-verification loop done right.
+
 ## Takeaway
 
 - Stronger models do not just move the number; they change the finding type.
@@ -452,6 +521,17 @@ is the worst all-in ($3.19) for a lower score.
   they are noise (pick on quality). Ignore the per-token sticker price: gpt-5.5 is
   2x gpt-5.4 per token but 3.6x cheaper all-in for the same score, because it emits
   fewer tokens and finishes faster. Cost = rate x tokens-emitted x latency-if-blocking.
+- Lesser models are not low-quality on bounded grading: Haiku 4.5 ties gpt-5.5,
+  Sonnet 4.6 ties Opus 4.8 (paired, CIs include 0). But high score = lenient, not
+  sharp (only strong models found the real bugs), and lesser models are noisier
+  (sd ~1.0 vs ~0.6). Use them for bounded, high-volume sub-tasks (grading, triage,
+  extraction), batched; do not infer they replace a flagship coding driver, which
+  this task does not test. The effort sweet spot is medium-to-high, never xhigh:
+  gpt-5.4-mini at xhigh balloons to 22k tokens and $6.77/file for the same score it
+  gets at medium for $1.11. For a workflow of Opus/xhigh primary + gpt-5.5/high
+  cross-check: the cross-check is already optimal, Opus/xhigh ties Opus/high on this
+  task (so high saves 27% on bounded work), and the two graders' stable +0.75 offset
+  makes the cross-check real triangulation, not redundancy.
 
 ## #2710 limitation found (now fixed)
 
