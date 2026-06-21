@@ -323,3 +323,63 @@ def test_read_env_key_raises_naming_candidates_when_absent(
 
     with pytest.raises(RuntimeError, match="ZZ_NOPE_ONE, ZZ_NOPE_TWO"):
         _providers._read_env_key(["ZZ_NOPE_ONE", "ZZ_NOPE_TWO"])
+
+
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("openai/gpt-5", True),
+        ("openai/gpt-5-mini", True),
+        ("gpt-5", True),
+        ("openai/o1", True),
+        ("openai/o3", True),
+        ("openai/o4-mini", True),
+        ("o3-mini", True),
+        ("openai/gpt-4o", False),
+        ("openai/gpt-4.1", False),
+        ("meta/llama-3.3-70b-instruct", False),
+        ("", False),
+    ],
+)
+def test_is_reasoning_model(model: str, expected: bool) -> None:
+    assert _providers._is_reasoning_model(model) is expected
+
+
+def test_reasoning_model_uses_max_completion_tokens_no_temperature(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[_FakeOpenAI] = []
+    original_init = _FakeOpenAI.__init__
+
+    def _record_init(self: _FakeOpenAI, **kwargs: object) -> None:
+        original_init(self, **kwargs)
+        captured.append(self)
+
+    monkeypatch.setattr(_FakeOpenAI, "__init__", _record_init)
+    provider = _providers.resolve_provider("openai")
+    provider.complete(messages=[{"role": "user", "content": "hi"}], model="openai/gpt-5", max_tokens=4000)
+
+    sent = captured[0].recorder[0]
+    assert sent["max_completion_tokens"] == 4000
+    assert "max_tokens" not in sent
+    assert "temperature" not in sent  # reasoning models reject a custom temperature
+
+
+def test_normal_model_keeps_max_tokens_and_temperature(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[_FakeOpenAI] = []
+    original_init = _FakeOpenAI.__init__
+
+    def _record_init(self: _FakeOpenAI, **kwargs: object) -> None:
+        original_init(self, **kwargs)
+        captured.append(self)
+
+    monkeypatch.setattr(_FakeOpenAI, "__init__", _record_init)
+    provider = _providers.resolve_provider("openai")
+    provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o", max_tokens=512, temperature=0.0)
+
+    sent = captured[0].recorder[0]
+    assert sent["max_tokens"] == 512
+    assert sent["temperature"] == 0.0
+    assert "max_completion_tokens" not in sent
