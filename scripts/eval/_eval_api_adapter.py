@@ -143,8 +143,12 @@ Transport = Callable[[str, str, str], str]
 
 
 def _default_transport_factory() -> Transport:
-    """Build the production transport. Reads the API key once, here, and
-    closes over it so callers never see the secret."""
+    """Build the production transport selected by EVAL_PROVIDER.
+
+    The default Anthropic urllib path reads ANTHROPIC_API_KEY once here and
+    closes over it. Non-default providers load their own credentials inside
+    their provider object, so this adapter never sees those secrets.
+    """
     # Provider selection (EVAL_PROVIDER). A non-default provider self-loads
     # its own credential, so do not require ANTHROPIC_API_KEY via
     # load_api_key(). Baseline and variant run on the SAME provider per call

@@ -67,12 +67,12 @@ jobs:
         # already uses), reachable as a reasoning model after #2712. The default
         # Anthropic transport is dead until the API budget resets 2026-07-01.
         # gpt-5 is the highest grader GitHub Models offers (no gpt-5.5 / Opus).
-        # CALIBRATION ROLLOUT: the scenarios' expected verdicts were authored for
-        # a Claude grader, so a cross-family grader may shift borderline verdicts.
-        # continue-on-error keeps a calibration mismatch from red-failing PRs
-        # while the gpt-5 verdicts are confirmed on live runs. The skip-net in
-        # eval-prompt-change.py still neutral-skips genuine provider outages.
-        # Flip continue-on-error off once calibration is validated.
+        # CALIBRATION ROLLOUT tracked by issue #2718. The scenarios' expected
+        # verdicts were authored for a Claude grader, so a cross-family grader
+        # may shift borderline verdicts. continue-on-error keeps calibration
+        # mismatch from red-failing PRs until live gpt-5 verdicts are confirmed.
+        # The skip-net in eval-prompt-change.py still neutral-skips genuine
+        # provider outages. Remove continue-on-error by 2026-07-08.
         continue-on-error: true
         if: |
           github.event_name == 'pull_request' &&

@@ -258,7 +258,7 @@ class _AnthropicSDKProvider:
         except ModuleNotFoundError as exc:  # pragma: no cover - env-dependent
             raise RuntimeError(
                 "The 'anthropic' package is required for the anthropic-sdk "
-                "provider. Install the eval extra: pip install -e '.[eval]'."
+                "provider. Install the project dependencies from pyproject.toml."
             ) from exc
         api_key = _read_env_key(["ANTHROPIC_API_KEY"])
         client = Anthropic(api_key=api_key, timeout=120.0, max_retries=0)
