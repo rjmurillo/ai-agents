@@ -23,8 +23,9 @@ import random
 import re
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Literal
 
 # Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI uses.
 from _anthropic_api import call_api, load_api_key
@@ -148,10 +149,12 @@ def _default_transport_factory() -> Transport:
     # its own credential, so do not require ANTHROPIC_API_KEY via
     # load_api_key(). Baseline and variant run on the SAME provider per call
     # (ADR-058 symmetry); temperature=0 is pinned for reproducibility.
-    provider = os.environ.get("EVAL_PROVIDER")
-    from _providers import is_default_anthropic
+    provider = os.environ.get("EVAL_PROVIDER", "").strip()
+    from _providers import is_default_anthropic, resolve_provider
 
     if provider and not is_default_anthropic(provider):
+        resolve_provider(provider)
+
         def _call_provider(prompt: str, model_id: str, system: str) -> str:
             return call_api(
                 api_key="",

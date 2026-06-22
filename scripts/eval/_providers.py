@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -70,9 +71,16 @@ def _read_env_key(names: list[str]) -> str:
         value = os.environ.get(name)
         if value:
             return value
-    # Repo-root .env fallback. The repo root is three parents up from this
-    # file: scripts/eval/_providers.py -> scripts/eval -> scripts -> root.
-    env_path = Path(__file__).resolve().parents[2] / ".env"
+    # Repo-root .env fallback. Mirror _anthropic_api.load_api_key's symlink
+    # defense so an attacker-controlled module path cannot redirect credential
+    # lookup outside the repository.
+    raw = Path(__file__)
+    if raw.is_symlink():
+        raise RuntimeError(
+            "API key load aborted: refusing to resolve symlinked module path "
+            "(CWE-22 defense)."
+        )
+    env_path = raw.resolve(strict=True).parents[2] / ".env"
     if env_path.is_file() and not env_path.is_symlink():
         for line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
             stripped = line.strip()
@@ -212,7 +220,11 @@ class _OpenAICompatibleProvider:
                 f"{self._provider_label} API returned no choices for model {model}."
             )
         content = choices[0].message.content
-        return content if isinstance(content, str) else ""
+        if not isinstance(content, str):
+            raise RuntimeError(
+                f"{self._provider_label} API returned non-text content for model {model}."
+            )
+        return content
 
 
 class _AnthropicSDKProvider:
@@ -287,7 +299,7 @@ def _make_anthropic_sdk() -> EvalProvider:
 
 # Open/Closed registry. New provider = new factory + one row here. Aliases let
 # callers spell the same provider a few intuitive ways.
-_REGISTRY: dict[str, callable] = {
+_REGISTRY: dict[str, Callable[[], EvalProvider]] = {
     "openai": _make_openai,
     "codex": _make_openai,
     "github": _make_github,

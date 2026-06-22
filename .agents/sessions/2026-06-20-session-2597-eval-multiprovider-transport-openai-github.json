@@ -84,7 +84,7 @@
    "serenaMemoryUpdated": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "decision memory for multiprovider transport to be written"
+    "Evidence": "Serena memory eval/eval-multiprovider-transport written with provider selection, credential loading, and error contract notes"
    },
    "markdownLintRun": {
     "level": "MUST",
@@ -120,7 +120,7 @@
    "evidence": "uv run pytest tests/eval/test_providers.py -q -> 26 passed; uv run pytest -k 'eval_api_adapter or anthropic or providers or eval_skill_overlap' -> 126 passed"
   }
  ],
- "endingCommit": "",
+ "endingCommit": "790e1ce0b83c7df1c7dcf72ff418a681972c74b2",
  "nextSteps": [
   "Live OpenAI/GitHub smoke after exporting OPENAI_API_KEY / GITHUB_TOKEN + pip install -e '.[eval]'",
   "Run a real SkillOpt eval via EVAL_PROVIDER=openai to unblock budget-exhausted evals"

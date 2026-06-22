@@ -74,17 +74,17 @@ def test_known_provider_names_includes_defaults_and_registry() -> None:
 
 
 class _FakeMessage:
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: object) -> None:
         self.content = content
 
 
 class _FakeChoice:
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: object) -> None:
         self.message = _FakeMessage(content)
 
 
 class _FakeResponse:
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: object) -> None:
         self.choices = [_FakeChoice(content)]
 
 
@@ -147,6 +147,20 @@ def test_openai_provider_returns_message_content(
     )
 
     assert result == "answer-for-gpt-4o"
+
+
+def test_openai_provider_raises_on_non_text_content(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _return_non_text(self: _FakeCompletions, **kwargs: object) -> _FakeResponse:
+        self._recorder.append(kwargs)
+        return _FakeResponse([{"type": "text", "text": "not chat text"}])
+
+    monkeypatch.setattr(_FakeCompletions, "create", _return_non_text)
+    provider = _providers.resolve_provider("openai")
+
+    with pytest.raises(RuntimeError, match="OpenAI API returned non-text content"):
+        provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
 
 
 def test_openai_provider_sets_timeout_and_disables_sdk_retries(
@@ -325,6 +339,33 @@ def test_read_env_key_raises_naming_candidates_when_absent(
         _providers._read_env_key(["ZZ_NOPE_ONE", "ZZ_NOPE_TWO"])
 
 
+def test_read_env_key_rejects_symlinked_module_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake_module = tmp_path / "_providers.py"
+    monkeypatch.setattr(_providers, "__file__", str(fake_module))
+    monkeypatch.delenv("ZZ_NOPE_ONE", raising=False)
+
+    original_is_symlink = Path.is_symlink
+
+    def _is_symlink(self: Path) -> bool:
+        return self == fake_module or original_is_symlink(self)
+
+    monkeypatch.setattr(Path, "is_symlink", _is_symlink)
+
+    with pytest.raises(RuntimeError, match="refusing to resolve symlinked module path"):
+        _providers._read_env_key(["ZZ_NOPE_ONE"])
+
+
+def test_default_transport_factory_validates_unknown_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVAL_PROVIDER", " bogus ")
+
+    with pytest.raises(RuntimeError, match="Unknown EVAL_PROVIDER 'bogus'"):
+        _eval_api_adapter._default_transport_factory()
+
+
 @pytest.mark.parametrize(
     "model,expected",
     [
@@ -357,7 +398,11 @@ def test_reasoning_model_uses_max_completion_tokens_no_temperature(
 
     monkeypatch.setattr(_FakeOpenAI, "__init__", _record_init)
     provider = _providers.resolve_provider("openai")
-    provider.complete(messages=[{"role": "user", "content": "hi"}], model="openai/gpt-5", max_tokens=4000)
+    provider.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model="openai/gpt-5",
+        max_tokens=4000,
+    )
 
     sent = captured[0].recorder[0]
     assert sent["max_completion_tokens"] == 4000
@@ -377,7 +422,12 @@ def test_normal_model_keeps_max_tokens_and_temperature(
 
     monkeypatch.setattr(_FakeOpenAI, "__init__", _record_init)
     provider = _providers.resolve_provider("openai")
-    provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o", max_tokens=512, temperature=0.0)
+    provider.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model="gpt-4o",
+        max_tokens=512,
+        temperature=0.0,
+    )
 
     sent = captured[0].recorder[0]
     assert sent["max_tokens"] == 512
