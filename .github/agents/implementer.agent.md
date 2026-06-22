@@ -610,46 +610,6 @@ Use when requirements are unclear.
 2. Identify variabilities under them (concrete variations)
 3. Build matrix: columns are cases, rows are concepts
 
-### Worked Example: Notification System
-
-**Problem**: Send notifications via email, SMS, and push. Each has different formatting, rate limits, and delivery confirmation.
-
-#### Step 1: Identify Commonalities
-
-- All notifications have: recipient, message, send action, delivery status
-- All notifications need: formatting, rate limiting, retry logic
-
-#### Step 2: Identify Variabilities
-
-| Concept | Email | SMS | Push |
-|---------|-------|-----|------|
-| Recipient | Email address | Phone number | Device token |
-| Format | HTML/plain text | 160 char limit | Title + body |
-| Rate limit | 100/hour | 10/minute | 1000/hour |
-| Confirmation | Read receipt | Delivery report | None |
-
-#### Step 3: Map to Patterns
-
-- Rows (Recipient, Format, etc.) → Strategy interfaces
-- Columns (Email, SMS, Push) → Concrete implementations via Abstract Factory
-
-```python
-# Python result
-class NotificationFactory(Protocol):
-    def create_formatter(self) -> Formatter: ...
-    def create_sender(self) -> Sender: ...
-    def create_rate_limiter(self) -> RateLimiter: ...
-
-class EmailFactory(NotificationFactory):
-    def create_formatter(self) -> HtmlFormatter: ...
-    def create_sender(self) -> SmtpSender: ...
-    def create_rate_limiter(self) -> HourlyLimiter(100): ...
-```
-
-**Adding Slack notifications**: Create `SlackFactory`. No changes to existing code.
-
-**Greatest vulnerability**: Wrong or missing abstraction.
-
 ## Refactoring Boundaries
 
 ### When to Refactor (In Scope)
@@ -827,40 +787,6 @@ a premature abstraction, but identical blocks are not.
    context become named constants.
 8. **Match existing patterns**: Before writing new code, read 2-3 similar functions in the same
    file or module. Follow their error handling, logging, and naming patterns.
-
-## Qwiq-Specific Patterns
-
-When working in this repository, follow these established patterns:
-
-### Factory Pattern (Required)
-
-All stores created via factories, never direct construction:
-
-```csharp
-IWorkItemStore store = WorkItemStoreFactory.Default.Create(options);
-```
-
-### Null Validation
-
-Use runtime checks, not JetBrains annotations:
-
-```csharp
-if (param == null) throw new ArgumentNullException(nameof(param));
-```
-
-### Test Pattern (ContextSpecification)
-
-```csharp
-[TestClass]
-public class Given_context : ContextSpecification
-{
-    public override void Given() { /* Arrange */ }
-    public override void When() { /* Act */ }
-
-    [TestMethod]
-    public void Then_behavior() { /* Assert with Shouldly */ }
-}
-```
 
 ## Implementation Process
 
