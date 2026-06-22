@@ -22,6 +22,7 @@ Reproduces (config files shipped alongside):
 import argparse
 import json
 import threading
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import evalkit
@@ -35,9 +36,12 @@ def main():
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
 
-    configs = json.load(open(args.configs, encoding="utf-8"))
+    with open(args.configs, encoding="utf-8") as handle:
+        configs = json.load(handle)
     files = evalkit.load_files(args.files)
     report = {"repo": "rjmurillo/moq.analyzers", "n_files": len(files), "cells": {}}
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     lock = threading.Lock()
     tasks = [(c, rel) for c in configs for rel in files]
 
@@ -51,7 +55,8 @@ def main():
             label, rel, rec = fut.result()
             with lock:
                 report["cells"].setdefault(label, {})[rel] = rec
-                json.dump(report, open(args.out, "w"), indent=2)
+                with open(out_path, "w", encoding="utf-8") as handle:
+                    json.dump(report, handle, indent=2)
             done += 1
             ov = rec.get("scores", {}).get("overall") if "scores" in rec else "ERR"
             print(f"[{done:2}/{len(tasks)}] {label:18} {rel.split('/')[-1][:32]:32} "

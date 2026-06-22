@@ -5,8 +5,6 @@ Deterministic: sorts by byte size and samples evenly across the range, so the
 sample spans 271 bytes to ~30 KB. Run from anywhere with MOQ_REPO set.
 """
 import json
-import os
-import subprocess
 from pathlib import Path
 
 import evalkit
@@ -16,11 +14,15 @@ N = 24
 
 def main():
     repo = evalkit.moq_repo()
-    found = subprocess.run(
-        ["bash", "-c",
-         "find src/Analyzers src/CodeFixes src/Common -name '*.cs' -not -name '*.g.cs'"],
-        cwd=repo, capture_output=True, text=True).stdout.split()
-    sized = sorted((len(open(os.path.join(repo, f), encoding="utf-8").read()), f) for f in found)
+    repo_path = Path(repo)
+    roots = [repo_path / "src" / name for name in ("Analyzers", "CodeFixes", "Common")]
+    found = [
+        path.relative_to(repo_path).as_posix()
+        for root in roots
+        for path in root.rglob("*.cs")
+        if not path.name.endswith(".g.cs")
+    ]
+    sized = sorted(((repo_path / f).stat().st_size, f) for f in found)
     idx = sorted(set(round(i * (len(sized) - 1) / (N - 1)) for i in range(N)))
     i = 0
     while len(idx) < N and i < len(sized):
@@ -29,7 +31,8 @@ def main():
         i += 1
     sel = [sized[i][1] for i in sorted(idx)[:N]]
     out = Path(__file__).resolve().parent / "eval_files24.json"
-    json.dump(sel, open(out, "w"), indent=0)
+    with open(out, "w", encoding="utf-8") as handle:
+        json.dump(sel, handle, indent=0)
     print(f"wrote {len(sel)} files to {out} (bytes {sized[idx[0]][0]}..{sized[idx[-1]][0]})")
 
 

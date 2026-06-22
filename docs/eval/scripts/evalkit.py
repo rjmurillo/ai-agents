@@ -64,7 +64,8 @@ def out_dir() -> Path:
 
 
 def load_files(path: str = FILES_DEFAULT) -> list[str]:
-    return json.load(open(path, encoding="utf-8"))
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 def input_tokens(code: str) -> int:
@@ -107,7 +108,11 @@ def run_codex(model: str, effort: str, code: str, msgfile: str):
             continue
         if isinstance(o, dict) and o.get("type") == "turn.completed":
             usage = o.get("usage", {})
-    msg = open(msgfile, encoding="utf-8").read() if os.path.exists(msgfile) else ""
+    if os.path.exists(msgfile):
+        with open(msgfile, encoding="utf-8") as handle:
+            msg = handle.read()
+    else:
+        msg = ""
     out_total = int(usage.get("output_tokens", 0)) + int(usage.get("reasoning_output_tokens", 0))
     return parse_scores(msg), {
         "out_total": out_total, "out_answer": usage.get("output_tokens"),
@@ -137,7 +142,8 @@ def run_claude(model: str, effort: str, code: str):
 def run_cell(transport: str, model: str, effort: str, rel: str, msg_prefix: str = "cell"):
     """One (model, file) cell with a single retry on the flaky empty-result.
     Returns a record dict with scores, token usage, in_clean, ms (or error)."""
-    code = open(os.path.join(moq_repo(), rel), encoding="utf-8").read()
+    with open(os.path.join(moq_repo(), rel), encoding="utf-8") as handle:
+        code = handle.read()
     in_clean = input_tokens(code) if _ENC else None
     safe = (msg_prefix + "_" + rel).replace("/", "_")
     last = None

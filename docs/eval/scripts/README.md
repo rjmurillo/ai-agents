@@ -13,8 +13,7 @@ Every table in that doc is reproducible from here.
   Both use subscription auth, which bypasses metered API budgets. That is the
   whole point: it is how the run continued while the `ANTHROPIC_API_KEY` budget
   was exhausted.
-- For the github-models table only: a token in `GITHUB_TOKEN` (a `gh auth token`
-  works).
+- For the github-models table only: set `GITHUB_TOKEN` or `GH_TOKEN` through your secret manager.
 - Output goes to `./out` by default; override with `export EVAL_OUT=...`.
 
 ## Files

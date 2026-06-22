@@ -6,7 +6,7 @@ doc's first section. Uses the github-models gateway (an OpenAI-compatible endpoi
 reachable with a GitHub token), so one transport reaches many vendors.
 
 Prereqs: `pip install openai`, and a token in GITHUB_TOKEN / GH_TOKEN (a
-`gh auth token` works). Imports the harness from ../../scripts/eval.
+`gh auth token` works). Imports the harness from the repository scripts/eval directory.
 """
 import json
 import os
@@ -17,7 +17,7 @@ from pathlib import Path
 import evalkit
 
 # Import the #2710 transport from the repo's eval harness.
-HARNESS = Path(__file__).resolve().parents[2] / "scripts" / "eval"
+HARNESS = Path(__file__).resolve().parents[3] / "scripts" / "eval"
 sys.path.insert(0, str(HARNESS))
 import _providers  # noqa: E402
 
@@ -32,13 +32,17 @@ MODELS = [
 
 
 def main():
-    os.environ.setdefault("GITHUB_TOKEN", os.popen("gh auth token").read().strip())
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not token:
+        raise SystemExit("Set GITHUB_TOKEN or GH_TOKEN before running github-models evals")
+    os.environ["GITHUB_TOKEN"] = token
     repo = evalkit.moq_repo()
     files = evalkit.load_files()
     provider = _providers.resolve_provider("github")
     report = {"repo": "rjmurillo/moq.analyzers", "transport": "github-models", "files": {}}
     for rel in files:
-        code = open(os.path.join(repo, rel), encoding="utf-8").read()
+        with open(os.path.join(repo, rel), encoding="utf-8") as handle:
+            code = handle.read()
         report["files"][rel] = {}
         for model in MODELS:
             t = time.monotonic()
@@ -57,7 +61,8 @@ def main():
             print(f"  {rel.split('/')[-1][:32]:32} {model:32} ov={ov} ({rec['ms'] / 1000:.1f}s)", flush=True)
             time.sleep(1.5)  # gentle pacing for github-models rate limits
     out = evalkit.out_dir() / "github_comparison.json"
-    json.dump(report, open(out, "w"), indent=2)
+    with open(out, "w", encoding="utf-8") as handle:
+        json.dump(report, handle, indent=2)
     print("\nsaved " + str(out))
 
 

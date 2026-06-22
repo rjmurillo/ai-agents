@@ -1,13 +1,6 @@
-<!-- Eval artifact generated 2026-06-21. Cross-provider comparison of the
-code-qualities-assessment skill on rjmurillo/moq.analyzers via the #2710
-EVAL_PROVIDER transports. Tools checked in under scripts/ (see scripts/README.md). -->
-
 # Cross-provider eval comparison: code-qualities-assessment on moq.analyzers
 
-Ran the `code-qualities-assessment` skill rubric (5 qualities, 1-10) on 3
-representative `rjmurillo/moq.analyzers` source files through the EVAL_PROVIDER
-transports shipped in ai-agents PR #2710. Same system rubric + same code per
-provider; scores diffed.
+This document records a cross-provider comparison of the `code-qualities-assessment` skill on `rjmurillo/moq.analyzers`. The run used the same rubric and code input for each provider, then compared the resulting scores.
 
 Files: `src/Common/MockDetectionHelpers.cs`,
 `src/Analyzers/MockBehaviorDiagnosticAnalyzerBase.cs`,
@@ -92,8 +85,8 @@ table below to a command. This first table (multi-vendor via github-models, the 
 PR #2710):
 
 ```bash
-export MOQ_REPO=~/src/moq.analyzers          # a checkout of rjmurillo/moq.analyzers
-export GITHUB_TOKEN="$(gh auth token)"
+export MOQ_REPO=~/src/moq.analyzers          # checkout of rjmurillo/moq.analyzers
+export GITHUB_TOKEN=...                      # provide via your secret manager
 pip install openai tiktoken
 python3 scripts/run_github_comparison.py     # 24 files x github-models vendors
 ```
@@ -135,8 +128,7 @@ because it catches what they averaged over:
   duplicated across `IsValidMockOfInvocation`/`IsValidMockInvocation` (gpt-4o
   rated this file's non-redundancy **9**; Opus **5**).
 - Names the testability ceiling precisely: which methods need real Roslyn
-  `OperationAnalysisContext`/`CompilationStartAnalysisContext` vs which are unit-
-  testable in isolation.
+  `OperationAnalysisContext`/`CompilationStartAnalysisContext` vs which are unit-testable in isolation.
 - New findings nobody else raised: the null-forgiving `knownSymbols.MockBehavior!`
   repeated across four methods (a non-null invariant leaked to callers); an
   asymmetric delegate-constructor guard in the fixer (a latent correctness bug);
@@ -306,10 +298,7 @@ direction as real.
 
 ## Token economics
 
-Pricing basis (verified 2026-06-21 against three sources that agree to the dollar:
-GitHub Copilot models-and-pricing, OpenAI API pricing, Anthropic API pricing).
-Copilot resells at the model providers' direct per-token rates, no markup. All per
-1M tokens, standard tier:
+Pricing basis: point-in-time public rates gathered on 2026-06-21 from GitHub Copilot model pricing, OpenAI API pricing, and Anthropic API pricing. Treat these numbers as volatile and re-check before making budget decisions. All per 1M tokens, standard tier:
 
 | model | input | output | batch input | batch output |
 | :--- | :-- | :-- | :-- | :-- |
