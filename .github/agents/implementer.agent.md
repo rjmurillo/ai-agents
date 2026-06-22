@@ -21,6 +21,8 @@ tools:
   - serena/*
 model: claude-opus-4.5
 tier: builder
+# Implements code in an isolated workspace with tool access and branch-local state.
+isolation_required: true
 ---
 # Implementer Agent
 
@@ -196,7 +198,7 @@ Before starting work, ask:
 ### Before Estimating
 
 1. **Write down the overall approach** first
-2. **Explore the code**, read documentation, read memories. Use `/context-gather` skill
+2. **Explore the code**, read documentation, read memories. Use the `context-gather` skill
 3. **Break down the task** into steps, update TODO list so you don't lose track
 4. **Find similar tasks** in same domain or involving similar technologies
 
@@ -742,22 +744,22 @@ Any of these means you are near the limit. Do not push through. Checkpoint.
 
 ### Performance
 
-- Minimize allocations. Use `ArrayPool<T>`, `Span<T>`, stackalloc
-- Favor SIMD and hardware intrinsics where beneficial. Fall back to software
-- Start with `Vector256`, fall back to `Vector128`, then scalar
-- Optimize for branch prediction
-- ARM64: Set `ThreadPool_UnfairSemaphoreSpinLimit=0`, enable Server GC
+- Follow the repo's language-specific performance rules for the files being changed.
+- Prefer fewer allocations and fewer copies in hot paths; use the runtime's idiomatic tools.
+- Optimize only after measuring or when the code is already on a known hot path.
+- Keep fallback behavior correct when a runtime-specific optimization is unavailable.
 
 ### Testing
 
-- Provide xUnit tests for ALL code
-- Use Moq for mocking
+- Provide framework-appropriate tests for all changed behavior.
+- Use the repo-standard test framework for the language being changed.
+- Mock only at I/O and process boundaries, using the language's idiomatic mock tools.
 - If code is hard to test, identify why: poor encapsulation, tight coupling, Law of Demeter violation
-- 100% test coverage
+- Meet the repo's coverage policy for the code category.
 
 ### Style
 
-- Follow .NET Runtime EditorConfig
+- Follow project-specific style guides, `.editorconfig`, and the matching language rule file.
 - Cyclomatic complexity 10 or less
 - Methods under 60 lines
 - No nested code
@@ -805,7 +807,7 @@ a premature abstraction, but identical blocks are not.
 - [ ] Implement per plan task order
 - [ ] Write tests alongside code (TDD preferred)
 - [ ] Commit atomically with conventional messages
-- [ ] Run `dotnet format` after changes
+- [ ] Run the repo-standard formatter or lint fixer after changes
 - [ ] Run build after each significant change
 ```
 
@@ -865,20 +867,20 @@ Run through sequentially. Stop at first failure.
 
 **Total: 13 items. All must pass.**
 
-### Quick Validation Command
+### Quick Validation Commands
 
 ```bash
-# Run this before committing
+# C#/.NET
 dotnet build && dotnet test && dotnet format --verify-no-changes
 ```
 
 ```powershell
-# PowerShell equivalent
-dotnet build; if ($LASTEXITCODE -eq 0) { dotnet test }; if ($LASTEXITCODE -eq 0) { dotnet format --verify-no-changes }
+# PowerShell
+Invoke-Pester
 ```
 
 ```bash
-# Python equivalent
+# Python
 python -m pytest && python -m mypy . && python -m ruff check .
 ```
 
@@ -901,8 +903,8 @@ Before handing off, validate ALL items in the applicable checklist:
 
 ```markdown
 - [ ] All plan tasks implemented or explicitly deferred with rationale
-- [ ] All tests pass (`dotnet test` exits 0)
-- [ ] Build succeeds (`dotnet build` exits 0)
+- [ ] All language-appropriate tests pass (test command exits 0)
+- [ ] Build, lint, or type-check succeeds where applicable (command exits 0)
 - [ ] Commits made with conventional message format
 - [ ] Security flagging completed (YES/NO with justification)
 - [ ] Implementation notes documented (if complex changes)
