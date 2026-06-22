@@ -55,7 +55,7 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 ## Agent Capability Matrix
 
-Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, `haiku` for lightweight operations. The Model column below is authoritative.
+Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, `haiku` for lightweight operations. The Model column below is authoritative. Pair the tier with a reasoning effort and a cost posture per the Model, Effort, and Cost Routing section below.
 
 | Agent | Use For | Model | Avoid When |
 |-------|---------|-------|-----------|
@@ -77,6 +77,15 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 | **security** | Threat modeling, vulnerability review | opus | Pure performance work |
 | **skillbook** | Capture learnings as reusable skills | sonnet | One-off insights |
 | **task-decomposer** | Plan → atomic tasks | sonnet | Plan still vague |
+
+## Model, Effort, and Cost Routing
+
+**Use the flagship for almost all interactive work.** Route implementation, design, investigation, and build-loop work to the strongest model. Do not add model-routing complexity to interactive sessions. Human wait time dominates token cost by 20-40x. In the 24-file cross-provider study, the flagship was the cheapest all-in choice for blocking work. It was also the fastest and least verbose. Weaker models create review and fix-up costs that exceed token savings.
+
+- **Lesser models: almost never, and never interactively.** Use them only for large async batches of bounded, structured tasks. Examples: grading, triage, classification, and extraction. No human should wait on any single result. Validate quality on a sample first. Default everything else to the flagship.
+- **Effort is a latency dial, not a quality dial.** Raising effort past high rarely changed quality. The observed gain was <=0.2 on a 10-point rubric. Latency rose 1.5-2.4x. Default to high effort. Reserve xhigh or max for hard, one-way-door problems. Never put a cheap model at max effort. One mini model cost $6.77 per file at xhigh, versus $1.11 at medium for the same score.
+- **Optimize the dimension that actually costs.** When a human blocks on the result, latency dominates. Parallelize independent routes and prefer fast flagship models. Token cost matters only for fully async batch work. Only there do cheaper models earn a look.
+- **Verify across families, not within.** Different model families can grade with a stable offset. One family was about one point stricter in the study. For verification and critic routes, cross-check with a different family than the producer. Same-family self-review is the weakest check.
 
 ## Routing Algorithm
 
@@ -281,7 +290,11 @@ Investigation tools (WebSearch, WebFetch) are intentionally not included. If a t
 |-------|-----|---------|
 | Delegating blind (no context in handoff) | Agent fails or produces wrong output | Include context, constraints, format |
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
-| Routing everything through opus agents | Burns tokens on simple tasks | Use sonnet/haiku where complexity allows |
+| Cheaper model on open-ended work to save tokens | Worse output; human fix-up time dwarfs the token savings | Default to the flagship; cost-route only batched bounded sub-tasks |
+| Opus for truly trivial single-step ops | Spends a flagship on a one-liner | Use a lighter tier for trivial ops and batched fan-out |
+| Defaulting to xhigh/max effort | Burns latency and tokens for <=0.2 quality gain | Default high; reserve max for hard one-way doors |
+| Cheap model at max effort | Costs more all-in than a flagship, for worse output | Match effort to tier: light at low/med, flagship for hard reasoning |
+| Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when parallel works | Wastes wall clock | Parallelize independent subtasks |
 | Skipping classification | Routes to wrong specialist | Always triage first |
 | Implementing yourself | You are not the builder | Delegate to implementer |
