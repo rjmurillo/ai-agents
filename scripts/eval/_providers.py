@@ -21,11 +21,12 @@ Cross-provider symmetry (ADR-058 "Experimental Design Symmetry"): a single
 eval invocation runs the baseline and the variant through ONE provider. Scores
 from different providers are not comparable; re-baseline per provider.
 
-SDK dependency: OpenAI and GitHub Models use the `openai` package; the optional
-Anthropic-SDK provider uses `anthropic`. Both live in the `eval` optional
-extra (`pip install -e '.[eval]'`). The default `anthropic` provider stays on
-the dependency-free urllib path in `_anthropic_api`, so the default eval needs
-no SDK and existing baselines do not move.
+SDK dependency: OpenAI and GitHub Models use the `openai` package from the
+`eval` optional extra (`pip install -e '.[eval]'`). The optional Anthropic-SDK
+provider uses the repository's core `anthropic` dependency. The default
+`anthropic` provider stays on the dependency-free urllib path in
+`_anthropic_api`, so the default eval needs no SDK and existing baselines do not
+move.
 """
 
 from __future__ import annotations
@@ -70,7 +71,7 @@ def _read_env_key(names: list[str]) -> str:
     for name in names:
         value = os.environ.get(name)
         if value:
-            return value
+            return value.strip()
     # Repo-root .env fallback. Mirror _anthropic_api.load_api_key's symlink
     # defense so an attacker-controlled module path cannot redirect credential
     # lookup outside the repository.
@@ -88,7 +89,12 @@ def _read_env_key(names: list[str]) -> str:
                 continue
             key, _, val = stripped.partition("=")
             if key.strip() in names:
-                resolved = val.strip().strip('"').strip("'")
+                resolved = val.strip()
+                if len(resolved) >= 2 and resolved[0] == resolved[-1] and resolved[0] in (
+                    '"',
+                    "'",
+                ):
+                    resolved = resolved[1:-1]
                 if resolved:
                     return resolved
     raise RuntimeError(
@@ -319,7 +325,7 @@ def is_default_anthropic(name: str | None) -> bool:
 
 def known_provider_names() -> list[str]:
     """Sorted list of every selectable provider name (for --help / errors)."""
-    return sorted(DEFAULT_ANTHROPIC_NAMES | set(_REGISTRY))
+    return sorted((DEFAULT_ANTHROPIC_NAMES - {""}) | set(_REGISTRY))
 
 
 def resolve_provider(name: str | None = None) -> EvalProvider:

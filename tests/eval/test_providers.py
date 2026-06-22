@@ -324,9 +324,32 @@ def test_call_api_anthropic_name_uses_urllib(
 
 
 def test_read_env_key_returns_first_present(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PRIMARY_KEY", "primary-value")
+    monkeypatch.setenv("PRIMARY_KEY", " primary-value\n")
 
     assert _providers._read_env_key(["PRIMARY_KEY", "FALLBACK_KEY"]) == "primary-value"
+
+
+def test_read_env_key_strips_only_matching_env_file_quotes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake_module = tmp_path / "repo" / "scripts" / "eval" / "_providers.py"
+    fake_module.parent.mkdir(parents=True)
+    fake_module.write_text("# fake", encoding="utf-8")
+    repo_root = fake_module.parents[2]
+    (repo_root / ".env").write_text(
+        "MATCHED=\"matched-value\"\n"
+        "LEADING='keeps-leading-double-quote\n"
+        "TRAILING=keeps-trailing-single-quote'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(_providers, "__file__", str(fake_module))
+    monkeypatch.delenv("MATCHED", raising=False)
+    monkeypatch.delenv("LEADING", raising=False)
+    monkeypatch.delenv("TRAILING", raising=False)
+
+    assert _providers._read_env_key(["MATCHED"]) == "matched-value"
+    assert _providers._read_env_key(["LEADING"]) == "'keeps-leading-double-quote"
+    assert _providers._read_env_key(["TRAILING"]) == "keeps-trailing-single-quote'"
 
 
 def test_read_env_key_raises_naming_candidates_when_absent(
@@ -364,6 +387,46 @@ def test_default_transport_factory_validates_unknown_provider(
 
     with pytest.raises(RuntimeError, match="Unknown EVAL_PROVIDER 'bogus'"):
         _eval_api_adapter._default_transport_factory()
+
+
+def test_known_provider_names_omits_empty_default_alias() -> None:
+    assert "" not in _providers.known_provider_names()
+
+
+def test_default_transport_factory_closes_over_resolved_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, object] = {}
+
+    class _Stub:
+        name = "openai"
+
+        def complete(self, **kwargs: object) -> str:
+            seen.update(kwargs)
+            return "direct"
+
+    def _should_not_call_api(**_: object) -> str:
+        raise AssertionError("default provider transport must not re-enter call_api")
+
+    monkeypatch.setenv("EVAL_PROVIDER", " openai ")
+    monkeypatch.setattr(_eval_api_adapter, "call_api", _should_not_call_api)
+    monkeypatch.setattr(
+        sys.modules["_providers"],
+        "resolve_provider",
+        lambda name: _Stub(),
+    )
+
+    transport = _eval_api_adapter._default_transport_factory()
+    result = transport("prompt", "gpt-4o", "system")
+
+    assert result == "direct"
+    assert seen == {
+        "messages": [{"role": "user", "content": "prompt"}],
+        "system": "system",
+        "model": "gpt-4o",
+        "max_tokens": 1024,
+        "temperature": 0.0,
+    }
 
 
 @pytest.mark.parametrize(

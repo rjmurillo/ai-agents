@@ -153,16 +153,15 @@ def _default_transport_factory() -> Transport:
     from _providers import is_default_anthropic, resolve_provider
 
     if provider and not is_default_anthropic(provider):
-        resolve_provider(provider)
+        selected_provider = resolve_provider(provider)
 
         def _call_provider(prompt: str, model_id: str, system: str) -> str:
-            return call_api(
-                api_key="",
+            return selected_provider.complete(
                 messages=[{"role": "user", "content": prompt}],
                 system=system,
                 model=model_id,
+                max_tokens=1024,
                 temperature=0.0,
-                provider=provider,
             )
 
         return _call_provider
