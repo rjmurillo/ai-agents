@@ -55,7 +55,7 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 ## Agent Capability Matrix
 
-Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, `haiku` for lightweight operations. The Model column below is authoritative.
+Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, `haiku` for lightweight operations. The Model column below is authoritative. Pair the tier with a reasoning effort and a cost posture per the Model, Effort, and Cost Routing section below.
 
 | Agent | Use For | Model | Avoid When |
 |-------|---------|-------|-----------|
@@ -77,6 +77,15 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 | **security** | Threat modeling, vulnerability review | opus | Pure performance work |
 | **skillbook** | Capture learnings as reusable skills | sonnet | One-off insights |
 | **task-decomposer** | Plan → atomic tasks | sonnet | Plan still vague |
+
+## Model, Effort, and Cost Routing
+
+**Use the flagship for essentially all interactive work.** Implementation, design, investigation, the build loop: route to the strong model and do not model-route in interactive sessions. Human time dominates cost 20-40x the tokens, and in a 24-file cross-provider study the flagship was both the best grader and the cheapest all-in for blocking work, because it was fastest and least verbose (`docs/eval/moq-analyzers-provider-comparison.md`). Sending real work to a weaker model to save tokens is a false economy: the worse output and the human time to fix it cost far more than the model. Model-picking complexity is not worth it for the driver.
+
+- **Lesser models: almost never, and never in an interactive session.** The one case that can pay is a large ASYNC BATCH fan-out of well-specified, bounded, structured-output sub-tasks (grading, triage, classification, extraction) where no human waits on any single result and the volume makes token cost the dominant term. The study found lightweight models matched flagships only on that bounded grading shape, not on design or ambiguous implementation, and a high score from a lenient model is not a sharp judgment. Even for batch, validate quality on a sample before trusting it. Default everything else to the flagship.
+- **Effort is a latency dial, not a quality dial.** Where the platform exposes reasoning effort (Claude `--effort`, codex `model_reasoning_effort`), raising it past `high` rarely changed output quality (<=0.2 on a 10-point rubric) while latency rose 1.5-2.4x. Default `high`; reserve `xhigh`/`max` for genuinely hard, one-way-door problems. Never put a cheap model at max effort: a mini model at `xhigh` ballooned to 22k tokens and ~$6.77/file versus ~$1.11 at `medium` for the same score, costing more all-in than a flagship.
+- **Optimize the dimension that actually costs.** When a human blocks on the result, latency dominates: parallelize independent routes and prefer fast models. Only when work is fully async and batched do tokens become the dominant cost, and only there do cheaper models earn a look.
+- **Verify across families, not within.** Different model families grade with a stable systematic offset (one ran ~1 point stricter than another, consistently). For verification and critic routes, cross-check with a different family than produced the work: a stable offset makes agreement meaningful and a large divergence a flag. Same-family self-review is the weakest check.
 
 ## Routing Algorithm
 
@@ -281,7 +290,11 @@ Investigation tools (WebSearch, WebFetch) are intentionally not included. If a t
 |-------|-----|---------|
 | Delegating blind (no context in handoff) | Agent fails or produces wrong output | Include context, constraints, format |
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
-| Routing everything through opus agents | Burns tokens on simple tasks | Use sonnet/haiku where complexity allows |
+| Cheaper model on open-ended work to save tokens | Worse output; human fix-up time dwarfs the token savings | Default to the flagship; cost-route only batched bounded sub-tasks |
+| Opus for truly trivial single-step ops | Spends a flagship on a one-liner | Use a lighter tier for trivial ops and batched fan-out |
+| Defaulting to xhigh/max effort | Burns latency and tokens for <=0.2 quality gain | Default high; reserve max for hard one-way doors |
+| Cheap model at max effort | Costs more all-in than a flagship, for worse output | Match effort to tier: light at low/med, flagship for hard reasoning |
+| Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when parallel works | Wastes wall clock | Parallelize independent subtasks |
 | Skipping classification | Routes to wrong specialist | Always triage first |
 | Implementing yourself | You are not the builder | Delegate to implementer |

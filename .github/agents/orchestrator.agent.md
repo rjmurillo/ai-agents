@@ -241,6 +241,15 @@ runSubagent(agentName: "[agent]", description: "[3-5 words]", prompt: "[detailed
 | **retrospective** | Extract learnings | Post-project analysis | Analysis only |
 | **skillbook** | Pattern management | Store/retrieve proven strategies | Metadata only |
 
+## Model, Effort, and Cost Routing
+
+**Use the flagship for essentially all interactive work.** Implementation, design, investigation, the build loop: route to the strong model and do not model-route in interactive sessions. Human time dominates cost 20-40x the tokens, and in a 24-file cross-provider study the flagship was both the best grader and the cheapest all-in for blocking work, because it was fastest and least verbose (`docs/eval/moq-analyzers-provider-comparison.md`). Sending real work to a weaker model to save tokens is a false economy: the worse output and the human time to fix it cost far more than the model. Model-picking complexity is not worth it for the driver.
+
+- **Lesser models: almost never, and never in an interactive session.** The one case that can pay is a large ASYNC BATCH fan-out of well-specified, bounded, structured-output sub-tasks (grading, triage, classification, extraction) where no human waits on any single result and the volume makes token cost the dominant term. The study found lightweight models matched flagships only on that bounded grading shape, not on design or ambiguous implementation, and a high score from a lenient model is not a sharp judgment. Even for batch, validate quality on a sample before trusting it. Default everything else to the flagship.
+- **Effort is a latency dial, not a quality dial.** Where the platform exposes reasoning effort (Claude `--effort`, codex `model_reasoning_effort`), raising it past `high` rarely changed output quality (<=0.2 on a 10-point rubric) while latency rose 1.5-2.4x. Default `high`; reserve `xhigh`/`max` for genuinely hard, one-way-door problems. Never put a cheap model at max effort: a mini model at `xhigh` ballooned to 22k tokens and ~$6.77/file versus ~$1.11 at `medium` for the same score, costing more all-in than a flagship.
+- **Optimize the dimension that actually costs.** When a human blocks on the result, latency dominates: parallelize independent routes and prefer fast models. Only when work is fully async and batched do tokens become the dominant cost, and only there do cheaper models earn a look.
+- **Verify across families, not within.** Different model families grade with a stable systematic offset (one ran ~1 point stricter than another, consistently). For verification and critic routes, cross-check with a different family than produced the work: a stable offset makes agreement meaningful and a large divergence a flag. Same-family self-review is the weakest check.
+
 ## Expected Orchestration Scenarios
 
 These scenarios are normal and require continuation, not apology:
