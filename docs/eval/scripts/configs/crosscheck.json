@@ -1,0 +1,4 @@
+[
+  {"label": "gpt-5.5/high",  "transport": "codex",  "model": "gpt-5.5",         "effort": "high"},
+  {"label": "opus-4-8/high", "transport": "claude", "model": "claude-opus-4-8", "effort": "high"}
+]

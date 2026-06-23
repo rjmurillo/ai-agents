@@ -1,0 +1,8 @@
+[
+  {"label": "gpt-5.4-mini/medium", "transport": "codex",  "model": "gpt-5.4-mini",      "effort": "medium"},
+  {"label": "gpt-5.4-mini/high",   "transport": "codex",  "model": "gpt-5.4-mini",      "effort": "high"},
+  {"label": "sonnet-4-6/medium",   "transport": "claude", "model": "claude-sonnet-4-6", "effort": "medium"},
+  {"label": "sonnet-4-6/high",     "transport": "claude", "model": "claude-sonnet-4-6", "effort": "high"},
+  {"label": "haiku-4-5/medium",    "transport": "claude", "model": "claude-haiku-4-5",  "effort": "medium"},
+  {"label": "haiku-4-5/high",      "transport": "claude", "model": "claude-haiku-4-5",  "effort": "high"}
+]
