@@ -406,6 +406,7 @@ def _run_act_stage(
     the container does not block an otherwise valid push.
     """
     env = _act_env(repo_root)
+    warnings: list[str] = []
     for wf in files:
         event = _select_act_event(repo_root / wf)
         cmd = [*base_cmd]
@@ -416,15 +417,14 @@ def _run_act_stage(
         if rc != 0:
             combined = (out + err).strip()
             if _GIT_REPO_MISSING_PATTERN in combined:
-                return StageResult(
-                    stage,
-                    True,
+                warnings.append(
                     f"[WARN] {wf}: act container lacks .git; git-calling actions "
                     f"(e.g. dorny/paths-filter) fail only in local act, not in "
-                    f"CI. Set {_BYPASS_ENV}=true to silence.",
+                    f"CI. Set {_BYPASS_ENV}=true to silence."
                 )
+                continue
             return StageResult(stage, False, f"{wf}:\n{combined[:4000]}")
-    return StageResult(stage, True)
+    return StageResult(stage, True, "\n".join(warnings))
 
 
 def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:

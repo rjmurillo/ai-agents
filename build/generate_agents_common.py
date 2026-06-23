@@ -140,13 +140,46 @@ def _strip_inline_comment(value: str) -> str:
     """
     if not value:
         return value
-    if value[0] in "'\"":
-        closing = value.find(value[0], 1)
-        return value[: closing + 1] if closing != -1 else value
-    if value[0] == "[":
-        closing = value.rfind("]")
-        return value[: closing + 1] if closing != -1 else value
-    return re.sub(r"\s+#.*$", "", value)
+
+    in_single = False
+    in_double = False
+    escaped = False
+    bracket_depth = 0
+
+    for index, char in enumerate(value):
+        if escaped:
+            escaped = False
+            continue
+
+        if in_double and char == "\\":
+            escaped = True
+            continue
+
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+
+        if in_single or in_double:
+            continue
+
+        if char == "[":
+            bracket_depth += 1
+            continue
+
+        if char == "]":
+            bracket_depth = max(0, bracket_depth - 1)
+            continue
+
+        if char == "#" and bracket_depth == 0 and (
+            index == 0 or value[index - 1].isspace()
+        ):
+            return value[:index].rstrip()
+
+    return value
 
 
 def _format_inline_array(items: list[str]) -> str:

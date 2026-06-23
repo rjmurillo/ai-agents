@@ -184,6 +184,21 @@ class TestParseSimpleFrontmatter:
         result = parse_simple_frontmatter(raw)
         assert result["tools"] == "['read', 'edit']"
 
+    def test_inline_array_comment_can_contain_closing_bracket(self) -> None:
+        raw = "tools: ['read', 'edit'] # comment with ]"
+        result = parse_simple_frontmatter(raw)
+        assert result["tools"] == "['read', 'edit']"
+
+    def test_escaped_quote_keeps_hash_inside_double_quoted_value(self) -> None:
+        raw = r'description: "true \" # still data" # trailing comment'
+        result = parse_simple_frontmatter(raw)
+        assert result["description"] == r'true \" # still data'
+
+    def test_comment_only_value_is_null(self) -> None:
+        raw = "model: # rationale"
+        result = parse_simple_frontmatter(raw)
+        assert result["model"] is None
+
 
 class TestConvertFrontmatterForPlatform:
     """Tests for convert_frontmatter_for_platform."""

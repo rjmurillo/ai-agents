@@ -668,6 +668,51 @@ def test_act_dryrun_downgrades_git_missing_to_warning(monkeypatch, tmp_path):
     assert "[WARN]" in res.detail
 
 
+def test_act_full_keeps_checking_after_git_missing_warning(monkeypatch, tmp_path):
+    first = tmp_path / "first.yml"
+    second = tmp_path / "second.yml"
+    first.write_text("name: first\non: push\njobs: {}\n", encoding="utf-8")
+    second.write_text("name: second\non: push\njobs: {}\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(cmd)
+        if cmd[-1] == first.name:
+            return 1, "", "fatal: not a git repository: (null)"
+        return 1, "", "Error: job 'build' exited 2"
+
+    monkeypatch.setattr(w, "_run", fake_run)
+
+    res = w._act_full_stage([first.name, second.name], tmp_path)
+
+    assert res.ok is False
+    assert "job 'build' exited 2" in res.detail
+    assert [cmd[-1] for cmd in calls] == [first.name, second.name]
+
+
+def test_act_full_reports_all_git_missing_warnings(monkeypatch, tmp_path):
+    first = tmp_path / "first.yml"
+    second = tmp_path / "second.yml"
+    first.write_text("name: first\non: push\njobs: {}\n", encoding="utf-8")
+    second.write_text("name: second\non: push\njobs: {}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            "",
+            "fatal: not a git repository: (null)",
+        ),
+    )
+
+    res = w._act_full_stage([first.name, second.name], tmp_path)
+
+    assert res.ok is True
+    assert first.name in res.detail
+    assert second.name in res.detail
+
+
 def test_format_text_surfaces_warning_detail_on_ok() -> None:
     report = w.Report(
         exit_code=0,
