@@ -101,7 +101,7 @@ def parse_simple_frontmatter(frontmatter_raw: str) -> dict[str, str | None]:
         kv_match = _FM_KEY_VALUE.match(line)
         if kv_match:
             key = kv_match.group(1)
-            value = kv_match.group(2).strip()
+            value = _strip_inline_comment(kv_match.group(2).strip())
 
             if re.match(r"^\[.*\]$", value):
                 result[key] = value
@@ -128,6 +128,57 @@ def _strip_quotes(value: str) -> str:
     if len(value) >= 2:
         if (value[0] == '"' and value[-1] == '"') or (value[0] == "'" and value[-1] == "'"):
             return value[1:-1]
+    return value
+
+
+def _strip_inline_comment(value: str) -> str:
+    """Strip a trailing YAML inline comment from a frontmatter scalar value.
+
+    A ``#`` only opens a comment when it is outside any quoting or bracketing.
+    Without this, ``isolation_required: true # rationale`` parses as the string
+    ``'true # rationale'`` and a boolean flag silently becomes a string (#2717).
+    """
+    if not value:
+        return value
+
+    in_single = False
+    in_double = False
+    escaped = False
+    bracket_depth = 0
+
+    for index, char in enumerate(value):
+        if escaped:
+            escaped = False
+            continue
+
+        if in_double and char == "\\":
+            escaped = True
+            continue
+
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+
+        if in_single or in_double:
+            continue
+
+        if char == "[":
+            bracket_depth += 1
+            continue
+
+        if char == "]":
+            bracket_depth = max(0, bracket_depth - 1)
+            continue
+
+        if char == "#" and bracket_depth == 0 and (
+            index == 0 or value[index - 1].isspace()
+        ):
+            return value[:index].rstrip()
+
     return value
 
 

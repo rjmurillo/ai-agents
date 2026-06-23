@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "F007",
+  "agent": "critic",
+  "input": "Critique this planning artifact. It is prose, not a code diff. Do not ask for clarification. Deliver a verdict.\n\n```markdown\n# Plan: Migrate session-log validation to the new GRT pipeline\n\n## Goal\nMove evidence validation off the legacy validator and onto GRT. GRT cuts p99 latency by 40% and removes the cp1252 decode bug.\n\n## Approach\nThe orchestrator calls GRT instead of the legacy validator. Because GRT is idempotent, we can re-run it on every push with no extra bookkeeping. Migration is a one-day task: swap the call site, delete the old validator, ship.\n\n## Rollout\nFlip the call site in week 1. The 40% latency win means CI gets faster immediately, so there is no risk to the existing pipeline.\n```",
+  "provenance": "synthetic",
+  "planted_issues": [
+    "Naive Reader: 'GRT' is used as the central component name but never spelled out or defined; a newcomer cannot tell what GRT is.",
+    "Naive Reader: 'cp1252 decode bug' is referenced with no context for a reader who does not already know the bug.",
+    "Hostile Expert: '40% p99 latency cut' is asserted twice with no source, benchmark, or measurement cited.",
+    "Hostile Expert: 'no risk to the existing pipeline' waves away the tradeoff instead of showing why the migration is safe.",
+    "Cynic: 'because GRT is idempotent, no extra bookkeeping' is an unstated assumption presented as fact, with no dedupe-key persistence named.",
+    "Cynic: 'one-day task' is an optimistic estimate with no basis; deleting the old validator has unexamined failure modes (callers still on the legacy path)."
+  ],
+  "scoring_rubric": {
+    "kind": "checklist_vocabulary_present",
+    "treatment_floor": "must surface at least one persona-framed finding for a prose comprehension or assumption gap (undefined term GRT, unsourced 40% claim, or unstated idempotency assumption)",
+    "control_baseline": "may flag generic 'needs more detail' without the persona frame (naive reader / hostile expert / cynic) and without isolating the undefined term or unsourced number"
+  },
+  "expected_verdict": "PERSONA_FINDING_RAISED",
+  "verdict_options": ["PERSONA_FINDING_RAISED", "GENERIC_OR_NO_FINDING"],
+  "expected_reason_contains": "persona",
+  "rationale": "Treatment Persona Evaluation section (prose artifacts only): 'Read the prose three times, once through each persona. Naive Reader: unexplained terms, missing context, undefined acronyms. Hostile Expert: weakest claim, unsourced numbers, hand-waved tradeoffs. Cynic: unstated assumptions, ignored failure modes, optimistic estimates.' The artifact is prose (a plan), so the persona pass applies and the code-diff Adversarial Coverage Checklist does not. Control critic template lacks the persona vocabulary; it may say 'add detail' but is unlikely to isolate the undefined acronym, the unsourced number, and the unstated idempotency assumption as three distinct persona findings.",
+  "tags": ["agent-critic", "prose-persona-evaluation", "checklist-vocabulary"]
+}

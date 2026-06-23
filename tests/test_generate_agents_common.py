@@ -162,6 +162,43 @@ class TestParseSimpleFrontmatter:
         assert tools_vscode is not None and "vscode" in tools_vscode
         assert tools_copilot is not None and "edit" in tools_copilot
 
+    def test_inline_comment_stripped_from_scalar(self) -> None:
+        raw = "isolation_required: true # Implements code in an isolated workspace."
+        result = parse_simple_frontmatter(raw)
+        assert result["isolation_required"] == "true"
+
+    def test_inline_comment_does_not_corrupt_surrounding_keys(self) -> None:
+        raw = "name: myagent\nisolation_required: true # rationale\ndescription: test"
+        result = parse_simple_frontmatter(raw)
+        assert result["isolation_required"] == "true"
+        assert result["name"] == "myagent"
+        assert result["description"] == "test"
+
+    def test_hash_inside_quoted_value_is_data_not_comment(self) -> None:
+        raw = "color: '#fff'"
+        result = parse_simple_frontmatter(raw)
+        assert result["color"] == "#fff"
+
+    def test_inline_comment_stripped_after_inline_array(self) -> None:
+        raw = "tools: ['read', 'edit'] # only two tools"
+        result = parse_simple_frontmatter(raw)
+        assert result["tools"] == "['read', 'edit']"
+
+    def test_inline_array_comment_can_contain_closing_bracket(self) -> None:
+        raw = "tools: ['read', 'edit'] # comment with ]"
+        result = parse_simple_frontmatter(raw)
+        assert result["tools"] == "['read', 'edit']"
+
+    def test_escaped_quote_keeps_hash_inside_double_quoted_value(self) -> None:
+        raw = r'description: "true \" # still data" # trailing comment'
+        result = parse_simple_frontmatter(raw)
+        assert result["description"] == r'true \" # still data'
+
+    def test_comment_only_value_is_null(self) -> None:
+        raw = "model: # rationale"
+        result = parse_simple_frontmatter(raw)
+        assert result["model"] is None
+
 
 class TestConvertFrontmatterForPlatform:
     """Tests for convert_frontmatter_for_platform."""
