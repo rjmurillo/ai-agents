@@ -40,7 +40,9 @@ def rate_for(label):
 def load(paths):
     cells = {}
     for p in paths:
-        for label, c in json.load(open(p, encoding="utf-8"))["cells"].items():
+        with open(p, encoding="utf-8") as handle:
+            report = json.load(handle)
+        for label, c in report["cells"].items():
             cells.setdefault(label, {}).update(c)
     return cells
 

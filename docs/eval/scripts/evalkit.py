@@ -84,9 +84,15 @@ def parse_scores(text: str):
         o = json.loads(text[a:b + 1])
     except (json.JSONDecodeError, ValueError):
         return None
-    if not all(k in o for k in KEYS[:5]):
+    if not isinstance(o, dict):
         return None
-    return {k: o.get(k) for k in KEYS}
+    scores = {}
+    for key in KEYS:
+        value = o.get(key)
+        if type(value) is not int:
+            return None
+        scores[key] = value
+    return scores
 
 
 def run_codex(model: str, effort: str, code: str, msgfile: str):

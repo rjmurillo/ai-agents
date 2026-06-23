@@ -23,7 +23,7 @@ import argparse
 import json
 import threading
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import evalkit
 
@@ -51,7 +51,8 @@ def main():
 
     done = 0
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
-        for fut in [ex.submit(work, c, rel) for c, rel in tasks]:
+        futures = [ex.submit(work, c, rel) for c, rel in tasks]
+        for fut in as_completed(futures):
             label, rel, rec = fut.result()
             with lock:
                 report["cells"].setdefault(label, {})[rel] = rec

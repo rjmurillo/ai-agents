@@ -29,11 +29,15 @@ def main():
         if i not in idx:
             idx.append(i)
         i += 1
-    sel = [sized[i][1] for i in sorted(idx)[:N]]
+    selected_indices = sorted(idx)[:N]
+    sel = [sized[i][1] for i in selected_indices]
     out = Path(__file__).resolve().parent / "eval_files24.json"
     with open(out, "w", encoding="utf-8") as handle:
         json.dump(sel, handle, indent=0)
-    print(f"wrote {len(sel)} files to {out} (bytes {sized[idx[0]][0]}..{sized[idx[-1]][0]})")
+    print(
+        f"wrote {len(sel)} files to {out} "
+        f"(bytes {sized[selected_indices[0]][0]}..{sized[selected_indices[-1]][0]})"
+    )
 
 
 if __name__ == "__main__":
