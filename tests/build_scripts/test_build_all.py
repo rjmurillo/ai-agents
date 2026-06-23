@@ -23,6 +23,19 @@ def _write_skill(skills_dir: Path, name: str) -> None:
     (skill / "SKILL.md").write_text(f"# {name}\n")
 
 
+def _write_agent_template(templates_dir: Path, name: str) -> None:
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    (templates_dir / f"{name}.shared.md").write_text(
+        "---\n"
+        "tier: builder\n"
+        f"description: {name} agent.\n"
+        "---\n"
+        f"# {name.title()} Agent\n"
+        "Body line.\n",
+        encoding="utf-8",
+    )
+
+
 def _write_platform_with_skills(
     repo_root: Path, *, provider: str, blocklist: list[str] | None = None
 ) -> Path:
@@ -430,7 +443,7 @@ def test_run_returns_2_when_generator_writes_claude(
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
-    def _leaky_agents(repo_root, cfg, platform):  # type: ignore[no-untyped-def]
+    def _leaky_agents(repo_root: Path, cfg: Path, platform: str) -> build_all.GeneratorResult:
         # Misbehaving generator writes under .claude/ after the snapshot.
         leak = Path(repo_root) / ".claude" / "agents" / "leak.md"
         leak.parent.mkdir(parents=True, exist_ok=True)
@@ -583,6 +596,64 @@ def test_generators_registry_includes_m7_lib_before_hooks() -> None:
     artifact_names = [name for name, _ in build_all.GENERATORS]
     assert "lib" in artifact_names
     assert artifact_names.index("lib") < artifact_names.index("hooks")
+
+
+def test_generators_registry_includes_agent_catalog_after_agents() -> None:
+    """Agent catalog drift must be covered by build_all.py --check."""
+    artifact_names = [name for name, _ in build_all.GENERATORS]
+    assert "agent-catalog" in artifact_names
+    assert artifact_names.index("agents") < artifact_names.index("agent-catalog")
+    assert artifact_names.index("agent-catalog") < artifact_names.index("skills")
+
+
+def test_owned_prefixes_include_agent_catalog() -> None:
+    """docs/agent-catalog.md is generated from templates and must be gated."""
+    assert "docs/agent-catalog.md" in build_all.OWNED_PREFIXES
+
+
+def test_snapshot_owned_prefixes_handles_catalog_file(tmp_path: Path) -> None:
+    catalog = tmp_path / "docs" / "agent-catalog.md"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("catalog\n", encoding="utf-8")
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        tmp_path, ("docs/agent-catalog.md",)
+    )
+
+    assert snapshot[catalog] == b"catalog\n"
+
+
+def test_enumerate_files_under_handles_catalog_file(tmp_path: Path) -> None:
+    catalog = tmp_path / "docs" / "agent-catalog.md"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("catalog\n", encoding="utf-8")
+
+    found = build_all._enumerate_files_under(tmp_path, ("docs/agent-catalog.md",))
+
+    assert found == {catalog}
+
+
+def test_build_agent_catalog_writes_docs_catalog(tmp_path: Path) -> None:
+    templates = tmp_path / "templates" / "agents"
+    _write_agent_template(templates, "alpha")
+
+    result = build_all._build_agent_catalog(tmp_path, tmp_path / "unused.yaml", "*")
+
+    assert result.exit_code == 0
+    assert result.artifact == "agent-catalog"
+    assert result.platform == "docs"
+    assert result.inputs == 1
+    assert result.outputs == 1
+    assert (tmp_path / "docs" / "agent-catalog.md").is_file()
+
+
+def test_build_agent_catalog_skips_when_templates_missing(tmp_path: Path) -> None:
+    result = build_all._build_agent_catalog(tmp_path, tmp_path / "unused.yaml", "*")
+
+    assert result.exit_code == 0
+    assert result.inputs == 0
+    assert result.outputs == 0
+    assert any("templates dir missing" in notice for notice in result.notices)
 
 
 # Regression: #2222 — untracked-file drift (PR #2285 review iteration 2) -----

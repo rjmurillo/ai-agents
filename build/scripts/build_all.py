@@ -50,6 +50,7 @@ from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 # separate path; see build_agents().
 _BUILD_DIR = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_BUILD_DIR))
+import generate_agent_catalog  # noqa: E402
 
 
 @dataclass
@@ -133,6 +134,29 @@ def _build_agents(repo_root: Path, _config_path: Path, _platform: str) -> Genera
         "--output-root", str(repo_root / "src"),
     ])
     return GeneratorResult(artifact="agents", platform="*", exit_code=rc)
+
+
+def _build_agent_catalog(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
+    """Regenerate docs/agent-catalog.md from templates/agents/*.shared.md."""
+    templates_dir = repo_root / "templates" / "agents"
+    output_path = repo_root / "docs" / "agent-catalog.md"
+    if not templates_dir.is_dir():
+        result = GeneratorResult(artifact="agent-catalog", platform="docs", exit_code=0)
+        result.notices.append("agent catalog templates dir missing; skipped")
+        return result
+    rc = generate_agent_catalog.main(
+        [
+            "--templates-path",
+            str(templates_dir),
+            "--output",
+            str(output_path),
+        ]
+    )
+    result = GeneratorResult(artifact="agent-catalog", platform="docs", exit_code=rc)
+    if templates_dir.is_dir():
+        result.inputs = sum(1 for _ in templates_dir.glob("*.shared.md"))
+    result.outputs = 1 if output_path.is_file() else 0
+    return result
 
 
 def _build_commands(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
@@ -393,7 +417,7 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
     return result
 
 
-# Order matters: agents → skills → commands → rules → lib → hooks.
+# Order matters: agents → agent-catalog → skills → commands → rules → lib → hooks.
 # The skills generator copies .claude/skills/* first; the commands bridge
 # layers user-invocable skills beside them; rules write to a separate dir
 # (.github/instructions/); lib MUST land before hooks so the manifest-
@@ -401,6 +425,7 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
 # alongside lib/; hooks write src/copilot-cli/hooks/.
 GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agents", _build_agents),
+    ("agent-catalog", _build_agent_catalog),
     ("skills", _build_skills),
     ("commands", _build_commands),
     ("rules", _build_rules),
@@ -694,7 +719,7 @@ def _select_platform_configs(
 #      read-only by reverting any generator writes under these prefixes.
 # Keep these in lock-step. If a new generator lands that writes to a
 # different prefix, add it here so both behaviors keep covering it.
-OWNED_PREFIXES: tuple[str, ...] = ("src/", ".github/instructions/")
+OWNED_PREFIXES: tuple[str, ...] = ("src/", ".github/instructions/", "docs/agent-catalog.md")
 
 
 def _snapshot_owned_prefixes(
@@ -717,6 +742,14 @@ def _snapshot_owned_prefixes(
     snapshot: dict[Path, bytes] = {}
     for prefix in prefixes:
         root = repo_root / prefix
+        if root.is_file() and not root.is_symlink():
+            try:
+                snapshot[root] = root.read_bytes()
+            except OSError:
+                continue
+            continue
+        if root.exists() and not root.is_dir():
+            continue
         if not root.is_dir():
             continue
         for path in root.rglob("*"):
@@ -795,6 +828,11 @@ def _enumerate_files_under(
     found: set[Path] = set()
     for prefix in prefixes:
         root = repo_root / prefix
+        if root.is_file() and not root.is_symlink():
+            found.add(root)
+            continue
+        if root.exists() and not root.is_dir():
+            continue
         if not root.is_dir():
             continue
         for path in root.rglob("*"):
@@ -811,6 +849,8 @@ def _prune_empty_dirs(repo_root: Path, prefixes: tuple[str, ...]) -> None:
     """
     for prefix in prefixes:
         root = repo_root / prefix
+        if root.is_file():
+            continue
         if not root.is_dir():
             continue
         for dirpath in sorted(
@@ -895,17 +935,22 @@ def _run_generators(
     audit = BuildAudit(started_at=time.time())
     started = time.monotonic()
 
-    # Agents generator iterates platforms internally; run once per build.
-    agents_result = _build_agents(repo_root, configs[0], "*")
-    audit.results.append(agents_result)
-    if agents_result.exit_code != 0:
-        audit.overall_exit = max(audit.overall_exit, agents_result.exit_code)
+    # Generators that iterate all platforms or write repo-level artifacts run once.
+    # Call by name instead of through GENERATORS so tests can monkeypatch these
+    # seams without updating the tuple's captured function objects.
+    for result in (
+        _build_agents(repo_root, configs[0], "*"),
+        _build_agent_catalog(repo_root, configs[0], "*"),
+    ):
+        audit.results.append(result)
+        if result.exit_code != 0:
+            audit.overall_exit = max(audit.overall_exit, result.exit_code)
 
     # Per-platform per-artifact generators.
     for cfg in configs:
         platform_name = cfg.stem
         for artifact, fn in GENERATORS:
-            if artifact == "agents":
+            if artifact in {"agents", "agent-catalog"}:
                 continue  # ran once above
             result = fn(repo_root, cfg, platform_name)
             audit.results.append(result)

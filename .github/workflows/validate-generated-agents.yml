@@ -50,10 +50,12 @@ jobs:
           filters: |
             agents:
               - 'templates/**'
+              - 'docs/agent-catalog.md'
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
               - 'src/claude/**'
               - 'build/generate_agents.py'
+              - 'build/generate_agent_catalog.py'
               - 'build/scripts/**'
               - '.claude/agents/**'
               - '.claude/skills/**'
