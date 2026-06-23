@@ -63,15 +63,25 @@ jobs:
         run: python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"
 
       - name: Run /spec behavioral evals
+        # Grader: openai/gpt-5 via GitHub Models (the COPILOT_GITHUB_TOKEN CI
+        # already uses), reachable as a reasoning model after #2712. The default
+        # Anthropic transport is dead until the API budget resets 2026-07-01.
+        # gpt-5 is the highest grader GitHub Models offers (no gpt-5.5 / Opus).
+        # CALIBRATION ROLLOUT tracked by issue #2718. The scenarios' expected
+        # verdicts were authored for a Claude grader, so a cross-family grader
+        # may shift borderline verdicts. continue-on-error keeps calibration
+        # mismatch from red-failing PRs until live gpt-5 verdicts are confirmed.
+        # The skip-net in eval-prompt-change.py still neutral-skips genuine
+        # provider outages. Remove continue-on-error by 2026-07-08.
+        continue-on-error: true
         if: |
           github.event_name == 'pull_request' &&
           needs.check-paths.outputs.spec_evals_changed == 'true' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          env.ANTHROPIC_API_KEY != ''
+          github.event.pull_request.head.repo.full_name == github.repository
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_MODELS_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           BASE_REF: ${{ github.event.pull_request.base.sha }}
-        run: python3 scripts/eval/eval-prompt-change.py --prompt .claude/commands/spec.md --scenarios tests/evals/spec-scenarios.json --base-ref "$BASE_REF"
+        run: python3 scripts/eval/eval-prompt-change.py --prompt .claude/commands/spec.md --scenarios tests/evals/spec-scenarios.json --provider github --model openai/gpt-5 --base-ref "$BASE_REF"
 
   skip-validation:
     runs-on: ubuntu-24.04-arm

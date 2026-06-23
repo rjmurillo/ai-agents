@@ -26,6 +26,7 @@ import argparse
 import datetime as _dt
 import hashlib
 import json
+import os
 import re
 import sys
 import uuid
@@ -502,6 +503,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=_run_id_arg,
         metavar="RUN_ID",
         help="resume an interrupted run; skip already-completed triples",
+    )
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default=None,
+        help=(
+            "Transport provider: anthropic (default), openai, codex, "
+            "github, github-models, anthropic-sdk. Baseline and variant "
+            "run on the SAME provider; cross-provider scores are not "
+            "comparable (ADR-058)."
+        ),
     )
     return parser
 
@@ -1044,6 +1056,8 @@ def _generate_report(
 def main(argv: list[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "provider", None):
+        os.environ["EVAL_PROVIDER"] = args.provider
 
     try:
         paths = _load_fixture_paths(args.fixtures)

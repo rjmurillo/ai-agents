@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-06-20-session-2597-eval-multiprovider-transport-openai-github",
+  "session": "2026-06-20-session-2597-eval-multiprovider-transport-openai-github",
+  "timestamp": "2026-06-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "eval multiprovider transport OpenAI GitHub Models providers",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add OpenAI + GitHub Models providers to the eval harness behind an EVAL_PROVIDER/--provider Strategy",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/eval/test_providers.py -q -> 26 passed; uv run pytest -k 'eval_api_adapter or anthropic or providers or eval_skill_overlap' -> 126 passed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 790e1ce0b83c7df1c7dcf72ff418a681972c74b2",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 25
+  },
+  "lessons": []
+}

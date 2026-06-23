@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -69,6 +70,7 @@ from typing import Any
 
 from _anthropic_api import call_api, load_api_key
 from _eval_common import EST_TOKENS_PER_CALL
+from _providers import is_default_anthropic
 
 RATE_LIMIT_SLEEP_SEC = 1.0
 DEFAULT_RUNS = 3
@@ -254,13 +256,28 @@ def judge_scenario(
         '{"verdict": "<one of the labels>", "reason": "<brief explanation>"}'
     )
 
-    raw = call_api(
-        api_key,
-        [{"role": "user", "content": user_message}],
-        system=system_prompt,
-        model=model,
-        max_tokens=1024,
-    )
+    # Route the judge through the same provider as generation so the whole eval
+    # runs on one transport (ADR-058 symmetry). Without this, --provider only
+    # moved generation and the judge still hit the default Anthropic path.
+    provider = os.environ.get("EVAL_PROVIDER", "").strip()
+    use_provider = bool(provider) and not is_default_anthropic(provider)
+    if use_provider:
+        raw = call_api(
+            "",
+            [{"role": "user", "content": user_message}],
+            system=system_prompt,
+            model=model,
+            max_tokens=1024,
+            provider=provider,
+        )
+    else:
+        raw = call_api(
+            api_key,
+            [{"role": "user", "content": user_message}],
+            system=system_prompt,
+            model=model,
+            max_tokens=1024,
+        )
 
     # Parse JSON from response
     text = raw.strip()
@@ -549,6 +566,17 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs, no API calls")
     parser.add_argument("--output", type=str, help="Write results to file")
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default=None,
+        help=(
+            "Transport provider: anthropic (default), openai, codex, "
+            "github, github-models, anthropic-sdk. Baseline and variant "
+            "run on the SAME provider; cross-provider scores are not "
+            "comparable (ADR-058)."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -666,8 +694,38 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
     print(f"{'='*60}", file=sys.stderr)
 
 
+def _is_provider_outage(exc: Exception) -> bool:
+    """True when the eval could not RUN because the model provider was
+    unavailable, as opposed to the variant having regressed. A regression is a
+    pass/fail verdict (exit 1), never an exception, so any error reaching the
+    top-level handler is an execution fault. This narrows that to infrastructure
+    outages (quota exhaustion, rate limiting, transient 5xx, timeout, network)
+    using the normalized message shapes call_api / _providers emit. The gate
+    then skips neutrally instead of red-failing on something the change under
+    test did not cause. Set a reachable EVAL_PROVIDER to keep the gate live
+    during an outage of the default transport.
+    """
+    msg = str(exc).lower()
+    outage_markers = (
+        "usage limit",        # budget/quota exhausted (HTTP 400 usage limits)
+        "rate limit",
+        "too many requests",  # 429
+        "timed out",
+        "network error",
+        "returned http 408",
+        "returned http 429",
+        "returned http 500",
+        "returned http 502",
+        "returned http 503",
+        "returned http 504",
+    )
+    return any(marker in msg for marker in outage_markers)
+
+
 def main() -> None:
     args = _parse_args()
+    if getattr(args, "provider", None):
+        os.environ["EVAL_PROVIDER"] = args.provider
 
     try:
         scenarios = load_scenarios(args.scenarios)
@@ -702,15 +760,30 @@ def main() -> None:
         }, indent=2))
         sys.exit(0)
 
-    try:
-        api_key = load_api_key()
-    except RuntimeError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(2)
+    # A non-default provider self-loads its own credential (see the adapter's
+    # transport factory), so do not require ANTHROPIC_API_KEY in that case.
+    provider = os.environ.get("EVAL_PROVIDER", "").strip()
+    if provider and not is_default_anthropic(provider):
+        api_key = ""
+    else:
+        try:
+            api_key = load_api_key()
+        except RuntimeError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
 
     try:
         _run_and_report(api_key, before_text, after_text, scenarios, args, source)
     except RuntimeError as e:
+        if _is_provider_outage(e):
+            # Infrastructure outage, not a quality regression. Skip neutrally so
+            # the gate does not red-fail on a provider the change did not touch.
+            print(
+                f"SKIP: behavioral eval could not run, model provider "
+                f"unavailable: {e}",
+                file=sys.stderr,
+            )
+            sys.exit(0)
         print(f"ERROR: eval failed: {e}", file=sys.stderr)
         sys.exit(3)
 

@@ -1214,3 +1214,35 @@ class TestMainCLI:
             eval_mod.main()
         err = capsys.readouterr().err
         assert "before and after prompt text are identical" in err
+
+
+class TestIsProviderOutage:
+    """The skip-net distinguishes 'eval could not run' (infra outage, neutral
+    skip, exit 0) from 'eval ran and the variant regressed' (exit 1) or a real
+    execution fault (exit 3)."""
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Anthropic API returned HTTP 400: usage limits, regain 2026-07-01",
+            "GitHub Models API returned HTTP 429: too many requests",
+            "OpenAI API request timed out",
+            "OpenAI API network error: ConnectionError",
+            "GitHub Models API returned HTTP 503",
+            "Anthropic API returned HTTP 502",
+        ],
+    )
+    def test_outage_errors_are_skippable(self, message: str) -> None:
+        assert eval_mod._is_provider_outage(RuntimeError(message)) is True
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "OpenAI API returned HTTP 400: bad request, invalid model id",
+            "Unknown EVAL_PROVIDER 'bogus'. Valid: anthropic, github, openai",
+            "Scenario file not found: tests/evals/x.json",
+            "could not parse judge response",
+        ],
+    )
+    def test_non_outage_errors_are_not_skippable(self, message: str) -> None:
+        assert eval_mod._is_provider_outage(RuntimeError(message)) is False

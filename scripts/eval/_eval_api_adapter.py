@@ -18,12 +18,14 @@ Logging:
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Literal
 
 # Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI uses.
 from _anthropic_api import call_api, load_api_key
@@ -141,8 +143,33 @@ Transport = Callable[[str, str, str], str]
 
 
 def _default_transport_factory() -> Transport:
-    """Build the production transport. Reads the API key once, here, and
-    closes over it so callers never see the secret."""
+    """Build the production transport selected by EVAL_PROVIDER.
+
+    The default Anthropic urllib path reads ANTHROPIC_API_KEY once here and
+    closes over it. Non-default providers load their own credentials inside
+    their provider object, so this adapter never sees those secrets.
+    """
+    # Provider selection (EVAL_PROVIDER). A non-default provider self-loads
+    # its own credential, so do not require ANTHROPIC_API_KEY via
+    # load_api_key(). Baseline and variant run on the SAME provider per call
+    # (ADR-058 symmetry); temperature=0 is pinned for reproducibility.
+    provider = os.environ.get("EVAL_PROVIDER", "").strip()
+    from _providers import is_default_anthropic, resolve_provider
+
+    if provider and not is_default_anthropic(provider):
+        selected_provider = resolve_provider(provider)
+
+        def _call_provider(prompt: str, model_id: str, system: str) -> str:
+            return selected_provider.complete(
+                messages=[{"role": "user", "content": prompt}],
+                system=system,
+                model=model_id,
+                max_tokens=1024,
+                temperature=0.0,
+            )
+
+        return _call_provider
+
     api_key = load_api_key()
 
     def _call(prompt: str, model_id: str, system: str) -> str:
