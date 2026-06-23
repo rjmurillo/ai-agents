@@ -107,6 +107,22 @@ def test_build_all_check_remains_authoritative() -> None:
     assert '"$BUILD_ALL_SCRIPT" --check' in text
 
 
+def test_build_all_check_covers_agent_catalog() -> None:
+    """Pre-push staleness gate must catch stale docs/agent-catalog.md."""
+    import sys
+
+    original_path = sys.path.copy()
+    sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+    try:
+        import build_all  # noqa: PLC0415
+    finally:
+        sys.path[:] = original_path
+
+    assert sys.path == original_path
+    assert "docs/agent-catalog.md" in build_all.OWNED_PREFIXES
+    assert "agent-catalog" in [name for name, _ in build_all.GENERATORS]
+
+
 def test_agent_drift_trigger_is_agent_scoped() -> None:
     """Skill and plugin source edits must not run unrelated agent drift checks."""
     text = _pre_push_text()

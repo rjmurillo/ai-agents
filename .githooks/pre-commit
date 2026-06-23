@@ -764,6 +764,7 @@ fi
 # Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
 #
 GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/generate_agents.py"
+GENERATE_AGENT_CATALOG_SCRIPT="$REPO_ROOT/build/generate_agent_catalog.py"
 
 # Check if any shared agent template or platform config is staged
 STAGED_AGENT_TEMPLATES=$(echo "$STAGED_FILES" | grep -E '^templates/(agents/.*\.shared\.md|platforms/.*)$' || true)
@@ -808,6 +809,26 @@ if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
 
                     echo_success "Regenerated and staged platform-specific agents."
                     FILES_FIXED=1
+
+                    if [ -L "$GENERATE_AGENT_CATALOG_SCRIPT" ]; then
+                        echo_warning "Skipping agent catalog generation: script path is a symlink"
+                    elif [ -f "$GENERATE_AGENT_CATALOG_SCRIPT" ]; then
+                        CATALOG_OUTPUT=$("${PYTHON_CMD[@]}" "$GENERATE_AGENT_CATALOG_SCRIPT" 2>&1) && CATALOG_EXIT=0 || CATALOG_EXIT=$?
+                        if [ $CATALOG_EXIT -eq 0 ]; then
+                            if [ -f "$REPO_ROOT/docs/agent-catalog.md" ] && [ ! -L "$REPO_ROOT/docs/agent-catalog.md" ]; then
+                                git add -- "$REPO_ROOT/docs/agent-catalog.md"
+                            fi
+                            echo_success "Regenerated and staged agent catalog."
+                            FILES_FIXED=1
+                        else
+                            echo_error "Agent catalog generation failed."
+                            echo_info "  $CATALOG_OUTPUT"
+                            EXIT_STATUS=1
+                        fi
+                    else
+                        echo_error "Agent catalog generator not found: $GENERATE_AGENT_CATALOG_SCRIPT"
+                        EXIT_STATUS=1
+                    fi
                 else
                     echo_warning "Agent generation failed (see above)."
                     echo_info "  $GENERATE_OUTPUT"
