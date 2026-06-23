@@ -383,36 +383,60 @@ def _select_act_event(wf_path: Path) -> str | None:
     return events[0]
 
 
-def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+# Emitted by git (and surfaced through act) when a command runs in a tree with
+# no reachable .git. The act container mounts the workflow file but not the host
+# .git directory, so git-calling actions such as dorny/paths-filter abort with
+# this exact prefix. See issue #2719.
+_GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
+
+
+def _run_act_stage(
+    stage: str,
+    base_cmd: Sequence[str],
+    timeout: int,
+    files: Sequence[str],
+    repo_root: Path,
+) -> StageResult:
+    """Run an ``act`` invocation per workflow file, with git-missing downgrade.
+
+    A nonzero exit whose output carries ``_GIT_REPO_MISSING_PATTERN`` is a local
+    environment limitation, not a workflow defect: actionlint and the act
+    dry-run already validated the workflow shape. Downgrade it to a passing
+    stage with a ``[WARN]`` detail instead of a hard FAIL so the missing .git in
+    the container does not block an otherwise valid push.
+    """
     env = _act_env(repo_root)
     for wf in files:
         event = _select_act_event(repo_root / wf)
-        cmd = ["gh", "act", "-n"]
+        cmd = [*base_cmd]
         if event is not None:
             cmd.append(event)
         cmd += ["-W", wf]
-        rc, out, err = _run(cmd, timeout=_ACT_DRYRUN_TIMEOUT, cwd=repo_root, env=env)
+        rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
         if rc != 0:
-            return StageResult(
-                "gh act -n", False, f"{wf}:\n{(out + err).strip()[:4000]}"
-            )
-    return StageResult("gh act -n", True)
+            combined = (out + err).strip()
+            if _GIT_REPO_MISSING_PATTERN in combined:
+                return StageResult(
+                    stage,
+                    True,
+                    f"[WARN] {wf}: act container lacks .git; git-calling actions "
+                    f"(e.g. dorny/paths-filter) fail only in local act, not in "
+                    f"CI. Set {_BYPASS_ENV}=true to silence.",
+                )
+            return StageResult(stage, False, f"{wf}:\n{combined[:4000]}")
+    return StageResult(stage, True)
+
+
+def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    return _run_act_stage(
+        "gh act -n", ["gh", "act", "-n"], _ACT_DRYRUN_TIMEOUT, files, repo_root
+    )
 
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    env = _act_env(repo_root)
-    for wf in files:
-        event = _select_act_event(repo_root / wf)
-        cmd = ["gh", "act"]
-        if event is not None:
-            cmd.append(event)
-        cmd += ["-W", wf]
-        rc, out, err = _run(cmd, timeout=_ACT_FULL_TIMEOUT, cwd=repo_root, env=env)
-        if rc != 0:
-            return StageResult(
-                "gh act (full)", False, f"{wf}:\n{(out + err).strip()[:4000]}"
-            )
-    return StageResult("gh act (full)", True)
+    return _run_act_stage(
+        "gh act (full)", ["gh", "act"], _ACT_FULL_TIMEOUT, files, repo_root
+    )
 
 
 # --- Orchestration -------------------------------------------------------
@@ -553,7 +577,12 @@ def _format_text(report: Report) -> str:
         return f"workflow-local-test: TOOL UNAVAILABLE\n  {report.note}"
     if report.exit_code == 0:
         passed = ", ".join(s.stage for s in report.stages) or report.note
-        return f"workflow-local-test: OK ({passed})"
+        lines = [f"workflow-local-test: OK ({passed})"]
+        for s in report.stages:
+            if s.ok and s.detail:
+                for line in s.detail.splitlines()[:10]:
+                    lines.append(f"  {line}")
+        return "\n".join(lines)
     lines = ["workflow-local-test: FAIL"]
     for s in report.stages:
         mark = "ok" if s.ok else "FAIL"
