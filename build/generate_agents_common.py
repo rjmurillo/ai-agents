@@ -101,7 +101,7 @@ def parse_simple_frontmatter(frontmatter_raw: str) -> dict[str, str | None]:
         kv_match = _FM_KEY_VALUE.match(line)
         if kv_match:
             key = kv_match.group(1)
-            value = kv_match.group(2).strip()
+            value = _strip_inline_comment(kv_match.group(2).strip())
 
             if re.match(r"^\[.*\]$", value):
                 result[key] = value
@@ -129,6 +129,24 @@ def _strip_quotes(value: str) -> str:
         if (value[0] == '"' and value[-1] == '"') or (value[0] == "'" and value[-1] == "'"):
             return value[1:-1]
     return value
+
+
+def _strip_inline_comment(value: str) -> str:
+    """Strip a trailing YAML inline comment from a frontmatter scalar value.
+
+    A ``#`` only opens a comment when it is outside any quoting or bracketing.
+    Without this, ``isolation_required: true # rationale`` parses as the string
+    ``'true # rationale'`` and a boolean flag silently becomes a string (#2717).
+    """
+    if not value:
+        return value
+    if value[0] in "'\"":
+        closing = value.find(value[0], 1)
+        return value[: closing + 1] if closing != -1 else value
+    if value[0] == "[":
+        closing = value.rfind("]")
+        return value[: closing + 1] if closing != -1 else value
+    return re.sub(r"\s+#.*$", "", value)
 
 
 def _format_inline_array(items: list[str]) -> str:
