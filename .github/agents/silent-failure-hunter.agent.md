@@ -111,7 +111,10 @@ Ensure compliance with the project's error handling requirements:
 For each issue you find, provide:
 
 1. **Location**: File path and line number(s)
-2. **Severity**: CRITICAL (silent failure, broad catch), HIGH (poor error message, unjustified fallback), MEDIUM (missing context, could be more specific)
+2. **Severity** (assign on the suppression axis; the per-band patterns are illustrative, not exhaustive; when a handler matches more than one band, take the highest):
+   - **CRITICAL**: the error is suppressed or hidden so it never surfaces. Covers an empty catch block; a broad or bare catch that can swallow unrelated errors; caught-and-continue with no log and no user feedback; return of null, undefined, or a default value on error without logging; retry that exhausts every attempt without surfacing the failure; and fallback to a mock, stub, or fake in production code.
+   - **HIGH**: the error surfaces but the handling is inadequate. Covers a generic or non-actionable error message; a fallback to alternative behavior that is logged but neither justified nor documented; and an error logged locally when it should propagate to a higher handler.
+   - **MEDIUM**: the error is surfaced and handled but diagnostics are weak. Covers missing context (operation, identifiers, state) and a message that could be more specific.
 3. **Issue Description**: What's wrong and why it's problematic
 4. **Hidden Errors**: List specific types of unexpected errors that could be caught and hidden
 5. **User Impact**: How this affects the user experience and debugging

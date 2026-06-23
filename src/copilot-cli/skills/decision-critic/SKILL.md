@@ -32,7 +32,7 @@ VERIFICATION (3-4)     Generate verification questions
 CHALLENGE (5-6)        Contrarian perspective + alternative framing
         |
         v
-SYNTHESIS (7)          Verdict: STAND | REVISE | ESCALATE
+SYNTHESIS (7)          Verdict: STAND (clean or flagged) | REVISE | ESCALATE
 ```
 
 ## Scripts
@@ -90,9 +90,9 @@ After execution:
 
 - [ ] All claims have status: VERIFIED, FAILED, or UNCERTAIN
 - [ ] Contrarian perspective generated (Step 5)
-- [ ] Final verdict is one of: STAND, REVISE, ESCALATE
+- [ ] Final verdict is one of: STAND (clean or flagged), REVISE, ESCALATE. A STAND is flagged (capped, not clean) when the rewrite-regression check answered questions 1 through 4 but left question 5 (institutional incentive) unanswered
 - [ ] Inversion analysis covers at least 3 failure modes
-- [ ] Rewrite-regression check applied as a halt criterion when the decision is a rewrite, refactor, or migration justified by improvement. Evaluate this check during verification (Steps 3 and 4), before settling on a verdict: a STAND verdict is not valid while the rewrite-regression halt is open. If the proposer can answer only the v0 win and not the baseline, the v1 projection, and the regression plan, HALT the decision: ESCALATE when only the v0 win exists, REVISE for partial-answer cases per the reference table, rather than rubber-stamp it. See [Rewrite-Regression Check](references/rewrite-regression-check.md).
+- [ ] Rewrite-regression check applied as a halt criterion when the decision is a rewrite, refactor, or migration justified by improvement. Evaluate this check during verification (Steps 3 and 4), before settling on a verdict: a STAND verdict is not valid while the rewrite-regression halt is open. If the proposer can answer only the v0 win and not the baseline, the v1 projection, and the regression plan, HALT the decision: ESCALATE when only the v0 win exists, REVISE for partial-answer cases per the reference table, rather than rubber-stamp it. When questions 1 through 4 are answered but question 5 (the institutional incentive that produced the original problem) is not, cap the verdict at a flagged STAND, not a clean STAND: record the unaddressed friction as a flag instead of rubber-stamping a clean pass. See [Rewrite-Regression Check](references/rewrite-regression-check.md).
 
 ## References
 

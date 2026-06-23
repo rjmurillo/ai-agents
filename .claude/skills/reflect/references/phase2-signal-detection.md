@@ -82,11 +82,13 @@ User consistently uses `-Force` flag
 
 #### Confidence Threshold
 
-Only propose changes when sufficient evidence exists:
+Only propose changes when sufficient evidence exists. The table is a total
+function over the HIGH/MED/LOW signal counts: evaluate rows top to bottom and
+take the first match, so every combination resolves to exactly one action.
 
-| Threshold | Action |
+| Threshold (first match wins, top to bottom) | Action |
 |-----------|--------|
 | ≥1 HIGH signal | Always propose (user explicitly corrected) |
 | ≥2 MED signals | Propose (sufficient pattern) |
 | ≥3 LOW signals | Propose (accumulated evidence) |
-| 1-2 LOW only | Skip (insufficient evidence), note for next session |
+| Any weaker mix: 1 MED only; 1 MED plus 1-2 LOW; 1-2 LOW only; no signals | Skip (insufficient evidence), note for next session |
