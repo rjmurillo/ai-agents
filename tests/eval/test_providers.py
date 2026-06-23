@@ -17,12 +17,14 @@ import pytest
 # `_eval_api_adapter` resolve (mirrors tests/test_eval_skill_overlap.py).
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _EVAL_DIR = _REPO_ROOT / "scripts" / "eval"
-if str(_EVAL_DIR) not in sys.path:
-    sys.path.insert(0, str(_EVAL_DIR))
-
-import _anthropic_api  # noqa: E402
-import _eval_api_adapter  # noqa: E402
-import _providers  # noqa: E402
+_ORIGINAL_SYS_PATH = sys.path.copy()
+sys.path.insert(0, str(_EVAL_DIR))
+try:
+    import _anthropic_api  # noqa: E402
+    import _eval_api_adapter  # noqa: E402
+    import _providers  # noqa: E402
+finally:
+    sys.path[:] = _ORIGINAL_SYS_PATH
 
 # --- Registry resolution ------------------------------------------------
 
