@@ -241,6 +241,15 @@ runSubagent(agentName: "[agent]", description: "[3-5 words]", prompt: "[detailed
 | **retrospective** | Extract learnings | Post-project analysis | Analysis only |
 | **skillbook** | Pattern management | Store/retrieve proven strategies | Metadata only |
 
+## Model, Effort, and Cost Routing
+
+**Use the flagship for almost all interactive work.** Route implementation, design, investigation, and build-loop work to the strongest model. Do not add model-routing complexity to interactive sessions. Human wait time dominates token cost by 20-40x. In the 24-file cross-provider study, the flagship was the cheapest all-in choice for blocking work. It was also the fastest and least verbose. Weaker models create review and fix-up costs that exceed token savings.
+
+- **Lesser models: almost never, and never interactively.** Use them only for large async batches of bounded, structured tasks. Examples: grading, triage, classification, and extraction. No human should wait on any single result. Validate quality on a sample first. Default everything else to the flagship.
+- **Effort is a latency dial, not a quality dial.** Raising effort past high rarely changed quality. The observed gain was <=0.2 on a 10-point rubric. Latency rose 1.5-2.4x. Default to high effort. Reserve xhigh or max for hard, one-way-door problems. Never put a cheap model at max effort. One mini model cost $6.77 per file at xhigh, versus $1.11 at medium for the same score.
+- **Optimize the dimension that actually costs.** When a human blocks on the result, latency dominates. Parallelize independent routes and prefer fast flagship models. Token cost matters only for fully async batch work. Only there do cheaper models earn a look.
+- **Verify across families, not within.** Different model families can grade with a stable offset. One family was about one point stricter in the study. For verification and critic routes, cross-check with a different family than the producer. Same-family self-review is the weakest check.
+
 ## Expected Orchestration Scenarios
 
 These scenarios are normal and require continuation, not apology:
