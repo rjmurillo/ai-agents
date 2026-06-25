@@ -1,8 +1,7 @@
 ---
 name: ship
 description: Ship it. Pre-flight validation, CI check, and PR creation. Run after /review.
-argument-hint:
-  - target-branch
+argument-hint: target-branch
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
 ---
