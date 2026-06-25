@@ -2,6 +2,7 @@
 
 Validates YAML frontmatter for SKILL.md files per ADR-040.
 Covers YAML syntax, required fields, name/description/model/tools validation,
+argument-hint scalar validation,
 CI vs local mode behavior, and edge cases.
 """
 
@@ -318,6 +319,18 @@ class TestGetSkillFiles:
         assert len(result) == 1
         assert result[0] == skill_file
 
+    def test_changed_files_includes_copilot_skill_mirror(self, tmp_path: Path) -> None:
+        skill_dir = tmp_path / "src" / "copilot-cli" / "skills" / "test"
+        skill_dir.mkdir(parents=True)
+        skill_file = skill_dir / "SKILL.md"
+        skill_file.write_text("---\nname: test\ndescription: Test\n---")
+
+        result = get_skill_files(
+            path=str(tmp_path),
+            changed_files=[str(skill_file)],
+        )
+        assert result == [skill_file]
+
     def test_changed_files_no_match(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = get_skill_files(
             path=".",
@@ -425,6 +438,17 @@ class TestValidateSkillFile:
         )
         result = validate_skill_file(skill_file)
         assert result.passed is True
+
+    def test_argument_hint_array_reports_error(self, tmp_path: Path) -> None:
+        skill_file = tmp_path / "SKILL.md"
+        skill_file.write_text(
+            "---\nname: bad-hint\n"
+            "description: Skill with bad hint\n"
+            "argument-hint:\n  - branch-or-pr-number\n---"
+        )
+        result = validate_skill_file(skill_file)
+        assert result.passed is False
+        assert any("argument-hint must be a string" in e for e in result.errors)
 
     def test_frontmatter_only_no_body(self, tmp_path: Path) -> None:
         skill_file = tmp_path / "SKILL.md"
