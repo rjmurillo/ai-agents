@@ -108,7 +108,8 @@ VALID_TOOLS: frozenset[str] = frozenset(
 # XML tag detection pattern
 _XML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
 _SKILL_FILE_PATTERN: re.Pattern[str] = re.compile(
-    r"(?:^|/)(?:\.claude|src/copilot-cli)/skills/[^/]+/SKILL\.md$"
+    r"(?:^|/)(?:\.claude|src/copilot-cli)/skills/[^/]+/SKILL\.md$",
+    re.IGNORECASE,
 )
 
 # Copilot CLI rejects non-string values for this skill field at load time.
@@ -341,10 +342,20 @@ def validate_allowed_tools(allowed_tools: str | None) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _is_skill_file_path(path: str) -> bool:
+def _normalize_skill_path(path: str, root: Path | None = None) -> str:
+    """Return a repo-relative, slash-normalized path when possible."""
+    candidate = Path(path)
+    if root is not None:
+        try:
+            candidate = candidate.resolve().relative_to(root.resolve())
+        except (OSError, ValueError):
+            pass
+    return str(candidate).replace("\\", "/")
+
+
+def _is_skill_file_path(path: str, root: Path | None = None) -> bool:
     """Return true for Claude skill files and Copilot CLI skill mirrors."""
-    normalized = path.replace("\\", "/")
-    return _SKILL_FILE_PATTERN.search(normalized) is not None
+    return _SKILL_FILE_PATTERN.fullmatch(_normalize_skill_path(path, root)) is not None
 
 
 def get_staged_skill_files() -> list[Path]:
@@ -378,7 +389,8 @@ def get_skill_files(
 ) -> list[Path]:
     """Get list of SKILL.md files to validate based on parameters."""
     if changed_files:
-        skill_files = [f for f in changed_files if _is_skill_file_path(f)]
+        root = Path(path)
+        skill_files = [f for f in changed_files if _is_skill_file_path(f, root)]
         if not skill_files:
             print("No SKILL.md files in changed files list. "
                   "Skipping frontmatter validation.")

@@ -331,6 +331,30 @@ class TestGetSkillFiles:
         )
         assert result == [skill_file]
 
+    def test_changed_files_match_skill_paths_case_insensitively(self, tmp_path: Path) -> None:
+        skill_dir = tmp_path / "SRC" / "Copilot-CLI" / "Skills" / "test"
+        skill_dir.mkdir(parents=True)
+        skill_file = skill_dir / "SKILL.md"
+        skill_file.write_text("---\nname: test\ndescription: Test\n---")
+
+        result = get_skill_files(
+            path=str(tmp_path),
+            changed_files=[str(skill_file)],
+        )
+        assert result == [skill_file]
+
+    def test_changed_files_reject_nested_skill_path_prefix(self, tmp_path: Path) -> None:
+        skill_dir = tmp_path / "nested" / ".claude" / "skills" / "test"
+        skill_dir.mkdir(parents=True)
+        skill_file = skill_dir / "SKILL.md"
+        skill_file.write_text("---\nname: test\ndescription: Test\n---")
+
+        result = get_skill_files(
+            path=str(tmp_path),
+            changed_files=[str(skill_file)],
+        )
+        assert result == []
+
     def test_changed_files_no_match(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = get_skill_files(
             path=".",
