@@ -1,7 +1,7 @@
 ---
 description: Detect Spec to Code drift. Scan REQ/DESIGN/TASK specs for references to code that no longer exists, then report drift for review. Run after a hand-edit that moved or deleted code.
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(python3 scripts/sync/detect_spec_drift.py*)
-argument-hint: [spec-tier-or-empty]
+argument-hint: spec-tier-or-empty
 ---
 
 # Sync Command

@@ -1,7 +1,7 @@
 ---
 description: Ship it. Pre-flight validation, CI check, and PR creation. Run after /review.
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
-argument-hint: [target-branch]
+argument-hint: target-branch
 ---
 
 @CLAUDE.md
