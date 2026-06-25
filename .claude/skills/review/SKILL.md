@@ -2,8 +2,7 @@
 name: review
 version: 1.0.0
 description: Review before merge. Stage-1 spec-compliance gate, then 11 Stage-2 canonical axes (analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor, code-quality) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test. Run for a full pre-merge review. Do NOT invoke code-qualities-assessment, golden-principles, or taste-lints directly for a full review; review chains them.
-argument-hint:
-  - branch-or-pr-number
+argument-hint: branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
 license: MIT

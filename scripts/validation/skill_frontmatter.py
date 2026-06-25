@@ -29,6 +29,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 from scripts.validation.models import ValidationResult
 
 # Valid model identifiers.
@@ -105,6 +107,13 @@ VALID_TOOLS: frozenset[str] = frozenset(
 
 # XML tag detection pattern
 _XML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
+_SKILL_FILE_PATTERN: re.Pattern[str] = re.compile(
+    r"(?:^|/)(?:\.claude|src/copilot-cli)/skills/[^/]+/SKILL\.md$",
+    re.IGNORECASE,
+)
+
+# Copilot CLI rejects non-string values for this skill field at load time.
+STRING_ONLY_FIELDS: frozenset[str] = frozenset({"argument-hint"})
 
 
 @dataclass
@@ -164,6 +173,22 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
         result.errors.append(
             "Frontmatter must use spaces for indentation (tabs not allowed)"
         )
+
+    try:
+        typed_frontmatter = yaml.safe_load(frontmatter_content) or {}
+    except yaml.YAMLError as exc:
+        result.errors.append(f"Frontmatter YAML parse error: {exc}")
+        typed_frontmatter = {}
+
+    if not isinstance(typed_frontmatter, dict):
+        result.errors.append("Frontmatter must be a YAML mapping")
+        typed_frontmatter = {}
+
+    for field_name in STRING_ONLY_FIELDS:
+        if field_name in typed_frontmatter and not isinstance(
+            typed_frontmatter[field_name], str
+        ):
+            result.errors.append(f"{field_name} must be a string")
 
     # Parse YAML using simple key-value parsing
     frontmatter: dict[str, str] = {}
@@ -317,6 +342,22 @@ def validate_allowed_tools(allowed_tools: str | None) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def _normalize_skill_path(path: str, root: Path | None = None) -> str:
+    """Return a repo-relative, slash-normalized path when possible."""
+    candidate = Path(path)
+    if root is not None:
+        try:
+            candidate = candidate.resolve().relative_to(root.resolve())
+        except (OSError, ValueError):
+            pass
+    return str(candidate).replace("\\", "/")
+
+
+def _is_skill_file_path(path: str, root: Path | None = None) -> bool:
+    """Return true for Claude skill files and Copilot CLI skill mirrors."""
+    return _SKILL_FILE_PATTERN.fullmatch(_normalize_skill_path(path, root)) is not None
+
+
 def get_staged_skill_files() -> list[Path]:
     """Get staged SKILL.md files from git."""
     try:
@@ -334,7 +375,7 @@ def get_staged_skill_files() -> list[Path]:
 
     files: list[Path] = []
     for line in result.stdout.strip().split("\n"):
-        if re.search(r"\.claude/skills/.*/SKILL\.md$", line):
+        if _is_skill_file_path(line):
             path = Path(line)
             if path.exists():
                 files.append(path)
@@ -348,10 +389,8 @@ def get_skill_files(
 ) -> list[Path]:
     """Get list of SKILL.md files to validate based on parameters."""
     if changed_files:
-        skill_files = [
-            f for f in changed_files
-            if re.search(r"\.claude/skills/.*/SKILL\.md$", f)
-        ]
+        root = Path(path)
+        skill_files = [f for f in changed_files if _is_skill_file_path(f, root)]
         if not skill_files:
             print("No SKILL.md files in changed files list. "
                   "Skipping frontmatter validation.")

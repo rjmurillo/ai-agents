@@ -98,6 +98,26 @@ def test_command_without_frontmatter_backfills_description(tmp_path: Path) -> No
     assert "user-invocable: true" in out
 
 
+def test_command_argument_hint_inline_array_emits_scalar_string(tmp_path: Path) -> None:
+    _write_command(
+        tmp_path / "cmds",
+        "ship",
+        frontmatter=(
+            'description: "Ship changes."\n'
+            "argument-hint: [target-branch]\n"
+        ),
+        body="# Ship\n\nShip changes.\n",
+    )
+    cfg = _write_config(tmp_path)
+
+    rc = generate_commands.generate_commands(cfg, tmp_path)
+    assert rc == 0
+
+    out = _read_output(tmp_path, "ship")
+    assert "argument-hint: '[target-branch]'" in out
+    assert "argument-hint:\n  - target-branch" not in out
+
+
 def test_claude_md_excluded(tmp_path: Path) -> None:
     """CLAUDE.md is a passive context import, not a slash command — must be skipped."""
     _write_command(tmp_path / "cmds", "real", body="real cmd\n")
