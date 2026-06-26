@@ -356,6 +356,53 @@ def test_inject_shim_no_op_on_bare_miss():
     assert "FIRED" not in proc.stdout
 
 
+def test_inject_shim_no_op_on_batched_toolcalls_without_match():
+    transformed = inject_shim(_TRACE_SCRIPT, "Bash")
+    proc = _run_shim(
+        transformed,
+        {
+            "toolCalls": [
+                {
+                    "id": "custom_call_patch",
+                    "name": "apply_patch",
+                    "args": "*** Begin Patch\n*** Add File: example.txt\n+hi\n*** End Patch\n",
+                }
+            ]
+        },
+    )
+    assert proc.returncode == 0
+    assert "FIRED" not in proc.stdout
+    assert proc.stderr == ""
+
+
+def test_inject_shim_fires_on_batched_toolcalls_with_tool_glob_match():
+    script = (
+        "import sys, json\n"
+        "data = json.load(sys.stdin) if sys.stdin else {}\n"
+        'print("FIRED:" + data.get("tool_name", ""))\n'
+        'print("COMMAND:" + data.get("tool_input", {}).get("command", ""))\n'
+        "sys.exit(0)\n"
+    )
+    transformed = inject_shim(script, "Bash(git commit*)")
+    proc = _run_shim(
+        transformed,
+        {
+            "sessionId": "s1",
+            "toolCalls": [
+                {"id": "custom_call_patch", "name": "apply_patch", "args": "patch"},
+                {
+                    "id": "custom_call_bash",
+                    "name": "Bash",
+                    "args": {"command": "git commit -m example"},
+                },
+            ],
+        },
+    )
+    assert proc.returncode == 0
+    assert "FIRED:Bash" in proc.stdout
+    assert "COMMAND:git commit -m example" in proc.stdout
+
+
 def test_inject_shim_fires_on_mcp_namespaced_bare():
     transformed = inject_shim(_TRACE_SCRIPT, "mcp__serena__write_memory")
     proc = _run_shim(transformed, {"tool_name": "mcp__serena__write_memory"})
