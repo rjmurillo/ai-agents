@@ -83,8 +83,11 @@ def validate_command_bundle_coverage(repo_root: Path) -> bool:
     """
     enforced = os.environ.get("BUNDLE_CHECK_ENFORCED", "").lower() in ("1", "true")
 
-    # Lazy import; sibling module under scripts/validation/.
-    sys.path.insert(0, str(repo_root / "scripts" / "validation"))
+    # Sibling module under scripts/validation/. Dedupe the path entry so
+    # repeated calls to this check do not accumulate sys.path entries.
+    registry_dir = str(repo_root / "scripts" / "validation")
+    if registry_dir not in sys.path:
+        sys.path.insert(0, registry_dir)
     try:
         from bundle_registry import BUNDLE_REGISTRY, expected_skill_invocation
     except ImportError as exc:
