@@ -73,8 +73,54 @@ def _shim_glob_match(args_glob, tool_args_norm):
     return False
 
 
-def _shim_should_fire(payload):
-    kind, params = _shim_classify(_MATCHER)
+def _shim_parse_json_string(raw_value, field_name):
+    if isinstance(raw_value, str):
+        stripped = raw_value.lstrip()
+        if not stripped or stripped[0] not in "{[\"":
+            return raw_value
+        try:
+            return _json.loads(raw_value)
+        except ValueError as exc:
+            print(
+                "matcher-shim [{}]: {} is not valid JSON: {}".format(
+                    _MATCHER, field_name, exc
+                ),
+                file=_sys.stderr,
+            )
+            return raw_value
+    return raw_value
+
+
+def _shim_tool_input_from_call_args(raw_args):
+    return _shim_parse_json_string(raw_args, "toolCalls.args")
+
+
+def _shim_tool_input_from_tool_args(raw_args):
+    return _shim_parse_json_string(raw_args, "toolArgs")
+
+
+def _shim_candidate_payloads(payload):
+    tool_calls = payload.get("toolCalls")
+    if isinstance(tool_calls, list):
+        candidates = []
+        for call in tool_calls:
+            if not isinstance(call, dict):
+                continue
+            name = call.get("name")
+            if not isinstance(name, str):
+                continue
+            candidate = dict(payload)
+            candidate.pop("toolCalls", None)
+            candidate["tool_name"] = name
+            candidate["tool_input"] = _shim_tool_input_from_call_args(call.get("args"))
+            if "id" in call:
+                candidate["tool_call_id"] = call.get("id")
+            candidates.append(candidate)
+        return candidates
+    return [payload]
+
+
+def _shim_match_candidate(payload, kind, params):
     # Support both VS Code-compatible snake_case (PascalCase event names)
     # and native camelCase (camelCase event names) payloads.
     # Copilot CLI sends snake_case when the event key is PascalCase,
@@ -94,43 +140,45 @@ def _shim_should_fire(payload):
             tool_args = payload.get("toolArgs")
         # camelCase payloads send toolArgs as a JSON string, not a parsed
         # object. Parse it so _shim_normalize_args can extract "command".
-        if isinstance(tool_args, str):
-            try:
-                tool_args = _json.loads(tool_args)
-            except ValueError as exc:
-                # Host sent a string that is not valid JSON. Log so
-                # the operator can diagnose; fall through to normalize
-                # which treats raw strings as-is (glob may not match).
-                print(
-                    "matcher-shim [{}]: toolArgs is not valid JSON: {}".format(
-                        _MATCHER, exc
-                    ),
-                    file=_sys.stderr,
-                )
+        tool_args = _shim_tool_input_from_tool_args(tool_args)
         norm_args = _shim_normalize_args(tool_args)
         return _shim_glob_match(params["argsGlob"], norm_args)
     # bare
     return tool_name == params["toolName"]
 
 
+def _shim_select_payload(payload):
+    kind, params = _shim_classify(_MATCHER)
+    candidates = _shim_candidate_payloads(payload)
+    if not candidates:
+        return None
+    for candidate in candidates:
+        if _shim_match_candidate(candidate, kind, params):
+            return candidate
+    return None
+
+
+def _shim_should_fire(payload):
+    return _shim_select_payload(payload) is not None
+
+
 def _shim_replay_bytes(payload, raw):
-    replay = dict(payload)
-    changed = False
+    selected = _shim_select_payload(payload)
+    if selected is None:
+        return raw
+    replay = dict(selected)
+    changed = replay is not payload
     tool_name = replay.get("tool_name")
     if tool_name is None and isinstance(replay.get("toolName"), str):
         replay["tool_name"] = replay["toolName"]
         changed = True
     tool_input = replay.get("tool_input")
     if tool_input is None and "toolArgs" in replay:
-        tool_args = replay.get("toolArgs")
-        if isinstance(tool_args, str):
-            try:
-                tool_args = _json.loads(tool_args)
-            except ValueError:
-                pass
-        replay["tool_input"] = tool_args
+        replay["tool_input"] = _shim_tool_input_from_tool_args(replay.get("toolArgs"))
         changed = True
     if not changed:
+        return raw
+    if payload.get("tool_name") is not None:
         return raw
     return _json.dumps(replay, separators=(",", ":")).encode("utf-8")
 
