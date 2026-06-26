@@ -288,6 +288,9 @@ def format_frontmatter_yaml(frontmatter: dict[str, str | None]) -> str:
             return []
         value_str = str(value)
 
+        if key == "argument-hint":
+            return [f"{key}: {_yaml_quote_if_needed(value_str)}"]
+
         # Check if value is an inline array
         array_match = re.match(r"^\[(.*)\]$", value_str)
         if array_match:

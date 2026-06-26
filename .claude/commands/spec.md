@@ -1,7 +1,7 @@
 ---
 description: Define what to build. Transform a problem into testable requirements with acceptance criteria.
 allowed-tools: Task, Skill, Read, Write, Glob, Grep
-argument-hint: [problem-statement-or-issue-number]
+argument-hint: problem-statement-or-issue-number
 ---
 
 @CLAUDE.md

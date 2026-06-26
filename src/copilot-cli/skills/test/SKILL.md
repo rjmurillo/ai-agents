@@ -1,8 +1,7 @@
 ---
 name: test
 description: Prove it works. Multi-dimensional quality validation across functional, non-functional, security, DevOps, DX, and observability. Run after /build.
-argument-hint:
-  - component-or-failure-description
+argument-hint: component-or-failure-description
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
 ---

@@ -1,8 +1,7 @@
 ---
 name: build
 description: Build incrementally. Implement changes in thin vertical slices with TDD and atomic commits. Run after /plan.
-argument-hint:
-  - plan-step-or-task-description
+argument-hint: plan-step-or-task-description
 allowed-tools: Task, Skill, Read, Write, Edit, Glob, Grep, Bash(*)
 user-invocable: true
 ---

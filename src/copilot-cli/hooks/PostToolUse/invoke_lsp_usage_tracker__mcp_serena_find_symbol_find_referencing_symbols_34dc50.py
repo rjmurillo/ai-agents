@@ -167,7 +167,7 @@ def _shim_replay_bytes(payload, raw):
     if selected is None:
         return raw
     replay = dict(selected)
-    changed = replay is not payload
+    changed = selected is not payload
     tool_name = replay.get("tool_name")
     if tool_name is None and isinstance(replay.get("toolName"), str):
         replay["tool_name"] = replay["toolName"]

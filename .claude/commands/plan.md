@@ -1,7 +1,7 @@
 ---
 description: Plan how to build it. Decompose specs into milestones with dependencies and risk mitigations. Run after /spec.
 allowed-tools: Task, Skill, Read, Write, Glob, Grep
-argument-hint: [spec-output-or-issue-number]
+argument-hint: spec-output-or-issue-number
 ---
 
 @CLAUDE.md

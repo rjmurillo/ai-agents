@@ -1,7 +1,7 @@
 ---
 description: Prove it works. Multi-dimensional quality validation across functional, non-functional, security, DevOps, DX, and observability. Run after /build.
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
-argument-hint: [component-or-failure-description]
+argument-hint: component-or-failure-description
 ---
 
 @CLAUDE.md
