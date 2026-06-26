@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2598,
+    "date": "2026-06-26",
+    "branch": "fix/spec-005-bundle-registry-hardening",
+    "startingCommit": "48e6905c",
+    "objective": "Salvage SPEC-005 bundle registry hardening refinements into a fresh PR off main"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__activate_project unavailable in this harness; used Serena symbolic tools (get_symbols_overview, find_symbol) directly per AGENTS.md fallback"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md Serena Init followed via symbolic tools; using-serena-symbols guidance present in skill context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only reference, SESSION-PROTOCOL v1.4)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skills enumerated in session context; invoked session-init and github skill scripts (get_pull_requests.py)"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "using-serena-symbols and using-forgetful-memory guidance available; Serena symbolic tools used for reads"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS surfaced via CLAUDE.md/AGENTS.md/.claude/rules in session context; universal.md branch + atomic-commit + no-force-push rules applied"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical memories surfaced via PreToolUse hooks (validation-tooling-patterns, self-referential-test-anti-pattern, git/pr-review observations)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/spec-005-bundle-registry-hardening"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/spec-005-bundle-registry-hardening"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked; branch cut from origin/main, clean before edits"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "48e6905c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end checklist completed; work committed and verified."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session episode auto-extracted to .agents/memory/episodes/episode-2026-06-26-session-2598; salvage decision (SPEC-005 landed via #1899) captured for cross-session recall."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files modified this session; the code commit was Python-only, so markdownlint is not applicable."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code committed at 3587a0c1 (bundle_registry.py, checks_coverage.py, test_command_bundles.py)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit passed (ruff auto-fix clean, taste lints pass); pytest tests/test_command_bundles.py exits 0 with 2 passing and 45 xfail as expected."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "nextSteps recorded in this log; no external task tracker in use."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Investigate workspace changes and upstream state for SPEC-005 work",
+      "outcome": "Found SPEC-005 already landed on origin/main via PR #1899; the docs/spec-005-command-skill-bundling branch is 459 commits stale and superseded. Only the bundle-registry quality refinements are not upstream. User chose to salvage them into a fresh PR off main."
+    },
+    {
+      "task": "Re-apply Group A refinements onto main's current files on a fresh branch off origin/main",
+      "outcome": "Edited scripts/validation/bundle_registry.py (add __all__, str.replace over str.format, _command_base helper using Path.stem replacing 3 rsplit calls), tests/test_command_bundles.py (filesystem-inferred _row_is_implemented xfail with strict=True, shared tightened _CWE78_GIT_LOG_RE, sys.path dedup), scripts/validation/checks_coverage.py (sys.path dedup in validate_command_bundle_coverage)."
+    },
+    {
+      "task": "Verify refinements (test run + behavior check)",
+      "outcome": "pytest tests/test_command_bundles.py: 2 passed, 2 skipped, 45 xfailed (pytest 9.0.3, Python 3.14.4) - behavior preserved/green. bundle_registry sanity check passed (invocation, marker, present-check correct). checks_coverage advisory mode returns True; BUNDLE_CHECK_ENFORCED=1 returns False as designed."
+    }
+  ],
+  "endingCommit": "3587a0c1",
+  "nextSteps": [
+    "Commit the three-file hardening change on fix/spec-005-bundle-registry-hardening.",
+    "Push the branch and open a small PR against main referencing SPEC-005 and PR #1899.",
+    "Drop the stashed Serena project.yml drift and generated copilot-cli edits (out of scope).",
+    "Abandon the superseded docs/spec-005-command-skill-bundling branch."
+  ]
+}
