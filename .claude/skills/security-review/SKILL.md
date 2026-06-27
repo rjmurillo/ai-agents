@@ -189,8 +189,8 @@ End every review with one verdict:
   is the required verdict. Do not ESCALATE a change whose verdict you can
   already reach.
 - ESCALATE: the diff is incomplete or the decision needs an owner (missing
-  changed files, missing coverage data, an external or irreversible action such
-  as disclosure or secret rotation).
+  changed files needed to judge reachability, an external or irreversible
+  action such as disclosure or secret rotation).
 
 If a verdict cannot be reached because the diff is incomplete, ESCALATE with the
 specific missing artifact rather than guessing. A verdict is reachable when the
