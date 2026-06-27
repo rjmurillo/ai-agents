@@ -231,8 +231,6 @@ def _shim_dispatch():
     if rc is None:
         rc = 0
     _sys.exit(int(rc))
-
-
 # END MATCHER SHIM
 
 def _original_main(stdin_bytes):
