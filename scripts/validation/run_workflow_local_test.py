@@ -397,10 +397,9 @@ _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
 )
 
 # Known act-only limitation signatures. A nonzero act exit whose combined output
-# carries one of these is a local environment gap, not a workflow defect, so the
-# stage downgrades to a passing [WARN] instead of a hard FAIL. Each entry pairs
-# the exact substring with a hint surfaced to the developer. Kept conservative:
-# only these exact signatures downgrade; every other nonzero exit still blocks.
+# matches one of these rules can be a local environment gap, not a workflow
+# defect. The pull_request context rule is event-scoped in _act_limitation_hint;
+# every other nonzero exit still blocks.
 def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     """Return the WARN hint when ``combined`` matches a known act limitation.
 
