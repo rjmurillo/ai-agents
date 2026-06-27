@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Triage addendum + session log committed on worktree-agent-a24a515ba45173bf4"
+        "Evidence": "Triage addendum + session log committed on worktree-agent-a24a515ba45173bf4. Commit SHA: 3b9f48f53b1834e939c2b7c8fac3866fc380f692"
       },
       "validationPassed": {
         "level": "MUST",
@@ -143,7 +143,7 @@
       "detail": "uv run pytest tests/ -k session: 739 passed, 1 skipped, 6 xfailed. Session-log and validation suites green. Confirms the session-log JSON edited this session validates against the schema."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "3b9f48f53b1834e939c2b7c8fac3866fc380f692",
   "nextSteps": [
     "File a tracking issue for SkillForge progressive disclosure (1033-line SKILL.md over ceiling)",
     "memory decomposition continues under #1948 (M3/ADR-063)",
