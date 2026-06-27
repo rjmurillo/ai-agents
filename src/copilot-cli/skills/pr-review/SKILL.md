@@ -10,7 +10,7 @@ user-invocable: true
 
 ultrathink
 
-Respond to PR review comments for: $ARGUMENTS
+Respond to PR review comments for: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
 Load configuration from `.claude/commands/pr-review-config.yaml` for scripts, completion criteria, error recovery, and failure handling tables.
 

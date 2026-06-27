@@ -722,6 +722,30 @@ def _select_platform_configs(
 OWNED_PREFIXES: tuple[str, ...] = ("src/", ".github/instructions/", "docs/agent-catalog.md")
 
 
+# --- Staleness deferrals: narrowly-scoped --check exemptions ---------------
+#
+# The skill-mirror generator (generate_skills.py) translates Claude Code
+# conventions in every Copilot SKILL.md body (issue #2743). Two source skills
+# carry pre-existing SkillForge defects (issue #2755): cva-analysis and
+# slashcommandcreator have unsafe trigger-phrase characters, and
+# slashcommandcreator also declares an unexpected `trigger` frontmatter key.
+# Committing their translated output would vendor those defects into the
+# shipped plugin tree, so the translated bytes are intentionally NOT committed
+# and their regen drift is excluded from the --check staleness gate.
+#
+# Scope is exactly these two SKILL.md outputs. The rest of the generated
+# Copilot skill tree (including the other translated mirrors) stays under the
+# staleness gate. SkillForge is not relaxed.
+#
+# Remove this constant (and its filter use below) when #2755 lands: once the
+# source skills are clean, their translated mirrors can be committed and the
+# gate covers them like every other generated output.
+STALENESS_DEFERRALS: tuple[str, ...] = (
+    "src/copilot-cli/skills/cva-analysis/SKILL.md",
+    "src/copilot-cli/skills/slashcommandcreator/SKILL.md",
+)
+
+
 def _snapshot_owned_prefixes(
     repo_root: Path, prefixes: tuple[str, ...]
 ) -> dict[Path, bytes]:
@@ -989,6 +1013,7 @@ def _run_generators(
         diff = [
             p for p in _git_diff_paths(repo_root)
             if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)
+            and p not in STALENESS_DEFERRALS
         ]
         if diff:
             print("STALENESS DETECTED — uncommitted regen drift:", file=sys.stderr)

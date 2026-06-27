@@ -6,11 +6,10 @@ allowed-tools: Task, Skill, Read, Write, Glob, Grep
 user-invocable: true
 ---
 
-@CLAUDE.md
+<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+Plan: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
-Plan: $ARGUMENTS
-
-If $ARGUMENTS is empty, check for recent /spec output in the conversation. If none found, ask the user what to plan.
+If the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message) is empty, check for recent /spec output in the conversation. If none found, ask the user what to plan.
 
 ## If you arrived here without a spec, run the front-gate first
 
@@ -49,3 +48,24 @@ Structured plan:
 - **Dependency graph** (what blocks what, what can run in parallel)
 - **Risk register** (risk, likelihood, impact, mitigation)
 - **Deferred items** (explicitly out of scope for this plan)
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-skill calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Skill(skill="execution-plans")` | `skill` tool, `skill: "execution-plans"` |
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="analyst")` | `task` tool, `agent_type: "project-toolkit:analyst"` |
+| `Task(subagent_type="critic")` | `task` tool, `agent_type: "project-toolkit:critic"` |
+| `Task(subagent_type="milestone-planner")` | `task` tool, `agent_type: "project-toolkit:milestone-planner"` |
+| `Task(subagent_type="task-decomposer")` | `task` tool, `agent_type: "project-toolkit:task-decomposer"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

@@ -6,11 +6,10 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
 ---
 
-@CLAUDE.md
+<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+Test: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
-Test: $ARGUMENTS
-
-If $ARGUMENTS is empty, test the current branch diff against the base branch.
+If the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message) is empty, test the current branch diff against the base branch.
 
 ## Step 0: Classify PR Type
 
@@ -146,3 +145,29 @@ Synthesize into overall report:
 | Observability | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 
 **Overall verdict**: CRITICAL_FAIL if any gate fails. WARN if any gate warns. PASS if all gates pass.
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-skill calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Skill(skill="code-qualities-assessment")` | `skill` tool, `skill: "code-qualities-assessment"` |
+| `Skill(skill="orphan-ref-validator")` | `skill` tool, `skill: "orphan-ref-validator"` |
+| `Skill(skill="quality-grades")` | `skill` tool, `skill: "quality-grades"` |
+| `Skill(skill="security-scan")` | `skill` tool, `skill: "security-scan"` |
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="analyst")` | `task` tool, `agent_type: "project-toolkit:analyst"` |
+| `Task(subagent_type="architect")` | `task` tool, `agent_type: "project-toolkit:architect"` |
+| `Task(subagent_type="critic")` | `task` tool, `agent_type: "project-toolkit:critic"` |
+| `Task(subagent_type="devops")` | `task` tool, `agent_type: "project-toolkit:devops"` |
+| `Task(subagent_type="qa")` | `task` tool, `agent_type: "project-toolkit:qa"` |
+| `Task(subagent_type="security")` | `task` tool, `agent_type: "project-toolkit:security"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
