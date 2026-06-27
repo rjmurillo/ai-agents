@@ -57,6 +57,7 @@
     "skills/github/scripts/pr/unresolve_pr_review_thread.py": 1,
     "skills/github/scripts/reactions/add_comment_reaction.py": 1,
     "skills/golden-principles/scripts/scan_principles.py": 2,
+    "skills/memory-reflexion/tests/test_memory_reflexion_structure.py": 2,
     "skills/memory-search/tests/test_skill_structure.py": 1,
     "skills/memory/memory_core/reflexion_memory.py": 1,
     "skills/memory/memory_core/schema_validation.py": 1,
