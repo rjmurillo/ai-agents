@@ -13,7 +13,7 @@ mid-session when you want a recoverable save point before a risky change, at the
 end of a working block, or whenever the user asks to "checkpoint" progress. The
 file is the human-readable record; the session log keeps a reference to it.
 
-Optional label for this checkpoint: $ARGUMENTS
+Optional label for this checkpoint: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
 ## Triggers
 
@@ -61,7 +61,7 @@ the JSON.
     `session.branch` equals the current branch. Normalize `session.branch` by
     trimming whitespace and removing one matching pair of surrounding backticks.
     That file is the active session log.
-   - If `$ARGUMENTS` is empty after trimming, derive the label from the active
+   - If `the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)` is empty after trimming, derive the label from the active
     session log's `session.objective`. If no active session log exists, derive
     it from the current branch. If that is empty, use `checkpoint`.
 
