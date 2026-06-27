@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-06-26-session-2598-salvage-spec-005-bundle-registry-hardening",
+  "session": "2026-06-26-session-2598-salvage-spec-005-bundle-registry-hardening",
+  "timestamp": "2026-06-26T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Salvage SPEC-005 bundle registry hardening refinements into a fresh PR off main",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigate workspace changes and upstream state for SPEC-005 work",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-apply Group A refinements onto main's current files on a fresh branch off origin/main",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify refinements (test run + behavior check)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-26T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest tests/test_command_bundles.py: 2 passed, 2 skipped, 45 xfailed (pytest 9.0.3, Python 3.14.4) - behavior preserved/green. bundle_registry sanity check passed (invocation, marker, present-check correct). checks_coverage advisory mode returns True; BUNDLE_CHECK_ENFORCED=1 returns False as designed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3587a0c1",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

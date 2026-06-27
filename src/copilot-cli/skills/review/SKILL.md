@@ -1,6 +1,7 @@
 ---
 name: review
 version: 1.0.0
+model: claude-sonnet-4-6
 description: Review before merge. Stage-1 spec-compliance gate, then 11 Stage-2 canonical axes (analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor, code-quality) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test. Run for a full pre-merge review. Do NOT invoke code-qualities-assessment, golden-principles, or taste-lints directly for a full review; review chains them.
 argument-hint: branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
@@ -10,7 +11,7 @@ license: MIT
 
 # Review
 
-Review: $ARGUMENTS
+Review: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
 If no argument, review the current branch diff against the base branch. Detect the base branch from `gh pr view --json baseRefName` or fall back to `main`.
 
@@ -28,7 +29,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` runs first and gates Stage 2: only a `CRITICAL_FAIL` short-circuits the review (see Process step 2). A Stage-1 `UNKNOWN` (INCONCLUSIVE) does NOT short-circuit; Stage 2 still runs and the UNKNOWN is preserved as an UNKNOWN in the merge, because no spec or acceptance criteria could be located and that absence must never suppress a real Stage-2 finding. The caller decides how the merged verdict gates its workflow.
 
-`/review` is a strict superset of CI: any finding CI surfaces, `/review` will surface first locally. CI may wire a subset of the canonical axes (its per-axis job list can lag the `references/` directory); `/review` always runs the full discovered set, so it never surfaces fewer axes than CI. The 3 chained skill extras (`code-qualities-assessment`, `golden-principles`, `taste-lints`) cannot run in CI (they require code execution + repo state) and so layer on top.
+`/review` is a strict superset of CI: any finding CI surfaces, `/review` will surface first locally. CI may wire a subset of the canonical axes (its per-axis job list can lag the `references/` directory); `/review` always runs the full discovered set, so it never surfaces fewer axes than CI. The 3 chained skill extras (`code-qualities-assessment`, `golden-principles`, `taste-lints`) need local code execution and repo state, so CI cannot run them, but they are language-agnostic and run on ANY repo locally as part of `/review`.
 
 ## Path resolution (harness-agnostic)
 
@@ -82,7 +83,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
    - axis 11: `code-quality` (general-purpose fallback; no dedicated subagent)
 5. **Run 3 chained skill axes** (local-only; CI does not run these). These run after every canonical axis. Scope the golden-principles and taste-lints axes to the PR diff by passing the base branch detected in step 1 (stored as `BASE_BRANCH`) as `--diff-scope`, quoted, so the gates evaluate only changed files, not the whole tree:
    - local axis 1: Skill(skill="code-qualities-assessment")
-   - local axis 2: Skill(skill="golden-principles"), invoking `python3 <scan_principles.py> --diff-scope "origin/$BASE_BRANCH"`, where `<scan_principles.py>` is `golden-principles/scripts/scan_principles.py` resolved via the "Path resolution" section (chained-skill scripts). Do not assume the `.claude/` layout.
+   - local axis 2: Skill(skill="golden-principles"), invoking `python3 <scan_principles.py> --diff-scope "origin/$BASE_BRANCH"`, where `<scan_principles.py>` is `golden-principles/scripts/scan_principles.py` resolved via the "Path resolution" section (chained-skill scripts). Do not assume the `.claude/` layout. Scope: golden-principles enforces toolkit-artifact governance for GP-001, GP-003, GP-004, GP-005, and GP-006 (script language, skill frontmatter, agent definitions, YAML logic, pinned Actions). GP-002 is enforced by hooks and review practice; GP-007 and GP-008 are enforced by taste-lints. A clean result on a non-toolkit repo means no rule applied, not that design was reviewed.
    - local axis 3: Skill(skill="taste-lints"), invoking `python3 <taste_lints.py> --diff-scope "origin/$BASE_BRANCH"`, where `<taste_lints.py>` is `taste-lints/scripts/taste_lints.py` resolved via the "Path resolution" section (chained-skill scripts). Do not assume the `.claude/` layout.
 6. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Use `extract_verdict` from the verdict library (resolved per "Path resolution") to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
 7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict plus one verdict per Stage-2 axis (the 11 discovered non-spec canonical axes plus the 3 chained skills; 15 total with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis (issue #2690).
@@ -190,3 +191,28 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 (Spec, generator, and drift hook live outside the vendored surface and are
 not referenced from this skill body. Vendored installs work without them.)
+
+<!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access and that no axis references it. No upstream-only runtime dependency. Issue #2050. -->
+
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-skill calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Skill(skill="code-qualities-assessment")` | `skill` tool, `skill: "code-qualities-assessment"` |
+| `Skill(skill="golden-principles")` | `skill` tool, `skill: "golden-principles"` |
+| `Skill(skill="taste-lints")` | `skill` tool, `skill: "taste-lints"` |
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="analyst")` | `task` tool, `agent_type: "project-toolkit:analyst"` |
+| `Task(subagent_type="general-purpose")` | `task` tool, `agent_type: "project-toolkit:general-purpose"` |
+| `Task(subagent_type="{role}")` | `task` tool, `agent_type: "project-toolkit:{role}"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

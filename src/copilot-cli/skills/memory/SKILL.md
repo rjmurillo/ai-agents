@@ -257,7 +257,7 @@ What do you need?
 | [skill-reference.md](references/skill-reference.md) | Detailed script parameters |
 | [tier-selection-guide.md](references/tier-selection-guide.md) | When to use each tier |
 | [memory-router.md](references/memory-router.md) | ADR-037 router architecture |
-| [reflexion-memory.md](references/reflexion-memory.md) | ADR-038 episode/causal schemas |
+| [memory-reflexion skill](../memory-reflexion/SKILL.md) | ADR-038 episode/causal write path and schemas |
 | [troubleshooting.md](references/troubleshooting.md) | Error recovery |
 | [benchmarking.md](references/benchmarking.md) | Performance targets |
 | [agent-integration.md](references/agent-integration.md) | Multi-agent patterns |
@@ -388,6 +388,7 @@ Return structured results to the caller with source attribution.
 | Skill | When to Use Instead |
 |-------|---------------------|
 | `memory-search` | Tier 1 search only; smaller context than the full router (ADR-063) |
+| `memory-reflexion` | Tier 2 episode extraction and Tier 3 causal-graph update; smaller context than the full router (ADR-063) |
 | `using-forgetful-memory` | Deep Forgetful operations (create, update, link) |
 | `curating-memories` | Memory maintenance (obsolete, deduplicate) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal |

@@ -48,13 +48,14 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
-from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
-from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
+from copilot_body_translation import translate_body  # noqa: E402
 from generate_agents_common import (  # noqa: E402
     format_frontmatter_yaml,
     parse_simple_frontmatter,
     read_yaml_frontmatter,
 )
+from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 _DEFAULT_EXCLUDES = ("CLAUDE.md",)
 
@@ -246,6 +247,7 @@ def generate_commands(
         )
         return 2
 
+    is_copilot = str(cfg.get("provider", "")) == "copilot-cli"
     source_dir_str = str(stanza.get("sourceDir", ""))
     output_dir_str = str(stanza.get("outputDir", ""))
     excludes = set(stanza.get("excludeFilenames") or _DEFAULT_EXCLUDES)
@@ -298,8 +300,9 @@ def generate_commands(
             body = match["body"]
 
         merged = _merge_frontmatter(source_fm, append, name=name, body=body)
+        out_body = translate_body(body, output_dir) if is_copilot else body
         target_md = output_dir / name / "SKILL.md"
-        if _write_skill(target_md, merged, body, what_if=what_if):
+        if _write_skill(target_md, merged, out_body, what_if=what_if):
             written += 1
         else:
             skipped += 1

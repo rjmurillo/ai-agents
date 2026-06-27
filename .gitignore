@@ -132,6 +132,7 @@ worktree--/
 .memory_sync_state.json
 
 .claude/worktrees/
+.worktrees/
 
 # doc-accuracy gate output (skill produces large reports under .doc-accuracy/)
 .doc-accuracy/

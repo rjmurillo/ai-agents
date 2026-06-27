@@ -124,7 +124,19 @@ def test_pre_commit_hook_excludes_match_lifecycle_commands() -> None:
         "(expected anchored `^src/copilot-cli/skills/(...)/SKILL\\.md$` literal)"
     )
     regex_commands = set(match.group(1).split("|"))
-    assert regex_commands == LIFECYCLE_COMMANDS, (
+    # Issue #2743: the exclusion regex covers two kinds of command-mirror skill.
+    # The `@CLAUDE.md`-led lifecycle commands (LIFECYCLE_COMMANDS) plus four
+    # additional command-mirrors (checkpoint, pr-review, retro, sync) that use
+    # the slash-command frontmatter shape and also fail SkillForge structural
+    # validation. The regex must include every lifecycle command and equal the
+    # documented full command-mirror exclusion set.
+    additional_command_mirrors = {"checkpoint", "pr-review", "retro", "sync"}
+    expected_exclusions = LIFECYCLE_COMMANDS | additional_command_mirrors
+    assert LIFECYCLE_COMMANDS <= regex_commands, (
+        f"pre-commit hook exclusion regex {regex_commands} is missing "
+        f"lifecycle commands {LIFECYCLE_COMMANDS - regex_commands}"
+    )
+    assert regex_commands == expected_exclusions, (
         f"pre-commit hook exclusion regex {regex_commands} != "
-        f"canonical lifecycle commands {LIFECYCLE_COMMANDS}"
+        f"documented command-mirror exclusions {expected_exclusions}"
     )

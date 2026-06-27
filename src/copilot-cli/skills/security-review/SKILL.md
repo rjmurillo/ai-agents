@@ -76,7 +76,11 @@ impact before assigning severity or a risk score.
 ### Phase 3: Return a Verdict
 
 Return IDENTIFY when a vulnerability is present, OK when no unmitigated medium
-or higher risk remains, and ESCALATE when the diff or evidence is incomplete.
+or higher risk remains, and ESCALATE when a verdict cannot be reached because
+the diff or evidence is incomplete, or when an external or irreversible security
+decision needs an owner. Reachability is decided first: if the shown diff lets
+you complete the threat model and no owner-only decision remains, return
+IDENTIFY or OK and do not ESCALATE.
 
 ## Verification
 
@@ -181,12 +185,21 @@ End every review with one verdict:
 - IDENTIFY: a vulnerability is present. Name the CWE, the surface, and the
   impact, then recommend the mitigation.
 - OK: the change is safe to merge; no unmitigated finding at or above MEDIUM.
+  When the threat model shows no attack surface, no actor, and no impact (for
+  example a pure rename or comment edit), the OK definition is satisfied and OK
+  is the required verdict. Do not ESCALATE a change whose verdict you can
+  already reach.
 - ESCALATE: the diff is incomplete or the decision needs an owner (missing
-  changed files, missing coverage data, an external or irreversible action such
-  as disclosure or secret rotation).
+  changed files needed to judge reachability, an external or irreversible
+  action such as disclosure or secret rotation).
 
 If a verdict cannot be reached because the diff is incomplete, ESCALATE with the
-specific missing artifact rather than guessing.
+specific missing artifact rather than guessing. Treat external or irreversible
+owner-only decisions as unreachable by the model: name the owner decision needed
+and ESCALATE. A verdict is reachable when the shown diff answers the three
+threat-model questions, even if surface, actor, and impact are all absent; in
+that case apply IDENTIFY or OK and never ESCALATE. ESCALATE is never triggered
+by the mere absence of coverage data when the diff is complete.
 
 ## Finding Format
 

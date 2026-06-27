@@ -857,16 +857,18 @@ fi
 SKILL_VALIDATOR="$REPO_ROOT/.claude/skills/SkillForge/scripts/validate-skill.py"
 
 # Check if any SKILL.md files are staged.
-# Exclude src/copilot-cli/skills/{spec,plan,build,test,review,ship}/SKILL.md:
-# these are Copilot CLI mirrors of the lifecycle commands at
-# .claude/commands/{spec,plan,build,test,review,ship}.md. They use the
+# Exclude the Copilot CLI command-mirror skills:
+# src/copilot-cli/skills/{spec,plan,build,test,ship,checkpoint,pr-review,retro,sync}/SKILL.md.
+# Each mirrors a lifecycle command at .claude/commands/<name>.md. They use the
 # slash-command frontmatter shape (argument-hint, no Triggers/Verification
 # sections) and intentionally fail SkillForge structural validation. The
 # Claude Code originals are already excluded from markdownlint MD041 for
-# the same reason; this filter is the validator-level analogue.
+# the same reason; this filter is the validator-level analogue. Issue #2743
+# completed the list: checkpoint, pr-review, retro, and sync are command-mirrors
+# of the same kind that were missing here.
 STAGED_SKILL_FILES=$(echo "$STAGED_FILES" \
     | grep -E '/SKILL\.md$' \
-    | grep -v -E '^src/copilot-cli/skills/(spec|plan|build|test|ship)/SKILL\.md$' \
+    | grep -v -E '^src/copilot-cli/skills/(spec|plan|build|test|ship|checkpoint|pr-review|retro|sync)/SKILL\.md$' \
     || true)
 
 if [ -n "$STAGED_SKILL_FILES" ]; then

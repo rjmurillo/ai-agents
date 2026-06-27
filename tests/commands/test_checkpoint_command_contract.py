@@ -48,7 +48,11 @@ def test_checkpoint_links_created_file_from_active_session_log(checkpoint_text: 
 
 
 def test_checkpoint_derives_default_slug_and_handles_collisions(checkpoint_text: str) -> None:
-    assert "If `$ARGUMENTS` is empty after trimming" in checkpoint_text
+    # Issue #2743: the Copilot mirror translates `$ARGUMENTS` into a conversation
+    # instruction, so assert the translation-stable behavioral contract (derive
+    # the default label when the trimmed argument is empty) rather than the raw
+    # `$ARGUMENTS` token, which holds for the Claude command and the Copilot mirror.
+    assert "is empty after trimming" in checkpoint_text
     assert "derive the label from the active" in checkpoint_text
     assert "session.objective" in checkpoint_text
     assert "CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md" in checkpoint_text

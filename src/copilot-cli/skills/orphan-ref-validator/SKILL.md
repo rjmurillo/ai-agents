@@ -333,3 +333,15 @@ Repos that want a tighter feedback loop can add a pre-push hook that runs the sk
 - ADR-056 (skill output envelope)
 - `.claude/rules/canonical-source-mirror.md` (citation policy)
 - Companion validators: `build/scripts/validate_marketplace_counts.py`, `build/scripts/validate_plugin_manifests.py`
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-skill calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Skill(skill="orphan-ref-validator")` | `skill` tool, `skill: "orphan-ref-validator"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

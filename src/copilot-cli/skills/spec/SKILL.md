@@ -6,11 +6,10 @@ allowed-tools: Task, Skill, Read, Write, Glob, Grep
 user-invocable: true
 ---
 
-@CLAUDE.md
+<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+Spec: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
-Spec: $ARGUMENTS
-
-If $ARGUMENTS is empty, ask the user what problem to solve. Do not proceed without a problem statement.
+If the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message) is empty, ask the user what problem to solve. Do not proceed without a problem statement.
 
 ## Process
 
@@ -623,3 +622,40 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 - **Complexity classification** (engineering tier 1-5 from Step 3, plus problem domain Clear/Complicated/Complex/Chaotic from the Step 3 `cynefin-classifier` skill, plus derived methodology)
 - **Operating Model Context** (Tier 5 only; the 5-layer model elicited by the Step 1 `work-operating-model` skill: decision rights, communication patterns, work intake, conflict resolution, retrospection; omit at Tier 1-4)
 - **ADR cross-reference** (Tier 4-5 only; the `ADR-NNN-{slug}.md` produced by the Step 6 `adr-generator` skill and its `adr-review` verdict, with the bidirectional ADR<->REQ link; omit at Tier 1-3)
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-skill calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Skill(skill="adr-generator")` | `skill` tool, `skill: "adr-generator"` |
+| `Skill(skill="adr-review")` | `skill` tool, `skill: "adr-review"` |
+| `Skill(skill="analysis-provenance")` | `skill` tool, `skill: "analysis-provenance"` |
+| `Skill(skill="buy-vs-build-framework")` | `skill` tool, `skill: "buy-vs-build-framework"` |
+| `Skill(skill="chestertons-fence")` | `skill` tool, `skill: "chestertons-fence"` |
+| `Skill(skill="cva-analysis")` | `skill` tool, `skill: "cva-analysis"` |
+| `Skill(skill="cynefin-classifier")` | `skill` tool, `skill: "cynefin-classifier"` |
+| `Skill(skill="decision-critic")` | `skill` tool, `skill: "decision-critic"` |
+| `Skill(skill="doc-accuracy")` | `skill` tool, `skill: "doc-accuracy"` |
+| `Skill(skill="exploring-knowledge-graph")` | `skill` tool, `skill: "exploring-knowledge-graph"` |
+| `Skill(skill="golden-principles")` | `skill` tool, `skill: "golden-principles"` |
+| `Skill(skill="memory")` | `skill` tool, `skill: "memory"` |
+| `Skill(skill="pre-mortem")` | `skill` tool, `skill: "pre-mortem"` |
+| `Skill(skill="programming-advisor")` | `skill` tool, `skill: "programming-advisor"` |
+| `Skill(skill="requirements-interview")` | `skill` tool, `skill: "requirements-interview"` |
+| `Skill(skill="slo-designer")` | `skill` tool, `skill: "slo-designer"` |
+| `Skill(skill="spec-generator")` | `skill` tool, `skill: "spec-generator"` |
+| `Skill(skill="threat-modeling")` | `skill` tool, `skill: "threat-modeling"` |
+| `Skill(skill="work-operating-model")` | `skill` tool, `skill: "work-operating-model"` |
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="analyst")` | `task` tool, `agent_type: "project-toolkit:analyst"` |
+| `Task(subagent_type="critic")` | `task` tool, `agent_type: "project-toolkit:critic"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

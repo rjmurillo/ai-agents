@@ -117,13 +117,41 @@ def test_avoiding_source_and_mirror_agree() -> None:
 
 
 def test_plan_source_and_mirror_agree() -> None:
-    source_parts = _read(PLAN_SOURCE).split("@CLAUDE.md", 1)
-    mirror_parts = _read(PLAN_MIRROR).split("@CLAUDE.md", 1)
-    assert len(source_parts) == 2, "missing @CLAUDE.md marker in plan source"
-    assert len(mirror_parts) == 2, "missing @CLAUDE.md marker in plan mirror"
-    assert source_parts[1] == mirror_parts[1], (
-        "plan source and Copilot mirror bodies diverged; rerun "
-        "build/scripts/build_all.py"
+    # Issue #2743: the Copilot mirror is a TRANSLATION of the Claude source, not a
+    # byte copy. The bare `@CLAUDE.md` include becomes a plugin-tree note,
+    # `$ARGUMENTS` becomes a conversation instruction, and inline Skill()/Task()
+    # calls gain an appended invocation reference. The #1927 cross-link contract
+    # still holds: applying the production translation to the source body must
+    # reproduce the committed mirror body. Coupling the test to the real
+    # translation keeps a single source of truth for the contract.
+    import sys
+
+    build_scripts = str(REPO_ROOT / "build" / "scripts")
+    original_path = sys.path.copy()
+    try:
+        if build_scripts not in sys.path:
+            sys.path.insert(0, build_scripts)
+        import copilot_body_translation  # noqa: PLC0415
+    finally:
+        sys.path[:] = original_path
+
+    source = _read(PLAN_SOURCE)
+    mirror = _read(PLAN_MIRROR)
+    assert "@CLAUDE.md" in source, "missing @CLAUDE.md marker in plan source"
+    assert "@CLAUDE.md" not in mirror, (
+        "plan mirror still carries a bare @CLAUDE.md include; the #2743 "
+        "translation should replace it with a Copilot plugin-tree note"
+    )
+
+    # Both files carry frontmatter; the bridge swaps command frontmatter for
+    # skill frontmatter, so compare bodies after the closing fence.
+    source_body = source.split("---\n", 2)[-1]
+    mirror_body = mirror.split("---\n", 2)[-1]
+    skills_dir = PLAN_MIRROR.parent.parent
+    expected_body = copilot_body_translation.translate_body(source_body, skills_dir)
+    assert mirror_body == expected_body, (
+        "plan source and Copilot mirror bodies diverged after translation; "
+        "rerun build/scripts/build_all.py"
     )
 
 

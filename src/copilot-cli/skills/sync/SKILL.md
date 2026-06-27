@@ -8,7 +8,7 @@ user-invocable: true
 
 # Sync Command
 
-Sync: $ARGUMENTS
+Sync: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
 The forward path (`/spec` -> `/plan` -> `/build`) turns intent into code. There is no clean reverse path. When you hand-edit code (refactor, hotfix, taste change), the spec drifts silently and the staleness surfaces only at `/review` time, late and often misattributed as "the spec was wrong" instead of "the spec needs updating". `/sync` closes that loop: it finds the drift while you still remember why you made the change.
 
@@ -91,3 +91,15 @@ Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wi
 - Patch proposal via `spec-generator`.
 - Additional reference roots in `scripts/sync/detect_spec_drift.py`.
 - Sync log artifacts under `.agents/specs/sync-log/`.
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="spec-generator")` | `task` tool, `agent_type: "project-toolkit:spec-generator"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

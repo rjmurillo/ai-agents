@@ -20,6 +20,7 @@ The xfail marks are removed milestone-by-milestone:
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -28,7 +29,9 @@ import pytest
 # Anchor the import to the repo root so pytest discovery works
 # regardless of the CWD it is invoked from (mitigates plan F4).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO_ROOT / "scripts" / "validation"))
+_REGISTRY_DIR = str(_REPO_ROOT / "scripts" / "validation")
+if _REGISTRY_DIR not in sys.path:
+    sys.path.insert(0, _REGISTRY_DIR)
 
 from bundle_registry import (  # noqa: E402
     BUNDLE_ADJACENCY_WINDOW,
@@ -41,20 +44,44 @@ from bundle_registry import (  # noqa: E402
 
 COMMANDS_DIR = _REPO_ROOT / ".claude" / "commands"
 
+# CWE-78 path-quoting regex used by the path-quoting tests below.
+# Tightened from ``git log[^\n]*-- (?!")(\S+)``:
+# - ``\b`` after ``git log`` prevents matching ``git logs`` or similar.
+# - non-greedy ``[^\n]*?`` still allows multi-flag forms like
+#   ``git log --follow --name-only -- path``.
+# - ``\s+`` after ``--`` accepts any whitespace separator.
+# - the negative lookahead requires a literal ``"`` immediately after
+#   the separator, so any unquoted path captures.
+# Paths containing spaces are out of scope: authors control the path
+# tokens in static command markdown, and a space-containing path would
+# violate the convention and be caught in review.
+_CWE78_GIT_LOG_RE = re.compile(r"git log\b[^\n]*?--\s+(?!\")(\S+)")
 
-# Rows for commands that have NOT yet been edited to invoke their
-# bundled skill. These are expected to fail until the matching M2 or
-# M3 implementation lands.
-PENDING_ROWS: set[tuple[str, str]] = set(BUNDLE_REGISTRY)
+
+def _row_is_implemented(row: tuple[str, str]) -> bool:
+    """A row is implemented when its command file invokes the skill.
+
+    Inferring xfail-vs-pass state from the file system means the M2/M3
+    closing commits do NOT need to mutate a static ``PENDING_ROWS`` set;
+    the test honors the actual file state. A command edited to add the
+    invocation flips the row to "implemented" automatically, at which
+    point the marker and adjacency assertions apply with no manual
+    bookkeeping.
+    """
+    file_, skill = row
+    path = COMMANDS_DIR / file_
+    if not path.exists():
+        return False
+    return expected_skill_invocation(skill) in path.read_text(encoding="utf-8")
 
 
 def _xfail_or_pass_param(row: tuple[str, str]):
     file_, skill = row
-    if row in PENDING_ROWS:
-        # strict=True forces CI to fail (XPASS -> FAIL) when a pending row
-        # starts passing. That makes the milestone cleanup of removing the
-        # row from PENDING_ROWS a hard requirement, preventing silent loss
-        # of enforcement once a command file is updated.
+    if not _row_is_implemented(row):
+        # strict=True forces CI to fail (XPASS -> FAIL) if a row inferred
+        # as pending starts passing. Because the pending state is derived
+        # from the file system, the cleanup is automatic, yet strict xfail
+        # still guards against silent loss of enforcement.
         return pytest.param(
             file_,
             skill,
@@ -171,9 +198,7 @@ def test_cwe78_path_quoting_in_build_md() -> None:
         pytest.skip("build.md does not yet contain a chestertons-fence git log guard")
     # Independent regex (not using bundle_registry.py): every `git log`
     # invocation operating on a file path must use double-quoted form.
-    import re
-
-    unquoted = re.findall(r"git log[^\n]*-- (?!\")(\S+)", text)
+    unquoted = _CWE78_GIT_LOG_RE.findall(text)
     assert not unquoted, (
         f"build.md has unquoted git log paths (CWE-78 risk): {unquoted}"
     )
@@ -190,9 +215,7 @@ def test_cwe78_path_quoting_in_review_md() -> None:
     text = path.read_text(encoding="utf-8")
     if "chestertons-fence" not in text or "git log" not in text:
         pytest.skip("review.md does not yet contain a chestertons-fence git log guard")
-    import re
-
-    unquoted = re.findall(r"git log[^\n]*-- (?!\")(\S+)", text)
+    unquoted = _CWE78_GIT_LOG_RE.findall(text)
     assert not unquoted, (
         f"review.md has unquoted git log paths (CWE-78 risk): {unquoted}"
     )

@@ -301,6 +301,25 @@ This skill is the single owner of investigation-only QA eligibility checks. The 
 
 ---
 
+## Vendored install
+
+<!-- vendor-portability: declared. This skill references protocol/ADR/artifact paths under .agents/ (sessions, architecture, SESSION-PROTOCOL.md, analysis, critique, memory, retrospective, security) for eligibility allowlists and documentation links. The eligibility script inspects staged git paths only; missing upstream artifact directories affect docs/reference links, not script I/O. Issue #2050. -->
+
+This skill depends on upstream-only paths. In a vendored install (a consumer
+repo that is not `rjmurillo/ai-agents`) these paths do not exist:
+
+| Path | Direction | Behavior when absent |
+|------|-----------|----------------------|
+| `.agents/sessions/` | reference only (staged-path allowlist) | The eligibility check compares staged git file names to this prefix. It does not read session-log contents or accept a session-path argument. |
+| `.agents/SESSION-PROTOCOL.md`, `.agents/architecture/` | reference only | Protocol and ADR links are informational; absence does not block the skill. |
+| `.agents/analysis/`, `.agents/critique/`, `.agents/memory/`, `.agents/retrospective/`, `.agents/security/` | reference only (artifact-location guidance) | Mentioned as where prior-work artifacts live upstream; absence does not block the skill. |
+
+The HTML comment above is the machine-readable declaration the
+`check_skill_md_portability.py` validator (Issue #2050) reads to confirm this
+skill has disclosed its path dependencies instead of hiding them in prose.
+
+---
+
 ## Related
 
 | Reference | Description |

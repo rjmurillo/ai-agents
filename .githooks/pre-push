@@ -198,6 +198,19 @@ REFS_PROCESSED=0
 PVB_BASES=()
 PVB_HEADS=()
 
+# Worktree caveat (Issue #2757): the commit-count / PR-size gate bases its
+# merge-base on origin/main, the remote-tracking ref, NOT local `main`. In a
+# linked worktree or any stale checkout, local `main` can lag origin/main by
+# many commits; basing the merge-base on it over-counts both commits and files
+# (observed 23 commits / 146 files for a branch whose true diff vs origin/main
+# was 1 / 4). origin/main reflects what the PR will actually be reviewed against.
+# Best-effort refresh of origin/main so the count is accurate; never hard-fail
+# on a fetch error (offline pushes must still validate against the local
+# origin/main ref as-is). Strip hook-inherited git env vars so linked worktrees
+# and custom index paths do not leak into the subprocess.
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
+    git fetch --no-tags --quiet origin main 2>/dev/null || true
+
 while read -r local_ref local_sha remote_ref remote_sha; do
     REFS_PROCESSED=$((REFS_PROCESSED + 1))
 
@@ -208,17 +221,22 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     ref_range=""
     if [ "$remote_sha" = "$ZERO" ]; then
-        # New branch: compare against merge-base with main
-        merge_base=$(git merge-base main "$local_sha" 2>/dev/null || echo "")
+        # New branch: compare against merge-base with origin/main (Issue #2757).
+        # origin/main, not local `main`: local `main` lags in worktrees / stale
+        # checkouts and inflates the count. Local `main` is only a last-resort
+        # fallback for the rare clone with no origin/main ref (e.g. a detached
+        # mirror). The existing-branch path also uses origin/main as its
+        # primary base.
+        merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
         if [ -z "$merge_base" ]; then
-            # Try origin/main as fallback
-            merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
+            # Fallback: local `main` when origin/main is unavailable
+            merge_base=$(git merge-base main "$local_sha" 2>/dev/null || echo "")
         fi
         if [ -n "$merge_base" ]; then
             ref_range="$merge_base..$local_sha"
         else
-            echo_warning "Could not find merge-base with main for $local_ref"
-            echo_info "  Ensure 'main' or 'origin/main' exists: git fetch origin main"
+            echo_warning "Could not find merge-base with origin/main for $local_ref"
+            echo_info "  Ensure 'origin/main' exists: git fetch origin main"
             # Fall back to listing all files in the commit
             ref_range="$local_sha"
         fi
@@ -321,6 +339,10 @@ CHANGED_AGENT_DRIFT_INPUTS=$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+
 # the project-mode settings source, the anchoring gate, and the e2e itself.
 # A change to any forces the real-CLI e2e (resolution under the live contract).
 CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\.py|src/copilot-cli/hooks/|\.claude/hooks/|\.claude/settings\.json|scripts/validation/validate_hook_anchoring\.py|tests/e2e/test_cli_hook_e2e\.py)' || true)
+# Plugin-load relevant paths (#2736): sources, generated skill mirrors, plugin
+# manifests, generators, and the smoke itself. A change to any forces the real
+# CLI plugin-load smoke when a CLI is available.
+CHANGED_PLUGIN_LOAD=$(echo "$CHANGED_FILES" | grep -E '^(\.claude/(\.claude-plugin/plugin\.json|commands/|skills/)|src/copilot-cli/(\.claude-plugin/plugin\.json|skills/)|build/scripts/generate_(commands|skills)\.py|templates/platforms/copilot-cli\.yaml|tests/e2e/test_plugin_load_smoke\.py|\.github/workflows/nightly-cli-smoke\.yml)' || true)
 
 # ============================================================================
 # Phase 1: Fast Guards (< 5s)
@@ -1223,6 +1245,36 @@ fi
             fi
         else
             record_skip "Hook anchoring e2e (no copilot/claude CLI on PATH)"
+        fi
+    fi
+
+    # 14c. Plugin-load e2e (real CLIs) - FORCED when plugin load surfaces change
+    # (#2736). Loads the shipped Claude and Copilot plugin trees in the real CLIs
+    # and asserts the lifecycle skills parse and appear. Bare CI cannot run this
+    # without auth and credits, so pre-push runs it when a CLI is installed.
+    if [ -n "$CHANGED_PLUGIN_LOAD" ]; then
+        if [ "${SKIP_CLI_E2E:-}" = "true" ]; then
+            record_skip "Plugin-load e2e (SKIP_CLI_E2E=true)"
+        elif command -v copilot >/dev/null 2>&1 || command -v claude >/dev/null 2>&1; then
+            if set_python_cmd; then
+                PLUGIN_LOAD_OUTPUT=$(mktemp)
+                if env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_ROOT -u COPILOT_PLUGIN_ROOT \
+                    RUN_CLI_E2E=1 "${PYTHON_CMD[@]}" -m pytest \
+                    "$REPO_ROOT/tests/e2e/test_plugin_load_smoke.py" -v > "$PLUGIN_LOAD_OUTPUT" 2>&1; then
+                    rm -f "$PLUGIN_LOAD_OUTPUT"
+                    record_pass "Plugin-load e2e (real CLIs)"
+                else
+                    echo_info "  Plugin-load output (last 40 lines):"
+                    tail -40 "$PLUGIN_LOAD_OUTPUT"
+                    rm -f "$PLUGIN_LOAD_OUTPUT"
+                    record_fail "Plugin-load e2e failed (Copilot/Claude)"
+                    echo_info "  A shipped plugin tree did not load expected lifecycle skills."
+                fi
+            else
+                record_skip "Plugin-load e2e (Python 3 not available)"
+            fi
+        else
+            record_skip "Plugin-load e2e (no copilot/claude CLI on PATH)"
         fi
     fi
 
