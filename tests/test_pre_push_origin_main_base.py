@@ -37,7 +37,8 @@ def _git(repo: Path, *args: str) -> str:
         ["git", *args],
         cwd=repo,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     return result.stdout.strip()
@@ -132,7 +133,7 @@ def test_new_branch_path_prefers_origin_main_merge_base() -> None:
     # Arrange
     text = _pre_push_text()
     start = text.index('if [ "$remote_sha" = "$ZERO" ]; then')
-    end = text.index("else", start)
+    end = text.index('\n    else\n', start)
     new_branch_block = text[start:end]
 
     # Assert: origin/main is the primary base; local main is only the fallback,
@@ -148,7 +149,11 @@ def test_best_effort_fetch_origin_main_present() -> None:
     text = _pre_push_text()
 
     # Assert: a non-fatal fetch refreshes origin/main before the ref loop.
-    assert "git fetch --no-tags --quiet origin main 2>/dev/null || true" in text
+    expected = (
+        "env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \\\n"
+        "    git fetch --no-tags --quiet origin main 2>/dev/null || true"
+    )
+    assert expected in text
 
 
 def test_existing_branch_path_still_uses_origin_main() -> None:

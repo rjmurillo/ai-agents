@@ -206,8 +206,10 @@ PVB_HEADS=()
 # was 1 / 4). origin/main reflects what the PR will actually be reviewed against.
 # Best-effort refresh of origin/main so the count is accurate; never hard-fail
 # on a fetch error (offline pushes must still validate against the local
-# origin/main ref as-is).
-git fetch --no-tags --quiet origin main 2>/dev/null || true
+# origin/main ref as-is). Strip hook-inherited git env vars so linked worktrees
+# and custom index paths do not leak into the subprocess.
+env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
+    git fetch --no-tags --quiet origin main 2>/dev/null || true
 
 while read -r local_ref local_sha remote_ref remote_sha; do
     REFS_PROCESSED=$((REFS_PROCESSED + 1))
@@ -223,8 +225,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         # origin/main, not local `main`: local `main` lags in worktrees / stale
         # checkouts and inflates the count. Local `main` is only a last-resort
         # fallback for the rare clone with no origin/main ref (e.g. a detached
-        # mirror); it matches the existing-branch path above, which already
-        # bases its merge-base on origin/main.
+        # mirror). The existing-branch path also uses origin/main as its
+        # primary base.
         merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
         if [ -z "$merge_base" ]; then
             # Fallback: local `main` when origin/main is unavailable
