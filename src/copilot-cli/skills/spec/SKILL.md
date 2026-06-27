@@ -131,6 +131,26 @@ python3 scripts/redact_secrets.py <file>      # or pipe the answer text on stdin
 
 In Python: `from redact_secrets import redact; redact(answer).text`. Matched token shapes (private keys, GitHub/Stripe/AWS/Slack tokens, JWTs, `Bearer` headers, emails, hex secrets of 32 or more chars) become `` `[redacted: <reason>]` ``. Redaction is a backstop, not a license to collect secrets: do not paste live credentials into Step 0 answers. The full policy is `.claude/rules/secret-redaction.md`; the redactor is `scripts/redact_secrets.py`.
 
+#### Script and state resolution (consumer-repo safe)
+
+This skill names helper scripts and data files by toolkit-relative paths (`scripts/redact_secrets.py`, `scripts/metrics_writer.py`, `.agents/dictionaries/spec-entity-aliases.json`). Those paths exist when `/spec` runs inside the toolkit's own repo. When the skill runs from an installed plugin in a consumer repo, they do not. Resolve every helper script and data file with this order before invoking it.
+
+**Helper scripts** (`redact_secrets.py`, `metrics_writer.py`). Resolve in order:
+
+1. `<skill_dir>/scripts/<name>.py`, where `<skill_dir>` is the "Base directory for this skill" the harness prints at skill load (installed-plugin mode). The skill bundle ships byte-identical copies of both scripts under `scripts/`.
+2. `scripts/<name>.py` relative to the current working directory only after confirming the current repo is the toolkit source checkout (toolkit-dev mode). Never prefer a consumer repo's `scripts/<name>.py` over the bundled vetted helper.
+
+For the BLOCKING `redact_secrets.py`: if neither path resolves, FAIL loudly. Emit an error naming both paths tried and HALT the step. Do NOT emit the `step0-halt` block (or any field carrying author free-text) with redaction skipped; a silently-skipped redactor is the CWE-209/CWE-532 disclosure this step exists to prevent. `metrics_writer.py` is non-blocking: if neither path resolves, emit a coverage note and continue without the tally.
+
+**`metrics_writer.py` bundled-copy caveat.** The writer sets `_PROJECT_DIR = Path(__file__).resolve().parents[1]`. In the toolkit repo that resolves to the repo root; in the bundled copy at `<skill_dir>/scripts/metrics_writer.py` it resolves to `<skill_dir>`. `_PROJECT_DIR` only anchors an in-process `safe_append_tally()` call when the caller omits `base_dir`. To make the bundled copy write to the consumer's state root, either invoke the script from the consumer repo so its CLI entrypoint validates the tally path under the current working directory, or call `safe_append_tally(..., base_dir=<consumer repo root>)` in process. Never rely on the implicit `_PROJECT_DIR` anchor from the bundled copy.
+
+**Data files** (`spec-entity-aliases.json`). Resolve in order:
+
+1. `.agents/dictionaries/spec-entity-aliases.json` relative to the current working directory (toolkit-dev or consumer-with-state mode).
+2. `<skill_dir>/data/spec-entity-aliases.json` (installed-plugin fallback; the skill bundle ships a byte-identical copy under `data/`).
+
+If neither resolves, treat the alias lookup as a no-op (keep the rule-4 result unchanged) and emit a coverage note. The alias miss is non-blocking; it degrades topic-synonym collapse, it does not stop the gate.
+
 Downstream callers (orchestrators, review skills, CI gates) parse this block by its `step0-halt` info-string. Free-form prose halts that omit the fenced block are non-conforming and SHALL be re-emitted in this format.
 
 **Auto-mode behavior**: under auto-mode invocation (no human elicitation possible), the agent MUST halt with reason `STEP_0_REQUIRES_ELICITATION`, list each unanswered question, and return to the orchestrator. The agent MAY populate Step 0 from the source artifact (issue body, PR description) only when the source artifact contains the required structured fields verbatim. Free-form synthesis of Step 0 answers by the agent is prohibited. (Note: `STEP_0_REQUIRES_ELICITATION` is a prose convention in this version; no orchestrator caller currently parses it. Future iteration will add machine-readable halt protocol.)
