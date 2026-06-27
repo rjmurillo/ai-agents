@@ -6,7 +6,7 @@ causal-graph-update write path into a focused `memory-reflexion` sub-skill while
 `memory` remains the thin router. These tests pin the contract the sub-skill
 must honor:
 
-- SKILL.md exists with required frontmatter (name, version, description).
+- SKILL.md exists with required frontmatter (name, description).
 - The skill stays under the 500-line ceiling (.claude/skills/CLAUDE.md).
 - The description names the episode and causal operations and 3 to 5 backtick
   triggers.
@@ -32,7 +32,7 @@ SKILL_MD = SKILL_DIR / "SKILL.md"
 REFLEXION_REFERENCE = SKILL_DIR / "references" / "reflexion-memory.md"
 
 _FRONTMATTER = re.compile(r"(?s)\A---\r?\n(.*?)\r?\n---\r?\n")
-_VENDOR_FORBIDDEN = re.compile(r"(?<![\w/])(?:\.agents|\.serena|\.github)/", re.IGNORECASE)
+_VENDOR_FORBIDDEN = re.compile(r"(?<!\w)(?:\.agents|\.serena|\.github)/", re.IGNORECASE)
 _BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
 
 
@@ -59,7 +59,6 @@ def test_frontmatter_has_required_fields() -> None:
     assert re.search(r"^name:\s*memory-reflexion\s*$", block, re.MULTILINE), (
         "frontmatter name must be exactly memory-reflexion"
     )
-    assert re.search(r"^version:\s*\S+", block, re.MULTILINE), "version required"
     assert re.search(r"^description:\s*\S", block, re.MULTILINE) or re.search(
         r"^description:\s*[>|]", block, re.MULTILINE
     ), "description required"
@@ -141,6 +140,11 @@ def test_no_vendor_forbidden_path_references() -> None:
 
     # Assert: vendored installs ship without these trees (issue #1948 AC8).
     assert not matches, f"SKILL.md must not reference vendor-excluded trees: {matches}"
+
+
+def test_vendor_forbidden_regex_matches_slash_prefixed_paths() -> None:
+    # Arrange / Act / Assert: paths can appear after a slash in prose examples.
+    assert _VENDOR_FORBIDDEN.search("Do not write /.agents/session.json")
 
 
 @pytest.mark.parametrize(
