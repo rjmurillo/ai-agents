@@ -126,10 +126,14 @@ def test_plan_source_and_mirror_agree() -> None:
     # translation keeps a single source of truth for the contract.
     import sys
 
-    build_scripts = REPO_ROOT / "build" / "scripts"
-    if str(build_scripts) not in sys.path:
-        sys.path.insert(0, str(build_scripts))
-    import copilot_body_translation  # noqa: PLC0415
+    build_scripts = str(REPO_ROOT / "build" / "scripts")
+    original_path = sys.path.copy()
+    try:
+        if build_scripts not in sys.path:
+            sys.path.insert(0, build_scripts)
+        import copilot_body_translation  # noqa: PLC0415
+    finally:
+        sys.path[:] = original_path
 
     source = _read(PLAN_SOURCE)
     mirror = _read(PLAN_MIRROR)

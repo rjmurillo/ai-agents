@@ -107,6 +107,21 @@ def test_plugin_name_read_from_manifest(tmp_path: Path) -> None:
     assert '`agent_type: "acme-kit:critic"`' in out
 
 
+def test_plugin_name_reads_top_level_name_when_author_name_comes_first(tmp_path: Path) -> None:
+    """Nested author.name must not override the top-level plugin name."""
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    manifest_dir = tmp_path / ".claude-plugin"
+    manifest_dir.mkdir()
+    (manifest_dir / "plugin.json").write_text(
+        '{"author": {"name": "wrong"}, "name": "acme-kit"}\n',
+        encoding="utf-8",
+    )
+
+    out = copilot_body_translation.translate_body(_CLAUDE_BODY, skills_dir)
+    assert '`agent_type: "acme-kit:critic"`' in out
+
+
 def test_plugin_name_falls_back_when_manifest_absent(tmp_path: Path) -> None:
     """Without a manifest, the default plugin name is used."""
     out = copilot_body_translation.translate_body(_CLAUDE_BODY, tmp_path / "skills")
@@ -131,11 +146,34 @@ def test_translate_skill_file_preserves_frontmatter(tmp_path: Path) -> None:
     assert "## Copilot CLI invocation reference" in out
 
 
+def test_translate_skill_file_preserves_crlf_frontmatter(tmp_path: Path) -> None:
+    """CRLF frontmatter remains frontmatter instead of being translated as body."""
+    content = (
+        "---\r\n"
+        "name: demo\r\n"
+        "description: A demo skill.\r\n"
+        "---\r\n"
+        + _CLAUDE_BODY
+    )
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+    assert out.startswith("---\r\nname: demo\r\ndescription: A demo skill.\r\n---\r\n")
+    assert "$ARGUMENTS" not in out
+    assert "## Copilot CLI invocation reference" in out
+
+
 def test_translate_skill_file_matches_call_with_extra_args(tmp_path: Path) -> None:
     """Task()/Skill() calls with trailing args (e.g. prompt=) are still mapped."""
     body = 'Task(subagent_type="architect", prompt="Create ADR")\n'
     out = copilot_body_translation.translate_body(body, tmp_path)
     assert '`agent_type: "project-toolkit:architect"`' in out
+
+
+def test_inline_calls_allow_spaces_and_single_quotes(tmp_path: Path) -> None:
+    """Formatted Skill()/Task() calls still appear in the appendix."""
+    body = "Skill( skill = 'memory')\nTask( subagent_type = 'critic')\n"
+    out = copilot_body_translation.translate_body(body, tmp_path)
+    assert '| `Skill(skill="memory")` | `skill` tool, `skill: "memory"` |' in out
+    assert '`agent_type: "project-toolkit:critic"`' in out
 
 
 # Committed-artifact gate ----------------------------------------------------

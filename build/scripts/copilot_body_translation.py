@@ -32,6 +32,7 @@ Appending keeps those parity blocks intact.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -42,12 +43,12 @@ _DEFAULT_PLUGIN_NAME = "project-toolkit"
 # arguments before the closing paren (for example
 # `Task(subagent_type="architect", prompt="...")`). The capture is only the
 # skill/persona name; trailing args are ignored for the mapping.
-_SKILL_CALL_RE = re.compile(r'Skill\(skill="([^"]+)"')
-_TASK_CALL_RE = re.compile(r'Task\(subagent_type="([^"]+)"')
+_SKILL_CALL_RE = re.compile(r"Skill\(\s*skill\s*=\s*['\"]([^'\"]+)['\"]")
+_TASK_CALL_RE = re.compile(r"Task\(\s*subagent_type\s*=\s*['\"]([^'\"]+)['\"]")
 _INCLUDE_LINE_RE = re.compile(r"^@([A-Za-z0-9_.\-/]+)\s*$", re.MULTILINE)
 _ARGUMENTS_TOKEN = "$ARGUMENTS"
 
-_FRONTMATTER_RE = re.compile(r"\A(---\n.*?\n---\n)(.*)\Z", re.DOTALL)
+_FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 
 
 def resolve_plugin_name(skills_output_dir: Path) -> str:
@@ -64,8 +65,12 @@ def resolve_plugin_name(skills_output_dir: Path) -> str:
     manifest = skills_output_dir.parent / _PLUGIN_MANIFEST_RELATIVE
     if not manifest.is_file():
         return _DEFAULT_PLUGIN_NAME
-    match = re.search(r'"name"\s*:\s*"([^"]+)"', manifest.read_text(encoding="utf-8"))
-    return match.group(1) if match else _DEFAULT_PLUGIN_NAME
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _DEFAULT_PLUGIN_NAME
+    name = data.get("name")
+    return name if isinstance(name, str) and name else _DEFAULT_PLUGIN_NAME
 
 
 def _translate_includes(body: str) -> str:
