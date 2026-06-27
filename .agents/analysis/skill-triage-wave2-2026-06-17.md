@@ -213,3 +213,60 @@ This is a Layer-3 result worth recording: the catalog has been actively de-dupli
 - AC1 (kill-gate baseline) and AC2 (pairwise overlap matrix): require `ANTHROPIC_API_KEY`. Cannot run autonomously in this environment. The structural classification above is the action slate those runs would confirm.
 - AC4 (decompose into tracker) and the keep-vs-close decision on this epic: maintainer call.
 - AC5 (quarterly cron): needs the API key wired as a CI secret, a maintainer/secrets action.
+
+## Verification addendum (2026-06-27)
+
+This report was committed to main via PR #2648 (commit `bae82d54e1`). The earlier issue comments saying it "was never merged" and "is not on main" are stale; the merge landed after the 2026-06-23 triage note. This addendum re-verifies the 2026-06-17 verdicts against the current catalog on `origin/main` and records what has changed.
+
+### Method
+
+Programmatic diff of the report's triaged skill set against the live `.claude/skills/` directory list on `origin/main`. Each delta was then confirmed against the issue tracker and the skill's own SKILL.md frontmatter.
+
+### Catalog drift since 2026-06-17
+
+- **Triaged then, present now:** 72 of 73 skills still exist with the same name. No renames.
+- **Retired since (1):** `incoherence`. The report's only RETIRE verdict is now executed. The directory is absent from both `.claude/skills/incoherence/` and the Copilot mirror `src/copilot-cli/skills/incoherence/` on main; tracking issue #2662 is CLOSED.
+- **New since (3):** `benchmark-models`, `memory-search`, `SkillForge`. These three did not exist in the 2026-06-17 catalog and were not triaged. Verdicts below.
+
+### Resolution of the 2026-06-17 action slate
+
+| Item | 2026-06-17 verdict | Status 2026-06-27 |
+|------|--------------------|-------------------|
+| `incoherence` | RETIRE | DONE. Dir removed (both trees), #2662 CLOSED. |
+| `curating-memories` x `memory-enhancement` | MERGE candidate (hold for #1949) | RESOLVED KEEP. #1949 CLOSED, verdict DISTINCT. |
+| `exploring-knowledge-graph` x `memory` | MERGE candidate (hold for #1949) | RESOLVED KEEP. #1949 CLOSED, verdict DISTINCT. |
+| `memory` (over ceiling) | IMPROVE: M3 decompose | IN PROGRESS. #1948 OPEN (M3/ADR-063). `memory-search` is the first decomposition product. |
+| `reflect` (629-line SKILL.md) | IMPROVE: progressive disclosure | DONE. #2664 CLOSED. |
+| `security-review` (no boundary, v0.1.0) | IMPROVE: boundary + version | DONE. #2665 CLOSED. |
+| `programming-advisor` (no top-level version) | IMPROVE: frontmatter | DONE. #2666 CLOSED. |
+
+All MERGE candidates resolved to KEEP. Of 4 IMPROVE items, 3 are CLOSED and 1 (`memory` decomposition) is the only Wave-2-adjacent action still open, tracked under #1948.
+
+### Verdicts for the 3 new skills
+
+| Skill | Class | Rationale |
+|-------|-------|-----------|
+| benchmark-models | K | Cross-model shootout: runs one prompt/skill through Claude, GPT, Gemini and compares latency, tokens, cost, tool calls. Documented boundary ("Do NOT use to measure web page performance"). Distinct from `metrics` (git-history agent usage reports) and the gstack `benchmark` skill (web-page perf). Frontmatter complete (v1.0.0). No sibling overlap. KEEP. |
+| memory-search | K | Tier-1 semantic memory search across Serena and Forgetful. The focused search operation split out of the `memory` router per ADR-063. Reciprocal boundary documented vs `memory`/`memory-enhancement` ("Do NOT use to extract session episodes, update the causal graph, or add citations"). This is the M3/ADR-063 decomposition product, expected. Frontmatter complete (v0.1.0). KEEP. |
+| SkillForge | I | Meta-skill router/creator. Documented boundary vs `slashcommandcreator`. Distinct scope (skill creation/routing vs slash-command authoring). BUT the SKILL.md is 1033 lines, over the 300-line ceiling this report applied to flag `reflect` for IMPROVE. Same shape: keep the capability, schedule progressive disclosure as a separate small PR. Frontmatter complete (v4.1.0). IMPROVE (progressive disclosure), keep. |
+
+No new RETIRE or MERGE candidate appears among the three. Two KEEP, one IMPROVE. The headline finding holds: the catalog is structurally de-duplicated and every new skill carries an explicit reciprocal boundary.
+
+### Updated summary counts (as of 2026-06-27)
+
+| Class | Count | Notes |
+|-------|-------|-------|
+| RETIRE | 0 | The one RETIRE (`incoherence`) is executed. |
+| MERGE candidate | 0 | Both prior candidates resolved KEEP via #1949. |
+| IMPROVE (keep, fix) | 2 | `memory` (#1948, open), `SkillForge` (new, progressive disclosure, untracked). |
+| KEEP | 73 | All others, including `benchmark-models` and `memory-search`. |
+
+Catalog size: 75 skills on main (was 73 at 2026-06-17: minus `incoherence`, plus `benchmark-models`, `memory-search`, `SkillForge`).
+
+### Recommended follow-ups (not applied in this PR)
+
+1. `SkillForge` progressive disclosure (1033-line SKILL.md over ceiling). Non-trivial; file a tracking issue, mirror the `reflect`/#2664 treatment. No eval gate.
+2. `memory` decomposition continues under #1948 (M3/ADR-063); `memory-search` is the first split product, no further triage action needed.
+3. AC1/AC2/AC5 remain blocked on `ANTHROPIC_API_KEY` as a CI secret (maintainer action), unchanged from the 2026-06-17 gate.
+
+No trivial in-PR action remained: the one RETIRE is already executed, all frontmatter on the three new skills is complete, and the one new IMPROVE (`SkillForge`) is a non-trivial decomposition that should not be bundled into an analysis PR.
