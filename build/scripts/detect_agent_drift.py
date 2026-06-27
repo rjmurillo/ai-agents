@@ -97,8 +97,23 @@ SECTIONS_TO_COMPARE = (
 # agent prompt and change agent behavior (architect review, out of scope for a
 # baseline-green fix). Floor is set to the measured 20.9% so the existing
 # structure is accepted but any worsening still blocks.
+#
+# merge-resolver install copy (Issue #2715): the same tier-hierarchy enrichment
+# lives only in the Claude Code self-host copy (.claude/agents/merge-resolver.md);
+# the GitHub Copilot self-host copy (.github/agents/merge-resolver.agent.md)
+# carries the leaner generated prose. The other ten diverged install copies were
+# reconciled by resyncing .github from the generated src/copilot-cli output, but
+# merge-resolver cannot be: its richness is on the .claude side by design, so a
+# resync would delete substantive Claude-only instructions. Floor is the measured
+# 20.9% (identical to the vendored floor because both compare the same enriched
+# .claude body against the same leaner template-derived body). Any worsening still
+# blocks.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
     ("merge-resolver", "src-claude vs src-vscode"): 20.9,
+    # Literal, not _INSTALL_COMPARISON_LABEL: that constant is defined later in
+    # the module, so referencing it here would NameError at import time. Keep the
+    # two in sync (see _INSTALL_COMPARISON_LABEL below).
+    ("merge-resolver", ".claude/agents vs .github/agents"): 20.9,
 }
 
 # MCP syntax normalization patterns (compiled once)
