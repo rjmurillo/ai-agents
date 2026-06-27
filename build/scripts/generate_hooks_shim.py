@@ -404,8 +404,5 @@ def _shim_dispatch():
     if rc is None:
         rc = 0
     _sys.exit(int(rc))
-
-
 {_SHIM_END}
 '''
-

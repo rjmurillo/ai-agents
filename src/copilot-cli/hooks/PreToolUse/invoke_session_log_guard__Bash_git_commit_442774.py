@@ -137,7 +137,6 @@ def _shim_dispatch():
         rc = 0
     _sys.exit(int(rc))
 
-
 # END MATCHER SHIM
 
 def _original_main(stdin_bytes):
