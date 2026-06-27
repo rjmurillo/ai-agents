@@ -182,3 +182,6 @@ This line is parsed by `extract_verdict` in
 when `/review` aggregates across all axes.
 
 Refs REQ-008-01, REQ-008-05 (issue #1934).
+
+<!-- vendor-portability: declared. This review axis cites the model policy under .agents/governance/ and the output schema under .agents/schemas/ (both upstream-only; the file states inline that vendored installs do not ship the schema, so the JSON contract is documented inline). The verdict parser at .claude/lib/ai_review_common/verdict.py ships in the vendor install and works. None of these block the axis. Issue #2050. -->
+
