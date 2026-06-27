@@ -392,15 +392,16 @@ python3 .claude/skills/session-init/scripts/new_session_log_json.py --session-nu
 
 ## Vendored install
 
-<!-- vendor-portability: declared. This skill writes new session logs under .agents/sessions/ and reads the canonical template from .agents/SESSION-PROTOCOL.md. A consumer repo without those paths gets a write failure or a "template not found" error, not a silent no-op. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes new session logs under the sessions artifact root (normally .agents/sessions/) and references .agents/SESSION-PROTOCOL.md in documentation. The generator builds JSON from session_init/session_structure.py; runtime validation depends on scripts/validate_session_json.py in the consumer repo unless --skip-validation is used. Issue #2050. -->
 
 This skill depends on upstream-only paths. In a vendored install (a consumer
 repo that is not `rjmurillo/ai-agents`) these paths do not exist:
 
 | Path | Direction | Behavior when absent |
 |------|-----------|----------------------|
-| `.agents/sessions/` | write (new session logs) | The creation script cannot write the log. Create the directory or pass an explicit output path. |
-| `.agents/SESSION-PROTOCOL.md` | read (canonical template) | The skill cannot read the template and reports it as missing rather than generating one from memory. Provide the protocol file or supply the template path. |
+| `.agents/sessions/` | write via artifact root | The creation script creates the directory when needed and writes the session log there. |
+| `.agents/SESSION-PROTOCOL.md` | reference only | The script does not read this file at runtime; it builds JSON from `session_init/session_structure.py`. |
+| `scripts/validate_session_json.py` | read/execute for validation | Vendored installs need this script in the consumer repo, or callers must use `--skip-validation`. |
 
 The HTML comment above is the machine-readable declaration the
 `check_skill_md_portability.py` validator (Issue #2050) reads to confirm this
