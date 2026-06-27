@@ -20,6 +20,7 @@ _GATED_SKILL_TREE_MIRRORS = (
     "security-detection",
     "slashcommandcreator",
 )
+_SKILLFORGE_TIMEOUT_SECONDS = 20
 
 
 # Helpers --------------------------------------------------------------------
@@ -74,6 +75,7 @@ def _skillforge_validation(skill_dir: Path) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         encoding="utf-8",
         errors="replace",
+        timeout=_SKILLFORGE_TIMEOUT_SECONDS,
         check=False,
     )
 
@@ -105,7 +107,7 @@ def test_committed_skill_tree_mirror_matches_source_skill_md(skill_name: str) ->
 
     assert source.is_file(), f"missing source skill: {source}"
     assert mirror.is_file(), f"missing Copilot skill mirror: {mirror}"
-    assert mirror.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
+    assert mirror.read_bytes() == source.read_bytes()
 
 
 @pytest.mark.parametrize("skill_name", _GATED_SKILL_TREE_MIRRORS)
