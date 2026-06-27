@@ -99,18 +99,12 @@ def _anchor_target(
     target: Path,
     base_dir: str | os.PathLike[str] | None,
 ) -> Path:
-    base_path = Path(base_dir) if base_dir is not None else None
-    if base_path is not None and not base_path.is_absolute():
+    base_path = Path(base_dir) if base_dir is not None else _PROJECT_DIR
+    if not base_path.is_absolute():
         base_path = _PROJECT_DIR / base_path
 
-    if base_path is not None:
-        anchored = target if target.is_absolute() else base_path / target
-        return _resolve_under(anchored, base_path)
-
-    if target.is_absolute():
-        return _resolve_target_parent(target)
-
-    return _resolve_under(_PROJECT_DIR / target, _PROJECT_DIR)
+    anchored = target if target.is_absolute() else base_path / target
+    return _resolve_under(anchored, base_path)
 
 
 def _write_all(fd: int, data: bytes, target: Path) -> None:
@@ -153,10 +147,9 @@ def safe_append_tally(
     exclusive advisory lock so concurrent writers serialize.
 
     ``line`` is written as one complete record; a trailing newline is added if
-    the caller did not supply one. Relative paths are anchored to the project
-    directory or to ``base_dir`` before resolution. When ``base_dir`` is given,
-    the resolved target must stay under it or the write is rejected as a
-    traversal escape.
+    the caller did not supply one. Paths are anchored to the project directory
+    or to ``base_dir`` before resolution. Absolute paths must stay under that
+    base or the write is rejected as a traversal escape.
 
     Returns the resolved path written. Raises ``MetricsWriteError`` on any
     rejection or failure.
@@ -197,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     path, line = args
     try:
-        safe_append_tally(path, line)
+        safe_append_tally(path, line, base_dir=Path.cwd())
     except MetricsWriteError as exc:
         print(f"metrics_writer: {exc}", file=sys.stderr)
         return 1
