@@ -819,6 +819,13 @@ def test_act_limitation_hint_matches_known_patterns() -> None:
     )
     assert (
         w._act_limitation_hint(
+            "Cannot read properties of undefined (reading 'requested_reviewers')",
+            "pull_request",
+        )
+        is not None
+    )
+    assert (
+        w._act_limitation_hint(
             "Cannot read properties of undefined (reading 'number')",
             "workflow_dispatch",
         )

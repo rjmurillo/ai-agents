@@ -392,7 +392,8 @@ _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
 
 _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
     r"Cannot read properties of undefined \(reading "
-    r"'(?:number|head|base|title|body|labels|draft|merged)'\)"
+    r"'(?:number|head|base|title|body|labels|draft|merged|user|html_url|state|id"
+    r"|assignee|assignees|requested_reviewers|milestone)'\)"
 )
 
 # Known act-only limitation signatures. A nonzero act exit whose combined output
