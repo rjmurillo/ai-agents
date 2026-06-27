@@ -389,6 +389,48 @@ def _select_act_event(wf_path: Path) -> str | None:
 # this exact prefix. See issue #2719.
 _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
 
+# Emitted by act when a workflow reads ``github.event.pull_request.number`` (or
+# other ``pull_request`` event context) on a local/workflow_dispatch run. act
+# does not populate the ``pull_request`` event payload off a real PR, so the
+# expression evaluates ``github.event.pull_request`` to undefined and the run
+# aborts with this exact JS TypeError. It is an act limitation, not a workflow
+# defect: actionlint and the act dry-run already validated the workflow shape.
+# See issue #2758.
+_ACT_PR_CONTEXT_MISSING_PATTERN = "Cannot read properties of undefined (reading 'number')"
+
+# Known act-only limitation signatures. A nonzero act exit whose combined output
+# carries one of these is a local environment gap, not a workflow defect, so the
+# stage downgrades to a passing [WARN] instead of a hard FAIL. Each entry pairs
+# the exact substring with a hint surfaced to the developer. Kept conservative:
+# only these exact signatures downgrade; every other nonzero exit still blocks.
+_ACT_LIMITATION_PATTERNS: tuple[tuple[str, str], ...] = (
+    (
+        _GIT_REPO_MISSING_PATTERN,
+        "act container lacks .git; git-calling actions (e.g. dorny/paths-filter) "
+        "fail only in local act, not in CI.",
+    ),
+    (
+        _ACT_PR_CONTEXT_MISSING_PATTERN,
+        "act does not populate the pull_request event context on a local run, so "
+        "workflows reading github.event.pull_request.number fail only in local "
+        "act, not in CI.",
+    ),
+)
+
+
+def _act_limitation_hint(combined: str) -> str | None:
+    """Return the WARN hint when ``combined`` matches a known act limitation.
+
+    Returns the hint for the first matching signature in
+    ``_ACT_LIMITATION_PATTERNS``, or None when no known act-only limitation is
+    present (the caller then keeps the hard FAIL so real job failures still
+    block).
+    """
+    for pattern, hint in _ACT_LIMITATION_PATTERNS:
+        if pattern in combined:
+            return hint
+    return None
+
 
 def _run_act_stage(
     stage: str,
@@ -397,13 +439,15 @@ def _run_act_stage(
     files: Sequence[str],
     repo_root: Path,
 ) -> StageResult:
-    """Run an ``act`` invocation per workflow file, with git-missing downgrade.
+    """Run an ``act`` invocation per workflow file, with act-limitation downgrade.
 
-    A nonzero exit whose output carries ``_GIT_REPO_MISSING_PATTERN`` is a local
-    environment limitation, not a workflow defect: actionlint and the act
-    dry-run already validated the workflow shape. Downgrade it to a passing
-    stage with a ``[WARN]`` detail instead of a hard FAIL so the missing .git in
-    the container does not block an otherwise valid push.
+    A nonzero exit whose output carries a known act-only limitation signature
+    (see ``_ACT_LIMITATION_PATTERNS``: a missing .git in the container, or an
+    unpopulated ``pull_request`` event context) is a local environment gap, not
+    a workflow defect: actionlint and the act dry-run already validated the
+    workflow shape. Downgrade it to a passing stage with a ``[WARN]`` detail
+    instead of a hard FAIL so the act limitation does not block an otherwise
+    valid push. Every other nonzero exit still blocks.
     """
     env = _act_env(repo_root)
     warnings: list[str] = []
@@ -416,11 +460,10 @@ def _run_act_stage(
         rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
         if rc != 0:
             combined = (out + err).strip()
-            if _GIT_REPO_MISSING_PATTERN in combined:
+            hint = _act_limitation_hint(combined)
+            if hint is not None:
                 warnings.append(
-                    f"[WARN] {wf}: act container lacks .git; git-calling actions "
-                    f"(e.g. dorny/paths-filter) fail only in local act, not in "
-                    f"CI. Set {_BYPASS_ENV}=true to silence."
+                    f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence."
                 )
                 continue
             return StageResult(stage, False, f"{wf}:\n{combined[:4000]}")
