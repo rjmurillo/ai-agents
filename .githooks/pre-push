@@ -198,6 +198,17 @@ REFS_PROCESSED=0
 PVB_BASES=()
 PVB_HEADS=()
 
+# Worktree caveat (Issue #2757): the commit-count / PR-size gate bases its
+# merge-base on origin/main, the remote-tracking ref, NOT local `main`. In a
+# linked worktree or any stale checkout, local `main` can lag origin/main by
+# many commits; basing the merge-base on it over-counts both commits and files
+# (observed 23 commits / 146 files for a branch whose true diff vs origin/main
+# was 1 / 4). origin/main reflects what the PR will actually be reviewed against.
+# Best-effort refresh of origin/main so the count is accurate; never hard-fail
+# on a fetch error (offline pushes must still validate against the local
+# origin/main ref as-is).
+git fetch --no-tags --quiet origin main 2>/dev/null || true
+
 while read -r local_ref local_sha remote_ref remote_sha; do
     REFS_PROCESSED=$((REFS_PROCESSED + 1))
 
@@ -208,17 +219,22 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     ref_range=""
     if [ "$remote_sha" = "$ZERO" ]; then
-        # New branch: compare against merge-base with main
-        merge_base=$(git merge-base main "$local_sha" 2>/dev/null || echo "")
+        # New branch: compare against merge-base with origin/main (Issue #2757).
+        # origin/main, not local `main`: local `main` lags in worktrees / stale
+        # checkouts and inflates the count. Local `main` is only a last-resort
+        # fallback for the rare clone with no origin/main ref (e.g. a detached
+        # mirror); it matches the existing-branch path above, which already
+        # bases its merge-base on origin/main.
+        merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
         if [ -z "$merge_base" ]; then
-            # Try origin/main as fallback
-            merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
+            # Fallback: local `main` when origin/main is unavailable
+            merge_base=$(git merge-base main "$local_sha" 2>/dev/null || echo "")
         fi
         if [ -n "$merge_base" ]; then
             ref_range="$merge_base..$local_sha"
         else
-            echo_warning "Could not find merge-base with main for $local_ref"
-            echo_info "  Ensure 'main' or 'origin/main' exists: git fetch origin main"
+            echo_warning "Could not find merge-base with origin/main for $local_ref"
+            echo_info "  Ensure 'origin/main' exists: git fetch origin main"
             # Fall back to listing all files in the commit
             ref_range="$local_sha"
         fi
