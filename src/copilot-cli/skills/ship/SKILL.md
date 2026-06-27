@@ -21,7 +21,11 @@ Run this block BEFORE the pre-flight checks. It sets two variables, `host` and `
 Derive the host from the origin remote URL:
 
 ```bash
-remote_url="$(git remote get-url origin 2>/dev/null || echo "")"
+remote_url="$(git remote get-url origin 2>/dev/null || true)"
+if [ -z "$remote_url" ]; then
+  echo "ERROR: origin remote is not configured; cannot detect VCS host." >&2
+  exit 2
+fi
 case "$remote_url" in
   *dev.azure.com*|*visualstudio.com*) host=ado ;;
   *) host=github ;;
@@ -41,7 +45,7 @@ Determine two facts:
 
 - **(a) Branch ownership.** Are you on a branch you own (you created it and push to it freely), or are you a contributor pushing commits onto someone else's feature branch? Treat a branch whose open PR lists a different author as not yours.
 - **(b) Open PR exists for this branch.** Query the host:
-  - `host=github`: `gh pr view --json number,author,state,url` for the current branch. A non-zero exit means no open PR for the branch.
+  - `host=github`: `gh pr view --json number,author,state,url` for the current branch. Treat the result as an open PR only when the JSON `state` field is exactly `OPEN`. A non-zero exit or any other state means no open PR for contributor-mode detection.
   - `host=ado`: derive `branch_ref="refs/heads/$(git rev-parse --abbrev-ref HEAD)"`, then run `az repos pr list --source-branch "$branch_ref" --status active --output json`. An empty array means no open PR for the branch.
 
 Set the mode:
