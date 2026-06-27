@@ -194,11 +194,12 @@ End every review with one verdict:
   action such as disclosure or secret rotation).
 
 If a verdict cannot be reached because the diff is incomplete, ESCALATE with the
-specific missing artifact rather than guessing. A verdict is reachable when the
-shown diff answers the three threat-model questions, even if surface, actor, and
-impact are all absent; in that case apply IDENTIFY or OK and never ESCALATE.
-ESCALATE is gated on unreachability alone, never on the mere absence of
-coverage data when the diff is complete.
+specific missing artifact rather than guessing. Treat external or irreversible
+owner-only decisions as unreachable by the model: name the owner decision needed
+and ESCALATE. A verdict is reachable when the shown diff answers the three
+threat-model questions, even if surface, actor, and impact are all absent; in
+that case apply IDENTIFY or OK and never ESCALATE. ESCALATE is never triggered
+by the mere absence of coverage data when the diff is complete.
 
 ## Finding Format
 
