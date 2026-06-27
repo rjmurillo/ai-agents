@@ -305,6 +305,24 @@ python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --pull
 
 ---
 
+## Vendored install
+
+<!-- vendor-portability: declared. This skill documents repair patterns for session logs under .agents/sessions/ and template sections from .agents/SESSION-PROTOCOL.md. Its shipped helper fetches validation errors from CI; missing upstream paths mean the referenced artifacts/templates are unavailable to the operator, not that the helper detects them. Issue #2050. -->
+
+This skill depends on upstream-only paths. In a vendored install (a consumer
+repo that is not `rjmurillo/ai-agents`) these paths do not exist:
+
+| Path | Direction | Behavior when absent |
+|------|-----------|----------------------|
+| `.agents/sessions/` | reference target (session logs being fixed) | No upstream session logs are available to repair; provide the affected log path/content from the consumer repo. |
+| `.agents/SESSION-PROTOCOL.md` | reference source (template sections) | Copy-paste template sections come from the protocol file; without it, supply the template content explicitly. |
+
+The HTML comment above is the machine-readable declaration the
+`check_skill_md_portability.py` validator (Issue #2050) reads to confirm this
+skill has disclosed its path dependencies instead of hiding them in prose.
+
+---
+
 ## References
 
 - [Common Fixes](references/common-fixes.md) - Fix patterns for common failures

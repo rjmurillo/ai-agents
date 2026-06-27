@@ -192,6 +192,9 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 (Spec, generator, and drift hook live outside the vendored surface and are
 not referenced from this skill body. Vendored installs work without them.)
 
+<!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access and that no axis references it. No upstream-only runtime dependency. Issue #2050. -->
+
+
 ## Copilot CLI invocation reference
 
 This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
