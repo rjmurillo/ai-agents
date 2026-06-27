@@ -88,6 +88,21 @@ def is_safe_path(filepath: str) -> bool:
     parts = Path(filepath).parts
     return ".." not in parts
 
+def _path_parts(filepath: str) -> tuple[str, ...]:
+    """Return path components with Windows separators normalized."""
+    return Path(filepath.replace("\\", "/")).parts
+
+
+def _marker_parts(marker: str) -> tuple[str, ...]:
+    """Return path marker components without adding duplicate path literals."""
+    return tuple(marker.strip("/").split("/"))
+
+def _has_path_parts(filepath: str, marker: tuple[str, ...]) -> bool:
+    """Return True when marker appears as contiguous path components."""
+    parts = _path_parts(filepath)
+    width = len(marker)
+    return any(parts[index:index + width] == marker for index in range(len(parts) - width + 1))
+
 def read_file_lines(filepath: str) -> list[str]:
     """Read file lines, returning empty list on error."""
     try:
@@ -215,7 +230,9 @@ def check_script_language(filepath: str, lines: list[str]) -> list[Violation]:
 
 def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-003: SKILL.md must have required frontmatter fields."""
-    if not filepath.endswith("SKILL.md") or _SKILLS_PATH_MARKER not in filepath:
+    if not filepath.endswith("SKILL.md") or not _has_path_parts(
+        filepath, _marker_parts(_SKILLS_PATH_MARKER)
+    ):
         return []
     if has_suppression(lines, "skill-frontmatter"):
         return []
@@ -276,7 +293,7 @@ def check_agent_definition(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-004: Agent definitions must have required frontmatter."""
     if not filepath.endswith(".md"):
         return []
-    if _AGENTS_PATH_MARKER not in filepath:
+    if not _has_path_parts(filepath, _marker_parts(_AGENTS_PATH_MARKER)):
         return []
     if Path(filepath).name in ("CLAUDE.md",):
         return []
@@ -349,7 +366,7 @@ def _find_long_run_blocks(lines: list[str]) -> list[tuple[int, int]]:
 
 def check_yaml_logic(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-005: No inline logic in workflow YAML."""
-    if _WORKFLOWS_PATH_MARKER not in filepath:
+    if not _has_path_parts(filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)):
         return []
     if Path(filepath).suffix not in (".yml", ".yaml"):
         return []
@@ -378,7 +395,7 @@ def _yaml_logic_violation(filepath: str, line: int, count: int) -> Violation:
 
 def check_actions_pinned(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-006: GitHub Actions must be pinned to SHA."""
-    if _WORKFLOWS_PATH_MARKER not in filepath:
+    if not _has_path_parts(filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)):
         return []
     suffix = Path(filepath).suffix
     if suffix not in (".yml", ".yaml"):
@@ -431,8 +448,7 @@ def _is_applicable(filepath: str) -> bool:
     """Return True when a file falls in any golden-principle rule's file-type domain.
 
     The domains mirror the per-rule checker guards in this module:
-      - script-language (GP-001): .sh / .bash scripts, plus .py / .ps1 / .psm1
-        in the broader script-language domain.
+      - script-language (GP-001): .sh / .bash scripts.
       - skill-frontmatter (GP-003): SKILL.md under .claude/skills/.
       - agent-definition (GP-004): .md under .claude/agents/ (except CLAUDE.md).
       - yaml-logic (GP-005) and actions-pinned (GP-006): .yml / .yaml under
@@ -445,13 +461,21 @@ def _is_applicable(filepath: str) -> bool:
     suffix = Path(filepath).suffix
     name = Path(filepath).name
 
-    if suffix in (".sh", ".bash", ".py", ".ps1", ".psm1"):
+    if suffix in (".sh", ".bash"):
         return True
-    if name == "SKILL.md" and _SKILLS_PATH_MARKER in filepath:
+    if name == "SKILL.md" and _has_path_parts(
+        filepath, _marker_parts(_SKILLS_PATH_MARKER)
+    ):
         return True
-    if suffix == ".md" and _AGENTS_PATH_MARKER in filepath and name != "CLAUDE.md":
+    if (
+        suffix == ".md"
+        and _has_path_parts(filepath, _marker_parts(_AGENTS_PATH_MARKER))
+        and name != "CLAUDE.md"
+    ):
         return True
-    if suffix in (".yml", ".yaml") and _WORKFLOWS_PATH_MARKER in filepath:
+    if suffix in (".yml", ".yaml") and _has_path_parts(
+        filepath, _marker_parts(_WORKFLOWS_PATH_MARKER)
+    ):
         return True
     return False
 

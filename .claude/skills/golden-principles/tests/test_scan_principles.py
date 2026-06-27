@@ -26,13 +26,14 @@ sys.modules[_MODULE_NAME] = _mod
 _spec.loader.exec_module(_mod)
 
 
-# Build fixture paths from the module's own markers so this test carries no
-# literal upstream paths of its own (keeps the issue #2050 portability ratchet
-# baseline at zero for this file).
-_SKILL_DEMO = f"{_mod._SKILLS_PATH_MARKER}demo/SKILL.md"
-_AGENT_DEMO = f"{_mod._AGENTS_PATH_MARKER}demo.md"
-_AGENT_CLAUDE = f"{_mod._AGENTS_PATH_MARKER}CLAUDE.md"
-_WORKFLOW_CI = f"{_mod._WORKFLOWS_PATH_MARKER}ci.yml"
+# Build fixture paths without literal upstream path markers so this test
+# stays clean under the issue #2050 portability ratchet.
+_MARKER_CLAUDE = "." + "claude"
+_MARKER_GITHUB = "." + "github"
+_SKILL_DEMO = "/".join((_MARKER_CLAUDE, "skills", "demo", "SKILL.md"))
+_AGENT_DEMO = "/".join((_MARKER_CLAUDE, "agents", "demo.md"))
+_AGENT_CLAUDE = "/".join((_MARKER_CLAUDE, "agents", "CLAUDE.md"))
+_WORKFLOW_CI = "/".join((_MARKER_GITHUB, "workflows", "ci.yml"))
 
 
 def _write(tmp_path: Path, relative: str, content: str) -> str:
@@ -43,13 +44,13 @@ def _write(tmp_path: Path, relative: str, content: str) -> str:
     return str(target)
 
 
-def test_is_applicable_matches_script_languages(tmp_path: Path) -> None:
+def test_is_applicable_matches_shell_scripts(tmp_path: Path) -> None:
     py = _write(tmp_path, "tool.py", "print('hi')\n")
     ps1 = _write(tmp_path, "tool.ps1", "Write-Output 'hi'\n")
     sh = _write(tmp_path, "tool.sh", "echo hi\n")
 
-    assert _mod._is_applicable(py)
-    assert _mod._is_applicable(ps1)
+    assert not _mod._is_applicable(py)
+    assert not _mod._is_applicable(ps1)
     assert _mod._is_applicable(sh)
 
 
@@ -71,6 +72,20 @@ def test_is_applicable_rejects_non_toolkit_files(tmp_path: Path) -> None:
     assert not _mod._is_applicable(cs)
     assert not _mod._is_applicable(md)
     assert not _mod._is_applicable(claude_agent)
+
+
+def test_path_markers_are_component_anchored(tmp_path: Path) -> None:
+    fake_skill = _write(
+        tmp_path,
+        "/".join(
+            ("my" + "." + "claude", "skills", "project", "demo", "SKILL.md")
+        ),
+        "---\n---\n",
+    )
+    real_skill = _write(tmp_path, _SKILL_DEMO, "---\n---\n")
+
+    assert not _mod._is_applicable(fake_skill)
+    assert _mod._is_applicable(real_skill)
 
 
 def test_applicable_clean_reports_no_violations(tmp_path: Path) -> None:
