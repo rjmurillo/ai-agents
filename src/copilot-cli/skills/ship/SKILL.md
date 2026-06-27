@@ -26,7 +26,8 @@ case "$remote_url" in
   *dev.azure.com*|*visualstudio.com*) host=ado ;;
   *) host=github ;;
 esac
-echo "host=$host (origin: $remote_url)"
+redacted_remote_url="$(printf '%s' "$remote_url" | sed -E 's#(https://)[^/@]+@#\1[redacted]@#')"
+echo "host=$host (origin: $redacted_remote_url)"
 ```
 
 `dev.azure.com` or `visualstudio.com` anywhere in the URL means `host=ado`; everything else is `host=github`. This match covers both Azure DevOps remote URL shapes:
@@ -41,7 +42,7 @@ Determine two facts:
 - **(a) Branch ownership.** Are you on a branch you own (you created it and push to it freely), or are you a contributor pushing commits onto someone else's feature branch? Treat a branch whose open PR lists a different author as not yours.
 - **(b) Open PR exists for this branch.** Query the host:
   - `host=github`: `gh pr view --json number,author,state,url` for the current branch. A non-zero exit means no open PR for the branch.
-  - `host=ado`: `az repos pr list --source-branch "$(git rev-parse --abbrev-ref HEAD)" --status active --output json`. An empty array means no open PR for the branch.
+  - `host=ado`: derive `branch_ref="refs/heads/$(git rev-parse --abbrev-ref HEAD)"`, then run `az repos pr list --source-branch "$branch_ref" --status active --output json`. An empty array means no open PR for the branch.
 
 Set the mode:
 
@@ -59,10 +60,13 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
    - `host=ado`: pipeline-validator does not apply. Evaluate ADO build policies for the branch behind a Bash step instead. List the active branch policies and the latest policy or build status, then confirm every required policy is satisfied:
 
      ```bash
-     # Preferred when a PR exists: list required policy status for the PR.
-     az repos pr policy list --id "<pr-id>" --output table
-     # Or evaluate the pipeline build directly for this branch.
-     az pipelines build list --branch "$(git rev-parse --abbrev-ref HEAD)" --status completed --top 1 --output table
+     branch_ref="refs/heads/$(git rev-parse --abbrev-ref HEAD)"
+     pr_id="$(az repos pr list --source-branch "$branch_ref" --status active --query '[0].pullRequestId' --output tsv)"
+     if [ -n "$pr_id" ]; then
+       az repos pr policy list --id "$pr_id" --output table
+     else
+       az pipelines build list --branch "$branch_ref" --status completed --top 1 --output table
+     fi
      ```
 
      PASS only when every required ADO build policy reports succeeded. No required policy queued, failed, or waiting.
