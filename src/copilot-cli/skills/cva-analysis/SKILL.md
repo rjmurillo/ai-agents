@@ -27,11 +27,11 @@ Commonality Variability Analysis (CVA) is a systematic technique for discovering
 
 Activate CVA when you encounter:
 
-- `discover abstractions for [domain]`
-- `run CVA analysis on [requirements]`
+- `discover abstractions for {domain}`
+- `run CVA analysis on {requirements}`
 - `commonality variability analysis`
 - `prevent wrong abstraction`
-- `what patterns emerge from [use cases]`
+- `what patterns emerge from {use cases}`
 
 ## Quick Reference
 
