@@ -1,0 +1,67 @@
+{
+  "id": "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient",
+  "session": "2026-06-27-session-2599-fix-issue-2759-neutralize-ambient",
+  "timestamp": "2026-06-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue 2759 neutralize ambient LSP guard override env vars in hook tests conftest",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify fix",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scope #2756",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 533fe5d4ac5cc041b014a7a0ef0135c8e371a0c5",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve merge conflict",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 37
+  },
+  "lessons": []
+}

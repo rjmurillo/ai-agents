@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2599,
+    "date": "2026-06-27",
+    "branch": "fix/issue-2759-lsp-guard-tests-ambient",
+    "startingCommit": "2aa4618ba6",
+    "objective": "Fix issue 2759 neutralize ambient LSP guard override env vars in hook tests conftest"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena symbolic search unavailable in delegated worktree agent; used codebase grep and Read per LSP_DOWN graceful-degradation path"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md retrieval and gates sections injected as passive context this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No open HANDOFF.md for this isolated single-issue task; scope provided in task prompt"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located get_issue_context.py and session-init scripts under .claude/skills; invoked session-init"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read code-quality, testing, lsp-first, universal rules injected as passive context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed AGENTS.md boundaries and .claude/rules/testing.md and universal.md before editing tests/hooks/conftest.py"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed self-improving-agent memory nudges surfaced by PreToolUse hooks during the session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-2759-lsp-guard-tests-ambient"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-2759-lsp-guard-tests-ambient, branched off origin/main commit 2aa4618ba6"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status confirmed only tests/hooks/conftest.py modified before commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "2aa4618ba6"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items recorded with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified this session (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new cross-session decision; fix is local test-determinism change recorded in this session log and PR body"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed this session; only tests/hooks/conftest.py (Python) modified"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed tests/hooks/conftest.py and this session log on fix/issue-2759-lsp-guard-tests-ambient via conventional commit test(hooks): neutralize ambient LSP-guard overrides. Commit SHA: 533fe5d4ac5cc041b014a7a0ef0135c8e371a0c5"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest on the three guard suites: 147 passed with LSP_DOWN=true exported (was 18 failed / 129 passed before fix); full tests/hooks/ 1527 passed with no ambient override; ruff check passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #2759 to be linked via Fixes in PR"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-file test-determinism fix; retro not warranted"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Reproduce",
+      "detail": "Ran LSP_DOWN=true uv run pytest on tests/hooks/test_invoke_lsp_read_guard.py test_invoke_lsp_bash_grep_guard.py test_invoke_lsp_pre_delegation_guard_main.py: 18 failed, 129 passed. Confirmed ambient LSP_DOWN flips would-block guard assertions to exit-0 allow."
+    },
+    {
+      "step": "Fix",
+      "detail": "Added autouse fixture _neutralize_lsp_guard_overrides to tests/hooks/conftest.py clearing LSP_DOWN, SKIP_LSP_GATE, LSP_GATE_MODE before every hook test. Dedicated escape-hatch tests re-set LSP_DOWN in their bodies so coverage stays intact."
+    },
+    {
+      "step": "Verify fix",
+      "detail": "LSP_DOWN=true uv run pytest on the three guard suites: 147 passed (was 18 failed). uv run pytest tests/hooks/ with no ambient override: 1527 passed, zero regressions from the autouse fixture. uv run ruff check tests/hooks/conftest.py: All checks passed."
+    },
+    {
+      "step": "Scope #2756",
+      "detail": "Checked origin/main for STALENESS_DEFERRALS in build/scripts/build_all.py: not on main; exists only on branch fix/issue-2743-copilot-skill-task-args-translation (open PR). Did NOT duplicate. Scoped this PR to #2759; #2756 left to the #2743 PR and referenced in PR body."
+    },
+    {
+      "step": "Resolve merge conflict",
+      "detail": "Merged origin/main into PR 2768 after review threads were resolved. The only conflict was .agents/memory/causality/causal-graph.json, resolved to origin/main per merge-resolver guidance that main .agents audit artifacts are authoritative."
+    }
+  ],
+  "endingCommit": "533fe5d4ac5cc041b014a7a0ef0135c8e371a0c5",
+  "nextSteps": [
+    "Monitor PR checks and merge once all required checks pass."
+  ]
+}
