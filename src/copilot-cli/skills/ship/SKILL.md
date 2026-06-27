@@ -6,11 +6,10 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
 ---
 
-@CLAUDE.md
+<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+Ship: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
-Ship: $ARGUMENTS
-
-Default target is main unless specified. If $ARGUMENTS names a different branch, use that as the target.
+Default target is main unless specified. If the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message) names a different branch, use that as the target.
 
 ## Mode Detection
 
@@ -127,3 +126,22 @@ NEXT: [monitoring, follow-up items]
 ```
 
 `RESULT: VALIDATED` is the contributor-mode terminal state: readiness checks and `/review` axes ran, no marker commit was written, no PR was created, and nothing was merged.
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-skill calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Skill(skill="pipeline-validator")` | `skill` tool, `skill: "pipeline-validator"` |
+| `Skill(skill="security-scan")` | `skill` tool, `skill: "security-scan"` |
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="devops")` | `task` tool, `agent_type: "project-toolkit:devops"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
