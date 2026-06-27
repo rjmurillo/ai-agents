@@ -33,9 +33,11 @@ SKILL_MD = SKILL_DIR / "SKILL.md"
 # either tree.
 _DOT = "."
 _CLAUDE_DIR_NAME = _DOT + "claude"
+_RULES_DIR_NAME = "rules"
 _SKILLS_DIR_NAME = "skills"
 _SKILL_NAME = "prose-self-check"
 _SKILL_FILE = "SKILL.md"
+_VOICE_RULE = "voice.md"
 _COPILOT_SEGMENTS = ("src", "copilot-cli", _SKILLS_DIR_NAME)
 
 
@@ -60,35 +62,16 @@ COPILOT_MIRROR = (
     if REPO_ROOT
     else None
 )
+VOICE_MD = (
+    REPO_ROOT / _CLAUDE_DIR_NAME / _RULES_DIR_NAME / _VOICE_RULE
+    if REPO_ROOT
+    else None
+)
 
 _FRONTMATTER = re.compile(r"(?s)\A---\r?\n(.*?)\r?\n---\r?\n")
 _BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
-_EM_DASH = "—"
-_EN_DASH = "–"
-
-# The canonical banned-vocabulary words from voice.md. The skill must NOT
-# re-list these as its own banned list; it must defer to voice.md.
-_BANNED_WORDS = [
-    "delve",
-    "crucial",
-    "robust",
-    "comprehensive",
-    "nuanced",
-    "multifaceted",
-    "furthermore",
-    "moreover",
-    "additionally",
-    "pivotal",
-    "landscape",
-    "tapestry",
-    "underscore",
-    "foster",
-    "showcase",
-    "intricate",
-    "vibrant",
-    "fundamental",
-    "significant",
-]
+_EM_DASH = chr(0x2014)
+_EN_DASH = chr(0x2013)
 
 
 def _read_skill() -> str:
@@ -99,6 +82,27 @@ def _frontmatter_block() -> str:
     match = _FRONTMATTER.search(_read_skill())
     assert match is not None, "SKILL.md must open with a --- frontmatter block"
     return match.group(1)
+
+
+def _canonical_banned_words() -> tuple[str, ...]:
+    assert VOICE_MD is not None and VOICE_MD.is_file(), f"missing voice rule at {VOICE_MD}"
+    text = VOICE_MD.read_text(encoding="utf-8")
+    _, section = text.split("## Banned Vocabulary", 1)
+    section = section.split("\n## ", 1)[0]
+    words = tuple(match.lower() for match in re.findall(r"`([a-z][a-z-]+)`", section))
+    assert words, "voice.md banned-vocabulary section must expose backticked words"
+    return words
+
+
+def _low_signal_banned_examples(canonical_words: set[str]) -> set[str]:
+    body = _read_skill()
+    match = re.search(r"Low-signal.*?(?=\n\n|$)", body, re.DOTALL)
+    assert match is not None, "SKILL.md must name its low-signal examples"
+    return {
+        token.strip().lower()
+        for token in re.findall(r"`([^`]+)`", match.group(0))
+        if token.strip().lower() in canonical_words
+    }
 
 
 def test_skill_md_exists() -> None:
@@ -162,12 +166,12 @@ def test_references_voice_md_as_banned_word_source() -> None:
     )
 
 
-@pytest.mark.parametrize("word", _BANNED_WORDS)
+@pytest.mark.parametrize("word", _canonical_banned_words())
 def test_does_not_reencode_banned_word_list(word: str) -> None:
     # Arrange: the banned words must NOT appear as a backtick-quoted enumeration
     # inside the skill body (that would fork the list from voice.md). The low-
     # signal examples the skill legitimately names are allowlisted below.
-    allowed_low_signal = {"moreover", "additionally", "nuanced", "comprehensive"}
+    allowed_low_signal = _low_signal_banned_examples(set(_canonical_banned_words()))
     if word in allowed_low_signal:
         pytest.skip(f"{word} is a named low-signal example, not a forked banned list")
     body = _read_skill()
