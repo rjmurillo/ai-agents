@@ -105,6 +105,15 @@ def _low_signal_banned_examples(canonical_words: set[str]) -> set[str]:
     }
 
 
+def _backticked_banned_words() -> list[str]:
+    canonical_words = set(_canonical_banned_words())
+    return [
+        token.strip().lower()
+        for token in re.findall(r"`([^`]+)`", _read_skill())
+        if token.strip().lower() in canonical_words
+    ]
+
+
 def test_skill_md_exists() -> None:
     # Arrange / Act / Assert
     assert SKILL_MD.is_file(), f"missing SKILL.md at {SKILL_MD}"
@@ -166,6 +175,21 @@ def test_references_voice_md_as_banned_word_source() -> None:
     )
 
 
+def test_does_not_copy_full_voice_banned_word_list() -> None:
+    # Arrange: if SKILL.md copies the full canonical list once, each word appears
+    # only once, so per-word checks are not enough. This aggregate check catches
+    # the full-list fork directly.
+    canonical_words = set(_canonical_banned_words())
+    allowed_low_signal = _low_signal_banned_examples(canonical_words)
+    found = set(_backticked_banned_words())
+
+    # Act / Assert
+    assert canonical_words - found, "SKILL.md must not copy the full voice.md banned list"
+    assert not canonical_words <= found | allowed_low_signal, (
+        "SKILL.md must not copy the full voice.md banned list plus low-signal examples"
+    )
+
+
 @pytest.mark.parametrize("word", _canonical_banned_words())
 def test_does_not_reencode_banned_word_list(word: str) -> None:
     # Arrange: the banned words must NOT appear as a backtick-quoted enumeration
@@ -174,13 +198,11 @@ def test_does_not_reencode_banned_word_list(word: str) -> None:
     allowed_low_signal = _low_signal_banned_examples(set(_canonical_banned_words()))
     if word in allowed_low_signal:
         pytest.skip(f"{word} is a named low-signal example, not a forked banned list")
-    body = _read_skill()
 
     # Act / Assert: high-signal banned words must not be re-listed as backticked
     # banned-vocabulary entries. ("delve"/"tapestry"/"showcase" appear only as
     # explicit examples-of-voice.md-entries, which the next test guards.)
-    backticked = re.findall(r"`([^`]+)`", body)
-    forked = [t for t in backticked if t.strip().lower() == word]
+    forked = [token for token in _backticked_banned_words() if token == word]
     # Up to one mention as an illustrative example is acceptable; a list is not.
     assert len(forked) <= 1, (
         f"{word!r} appears {len(forked)} times in backticks; do not fork the "
