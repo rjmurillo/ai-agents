@@ -4,7 +4,6 @@ description: Autonomous meta-skill for creating high-quality custom slash comman
 version: 1.0.0
 license: MIT
 model: claude-opus-4-6
-trigger: SlashCommandCreator
 ---
 
 # SlashCommandCreator Skill
@@ -15,9 +14,9 @@ Create production-ready custom slash commands following ai-agents quality standa
 
 ## Triggers
 
-- `create slash command for [purpose]`
-- `SlashCommandCreator: [description]`
-- `design slash command that [does something]`
+- `create slash command for {purpose}`
+- `SlashCommandCreator: {description}`
+- `design slash command that {does something}`
 
 ## When to Use
 

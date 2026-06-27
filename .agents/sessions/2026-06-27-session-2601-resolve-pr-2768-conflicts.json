@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2601,
+    "date": "2026-06-27",
+    "branch": "fix/issue-2759-lsp-guard-tests-ambient",
+    "startingCommit": "999683c60da175356c6578fc3f59820a92aba65f",
+    "objective": "Resolve PR 2768 conflicts with main while preserving the LSP guard test fix"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded in Copilot session; Python LSP unavailable, so targeted file reads were used after LSP failure was observed"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions read before inspecting hook symbols during conflict resolution"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session plan and prior checkpoint summary identified PR 2768 as conflict-blocked after thread resolution"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file records the merge-resolution session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work performed in PR 2768 isolated worktree on branch pr-2768-fix tracking fix/issue-2759-lsp-guard-tests-ambient"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch was pr-2768-fix, not main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "999683c60da175356c6578fc3f59820a92aba65f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required merge-resolution checklist items recorded with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable cross-session decision discovered; conflict resolution followed existing merge-resolver .agents artifact rule"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown authored for this merge-resolution change"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed merge-resolution change as 33da0a725ff1c0e1894a231b8e7e94a7d5e14844 after resolving .agents/memory/causality/causal-graph.json to main"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "verify_no_conflict_markers.py passed, git diff --check passed, validate_session_json.py passed for the PR 2768 session log, and the causal graph parsed as JSON"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Live gate",
+      "detail": "Confirmed PR 2768 was open, thread-clean, checks green, and blocked only by mergeStateStatus DIRTY / mergeable CONFLICTING."
+    },
+    {
+      "step": "Merge main",
+      "detail": "Merged origin/main into the PR worktree; only .agents/memory/causality/causal-graph.json conflicted."
+    },
+    {
+      "step": "Resolve conflict",
+      "detail": "Accepted origin/main causal graph per merge-resolver rule that .agents audit artifacts from main are authoritative."
+    },
+    {
+      "step": "Validate",
+      "detail": "Verified no unmerged files, no conflict markers, JSON parse success for causal graph, and session JSON validity. Focused hook tests were deferred until after the merge commit because MERGE_HEAD intentionally causes the LSP read gate to bypass targets during conflict resolution."
+    }
+  ],
+  "endingCommit": "33da0a725ff1c0e1894a231b8e7e94a7d5e14844",
+  "nextSteps": [
+    "Monitor PR checks and merge once all required checks pass."
+  ]
+}

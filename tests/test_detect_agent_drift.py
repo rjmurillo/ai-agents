@@ -281,7 +281,31 @@ class TestKnownBaselineDrift:
         )
 
     def test_baseline_does_not_apply_to_other_comparison(self) -> None:
+        # The baseline key includes the comparison label, so a floor recorded for
+        # one comparison must not leak into an unrelated comparison. Use a label
+        # that is not in KNOWN_BASELINE_DRIFT for any agent.
+        unbaselined_comparison = "some-other vs comparison"
+        assert unbaselined_comparison not in {
+            comparison for (_agent, comparison) in KNOWN_BASELINE_DRIFT
+        }
         floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
+        assert (
+            _classify_overall(
+                "merge-resolver",
+                floor + 0.9,
+                80,
+                unbaselined_comparison,
+            )
+            == "DRIFT DETECTED"
+        )
+
+    def test_install_comparison_baseline_applies(self) -> None:
+        # Issue #2715: merge-resolver's enriched .claude/agents copy diverges from
+        # the leaner .github/agents copy by design, so the install comparison is
+        # baselined at the same floor as the vendored comparison.
+        floor = KNOWN_BASELINE_DRIFT[
+            ("merge-resolver", ".claude/agents vs .github/agents")
+        ]
         assert (
             _classify_overall(
                 "merge-resolver",
@@ -289,7 +313,7 @@ class TestKnownBaselineDrift:
                 80,
                 ".claude/agents vs .github/agents",
             )
-            == "DRIFT DETECTED"
+            == "OK (baselined)"
         )
 
     def test_non_baselined_below_threshold_drifts(self) -> None:
