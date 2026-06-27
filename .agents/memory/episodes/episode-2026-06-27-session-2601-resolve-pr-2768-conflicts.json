@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-06-27-session-2601-resolve-pr-2768-conflicts",
+  "session": "2026-06-27-session-2601-resolve-pr-2768-conflicts",
+  "timestamp": "2026-06-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Resolve PR 2768 conflicts with main while preserving the LSP guard test fix",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Live gate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge main",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve conflict",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 33da0a725ff1c0e1894a231b8e7e94a7d5e14844",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
