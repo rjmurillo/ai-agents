@@ -9,11 +9,13 @@ the shipped plugin directory, list the plugin's skills, and assert the lifecycle
 skills load.
 
   - Copilot: ``copilot --plugin-dir <repo>/src/copilot-cli skill list --json``
-    from a neutral cwd. Assert returncode 0, no ``argument-hint`` loader warning
-    in stderr, and the expected lifecycle skills load from ``source: plugin``.
-  - Claude:  ``claude --plugin-dir <repo>/.claude plugin list`` and
-    ``plugin details project-toolkit``. Assert returncode 0 and the manifest
-    version from ``.claude/.claude-plugin/plugin.json`` appears in the output.
+    with ``cwd`` set to a neutral directory. Assert returncode 0, no
+    ``argument-hint`` loader warning in stderr, and the expected lifecycle skills
+    load from ``source: plugin``.
+  - Claude: ``claude --plugin-dir <repo>/.claude plugin list`` and
+    ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
+    Assert returncode 0, the manifest version appears, and the expected lifecycle
+    skills are present in the details output.
 
 This is the plugin-LOAD smoke. The plugin-HOOK smoke (a hook resolves and runs
 from the install tree) lives in ``tests/e2e/test_cli_hook_e2e.py``. Both run in
@@ -44,9 +46,12 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
-
-from cli_exec import resolve_executable  # noqa: E402
+_original_sys_path = sys.path.copy()
+try:
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from cli_exec import resolve_executable  # noqa: E402
+finally:
+    sys.path[:] = _original_sys_path
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
@@ -66,6 +71,7 @@ _CLAUDE_MANIFEST = _CLAUDE_PLUGIN_DIR / ".claude-plugin" / "plugin.json"
 _ARGUMENT_HINT_WARNING = "argument-hint"
 
 _CLI_TIMEOUT_SECONDS = 240
+_PLUGIN_ROOT_ENV_KEYS = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
 
 requires_copilot = pytest.mark.skipif(
     not (_RUN and shutil.which("copilot")),
@@ -85,9 +91,28 @@ def _clean_env() -> dict[str, str]:
     inherited root that points at a different tree.
     """
     env = os.environ.copy()
-    for var in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"):
-        env.pop(var, None)
+    for key in list(env):
+        if key.upper() in _PLUGIN_ROOT_ENV_KEYS:
+            env.pop(key, None)
     return env
+
+
+def _run_cli(
+    args: list[str],
+    *,
+    timeout: int,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        check=False,
+        env=_clean_env(),
+    )
 
 
 def _plugin_skill_names(payload: object) -> set[str]:
@@ -130,33 +155,24 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     stderr (the issue #2736 failure class), and that EXPECTED_SKILLS is a subset
     of the skills the CLI loaded from ``source: plugin``.
     """
-    version = subprocess.run(
+    version = _run_cli(
         [resolve_executable("copilot"), "--version"],
-        capture_output=True,
-        text=True,
         timeout=60,
-        check=False,
-        env=_clean_env(),
     )
     print(f"copilot --version: {version.stdout.strip() or version.stderr.strip()}")
 
     try:
-        run = subprocess.run(
+        run = _run_cli(
             [
                 resolve_executable("copilot"),
-                "-C",
-                str(tmp_path),
                 "--plugin-dir",
                 str(_COPILOT_PLUGIN_DIR),
                 "skill",
                 "list",
                 "--json",
             ],
-            capture_output=True,
-            text=True,
+            cwd=tmp_path,
             timeout=_CLI_TIMEOUT_SECONDS,
-            check=False,
-            env=_clean_env(),
         )
     except subprocess.TimeoutExpired:
         pytest.skip(f"copilot skill list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
@@ -192,34 +208,25 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
     ``.claude/.claude-plugin/plugin.json`` appears in ``plugin details``, proving
     the CLI loaded the shipped plugin rather than failing silently.
     """
-    version = subprocess.run(
+    version = _run_cli(
         [resolve_executable("claude"), "--version"],
-        capture_output=True,
-        text=True,
         timeout=60,
-        check=False,
-        env=_clean_env(),
     )
     print(f"claude --version: {version.stdout.strip() or version.stderr.strip()}")
 
     manifest_version = _read_manifest_version(_CLAUDE_MANIFEST)
 
     try:
-        listing = subprocess.run(
+        listing = _run_cli(
             [
                 resolve_executable("claude"),
-                "-C",
-                str(tmp_path),
                 "--plugin-dir",
                 str(_CLAUDE_PLUGIN_DIR),
                 "plugin",
                 "list",
             ],
-            capture_output=True,
-            text=True,
+            cwd=tmp_path,
             timeout=_CLI_TIMEOUT_SECONDS,
-            check=False,
-            env=_clean_env(),
         )
     except subprocess.TimeoutExpired:
         pytest.skip(f"claude plugin list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
@@ -230,22 +237,17 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
     )
 
     try:
-        details = subprocess.run(
+        details = _run_cli(
             [
                 resolve_executable("claude"),
-                "-C",
-                str(tmp_path),
                 "--plugin-dir",
                 str(_CLAUDE_PLUGIN_DIR),
                 "plugin",
                 "details",
                 "project-toolkit",
             ],
-            capture_output=True,
-            text=True,
+            cwd=tmp_path,
             timeout=_CLI_TIMEOUT_SECONDS,
-            check=False,
-            env=_clean_env(),
         )
     except subprocess.TimeoutExpired:
         pytest.skip(f"claude plugin details exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
@@ -257,6 +259,11 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
     combined = details.stdout + details.stderr
     assert manifest_version in combined, (
         f"claude did not report manifest version {manifest_version!r}. "
+        f"stdout={details.stdout[-600:]!r} stderr={details.stderr[-600:]!r}"
+    )
+    missing = {name for name in EXPECTED_SKILLS if name not in combined}
+    assert not missing, (
+        f"claude did not report expected plugin skills: missing={sorted(missing)}. "
         f"stdout={details.stdout[-600:]!r} stderr={details.stderr[-600:]!r}"
     )
 
@@ -340,3 +347,35 @@ def test_plugin_skill_names_handles_non_list_payload() -> None:
     """
     assert _plugin_skill_names({"unexpected": "object"}) == set()
     assert _plugin_skill_names(None) == set()
+
+
+def test_clean_env_strips_plugin_root_keys_case_insensitively(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Plugin-root env cleanup handles Windows-style case-insensitive names."""
+    monkeypatch.setenv("claude_plugin_root", "/wrong/claude")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", "/wrong/project")
+    monkeypatch.setenv("Copilot_Plugin_Root", "/wrong/copilot")
+    monkeypatch.setenv("KEEP_ME", "1")
+
+    env = _clean_env()
+
+    assert "KEEP_ME" in env
+    assert not any(key.upper() in _PLUGIN_ROOT_ENV_KEYS for key in env)
+
+
+def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
+    """The subprocess helper uses neutral cwd and UTF-8 decoding."""
+    run = _run_cli(
+        [
+            sys.executable,
+            "-c",
+            "import os; print(os.getcwd()); print(chr(0x2713))",
+        ],
+        cwd=tmp_path,
+        timeout=60,
+    )
+
+    assert run.returncode == 0
+    lines = run.stdout.splitlines()
+    assert lines == [str(tmp_path), chr(0x2713)]
