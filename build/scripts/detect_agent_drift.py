@@ -73,6 +73,9 @@ SECTIONS_TO_COMPARE = (
     "Analysis Document Format",
 )
 
+# Shared-template install-copy comparison label.
+_INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
+
 # Accepted, pre-existing drift baselines (Issue #2374).
 #
 # A Claude agent and its VS Code/Copilot counterpart may legitimately diverge
@@ -110,10 +113,7 @@ SECTIONS_TO_COMPARE = (
 # blocks.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
     ("merge-resolver", "src-claude vs src-vscode"): 20.9,
-    # Literal, not _INSTALL_COMPARISON_LABEL: that constant is defined later in
-    # the module, so referencing it here would NameError at import time. Keep the
-    # two in sync (see _INSTALL_COMPARISON_LABEL below).
-    ("merge-resolver", ".claude/agents vs .github/agents"): 20.9,
+    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.9,
 }
 
 # MCP syntax normalization patterns (compiled once)
@@ -594,7 +594,6 @@ def run_detection(
     return results
 
 
-_INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # `src/claude/merge-resolver.md` carries Claude-specific conflict workflow
 # detail that the generated VS Code/Copilot prompts intentionally keep shorter.
 _ADVISORY_VENDORED_DRIFT: frozenset[str] = frozenset({"merge-resolver"})
