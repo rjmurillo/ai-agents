@@ -61,6 +61,7 @@ class ScanResult:
     """Scan result container."""
 
     files_scanned: int = 0
+    applicable_files: int = 0
     violations: list[Violation] = field(default_factory=list)
 
     @property
@@ -417,6 +418,34 @@ RULE_CHECKERS = {
     "actions-pinned": check_actions_pinned,
 }
 
+def _is_applicable(filepath: str) -> bool:
+    """Return True when a file falls in any golden-principle rule's file-type domain.
+
+    The domains mirror the per-rule checker guards in this module:
+      - script-language (GP-001): .sh / .bash scripts, plus .py / .ps1 / .psm1
+        in the broader script-language domain.
+      - skill-frontmatter (GP-003): SKILL.md under .claude/skills/.
+      - agent-definition (GP-004): .md under .claude/agents/ (except CLAUDE.md).
+      - yaml-logic (GP-005) and actions-pinned (GP-006): .yml / .yaml under
+        .github/workflows/.
+
+    A file outside all of these domains is not checked by any rule, so a clean
+    scan over only such files reflects zero applicable rules, not a passing
+    code-design review.
+    """
+    suffix = Path(filepath).suffix
+    name = Path(filepath).name
+
+    if suffix in (".sh", ".bash", ".py", ".ps1", ".psm1"):
+        return True
+    if name == "SKILL.md" and ".claude/skills/" in filepath:
+        return True
+    if suffix == ".md" and ".claude/agents/" in filepath and name != "CLAUDE.md":
+        return True
+    if suffix in (".yml", ".yaml") and ".github/workflows/" in filepath:
+        return True
+    return False
+
 def run_scan(files: list[str], rules: tuple[str, ...]) -> ScanResult:
     """Run golden principle scan on the given files."""
     result = ScanResult()
@@ -428,6 +457,8 @@ def run_scan(files: list[str], rules: tuple[str, ...]) -> ScanResult:
             continue
 
         result.files_scanned += 1
+        if _is_applicable(filepath):
+            result.applicable_files += 1
         lines = read_file_lines(filepath)
 
         for rule in rules:
@@ -440,6 +471,13 @@ def run_scan(files: list[str], rules: tuple[str, ...]) -> ScanResult:
 def format_text(result: ScanResult) -> str:
     """Format results as human/agent-readable text."""
     if not result.violations:
+        if result.applicable_files == 0:
+            return (
+                f"golden-principles: {result.files_scanned} files scanned, "
+                "0 applicable to golden-principle rules (this scanner checks "
+                "toolkit artifacts: scripts, skills, YAML, GitHub Actions, agent "
+                "files). No code-design check ran."
+            )
         return f"golden-principles: {result.files_scanned} files scanned, no violations found."
 
     output = []
@@ -462,6 +500,7 @@ def format_json(result: ScanResult) -> str:
     """Format results as JSON."""
     data = {
         "files_scanned": result.files_scanned,
+        "applicable_files": result.applicable_files,
         "error_count": result.error_count,
         "warning_count": result.warning_count,
         "violations": [
