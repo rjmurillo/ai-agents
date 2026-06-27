@@ -390,6 +390,24 @@ python3 .claude/skills/session-init/scripts/new_session_log_json.py --session-nu
 
 ---
 
+## Vendored install
+
+<!-- vendor-portability: declared. This skill writes new session logs under .agents/sessions/ and reads the canonical template from .agents/SESSION-PROTOCOL.md. A consumer repo without those paths gets a write failure or a "template not found" error, not a silent no-op. Issue #2050. -->
+
+This skill depends on upstream-only paths. In a vendored install (a consumer
+repo that is not `rjmurillo/ai-agents`) these paths do not exist:
+
+| Path | Direction | Behavior when absent |
+|------|-----------|----------------------|
+| `.agents/sessions/` | write (new session logs) | The creation script cannot write the log. Create the directory or pass an explicit output path. |
+| `.agents/SESSION-PROTOCOL.md` | read (canonical template) | The skill cannot read the template and reports it as missing rather than generating one from memory. Provide the protocol file or supply the template path. |
+
+The HTML comment above is the machine-readable declaration the
+`check_skill_md_portability.py` validator (Issue #2050) reads to confirm this
+skill has disclosed its path dependencies instead of hiding them in prose.
+
+---
+
 ## References
 
 - [SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md) - Canonical template source

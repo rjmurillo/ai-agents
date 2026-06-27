@@ -301,6 +301,25 @@ This skill is the single owner of investigation-only QA eligibility checks. The 
 
 ---
 
+## Vendored install
+
+<!-- vendor-portability: declared. This skill reads session logs and protocol/ADR references under .agents/ (sessions, architecture, SESSION-PROTOCOL.md, analysis, critique, memory, retrospective, security). A consumer repo without those paths gets a "not found" from the eligibility check or a dead reference link, not a silent pass. Issue #2050. -->
+
+This skill depends on upstream-only paths. In a vendored install (a consumer
+repo that is not `rjmurillo/ai-agents`) these paths do not exist:
+
+| Path | Direction | Behavior when absent |
+|------|-----------|----------------------|
+| `.agents/sessions/` | read (session logs for eligibility) | The eligibility check finds no logs and reports them as missing rather than skipping. Create the directory or pass the session path explicitly. |
+| `.agents/SESSION-PROTOCOL.md`, `.agents/architecture/` | reference only | Protocol and ADR links are informational; absence does not block the skill. |
+| `.agents/analysis/`, `.agents/critique/`, `.agents/memory/`, `.agents/retrospective/`, `.agents/security/` | reference only (artifact-location guidance) | Mentioned as where prior-work artifacts live upstream; absence does not block the skill. |
+
+The HTML comment above is the machine-readable declaration the
+`check_skill_md_portability.py` validator (Issue #2050) reads to confirm this
+skill has disclosed its path dependencies instead of hiding them in prose.
+
+---
+
 ## Related
 
 | Reference | Description |
