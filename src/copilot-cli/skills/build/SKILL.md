@@ -6,11 +6,10 @@ allowed-tools: Task, Skill, Read, Write, Edit, Glob, Grep, Bash(*)
 user-invocable: true
 ---
 
-@CLAUDE.md
+<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+Build: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
-Build: $ARGUMENTS
-
-If $ARGUMENTS is empty, check for recent /plan output in the conversation. If none found, ask the user what to build.
+If the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message) is empty, check for recent /plan output in the conversation. If none found, ask the user what to build.
 
 ## Complexity Assessment
 
@@ -68,3 +67,26 @@ If a gate flags an item that is genuinely out of scope for this build, document 
 - Three similar lines beat a premature abstraction.
 - Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-skill calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Skill(skill="code-qualities-assessment")` | `skill` tool, `skill: "code-qualities-assessment"` |
+| `Skill(skill="doc-accuracy")` | `skill` tool, `skill: "doc-accuracy"` |
+| `Skill(skill="orphan-ref-validator")` | `skill` tool, `skill: "orphan-ref-validator"` |
+| `Skill(skill="pre-mortem")` | `skill` tool, `skill: "pre-mortem"` |
+| `Skill(skill="taste-lints")` | `skill` tool, `skill: "taste-lints"` |
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="analyst")` | `task` tool, `agent_type: "project-toolkit:analyst"` |
+| `Task(subagent_type="implementer")` | `task` tool, `agent_type: "project-toolkit:implementer"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

@@ -11,7 +11,7 @@ license: MIT
 
 # Review
 
-Review: $ARGUMENTS
+Review: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
 If no argument, review the current branch diff against the base branch. Detect the base branch from `gh pr view --json baseRefName` or fall back to `main`.
 
@@ -191,3 +191,25 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 (Spec, generator, and drift hook live outside the vendored surface and are
 not referenced from this skill body. Vendored installs work without them.)
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-skill calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Skill(skill="code-qualities-assessment")` | `skill` tool, `skill: "code-qualities-assessment"` |
+| `Skill(skill="golden-principles")` | `skill` tool, `skill: "golden-principles"` |
+| `Skill(skill="taste-lints")` | `skill` tool, `skill: "taste-lints"` |
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="analyst")` | `task` tool, `agent_type: "project-toolkit:analyst"` |
+| `Task(subagent_type="general-purpose")` | `task` tool, `agent_type: "project-toolkit:general-purpose"` |
+| `Task(subagent_type="{role}")` | `task` tool, `agent_type: "project-toolkit:{role}"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

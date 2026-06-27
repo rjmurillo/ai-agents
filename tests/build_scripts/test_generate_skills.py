@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_skills  # noqa: E402
+from copilot_body_translation import translate_skill_file  # noqa: E402
 
 _GATED_SKILL_TREE_MIRRORS = (
     "review",
@@ -19,6 +20,9 @@ _GATED_SKILL_TREE_MIRRORS = (
     "orphan-ref-validator",
     "security-detection",
     "slashcommandcreator",
+)
+_TRANSLATED_SKILL_TREE_MIRRORS = frozenset(
+    {"orphan-ref-validator", "review", "security-detection"}
 )
 _SKILLFORGE_TIMEOUT_SECONDS = 20
 
@@ -101,13 +105,21 @@ def test_directory_copy_writes_skill_md_to_output(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("skill_name", _GATED_SKILL_TREE_MIRRORS)
 def test_committed_skill_tree_mirror_matches_source_skill_md(skill_name: str) -> None:
-    """Committed Copilot skill-tree mirrors stay byte-for-byte in sync."""
+    """Committed Copilot skill-tree mirrors match their generated contract."""
     source = REPO_ROOT / ".claude" / "skills" / skill_name / "SKILL.md"
     mirror = REPO_ROOT / "src" / "copilot-cli" / "skills" / skill_name / "SKILL.md"
+    skills_output_dir = REPO_ROOT / "src" / "copilot-cli" / "skills"
 
     assert source.is_file(), f"missing source skill: {source}"
     assert mirror.is_file(), f"missing Copilot skill mirror: {mirror}"
-    assert mirror.read_bytes() == source.read_bytes()
+
+    source_text = source.read_text(encoding="utf-8")
+    expected = (
+        translate_skill_file(source_text, skills_output_dir)
+        if skill_name in _TRANSLATED_SKILL_TREE_MIRRORS
+        else source_text
+    )
+    assert mirror.read_text(encoding="utf-8") == expected
 
 
 @pytest.mark.parametrize("skill_name", _GATED_SKILL_TREE_MIRRORS)

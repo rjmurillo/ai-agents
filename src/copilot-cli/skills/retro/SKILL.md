@@ -26,14 +26,14 @@ See Issue #2079.
 
 ## Arguments
 
-`$ARGUMENTS` carries the operation and the date, for example `fill 2026-06-03`.
+`the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)` carries the operation and the date, for example `fill 2026-06-03`.
 
 - `fill <YYYY-MM-DD>`: fill the skeleton at
   `.agents/retrospective/<YYYY-MM-DD>-auto-retro.md`.
 
 ## Process
 
-1. Parse `$ARGUMENTS`. The first token is the operation; for `fill`, the second
+1. Parse `the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)`. The first token is the operation; for `fill`, the second
    token is the date in `YYYY-MM-DD` form.
    - If no operation is given, list pending skeletons: glob
      `.agents/retrospective/*.md`, read each only to check whether the body
