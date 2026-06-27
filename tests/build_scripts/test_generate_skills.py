@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -11,6 +12,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_skills  # noqa: E402
+
+_GATED_SKILL_TREE_MIRRORS = (
+    "review",
+    "cva-analysis",
+    "orphan-ref-validator",
+    "security-detection",
+    "slashcommandcreator",
+)
+_SKILLFORGE_TIMEOUT_SECONDS = 20
 
 
 # Helpers --------------------------------------------------------------------
@@ -54,6 +64,22 @@ artifacts:
     return cfg
 
 
+def _skillforge_validation(skill_dir: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / ".claude" / "skills" / "SkillForge" / "scripts" / "validate-skill.py"),
+            str(skill_dir.relative_to(REPO_ROOT)),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_SKILLFORGE_TIMEOUT_SECONDS,
+        check=False,
+    )
+
+
 # Happy path -----------------------------------------------------------------
 
 
@@ -73,8 +99,35 @@ def test_directory_copy_writes_skill_md_to_output(tmp_path: Path) -> None:
     assert (repo_root / "skills_out" / "beta" / "SKILL.md").is_file()
 
 
+@pytest.mark.parametrize("skill_name", _GATED_SKILL_TREE_MIRRORS)
+def test_committed_skill_tree_mirror_matches_source_skill_md(skill_name: str) -> None:
+    """Committed Copilot skill-tree mirrors stay byte-for-byte in sync."""
+    source = REPO_ROOT / ".claude" / "skills" / skill_name / "SKILL.md"
+    mirror = REPO_ROOT / "src" / "copilot-cli" / "skills" / skill_name / "SKILL.md"
+
+    assert source.is_file(), f"missing source skill: {source}"
+    assert mirror.is_file(), f"missing Copilot skill mirror: {mirror}"
+    assert mirror.read_bytes() == source.read_bytes()
+
+
+@pytest.mark.parametrize("skill_name", _GATED_SKILL_TREE_MIRRORS)
+def test_committed_skill_tree_source_and_mirror_pass_skillforge(skill_name: str) -> None:
+    """Committed source skills and Copilot mirrors must pass SkillForge."""
+    for skill_dir in (
+        REPO_ROOT / ".claude" / "skills" / skill_name,
+        REPO_ROOT / "src" / "copilot-cli" / "skills" / skill_name,
+    ):
+        assert skill_dir.is_dir(), f"missing skill directory: {skill_dir}"
+        result = _skillforge_validation(skill_dir)
+
+        assert result.returncode == 0, (
+            f"SkillForge failed for {skill_dir.relative_to(REPO_ROOT)}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
+
 def test_nested_files_preserved(tmp_path: Path) -> None:
-    """Skills carry scripts/, references/, etc. — directory copy must keep them."""
+    """Skills carry scripts/, references/, etc.; directory copy must keep them."""
     repo_root = tmp_path
     src = repo_root / "skills"
     skill = _write_minimal_skill(src, "gamma")

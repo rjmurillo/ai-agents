@@ -1,0 +1,255 @@
+{
+  "agent_prompt_sha": "1721245a74217e97aee2802f668772250f24ec2eceaac6925fd353767d38d90f",
+  "agent_recall": 0.823529,
+  "baseline_prompt_sha": "f2837b5416a8d4cb076234938c32a077f9101ccefce42d3ae2c398c69122e445",
+  "baseline_recall": 0.411765,
+  "bootstrap_ci_95": [
+    0.157895,
+    0.6875
+  ],
+  "cost_estimate_usd": 1.731,
+  "error_count": 0,
+  "fixture_set_sha": "cffb1c29c1e51a125f0c5519d0332f08beb4b696426894e0dcf084fa6426be08",
+  "flakiness": true,
+  "flaky_fixtures_detected": [
+    "F001",
+    "F013"
+  ],
+  "flaky_fixtures_excluded": [
+    "F001",
+    "F013"
+  ],
+  "flaky_halt_threshold_crossed": false,
+  "form_factor": {
+    "agent_baseline_ci_95": [
+      0.157895,
+      0.6875
+    ],
+    "agent_baseline_delta": 0.411765,
+    "agent_recall": 0.823529,
+    "agent_skill_ci_95": [
+      -0.266667,
+      0.266667
+    ],
+    "agent_skill_delta": -0.019608,
+    "agent_tokens_in": 356040,
+    "agent_tokens_out": 6764,
+    "baseline_recall": 0.411765,
+    "schemaVersion": 1,
+    "skill_baseline_ci_95": [
+      0.058824,
+      0.733421
+    ],
+    "skill_baseline_delta": 0.431373,
+    "skill_recall": 0.843137,
+    "skill_tokens_in": 117816,
+    "skill_tokens_out": 6037,
+    "verdict": "prefer-skill-form"
+  },
+  "model_id": "claude-sonnet-4-6",
+  "per_fixture_pass_rates": {
+    "F001": {
+      "agent": [
+        1.0,
+        0.5,
+        1.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F002": {
+      "agent": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "baseline": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "F003": {
+      "agent": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F004": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F005": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F006": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F007": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "F008": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "F009": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "F010": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "F011": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F012": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F013": {
+      "agent": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F014": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F015": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "F016": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  },
+  "pricing_rate_as_of": "2026-05-03",
+  "recall_delta": 0.411765,
+  "recall_excluding_errors": 0.823529,
+  "recall_with_errors": 0.823529,
+  "recommendation": null,
+  "run_id": "20260619T161735Z-ad60bbe5",
+  "schemaVersion": 1,
+  "tokens_estimated": true,
+  "total_tokens_in": 482808,
+  "total_tokens_out": 18838,
+  "wall_clock_seconds": 666.39
+}

@@ -1,16 +1,16 @@
 {
-  "id": "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient",
-  "session": "2026-06-27-session-2599-fix-issue-2759-neutralize-ambient",
+  "id": "episode-2026-06-27-session-2599",
+  "session": "2026-06-27-session-2599",
   "timestamp": "2026-06-27T00:00:00+00:00",
   "outcome": "success",
-  "task": "Fix issue 2759 neutralize ambient LSP guard override env vars in hook tests conftest",
+  "task": "Verify Wave 2 skill catalog triage report (#1950) against current catalog; triage 3 new skills",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-06-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Reproduce",
+      "content": "Recovered prior Wave-2 triage report and confirmed it is already on main",
       "caused_by": [],
       "leads_to": []
     },
@@ -18,7 +18,7 @@
       "id": "e002",
       "timestamp": "2026-06-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Fix",
+      "content": "Diffed report verdicts against current catalog",
       "caused_by": [],
       "leads_to": []
     },
@@ -26,7 +26,7 @@
       "id": "e003",
       "timestamp": "2026-06-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Verify fix",
+      "content": "Triaged the 3 new skills",
       "caused_by": [],
       "leads_to": []
     },
@@ -34,15 +34,15 @@
       "id": "e004",
       "timestamp": "2026-06-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Scope #2756",
+      "content": "Verified action-slate resolution",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e005",
       "timestamp": "2026-06-27T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 533fe5d4ac5cc041b014a7a0ef0135c8e371a0c5",
+      "type": "milestone",
+      "content": "Appended verification addendum to report and committed",
       "caused_by": [],
       "leads_to": []
     },
@@ -50,7 +50,23 @@
       "id": "e006",
       "timestamp": "2026-06-27T00:00:00+00:00",
       "type": "milestone",
-      "content": "Resolve merge conflict",
+      "content": "Ran pre-PR validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran test suite for verification evidence",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3b9f48f53b1834e939c2b7c8fac3866fc380f692",
       "caused_by": [],
       "leads_to": []
     }
@@ -61,7 +77,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 37
+    "files_changed": 13
   },
   "lessons": []
 }

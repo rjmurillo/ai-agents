@@ -129,6 +129,10 @@
     {
       "step": "Scope #2756",
       "detail": "Checked origin/main for STALENESS_DEFERRALS in build/scripts/build_all.py: not on main; exists only on branch fix/issue-2743-copilot-skill-task-args-translation (open PR). Did NOT duplicate. Scoped this PR to #2759; #2756 left to the #2743 PR and referenced in PR body."
+    },
+    {
+      "step": "Resolve merge conflict",
+      "detail": "Merged origin/main into PR 2768 after review threads were resolved. The only conflict was .agents/memory/causality/causal-graph.json, resolved to origin/main per merge-resolver guidance that main .agents audit artifacts are authoritative."
     }
   ],
   "endingCommit": "533fe5d4ac5cc041b014a7a0ef0135c8e371a0c5",
