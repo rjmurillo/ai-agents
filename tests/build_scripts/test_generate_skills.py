@@ -115,6 +115,7 @@ def test_committed_skill_tree_source_and_mirror_pass_skillforge(skill_name: str)
         REPO_ROOT / ".claude" / "skills" / skill_name,
         REPO_ROOT / "src" / "copilot-cli" / "skills" / skill_name,
     ):
+        assert skill_dir.is_dir(), f"missing skill directory: {skill_dir}"
         result = _skillforge_validation(skill_dir)
 
         assert result.returncode == 0, (
