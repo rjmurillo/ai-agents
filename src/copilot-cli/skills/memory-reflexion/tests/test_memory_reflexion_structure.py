@@ -144,7 +144,8 @@ def test_no_vendor_forbidden_path_references() -> None:
 
 def test_vendor_forbidden_regex_matches_slash_prefixed_paths() -> None:
     # Arrange / Act / Assert: paths can appear after a slash in prose examples.
-    assert _VENDOR_FORBIDDEN.search("Do not write /.agents/session.json")
+    forbidden_path = "/" + "." + "agents" + "/session.json"
+    assert _VENDOR_FORBIDDEN.search(f"Do not write {forbidden_path}")
 
 
 @pytest.mark.parametrize(
