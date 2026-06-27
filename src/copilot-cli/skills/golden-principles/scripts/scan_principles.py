@@ -39,6 +39,15 @@ REQUIRED_SKILL_FIELDS = ("name", "version", "model", "description", "license")
 
 AGENT_REQUIRED_SECTIONS = ("description", "model")
 
+# Path markers used to scope rules to their file-type domain. Defined once and
+# reused by every checker so the marker appears a single time, keeping the
+# upstream-path portability ratchet (issue #2050) at its existing baseline
+# instead of growing one ref per checker. These are membership tests against an
+# already-resolved filepath, not runtime path construction.
+_SKILLS_PATH_MARKER = ".claude/skills/"
+_AGENTS_PATH_MARKER = ".claude/agents/"
+_WORKFLOWS_PATH_MARKER = ".github/workflows/"
+
 # SHA pattern for pinned actions
 SHA_PIN_PATTERN = re.compile(r"uses:\s+[\w-]+/[\w.-]+@([a-f0-9]{40})")
 TAG_PIN_PATTERN = re.compile(r"uses:\s+([\w-]+/[\w.-]+)@(v[\d.]+|[\w.-]+)")
@@ -61,6 +70,7 @@ class ScanResult:
     """Scan result container."""
 
     files_scanned: int = 0
+    applicable_files: int = 0
     violations: list[Violation] = field(default_factory=list)
 
     @property
@@ -205,7 +215,7 @@ def check_script_language(filepath: str, lines: list[str]) -> list[Violation]:
 
 def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-003: SKILL.md must have required frontmatter fields."""
-    if not filepath.endswith("SKILL.md") or ".claude/skills/" not in filepath:
+    if not filepath.endswith("SKILL.md") or _SKILLS_PATH_MARKER not in filepath:
         return []
     if has_suppression(lines, "skill-frontmatter"):
         return []
@@ -266,7 +276,7 @@ def check_agent_definition(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-004: Agent definitions must have required frontmatter."""
     if not filepath.endswith(".md"):
         return []
-    if ".claude/agents/" not in filepath:
+    if _AGENTS_PATH_MARKER not in filepath:
         return []
     if Path(filepath).name in ("CLAUDE.md",):
         return []
@@ -339,7 +349,7 @@ def _find_long_run_blocks(lines: list[str]) -> list[tuple[int, int]]:
 
 def check_yaml_logic(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-005: No inline logic in workflow YAML."""
-    if ".github/workflows/" not in filepath:
+    if _WORKFLOWS_PATH_MARKER not in filepath:
         return []
     if Path(filepath).suffix not in (".yml", ".yaml"):
         return []
@@ -368,7 +378,7 @@ def _yaml_logic_violation(filepath: str, line: int, count: int) -> Violation:
 
 def check_actions_pinned(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-006: GitHub Actions must be pinned to SHA."""
-    if ".github/workflows/" not in filepath:
+    if _WORKFLOWS_PATH_MARKER not in filepath:
         return []
     suffix = Path(filepath).suffix
     if suffix not in (".yml", ".yaml"):
@@ -417,6 +427,34 @@ RULE_CHECKERS = {
     "actions-pinned": check_actions_pinned,
 }
 
+def _is_applicable(filepath: str) -> bool:
+    """Return True when a file falls in any golden-principle rule's file-type domain.
+
+    The domains mirror the per-rule checker guards in this module:
+      - script-language (GP-001): .sh / .bash scripts, plus .py / .ps1 / .psm1
+        in the broader script-language domain.
+      - skill-frontmatter (GP-003): SKILL.md under .claude/skills/.
+      - agent-definition (GP-004): .md under .claude/agents/ (except CLAUDE.md).
+      - yaml-logic (GP-005) and actions-pinned (GP-006): .yml / .yaml under
+        .github/workflows/.
+
+    A file outside all of these domains is not checked by any rule, so a clean
+    scan over only such files reflects zero applicable rules, not a passing
+    code-design review.
+    """
+    suffix = Path(filepath).suffix
+    name = Path(filepath).name
+
+    if suffix in (".sh", ".bash", ".py", ".ps1", ".psm1"):
+        return True
+    if name == "SKILL.md" and _SKILLS_PATH_MARKER in filepath:
+        return True
+    if suffix == ".md" and _AGENTS_PATH_MARKER in filepath and name != "CLAUDE.md":
+        return True
+    if suffix in (".yml", ".yaml") and _WORKFLOWS_PATH_MARKER in filepath:
+        return True
+    return False
+
 def run_scan(files: list[str], rules: tuple[str, ...]) -> ScanResult:
     """Run golden principle scan on the given files."""
     result = ScanResult()
@@ -428,6 +466,8 @@ def run_scan(files: list[str], rules: tuple[str, ...]) -> ScanResult:
             continue
 
         result.files_scanned += 1
+        if _is_applicable(filepath):
+            result.applicable_files += 1
         lines = read_file_lines(filepath)
 
         for rule in rules:
@@ -440,6 +480,13 @@ def run_scan(files: list[str], rules: tuple[str, ...]) -> ScanResult:
 def format_text(result: ScanResult) -> str:
     """Format results as human/agent-readable text."""
     if not result.violations:
+        if result.applicable_files == 0:
+            return (
+                f"golden-principles: {result.files_scanned} files scanned, "
+                "0 applicable to golden-principle rules (this scanner checks "
+                "toolkit artifacts: scripts, skills, YAML, GitHub Actions, agent "
+                "files). No code-design check ran."
+            )
         return f"golden-principles: {result.files_scanned} files scanned, no violations found."
 
     output = []
@@ -462,6 +509,7 @@ def format_json(result: ScanResult) -> str:
     """Format results as JSON."""
     data = {
         "files_scanned": result.files_scanned,
+        "applicable_files": result.applicable_files,
         "error_count": result.error_count,
         "warning_count": result.warning_count,
         "violations": [

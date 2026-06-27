@@ -39,6 +39,15 @@ REQUIRED_SKILL_FIELDS = ("name", "version", "model", "description", "license")
 
 AGENT_REQUIRED_SECTIONS = ("description", "model")
 
+# Path markers used to scope rules to their file-type domain. Defined once and
+# reused by every checker so the marker appears a single time, keeping the
+# upstream-path portability ratchet (issue #2050) at its existing baseline
+# instead of growing one ref per checker. These are membership tests against an
+# already-resolved filepath, not runtime path construction.
+_SKILLS_PATH_MARKER = ".claude/skills/"
+_AGENTS_PATH_MARKER = ".claude/agents/"
+_WORKFLOWS_PATH_MARKER = ".github/workflows/"
+
 # SHA pattern for pinned actions
 SHA_PIN_PATTERN = re.compile(r"uses:\s+[\w-]+/[\w.-]+@([a-f0-9]{40})")
 TAG_PIN_PATTERN = re.compile(r"uses:\s+([\w-]+/[\w.-]+)@(v[\d.]+|[\w.-]+)")
@@ -206,7 +215,7 @@ def check_script_language(filepath: str, lines: list[str]) -> list[Violation]:
 
 def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-003: SKILL.md must have required frontmatter fields."""
-    if not filepath.endswith("SKILL.md") or ".claude/skills/" not in filepath:
+    if not filepath.endswith("SKILL.md") or _SKILLS_PATH_MARKER not in filepath:
         return []
     if has_suppression(lines, "skill-frontmatter"):
         return []
@@ -267,7 +276,7 @@ def check_agent_definition(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-004: Agent definitions must have required frontmatter."""
     if not filepath.endswith(".md"):
         return []
-    if ".claude/agents/" not in filepath:
+    if _AGENTS_PATH_MARKER not in filepath:
         return []
     if Path(filepath).name in ("CLAUDE.md",):
         return []
@@ -340,7 +349,7 @@ def _find_long_run_blocks(lines: list[str]) -> list[tuple[int, int]]:
 
 def check_yaml_logic(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-005: No inline logic in workflow YAML."""
-    if ".github/workflows/" not in filepath:
+    if _WORKFLOWS_PATH_MARKER not in filepath:
         return []
     if Path(filepath).suffix not in (".yml", ".yaml"):
         return []
@@ -369,7 +378,7 @@ def _yaml_logic_violation(filepath: str, line: int, count: int) -> Violation:
 
 def check_actions_pinned(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-006: GitHub Actions must be pinned to SHA."""
-    if ".github/workflows/" not in filepath:
+    if _WORKFLOWS_PATH_MARKER not in filepath:
         return []
     suffix = Path(filepath).suffix
     if suffix not in (".yml", ".yaml"):
@@ -438,11 +447,11 @@ def _is_applicable(filepath: str) -> bool:
 
     if suffix in (".sh", ".bash", ".py", ".ps1", ".psm1"):
         return True
-    if name == "SKILL.md" and ".claude/skills/" in filepath:
+    if name == "SKILL.md" and _SKILLS_PATH_MARKER in filepath:
         return True
-    if suffix == ".md" and ".claude/agents/" in filepath and name != "CLAUDE.md":
+    if suffix == ".md" and _AGENTS_PATH_MARKER in filepath and name != "CLAUDE.md":
         return True
-    if suffix in (".yml", ".yaml") and ".github/workflows/" in filepath:
+    if suffix in (".yml", ".yaml") and _WORKFLOWS_PATH_MARKER in filepath:
         return True
     return False
 
