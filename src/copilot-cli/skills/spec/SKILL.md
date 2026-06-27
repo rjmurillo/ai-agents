@@ -137,8 +137,8 @@ This skill names helper scripts and data files by toolkit-relative paths (`scrip
 
 **Helper scripts** (`redact_secrets.py`, `metrics_writer.py`). Resolve in order:
 
-1. `scripts/<name>.py` relative to the current working directory (toolkit-dev mode).
-2. `<skill_dir>/scripts/<name>.py`, where `<skill_dir>` is the "Base directory for this skill" the harness prints at skill load (installed-plugin mode). The skill bundle ships byte-identical copies of both scripts under `scripts/`.
+1. `<skill_dir>/scripts/<name>.py`, where `<skill_dir>` is the "Base directory for this skill" the harness prints at skill load (installed-plugin mode). The skill bundle ships byte-identical copies of both scripts under `scripts/`.
+2. `scripts/<name>.py` relative to the current working directory only after confirming the current repo is the toolkit source checkout (toolkit-dev mode). Never prefer a consumer repo's `scripts/<name>.py` over the bundled vetted helper.
 
 For the BLOCKING `redact_secrets.py`: if neither path resolves, FAIL loudly. Emit an error naming both paths tried and HALT the step. Do NOT emit the `step0-halt` block (or any field carrying author free-text) with redaction skipped; a silently-skipped redactor is the CWE-209/CWE-532 disclosure this step exists to prevent. `metrics_writer.py` is non-blocking: if neither path resolves, emit a coverage note and continue without the tally.
 
