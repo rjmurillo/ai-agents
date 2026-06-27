@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient",
+  "session": "2026-06-27-session-2599-fix-issue-2759-neutralize-ambient",
+  "timestamp": "2026-06-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue 2759 neutralize ambient LSP guard override env vars in hook tests conftest",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify fix",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scope #2756",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
