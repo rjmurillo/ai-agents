@@ -141,13 +141,18 @@ def test_translate_skill_file_matches_call_with_extra_args(tmp_path: Path) -> No
 # Committed-artifact gate ----------------------------------------------------
 
 
-# The committed-artifact gate covers the command-mirror skills this branch
-# translates and ships clean: the lifecycle commands at .claude/commands/<name>.md
-# mirrored into src/copilot-cli/skills/<name>/SKILL.md. The five skill-tree
-# mirrors whose SOURCE skills fail SkillForge independently (review, cva-analysis,
-# orphan-ref-validator, security-detection, slashcommandcreator) are out of scope
-# here and tracked in a follow-up; gating them would assert over artifacts this
-# PR does not ship. Refs #2743.
+# The committed-artifact gate covers every translated Copilot SKILL.md this
+# branch ships clean:
+#   1. The nine lifecycle command-mirrors at .claude/commands/<name>.md mirrored
+#      into src/copilot-cli/skills/<name>/SKILL.md.
+#   2. The three skill-tree mirrors whose SOURCE skills pass SkillForge after
+#      translation: orphan-ref-validator, review, security-detection.
+# The two skill-tree mirrors whose SOURCE skills fail SkillForge independently
+# (cva-analysis, slashcommandcreator: unsafe trigger characters, and an
+# unexpected `trigger` frontmatter key on slashcommandcreator) are out of scope:
+# their translated output is intentionally not committed and is deferred to
+# #2755. Gating them would assert over artifacts this PR does not ship.
+# Refs #2743. Refs #2755.
 _GATED_COMMAND_MIRRORS = frozenset(
     {
         "spec",
@@ -161,13 +166,21 @@ _GATED_COMMAND_MIRRORS = frozenset(
         "sync",
     }
 )
+_GATED_SKILL_MIRRORS = frozenset(
+    {
+        "orphan-ref-validator",
+        "review",
+        "security-detection",
+    }
+)
+_GATED_MIRRORS = _GATED_COMMAND_MIRRORS | _GATED_SKILL_MIRRORS
 
 
 def _committed_bodies() -> list[tuple[str, str]]:
     return [
         (p.parent.name, p.read_text(encoding="utf-8"))
         for p in sorted(_COPILOT_SKILLS.glob("*/SKILL.md"))
-        if p.parent.name in _GATED_COMMAND_MIRRORS
+        if p.parent.name in _GATED_MIRRORS
     ]
 
 
@@ -196,3 +209,20 @@ def test_committed_skills_with_calls_have_appendix() -> None:
         and "## Copilot CLI invocation reference" not in body
     ]
     assert not missing, f"invocation appendix missing in: {missing}"
+
+
+def test_gated_skill_mirrors_are_committed() -> None:
+    """The three clean skill-tree mirrors this branch ships exist on disk."""
+    committed = {name for name, _ in _committed_bodies()}
+    missing = _GATED_SKILL_MIRRORS - committed
+    assert not missing, f"expected committed skill-mirrors absent: {missing}"
+
+
+def test_deferred_skill_mirrors_excluded_from_gate() -> None:
+    """The two #2755-deferred mirrors are not asserted by the committed gate."""
+    deferred = {"cva-analysis", "slashcommandcreator"}
+    assert not (deferred & _GATED_MIRRORS), (
+        "cva-analysis/slashcommandcreator carry pre-existing SkillForge defects "
+        "(#2755); their translated output is not committed, so the gate must "
+        "not assert over them"
+    )

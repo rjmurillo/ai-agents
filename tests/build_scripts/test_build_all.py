@@ -433,6 +433,71 @@ def test_run_returns_2_when_check_finds_drift(
     assert rc == 2
 
 
+def test_staleness_deferrals_names_two_broken_mirrors() -> None:
+    """The deferral set covers exactly the two #2755-broken skill-mirrors."""
+    assert build_all.STALENESS_DEFERRALS == (
+        "src/copilot-cli/skills/cva-analysis/SKILL.md",
+        "src/copilot-cli/skills/slashcommandcreator/SKILL.md",
+    )
+
+
+def test_run_returns_0_when_only_deferred_mirror_drifts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A deferred mirror's regen drift must not trip the staleness gate (#2755)."""
+    monkeypatch.setattr(
+        build_all,
+        "_git_diff_paths",
+        lambda repo_root: ["src/copilot-cli/skills/cva-analysis/SKILL.md"],
+    )
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    assert rc == 0
+
+
+def test_run_returns_2_when_non_deferred_drifts_alongside_deferred(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deferral excludes only its own paths; other drift still gates (#2755)."""
+    monkeypatch.setattr(
+        build_all,
+        "_git_diff_paths",
+        lambda repo_root: [
+            "src/copilot-cli/skills/cva-analysis/SKILL.md",
+            "src/copilot-cli/skills/review/SKILL.md",
+        ],
+    )
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    assert rc == 2
+
+
 def test_run_returns_2_when_generator_writes_claude(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
