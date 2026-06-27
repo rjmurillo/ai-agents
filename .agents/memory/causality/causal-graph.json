@@ -7808,6 +7808,105 @@
         "episode-2026-06-20-session-2597-eval-multiprovider-transport-openai-github"
       ],
       "created": "2026-06-22T13:50:29.468384+00:00"
+    },
+    {
+      "id": "f6692c68a611",
+      "type": "milestone",
+      "label": "milestone: ADR-074 acceptance provenance",
+      "episodes": [
+        "episode-2026-06-17-session-2592-flip-adr-074-status-proposed-accepted-maintainer"
+      ],
+      "created": "2026-06-26T23:51:45.251543+00:00"
+    },
+    {
+      "id": "e25fb214cfc5",
+      "type": "milestone",
+      "label": "milestone: Edit ADR-074",
+      "episodes": [
+        "episode-2026-06-17-session-2592-flip-adr-074-status-proposed-accepted-maintainer"
+      ],
+      "created": "2026-06-26T23:51:45.251667+00:00"
+    },
+    {
+      "id": "21ede11bad51",
+      "type": "milestone",
+      "label": "milestone: Lint and validate",
+      "episodes": [
+        "episode-2026-06-17-session-2592-flip-adr-074-status-proposed-accepted-maintainer"
+      ],
+      "created": "2026-06-26T23:51:45.251774+00:00"
+    },
+    {
+      "id": "0e3f423149eb",
+      "type": "commit",
+      "label": "commit: Commit: ad4db8865",
+      "episodes": [
+        "episode-2026-06-17-session-2592-flip-adr-074-status-proposed-accepted-maintainer"
+      ],
+      "created": "2026-06-26T23:51:45.251881+00:00"
+    },
+    {
+      "id": "a1cbb851a474",
+      "type": "outcome",
+      "label": "Outcome: success - Flip ADR-074 status proposed->accepted (maintainer accepted 2026-06-17, issue #2617)",
+      "episodes": [
+        "episode-2026-06-17-session-2592-flip-adr-074-status-proposed-accepted-maintainer"
+      ],
+      "created": "2026-06-26T23:51:45.251989+00:00"
+    },
+    {
+      "id": "db41e988327d",
+      "type": "milestone",
+      "label": "milestone: Investigate workspace changes and upstream state for SPEC-005 work",
+      "episodes": [
+        "episode-2026-06-26-session-2598-salvage-spec-005-bundle-registry-hardening"
+      ],
+      "created": "2026-06-26T23:51:45.261094+00:00"
+    },
+    {
+      "id": "197d6f3a03ff",
+      "type": "milestone",
+      "label": "milestone: Re-apply Group A refinements onto main's current files on a fresh branch off origin/main",
+      "episodes": [
+        "episode-2026-06-26-session-2598-salvage-spec-005-bundle-registry-hardening"
+      ],
+      "created": "2026-06-26T23:51:45.261214+00:00"
+    },
+    {
+      "id": "4a7946dbbdc0",
+      "type": "milestone",
+      "label": "milestone: Verify refinements (test run + behavior check)",
+      "episodes": [
+        "episode-2026-06-26-session-2598-salvage-spec-005-bundle-registry-hardening"
+      ],
+      "created": "2026-06-26T23:51:45.261325+00:00"
+    },
+    {
+      "id": "f80d84d25f58",
+      "type": "test",
+      "label": "test: pytest tests/test_command_bundles.py: 2 passed, 2 skipped, 45 xfailed (pytest 9.0.3, Python 3.14.4) - behavior preserved/green. bundle_registry sanity check passed (invocation, marker, present-check correct). checks_coverage advisory mode returns True; BUNDLE_CHECK_ENFORCED=1 returns False as designed.",
+      "episodes": [
+        "episode-2026-06-26-session-2598-salvage-spec-005-bundle-registry-hardening"
+      ],
+      "created": "2026-06-26T23:51:45.261442+00:00"
+    },
+    {
+      "id": "371468671392",
+      "type": "commit",
+      "label": "commit: Commit: 3587a0c1",
+      "episodes": [
+        "episode-2026-06-26-session-2598-salvage-spec-005-bundle-registry-hardening"
+      ],
+      "created": "2026-06-26T23:51:45.261555+00:00"
+    },
+    {
+      "id": "6ed7d1a60f4b",
+      "type": "outcome",
+      "label": "Outcome: success - Salvage SPEC-005 bundle registry hardening refinements into a fresh PR off main",
+      "episodes": [
+        "episode-2026-06-26-session-2598-salvage-spec-005-bundle-registry-hardening"
+      ],
+      "created": "2026-06-26T23:51:45.261669+00:00"
     }
   ],
   "patterns": [
@@ -7857,7 +7956,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 37,
+      "occurrences": 39,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -7866,7 +7965,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 74,
+      "occurrences": 78,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -7875,7 +7974,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 148,
+      "occurrences": 156,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -7884,7 +7983,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 222,
+      "occurrences": 234,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -7894,7 +7993,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -7902,7 +8001,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -7910,7 +8009,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -7918,7 +8017,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -7926,7 +8025,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -7934,7 +8033,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -7942,7 +8041,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -7950,7 +8049,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -7958,7 +8057,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -7966,7 +8065,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -7974,7 +8073,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -7982,7 +8081,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -7990,7 +8089,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -7998,7 +8097,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -8006,7 +8105,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -8014,7 +8113,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -8022,7 +8121,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -8030,7 +8129,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -8038,7 +8137,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -8046,7 +8145,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -8054,7 +8153,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -8062,7 +8161,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -8070,7 +8169,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -8078,7 +8177,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -8086,7 +8185,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -8094,7 +8193,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -8102,7 +8201,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -8110,7 +8209,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -8118,7 +8217,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -8126,7 +8225,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -8134,7 +8233,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -8142,7 +8241,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -8150,7 +8249,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -8158,7 +8257,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -8166,7 +8265,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -8174,7 +8273,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -8182,7 +8281,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -8190,7 +8289,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -8198,7 +8297,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -8206,7 +8305,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 37,
+      "evidence_count": 39,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]

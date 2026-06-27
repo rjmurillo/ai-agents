@@ -20,6 +20,18 @@ appear in more than one command). See:
 
 from __future__ import annotations
 
+from pathlib import Path
+
+__all__ = [
+    "BUNDLE_REGISTRY",
+    "SKILL_INVOCATION_TEMPLATE",
+    "BUNDLE_ADJACENCY_WINDOW",
+    "expected_skill_invocation",
+    "expected_bundle_marker",
+    "bundle_marker_present",
+    "bundle_marker_adjacent",
+]
+
 # Each tuple: (command file basename under .claude/commands/, skill name)
 # A skill name is the directory under .claude/skills/.
 BUNDLE_REGISTRY: list[tuple[str, str]] = [
@@ -53,9 +65,24 @@ SKILL_INVOCATION_TEMPLATE = 'Skill(skill="{skill}")'
 BUNDLE_ADJACENCY_WINDOW = 5
 
 
+def _command_base(command_file: str) -> str:
+    """Return the slash-command base for a command file basename.
+
+    ``Path.stem`` strips the ``.md`` extension (``spec.md`` -> ``spec``,
+    ``pr-review.md`` -> ``pr-review``) and is the single source of truth
+    for marker base derivation across this module.
+    """
+    return Path(command_file).stem
+
+
 def expected_skill_invocation(skill: str) -> str:
-    """Return the literal ``Skill(...)`` string the parser searches for."""
-    return SKILL_INVOCATION_TEMPLATE.format(skill=skill)
+    """Return the literal ``Skill(...)`` string the parser searches for.
+
+    Uses ``str.replace`` rather than ``str.format`` so a future skill
+    name containing ``{`` or ``}`` cannot trigger a format error or an
+    accidental field substitution.
+    """
+    return SKILL_INVOCATION_TEMPLATE.replace("{skill}", skill)
 
 
 def expected_bundle_marker(command_file: str, skill: str) -> str:
@@ -70,7 +97,7 @@ def expected_bundle_marker(command_file: str, skill: str) -> str:
     set, and :func:`bundle_marker_adjacent` for adjacency to the
     matching ``Skill(...)`` call.
     """
-    base = command_file.rsplit(".md", 1)[0]
+    base = _command_base(command_file)
     return f"BUNDLE: {base} -> {skill} ("
 
 
@@ -83,7 +110,7 @@ def bundle_marker_present(text: str, command_file: str, skill: str) -> bool:
     """
     import re
 
-    base = command_file.rsplit(".md", 1)[0]
+    base = _command_base(command_file)
     pattern = re.compile(
         rf"BUNDLE:\s+{re.escape(base)}\s+->\s+{re.escape(skill)}\s+"
         rf"\((invoked|skipped:[^)]+|failed:[^)]+)\)"
@@ -111,7 +138,7 @@ def bundle_marker_adjacent(
     """
     import re
 
-    base = command_file.rsplit(".md", 1)[0]
+    base = _command_base(command_file)
     invocation = expected_skill_invocation(skill)
     marker_re = re.compile(
         rf"BUNDLE:\s+{re.escape(base)}\s+->\s+{re.escape(skill)}\s+"
