@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2599,
+    "date": "2026-06-27",
+    "branch": "docs/issue-1875-form-factor-adr",
+    "startingCommit": "61e22a016a",
+    "objective": "Recover ADR-075 form-factor eval methodology and first verdict for issue 1875"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context active; symbol/memory tooling available this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md Serena-init contract loaded via injected project instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No open issue handoff for #1875; prior-art orphan commit 109b15ae3b reviewed instead"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog injected; used adr-review, session-init, github scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/* (universal, voice, builder-ethos, code-quality) injected each turn"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md gates and .claude/rules/universal.md MUST/MUST NOT before editing"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched prior context via context-mode (eval-harness, ci-infrastructure observations)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/issue-1875-form-factor-adr"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/issue-1875-form-factor-adr"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified clean base off origin/main in worktree"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "61e22a016a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST start/end items completed with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Decision recorded: ADR-075 recovery + adr-review consensus in this session log workLog"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting gate PASS; .agents/ ADRs excluded from markdownlint config by design"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-075 + ADR-058 pointer + eval artifacts + debate log committed this session"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py RESULT: All validations passed (0 failed); Em/en-dash Prohibition PASS"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Recovered ADR-075 form-factor eval methodology from orphan commit 109b15ae3b onto a branch off main; verified the documented harness matches current code (#2426 --include-skill/--skill-path); ran adr-review 6-agent debate (consensus ACCEPT/Disagree-and-Commit, no blocks); applied fixes (fixture count F001-F016, verdict sharpened to name cost as tiebreaker, content-confound and per-fixture-data caveats, ADR-073 frontmatter); carried the real run artifacts 20260619T161735Z-ad60bbe5.",
+      "verification": "uv run pytest tests/evals/test_form_factor_eval.py: 31 passed in 0.22s (exit code 0). pre_pr.py: RESULT All validations passed, 0 failed, 4 skipped. Em/en-dash Prohibition gate PASSED. validate_session_json.py PASSED."
+    }
+  ],
+  "endingCommit": "ef41d35dbd6315baa9da70359bf8c6f83c1134ea",
+  "nextSteps": [
+    "Push branch and open PR with Fixes #1875",
+    "Promote ADR-075 to Accepted after a content-controlled confirmatory rerun (#2678)"
+  ]
+}
