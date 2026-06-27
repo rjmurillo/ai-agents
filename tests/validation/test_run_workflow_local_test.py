@@ -733,6 +733,40 @@ def test_act_full_downgrades_pr_context_missing_to_warning(monkeypatch, tmp_path
     assert "pull_request event context" in res.detail
 
 
+def test_act_full_downgrades_other_pr_context_properties(monkeypatch, tmp_path):
+    wf = _write_wf(tmp_path, "name: x\non: pull_request\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            "",
+            "Error: Cannot read properties of undefined (reading 'head')",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+
+
+def test_act_full_workflow_dispatch_pr_context_error_still_blocks(
+    monkeypatch, tmp_path
+):
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            "",
+            "Error: Cannot read properties of undefined (reading 'number')",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is False
+    assert "reading 'number'" in res.detail
+
+
 def test_act_dryrun_downgrades_pr_context_missing_to_warning(monkeypatch, tmp_path):
     wf = _write_wf(tmp_path, "name: x\non: pull_request\njobs: {}\n")
     monkeypatch.setattr(
@@ -771,9 +805,24 @@ def test_act_limitation_hint_matches_known_patterns() -> None:
     assert w._act_limitation_hint("fatal: not a git repository") is not None
     assert (
         w._act_limitation_hint(
-            "Cannot read properties of undefined (reading 'number')"
+            "Cannot read properties of undefined (reading 'number')",
+            "pull_request",
         )
         is not None
+    )
+    assert (
+        w._act_limitation_hint(
+            "Cannot read properties of undefined (reading 'head')",
+            "pull_request",
+        )
+        is not None
+    )
+    assert (
+        w._act_limitation_hint(
+            "Cannot read properties of undefined (reading 'number')",
+            "workflow_dispatch",
+        )
+        is None
     )
     assert w._act_limitation_hint("Error: job 'build' exited 2") is None
 

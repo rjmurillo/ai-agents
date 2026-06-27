@@ -55,6 +55,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -389,46 +390,35 @@ def _select_act_event(wf_path: Path) -> str | None:
 # this exact prefix. See issue #2719.
 _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
 
-# Emitted by act when a workflow reads ``github.event.pull_request.number`` (or
-# other ``pull_request`` event context) on a local/workflow_dispatch run. act
-# does not populate the ``pull_request`` event payload off a real PR, so the
-# expression evaluates ``github.event.pull_request`` to undefined and the run
-# aborts with this exact JS TypeError. It is an act limitation, not a workflow
-# defect: actionlint and the act dry-run already validated the workflow shape.
-# See issue #2758.
-_ACT_PR_CONTEXT_MISSING_PATTERN = "Cannot read properties of undefined (reading 'number')"
+_ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
+    r"Cannot read properties of undefined \(reading "
+    r"'(?:number|head|base|title|body|labels|draft|merged)'\)"
+)
 
 # Known act-only limitation signatures. A nonzero act exit whose combined output
 # carries one of these is a local environment gap, not a workflow defect, so the
 # stage downgrades to a passing [WARN] instead of a hard FAIL. Each entry pairs
 # the exact substring with a hint surfaced to the developer. Kept conservative:
 # only these exact signatures downgrade; every other nonzero exit still blocks.
-_ACT_LIMITATION_PATTERNS: tuple[tuple[str, str], ...] = (
-    (
-        _GIT_REPO_MISSING_PATTERN,
-        "act container lacks .git; git-calling actions (e.g. dorny/paths-filter) "
-        "fail only in local act, not in CI.",
-    ),
-    (
-        _ACT_PR_CONTEXT_MISSING_PATTERN,
-        "act does not populate the pull_request event context on a local run, so "
-        "workflows reading github.event.pull_request.number fail only in local "
-        "act, not in CI.",
-    ),
-)
-
-
-def _act_limitation_hint(combined: str) -> str | None:
+def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     """Return the WARN hint when ``combined`` matches a known act limitation.
 
-    Returns the hint for the first matching signature in
-    ``_ACT_LIMITATION_PATTERNS``, or None when no known act-only limitation is
-    present (the caller then keeps the hard FAIL so real job failures still
-    block).
+    Returns a hint for a known act-only limitation, or None when no known
+    limitation is present. The pull_request context TypeError is downgraded only
+    for pull_request runs. Under workflow_dispatch, the same error can be a real
+    workflow defect and must remain blocking.
     """
-    for pattern, hint in _ACT_LIMITATION_PATTERNS:
-        if pattern in combined:
-            return hint
+    if _GIT_REPO_MISSING_PATTERN in combined:
+        return (
+            "act container lacks .git; git-calling actions (e.g. dorny/paths-filter) "
+            "fail only in local act, not in CI."
+        )
+    if event == "pull_request" and _ACT_PR_CONTEXT_MISSING_PATTERN.search(combined):
+        return (
+            "act does not populate the pull_request event context on a local run, so "
+            "workflows reading github.event.pull_request properties fail only in local "
+            "act, not in CI."
+        )
     return None
 
 
@@ -442,9 +432,9 @@ def _run_act_stage(
     """Run an ``act`` invocation per workflow file, with act-limitation downgrade.
 
     A nonzero exit whose output carries a known act-only limitation signature
-    (see ``_ACT_LIMITATION_PATTERNS``: a missing .git in the container, or an
-    unpopulated ``pull_request`` event context) is a local environment gap, not
-    a workflow defect: actionlint and the act dry-run already validated the
+    (a missing .git in the container, or an unpopulated ``pull_request`` event
+    context during a pull_request run) is a local environment gap, not a
+    workflow defect: actionlint and the act dry-run already validated the
     workflow shape. Downgrade it to a passing stage with a ``[WARN]`` detail
     instead of a hard FAIL so the act limitation does not block an otherwise
     valid push. Every other nonzero exit still blocks.
@@ -460,7 +450,7 @@ def _run_act_stage(
         rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
         if rc != 0:
             combined = (out + err).strip()
-            hint = _act_limitation_hint(combined)
+            hint = _act_limitation_hint(combined, event)
             if hint is not None:
                 warnings.append(
                     f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence."
