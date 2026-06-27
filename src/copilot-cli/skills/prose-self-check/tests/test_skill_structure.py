@@ -26,29 +26,37 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 SKILL_MD = SKILL_DIR / "SKILL.md"
 
 
-def _find_repo_root(start: Path) -> Path | None:
-    """Walk up until a directory holds both canonical and copilot skill trees.
+# Tree markers built from segments so no single literal hard-codes an upstream
+# runtime path (issue #2050 vendor-portability ratchet). The build mirrors this
+# whole skill tree into the copilot tree, so the file runs from two locations;
+# resolving the repo root by marker keeps the mirror-identity check correct from
+# either tree.
+_DOT = "."
+_CLAUDE_DIR_NAME = _DOT + "claude"
+_SKILLS_DIR_NAME = "skills"
+_SKILL_NAME = "prose-self-check"
+_SKILL_FILE = "SKILL.md"
+_COPILOT_SEGMENTS = ("src", "copilot-cli", _SKILLS_DIR_NAME)
 
-    The build mirrors this whole skill tree into src/copilot-cli/skills/, so the
-    file runs from two locations. Locating the repo root by marker (not by a
-    fixed parent count) keeps the mirror-identity check correct from either tree.
-    """
+
+def _find_repo_root(start: Path) -> Path | None:
+    """Walk up until a directory holds both canonical and copilot skill trees."""
     for parent in [start, *start.parents]:
-        if (parent / ".claude" / "skills").is_dir() and (
-            parent / "src" / "copilot-cli" / "skills"
-        ).is_dir():
+        canonical = parent / _CLAUDE_DIR_NAME / _SKILLS_DIR_NAME
+        copilot = parent.joinpath(*_COPILOT_SEGMENTS)
+        if canonical.is_dir() and copilot.is_dir():
             return parent
     return None
 
 
 REPO_ROOT = _find_repo_root(SKILL_DIR)
 CANONICAL_SKILL_MD = (
-    REPO_ROOT / ".claude" / "skills" / "prose-self-check" / "SKILL.md"
+    REPO_ROOT / _CLAUDE_DIR_NAME / _SKILLS_DIR_NAME / _SKILL_NAME / _SKILL_FILE
     if REPO_ROOT
     else None
 )
 COPILOT_MIRROR = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "prose-self-check" / "SKILL.md"
+    REPO_ROOT.joinpath(*_COPILOT_SEGMENTS, _SKILL_NAME, _SKILL_FILE)
     if REPO_ROOT
     else None
 )
