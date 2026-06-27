@@ -76,10 +76,11 @@ impact before assigning severity or a risk score.
 ### Phase 3: Return a Verdict
 
 Return IDENTIFY when a vulnerability is present, OK when no unmitigated medium
-or higher risk remains, and ESCALATE only when a verdict cannot be reached
-because the diff or evidence is incomplete. Reachability is decided first: if
-the shown diff lets you complete the threat model, return IDENTIFY or OK and do
-not ESCALATE.
+or higher risk remains, and ESCALATE when a verdict cannot be reached because
+the diff or evidence is incomplete, or when an external or irreversible security
+decision needs an owner. Reachability is decided first: if the shown diff lets
+you complete the threat model and no owner-only decision remains, return
+IDENTIFY or OK and do not ESCALATE.
 
 ## Verification
 
