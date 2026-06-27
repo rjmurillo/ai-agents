@@ -1,5 +1,7 @@
 # Reflexion Memory
 
+<!-- vendor-portability: declared. This reference documents upstream memory artifact paths under .agents/memory/ for episodic and causal memory schemas. It is reference material only; runtime writes stay in the canonical memory scripts and their path helpers. Issue #2050. -->
+
 ## Overview
 
 The Reflexion Memory module (`.claude/skills/memory/scripts/extract_session_episode.py`, `update_causal_graph.py`) provides episodic replay and causal reasoning capabilities. This implements Tiers 2 and 3 of the memory architecture.

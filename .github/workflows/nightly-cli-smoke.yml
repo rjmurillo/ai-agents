@@ -1,11 +1,16 @@
-# Nightly Real-CLI Hook Smoke (issue #2231 items 3-4, ADR-071)
+# Nightly Real-CLI Smoke (issue #2231 items 3-4, ADR-071; issue #2736)
 #
-# Installs the real Copilot and Claude CLIs and runs the plugin hook end to end
-# on ubuntu/macos/windows. This is the authenticated cross-platform smoke that
-# ADR-071 deferred: the no-auth gates (validate_hook_anchoring,
-# test_generate_hooks_runtime_contract) verify path resolution in PR CI; this
-# job verifies the real CLI launcher contract that bare CI cannot, on the
-# platforms (Windows PowerShell) where #2205 was reported.
+# Installs the real Copilot and Claude CLIs and runs two real-CLI smokes end to
+# end on ubuntu/macos/windows:
+#   - Hook smoke (test_cli_hook_e2e.py): a plugin hook resolves and runs from the
+#     install tree. The authenticated cross-platform smoke ADR-071 deferred; the
+#     no-auth gates (validate_hook_anchoring, test_generate_hooks_runtime_contract)
+#     verify path resolution in PR CI, this verifies the real launcher contract
+#     bare CI cannot, on the platforms (Windows PowerShell) where #2205 was filed.
+#   - Plugin-load smoke (test_plugin_load_smoke.py, issue #2736): the shipped
+#     plugin dir loads in each CLI and the lifecycle skills load with no
+#     argument-hint loader warning. PR #2735 was green on schema and unit checks
+#     yet still needed manual proof the plugin loaded; this automates that proof.
 #
 # Security (.claude/rules/security.md, issue #2231 item 3):
 #   - Triggers only on schedule and workflow_dispatch. GitHub never fires these
@@ -26,6 +31,7 @@
 #
 # Local equivalent:
 #   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py -m smoke -v
+#   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -m smoke -v
 
 name: Nightly CLI Smoke
 
@@ -128,12 +134,28 @@ jobs:
         shell: bash
         run: uv run pytest tests/e2e/test_cli_hook_e2e.py -m smoke --junitxml=smoke-report.xml
 
-      - name: Assert the smoke actually ran
+      - name: Assert the hook smoke actually ran
         # always(): the gate must run even if the smoke step failed, so a skip
         # (which pytest exits 0 for) is still caught and reported as a red job.
         if: always()
         shell: bash
         run: uv run python scripts/validation/assert_smoke_ran.py smoke-report.xml
+
+      - name: Run real-CLI plugin-load smoke
+        # always(): run even if the hook smoke step failed so both smokes report.
+        if: always()
+        shell: bash
+        run: >-
+          uv run pytest tests/e2e/test_plugin_load_smoke.py -m smoke
+          --junitxml=plugin-load-report.xml
+
+      - name: Assert the plugin-load smoke actually ran
+        # always(): a silent skip of the plugin-load smoke must also fail the job.
+        if: always()
+        shell: bash
+        run: >-
+          uv run python scripts/validation/assert_smoke_ran.py plugin-load-report.xml
+          --smoke-substr test_plugin_load_smoke --expected-count 2
 
   smoke-result:
     name: Smoke Result

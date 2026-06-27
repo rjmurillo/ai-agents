@@ -55,6 +55,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -389,6 +390,37 @@ def _select_act_event(wf_path: Path) -> str | None:
 # this exact prefix. See issue #2719.
 _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
 
+_ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
+    r"Cannot read properties of undefined \(reading "
+    r"'(?:number|head|base|title|body|labels|draft|merged|user|html_url|state|id"
+    r"|assignee|assignees|requested_reviewers|milestone)'\)"
+)
+
+# Known act-only limitation signatures. A nonzero act exit whose combined output
+# matches one of these rules can be a local environment gap, not a workflow
+# defect. The pull_request context rule is event-scoped in _act_limitation_hint;
+# every other nonzero exit still blocks.
+def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
+    """Return the WARN hint when ``combined`` matches a known act limitation.
+
+    Returns a hint for a known act-only limitation, or None when no known
+    limitation is present. The pull_request context TypeError is downgraded only
+    for pull_request runs. Under workflow_dispatch, the same error can be a real
+    workflow defect and must remain blocking.
+    """
+    if _GIT_REPO_MISSING_PATTERN in combined:
+        return (
+            "act container lacks .git; git-calling actions (e.g. dorny/paths-filter) "
+            "fail only in local act, not in CI."
+        )
+    if event == "pull_request" and _ACT_PR_CONTEXT_MISSING_PATTERN.search(combined):
+        return (
+            "act does not populate the pull_request event context on a local run, so "
+            "workflows reading github.event.pull_request properties fail only in local "
+            "act, not in CI."
+        )
+    return None
+
 
 def _run_act_stage(
     stage: str,
@@ -397,13 +429,15 @@ def _run_act_stage(
     files: Sequence[str],
     repo_root: Path,
 ) -> StageResult:
-    """Run an ``act`` invocation per workflow file, with git-missing downgrade.
+    """Run an ``act`` invocation per workflow file, with act-limitation downgrade.
 
-    A nonzero exit whose output carries ``_GIT_REPO_MISSING_PATTERN`` is a local
-    environment limitation, not a workflow defect: actionlint and the act
-    dry-run already validated the workflow shape. Downgrade it to a passing
-    stage with a ``[WARN]`` detail instead of a hard FAIL so the missing .git in
-    the container does not block an otherwise valid push.
+    A nonzero exit whose output carries a known act-only limitation signature
+    (a missing .git in the container, or an unpopulated ``pull_request`` event
+    context during a pull_request run) is a local environment gap, not a
+    workflow defect: actionlint and the act dry-run already validated the
+    workflow shape. Downgrade it to a passing stage with a ``[WARN]`` detail
+    instead of a hard FAIL so the act limitation does not block an otherwise
+    valid push. Every other nonzero exit still blocks.
     """
     env = _act_env(repo_root)
     warnings: list[str] = []
@@ -416,11 +450,10 @@ def _run_act_stage(
         rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
         if rc != 0:
             combined = (out + err).strip()
-            if _GIT_REPO_MISSING_PATTERN in combined:
+            hint = _act_limitation_hint(combined, event)
+            if hint is not None:
                 warnings.append(
-                    f"[WARN] {wf}: act container lacks .git; git-calling actions "
-                    f"(e.g. dorny/paths-filter) fail only in local act, not in "
-                    f"CI. Set {_BYPASS_ENV}=true to silence."
+                    f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence."
                 )
                 continue
             return StageResult(stage, False, f"{wf}:\n{combined[:4000]}")
