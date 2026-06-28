@@ -137,3 +137,5 @@ The marker enables update-in-place behavior:
 - Script: `.claude/skills/github/scripts/issue/invoke_copilot_assignment.py`
 - Library: `.claude/lib/github_core/api.py`
 - Issue: <https://github.com/rjmurillo/ai-agents/issues/92>
+
+<!-- vendor-portability: declared. This guide cites .claude/lib/github_core/api.py, which ships in the vendor install (the github skill bundles github_core), so the reference resolves in a vendored layout via the plugin root; no upstream-only dependency. Issue #2050. -->
