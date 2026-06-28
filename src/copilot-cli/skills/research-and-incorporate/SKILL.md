@@ -170,3 +170,5 @@ After completion, verify:
 2. **Custom analysis templates**: Topic-specific document structures
 3. **Automated validation**: Scripts to verify memory atomicity
 4. **Integration hooks**: Connect to ADR review for architecture topics
+
+<!-- vendor-portability: declared. This skill writes the research analysis document to .agents/analysis/{topic-slug}.md. The path is a write target created on demand; a vendored install writes the consumer's own analysis there. Issue #2050. -->

@@ -98,3 +98,5 @@ Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
 | New Skill | Most Similar | Similarity | Decision |
 |-----------|--------------|------------|----------|
 ````
+
+<!-- vendor-portability: declared. This template names .agents/retrospective/YYYY-MM-DD-[scope].md as the save location. The path is a write target created on demand; it is not a read precondition. Issue #2050. -->
