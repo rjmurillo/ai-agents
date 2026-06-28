@@ -364,3 +364,5 @@ python3 -m pytest tests/ --cov=scripts --cov-report=term-missing  # coverage
 - **Token savings**: 60-80% reduction = lower API costs
 
 </details>
+
+<!-- vendor-portability: declared. This skill cites .agents/analysis/vercel-passive-context-vs-skills-research.md as background reading. It is a documentation citation; the optimizer runs without reading the file, and a vendored install loses only the link target. Issue #2050. -->
