@@ -550,3 +550,5 @@ This ADR conflates {N} distinct decisions:
 3. Mark original ADR as "superseded by ADR-{NNN}-A and ADR-{NNN}-B"
 4. Update cross-references in dependent ADRs
 ```
+
+<!-- vendor-portability: declared. These prompts reference .agents/architecture/ADR-*.md as the corpus reviewers read. In a vendored install without that tree the reviewers read the ADR supplied in the PR diff instead; the prompt text does not require the path to exist. Issue #2050. -->

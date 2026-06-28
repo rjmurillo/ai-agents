@@ -205,3 +205,5 @@ Source: [Planguage specification by Tom Gilb](https://www.iaria.org/conferences2
 - [MADR Repository](https://github.com/adr/madr)
 - [Joel Parker Henderson ADR Collection](https://github.com/joelparkerhenderson/architecture-decision-record)
 - [ISO/IEC/IEEE 42010:2011](https://en.wikipedia.org/wiki/ISO/IEC_42010): international standard for architecture descriptions
+
+<!-- vendor-portability: declared. This catalog points at .agents/architecture/ADR-TEMPLATE.md as the project's standard template. The reference is advisory; a vendored install falls back to the bundled adr-template.md sibling and loses only the upstream-specific default. Issue #2050. -->
