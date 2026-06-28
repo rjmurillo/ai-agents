@@ -441,7 +441,9 @@ def test_no_staleness_deferrals_constant() -> None:
     would only hide future regen drift. It must not come back.
     """
     assert not hasattr(build_all, "STALENESS_DEFERRALS")
-    assert "STALENESS_DEFERRALS" not in Path(build_all.__file__).read_text()
+    assert "STALENESS_DEFERRALS" not in Path(build_all.__file__).read_text(
+        encoding="utf-8"
+    )
 
 
 def test_run_returns_2_when_formerly_deferred_mirror_drifts(
@@ -1242,7 +1244,7 @@ def test_run_without_check_does_not_snapshot_or_restore(
     )
 
 
-# Regression: #2775 — --check must cover the Copilot skill-mirror -----------
+# Regression: #2775, --check must cover the Copilot skill-mirror -----------
 #
 # build_all.py --check did not flag a stale src/copilot-cli/skills/** mirror
 # during the #2050 migration. These two tests pin the coverage end to end with
