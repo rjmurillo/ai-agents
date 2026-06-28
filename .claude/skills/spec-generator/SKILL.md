@@ -218,3 +218,5 @@ Return:
 3. Validator result for every emitted file
 4. Estimated effort (complexity counts, total hours)
 5. Recommended next step: critic for review, architect for design validation, implementer to start TASK-001
+
+<!-- vendor-portability: declared. This skill writes the REQ/DESIGN/TASK spec tier under .agents/specs/ and reads the optional ontology fragment at .agents/specs/ontology/. The frontmatter schema is bundled at references/spec-schemas.md, with .agents/governance/spec-schemas.md named as the canonical source; the specs paths are write targets created on demand. Issue #2050. -->
