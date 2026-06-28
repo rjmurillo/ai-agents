@@ -84,6 +84,6 @@
     "skills/spec-generator/tests/test_reasons_section_headers.py": 1,
     "skills/steering-matcher/get_applicable_steering.py": 2,
     "skills/steering-matcher/scripts/get_applicable_steering.py": 2,
-    "skills/taste-lints/scripts/taste_lints.py": 2
+    "skills/taste-lints/scripts/taste_lints.py": 3
   }
 }
