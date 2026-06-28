@@ -49,6 +49,19 @@ class TestNewIssue:
         assert data["Data"]["issue_number"] == 42
         assert data["Data"]["title"] == "Test Title"
 
+    def test_data_number_is_positive_int_and_url_set_on_success(self, capsys):
+        # Regression for issue #2767: callers read Data.number, which was null.
+        with patch("subprocess.run", return_value=_make_proc(
+            stdout="https://github.com/owner/repo/issues/2767\n"
+        )):
+            result = main(["--title", "Test Title", "--output-format", "json"])
+        assert result == 0
+        data = json.loads(capsys.readouterr().out)
+        number = data["Data"]["number"]
+        assert isinstance(number, int) and number > 0
+        assert number == 2767
+        assert data["Data"]["url"] == "https://github.com/owner/repo/issues/2767"
+
     def test_create_with_body_and_labels(self, capsys):
         with patch("subprocess.run", return_value=_make_proc(
             stdout="https://github.com/o/r/issues/7\n"

@@ -3,6 +3,11 @@
 
 Supports both inline body text and file-based body content.
 
+On success the JSON envelope carries ``Data.number`` (the created issue number
+as an int) and ``Data.url`` so ``--output-format json`` callers can capture the
+new number programmatically (issue #2767). ``Data.issue_number`` is retained as
+an alias for existing callers.
+
 Exit codes follow ADR-035:
     0 - Success
     1 - Logic failure after argument parsing
@@ -280,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
 
     write_skill_output(
         {
+            "number": issue_number,
             "issue_number": issue_number,
             "url": output_text,
             "title": args.title,
