@@ -1320,7 +1320,7 @@ def test_run_check_returns_2_when_skill_mirror_is_stale(
 
     # Edit the SOURCE skill without regenerating/committing the mirror.
     source = repo / ".claude" / "skills" / "alpha" / "SKILL.md"
-    source.write_text("# alpha\n\nNew source content not yet mirrored.\n")
+    source.write_text("# alpha\n\nNew source content not yet mirrored.\n", encoding="utf-8")
 
     rc = build_all.run(
         repo, platform=None, check=True, clean=False, audit_format="md"
