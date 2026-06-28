@@ -11,6 +11,8 @@ metadata:
 
 Proactive vulnerability detection for command injection (CWE-78) before PR submission.
 
+<!-- vendor-portability: declared. This skill cites .agents/analysis/closed-pr-reviewer-patterns-2026-02-08.md as the source for its detection patterns. It is a documentation citation only; scan_vulnerabilities.py scans the consumer's staged or specified files at runtime and does not read the .agents/ file. A vendored install without .agents/ loses the citation link, not the scan. Issue #2050. -->
+
 ## Scope
 
 This skill detects **CWE-78 (command injection)** patterns only. The regex patterns target unambiguous shapes (`subprocess.run(..., shell=True)`, `eval(user_input)`, backtick command substitution, etc.) that produce reliable signal without taint analysis.
@@ -25,7 +27,7 @@ If a CWE-22 finding surfaces in CI from CodeQL, fix the underlying code or open 
 |----------------|-----------|
 | `scan for vulnerabilities` | scan_vulnerabilities.py on staged/specified files (CWE-78 only) |
 | `check for command injection` | scan_vulnerabilities.py with CWE-78 focus |
-| `check for path traversal` | NOT handled by this scanner. CWE-22 detection is delegated to CodeQL (see the CodeQL Analysis workflow, which runs `python-security-extended.qls`). |
+| `check for path traversal` | NOT handled by this scanner. CWE-22 detection is delegated to CodeQL (see the CodeQL Analysis workflow, which runs python-security-extended.qls). |
 | `pre-PR security scan` | scan_vulnerabilities.py on staged files |
 | `run security scan` | scan_vulnerabilities.py with full scan |
 
@@ -69,11 +71,13 @@ Use **threat-modeling** instead when:
 
 ---
 
-## Available Scripts
+## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/scan_vulnerabilities.py` | CWE-78 (command injection) regex scanner. CWE-22 is delegated to CodeQL; see Scope. |
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `scripts/scan_vulnerabilities.py` | CWE-78 (command injection) regex scanner over staged, specified, or `--directory` files; supports `--format json`. CWE-22 is delegated to CodeQL; see Scope. | `0` no vulnerabilities; `1` scan error (file not found, etc.); `10` vulnerabilities detected. |
+
+`scan_constants.py`, `scan_patterns.py`, and `scan_format.py` are helper modules imported by the scanner, not standalone CLIs.
 
 ---
 
