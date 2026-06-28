@@ -71,6 +71,28 @@ class TestCheckFileSize:
         result = check_file_size("src/my_module.py", lines)
         assert "my_module_helpers.py" in result[0].remediation
 
+    def test_memory_data_file_exempt_despite_size(self) -> None:
+        # .agents/memory/ holds append-only generated data (issue #2785).
+        lines = ["{}\n"] * 9000
+        result = check_file_size(
+            ".agents/memory/causality/causal-graph.json", lines
+        )
+        assert result == []
+
+    def test_memory_data_file_exempt_with_absolute_path(self) -> None:
+        lines = ["{}\n"] * 9000
+        result = check_file_size(
+            "/home/user/repo/.agents/memory/episodes/episode-1.json", lines
+        )
+        assert result == []
+
+    def test_non_memory_large_file_still_fails(self) -> None:
+        # A look-alike path that is not under .agents/memory must still fail.
+        lines = ["line\n"] * 600
+        result = check_file_size(".agents/memoryish/data.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
 
 class TestCheckNaming:
     """Tests for naming convention checks."""
