@@ -392,3 +392,5 @@ Return structured results to the caller with source attribution.
 | `using-forgetful-memory` | Deep Forgetful operations (create, update, link) |
 | `curating-memories` | Memory maintenance (obsolete, deduplicate) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal |
+
+<!-- vendor-portability: declared. This skill links analysis docs under .agents/analysis/ and reads/writes its episode and causal-graph stores under .agents/memory/. The analysis links are documentation; the memory stores are the consumer's own data dirs, created on demand when absent in a vendored install. Issue #2050. -->

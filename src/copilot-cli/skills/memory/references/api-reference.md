@@ -720,3 +720,5 @@ All functions follow PowerShell error handling conventions:
 - [Quick Start Guide](quick-start.md) - Common usage patterns
 - ADR-037 - Memory Router Architecture
 - ADR-038 - Reflexion Memory Schema
+
+<!-- vendor-portability: declared. This API reference documents PowerShell defaults that write episodes to .agents/memory/episodes/ and the causal graph to .agents/memory/causality/. These are configurable output paths (OutputPath/EpisodePath params); a vendored install overrides them or lets the tool create the default dir. Issue #2050. -->
