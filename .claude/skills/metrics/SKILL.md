@@ -215,3 +215,5 @@ Update the `INFRASTRUCTURE_PATTERNS` / `$InfrastructurePatterns` arrays for new 
 - [Dashboard Template](../metrics/dashboard-template.md)
 - [Baseline Report](../metrics/baseline-report.md)
 - [CI Workflow](../../../.github/workflows/agent-metrics.yml)
+
+<!-- vendor-portability: declared. This skill reads the consumer's .agents/* artifacts as metric inputs and can archive formatted output to .agents/metrics/. Inputs are whatever the consumer repo contains; the archive path is an optional write target created on demand. Issue #2050. -->

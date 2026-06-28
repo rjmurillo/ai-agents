@@ -311,3 +311,5 @@ python3 scripts/validate_session_json.py "$SESSION_LOG"
 | `E_DIRTY_WORKTREE` | Uncommitted changes | Stage and commit all files including `.agents/` |
 
 </details>
+
+<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. Issue #2050. -->

@@ -301,3 +301,5 @@ If a companion is not yet ported, return the diagnostic output and let the opera
 - [ ] Paradigm fit matches the Paradigm Mapping Contract rules above.
 - [ ] Boundary audit covers at least the top three highest-exposure flows.
 - [ ] No numeric readiness score appears anywhere in the output.
+
+<!-- vendor-portability: declared. This skill offers an optional on-disk note path under .agents/analysis/diagnostics/{company-slug}/ when the user prefers files. The path is an opt-in write target created on demand; the diagnostic runs in-conversation without it. Issue #2050. -->

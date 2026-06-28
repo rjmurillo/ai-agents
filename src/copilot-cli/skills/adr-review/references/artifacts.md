@@ -112,3 +112,5 @@ Trigger adr-review skill for: .agents/architecture/ADR-005-api-versioning.md
 Follow debate protocol in .claude/skills/adr-review/SKILL.md
 """)
 ```
+
+<!-- vendor-portability: declared. This doc directs debate artifacts to .agents/critique/ and accepted ADRs to .agents/architecture/. In a vendored install without those dirs the agent creates them (or writes to the consumer's chosen artifact root); the paths are write targets, not preconditions. Issue #2050. -->

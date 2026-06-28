@@ -475,3 +475,5 @@ Validate-SpecSchemas.ps1 -Traceability
 - [Consistency Protocol](./consistency-protocol.md) - Validation rules
 - [Spec Layer README](../specs/README.md) - Overview
 - [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md) - Phase 1 tasks
+
+<!-- vendor-portability: declared. This doc names .agents/specs/requirements/, design/, and tasks/ as the locations the three spec tiers are written to, and cites .agents/governance/spec-schemas.md as canonical. The specs paths are write targets created on demand; the governance path is provenance for the bundled schema. Issue #2050. -->

@@ -228,3 +228,5 @@ grep -P "pending|TBD|_____" ".agents/sessions/<file>.md"
 ```markdown
 | MUST | Route to qa agent | [x] | QA report: `.agents/qa/refactor-module-qa.md` |
 ```
+
+<!-- vendor-portability: declared. This doc reverts .agents/HANDOFF.md via git and ensures a QA report exists under .agents/qa/. The HANDOFF revert targets the consumer's own file if present; the qa path is a write target created on demand. Issue #2050. -->

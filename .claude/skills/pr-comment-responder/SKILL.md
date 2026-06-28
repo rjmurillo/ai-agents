@@ -291,3 +291,5 @@ See [references/bots.md](references/bots.md) for:
 - Add new domain classifiers in `get_pr_review_comments.py --group-by-domain`
 - Add reviewer priority entries for new bot integrations
 - Add response templates in `references/templates.md`
+
+<!-- vendor-portability: declared. This skill cites a retrospective under .agents/retrospective/ and writes a comment map under .agents/pr-comments/PR-[N]/. The retrospective is a documentation citation; the pr-comments path is a write target created on demand for the consumer's review run. Issue #2050. -->

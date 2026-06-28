@@ -114,3 +114,5 @@ Every PRD section reaches the spec-generator unchanged so it does not re-ask que
 - [Circle of Competence](references/mental-models-circle-of-competence.md) - Calibrate confidence in a recommended answer by whether the decision sits inside the team's tested knowledge
 - Related skills: `decision-critic`, `pre-mortem`, `cynefin-classifier`
 - Related rules: `.claude/rules/clean-architecture.md`, `.claude/rules/domain-driven-design.md`, `.claude/rules/security.md`
+
+<!-- vendor-portability: declared. This skill writes interview transcripts and the REQ/DESIGN/TASK spec tier under .agents/specs/ and cites .agents/governance/SECURITY-REVIEW-PROTOCOL.md. The specs paths are write targets created on demand; the governance file is a citation with a .claude/rules/security.md fallback named inline. Issue #2050. -->

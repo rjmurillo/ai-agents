@@ -141,3 +141,5 @@ For performance, the template can be cached during a session, but MUST be re-rea
 - SESSION-PROTOCOL.md has been modified
 - Starting a new session after file system changes
 - Validation fails (re-read to check for template updates)
+
+<!-- vendor-portability: declared. This doc names .agents/SESSION-PROTOCOL.md as the canonical file the session-log template is extracted from. It is a provenance citation; the bundled template is self-contained and a vendored install does not read the protocol file at runtime. Issue #2050. -->

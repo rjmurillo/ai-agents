@@ -633,3 +633,5 @@ If issues persist after trying these solutions:
 - [API Reference](api-reference.md) - Complete function signatures
 - [Quick Start](quick-start.md) - Common patterns
 - [Benchmarking](benchmarking.md) - Performance measurement
+
+<!-- vendor-portability: declared. This guide tells the user to create .agents/memory/episodes/ when the episode directory is missing. The path is the memory store's data dir, created by the fix the doc describes; it is not a read precondition. Issue #2050. -->

@@ -507,3 +507,5 @@ Research and incorporate knowledge about: **Chesterton's Fence**
 - https://fs.blog/chestertons-fence/
 - https://en.wikipedia.org/wiki/G._K._Chesterton#Chesterton's_fence
 ```
+
+<!-- vendor-portability: declared. This workflow names .agents/analysis/{topic-slug}.md as the analysis output location. The path is a write target created on demand; it is not a read precondition. Issue #2050. -->

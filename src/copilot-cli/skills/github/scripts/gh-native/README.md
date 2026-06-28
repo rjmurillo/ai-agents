@@ -174,3 +174,5 @@ Just ensure `gh` CLI is installed and authenticated.
 - Python equivalents: `.claude/skills/github/scripts/pr/` and `.claude/skills/github/scripts/issue/`
 - GitHub MCP skill: For Claude Code and VS Code (full-featured)
 - Performance analysis: `.agents/analysis/gh-native-benchmark.md`
+
+<!-- vendor-portability: declared. This README links .agents/analysis/gh-native-benchmark.md as the performance write-up. It is a documentation citation; the gh-native scripts run without it and a vendored install loses only the link. Issue #2050. -->

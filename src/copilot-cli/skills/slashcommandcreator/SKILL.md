@@ -236,6 +236,8 @@ python3 .claude/skills/slashcommandcreator/scripts/validate_slash_command.py <sk
 - `.agents/planning/slashcommandcreator-skill-spec.md`
 - `.serena/memories/slashcommand-best-practices.md`
 
+<!-- vendor-portability: declared. This skill writes research and analysis notes under .agents/analysis/ and .agents/planning/ and cites .agents/HANDOFF.md and a research doc. The analysis/planning paths are write targets created on demand; the HANDOFF and research references are documentation citations. Issue #2050. -->
+
 ## Copilot CLI invocation reference
 
 This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).

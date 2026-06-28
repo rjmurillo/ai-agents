@@ -263,3 +263,5 @@ mcp__serena__edit_memory(
     mode="literal"
 )
 ```
+
+<!-- vendor-portability: declared. This workflow saves the comment map and task list under .agents/pr-comments/PR-[number]/. The path is a write target created on demand; a vendored install writes the consumer's own review artifacts there. Issue #2050. -->

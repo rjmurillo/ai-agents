@@ -358,3 +358,5 @@ Domain knowledge for chaos experiment design:
 | [threat-modeling](../threat-modeling/SKILL.md) | Complements with security threat analysis |
 | [pre-mortem](../pre-mortem/SKILL.md) | Risk identification at planning stage |
 | [slo-designer](../slo-designer/SKILL.md) | SLO targets inform tolerance thresholds |
+
+<!-- vendor-portability: declared. This skill saves experiment records to .agents/chaos/. In a vendored install without that dir the skill creates it; the path is a write target and degrades to a created directory, not a silent no-op. Issue #2050. -->

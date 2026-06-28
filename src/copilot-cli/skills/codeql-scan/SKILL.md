@@ -421,3 +421,5 @@ test -f .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py && echo "Hook exis
 ```
 
 </details>
+
+<!-- vendor-portability: declared. This skill links .agents/SESSION-PROTOCOL.md as a documentation pointer for the session gate. The CodeQL scan does not read that file at runtime; a vendored install without it loses the link, not the scan. Issue #2050. -->

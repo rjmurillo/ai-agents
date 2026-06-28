@@ -389,3 +389,5 @@ Review checklist:
 - [ ] Test agent compatibility of recommended extensions
 - [ ] Remove stale extensions
 - [ ] Update installation instructions
+
+<!-- vendor-portability: declared. This doc tells the agent to record extension notes in a session log under .agents/sessions/. In a vendored install without that dir the session skill creates it; the path is a write target for the consumer's own session logs. Issue #2050. -->

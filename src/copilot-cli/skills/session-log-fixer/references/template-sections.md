@@ -162,3 +162,5 @@ All MUST requirements above are marked complete.
 ## Source
 
 Canonical source: `.agents/SESSION-PROTOCOL.md`
+
+<!-- vendor-portability: declared. This doc references the QA report path .agents/qa/[filename].md in a session-log section and names .agents/SESSION-PROTOCOL.md as the canonical source. The qa path is a documented field value; the protocol reference is provenance, not a runtime read. Issue #2050. -->

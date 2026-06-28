@@ -485,3 +485,5 @@ Exit code 0 indicates a valid, complete threat model.
 | `security-detection` | Triggers threat model review on sensitive file changes |
 | `codeql-scan` | Validates code against identified threats |
 | `adr-review` | Security agent reviews architecture decisions |
+
+<!-- vendor-portability: declared. This skill writes STRIDE threat models to .agents/security/threat-models/. The path is a write target created on demand; a vendored install writes the consumer's own threat models there rather than failing. Issue #2050. -->
