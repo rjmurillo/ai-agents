@@ -130,12 +130,30 @@ def _run_git(args: list[str], cwd: str | None = None) -> str:
     return result.stdout.strip()
 
 
+def _apply_attribute(worktree: Worktree, line: str) -> None:
+    """Apply one porcelain attribute line to the current worktree record.
+
+    ``HEAD``, ``branch``, ``bare``, ``detached``, and ``locked`` are the lines
+    that may follow a ``worktree <path>`` line. Unknown lines are ignored.
+    """
+    if line.startswith("HEAD "):
+        worktree.head = line[len("HEAD ") :].strip()
+    elif line.startswith("branch "):
+        worktree.branch = line[len("branch ") :].strip().removeprefix("refs/heads/")
+    elif line == "bare":
+        worktree.bare = True
+    elif line == "detached":
+        worktree.detached = True
+    elif line == "locked" or line.startswith("locked "):
+        worktree.locked = True
+
+
 def list_worktrees() -> list[Worktree]:
     """Parse ``git worktree list --porcelain`` into Worktree records.
 
     The porcelain format groups attributes per worktree, separated by blank
-    lines. Each group starts with a ``worktree <path>`` line. ``branch``,
-    ``HEAD``, ``locked``, ``bare``, and ``detached`` lines may follow.
+    lines. Each group starts with a ``worktree <path>`` line; attribute lines
+    follow and are applied by ``_apply_attribute``.
     """
     raw = _run_git(["worktree", "list", "--porcelain"])
     worktrees: list[Worktree] = []
@@ -146,19 +164,8 @@ def list_worktrees() -> list[Worktree]:
             if current is not None:
                 worktrees.append(current)
             current = Worktree(path=line[len("worktree ") :].strip())
-        elif current is None:
-            continue
-        elif line.startswith("HEAD "):
-            current.head = line[len("HEAD ") :].strip()
-        elif line.startswith("branch "):
-            ref = line[len("branch ") :].strip()
-            current.branch = ref.removeprefix("refs/heads/")
-        elif line == "bare":
-            current.bare = True
-        elif line == "detached":
-            current.detached = True
-        elif line == "locked" or line.startswith("locked "):
-            current.locked = True
+        elif current is not None:
+            _apply_attribute(current, line)
 
     if current is not None:
         worktrees.append(current)
