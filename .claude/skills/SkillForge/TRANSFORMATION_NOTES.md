@@ -2,8 +2,8 @@
 
 **Purpose**: Document local modifications for reapplication after upstream updates
 
-**Initial sync**: 2026-01-03 (Session 372) — v4.x content extraction + policy deletions
-**Latest sync**: 2026-04-13 — upstream v5.1.0 @ `f07042f`
+**Initial sync**: 2026-01-03 (Session 372), v4.x content extraction + policy deletions
+**Latest sync**: 2026-04-13, upstream v5.1.0 @ `f07042f`
 **Upstream**: <https://github.com/tripleyak/SkillForge>
 
 ## Sync Log
@@ -200,13 +200,13 @@ Expected results:
 
 **Scripts added (3 new files from upstream):**
 
-- `scripts/check_docs_safety.py` (83 lines) — docs safety checker for unsafe command interpolation patterns (v5.1 addition)
-- `scripts/discover_skills.py` (468 lines) — skill discovery utility (v5.0/v5.1)
-- `scripts/init_skill.py` (393 lines) — skill scaffolder (v5.0/v5.1)
+- `scripts/check_docs_safety.py` (83 lines): docs safety checker for unsafe command interpolation patterns (v5.1 addition)
+- `scripts/discover_skills.py` (468 lines): skill discovery utility (v5.0/v5.1)
+- `scripts/init_skill.py` (393 lines): skill scaffolder (v5.0/v5.1)
 
 **Tests added:**
 
-- `scripts/tests/test_package_skill_ignore.py` (upstream v5.1 — tests `.skillignore` enforcement in packaging)
+- `scripts/tests/test_package_skill_ignore.py` (upstream v5.1: tests `.skillignore` enforcement in packaging)
 
 **References added (9 new files from upstream v5.x architecture):**
 
@@ -235,8 +235,8 @@ Expected results:
 
 **Local-only scripts preserved:**
 
-- `scripts/frontmatter.py` — local utility
-- `scripts/skill_modularity_audit.py` — local utility
+- `scripts/frontmatter.py`: local utility
+- `scripts/skill_modularity_audit.py`: local utility
 
 **Local-only references preserved (v4.x content extractions, may now be orphaned by v5.x architecture):**
 
@@ -252,13 +252,13 @@ Expected results:
 
 **Local tests preserved:**
 
-- `tests/test_skill_modularity_audit.py` — local test for local audit script
+- `tests/test_skill_modularity_audit.py`: local test for local audit script
 
 **Local deletions preserved:**
 
-- `README.md` — still deleted per skill-creator "no auxiliary files" rule
-- `LICENSE` — still deleted per same rule
-- `SESSION_HANDOFF.md` — still deleted
+- `README.md`: still deleted per skill-creator "no auxiliary files" rule
+- `LICENSE`: still deleted per same rule
+- `SESSION_HANDOFF.md`: still deleted
 
 ### Verification (post-sync)
 
@@ -275,7 +275,9 @@ find .claude/skills/SkillForge -type f | wc -l
 
 ### Known TODO for next sync
 
-1. **Script diff triage** — run a 3-way merge on the 5 shared scripts where vendored is larger. Decide per-script: keep local, adopt upstream, or cherry-pick specific improvements.
-2. **References consolidation** — decide fate of 8 v4.x legacy reference files. Either rename to `references/_v4-legacy/` to mark deprecated, delete if fully superseded by upstream's 9 new files, or merge content.
-3. **Consider rebasing on upstream** — if local enhancements matter, propose them upstream. If not, do a clean overwrite on the next sync and only preserve intentional policy deletions (README/LICENSE).
-4. **Upstream still on 4-5 models** — our 4-6 override will stay as a local fork until upstream bumps.
+1. **Script diff triage**: run a 3-way merge on the 5 shared scripts where vendored is larger. Decide per-script: keep local, adopt upstream, or cherry-pick specific improvements.
+2. **References consolidation**: decide fate of 8 v4.x legacy reference files. Either rename to `references/_v4-legacy/` to mark deprecated, delete if fully superseded by upstream's 9 new files, or merge content.
+3. **Consider rebasing on upstream**: if local enhancements matter, propose them upstream. If not, do a clean overwrite on the next sync and only preserve intentional policy deletions (README/LICENSE).
+4. **Upstream still on 4-5 models**: our 4-6 override will stay as a local fork until upstream bumps.
+
+<!-- vendor-portability: declared. These notes cite .agents/governance/skill-description-trigger-standard.md as the source of the v2.0 description/trigger convention. It is a documentation citation, not a runtime read; a vendored install without that file loses the link target, the transformation guidance stays inline. Issue #2050. -->

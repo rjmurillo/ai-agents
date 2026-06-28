@@ -161,3 +161,5 @@ Include these additional sections only when the ADR is about an agent:
 |--------|--------|-------------|
 | [Metric] | [Target] | [How to measure] |
 ```
+
+<!-- vendor-portability: declared. This bundled template names .agents/architecture/ADR-TEMPLATE.md as the project's canonical source it mirrors. The bundled copy is self-contained; a vendored install uses this file directly and the canonical path is provenance only. Issue #2050. -->
