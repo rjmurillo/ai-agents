@@ -17,6 +17,15 @@ real or has started blocking on a stale rule. This skill is the
 measurement: real intercept counts feed real tier assignments, and the
 tier dictates whether a guard gets kept, promoted, or pruned.
 
+<!-- vendor-portability: declared. This skill reads push-guard telemetry from the consumer's .agents/telemetry/ and cites .agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md as background. The telemetry directory is a read/append target created on demand; the retrospective is a documentation citation. A vendored install without .agents/ produces an empty report (no guards classified) rather than a silent failure. Issue #2050. -->
+
+## Triggers
+
+- `guard maturity report`
+- `classify push guards`
+- `hook maturity tiers`
+- `prune inert guards`
+
 ## When to use
 
 - **Periodic review** (recommended every 30 days once telemetry is
@@ -77,6 +86,27 @@ grep '^EVENT=' /tmp/push.log >> .agents/telemetry/$(date +push-guard-events-%G-%
 ```
 
 Then run the aggregator + classifier as above.
+
+## Process
+
+1. **Aggregate**: run `aggregate_guard_intercepts.py` against `.agents/telemetry/` (or stdin), passing `--guard` for every guard so never-fired guards still appear.
+2. **Classify**: pipe the JSON summary into `classify_guard_maturity.py`, which assigns each guard a tier from age, intercept count, and fitness (`block_rate - 0.5`).
+3. **Report and act**: read the tier table sorted by severity (Harmful, Inert, Budding, Growing, Mature, Proficient); remove Harmful guards, prune Inert ones, promote Proficient ones.
+
+`run_report.py` runs steps 1 and 2 end-to-end.
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|---|---|---|
+| `scripts/run_report.py` | Wrapper that runs `aggregate_guard_intercepts.py` then `classify_guard_maturity.py` and prints the tier table (raw JSON to stderr). | `0` success; `3` external error (a build script is missing or fails per ADR-035); non-zero passthrough of a failed child process. |
+
+## Verification
+
+- [ ] Report lists one row per guard, including guards that never fired.
+- [ ] Each guard has a tier assigned from the tier-definitions table.
+- [ ] Rows are sorted by tier severity (Harmful first).
+- [ ] Harmful and Inert guards are flagged for the operator to act on.
 
 ## See also
 

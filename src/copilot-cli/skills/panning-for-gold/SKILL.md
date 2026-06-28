@@ -10,6 +10,9 @@ license: MIT
 
 Turn raw, unstructured capture into an evaluated, actionable inventory of threads. Four phases: Front-gate, Extract, Evaluate, Synthesize.
 
+<!-- vendor-portability: declared. During synthesis this skill cross-references the consumer's existing artifacts to wire each High-Signal thread to a prior entity: .claude/skills/ SKILL.md files, .agents/architecture/ADR-*.md, .serena/memories/**, open GitHub issues, and .agents/sessions/*.json. These are best-effort read targets for the elaboration gate; a vendored install without .agents/ or .serena/ simply has fewer connection candidates, not a broken run. Issue #2050. -->
+
+
 ## Triggers
 
 | Trigger Phrase | Operation |
@@ -116,7 +119,15 @@ pan.py synth     --inventory <file> --evaluations <dir> --output <file>
 
 The script delegates to `inventory.py` for parsing and merging, and `synthesis.py` for gold-found generation.
 
-## Acceptance Checklist
+## Scripts
+
+| Script | Purpose | Exit codes |
+|---|---|---|
+| `scripts/pan.py` | CLI entry point for `init`, `validate`, `merge`, and `synth` subcommands over the workspace. | `0` success; `1` validation failure (malformed inventory or evaluation); `2` usage or I/O error. |
+| `scripts/inventory.py` | Parse, validate, and merge thread inventories (called by `pan.py`). | Returns to caller; surfaced through `pan.py` exit codes. |
+| `scripts/synthesis.py` | Generate the gold-found file from the merged inventory and evaluations (called by `pan.py synth`). | Returns to caller; surfaced through `pan.py` exit codes. |
+
+## Verification
 
 - [ ] Phase 0 front-gate was answered before invoking `pan.py` (six questions, halt criteria evaluated).
 - [ ] Inventory thread blocks contain `Signal`, `Quote`, `Context`, `Initial take` fields.

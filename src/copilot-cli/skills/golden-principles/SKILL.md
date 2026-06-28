@@ -11,6 +11,10 @@ license: MIT
 Scan the repository for violations of mechanically enforced golden principles.
 Produces remediation instructions that agents can act on directly.
 
+<!-- vendor-portability: declared. This skill enforces GP-001 through GP-008 defined in .agents/governance/golden-principles.md and cites that document plus .claude/skills/ siblings. The governance file is the upstream rule source; a vendored install without it loses the canonical principle text, while the bundled scanner still applies its built-in GP-001..GP-006 checks against the consumer's files. Issue #2050. -->
+
+
+
 Inspired by [OpenAI Harness Engineering](https://openai.com/index/harness-engineering/):
 
 > "We started encoding what we call 'golden principles' directly into the repository
@@ -93,6 +97,12 @@ GP-002, GP-007, GP-008 are enforced by existing tools (git hooks, taste-lints).
 | 0 | No violations found |
 | 1 | Script error (bad arguments, file not found) |
 | 10 | Violations detected |
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|---|---|---|
+| `scripts/scan_principles.py` | Scan a path (repo, directory, or diff scope) for GP-001..GP-006 violations and emit AGENT_REMEDIATION blocks. Supports `--directory`, `--diff-scope`, `--rules`, `--format`, `--output`. | `0` no violations; `10` violations detected; `1` tool error (bad arguments, file not found). |
 
 ## Suppression
 
