@@ -8,6 +8,7 @@ Related: Issue #2761 (worktree accumulation starves the markdown LSP).
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import patch
 
 from scripts.maintenance.gc_worktrees import (
@@ -20,10 +21,12 @@ from scripts.maintenance.gc_worktrees import (
     Decision,
     GcReport,
     Worktree,
+    _run_git,
     apply_removals,
     build_report,
     decide,
     format_report,
+    is_merged_to_base,
     list_worktrees,
     main,
     parse_args,
@@ -86,6 +89,54 @@ class TestListWorktrees:
     def test_empty_output_yields_no_worktrees(self):
         with patch("scripts.maintenance.gc_worktrees._run_git", return_value=""):
             assert list_worktrees() == []
+
+
+class TestGitSubprocesses:
+    """Git subprocess wrapper behavior."""
+
+    def test_run_git_uses_utf8_timeout_and_replacement_errors(self):
+        completed = subprocess.CompletedProcess(
+            ["git", "status"], 0, stdout="ok\n", stderr=""
+        )
+        with patch(
+            "scripts.maintenance.gc_worktrees.subprocess.run",
+            return_value=completed,
+        ) as run:
+            assert _run_git(["status"], cwd="/repo") == "ok"
+
+        kwargs = run.call_args.kwargs
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        assert kwargs["timeout"] > 0
+        assert kwargs["cwd"] == "/repo"
+
+    def test_run_git_wraps_timeout_as_runtime_error(self):
+        with patch(
+            "scripts.maintenance.gc_worktrees.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["git", "status"], 30),
+        ):
+            try:
+                _run_git(["status"], cwd="/repo")
+            except RuntimeError as exc:
+                assert "git status in /repo failed" in str(exc)
+            else:  # pragma: no cover - assertion branch
+                raise AssertionError("expected RuntimeError")
+
+    def test_is_merged_to_base_uses_utf8_timeout_and_replacement_errors(self):
+        completed = subprocess.CompletedProcess(
+            ["git", "merge-base"], 0, stdout="", stderr=""
+        )
+        with patch(
+            "scripts.maintenance.gc_worktrees.subprocess.run",
+            return_value=completed,
+        ) as run:
+            assert is_merged_to_base("/repo/wt", _BASE) is True
+
+        kwargs = run.call_args.kwargs
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        assert kwargs["timeout"] > 0
+        assert kwargs["cwd"] == "/repo/wt"
 
 
 class TestDecide:
@@ -198,6 +249,7 @@ class TestBuildReport:
                     Worktree(path="/repo/wt", branch="feat/x"),
                 ],
             ),
+            patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN),
             patch(
                 "scripts.maintenance.gc_worktrees.has_uncommitted_changes",
                 return_value=False,
@@ -218,10 +270,40 @@ class TestBuildReport:
         with patch(
             "scripts.maintenance.gc_worktrees.list_worktrees",
             return_value=[Worktree(path=_MAIN, branch="main")],
-        ):
+        ), patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN):
             report = build_report(base_ref=_BASE, apply=False)
         assert report.candidates == []
         assert len(report.kept) == 1
+
+    def test_current_linked_worktree_is_always_kept(self):
+        with (
+            patch(
+                "scripts.maintenance.gc_worktrees.list_worktrees",
+                return_value=[
+                    Worktree(path=_MAIN, branch="main"),
+                    Worktree(path="/repo/active", branch="feat/active"),
+                    Worktree(path="/repo/wt", branch="feat/done"),
+                ],
+            ),
+            patch(
+                "scripts.maintenance.gc_worktrees._run_git",
+                return_value="/repo/active",
+            ),
+            patch(
+                "scripts.maintenance.gc_worktrees.has_uncommitted_changes",
+                return_value=False,
+            ),
+            patch(
+                "scripts.maintenance.gc_worktrees.is_merged_to_base",
+                return_value=True,
+            ),
+        ):
+            report = build_report(base_ref=_BASE, apply=False)
+
+        candidate_paths = [d.path for d in report.candidates]
+        kept = {d.path: d.reason for d in report.kept}
+        assert candidate_paths == ["/repo/wt"]
+        assert kept["/repo/active"] == KEEP_MAIN
 
 
 class TestApplyRemovals:
@@ -362,6 +444,32 @@ class TestCli:
             code = main(["--apply"])
         apply_mock.assert_called_once_with(plan)
         assert code == 0
+
+    def test_main_apply_returns_2_when_removal_errors_recorded(self):
+        plan = GcReport(
+            timestamp="t",
+            base_ref=_BASE,
+            apply=True,
+            main_worktree=_MAIN,
+            total_worktrees=1,
+            decisions=[
+                Decision("/repo/wt", "feat/x", remove=True, reason="merged to base"),
+            ],
+        )
+
+        def record_error(report: GcReport) -> None:
+            report.remove_errors.append("/repo/wt: locked by index")
+
+        with (
+            patch("scripts.maintenance.gc_worktrees.build_report", return_value=plan),
+            patch(
+                "scripts.maintenance.gc_worktrees.apply_removals",
+                side_effect=record_error,
+            ),
+        ):
+            code = main(["--apply"])
+
+        assert code == 2
 
     def test_main_returns_2_on_git_error(self, capsys):
         with patch(

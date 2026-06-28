@@ -52,6 +52,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
 _DEFAULT_BASE = "origin/main"
+_GIT_TIMEOUT_SECONDS = 30
 
 # Reasons a worktree is kept (never removed). Stable strings for tests/automation.
 KEEP_MAIN = "main-or-current worktree"
@@ -116,13 +117,19 @@ class GcReport:
 
 def _run_git(args: list[str], cwd: str | None = None) -> str:
     """Run a git command and return stripped stdout. Raises on failure."""
-    result = subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=cwd,
-    )
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            cwd=cwd,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        location = f" in {cwd}" if cwd else ""
+        raise RuntimeError(f"git {' '.join(args)}{location} failed: {exc}") from exc
     if result.returncode != 0:
         location = f" in {cwd}" if cwd else ""
         msg = f"git {' '.join(args)}{location} failed: {result.stderr.strip()}"
@@ -180,9 +187,9 @@ def has_uncommitted_changes(path: str) -> bool:
 def has_unpushed_commits(path: str) -> bool:
     """Return True when the branch has commits not present on any remote.
 
-    ``git log --branches --not --remotes`` lists commits reachable from local
-    branches but from no remote-tracking ref. We scope it to HEAD so the
-    result reflects this worktree's branch, not every local branch.
+    ``git log HEAD --not --remotes`` lists commits reachable from this
+    worktree's HEAD but from no remote-tracking ref. That scopes the result to
+    this worktree's branch, not every local branch.
     """
     out = _run_git(
         ["log", "--format=%H", "HEAD", "--not", "--remotes"],
@@ -197,13 +204,18 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     Uses ``git merge-base --is-ancestor`` (exit 0 = ancestor/merged,
     exit 1 = not). Any other exit is a real git error and propagates.
     """
-    result = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", "HEAD", base_ref],
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=path,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", "HEAD", base_ref],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            cwd=path,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"git merge-base in {path} failed: {exc}") from exc
     if result.returncode == 0:
         return True
     if result.returncode == 1:
@@ -212,13 +224,22 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     raise RuntimeError(msg)
 
 
-def decide(worktree: Worktree, main_path: str, base_ref: str) -> Decision:
+def decide(
+    worktree: Worktree,
+    main_path: str,
+    base_ref: str,
+    *,
+    current_path: str | None = None,
+) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
     Order matters: cheap structural checks first, git-state checks last. A git
     inspection failure keeps the worktree (fail-safe), never removes it.
     """
-    if worktree.path == main_path or worktree.bare:
+    protected_paths = {main_path}
+    if current_path:
+        protected_paths.add(current_path)
+    if worktree.path in protected_paths or worktree.bare:
         reason = KEEP_BARE if worktree.bare else KEEP_MAIN
         return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
@@ -255,6 +276,7 @@ def build_report(base_ref: str, apply: bool) -> GcReport:
     """Inspect all worktrees and build the GC plan (no mutation here)."""
     worktrees = list_worktrees()
     main_path = worktrees[0].path if worktrees else ""
+    current_path = _run_git(["rev-parse", "--show-toplevel"])
     report = GcReport(
         timestamp=datetime.now(UTC).isoformat(),
         base_ref=base_ref,
@@ -262,7 +284,9 @@ def build_report(base_ref: str, apply: bool) -> GcReport:
         main_worktree=main_path,
         total_worktrees=len(worktrees),
     )
-    report.decisions = [decide(wt, main_path, base_ref) for wt in worktrees]
+    report.decisions = [
+        decide(wt, main_path, base_ref, current_path=current_path) for wt in worktrees
+    ]
     return report
 
 
@@ -356,6 +380,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(asdict(report), indent=2))
     else:
         print(format_report(report))
+    if args.apply and report.remove_errors:
+        return 2
     return 0
 
 
