@@ -334,6 +334,8 @@ Repos that want a tighter feedback loop can add a pre-push hook that runs the sk
 - `.claude/rules/canonical-source-mirror.md` (citation policy)
 - Companion validators: `build/scripts/validate_marketplace_counts.py`, `build/scripts/validate_plugin_manifests.py`
 
+<!-- vendor-portability: declared. This skill already degrades gracefully: it states that when a target path such as .agents/ is absent it logs INFO and continues. The .agents/specs/ and .agents/architecture/ defaults are scan targets, not preconditions; a vendored install scans only the paths that exist. Issue #2050. -->
+
 ## Copilot CLI invocation reference
 
 This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
