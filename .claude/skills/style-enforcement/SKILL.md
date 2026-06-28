@@ -11,6 +11,8 @@ metadata:
 
 Validate code files against configured style rules from project configuration files.
 
+<!-- vendor-portability: declared. This skill cites .agents/analysis/moq-analyzers-reviewer-patterns-2026-02-08.md as the source for one reviewer pattern. It is a documentation citation only; check_style.py reads the consumer's .editorconfig, StyleCop.json, and Directory.Build.props at runtime, not the .agents/ file. A vendored install without .agents/ loses the citation link, not the style checks. Issue #2050. -->
+
 ## Triggers
 
 - `check style compliance`
@@ -206,6 +208,12 @@ python3 scripts/check_style.py [options] [files...]
 | 10 | Violations detected |
 
 ---
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|---|---|---|
+| `scripts/check_style.py` | Validate target files against `.editorconfig`, StyleCop.json, and Directory.Build.props rules; supports `--target`, `--git-staged`, explicit file lists, and `--format` (text, json, sarif) with `--output`. | `0` all files compliant; `1` script error (invalid arguments, config parse failure); `10` violations detected. |
 
 ## Integration
 
