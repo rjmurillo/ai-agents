@@ -333,3 +333,5 @@ After using this skill:
 - [confidence-scoring.md](references/confidence-scoring.md) - How confidence is calculated
 - [ADR-007](../../.agents/architecture/ADR-007-memory-first-architecture.md) - Memory-first architecture
 - [ADR-037](../../.agents/architecture/ADR-037-reflexion-schema.md) - Reflexion memory schema (if exists)
+
+<!-- vendor-portability: declared. This skill links .agents/architecture/ADR-007 and ADR-037 as the memory-first and reflexion-schema ADRs. Both are documentation citations; the enhancement logic does not read them, and a vendored install loses only the links. Issue #2050. -->

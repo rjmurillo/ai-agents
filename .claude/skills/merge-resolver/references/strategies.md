@@ -267,3 +267,5 @@ git show REBASE_HEAD:<file> # Version being rebased
 |-----------|-------------------|
 | Session logs | Keep both, different dates |
 | ADRs with same number | Renumber incoming |
+
+<!-- vendor-portability: declared. This doc lists .agents/ artifact patterns (critique debate logs, planning PRDs, sessions/*.json) as sources for resolving ADR-related conflicts. Each is consulted only if present in the consumer repo; a vendored install without them skips those resolution heuristics. Issue #2050. -->
