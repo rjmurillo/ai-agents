@@ -183,14 +183,14 @@ def test_inline_calls_allow_spaces_and_single_quotes(tmp_path: Path) -> None:
 # branch ships clean:
 #   1. The nine lifecycle command-mirrors at .claude/commands/<name>.md mirrored
 #      into src/copilot-cli/skills/<name>/SKILL.md.
-#   2. The three skill-tree mirrors whose SOURCE skills pass SkillForge after
-#      translation: orphan-ref-validator, review, security-detection.
-# The two skill-tree mirrors whose SOURCE skills fail SkillForge independently
-# (cva-analysis, slashcommandcreator: unsafe trigger characters, and an
-# unexpected `trigger` frontmatter key on slashcommandcreator) are out of scope:
-# their translated output is intentionally not committed and is deferred to
-# #2755. Gating them would assert over artifacts this PR does not ship.
-# Refs #2743. Refs #2755.
+#   2. The five skill-tree mirrors whose SOURCE skills pass SkillForge after
+#      translation: cva-analysis, orphan-ref-validator, review,
+#      security-detection, slashcommandcreator.
+# cva-analysis and slashcommandcreator were deferred under #2755 while their
+# source skills carried SkillForge defects. #2762 fixed the sources and #2777
+# removed the staleness deferral, so their translated mirrors are now committed
+# and gated like every other skill-tree mirror.
+# Refs #2743. Refs #2755. Refs #2762. Refs #2777.
 _GATED_COMMAND_MIRRORS = frozenset(
     {
         "spec",
@@ -206,9 +206,11 @@ _GATED_COMMAND_MIRRORS = frozenset(
 )
 _GATED_SKILL_MIRRORS = frozenset(
     {
+        "cva-analysis",
         "orphan-ref-validator",
         "review",
         "security-detection",
+        "slashcommandcreator",
     }
 )
 _GATED_MIRRORS = _GATED_COMMAND_MIRRORS | _GATED_SKILL_MIRRORS
@@ -250,17 +252,21 @@ def test_committed_skills_with_calls_have_appendix() -> None:
 
 
 def test_gated_skill_mirrors_are_committed() -> None:
-    """The three clean skill-tree mirrors this branch ships exist on disk."""
+    """The five clean skill-tree mirrors this branch ships exist on disk."""
     committed = {name for name, _ in _committed_bodies()}
     missing = _GATED_SKILL_MIRRORS - committed
     assert not missing, f"expected committed skill-mirrors absent: {missing}"
 
 
-def test_deferred_skill_mirrors_excluded_from_gate() -> None:
-    """The two #2755-deferred mirrors are not asserted by the committed gate."""
-    deferred = {"cva-analysis", "slashcommandcreator"}
-    assert not (deferred & _GATED_MIRRORS), (
-        "cva-analysis/slashcommandcreator carry pre-existing SkillForge defects "
-        "(#2755); their translated output is not committed, so the gate must "
-        "not assert over them"
+def test_formerly_deferred_skill_mirrors_are_now_gated() -> None:
+    """The #2755-deferred mirrors are gated again after #2762/#2777.
+
+    #2762 fixed the cva-analysis and slashcommandcreator source skills, and
+    #2777 removed the STALENESS_DEFERRALS exemption. Their translated mirrors
+    are now committed, so the committed gate must assert over them.
+    """
+    formerly_deferred = {"cva-analysis", "slashcommandcreator"}
+    assert formerly_deferred <= _GATED_MIRRORS, (
+        "cva-analysis/slashcommandcreator are fixed (#2762) and no longer "
+        "deferred (#2777); their committed translated mirrors must be gated"
     )

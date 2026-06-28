@@ -22,7 +22,13 @@ _GATED_SKILL_TREE_MIRRORS = (
     "slashcommandcreator",
 )
 _TRANSLATED_SKILL_TREE_MIRRORS = frozenset(
-    {"orphan-ref-validator", "review", "security-detection"}
+    {
+        "cva-analysis",
+        "orphan-ref-validator",
+        "review",
+        "security-detection",
+        "slashcommandcreator",
+    }
 )
 _SKILLFORGE_TIMEOUT_SECONDS = 20
 
