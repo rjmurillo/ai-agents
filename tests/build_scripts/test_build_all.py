@@ -433,18 +433,28 @@ def test_run_returns_2_when_check_finds_drift(
     assert rc == 2
 
 
-def test_staleness_deferrals_names_two_broken_mirrors() -> None:
-    """The deferral set covers exactly the two #2755-broken skill-mirrors."""
-    assert build_all.STALENESS_DEFERRALS == (
-        "src/copilot-cli/skills/cva-analysis/SKILL.md",
-        "src/copilot-cli/skills/slashcommandcreator/SKILL.md",
+def test_no_staleness_deferrals_constant() -> None:
+    """The #2755 deferral exemption is removed (#2777).
+
+    The two formerly-deferred mirrors (cva-analysis, slashcommandcreator)
+    are committed and clean since #2762, so the exemption is dead code that
+    would only hide future regen drift. It must not come back.
+    """
+    assert not hasattr(build_all, "STALENESS_DEFERRALS")
+    assert "STALENESS_DEFERRALS" not in Path(build_all.__file__).read_text(
+        encoding="utf-8"
     )
 
 
-def test_run_returns_0_when_only_deferred_mirror_drifts(
+def test_run_returns_2_when_formerly_deferred_mirror_drifts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A deferred mirror's regen drift must not trip the staleness gate (#2755)."""
+    """A cva-analysis mirror drift now trips the staleness gate (#2777).
+
+    Before #2777 this drift was exempted by STALENESS_DEFERRALS and the
+    gate returned 0. With the exemption gone, the formerly-deferred mirror
+    is covered like every other generated output.
+    """
     monkeypatch.setattr(
         build_all,
         "_git_diff_paths",
@@ -465,13 +475,13 @@ def test_run_returns_0_when_only_deferred_mirror_drifts(
     rc = build_all.run(
         repo, platform=None, check=True, clean=False, audit_format="md"
     )
-    assert rc == 0
+    assert rc == 2
 
 
-def test_run_returns_2_when_non_deferred_drifts_alongside_deferred(
+def test_run_returns_2_when_multiple_skill_mirrors_drift(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Deferral excludes only its own paths; other drift still gates (#2755)."""
+    """Every drifted skill-mirror under an owned prefix gates (#2777)."""
     monkeypatch.setattr(
         build_all,
         "_git_diff_paths",
@@ -1231,4 +1241,100 @@ def test_run_without_check_does_not_snapshot_or_restore(
     assert out.is_file(), (
         "non-check run must leave generator output in place "
         "(snapshot/restore must be --check-only)"
+    )
+
+
+# Regression: #2775, --check must cover the Copilot skill-mirror -----------
+#
+# build_all.py --check did not flag a stale src/copilot-cli/skills/** mirror
+# during the #2050 migration. These two tests pin the coverage end to end with
+# the REAL skills generator and REAL git, no _git_diff_paths monkeypatch: a
+# clean committed mirror exits 0, a mirror left stale by a source edit exits 2.
+
+
+def _seed_repo_with_committed_skill_mirror(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Init a git repo, generate the skill mirror, and commit the clean state.
+
+    Returns the committed mirror path (src/copilot-cli/skills/alpha/SKILL.md).
+    Stubs _build_agents because the real agents generator needs a templates
+    tree this fixture does not build.
+    """
+    import subprocess
+
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    # Generate the mirror (non-check) and commit it so the tree is clean.
+    build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+    mirror = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
+    assert mirror.is_file(), "fixture failed to generate the skill mirror"
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed clean mirror"],
+        check=True,
+    )
+    assert _git_porcelain(repo) == "", "fixture left the tree dirty"
+    return mirror
+
+
+def test_run_check_returns_0_when_skill_mirror_is_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2775: a committed-and-current skill mirror passes --check (exit 0)."""
+    repo = tmp_path / "repo"
+    _seed_repo_with_committed_skill_mirror(repo, monkeypatch)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    assert rc == 0, (
+        f"clean skill mirror should pass --check, got {rc}"
+    )
+
+
+def test_run_check_returns_2_when_skill_mirror_is_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2775: a source edit that is not regenerated into the committed mirror
+    makes --check exit 2.
+
+    This is the exact coverage hole #2775 reported: an edited source skill with
+    a stale src/copilot-cli/skills/** mirror used to slip past --check. The real
+    generator rewrites the mirror in-tree; the git diff against the committed
+    (stale) copy is what the gate must catch.
+    """
+    repo = tmp_path / "repo"
+    _seed_repo_with_committed_skill_mirror(repo, monkeypatch)
+
+    # Edit the SOURCE skill without regenerating/committing the mirror.
+    source = repo / ".claude" / "skills" / "alpha" / "SKILL.md"
+    source.write_text("# alpha\n\nNew source content not yet mirrored.\n", encoding="utf-8")
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    assert rc == 2, (
+        f"stale skill mirror should fail --check, got {rc}. "
+        "If this regresses, #2775 is leaking: --check no longer covers "
+        "the src/copilot-cli/skills/** mirror."
+    )
+    # #2440 read-only contract: --check restores owned prefixes (src/). The
+    # only dirty path is the intentional source edit under .claude/, which is
+    # outside OWNED_PREFIXES and not the orchestrator's to revert.
+    porcelain = _git_porcelain(repo)
+    assert porcelain == " M .claude/skills/alpha/SKILL.md\n", (
+        f"--check should restore the src/ mirror and leave only the source "
+        f"edit dirty; got:\n{porcelain}"
     )
