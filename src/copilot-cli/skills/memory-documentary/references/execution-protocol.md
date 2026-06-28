@@ -286,3 +286,5 @@ Save complete report to: `/home/richard/sessions/[topic]-documentary-[date].md`
 - Patterns synthesized across 4+ data sources
 - Timeline showing evolution over weeks/months
 - Specific recommendations with evidence backing
+
+<!-- vendor-portability: declared. This protocol greps .agents/ artifact dirs (retrospective, sessions, analysis, architecture) as documentary sources. In a vendored install without those dirs each grep returns empty for that source row; no step hard-fails on a missing dir. Issue #2050. -->

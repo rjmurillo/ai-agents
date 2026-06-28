@@ -194,3 +194,5 @@ Validator counts 2 categories (H1 headings).
 - [Token Counter README](README-count-tokens.md)
 - [Memory Size Thresholds](/.serena/memories/memory-size-001-decomposition-thresholds.md)
 - [Context Engineering Analysis](/.agents/analysis/context-engineering.md)
+
+<!-- vendor-portability: declared. This README links .agents/analysis/context-engineering.md as background. It is a documentation citation; the test-size script runs without it and a vendored install loses only the link. Issue #2050. -->
