@@ -49,7 +49,7 @@ Create production-ready custom slash commands following ai-agents quality standa
 
 1. Command naming (namespace conventions)
 2. Argument design:
-   - Simple commands: use `the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)`
+   - Simple commands: use `$ARGUMENTS`
    - Complex commands: use `$1`, `$2`, `$3` (positional)
 3. Frontmatter schema:
    - `description` (trigger-based per creator-001)
@@ -237,18 +237,3 @@ python3 .claude/skills/slashcommandcreator/scripts/validate_slash_command.py <sk
 - `.serena/memories/slashcommand-best-practices.md`
 
 <!-- vendor-portability: declared. This skill writes research and analysis notes under .agents/analysis/ and .agents/planning/ and cites .agents/HANDOFF.md and a research doc. The analysis/planning paths are write targets created on demand; the HANDOFF and research references are documentation citations. Issue #2050. -->
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="architect")` | `task` tool, `agent_type: "project-toolkit:architect"` |
-| `Task(subagent_type="critic")` | `task` tool, `agent_type: "project-toolkit:critic"` |
-| `Task(subagent_type="independent-thinker")` | `task` tool, `agent_type: "project-toolkit:independent-thinker"` |
-| `Task(subagent_type="security")` | `task` tool, `agent_type: "project-toolkit:security"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
