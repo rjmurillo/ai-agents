@@ -196,3 +196,5 @@ This line is parsed by `extract_verdict` in
 when `/review` aggregates across all axes.
 
 Refs REQ-008-01, REQ-008-05 (issue #1934), issue #1905 (Stage-1 spec-compliance gate).
+
+<!-- vendor-portability: declared. This axis grounds findings in .agents/specs/ and states inline that vendored installs without that tree read spec content from the PR body or staged diff. It cites .agents/governance/AI-REVIEW-MODEL-POLICY.md, the .agents/schemas/ output schema (documented inline), and the verdict parser at .claude/lib/ai_review_common/verdict.py which ships in the vendor install. Issue #2050. -->
