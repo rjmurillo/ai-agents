@@ -450,3 +450,16 @@ Two helpers are designed in `references/SKILL_SPEC.md` but not yet built. Create
 
 4. **AI Integration**: Automated pattern suggestion
    - Route to decision-critic or independent-thinker for automated review
+
+## Copilot CLI invocation reference
+
+This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
+
+### Sub-agent calls
+
+| Claude Code syntax | Copilot CLI equivalent |
+| --- | --- |
+| `Task(subagent_type="architect")` | `task` tool, `agent_type: "project-toolkit:architect"` |
+| `Task(subagent_type="independent-thinker")` | `task` tool, `agent_type: "project-toolkit:independent-thinker"` |
+
+If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
