@@ -27,6 +27,7 @@ import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from _eval_common import (
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
@@ -181,7 +182,7 @@ class _CoercedRecord:
     outcome: str
 
 
-def _coerce_record(payload: dict[str, object]) -> _CoercedRecord | None:
+def _coerce_record(payload: dict[str, Any]) -> _CoercedRecord | None:
     """Return the typed subset of fields the rollup needs, or None when incomplete.
 
     A record missing any required metering field is treated as un-meterable and
@@ -202,9 +203,9 @@ def _coerce_record(payload: dict[str, object]) -> _CoercedRecord | None:
             model_id=str(payload["model_id"]),
             variant=str(payload["variant"]),
             fixture_id=str(payload["fixture_id"]),
-            latency_ms=float(payload["latency_ms"]),  # type: ignore[arg-type]
-            tokens_in=int(payload["tokens_in"]),  # type: ignore[call-overload]
-            tokens_out=int(payload["tokens_out"]),  # type: ignore[call-overload]
+            latency_ms=float(payload["latency_ms"]),
+            tokens_in=int(payload["tokens_in"]),
+            tokens_out=int(payload["tokens_out"]),
             outcome=str(payload.get("outcome", "unknown")),
         )
     except (TypeError, ValueError):
