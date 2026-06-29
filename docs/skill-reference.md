@@ -138,7 +138,7 @@ Custom lints with agent-readable remediation instructions. Enforces taste invari
 
 ### golden-principles
 
-Scans the repository for golden-principle violations (GP-001 through GP-008 in `.agents/governance/golden-principles.md`) and produces agent-readable remediation guidance.
+Scans the repository for golden-principle violations (GP-001 through GP-008 in `.claude/skills/golden-principles/references/golden-principles.md`) and produces agent-readable remediation guidance.
 
 ## Architecture and Design
 
