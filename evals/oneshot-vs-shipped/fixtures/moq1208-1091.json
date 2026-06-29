@@ -1,0 +1,13 @@
+{
+  "id": "moq1208-1091",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1091,
+  "title": "Moq1208: SetupSequence on a non-overridable member is not flagged when wrapped in a valid suppression",
+  "discourse": "Reported: Moq1208 (SetupSequence should be used only on overridable members) does not fire on a sealed/non-virtual method, so a misuse slips through. Maintainer confirmed the analyzer's member-resolution path only walked virtual/abstract symbols and skipped the sealed-override case, so the broadened detection was needed. Reviewer raised a counterpoint during discussion: the broadened detector must NOT fire when the member is legitimately suppressed via a pragma or an attribute the user added deliberately, because flagging a valid suppression would be a false positive that breaks existing suppressing code. The accepted fix had to both catch the sealed/non-virtual case and preserve the valid-suppression exemption.",
+  "shipped_fix": "Broadened the member check in the SetupSequence analyzer to also report sealed and non-virtual overrides, while adding a guard that skips members carrying an active suppression (pragma warning disable for the diagnostic id, or a SuppressMessage attribute targeting it). Added tests for: (a) sealed override now flagged, (b) non-virtual method now flagged, (c) a member under a valid suppression is NOT flagged.",
+  "edges_named_in_discourse": [
+    "sealed/non-virtual override is now flagged",
+    "a member under a valid suppression must NOT be flagged"
+  ],
+  "difficulty": 4
+}
