@@ -112,6 +112,9 @@ from validate_design_review import (  # noqa: E402, F401
     _VALID_STATUSES,
     validate_design_review_frontmatter,
 )
+from validate_no_orphaned_build_deferrals import (  # noqa: E402, F401
+    validate_no_orphaned_build_deferrals,
+)
 from validate_python_syntax import validate_python_syntax  # noqa: E402, F401
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402, F401
 
@@ -323,6 +326,21 @@ def main(argv: list[str] | None = None) -> int:
         "Build Command Exit Gates",
         state,
         lambda: validate_build_gates(repo_root),
+    )
+
+    # 3.72 Orphaned build_all --check deferrals (Issue #2770). Fails when a
+    # staleness-deferral exemption in build_all.py cites a CLOSED tracking
+    # issue, the orphan signature that hid stale mirrors before #2780. Honor
+    # GH_REPO so the gate can run against a different upstream without code edits;
+    # the validator keeps the canonical default when GH_REPO is unset.
+    deferral_repo = os.environ.get("GH_REPO")
+    run_validation(
+        "Orphaned Build Deferrals",
+        state,
+        lambda: validate_no_orphaned_build_deferrals(
+            repo_root / "build" / "scripts" / "build_all.py",
+            *([deferral_repo] if deferral_repo else []),
+        ),
     )
 
     # 3.75 Spec ID Uniqueness (Issue #2068)
