@@ -32,6 +32,16 @@ SCANNABLE_EXTENSIONS = {
     ".yml", ".yaml", ".md", ".json",
 }
 
+# Path segments whose files are exempt from the file-size rule. These hold
+# append-only generated data (the episode-extraction hook appends a node to
+# .agents/memory/causality/causal-graph.json on every session-log commit). The
+# data has no module boundaries to split on, so a line ceiling is the wrong gate,
+# and JSON cannot carry a `# taste-lint: ignore` suppression comment. A path
+# exemption is the only mechanism. See issue #2785.
+FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
+    (".agents", "memory"),
+)
+
 
 @dataclass
 class Violation:
@@ -200,8 +210,31 @@ def has_suppression(lines: list[str], rule: str) -> bool:
     return False
 
 
+def _is_file_size_exempt(filepath: str) -> bool:
+    """True when filepath lives under a generated-data dir exempt from file-size.
+
+    The exempt segment must anchor at the START of the repository-relative path,
+    not match anywhere in it. Otherwise a checkout whose parent directories happen
+    to contain ``.agents/memory`` (for example a clone under
+    ``/home/me/.agents/memory/repo``) would leak the exemption to unrelated files.
+    Absolute paths are first made relative to the current working directory (the
+    linter runs from the repo root); a path outside the repo is never exempt.
+    """
+    path = Path(filepath).expanduser()
+    if path.is_absolute():
+        try:
+            parts = path.resolve().relative_to(Path.cwd().resolve()).parts
+        except ValueError:
+            return False
+    else:
+        parts = path.parts
+    return any(parts[: len(segment)] == segment for segment in FILE_SIZE_EXEMPT_SEGMENTS)
+
+
 def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
     """Check file line count against thresholds."""
+    if _is_file_size_exempt(filepath):
+        return []
     if has_suppression(lines, "file-size"):
         return []
     line_count = len(lines)

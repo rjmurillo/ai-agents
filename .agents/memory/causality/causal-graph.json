@@ -6752,7 +6752,8 @@
       "type": "milestone",
       "label": "milestone: Fix",
       "episodes": [
-        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot",
+        "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient"
       ],
       "created": "2026-06-18T13:39:45.535620+00:00"
     },
@@ -8015,6 +8016,177 @@
         "episode-2026-06-27-session-2600"
       ],
       "created": "2026-06-27T20:33:49.651961+00:00"
+    },
+    {
+      "id": "63bf9278d2d1",
+      "type": "milestone",
+      "label": "milestone: Reproduce",
+      "episodes": [
+        "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient"
+      ],
+      "created": "2026-06-29T14:03:09.227662+00:00"
+    },
+    {
+      "id": "c0afbeeffc13",
+      "type": "milestone",
+      "label": "milestone: Verify fix",
+      "episodes": [
+        "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient"
+      ],
+      "created": "2026-06-29T14:03:09.227722+00:00"
+    },
+    {
+      "id": "5f15f73f1a65",
+      "type": "milestone",
+      "label": "milestone: Scope #2756",
+      "episodes": [
+        "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient"
+      ],
+      "created": "2026-06-29T14:03:09.227752+00:00"
+    },
+    {
+      "id": "1cb92da335b0",
+      "type": "commit",
+      "label": "commit: Commit: 533fe5d4ac5cc041b014a7a0ef0135c8e371a0c5",
+      "episodes": [
+        "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient"
+      ],
+      "created": "2026-06-29T14:03:09.227781+00:00"
+    },
+    {
+      "id": "47ad9b641a62",
+      "type": "milestone",
+      "label": "milestone: Resolve merge conflict",
+      "episodes": [
+        "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient"
+      ],
+      "created": "2026-06-29T14:03:09.227809+00:00"
+    },
+    {
+      "id": "6951246cc54a",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2759 neutralize ambient LSP guard override env vars in hook tests conftest",
+      "episodes": [
+        "episode-2026-06-27-session-2599-fix-issue-2759-neutralize-ambient"
+      ],
+      "created": "2026-06-29T14:03:09.227838+00:00"
+    },
+    {
+      "id": "003c7723c667",
+      "type": "milestone",
+      "label": "milestone: Recovered ADR-075 form-factor eval methodology from orphan commit 109b15ae3b onto a branch off main; verified the documented harness matches current code (#2426 --include-skill/--skill-path); ran adr-review 6-agent debate (consensus ACCEPT/Disagree-and-Commit, no blocks); applied fixes (fixture count F001-F016, verdict sharpened to name cost as tiebreaker, content-confound and per-fixture-data caveats, ADR-073 frontmatter); carried the real run artifacts 20260619T161735Z-ad60bbe5.",
+      "episodes": [
+        "episode-2026-06-27-session-2599-recover-adr-075-form-factor-eval-methodology"
+      ],
+      "created": "2026-06-29T14:03:09.227900+00:00"
+    },
+    {
+      "id": "741ee3bb7b9a",
+      "type": "commit",
+      "label": "commit: Commit: ef41d35dbd6315baa9da70359bf8c6f83c1134ea",
+      "episodes": [
+        "episode-2026-06-27-session-2599-recover-adr-075-form-factor-eval-methodology"
+      ],
+      "created": "2026-06-29T14:03:09.227930+00:00"
+    },
+    {
+      "id": "efbfb22513cb",
+      "type": "outcome",
+      "label": "Outcome: success - Recover ADR-075 form-factor eval methodology and first verdict for issue 1875",
+      "episodes": [
+        "episode-2026-06-27-session-2599-recover-adr-075-form-factor-eval-methodology"
+      ],
+      "created": "2026-06-29T14:03:09.227958+00:00"
+    },
+    {
+      "id": "21c42b50ae27",
+      "type": "milestone",
+      "label": "milestone: Live gate",
+      "episodes": [
+        "episode-2026-06-27-session-2601-resolve-pr-2768-conflicts"
+      ],
+      "created": "2026-06-29T14:03:09.228399+00:00"
+    },
+    {
+      "id": "1eee7c9c42f6",
+      "type": "milestone",
+      "label": "milestone: Merge main",
+      "episodes": [
+        "episode-2026-06-27-session-2601-resolve-pr-2768-conflicts"
+      ],
+      "created": "2026-06-29T14:03:09.228430+00:00"
+    },
+    {
+      "id": "e3bde5c72a49",
+      "type": "milestone",
+      "label": "milestone: Resolve conflict",
+      "episodes": [
+        "episode-2026-06-27-session-2601-resolve-pr-2768-conflicts"
+      ],
+      "created": "2026-06-29T14:03:09.228458+00:00"
+    },
+    {
+      "id": "432704da0f2c",
+      "type": "milestone",
+      "label": "milestone: Validate",
+      "episodes": [
+        "episode-2026-06-27-session-2601-resolve-pr-2768-conflicts"
+      ],
+      "created": "2026-06-29T14:03:09.228487+00:00"
+    },
+    {
+      "id": "aaac1665cf45",
+      "type": "commit",
+      "label": "commit: Commit: 33da0a725ff1c0e1894a231b8e7e94a7d5e14844",
+      "episodes": [
+        "episode-2026-06-27-session-2601-resolve-pr-2768-conflicts"
+      ],
+      "created": "2026-06-29T14:03:09.228516+00:00"
+    },
+    {
+      "id": "b9dc5022f324",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve PR 2768 conflicts with main while preserving the LSP guard test fix",
+      "episodes": [
+        "episode-2026-06-27-session-2601-resolve-pr-2768-conflicts"
+      ],
+      "created": "2026-06-29T14:03:09.228545+00:00"
+    },
+    {
+      "id": "b14a4b97aec9",
+      "type": "milestone",
+      "label": "milestone: Exempt append-only memory data from file-size lint (#2785)",
+      "episodes": [
+        "episode-2026-06-28-session-2602-fix-issue-2785-taste-lint-file-size"
+      ],
+      "created": "2026-06-29T14:03:09.228604+00:00"
+    },
+    {
+      "id": "1c6196130804",
+      "type": "test",
+      "label": "test: Verification: `uv run pytest tests/skills/taste-lints/` -> 58 passed; full taste-lints suite 68 passed. New _is_file_size_exempt() exempts .agents/memory/** from the file-size taste rule. Ran taste_lints.py against the real .agents/memory/causality/causal-graph.json (8420+ lines): 1 file scanned, no violations (was [ERROR] file-size before). Copilot mirror regenerated via build_all.py. Fixes #2785.",
+      "episodes": [
+        "episode-2026-06-28-session-2602-fix-issue-2785-taste-lint-file-size"
+      ],
+      "created": "2026-06-29T14:03:09.228634+00:00"
+    },
+    {
+      "id": "25d0ef9bdc25",
+      "type": "commit",
+      "label": "commit: Commit: 512a329fc5099f12d2d9ac0d997463c4a8d35df3",
+      "episodes": [
+        "episode-2026-06-28-session-2602-fix-issue-2785-taste-lint-file-size"
+      ],
+      "created": "2026-06-29T14:03:09.228672+00:00"
+    },
+    {
+      "id": "22cc8cbabf39",
+      "type": "outcome",
+      "label": "Outcome: success - fix issue 2785 taste-lint file-size exemption for append-only memory data",
+      "episodes": [
+        "episode-2026-06-28-session-2602-fix-issue-2785-taste-lint-file-size"
+      ],
+      "created": "2026-06-29T14:03:09.228701+00:00"
     }
   ],
   "patterns": [
@@ -8064,7 +8236,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 41,
+      "occurrences": 42,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -8073,7 +8245,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 82,
+      "occurrences": 84,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -8082,7 +8254,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 164,
+      "occurrences": 168,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -8091,7 +8263,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 246,
+      "occurrences": 252,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -8101,7 +8273,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -8109,7 +8281,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -8117,7 +8289,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -8125,7 +8297,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -8133,7 +8305,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -8141,7 +8313,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -8149,7 +8321,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -8157,7 +8329,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -8165,7 +8337,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -8173,7 +8345,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -8181,7 +8353,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -8189,7 +8361,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -8197,7 +8369,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -8205,7 +8377,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -8213,7 +8385,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -8221,7 +8393,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -8229,7 +8401,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -8237,7 +8409,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -8245,7 +8417,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -8253,7 +8425,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -8261,7 +8433,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -8269,7 +8441,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -8277,7 +8449,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -8285,7 +8457,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -8293,7 +8465,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -8301,7 +8473,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -8309,7 +8481,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -8317,7 +8489,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -8325,7 +8497,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -8333,7 +8505,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -8341,7 +8513,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -8349,7 +8521,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -8357,7 +8529,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -8365,7 +8537,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -8373,7 +8545,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -8381,7 +8553,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -8389,7 +8561,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -8397,7 +8569,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -8405,7 +8577,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -8413,7 +8585,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 41,
+      "evidence_count": 42,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
