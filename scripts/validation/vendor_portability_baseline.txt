@@ -24,3 +24,4 @@
 .claude/skills/session/tests/test_session_eligibility.py
 .claude/skills/steering-matcher/get_applicable_steering.py
 .claude/skills/steering-matcher/scripts/get_applicable_steering.py
+.claude/skills/taste-lints/scripts/taste_lints.py
