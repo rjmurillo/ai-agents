@@ -102,6 +102,29 @@ Two automated checks enforce these rules:
 | `validate-generated-agents.yml` | Verify generated files match templates | Must regenerate |
 | `drift-detection.yml` | Check Claude/VS Code consistency | Review and sync |
 
+#### Staleness deferrals (issue #2770)
+
+`build_all.py --check` is a "commit all generator output" gate. SkillForge is a
+"block a broken skill" gate. When a generator mirrors an upstream-broken skill,
+the two deadlock: the clean mirror cannot be committed, so `--check` cannot pass.
+The historical fix was an ad-hoc `STALENESS_DEFERRALS` constant exempting the
+broken mirror. It got orphaned: after the skill was fixed nobody removed the
+exemption, and it hid stale mirrors until caught by hand (#2780).
+
+Sanctioned protocol for a NEW upstream-broken skill you genuinely cannot mirror:
+
+1. Open a tracking issue for the upstream breakage. Keep it OPEN until fixed.
+2. Add a deferral entry in `build_all.py` that cites that OPEN issue as
+   `#<number>` plus a one-line reason.
+3. When the skill is fixed, regenerate the mirror, commit it, remove the
+   deferral, and close the tracking issue.
+
+`scripts/validation/validate_no_orphaned_build_deferrals.py` auto-polices step 3:
+it scans `build_all.py` for any deferral-style exemption, reads each cited issue
+state, and FAILS the gate when a deferral references a CLOSED issue. A closed
+tracking issue is the orphan signature, so you cannot leave a dead exemption
+behind. There are zero deferrals today; the gate passes until someone adds one.
+
 ---
 
 ## Agent Catalog

@@ -17,6 +17,8 @@ metadata:
 
 Generate comprehensive documentary-style reports from your memory systems with full evidence chains.
 
+<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the four memory systems as evidence inputs, and writes the report under .agents/. The .agents/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. Issue #2050. -->
+
 ---
 
 ## Quick Start
@@ -41,9 +43,9 @@ Use this skill when:
 
 - `Search my memories for patterns about...`
 - `What does my history say about...`
-- `Generate a documentary on my [topic]`
+- `Generate a documentary on my topic`
 - `Cross-reference all systems for...`
-- `Evidence-based analysis of my [topic]`
+- `Evidence-based analysis across memory systems`
 
 ---
 
