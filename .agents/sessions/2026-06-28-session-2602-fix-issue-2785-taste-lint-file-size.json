@@ -67,7 +67,7 @@
    "startingCommitNoted": {
     "level": "SHOULD",
     "Complete": true,
-    "Evidence": "ea4b610a82"
+    "Evidence": "b8c152b8e8"
    }
   },
   "sessionEnd": {
@@ -119,6 +119,6 @@
    "evidence": "Verification: `uv run pytest tests/skills/taste-lints/` -> 58 passed; full taste-lints suite 68 passed. New _is_file_size_exempt() exempts .agents/memory/** from the file-size taste rule. Ran taste_lints.py against the real .agents/memory/causality/causal-graph.json (8420+ lines): 1 file scanned, no violations (was [ERROR] file-size before). Copilot mirror regenerated via build_all.py. Fixes #2785."
   }
  ],
- "endingCommit": "",
+ "endingCommit": "512a329fc5099f12d2d9ac0d997463c4a8d35df3",
  "nextSteps": []
 }
