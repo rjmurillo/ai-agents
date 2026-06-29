@@ -10,6 +10,8 @@ license: MIT
 
 Grade each product domain and architectural layer. Track gaps over time.
 
+<!-- vendor-portability: declared. The docs layer of the grader scans the consumer's docs/ and .agents/ for documentation coverage, and the skills layer reads .claude/skills/*/SKILL.md. These are scan targets, not preconditions: a vendored install without .agents/ grades the docs layer on whatever documentation the consumer repo has rather than failing. Issue #2050. -->
+
 ## Triggers
 
 - `grade quality`
@@ -19,6 +21,13 @@ Grade each product domain and architectural layer. Track gaps over time.
 - `domain quality report`
 
 ---
+
+## Process
+
+1. **Detect domains**: `grade_domains.py` auto-detects product domains from the repo layout (or use `--domains` to scope).
+2. **Grade layers**: each domain is scored A-F across six architectural layers (agents, skills, scripts, tests, docs, workflows), with gaps tagged critical, significant, or minor.
+3. **Report**: emit markdown or JSON; with `--output`, the script loads prior JSON to compute per-domain trends (improving, stable, degrading, new).
+4. **Act**: address critical gaps first; rerun to track movement.
 
 ## Quick Start
 
@@ -120,6 +129,13 @@ echo "exit=$?"   # must be 0; exit 2 means no domains detected (report is empty)
 - [ ] `grade_domains.py` exited 0 (non-zero = no domains; the report is not valid)
 - [ ] Each domain has grades for all six layers
 - [ ] Gaps include actionable descriptions
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|---|---|---|
+| `scripts/grade_domains.py` | Grade detected domains across six layers; supports `--domains`, `--format`, `--output`, `--top-n`. | `0` success; `2` no domains detected (report is empty). |
+| `scripts/check_grade_changes.py` | Compare current grades against a degradation threshold and open a GitHub issue when domains degrade or hit critical. | `0` no degradation; `1` script error or degradation detected. |
 
 ## References
 

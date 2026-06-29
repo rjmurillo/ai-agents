@@ -14,6 +14,8 @@ metadata:
 
 # Retrospective
 
+<!-- vendor-portability: declared. This skill reads the consumer's most recent session log under .agents/sessions/ as evidence and writes the retrospective artifact to .agents/retrospective/YYYY-MM-DD-[scope].md (creating the directory on demand). The session-log read is best-effort (the skill notes the source as absent when missing); the retrospective path is a write target. A vendored install without .agents/ gathers from git history alone and creates the output directory. Issue #2050. -->
+
 Turn execution experience into institutional knowledge. This skill orchestrates a fixed
 Phase 0 through Phase 5 workflow that gathers evidence, generates insights, diagnoses root
 causes, decides actions, scores atomicity, and persists learnings. The long-form rubrics
@@ -183,6 +185,14 @@ Before the retrospective is complete, confirm:
   they do not re-implement the workflow.
 
 ---
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|---|---|---|
+| `scripts/run_retrospective.py` | Orchestrate Phase 0 to Phase 5 and write the retrospective artifact. | `0` artifact written; `1` a supplied learning scored below the persistence threshold (still written); `2` usage or configuration error; `3` unexpected external failure. |
+| `scripts/extract_evidence.py` | Gather Phase 0 evidence (session log, git history) for the scope. | `0` evidence gathered (sources may be marked absent); `2` usage or configuration error; `3` unexpected external failure. |
+| `scripts/score_atomicity.py` | Score a candidate learning against the 70% persistence threshold. | `0` at or above threshold; `1` below threshold (refine or reject); `2` usage or configuration error. |
 
 ## References
 
