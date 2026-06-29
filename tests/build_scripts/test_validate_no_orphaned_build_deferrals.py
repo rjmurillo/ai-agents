@@ -52,6 +52,26 @@ def test_find_deferral_blocks_ignores_indented_local_variable() -> None:
     assert mod.find_deferral_blocks(source) == []
 
 
+def test_find_deferral_blocks_matches_staleness_blocklist() -> None:
+    """A STALENESS_* constant with an exemption marker is a deferral registry."""
+    source = (
+        "STALENESS_BLOCKLIST = {\n"
+        "    # broken upstream, see #1234\n"
+        '    "x": "broken",\n'
+        "}\n"
+    )
+    blocks = mod.find_deferral_blocks(source)
+    assert len(blocks) == 1
+    assert blocks[0].name == "STALENESS_BLOCKLIST"
+    assert blocks[0].issues == [1234]
+
+
+def test_find_deferral_blocks_ignores_plain_staleness_threshold() -> None:
+    """A numeric STALENESS threshold has no exemption marker, so it is not a registry."""
+    source = "STALENESS_THRESHOLD_DAYS = 30\n"
+    assert mod.find_deferral_blocks(source) == []
+
+
 def test_block_extent_stops_at_next_top_level_statement() -> None:
     """A multi-line block ends at the next column-0 code line, not mid-literal."""
     source = (
@@ -111,6 +131,22 @@ def test_lookup_issue_state_none_on_subprocess_error() -> None:
 def test_lookup_issue_state_none_on_bad_json() -> None:
     state = mod.lookup_issue_state(
         7, "owner/repo", runner=_fake_runner("not json")
+    )
+    assert state is None
+
+
+def test_lookup_issue_state_none_on_explicit_json_null() -> None:
+    """An explicit JSON null state resolves to None, not a crash."""
+    state = mod.lookup_issue_state(
+        7, "owner/repo", runner=_fake_runner('{"state": null}')
+    )
+    assert state is None
+
+
+def test_lookup_issue_state_none_on_non_dict_json() -> None:
+    """A non-object JSON payload (e.g. a bare number) yields None, never raises."""
+    state = mod.lookup_issue_state(
+        7, "owner/repo", runner=_fake_runner("123")
     )
     assert state is None
 
@@ -221,6 +257,28 @@ def test_validate_missing_build_all_raises(tmp_path: Path) -> None:
         mod.validate_no_orphaned_build_deferrals(
             tmp_path / "nope.py", "owner/repo", lookup=lambda issue, repo: "OPEN"
         )
+
+
+def test_validate_relative_traversal_path_rejected() -> None:
+    """A relative build_all path that escapes the repo root is rejected (CWE-22).
+
+    The lookup stub raises if reached, proving the traversal is refused before any
+    gh call: the path check fails closed at the boundary, not over the network.
+    """
+
+    def fail_if_called(issue: int, repo: str) -> str | None:
+        raise AssertionError("lookup must not run for a rejected traversal path")
+
+    with pytest.raises(ValueError, match="escapes repo root"):
+        mod.validate_no_orphaned_build_deferrals(
+            Path("../../etc/passwd"), "owner/repo", lookup=fail_if_called
+        )
+
+
+def test_resolve_within_repo_anchors_relative_to_repo_root() -> None:
+    """A safe relative path resolves under the repo root, not the cwd."""
+    resolved = mod._resolve_within_repo(Path("build/scripts/build_all.py"))
+    assert resolved == mod._REPO_ROOT / "build" / "scripts" / "build_all.py"
 
 
 # --- CLI -------------------------------------------------------------------

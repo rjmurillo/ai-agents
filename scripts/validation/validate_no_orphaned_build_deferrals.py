@@ -76,10 +76,23 @@ _BUILD_ALL = _REPO_ROOT / "build" / "scripts" / "build_all.py"
 # is the shape of the historical ``STALENESS_DEFERRALS`` workaround and any
 # re-invention of it. Anchored at column 0 (MULTILINE ^) so a local variable
 # inside a function does not trip the scan.
+#
+# A name qualifies when it is an ALLCAPS constant that EITHER:
+#   * ends in DEFERRAL(S) or EXEMPTION(S) (the canonical exemption suffixes), OR
+#   * carries a STALENESS_* segment paired with an exemption marker
+#     (SKIP / ALLOWLIST / BLOCKLIST / DENYLIST / EXCLUDE / IGNORE / BYPASS), in
+#     either order.
+# A plain numeric threshold such as STALENESS_THRESHOLD_DAYS has no exemption
+# marker, so it does not match and is not mistaken for a deferral registry.
+_EXEMPTION_MARKER = r"SKIP|ALLOWLIST|BLOCKLIST|DENYLIST|EXCLUDE|IGNORE|BYPASS"
 _DEFERRAL_NAME_RE = re.compile(
-    r"^(?P<name>[A-Z][A-Z0-9_]*"
-    r"(?:DEFERRAL|DEFERRALS|EXEMPTION|EXEMPTIONS|"
-    r"STALENESS_SKIP|SKIP_STALENESS|STALENESS_ALLOWLIST))"
+    r"^(?P<name>"
+    # Exemption suffix: any prefix then DEFERRAL(S) / EXEMPTION(S) at the end.
+    r"(?:[A-Z][A-Z0-9_]*?(?:DEFERRALS?|EXEMPTIONS?)"
+    # STALENESS adjacent to an exemption marker, in either order, anywhere.
+    rf"|[A-Z0-9_]*STALENESS_(?:{_EXEMPTION_MARKER})[A-Z0-9_]*"
+    rf"|[A-Z0-9_]*(?:{_EXEMPTION_MARKER})_STALENESS[A-Z0-9_]*"
+    r")(?![A-Z0-9_]))"
     r"\s*[:=]",
     re.MULTILINE,
 )
@@ -148,6 +161,8 @@ def lookup_issue_state(
             ["gh", "issue", "view", str(issue), "--repo", repo, "--json", "state"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=_GH_TIMEOUT_S,
         )
@@ -159,6 +174,11 @@ def lookup_issue_state(
         data = json.loads(result.stdout)
     except (json.JSONDecodeError, ValueError):
         return None
+    if not isinstance(data, dict):
+        return None
+    # data.get("state") returns None both when the key is absent and when it is
+    # present with an explicit JSON null; the isinstance guard below collapses
+    # both to None, matching the "keep but warn" contract for unresolved state.
     state = data.get("state")
     if not isinstance(state, str):
         return None
@@ -204,6 +224,24 @@ def evaluate_deferrals(
     return failures, warnings
 
 
+def _resolve_within_repo(build_all_path: Path) -> Path:
+    """Resolve ``build_all_path``, anchoring relatives to the repo root (CWE-22).
+
+    A relative path is the traversal vector: without anchoring it resolves
+    against the current working directory, so ``../../etc/passwd`` could redirect
+    the scan outside the repository. Anchor relatives to ``_REPO_ROOT``, resolve,
+    and reject (ValueError) any that still escape the repo root. Absolute paths
+    are explicit caller intent (the default and the tests pass absolute paths) and
+    are resolved as-given, not containment-checked.
+    """
+    if build_all_path.is_absolute():
+        return build_all_path.resolve()
+    resolved = (_REPO_ROOT / build_all_path).resolve()
+    if not resolved.is_relative_to(_REPO_ROOT):
+        raise ValueError(f"build_all.py path escapes repo root: {build_all_path}")
+    return resolved
+
+
 def validate_no_orphaned_build_deferrals(
     build_all_path: Path = _BUILD_ALL,
     repo: str = "rjmurillo/ai-agents",
@@ -214,8 +252,10 @@ def validate_no_orphaned_build_deferrals(
 
     Importable entry point for pre_pr.py. Prints failures and warnings to
     stderr. Raises FileNotFoundError when build_all.py is missing so the
-    caller can map it to a config-error exit.
+    caller can map it to a config-error exit. Raises ValueError when a relative
+    ``build_all_path`` resolves outside the repo root (CWE-22 path traversal).
     """
+    build_all_path = _resolve_within_repo(build_all_path)
     if not build_all_path.is_file():
         raise FileNotFoundError(f"build_all.py not found: {build_all_path}")
 
