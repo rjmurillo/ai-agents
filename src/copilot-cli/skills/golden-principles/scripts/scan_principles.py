@@ -2,7 +2,7 @@
 """Golden principles scanner with agent-readable remediation instructions.
 
 Checks repository files against mechanically enforced golden principles
-defined in .agents/governance/golden-principles.md.
+defined in references/golden-principles.md (alongside this skill).
 
 Exit codes: 0 = clean, 1 = script error, 10 = violations detected.
 """
