@@ -330,12 +330,16 @@ def main(argv: list[str] | None = None) -> int:
 
     # 3.72 Orphaned build_all --check deferrals (Issue #2770). Fails when a
     # staleness-deferral exemption in build_all.py cites a CLOSED tracking
-    # issue, the orphan signature that hid stale mirrors before #2780.
+    # issue, the orphan signature that hid stale mirrors before #2780. Honor
+    # GH_REPO so the gate can run against a different upstream without code edits;
+    # the validator keeps the canonical default when GH_REPO is unset.
+    deferral_repo = os.environ.get("GH_REPO")
     run_validation(
         "Orphaned Build Deferrals",
         state,
         lambda: validate_no_orphaned_build_deferrals(
-            repo_root / "build" / "scripts" / "build_all.py"
+            repo_root / "build" / "scripts" / "build_all.py",
+            *([deferral_repo] if deferral_repo else []),
         ),
     )
 
