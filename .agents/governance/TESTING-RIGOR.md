@@ -54,6 +54,20 @@ Coverage targets per `AGENTS.md > ## Standards`: 100% security-critical, 80% bus
 
 ---
 
+## Contract Changes: Flip the Stale Tests
+
+When a change alters an observable contract (a return value, an exception type, a signature, an error message), the tests that assert the OLD contract become wrong. They are now part of the change. Find them and flip them in the same diff:
+
+1. Grep the suite for the old behavior: the old value, the old exception type, the old message string.
+2. Update each stale assertion to the new contract, and say in the commit body why the assertion changed.
+3. A green suite that still asserts the old contract is a false pass. It proves the change did not land, not that it is correct.
+
+Never delete a failing test to make the suite green. A test failing on the old contract is information; flip it, do not remove it.
+
+**Why:** Distilled from one-shot-vs-shipped sample #994 (DefaultIfNotSingle). The fix reached PASS, byte-identical to the shipped fix, only after the tests asserting the old contract were read and flipped in the same diff. Skipping that step is the difference between a self-consistent green run and a correct one.
+
+---
+
 ## Why This Matters
 
 Bots and external reviewers (Copilot, CodeRabbit, Gemini) systematically catch the gaps that happy-path-only tests leave behind. Shipping with success-case tests alone wastes review cycles, exposes real defects to merge, and signals that the contributor has not internalized the failure modes of their own code.
