@@ -108,7 +108,7 @@
    },
    "retrospectiveInvoked": {
     "level": "SHOULD",
-    "Complete": true,
+    "Complete": false,
     "Evidence": "N/A continued sweep"
    }
   }
