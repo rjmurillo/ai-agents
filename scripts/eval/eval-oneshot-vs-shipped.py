@@ -33,6 +33,7 @@ from _oneshot_bench_core import (  # noqa: E402
     Fixture,
     FixtureError,
     FixtureResult,
+    JudgeVerdict,
     aggregate,
     build_agent_prompt,
     build_judge_prompt,
@@ -40,6 +41,17 @@ from _oneshot_bench_core import (  # noqa: E402
     parse_judge_response,
     select_hardest,
 )
+
+
+def _api_error_verdict(reason: str) -> JudgeVerdict:
+    """Verdict for a run that never reached the judge (transport failed).
+
+    `judge_failed` stays False: the judge was never asked, so this is an API
+    error, not a judge-parse failure. The grade is NONE because no fix was
+    graded. Conflating the two would double-count one transport error as both
+    `api_errors` and `judge_failures` in the aggregate.
+    """
+    return JudgeVerdict("NONE", (), (), reason, judge_failed=False)
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
@@ -72,7 +84,7 @@ def grade_fixture(
             fixture_id=fixture.id,
             issue_number=fixture.issue_number,
             difficulty=fixture.difficulty,
-            verdict=parse_judge_response(""),
+            verdict=_api_error_verdict(f"agent call failed: {exc}"),
             error=f"agent call failed: {exc}",
         )
     try:
@@ -87,7 +99,7 @@ def grade_fixture(
             fixture_id=fixture.id,
             issue_number=fixture.issue_number,
             difficulty=fixture.difficulty,
-            verdict=parse_judge_response(""),
+            verdict=_api_error_verdict(f"judge call failed: {exc}"),
             agent_fix=agent_fix,
             error=f"judge call failed: {exc}",
         )
@@ -251,7 +263,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(summary_to_json(summary, model=args.model), indent=2))
     else:
         print(summary_to_human(summary, model=args.model))
-    return EXIT_EXTERNAL if summary.api_errors else EXIT_OK
+    # Any harness error (API transport or judge-parse) makes the run
+    # inconclusive, so the exit code must be non-zero or a CI gate keying on it
+    # would read INCONCLUSIVE_HARNESS_ERRORS as a pass.
+    inconclusive = summary.api_errors or summary.judge_failures
+    return EXIT_EXTERNAL if inconclusive else EXIT_OK
 
 
 if __name__ == "__main__":

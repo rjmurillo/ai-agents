@@ -139,6 +139,58 @@ def test_live_run_api_error_exits_external(tmp_path: Path, capsys, monkeypatch):
     assert "API" in capsys.readouterr().out
 
 
+def test_api_error_not_counted_as_judge_failure(tmp_path: Path, capsys, monkeypatch):
+    """One transport error must not inflate both api_errors and judge_failures."""
+    fx = tmp_path / "fx"
+    _write_fixture(fx, "f1.json")
+
+    def _raise(*_a, **_k):
+        raise RuntimeError("api down")
+
+    monkeypatch.setattr(cli, "_call_api", _raise)
+    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    code = cli.main(["--fixtures", str(fx), "--output-format", "json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == cli.EXIT_EXTERNAL
+    assert payload["api_errors"] == 1
+    assert payload["judge_failures"] == 0
+
+
+def test_judge_parse_failure_exits_external(tmp_path: Path, capsys, monkeypatch):
+    """API succeeds but the judge returns garbage: inconclusive, exit non-zero."""
+    fx = tmp_path / "fx"
+    _write_fixture(fx, "f1.json")
+
+    calls = {"n": 0}
+
+    def _fake_call(api_key, messages, **kwargs):
+        calls["n"] += 1
+        # Agent answers; judge returns un-parseable prose.
+        return "a real fix" if calls["n"] % 2 == 1 else "I refuse to grade."
+
+    monkeypatch.setattr(cli, "_call_api", _fake_call)
+    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    code = cli.main(["--fixtures", str(fx), "--output-format", "json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == cli.EXIT_EXTERNAL
+    assert payload["api_errors"] == 0
+    assert payload["judge_failures"] == 1
+    assert payload["verdict"] == "INCONCLUSIVE_HARNESS_ERRORS"
+
+
+def test_load_api_key_failure_exits_external(tmp_path: Path, capsys, monkeypatch):
+    fx = tmp_path / "fx"
+    _write_fixture(fx, "f1.json")
+
+    def _raise():
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
+
+    monkeypatch.setattr(cli, "_load_api_key", _raise)
+    code = cli.main(["--fixtures", str(fx)])
+    assert code == cli.EXIT_EXTERNAL
+    assert "API key" in capsys.readouterr().err
+
+
 def test_live_run_writes_report(tmp_path: Path, monkeypatch):
     fx = tmp_path / "fx"
     _write_fixture(fx, "f1.json")

@@ -287,6 +287,34 @@ def test_to_human_empty_says_no_runs(tmp_path: Path):
     assert "no runs found" in text
 
 
+def _drifting_records() -> list[dict]:
+    # Three tight runs plus one latency-and-cost outlier, so both drift metrics fire.
+    return [
+        _record(fixture_id="A", latency_ms=10.0, tokens_out=10),
+        _record(fixture_id="B", latency_ms=10.0, tokens_out=10, run_index=1),
+        _record(fixture_id="C", latency_ms=10.0, tokens_out=10, run_index=2),
+        _record(fixture_id="D", latency_ms=10000.0, tokens_out=1_000_000, run_index=3),
+    ]
+
+
+def test_to_human_renders_drift_flags(tmp_path: Path):
+    _write_runs(tmp_path, "qa-spike", "R1", _drifting_records())
+    text = rollup_mod.to_human(rollup_mod.rollup(tmp_path, sigma=1.0))
+    assert "Drift flags" in text
+    assert "latency_ms" in text
+    assert "ms >" in text  # latency rendered with ms unit
+    assert "usd >" in text  # cost rendered with usd unit
+
+
+def test_to_json_renders_drift_entries(tmp_path: Path):
+    _write_runs(tmp_path, "qa-spike", "R1", _drifting_records())
+    payload = rollup_mod.to_json(rollup_mod.rollup(tmp_path, sigma=1.0))
+    metrics = {d["metric"] for d in payload["drift"]}
+    assert "latency_ms" in metrics
+    assert "cost" in metrics
+    assert all(d["agent"] == "qa" for d in payload["drift"])
+
+
 # --- CLI --------------------------------------------------------------------
 
 
@@ -298,6 +326,13 @@ def test_main_bad_root_exits_config(tmp_path: Path, capsys):
 
 def test_main_negative_sigma_exits_config(tmp_path: Path, capsys):
     code = rollup_mod.main(["--root", str(tmp_path), "--sigma", "-2"])
+    assert code == rollup_mod.EXIT_CONFIG
+    assert "sigma" in capsys.readouterr().err
+
+
+def test_main_nan_sigma_exits_config(tmp_path: Path, capsys):
+    # float('nan') < 0 is False, so the NaN guard is the only thing rejecting it.
+    code = rollup_mod.main(["--root", str(tmp_path), "--sigma", "nan"])
     assert code == rollup_mod.EXIT_CONFIG
     assert "sigma" in capsys.readouterr().err
 
