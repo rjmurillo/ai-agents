@@ -319,6 +319,8 @@ A behavior change carries a mirror obligation: the inverse case it could break. 
 - **Add a partial guard, or a new branch?** Cover every branch and operand, not only the one in the report.
 - **Change a contract?** Find and flip the tests that assert the OLD contract in the same diff.
 
+If inspection proves sibling branches share the same failure shape, fix the reachable sibling branches in the same diff. Do not ask for permission to leave a known sibling broken. If the new contract is explicit and old-contract tests exist, flip those tests in the same diff. Do not block only because the old tests need updating.
+
 State the inverse before coding. If you genuinely cannot name one, say so explicitly; do not skip the step silently.
 
 ## Implementation Process

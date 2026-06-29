@@ -18,7 +18,7 @@
       "id": "e002",
       "timestamp": "2026-06-29T00:00:00+00:00",
       "type": "test",
-      "content": "Implemented mirror-obligation cognition (epic #2789): implementer pre-code inverse step (#2790), TESTING-RIGOR flip-stale-tests clause (#2791), critic drift checks (#2792). Verification: uv run pytest tests/build_scripts/ -> 741 passed; detect_agent_drift rc=0 (mirrors agree); build_all --check rc=0; pre_pr --quick all validations passed; 0 em/en dashes. Distilled from graded samples #1091, #1010, #994.",
+      "content": "Implemented mirror-obligation cognition (epic #2789): implementer pre-code inverse step (#2790), TESTING-RIGOR flip-stale-tests clause (#2791), critic drift checks (#2792). Verification: uv run pytest tests/build_scripts/ -> 741 passed; detect_agent_drift rc=0 (mirrors agree); build_all --check rc=0; pre_pr --quick all validations passed; 0 em/en dashes.",
       "caused_by": [],
       "leads_to": []
     },
@@ -26,7 +26,23 @@
       "id": "e003",
       "timestamp": "2026-06-29T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 6c1adc9cc78e1c4dcd8eceb29e58489da5ba6003",
+      "content": "Commit: 1347a02e9aae10a782558369f1b8023ccfc7fb9f",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Added ADR-077 and focused ADR-057 scenarios. ADR review consensus: 6 ACCEPT, 0 BLOCK. Implementer eval gate PASS; critic eval gate PASS.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR-077 and ADR-057 evidence for PR #2793",
       "caused_by": [],
       "leads_to": []
     }
@@ -36,8 +52,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 10
+    "commits": 6,
+    "files_changed": 19
   },
   "lessons": []
 }
