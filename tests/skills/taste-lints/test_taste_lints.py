@@ -104,6 +104,15 @@ class TestCheckFileSize:
         assert len(result) == 1
         assert result[0].severity == "error"
 
+    def test_absolute_path_with_dotdot_escape_not_exempt(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        target = repo / ".agents" / "memory" / ".." / ".." / "src" / "big.py"
+        lines = ["line\n"] * 600
+        with patch.object(mod.Path, "cwd", return_value=repo):
+            result = check_file_size(str(target), lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
     def test_non_memory_large_file_still_fails(self) -> None:
         # A look-alike path that is not under .agents/memory must still fail.
         lines = ["line\n"] * 600

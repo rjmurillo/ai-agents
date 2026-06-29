@@ -220,10 +220,10 @@ def _is_file_size_exempt(filepath: str) -> bool:
     Absolute paths are first made relative to the current working directory (the
     linter runs from the repo root); a path outside the repo is never exempt.
     """
-    path = Path(filepath)
+    path = Path(filepath).expanduser()
     if path.is_absolute():
         try:
-            parts = path.relative_to(Path.cwd()).parts
+            parts = path.resolve().relative_to(Path.cwd().resolve()).parts
         except ValueError:
             return False
     else:
