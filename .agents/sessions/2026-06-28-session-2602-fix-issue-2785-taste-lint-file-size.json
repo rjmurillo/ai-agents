@@ -94,7 +94,7 @@
    "changesCommitted": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "2 atomic commits (2+1 files)"
+    "Evidence": "7 commits on branch, 9 changed files"
    },
    "validationPassed": {
     "level": "MUST",
