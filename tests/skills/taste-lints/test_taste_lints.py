@@ -79,17 +79,42 @@ class TestCheckFileSize:
         )
         assert result == []
 
-    def test_memory_data_file_exempt_with_absolute_path(self) -> None:
+    def test_memory_data_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
+        # An absolute path that resolves under the repo root (cwd) is exempt.
+        target = tmp_path / ".agents" / "memory" / "episodes" / "episode-1.json"
         lines = ["{}\n"] * 9000
-        result = check_file_size(
-            "/home/user/repo/.agents/memory/episodes/episode-1.json", lines
-        )
+        with patch.object(mod.Path, "cwd", return_value=tmp_path):
+            result = check_file_size(str(target), lines)
         assert result == []
+
+    def test_memory_segment_in_parent_dir_not_exempt(self, tmp_path: Path) -> None:
+        # Security regression (gemini, PR #2786): a checkout whose PARENT dirs
+        # contain .agents/memory must not leak the exemption to repo files.
+        repo = tmp_path / ".agents" / "memory" / "repo"
+        target = repo / "src" / "big_module.py"  # repo-relative is src/big_module.py
+        lines = ["line\n"] * 600
+        with patch.object(mod.Path, "cwd", return_value=repo):
+            result = check_file_size(str(target), lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
+    def test_absolute_path_outside_repo_not_exempt(self, tmp_path: Path) -> None:
+        lines = ["{}\n"] * 9000
+        result = check_file_size("/elsewhere/.agents/memory/data.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
 
     def test_non_memory_large_file_still_fails(self) -> None:
         # A look-alike path that is not under .agents/memory must still fail.
         lines = ["line\n"] * 600
         result = check_file_size(".agents/memoryish/data.json", lines)
+        assert len(result) == 1
+        assert result[0].severity == "error"
+
+    def test_memory_segment_mid_relative_path_not_exempt(self) -> None:
+        # .agents/memory not anchored at the start of the relative path: not exempt.
+        lines = ["line\n"] * 600
+        result = check_file_size("src/.agents/memory/x.json", lines)
         assert len(result) == 1
         assert result[0].severity == "error"
 

@@ -211,13 +211,24 @@ def has_suppression(lines: list[str], rule: str) -> bool:
 
 
 def _is_file_size_exempt(filepath: str) -> bool:
-    """True when filepath lives under a generated-data dir exempt from file-size."""
-    parts = Path(filepath).parts
-    for segment in FILE_SIZE_EXEMPT_SEGMENTS:
-        span = len(segment)
-        if any(parts[i:i + span] == segment for i in range(len(parts) - span + 1)):
-            return True
-    return False
+    """True when filepath lives under a generated-data dir exempt from file-size.
+
+    The exempt segment must anchor at the START of the repository-relative path,
+    not match anywhere in it. Otherwise a checkout whose parent directories happen
+    to contain ``.agents/memory`` (for example a clone under
+    ``/home/me/.agents/memory/repo``) would leak the exemption to unrelated files.
+    Absolute paths are first made relative to the current working directory (the
+    linter runs from the repo root); a path outside the repo is never exempt.
+    """
+    path = Path(filepath)
+    if path.is_absolute():
+        try:
+            parts = path.relative_to(Path.cwd()).parts
+        except ValueError:
+            return False
+    else:
+        parts = path.parts
+    return any(parts[: len(segment)] == segment for segment in FILE_SIZE_EXEMPT_SEGMENTS)
 
 
 def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
