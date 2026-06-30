@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 _EVAL_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _EVAL_DIR.parents[1]
 if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
@@ -60,6 +61,22 @@ EXIT_EXTERNAL = 3
 DEFAULT_MODEL = "claude-sonnet-4-6"
 _AGENT_MAX_TOKENS = 1500
 _JUDGE_MAX_TOKENS = 600
+_DEFAULT_FIXTURES = Path("evals/oneshot-vs-shipped/corpus")
+
+
+def _resolve_repo_child(path: Path, *, arg_name: str, require_dir: bool) -> Path:
+    """Resolve a CLI path under the repository root, rejecting traversal."""
+    candidate = path if path.is_absolute() else _REPO_ROOT / path
+    try:
+        resolved = candidate.expanduser().resolve(strict=False)
+    except OSError as exc:
+        raise ValueError(f"{arg_name} {path} is not a valid path: {exc}") from exc
+    repo_root = _REPO_ROOT.resolve()
+    if not resolved.is_relative_to(repo_root):
+        raise ValueError(f"{arg_name} {path} is outside repository root")
+    if require_dir and not resolved.is_dir():
+        raise ValueError(f"{arg_name} {path} is not a directory")
+    return resolved
 
 
 def grade_fixture(
@@ -193,7 +210,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--fixtures",
         type=Path,
-        default=Path("evals/oneshot-vs-shipped/fixtures"),
+        default=_DEFAULT_FIXTURES,
         help="Directory of fixture JSON files.",
     )
     parser.add_argument(
@@ -227,19 +244,21 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv if argv is not None else sys.argv[1:])
-    if not args.fixtures.is_dir():
-        print(
-            f"error: --fixtures {args.fixtures} is not a directory", file=sys.stderr
+    try:
+        fixtures_dir = _resolve_repo_child(
+            args.fixtures, arg_name="--fixtures", require_dir=True
         )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     try:
-        fixtures = select_hardest(load_fixtures(args.fixtures), args.hardest_n)
+        fixtures = select_hardest(load_fixtures(fixtures_dir), args.hardest_n)
     except FixtureError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
     if not fixtures:
-        print(f"error: no fixtures found under {args.fixtures}", file=sys.stderr)
+        print(f"error: no fixtures found under {fixtures_dir}", file=sys.stderr)
         return EXIT_CONFIG
 
     if args.dry_run:
@@ -250,12 +269,19 @@ def main(argv: list[str] | None = None) -> int:
         api_key = _load_api_key()
     except Exception as exc:  # noqa: BLE001 - surface auth/config as exit 3
         print(f"error: cannot load API key: {exc}", file=sys.stderr)
-        return EXIT_EXTERNAL
+        return EXIT_CONFIG
 
     summary = run_live(fixtures, api_key=api_key, model=args.model)
     if args.report is not None:
-        args.report.parent.mkdir(parents=True, exist_ok=True)
-        args.report.write_text(
+        try:
+            report_path = _resolve_repo_child(
+                args.report, arg_name="--report", require_dir=False
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_CONFIG
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
             json.dumps(summary_to_json(summary, model=args.model), indent=2),
             encoding="utf-8",
         )

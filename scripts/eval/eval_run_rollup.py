@@ -21,6 +21,7 @@ from pathlib import Path
 # The eval helper modules import each other by bare name (`from _eval_common
 # import ...`), so `scripts/eval` must be importable as a flat directory.
 _EVAL_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _EVAL_DIR.parents[1]
 if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
@@ -68,6 +69,21 @@ __all__ = [
 # Exit codes follow the AGENTS.md contract.
 EXIT_OK = 0
 EXIT_CONFIG = 2
+
+
+def _resolve_repo_dir(path: Path, *, arg_name: str) -> Path:
+    """Resolve a CLI directory under the repository root, rejecting traversal."""
+    candidate = path if path.is_absolute() else _REPO_ROOT / path
+    try:
+        resolved = candidate.expanduser().resolve(strict=False)
+    except OSError as exc:
+        raise ValueError(f"{arg_name} {path} is not a valid path: {exc}") from exc
+    repo_root = _REPO_ROOT.resolve()
+    if not resolved.is_relative_to(repo_root):
+        raise ValueError(f"{arg_name} {path} is outside repository root")
+    if not resolved.is_dir():
+        raise ValueError(f"{arg_name} {path} is not a directory")
+    return resolved
 
 
 def to_json(result: RollupResult) -> dict[str, object]:
@@ -208,8 +224,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv if argv is not None else sys.argv[1:])
-    if not args.root.is_dir():
-        print(f"error: --root {args.root} is not a directory", file=sys.stderr)
+    try:
+        root = _resolve_repo_dir(args.root, arg_name="--root")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     if args.sigma < 0 or math.isnan(args.sigma):
         print(
@@ -219,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_CONFIG
 
     result = rollup(
-        args.root, glob=args.glob, sigma=args.sigma, agent_filter=args.agent
+        root, glob=args.glob, sigma=args.sigma, agent_filter=args.agent
     )
     if args.output_format == "json":
         print(json.dumps(to_json(result), indent=2, sort_keys=True))

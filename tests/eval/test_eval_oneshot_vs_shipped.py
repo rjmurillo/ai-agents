@@ -13,6 +13,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
@@ -29,6 +31,13 @@ def _load_cli():
 
 
 cli = _load_cli()
+
+
+@pytest.fixture(autouse=True)
+def _repo_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest):
+    """Keep CLI path-containment tests inside each test's temp repo root."""
+    if request.node.name != "test_seed_fixture_is_valid_and_dry_runs":
+        monkeypatch.setattr(cli, "_REPO_ROOT", tmp_path)
 
 
 def _fixture_dict(**overrides: object) -> dict:
@@ -75,6 +84,14 @@ def test_malformed_fixture_exits_config(tmp_path: Path, capsys):
     (fx / "bad.json").write_text("{not json", encoding="utf-8")
     code = cli.main(["--fixtures", str(fx)])
     assert code == cli.EXIT_CONFIG
+
+
+def test_fixtures_outside_repo_exits_config(tmp_path: Path, capsys):
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir()
+    code = cli.main(["--fixtures", str(outside)])
+    assert code == cli.EXIT_CONFIG
+    assert "outside repository root" in capsys.readouterr().err
 
 
 # --- dry run (zero spend) ----------------------------------------------------
@@ -187,7 +204,7 @@ def test_load_api_key_failure_exits_external(tmp_path: Path, capsys, monkeypatch
 
     monkeypatch.setattr(cli, "_load_api_key", _raise)
     code = cli.main(["--fixtures", str(fx)])
-    assert code == cli.EXIT_EXTERNAL
+    assert code == cli.EXIT_CONFIG
     assert "API key" in capsys.readouterr().err
 
 
@@ -205,12 +222,28 @@ def test_live_run_writes_report(tmp_path: Path, monkeypatch):
     code = cli.main(["--fixtures", str(fx), "--report", str(report)])
     assert code == cli.EXIT_OK
     assert report.exists()
-    assert json.loads(report.read_text())["partial"] == 1
+    assert json.loads(report.read_text(encoding="utf-8"))["partial"] == 1
+
+
+def test_report_outside_repo_exits_config(tmp_path: Path, capsys, monkeypatch):
+    fx = tmp_path / "fx"
+    _write_fixture(fx, "f1.json")
+    outside_report = tmp_path.parent / f"{tmp_path.name}-out" / "run.json"
+
+    monkeypatch.setattr(
+        cli,
+        "_call_api",
+        lambda *a, **k: json.dumps({"grade": "PARTIAL", "reasoning": "x"}),
+    )
+    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    code = cli.main(["--fixtures", str(fx), "--report", str(outside_report)])
+    assert code == cli.EXIT_CONFIG
+    assert "outside repository root" in capsys.readouterr().err
 
 
 def test_seed_fixture_is_valid_and_dry_runs(capsys):
     """The shipped seed corpus must load and dry-run cleanly."""
-    seed_dir = EVAL_DIR.parents[1] / "evals" / "oneshot-vs-shipped" / "fixtures"
+    seed_dir = EVAL_DIR.parents[1] / "evals" / "oneshot-vs-shipped" / "corpus"
     code = cli.main(["--fixtures", str(seed_dir), "--dry-run"])
     out = capsys.readouterr().out
     assert code == cli.EXIT_OK

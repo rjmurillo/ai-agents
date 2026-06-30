@@ -71,7 +71,8 @@ class Fixture:
             )
         try:
             issue_number = int(payload["issue_number"])
-            difficulty = int(payload.get("difficulty", 3))
+            raw_difficulty = payload.get("difficulty")
+            difficulty = 3 if raw_difficulty is None else int(raw_difficulty)
         except (TypeError, ValueError) as exc:
             raise FixtureError(
                 f"{source}: issue_number and difficulty must be integers"
@@ -80,7 +81,9 @@ class Fixture:
             raise FixtureError(
                 f"{source}: difficulty must be in 1..5, got {difficulty}"
             )
-        edges_raw = payload.get("edges_named_in_discourse", []) or []
+        edges_raw = payload.get("edges_named_in_discourse")
+        if edges_raw is None:
+            edges_raw = []
         if not isinstance(edges_raw, list):
             raise FixtureError(
                 f"{source}: edges_named_in_discourse must be a list"
@@ -205,7 +208,8 @@ def parse_judge_response(raw: str) -> JudgeVerdict:
         return JudgeVerdict("NONE", (), (), f"judge JSON parse error: {text[:160]}", True)
     if not isinstance(payload, dict):
         return JudgeVerdict("NONE", (), (), "judge JSON not an object", True)
-    grade = str(payload.get("grade", "")).strip().upper()
+    raw_grade = payload.get("grade")
+    grade = str(raw_grade).strip().upper() if raw_grade is not None else ""
     if grade not in GRADES:
         return JudgeVerdict(
             "NONE", (), (), f"judge returned unknown grade {grade!r}", True
@@ -284,18 +288,23 @@ def aggregate(
     api_errors = 0
     edges_named = 0
     edges_caught = 0
+    graded_total = 0
     for result in results:
         if result.error is not None:
             api_errors += 1
+            continue
         if result.verdict.judge_failed:
             judge_failures += 1
+            continue
         counts[result.verdict.grade] = counts.get(result.verdict.grade, 0) + 1
+        graded_total += 1
         fixture = by_id.get(result.fixture_id)
         if fixture is not None:
-            edges_named += len(fixture.edges_named_in_discourse)
-            edges_caught += len(result.verdict.edges_caught)
+            named_edges = set(fixture.edges_named_in_discourse)
+            edges_named += len(named_edges)
+            edges_caught += len(named_edges.intersection(result.verdict.edges_caught))
     return BenchmarkSummary(
-        total=len(results),
+        total=graded_total,
         full=counts["FULL"],
         partial=counts["PARTIAL"],
         none=counts["NONE"],

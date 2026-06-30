@@ -22,6 +22,12 @@ import eval_run_rollup as rollup_mod  # noqa: E402
 MODEL = "claude-sonnet-4-6"
 
 
+@pytest.fixture(autouse=True)
+def _repo_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Keep CLI path-containment tests inside each test's temp repo root."""
+    monkeypatch.setattr(rollup_mod, "_REPO_ROOT", tmp_path)
+
+
 def _record(
     *,
     fixture_id: str = "F1",
@@ -131,6 +137,26 @@ def test_iter_tallies_skips_record_with_non_numeric_tokens(tmp_path: Path):
     tallies, skipped = rollup_mod.iter_tallies(path, tmp_path)
     assert tallies == []
     assert skipped == 1
+
+
+def test_iter_tallies_skips_bool_and_non_finite_metering(tmp_path: Path):
+    path = _write_runs(
+        tmp_path,
+        "qa-spike",
+        "R1",
+        [
+            _record(tokens_in=True),
+            _record(tokens_out=True),
+            _record(latency_ms=True),
+            _record(latency_ms=float("nan")),
+            _record(latency_ms=-1),
+            _record(tokens_in=-1),
+            _record(tokens_out=-1),
+        ],
+    )
+    tallies, skipped = rollup_mod.iter_tallies(path, tmp_path)
+    assert tallies == []
+    assert skipped == 7
 
 
 def test_iter_tallies_unpriced_model_keeps_run_with_none_cost(tmp_path: Path):
@@ -322,6 +348,14 @@ def test_main_bad_root_exits_config(tmp_path: Path, capsys):
     code = rollup_mod.main(["--root", str(tmp_path / "missing")])
     assert code == rollup_mod.EXIT_CONFIG
     assert "not a directory" in capsys.readouterr().err
+
+
+def test_main_root_outside_repo_exits_config(tmp_path: Path, capsys):
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir()
+    code = rollup_mod.main(["--root", str(outside)])
+    assert code == rollup_mod.EXIT_CONFIG
+    assert "outside repository root" in capsys.readouterr().err
 
 
 def test_main_negative_sigma_exits_config(tmp_path: Path, capsys):

@@ -29,6 +29,14 @@
       "content": "Commit: 64b1189e08",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Built scripts/eval/_oneshot_bench_core.py + eval-oneshot-vs-shipped.py + seed corpus. Review-thread fixes: explicit null handling, path containment, fixture corpus moved out of evals/**/fixtures, graded-only aggregation, named-edge intersection, and config exit code for missing API key. Verified: focused pytest 79 passed; ruff/mypy clean; --dry-run zero-spend path validated.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -37,7 +45,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 2
+    "files_changed": 11
   },
   "lessons": []
 }

@@ -82,6 +82,17 @@ def test_from_dict_defaults_difficulty_and_edges():
     assert fixture.edges_named_in_discourse == ()
 
 
+def test_from_dict_null_difficulty_defaults():
+    fixture = core.Fixture.from_dict(_fixture_dict(difficulty=None))
+    assert fixture.difficulty == 3
+
+
+@pytest.mark.parametrize("bad_edges", [0, False, ""])
+def test_from_dict_rejects_falsy_non_list_edges(bad_edges: object):
+    with pytest.raises(core.FixtureError, match="edges_named_in_discourse"):
+        core.Fixture.from_dict(_fixture_dict(edges_named_in_discourse=bad_edges))
+
+
 # --- load_fixture / load_fixtures -------------------------------------------
 
 
@@ -203,6 +214,13 @@ def test_parse_unknown_grade_is_failure():
     assert verdict.grade == "NONE"
 
 
+def test_parse_null_grade_is_failure():
+    raw = json.dumps({"grade": None})
+    verdict = core.parse_judge_response(raw)
+    assert verdict.judge_failed is True
+    assert verdict.grade == "NONE"
+
+
 def test_parse_non_list_edges_coerce_to_empty():
     raw = json.dumps({"grade": "NONE", "edges_caught": "edge A"})
     verdict = core.parse_judge_response(raw)
@@ -240,9 +258,21 @@ def test_aggregate_counts_grades_and_edges():
     assert summary.verdict == "SCORED"
 
 
+def test_aggregate_dedupes_and_intersects_caught_edges():
+    fixtures = [core.Fixture.from_dict(_fixture_dict(id="a"))]
+    results = [
+        _result("a", "FULL", caught=["edge A", "edge A", "not named"]),
+    ]
+    summary = core.aggregate(fixtures, results)
+    assert summary.edges_named == 2
+    assert summary.edges_caught == 1
+    assert summary.edge_catch_rate == pytest.approx(0.5)
+
+
 def test_aggregate_judge_failure_makes_inconclusive():
     fixtures = [core.Fixture.from_dict(_fixture_dict(id="a"))]
     summary = core.aggregate(fixtures, [_result("a", "NONE", failed=True)])
+    assert summary.total == 0
     assert summary.judge_failures == 1
     assert summary.verdict == "INCONCLUSIVE_HARNESS_ERRORS"
 
@@ -250,6 +280,7 @@ def test_aggregate_judge_failure_makes_inconclusive():
 def test_aggregate_api_error_makes_inconclusive():
     fixtures = [core.Fixture.from_dict(_fixture_dict(id="a"))]
     summary = core.aggregate(fixtures, [_result("a", "NONE", error="boom")])
+    assert summary.total == 0
     assert summary.api_errors == 1
     assert summary.verdict == "INCONCLUSIVE_HARNESS_ERRORS"
 

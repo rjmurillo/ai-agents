@@ -26,7 +26,9 @@ For each fixture the harness:
 
 ## Fixture schema
 
-One JSON object per file under `fixtures/`:
+One JSON object per file under `corpus/`. This corpus intentionally does not
+live under `evals/**/fixtures/`, which is reserved for the shared
+agent-vs-baseline fixture schema.
 
 | Field | Required | Meaning |
 |-------|----------|---------|

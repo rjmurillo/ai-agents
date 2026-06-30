@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed"
+        "Evidence": "npx markdownlint-cli2 evals/oneshot-vs-shipped/README.md -> 0 errors"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/eval/ -> 332 passed; ruff + mypy clean; pre_pr.py all PASS except pre-existing 'Git Hooks Installed' (dirty .githooks/pre-commit not authored this session)."
+        "Evidence": "uv run pytest tests/eval/test_oneshot_bench_core.py tests/eval/test_eval_oneshot_vs_shipped.py tests/eval/test_eval_run_rollup.py -q -> 79 passed; ruff changed Python clean; mypy changed scripts clean; one-shot dry-run and rollup CLI run passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -125,7 +125,7 @@
     },
     {
       "item": "#2788 one-shot-vs-shipped benchmark",
-      "evidence": "Built scripts/eval/_oneshot_bench_core.py + eval-oneshot-vs-shipped.py + seed fixture. Verified: uv run pytest tests/eval/ -> 332 passed (63 new); ruff + mypy clean; --dry-run zero-spend path validated."
+      "evidence": "Built scripts/eval/_oneshot_bench_core.py + eval-oneshot-vs-shipped.py + seed corpus. Review-thread fixes: explicit null handling, path containment, fixture corpus moved out of evals/**/fixtures, graded-only aggregation, named-edge intersection, and config exit code for missing API key. Verified: focused pytest 79 passed; ruff/mypy clean; --dry-run zero-spend path validated."
     },
     {
       "item": "#2789-2792 mirror-obligation",

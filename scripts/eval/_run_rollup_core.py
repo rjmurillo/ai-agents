@@ -23,6 +23,7 @@ file, or an unpriced model is counted and skipped, never fatal.
 from __future__ import annotations
 
 import json
+import math
 import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -198,18 +199,34 @@ def _coerce_record(payload: dict[str, Any]) -> _CoercedRecord | None:
     )
     if any(payload.get(name) is None for name in required):
         return None
+    if (
+        isinstance(payload["latency_ms"], bool)
+        or isinstance(payload["tokens_in"], bool)
+        or isinstance(payload["tokens_out"], bool)
+    ):
+        return None
     try:
-        return _CoercedRecord(
-            model_id=str(payload["model_id"]),
-            variant=str(payload["variant"]),
-            fixture_id=str(payload["fixture_id"]),
-            latency_ms=float(payload["latency_ms"]),
-            tokens_in=int(payload["tokens_in"]),
-            tokens_out=int(payload["tokens_out"]),
-            outcome=str(payload.get("outcome", "unknown")),
-        )
+        latency_ms = float(payload["latency_ms"])
+        tokens_in = int(payload["tokens_in"])
+        tokens_out = int(payload["tokens_out"])
     except (TypeError, ValueError):
         return None
+    if (
+        not math.isfinite(latency_ms)
+        or latency_ms < 0
+        or tokens_in < 0
+        or tokens_out < 0
+    ):
+        return None
+    return _CoercedRecord(
+        model_id=str(payload["model_id"]),
+        variant=str(payload["variant"]),
+        fixture_id=str(payload["fixture_id"]),
+        latency_ms=latency_ms,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        outcome=str(payload.get("outcome", "unknown")),
+    )
 
 
 def iter_tallies(jsonl_path: Path, root: Path) -> tuple[list[RunTally], int]:
