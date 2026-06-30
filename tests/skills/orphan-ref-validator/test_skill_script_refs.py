@@ -28,6 +28,8 @@ _spec.loader.exec_module(_scan)
 
 extract_skill_script_refs = _scan.extract_skill_script_refs
 _check_skill_script_refs = _scan._check_skill_script_refs
+_check_script_refs = _scan._check_script_refs
+_script_ref_resolves = _scan._script_ref_resolves
 
 
 class TestExtractSkillScriptRefs:
@@ -86,3 +88,43 @@ class TestCheckSkillScriptRefs:
         findings, checked = _check_skill_script_refs(text, "doc.md", tmp_path)
         assert checked == 1
         assert findings == []
+
+
+class TestSkillRelativeResolution:
+    """Issue #2796: skill SKILL.md refs resolve relative to the skill dir too."""
+
+    def test_skill_relative_script_ref_resolves(self, tmp_path):
+        # A SKILL.md citing `scripts/foo.py` means the skill's own scripts/.
+        skill = tmp_path / ".claude" / "skills" / "demo"
+        (skill / "scripts").mkdir(parents=True)
+        (skill / "scripts" / "foo.py").write_text("# real\n")
+        rel = ".claude/skills/demo/SKILL.md"
+        assert _script_ref_resolves("scripts/foo.py", rel, tmp_path) is True
+        text = "Run `scripts/foo.py` to do the thing."
+        findings, checked = _check_script_refs(text, rel, tmp_path)
+        assert checked == 1
+        assert findings == []
+
+    def test_repo_relative_still_resolves(self, tmp_path):
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "bar.py").write_text("# real\n")
+        rel = ".claude/skills/demo/SKILL.md"
+        assert _script_ref_resolves("scripts/bar.py", rel, tmp_path) is True
+
+    def test_non_skill_target_keeps_repo_relative_only(self, tmp_path):
+        # A spec at .agents/specs/X.md does NOT get skill-relative resolution.
+        spec_dir = tmp_path / ".agents" / "specs"
+        (spec_dir / "scripts").mkdir(parents=True)
+        (spec_dir / "scripts" / "baz.py").write_text("# real\n")
+        rel = ".agents/specs/X.md"
+        assert _script_ref_resolves("scripts/baz.py", rel, tmp_path) is False
+
+    def test_truly_missing_still_flagged(self, tmp_path):
+        rel = ".claude/skills/demo/SKILL.md"
+        (tmp_path / ".claude" / "skills" / "demo").mkdir(parents=True)
+        assert _script_ref_resolves("scripts/nope.py", rel, tmp_path) is False
+        text = "See `scripts/nope.py`."
+        findings, checked = _check_script_refs(text, rel, tmp_path)
+        assert checked == 1
+        assert len(findings) == 1
+        assert findings[0].referenced_entity == "scripts/nope.py"

@@ -250,6 +250,27 @@ def _skill_ref_finding(
     )
 
 
+def _script_ref_resolves(script_ref: str, rel: str, repo_root: Path) -> bool:
+    """True when a script reference resolves on disk.
+
+    Tries repo-root-relative first (the historical contract). For a reference
+    inside a skill's ``SKILL.md``, ALSO tries the SKILL.md's own directory,
+    because skill docs cite their bundled scripts skill-relative
+    (``scripts/foo.py`` means the skill's own ``scripts/``). Resolving only
+    repo-relative false-flagged every portable skill-relative ref (issue #2796);
+    rewriting those to absolute paths would regress #2050 vendored portability,
+    so resolve them in place instead. Scoped to SKILL.md targets so non-skill
+    documents keep the original repo-relative-only contract.
+    """
+    if (repo_root / script_ref).exists():
+        return True
+    if Path(rel).name == "SKILL.md":
+        skill_dir = Path(rel).parent
+        if (repo_root / skill_dir / script_ref).exists():
+            return True
+    return False
+
+
 def _check_script_refs(
     text: str, rel: str, repo_root: Path
 ) -> tuple[list[Finding], int]:
@@ -259,7 +280,7 @@ def _check_script_refs(
     refs_checked = 0
     for lineno, script_ref in extract_script_refs(text):
         refs_checked += 1
-        if (repo_root / script_ref).exists():
+        if _script_ref_resolves(script_ref, rel, repo_root):
             continue
         findings.append(
             Finding(
@@ -288,7 +309,7 @@ def _check_skill_script_refs(
     refs_checked = 0
     for lineno, script_ref in extract_skill_script_refs(text):
         refs_checked += 1
-        if (repo_root / script_ref).exists():
+        if _script_ref_resolves(script_ref, rel, repo_root):
             continue
         findings.append(
             Finding(
