@@ -132,7 +132,7 @@ Variations:
 
 - [ ] Each variability differs in at least 2 use cases
 - [ ] Variations are concrete implementations, not abstract
-- [ ] If ZERO variability (all cells identical), abstraction may not be needed
+- [ ] An all-identical ROW is NOT a variability: remove it and hoist it to a constant. Never use an identical-cell row to hide a real second axis. Only if a use case has genuinely ZERO variability across ALL rows may abstraction not be needed
 
 **Failure Handling**: If all variability (no commonality), design may be too broad. Narrow scope or reconsider.
 
@@ -190,7 +190,11 @@ Variations:
 
 3. **Check for multidimensional variability**:
    - If BOTH rows AND columns vary independently → Combination patterns or reconsider scope
-   - Start with dominant axis (more variance), note multidimensional case in Extension Points
+   - When two or more axes vary, give EACH axis its own co-equal first-class abstraction. Do NOT pick a dominant axis and do NOT defer the second axis to Extension Points:
+     - Independent axes (any combination is valid) → one Strategy hierarchy per axis; compose them so both vary at once.
+     - Correlated axes (one abstraction drives the other) → Bridge.
+     - Only some pairs are valid (sparse combinations) → Abstract Factory.
+   - Both axes are first-class NOW. Never relegate a co-equal second axis to Extension Points or to a future reassessment trigger.
 
 4. **Document recommendations**:
    - Which pattern(s) fit?
@@ -250,6 +254,7 @@ Use Abstract Factory pattern with `IPaymentFactory` per method.
 - [ ] Recommended patterns align with matrix structure
 - [ ] Rationale explains WHY patterns fit (cites matrix evidence)
 - [ ] Edge cases addressed (single use case → don't abstract, all variability → reconsider)
+- [ ] Independent/co-equal axes each got their own first-class abstraction, not deferred to Extension Points
 - [ ] ADR stub created with decision rationale
 
 **Failure Handling**: If no patterns fit cleanly, document rationale for concrete implementation. Abstraction may not be warranted yet.
