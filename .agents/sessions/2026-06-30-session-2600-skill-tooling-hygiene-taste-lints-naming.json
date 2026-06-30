@@ -4,7 +4,7 @@
     "number": 2600,
     "date": "2026-06-30",
     "branch": "fix/skill-tooling-hygiene-2794-2795",
-    "startingCommit": "3713ecae13",
+    "startingCommit": "107ec19b0",
     "objective": "Skill tooling hygiene: taste-lints naming fix (#2795), skill-description budget instrument (#2794), orphan-ref-validator skill-relative resolution (#2796)"
   },
   "protocolCompliance": {
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "3713ecae13"
+        "Evidence": "107ec19b0"
       }
     },
     "sessionEnd": {
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "3 commits (0886dfb #2795, f6e3e31 #2794, 3713eca #2796); session log committed in follow-up. Pre-existing dirty retrospective/INDEX.md predates session."
+        "Evidence": "9 branch commits after this metadata correction lands; 12 changed files vs origin/main. Work commits include 0886dfb #2795, f6e3e31 #2794, 3713eca #2796, branch metadata/review commits, 42dcb81 path-containment fix, and 9dc494e main refresh."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".venv pytest taste-lints(64)+budget(20)+orphan-ref(102) all pass; ruff+mypy clean on changed files."
+        "Evidence": ".venv pytest taste-lints(64)+budget(20)+orphan-ref(102) all pass; focused pytest for orphan-ref skill refs and description budget passed 33/33; ruff clean on changed Python files."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -127,6 +127,6 @@
       "evidence": "_script_ref_resolves added; cleared 37/39 script_path FPs. pytest orphan-ref suites -> 102 passed; ruff+mypy(scan.py) clean. Contradiction logged; #2796 commented, kept open for skill_name FP class."
     }
   ],
-  "endingCommit": "3713ecae13",
+  "endingCommit": "9dc494e6d3464db8a6cb340ed3ed4ccd9d997c0f",
   "nextSteps": []
 }
