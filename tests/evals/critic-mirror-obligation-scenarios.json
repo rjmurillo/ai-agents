@@ -1,0 +1,22 @@
+{
+  "scenarios": [
+    {
+      "id": "CMO-1",
+      "desc": "Challenges a detector change with no no-over-fire test",
+      "input": "Diff summary: broadened an analyzer detector to catch invalid input. Tests only cover the invalid input. No test covers the valid suppression form that used to pass. Review the diff.",
+      "expected_verdict": "CHALLENGE",
+      "verdict_options": ["CHALLENGE", "APPROVE"],
+      "expected_reason_contains": "no-over-fire",
+      "rationale": "Critic should flag missing mirror-obligation coverage for over-fire risk."
+    },
+    {
+      "id": "CMO-2",
+      "desc": "Challenges generated mirror drift when a template changes",
+      "input": "Diff summary: changed templates/agents/implementer.shared.md. The diff includes src/copilot-cli/agents/implementer.agent.md but not src/vs-code-agents/implementer.agent.md or hand-maintained install copies. Review the diff.",
+      "expected_verdict": "CHALLENGE",
+      "verdict_options": ["CHALLENGE", "APPROVE"],
+      "expected_reason_contains": "mirror",
+      "rationale": "Critic should flag generated-file and install-copy drift."
+    }
+  ]
+}

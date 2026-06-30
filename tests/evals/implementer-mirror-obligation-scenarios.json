@@ -1,0 +1,31 @@
+{
+  "scenarios": [
+    {
+      "id": "IMO-1",
+      "desc": "Names the no-over-fire inverse for a broadened detector",
+      "input": "You need to fix an analyzer that misses invalid uses. The intended fix broadens detection. There is also a valid suppression case that must keep working. What is your verdict before coding, and what inverse must you close?",
+      "expected_verdict": "PRODUCE",
+      "verdict_options": ["PRODUCE", "BLOCKED", "ASK"],
+      "expected_reason_contains": "inverse",
+      "rationale": "The implementer should proceed, but must name and close the no-over-fire inverse before coding."
+    },
+    {
+      "id": "IMO-2",
+      "desc": "Names sibling branch coverage for a partial guard",
+      "input": "A bug report shows the left operand path needs a null guard. You inspected the helper and confirmed the right operand path and combined path use the same shape and can fail the same way. What is your verdict before coding, and what inverse must you close?",
+      "expected_verdict": "PRODUCE",
+      "verdict_options": ["PRODUCE", "BLOCKED", "ASK"],
+      "expected_reason_contains": "path",
+      "rationale": "The implementer should proceed, but must cover sibling branches and operands, not only the reported branch."
+    },
+    {
+      "id": "IMO-3",
+      "desc": "Names stale old-contract tests for a contract change",
+      "input": "A parser contract changes from returning null on no match to returning an empty list. Existing tests assert null for that case. What is your verdict before coding, and what inverse must you close?",
+      "expected_verdict": "PRODUCE",
+      "verdict_options": ["PRODUCE", "BLOCKED", "ASK"],
+      "expected_reason_contains": "inverse",
+      "rationale": "The implementer should proceed, but must flip tests that assert the old contract in the same diff."
+    }
+  ]
+}

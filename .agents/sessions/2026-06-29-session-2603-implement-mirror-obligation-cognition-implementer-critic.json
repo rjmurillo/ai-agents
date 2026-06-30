@@ -1,0 +1,128 @@
+{
+ "schemaVersion": "1.0",
+ "session": {
+  "number": 2603,
+  "date": "2026-06-29",
+  "branch": "feat/mirror-obligation-2789",
+  "startingCommit": "6c1adc9cc7",
+  "objective": "implement mirror-obligation cognition in implementer critic TESTING-RIGOR per epic 2789"
+ },
+ "protocolCompliance": {
+  "sessionStart": {
+   "serenaActivated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "continued session"
+   },
+   "serenaInstructions": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "read"
+   },
+   "handoffRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "auto-loaded"
+   },
+   "sessionLogCreated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "This file"
+   },
+   "skillScriptsListed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "github/session-init used"
+   },
+   "usageMandatoryRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "AGENTS.md+rules"
+   },
+   "constraintsRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "governance.md, TESTING-RIGOR reviewed"
+   },
+   "memoriesLoaded": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "topical memories loaded"
+   },
+   "branchVerified": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "feat/mirror-obligation-2789"
+   },
+   "notOnMain": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "On feat/mirror-obligation-2789"
+   },
+   "gitStatusVerified": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "clean off origin/main"
+   },
+   "startingCommitNoted": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "6c1adc9cc7"
+   }
+  },
+  "sessionEnd": {
+   "checklistComplete": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "recorded"
+   },
+   "handoffPreserved": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "untouched"
+   },
+   "serenaMemoryUpdated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "PR captures rationale"
+   },
+   "markdownLintRun": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "pre-commit markdown OK"
+   },
+   "changesCommitted": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "sources + mirrors, atomic"
+   },
+   "validationPassed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "detect_agent_drift rc=0; build_all --check rc=0; ADR uniqueness PASS; session JSON PASS; plugin version bump OK; PR description PASS; ADR-057 focused evals PASS"
+   },
+   "tasksUpdated": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "inline"
+   },
+   "retrospectiveInvoked": {
+    "level": "SHOULD",
+    "Complete": false,
+    "Evidence": "N/A feature PR"
+   }
+  }
+ },
+ "workLog": [
+  {
+   "summary": "mirror-obligation cognition (#2789)",
+   "evidence": "Implemented mirror-obligation cognition (epic #2789): implementer pre-code inverse step (#2790), TESTING-RIGOR flip-stale-tests clause (#2791), critic drift checks (#2792). Verification: uv run pytest tests/build_scripts/ -> 741 passed; detect_agent_drift rc=0 (mirrors agree); build_all --check rc=0; pre_pr --quick all validations passed; 0 em/en dashes."
+  },
+  {
+   "summary": "ADR-077 and ADR-057 evidence for PR #2793",
+   "evidence": "Added ADR-077 for stale contract test governance with 6-agent ADR review consensus (6 ACCEPT, 0 BLOCK). Added focused ADR-057 scenarios. Implementer eval: github-models openai/gpt-4o, before 0.0 after 1.0, gate PASS. Critic eval: claude-cli sonnet, before 0.5 after 1.0, gate PASS."
+  }
+ ],
+ "endingCommit": "1347a02e9aae10a782558369f1b8023ccfc7fb9f",
+ "nextSteps": []
+}
