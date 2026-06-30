@@ -307,10 +307,10 @@
       <decision_point phase="4" step="1">
         <condition>Matrix shows multidimensional variability (both rows AND columns vary independently)</condition>
         <options>
-          <option>Option A: Start with dominant axis (commonality vs variability ratio)</option>
-          <option>Option B: Use combination patterns (Strategy + Abstract Factory)</option>
+          <option>Option A: Treat both axes as co-equal first-class abstractions</option>
+          <option>Option B: Use Bridge or Abstract Factory when axes are correlated or sparse</option>
         </options>
-        <default>Option A (simpler). Note multidimensional case in "Extension Points" for future iteration.</default>
+        <default>Option A. Do not defer a co-equal axis to Extension Points.</default>
       </decision_point>
     </decision_points>
 

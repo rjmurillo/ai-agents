@@ -132,7 +132,7 @@ Variations:
 
 - [ ] Each variability differs in at least 2 use cases
 - [ ] Variations are concrete implementations, not abstract
-- [ ] An all-identical ROW is NOT a variability: remove it and hoist it to a constant. Never use an identical-cell row to hide a real second axis. Only if a use case has genuinely ZERO variability across ALL rows may abstraction not be needed
+- [ ] An all-identical ROW is NOT a variability: remove it and hoist it to a constant. Never use an identical-cell row to hide a real second axis. Only if the entire matrix has zero variability across all use cases (all cells identical) may abstraction not be needed
 
 **Failure Handling**: If all variability (no commonality), design may be too broad. Narrow scope or reconsider.
 
