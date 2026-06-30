@@ -59,6 +59,17 @@ Decide the prompt with AskUserQuestion:
 - A) Benchmark a skill: pass that skill's `SKILL.md` path as the prompt. To list
   candidates, search the installed skills dir, not just `.` (skills usually live
   under `~/.claude/skills/` or `~/.copilot/skills/`, not the project root).
+
+  Allowed-root constraint: `model_benchmark.py` reads a prompt file only when it
+  resolves under the repo checkout, the current directory, or a path listed in
+  `MODEL_BENCHMARK_SKILL_ROOTS` (see `resolve_prompt` and `_allowed_prompt_roots`
+  in `scripts/model_benchmark.py`). A `SKILL.md` under `~/.claude/skills/` or
+  `~/.copilot/skills/` is outside the repo and cwd, so the run aborts with exit
+  code 2 ("prompt file must be under an allowed root") and benchmarks nothing.
+  Before running, export the skills dir, for example
+  `export MODEL_BENCHMARK_SKILL_ROOTS=~/.claude/skills` (or `~/.copilot/skills`),
+  or copy the file into and run from an allowed root. A prompt already inside the
+  repo or cwd needs no env var.
 - B) Inline prompt: pass `--prompt "<text>"`.
 - C) A prompt file on disk: pass its path (verify it exists first).
 
@@ -89,6 +100,10 @@ python3 "$BENCH" <prompt-spec> --models <picked> [--judge] --output table
 
 `<prompt-spec>` is `--prompt "<text>"` (B) or a file path (A/C). Stream the
 output; each provider runs the full prompt, so expect 30s-5min.
+
+For an installed-skill path (A) under `~/.claude/skills/` or `~/.copilot/skills/`
+(outside the repo and cwd), export `MODEL_BENCHMARK_SKILL_ROOTS` first (see Step 1
+Option A) or the run aborts with exit code 2 before any provider starts.
 
 ### Step 4: Interpret and optionally save
 
@@ -152,6 +167,9 @@ The skill run is complete when:
 - [ ] Step 1 dry-run ran and its availability block was shown to the user.
 - [ ] If zero providers were authed, the run STOPPED (no benchmark attempted).
 - [ ] The benchmark ran only the user-confirmed providers.
+- [ ] If the prompt was a skill `SKILL.md` outside the repo/cwd,
+      `MODEL_BENCHMARK_SKILL_ROOTS` was set (or the file staged under an allowed
+      root) so the run did not abort with exit code 2.
 - [ ] `--judge` was included only after explicit user opt-in.
 - [ ] Results name the fastest, cheapest, and (if judged) highest-quality model,
       with errors and their remediation surfaced.
