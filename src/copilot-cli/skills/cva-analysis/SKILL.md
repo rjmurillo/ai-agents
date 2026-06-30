@@ -189,7 +189,7 @@ Variations:
    - Example: "Credit Card" column has consistent set of card-specific operations → `CreditCardPaymentFactory`
 
 3. **Check for multidimensional variability**:
-   - If BOTH rows AND columns vary independently → Combination patterns or reconsider scope
+   - If BOTH rows AND columns vary as meaningful axes, classify their relationship before picking the pattern.
    - When two or more axes vary, give EACH axis its own co-equal first-class abstraction. Do NOT pick a dominant axis and do NOT defer the second axis to Extension Points:
      - Independent axes (any combination is valid) → one Strategy hierarchy per axis; compose them so both vary at once.
      - Correlated axes (one abstraction drives the other) → Bridge.

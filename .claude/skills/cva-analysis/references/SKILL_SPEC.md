@@ -305,7 +305,7 @@
         <default>Option A (YAGNI: don't abstract without evidence). Document decision in ADR if choosing Option B.</default>
       </decision_point>
       <decision_point phase="4" step="1">
-        <condition>Matrix shows multidimensional variability (both rows AND columns vary independently)</condition>
+        <condition>Matrix shows multidimensional variability (both rows AND columns vary as meaningful axes)</condition>
         <options>
           <option>Option A: Treat both axes as co-equal first-class abstractions</option>
           <option>Option B: Use Bridge or Abstract Factory when axes are correlated or sparse</option>
