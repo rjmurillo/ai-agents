@@ -241,6 +241,24 @@ def test_report_outside_repo_exits_config(tmp_path: Path, capsys, monkeypatch):
     assert "outside repository root" in capsys.readouterr().err
 
 
+def test_report_write_failure_exits_config(tmp_path: Path, capsys, monkeypatch):
+    fx = tmp_path / "fx"
+    _write_fixture(fx, "f1.json")
+    report_parent = tmp_path / "not-a-dir"
+    report_parent.write_text("occupied", encoding="utf-8")
+    report = report_parent / "run.json"
+
+    monkeypatch.setattr(
+        cli,
+        "_call_api",
+        lambda *a, **k: json.dumps({"grade": "PARTIAL", "reasoning": "x"}),
+    )
+    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    code = cli.main(["--fixtures", str(fx), "--report", str(report)])
+    assert code == cli.EXIT_CONFIG
+    assert "cannot write report" in capsys.readouterr().err
+
+
 def test_seed_fixture_is_valid_and_dry_runs(capsys):
     """The shipped seed corpus must load and dry-run cleanly."""
     seed_dir = EVAL_DIR.parents[1] / "evals" / "oneshot-vs-shipped" / "corpus"

@@ -280,11 +280,15 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_CONFIG
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(
-            json.dumps(summary_to_json(summary, model=args.model), indent=2),
-            encoding="utf-8",
-        )
+        try:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                json.dumps(summary_to_json(summary, model=args.model), indent=2),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            print(f"error: cannot write report {report_path}: {exc}", file=sys.stderr)
+            return EXIT_CONFIG
     if args.output_format == "json":
         print(json.dumps(summary_to_json(summary, model=args.model), indent=2))
     else:
