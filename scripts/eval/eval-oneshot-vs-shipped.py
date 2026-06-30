@@ -11,8 +11,8 @@ Spend boundary: `--dry-run` validates fixtures and prints the call plan with
 ZERO API spend, mirroring the main harness's no-spend path. A live run calls the
 model twice per fixture (agent + judge) and requires `ANTHROPIC_API_KEY`.
 
-Exit codes (AGENTS.md): 0 ok, 2 config (bad path / malformed fixture), 3
-external (API/auth failure during a live run).
+Exit codes (AGENTS.md): 0 ok, 2 config (bad path, malformed fixture, missing
+credentials, report write failure), 3 external (API failure during a live run).
 """
 
 from __future__ import annotations
@@ -267,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         api_key = _load_api_key()
-    except Exception as exc:  # noqa: BLE001 - surface auth/config as exit 3
+    except Exception as exc:  # noqa: BLE001 - surface auth/config as exit 2
         print(f"error: cannot load API key: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
