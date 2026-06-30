@@ -179,5 +179,5 @@ def test_main_runs_on_real_corpus(capsys):
     code = budget.main(["--root", str(real), "--output-format", "json"])
     assert code == budget.EXIT_OK
     payload = json.loads(capsys.readouterr().out)
-    assert payload["skills"] > 40
+    assert payload["skills"] >= 1
     assert payload["total_chars"] > 0

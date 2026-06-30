@@ -112,6 +112,16 @@ def _path_under(repo_root: Path, path: Path) -> str:
         return str(path)
 
 
+def _exists_under_repo(repo_root: Path, path: Path) -> bool:
+    resolved_root = repo_root.expanduser().resolve()
+    resolved_path = path.expanduser().resolve()
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError:
+        return False
+    return resolved_path.exists()
+
+
 _is_known_kebab_word = is_known_kebab_word
 _is_known_single_word_skill = is_known_single_word_skill
 
@@ -262,11 +272,11 @@ def _script_ref_resolves(script_ref: str, rel: str, repo_root: Path) -> bool:
     so resolve them in place instead. Scoped to SKILL.md targets so non-skill
     documents keep the original repo-relative-only contract.
     """
-    if (repo_root / script_ref).exists():
+    if _exists_under_repo(repo_root, repo_root / script_ref):
         return True
     if Path(rel).name == "SKILL.md":
         skill_dir = Path(rel).parent
-        if (repo_root / skill_dir / script_ref).exists():
+        if _exists_under_repo(repo_root, repo_root / skill_dir / script_ref):
             return True
     return False
 

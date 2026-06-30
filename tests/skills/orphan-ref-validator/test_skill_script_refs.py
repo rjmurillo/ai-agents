@@ -128,3 +128,17 @@ class TestSkillRelativeResolution:
         assert checked == 1
         assert len(findings) == 1
         assert findings[0].referenced_entity == "scripts/nope.py"
+
+    def test_skill_relative_symlink_escape_stays_flagged(self, tmp_path):
+        outside = tmp_path.parent / "outside.py"
+        outside.write_text("# outside\n")
+        rel = ".claude/skills/demo/SKILL.md"
+        skill = tmp_path / ".claude" / "skills" / "demo"
+        (skill / "scripts").mkdir(parents=True)
+        (skill / "scripts" / "outside.py").symlink_to(outside)
+        assert _script_ref_resolves("scripts/outside.py", rel, tmp_path) is False
+        text = "See `scripts/outside.py`."
+        findings, checked = _check_script_refs(text, rel, tmp_path)
+        assert checked == 1
+        assert len(findings) == 1
+        assert findings[0].referenced_entity == "scripts/outside.py"
