@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming",
+  "session": "2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming",
+  "timestamp": "2026-06-30T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Skill tooling hygiene: taste-lints naming fix (#2795), skill-description budget instrument (#2794), orphan-ref-validator skill-relative resolution (#2796)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-30T00:00:00+00:00",
+      "type": "test",
+      "content": "_check_python_naming regex ^_?[a-z]... ; canonical+mirror regenerated. uv/.venv pytest tests/skills/taste-lints -> 64 passed; eval helpers no longer trip naming.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-30T00:00:00+00:00",
+      "type": "test",
+      "content": "scripts/skill_description_budget.py + tests. .venv pytest -> 20 passed; ruff+mypy clean; live corpus 77 skills/28665 chars.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-30T00:00:00+00:00",
+      "type": "test",
+      "content": "_script_ref_resolves added; cleared 37/39 script_path FPs. pytest orphan-ref suites -> 102 passed; ruff+mypy(scan.py) clean. Contradiction logged; #2796 commented, kept open for skill_name FP class.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3713ecae13",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2600,
+    "date": "2026-06-30",
+    "branch": "fix/skill-tooling-hygiene-2794-2795",
+    "startingCommit": "3713ecae13",
+    "objective": "Skill tooling hygiene: taste-lints naming fix (#2795), skill-description budget instrument (#2794), orphan-ref-validator skill-relative resolution (#2796)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active this session (initial_instructions read earlier); contradiction memory written via write_memory"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by SessionStart context loader"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skills + agent types listed in session context"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and .claude/rules/*.md auto-loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS via AGENTS.md; rules auto-loaded; ci-scripts.md validator-authority honored for #2796"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md index + Serena topical memories surfaced per turn"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/skill-tooling-hygiene-2794-2795"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/skill-tooling-hygiene-2794-2795"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked; branch off origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "3713ecae13"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart + sessionEnd MUSTs complete with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote decisions/decision-2796-validator-resolution-not-doc-rewrite."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed in code commits (scan.py/scripts/tests only)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "3 commits (0886dfb #2795, f6e3e31 #2794, 3713eca #2796); session log committed in follow-up. Pre-existing dirty retrospective/INDEX.md predates session."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".venv pytest taste-lints(64)+budget(20)+orphan-ref(102) all pass; ruff+mypy clean on changed files."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "item": "#2795 taste-lints naming",
+      "evidence": "_check_python_naming regex ^_?[a-z]... ; canonical+mirror regenerated. uv/.venv pytest tests/skills/taste-lints -> 64 passed; eval helpers no longer trip naming."
+    },
+    {
+      "item": "#2794 description budget instrument",
+      "evidence": "scripts/skill_description_budget.py + tests. .venv pytest -> 20 passed; ruff+mypy clean; live corpus 77 skills/28665 chars."
+    },
+    {
+      "item": "#2796 validator skill-relative resolution",
+      "evidence": "_script_ref_resolves added; cleared 37/39 script_path FPs. pytest orphan-ref suites -> 102 passed; ruff+mypy(scan.py) clean. Contradiction logged; #2796 commented, kept open for skill_name FP class."
+    }
+  ],
+  "endingCommit": "3713ecae13",
+  "nextSteps": []
+}
