@@ -269,7 +269,11 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
 
 
 def _check_python_naming(filepath: str, name: str, suffix: str) -> Violation | None:
-    if name == "__init__" or re.match(r"^[a-z][a-z0-9_]*$", name):
+    # An optional single leading underscore marks a private module (PEP 8,
+    # "internal use"); the rest is snake_case. Without the `_?` the rule
+    # flags every `_private_module.py` in the repo (e.g. scripts/eval/_*).
+    # See issue #2795.
+    if name == "__init__" or re.match(r"^_?[a-z][a-z0-9_]*$", name):
         return None
     path = Path(filepath)
     return Violation(
