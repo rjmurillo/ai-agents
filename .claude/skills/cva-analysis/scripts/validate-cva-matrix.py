@@ -182,15 +182,15 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
     col_var = matrix.calculate_column_variability()
 
     # Thresholds
-    HIGH_VAR = 0.6
-    MEDIUM_VAR = 0.3
+    high_var = 0.6
+    medium_var = 0.3
 
-    if row_var < MEDIUM_VAR and col_var < MEDIUM_VAR:
+    if row_var < medium_var and col_var < medium_var:
         suggestions.append("⚠️  LOW VARIABILITY: Matrix shows minimal variation.")
         suggestions.append("   Consider NOT abstracting (YAGNI). Document rationale in ADR.")
         suggestions.append(f"   Row variability: {row_var:.2f}, Column variability: {col_var:.2f}")
 
-    if row_var >= HIGH_VAR and col_var < MEDIUM_VAR:
+    if row_var >= high_var and col_var < medium_var:
         suggestions.append("✓ PRIMARY PATTERN: Strategy Pattern")
         suggestions.append(
             "  Rationale: High row variability (operations vary across use cases)"
@@ -201,13 +201,13 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
             "implementations."
         )
 
-    if col_var >= HIGH_VAR and row_var < MEDIUM_VAR:
+    if col_var >= high_var and row_var < medium_var:
         suggestions.append("✓ PRIMARY PATTERN: Abstract Factory Pattern")
         suggestions.append("  Rationale: High column variability (coherent product families)")
         suggestions.append(f"  Column variability: {col_var:.2f} (high)")
         suggestions.append("  Each column represents a family of related implementations.")
 
-    if row_var >= HIGH_VAR and col_var >= HIGH_VAR:
+    if row_var >= high_var and col_var >= high_var:
         suggestions.append("✓ COMBINATION PATTERNS: Strategy + Abstract Factory")
         suggestions.append(
             "  Rationale: High variability in BOTH dimensions (multidimensional)"
@@ -217,16 +217,16 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
             f"Column variability: {col_var:.2f} (high)"
         )
         suggestions.append(
-            "  Start with dominant axis, note multidimensional case in "
-            "Extension Points."
+            "  Treat both axes as co-equal first-class abstractions; do not "
+            "defer either axis to Extension Points."
         )
 
-    if row_var >= MEDIUM_VAR and row_var < HIGH_VAR:
+    if row_var >= medium_var and row_var < high_var:
         suggestions.append("⚠️  MEDIUM ROW VARIABILITY: Consider Strategy pattern")
         suggestions.append(f"  Row variability: {row_var:.2f} (medium)")
         suggestions.append("  Evaluate if abstraction overhead is justified.")
 
-    if col_var >= MEDIUM_VAR and col_var < HIGH_VAR:
+    if col_var >= medium_var and col_var < high_var:
         suggestions.append("⚠️  MEDIUM COLUMN VARIABILITY: Consider Abstract Factory pattern")
         suggestions.append(f"  Column variability: {col_var:.2f} (medium)")
         suggestions.append("  Evaluate if family cohesion justifies factory pattern.")
