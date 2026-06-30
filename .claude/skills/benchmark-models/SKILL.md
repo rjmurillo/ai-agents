@@ -60,10 +60,10 @@ Decide the prompt with AskUserQuestion:
   candidates, search the installed skills dir, not just `.` (skills usually live
   under `~/.claude/skills/` or `~/.copilot/skills/`, not the project root).
 
-  Allowed-root constraint: `model_benchmark.py` reads a prompt file only when it
+  Allowed-root constraint: `$BENCH` reads a prompt file only when it
   resolves under the repo checkout, the current directory, or a path listed in
   `MODEL_BENCHMARK_SKILL_ROOTS` (see `resolve_prompt` and `_allowed_prompt_roots`
-  in `scripts/model_benchmark.py`). A `SKILL.md` under `~/.claude/skills/` or
+  in the benchmark script). A `SKILL.md` under `~/.claude/skills/` or
   `~/.copilot/skills/` is outside the repo and cwd, so the run aborts with exit
   code 2 ("prompt file must be under an allowed root") and benchmarks nothing.
   Before running, export the skills dir, for example
