@@ -92,6 +92,23 @@
 
 ---
 
+## Anti-Pattern 6: Stale Contract Tests
+
+**Description**: Tests that assert an old contract (signature, return shape, error message) after the contract changed. They still pass because the old behavior is preserved or the assertions are loose enough to match both shapes. They prove nothing about the new contract surface.
+
+**Detection**:
+- A PR changes a function signature, return type, or error shape
+- No test in the same diff updates assertions for the changed function
+- Loose assertions (truthiness, `is not None`) instead of shape-specific ones
+
+**Correction**:
+- Apply the mirror obligation in `TESTING-RIGOR.md`: grep for tests asserting the old contract and flip them in the same diff
+- Tighten assertions to the new shape, not just truthiness
+
+**Related**: `TESTING-RIGOR.md` Mirror Obligation section
+
+---
+
 ## Coverage Targets by Risk Tier
 
 | Code Category | Target | Rationale |

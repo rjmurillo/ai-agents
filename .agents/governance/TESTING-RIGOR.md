@@ -35,6 +35,29 @@ Apply per function:
 - [ ] every error-emitting branch exercised
 - [ ] every conditional branch exercised
 - [ ] external dependencies mocked
+- [ ] contract changes: grepped for tests asserting the old contract; flipped them in the same diff
+
+---
+
+## Mirror Obligation (Contract Changes)
+
+A **contract change** is any modification to a function signature, return type, error shape, config schema, wire format, or documented behavioral semantic.
+
+When you change a contract, you MUST:
+
+1. **Grep** for existing tests that assert the OLD contract (old signature, return value, error message, schema shape).
+2. **Flip** those tests to assert the NEW contract in the same diff.
+3. **Do not** leave old-contract assertions passing silently. A test that asserts a shape that no longer exists is not a test; it is a false confidence signal.
+
+| Change Type | Grep For |
+|-------------|----------|
+| Function signature | old parameter names, old arity call patterns |
+| Return type/shape | old field names, old type assertions |
+| Error message | old error string literals |
+| Config schema | old key names, old default values |
+| Wire format | old JSON/YAML field names, old status codes |
+
+**Why**: #994 and #985 earned PASS because stale old-contract tests were flipped proactively in the same diff; leaving them passing is what separated PARTIAL from PASS samples.
 
 ---
 

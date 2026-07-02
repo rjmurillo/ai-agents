@@ -20,6 +20,7 @@ Tests under `tests/`, skill `tests/` directories, and `.agents/security/benchmar
 1. **AAA pattern**. SHOULD follow Arrange, Act, Assert structure for readability.
 2. **Descriptive names**. `Describe`, `Context`, `It` (Pester) and test function names SHOULD describe the behavior under test, not the implementation.
 3. **Mock at boundaries**. SHOULD mock external dependencies (HTTP, filesystem, shells); avoid mocking domain logic.
+4. **Mirror obligation on contract changes**. SHOULD grep for tests asserting old contracts (signatures, return types, error shapes) and flip them in the same diff, per `.agents/governance/TESTING-RIGOR.md`.
 
 ## MUST NOT
 
