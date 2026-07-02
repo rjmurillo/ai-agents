@@ -178,6 +178,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Required so bandit findings reach GitHub code scanning via
+      # codeql-action/upload-sarif (Issue #2808).
+      security-events: write
 
     steps:
       - name: Harden Runner
@@ -215,10 +218,16 @@ jobs:
             --ignore-vuln CVE-2026-3219 \
             --ignore-vuln CVE-2026-6357
 
+      # Issue #2808: `|| true` masked both bandit crashes and genuine findings,
+      # turning this security step green regardless. Gate on high severity AND
+      # high confidence so real high-risk findings (and config/crash exits) fail
+      # CI while the pre-existing low/medium backlog stays non-blocking. The
+      # SARIF is still written before a non-zero exit, so the upload steps below
+      # (both if: always()) publish it either way.
       - name: Run Bandit
         run: |
           mkdir -p artifacts
-          bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif || true
+          bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif --severity-level high --confidence-level high
 
       - name: Upload Bandit results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -227,6 +236,16 @@ jobs:
           name: bandit-results
           path: artifacts/bandit-results.sarif
           retention-days: 7
+
+      # Issue #2808: publish bandit findings to code scanning instead of leaving
+      # them in an artifact nobody reads. if: always() so findings surface even
+      # when the bandit step above exits non-zero. SHA matches the pin in
+      # codeql-analysis.yml.
+      - name: Upload Bandit SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4
+        if: always()
+        with:
+          sarif_file: artifacts/bandit-results.sarif
 
   # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.
   # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
