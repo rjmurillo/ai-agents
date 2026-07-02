@@ -69,7 +69,8 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
         result = subprocess.run(
             ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
@@ -89,7 +90,8 @@ def _get_milestone_titles(owner: str, repo: str) -> list[str]:
         result = subprocess.run(
             ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
@@ -191,7 +193,8 @@ def main(argv: list[str] | None = None) -> int:
                     "-X", "PATCH", "-f", "milestone=",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=GH_TIMEOUT_SECONDS,
                 check=False,
             )
@@ -266,7 +269,8 @@ def main(argv: list[str] | None = None) -> int:
                 "--milestone", args.milestone,
             ],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
