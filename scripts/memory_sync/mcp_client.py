@@ -16,6 +16,7 @@ import select
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -206,7 +207,13 @@ class McpClient:
         fd = stdout.fileno()
 
         buf = b""
+        deadline = time.monotonic() + self._timeout
         while True:
+            if time.monotonic() > deadline:
+                raise McpError(
+                    f"Overall read deadline exceeded (>{self._timeout}s); "
+                    "server may be streaming notifications or mismatched ids"
+                )
             header_end = buf.find(b"\r\n\r\n")
             while header_end == -1:
                 buf += self._read_bytes(fd)
@@ -239,20 +246,50 @@ class McpClient:
             return response
 
     def _read_bytes(self, fd: int) -> bytes:
-        """Read available bytes from fd with timeout."""
-        if sys.platform != "win32":
+        """Read available bytes from fd, enforcing a timeout on every platform."""
+        if sys.platform == "win32":
+            chunk = self._read_fd_with_timeout_win32(fd)
+        else:
             ready, _, _ = select.select([fd], [], [], self._timeout)
             if not ready:
                 raise McpError(
                     f"Timeout waiting for response (>{self._timeout}s)"
                 )
-        chunk = os.read(fd, 4096)
+            chunk = os.read(fd, 4096)
         if not chunk:
             stderr_tail = list(self._stderr_lines)[-10:]
             if stderr_tail:
                 _logger.debug("MCP server stderr: %s", "\n".join(stderr_tail))
             raise McpError("MCP server closed stdout unexpectedly")
         return chunk
+
+    def _read_fd_with_timeout_win32(self, fd: int) -> bytes:
+        """Read from ``fd`` with a timeout on Windows.
+
+        ``select`` does not work on pipes on Windows, so a blocking ``os.read``
+        would hang forever on a wedged MCP server. Run the read in a daemon
+        thread and abandon it if it does not return within the timeout; the
+        caller raises and tears down the subprocess.
+        """
+        result: list[bytes] = []
+        error: list[OSError] = []
+
+        def _reader() -> None:
+            try:
+                result.append(os.read(fd, 4096))
+            except OSError as exc:
+                error.append(exc)
+
+        thread = threading.Thread(target=_reader, daemon=True)
+        thread.start()
+        thread.join(self._timeout)
+        if thread.is_alive():
+            raise McpError(
+                f"Timeout waiting for response (>{self._timeout}s)"
+            )
+        if error:
+            raise error[0]
+        return result[0]
 
     @staticmethod
     def _parse_content_length(header: str) -> int:

@@ -171,6 +171,7 @@ class SemgrepScanner:
                 capture_output=True,
                 text=True,
                 cwd=self.repo_root,
+                timeout=300,
                 check=False,
             )
 
@@ -210,6 +211,12 @@ class SemgrepScanner:
 
             return findings
 
+        except subprocess.TimeoutExpired:
+            logger.error(
+                "Semgrep scan timed out after 300s; treating as scan failure, "
+                "not a clean result"
+            )
+            return []
         except (subprocess.SubprocessError, json.JSONDecodeError) as e:
             logger.error("Semgrep scan failed: %s", e)
             return []

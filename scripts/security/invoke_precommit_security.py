@@ -193,6 +193,7 @@ class PreCommitSecurityCheck:
             ["gh", "--version"],
             capture_output=True,
             text=True,
+            timeout=10,
             check=False,
         )
         if gh_check.returncode != 0:
@@ -221,6 +222,7 @@ class PreCommitSecurityCheck:
                 ],
                 capture_output=True,
                 text=True,
+                timeout=30,
                 check=False,
             )
 
@@ -355,8 +357,12 @@ class PreCommitSecurityCheck:
             logger.info("Generated security report: %s", report_path)
 
             # Step 6: Stage the security report
-            if not self.dry_run:
-                self._stage_security_report(report_path)
+            if not self.dry_run and not self._stage_security_report(report_path):
+                logger.error(
+                    "[FAIL] Could not stage the security report; the commit would "
+                    "otherwise pass without the report it requires"
+                )
+                return 1
 
         # Step 7: Verify security report exists
         if not self._verify_security_report(report_path):
@@ -420,6 +426,7 @@ class PreCommitSecurityCheck:
                 ],
                 capture_output=True,
                 text=True,
+                timeout=60,
                 check=False,
             )
 
@@ -437,11 +444,17 @@ class PreCommitSecurityCheck:
                 ],
                 capture_output=True,
                 text=True,
+                timeout=120,
                 check=False,
             )
 
             return install_result.returncode == 0
 
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "[SKIP] PSScriptAnalyzer check/install timed out; treating as unavailable"
+            )
+            return False
         except FileNotFoundError:
             logger.error("[FAIL] PowerShell (pwsh) not found in PATH")
             return False
