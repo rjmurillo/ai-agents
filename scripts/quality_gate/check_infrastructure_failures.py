@@ -177,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         findings = detect_failures(results_dir)
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         print(
             f"::error::Cannot read infrastructure-failure flag file: {exc}",
             file=sys.stderr,

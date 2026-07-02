@@ -250,7 +250,7 @@ def validate_exit_code_docs(
 
     try:
         content = full_path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         # The script exists (is_file passed above) but cannot be read. Returning
         # None here would treat an unreadable blocking hook as "docs present",
         # so flag it instead of silently passing the contract check.

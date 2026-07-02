@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     for file_path in files:
         try:
             content = file_path.read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             # A present-but-unreadable file must not silently pass: a bundled
             # skill hidden behind a read error would otherwise validate clean.
             print(f"  UNREADABLE: {file_path.name} ({exc})")

@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         rows = collect(results_dir)
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"error: cannot read verdict/infra file: {exc}", file=sys.stderr)
         return 3
 

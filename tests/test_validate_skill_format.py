@@ -83,6 +83,14 @@ class TestUnreadableFiles:
         assert rc == 1
         assert "UNREADABLE" in capsys.readouterr().out
 
+    def test_undecodable_file_fails_in_ci(self, tmp_path: Path, capsys) -> None:
+        # Invalid UTF-8 bytes make read_text raise UnicodeDecodeError (a
+        # ValueError, not an OSError); the widened except must still flag it.
+        (tmp_path / "bad.md").write_bytes(b"# Skill \xff\xfe not utf-8")
+        rc = main(["--path", str(tmp_path), "--ci"])
+        assert rc == 1
+        assert "UNREADABLE" in capsys.readouterr().out
+
     def test_unreadable_file_warns_but_passes_local(
         self, tmp_path: Path, capsys
     ) -> None:

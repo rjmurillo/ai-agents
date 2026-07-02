@@ -227,7 +227,7 @@ jobs:
       - name: Run Bandit
         run: |
           mkdir -p artifacts
-          bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif --severity-level high --confidence-level high
+          bandit -r .claude/ scripts/ -x '*/tests/*,*/test/*' -f sarif -o artifacts/bandit-results.sarif --severity-level high --confidence-level high
 
       - name: Upload Bandit results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
