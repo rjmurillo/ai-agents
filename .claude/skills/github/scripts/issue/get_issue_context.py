@@ -46,6 +46,10 @@ from github_core.output import (  # noqa: E402
     write_skill_output,
 )
 
+# Upper bound (seconds) for gh network calls so a hung request cannot stall a
+# hook or CI step. Overridable via GH_TIMEOUT_SECONDS.
+GH_TIMEOUT_SECONDS = int(os.environ.get("GH_TIMEOUT_SECONDS", "30"))
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -67,16 +71,27 @@ def main(argv: list[str] | None = None) -> int:
     fmt = get_output_format(args.output_format)
 
     fields = "number,title,body,state,author,labels,milestone,assignees,createdAt,updatedAt"
-    result = subprocess.run(
-        [
-            "gh", "issue", "view", str(args.issue),
-            "--repo", f"{owner}/{repo}",
-            "--json", fields,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "issue", "view", str(args.issue),
+                "--repo", f"{owner}/{repo}",
+                "--json", fields,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        write_skill_error(
+            f"gh issue view timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_issue_context.py",
+        )
+        raise SystemExit(3) from err
 
     if result.returncode != 0:
         write_skill_error(

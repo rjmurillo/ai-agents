@@ -11,8 +11,11 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
+import types
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1]
@@ -57,3 +60,35 @@ def test_remove_label_passes_timeout(mock_run) -> None:
 def test_remove_label_timeout_returns_false(mock_run) -> None:
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=15)
     assert _labels._remove_label("o", "r", 1, "P1") is False
+
+
+_ctx = _import_script("get_issue_context")
+_milestone = _import_script("set_issue_milestone")
+
+
+@patch("subprocess.run")
+def test_get_issue_context_timeout_exits_3(mock_run) -> None:
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
+    with (
+        patch.object(_ctx, "assert_gh_authenticated", lambda: None),
+        patch.object(
+            _ctx,
+            "resolve_repo_params",
+            lambda o, r: types.SimpleNamespace(owner="o", repo="r"),
+        ),
+        pytest.raises(SystemExit) as exc,
+    ):
+        _ctx.main(["--issue", "1", "--owner", "o", "--repo", "r"])
+    assert exc.value.code == 3
+
+
+@patch("subprocess.run")
+def test_current_milestone_timeout_returns_none(mock_run) -> None:
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
+    assert _milestone._get_current_milestone("o", "r", 1) is None
+
+
+@patch("subprocess.run")
+def test_milestone_titles_timeout_returns_empty(mock_run) -> None:
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
+    assert _milestone._get_milestone_titles("o", "r") == []

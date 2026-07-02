@@ -46,6 +46,9 @@ from github_core.output import (  # noqa: E402
     write_skill_output,
 )
 
+# Upper bound (seconds) for gh network calls; overridable via env.
+GH_TIMEOUT_SECONDS = int(os.environ.get("GH_TIMEOUT_SECONDS", "30"))
+
 
 def _write_github_output(outputs: dict[str, str]) -> None:
     """Write key=value pairs to GITHUB_OUTPUT if available."""
@@ -62,12 +65,16 @@ def _write_github_output(outputs: dict[str, str]) -> None:
 
 def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
     """Get the current milestone title for an issue, or None."""
-    result = subprocess.run(
-        ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
+            capture_output=True,
+            text=True,
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None
     if result.returncode != 0:
         return None
     title = result.stdout.strip()
@@ -78,12 +85,16 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
 
 def _get_milestone_titles(owner: str, repo: str) -> list[str]:
     """Get all milestone titles from the repository."""
-    result = subprocess.run(
-        ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
+            capture_output=True,
+            text=True,
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return []
     if result.returncode != 0:
         return []
     return [t.strip() for t in result.stdout.strip().splitlines() if t.strip()]
@@ -111,7 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _emit(output: dict, fmt: str) -> None:
+def _emit(output: dict[str, object], fmt: str) -> None:
     """Emit the canonical envelope for the milestone result payload."""
     write_skill_output(
         output,
@@ -123,7 +134,7 @@ def _emit(output: dict, fmt: str) -> None:
     )
 
 
-def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict) -> None:
+def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict[str, object]) -> None:
     write_skill_error(
         message,
         code,
@@ -172,16 +183,27 @@ def main(argv: list[str] | None = None) -> int:
             })
             return 0
 
-        result = subprocess.run(
-            [
-                "gh", "api",
-                f"repos/{owner}/{repo}/issues/{args.issue}",
-                "-X", "PATCH", "-f", "milestone=",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "gh", "api",
+                    f"repos/{owner}/{repo}/issues/{args.issue}",
+                    "-X", "PATCH", "-f", "milestone=",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=GH_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as err:
+            _emit_error(
+                f"Clear milestone timed out after {GH_TIMEOUT_SECONDS}s",
+                3,
+                fmt,
+                "ApiError",
+                output | {"action": "failed"},
+            )
+            raise SystemExit(3) from err
         if result.returncode != 0:
             _emit_error(
                 "Failed to clear milestone",
@@ -236,16 +258,27 @@ def main(argv: list[str] | None = None) -> int:
         )
         raise SystemExit(5)
 
-    result = subprocess.run(
-        [
-            "gh", "issue", "edit", str(args.issue),
-            "--repo", f"{owner}/{repo}",
-            "--milestone", args.milestone,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "issue", "edit", str(args.issue),
+                "--repo", f"{owner}/{repo}",
+                "--milestone", args.milestone,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        _emit_error(
+            f"Set milestone timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            fmt,
+            "ApiError",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(3) from err
     if result.returncode != 0:
         _emit_error(
             "Failed to set milestone",
