@@ -164,7 +164,23 @@ def get_staged_files() -> list[str]:
             check=True,
         )
         return [f for f in result.stdout.strip().split("\n") if f]
-    except subprocess.CalledProcessError:
+    except FileNotFoundError:
+        # git binary missing on PATH: distinct from a non-zero git exit. Emit a
+        # clear diagnostic and return [] so _collect_files_to_scan fails closed
+        # (prints "No files to scan" and exits EXIT_ERROR), never fail-open.
+        print(
+            "ERROR: git executable not found on PATH; cannot enumerate staged files.",
+            file=sys.stderr,
+        )
+        return []
+    except subprocess.CalledProcessError as exc:
+        # git ran but returned non-zero. Report the failure explicitly; return []
+        # so the caller reports no files and exits with error (fail-closed).
+        print(
+            f"ERROR: git staged-file enumeration failed ({exc}); "
+            "scan will report no files and exit with error.",
+            file=sys.stderr,
+        )
         return []
 
 
