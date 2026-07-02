@@ -1,10 +1,16 @@
 """Plugin-mode guards for hook scripts."""
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 from typing import Literal
+
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # pragma: no cover - 3.10 fallback path
+    tomllib = None  # type: ignore[assignment]
 
 from scripts.hook_utilities.utilities import get_project_directory
 
@@ -90,6 +96,58 @@ def is_project_repo() -> bool:
     return _project_repo_identity() == "project"
 
 
+def _project_repo_corroborated(project_root: str) -> bool:
+    """Second cheap signal that ``project_root`` is the ai-agents project repo.
+
+    Used only when the git origin remote is unavailable (identity "unknown").
+    Reads ``pyproject.toml``'s ``[project].name``: the ai-agents project repo
+    declares ``name = "ai-agents"`` (verified in the repo-root pyproject.toml),
+    while a consumer repo that vendors the plugin declares its own name, so this
+    stays False there. A missing file, unavailable tomllib (Python 3.10), or a
+    parse error yields False so the caller still fails open outside the project.
+    """
+    if tomllib is None:
+        return False
+    pyproject = os.path.join(project_root, "pyproject.toml")
+    try:
+        with open(pyproject, "rb") as handle:
+            data = tomllib.load(handle)
+    except (OSError, ValueError):
+        return False
+    project = data.get("project")
+    if not isinstance(project, dict):
+        return False
+    name = project.get("name")
+    return isinstance(name, str) and name.strip().lower() == _PROJECT_REPO_NAME
+
+
+def _emit_skip_event(hook_name: str, reason: str, detail: str) -> None:
+    """Emit a structured ``EVENT=...`` line when an unknown-identity checkout
+    skips every internal guard, so a silent whole-surface fail-open is
+    observable in telemetry.
+
+    Mirrors the fail-open EVENT shape emitted by
+    ``.claude/hooks/PreToolUse/push_guard_base.py::_emit_fail_open``:
+        event = {
+            "guard": name,
+            "code": f"E_{code}",
+            "outcome": "fail_open",
+            "reason": reason,
+            "detail": detail,
+        }
+        print(f"EVENT={json.dumps(event, separators=(',', ':'))}", file=sys.stderr)
+    """
+    code = hook_name.upper().replace("-", "_")
+    event = {
+        "guard": hook_name,
+        "code": f"E_{code}",
+        "outcome": "fail_open",
+        "reason": reason,
+        "detail": detail,
+    }
+    print(f"EVENT={json.dumps(event, separators=(',', ':'))}", file=sys.stderr)
+
+
 def skip_if_consumer_repo(hook_name: str) -> bool:
     """Print skip message and return True unless this is confirmed project repo."""
     identity = _project_repo_identity()
@@ -100,6 +158,18 @@ def skip_if_consumer_repo(hook_name: str) -> bool:
         )
         return True
     if identity == "unknown":
+        # Git origin is unavailable, so identity is indeterminate. Before
+        # skipping every internal guard (a silent whole-surface fail-open),
+        # corroborate with a second cheap signal: pyproject.toml's
+        # [project].name. Only the ai-agents project repo declares that name,
+        # so a consumer repo that vendors the plugin still skips here.
+        if _project_repo_corroborated(get_project_directory()):
+            return False
+        _emit_skip_event(
+            hook_name,
+            "identity_unknown",
+            "git origin unavailable and pyproject name corroboration absent",
+        )
         print(
             f"[SKIP] {hook_name}: cannot verify ai-agents project repo identity; "
             "treating as consumer repo",
