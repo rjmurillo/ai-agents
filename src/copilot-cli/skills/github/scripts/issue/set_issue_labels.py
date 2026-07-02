@@ -163,22 +163,26 @@ def _create_label(
 
 def _apply_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
     """Apply a label to an issue. Returns True on success."""
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "edit",
-            str(issue),
-            "--repo",
-            f"{owner}/{repo}",
-            "--add-label",
-            label_name,
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "edit",
+                str(issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--add-label",
+                label_name,
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
     return result.returncode == 0
 
 
@@ -218,27 +222,35 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
         return []
     labels_field = payload.get("labels")
     labels = labels_field if isinstance(labels_field, list) else []
-    return [item.get("name") for item in labels if isinstance(item, dict) and item.get("name")]
+    return [
+        name
+        for item in labels
+        if isinstance(item, dict) and isinstance(name := item.get("name"), str)
+    ]
 
 
 def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
     """Remove a label from an issue. Returns True on success."""
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "edit",
-            str(issue),
-            "--repo",
-            f"{owner}/{repo}",
-            "--remove-label",
-            label_name,
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "edit",
+                str(issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--remove-label",
+                label_name,
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
     return result.returncode == 0
 
 
