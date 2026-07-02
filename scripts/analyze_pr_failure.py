@@ -47,6 +47,30 @@ def _run_gh(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[s
     )
 
 
+def _paginated_items(endpoint: str, error_label: str, timeout: int = 60) -> list[dict]:
+    """Fetch every page of a gh api array endpoint as one flat list.
+
+    `gh api --paginate` alone concatenates one JSON array per page, so once
+    results exceed a single page (>100 items) the combined stdout is not valid
+    JSON and json.loads fails at the page boundary. `--slurp` wraps the pages
+    into a single JSON array of pages, which we flatten into one list of items.
+    """
+    result = _run_gh(["api", endpoint, "--paginate", "--slurp"], timeout=timeout)
+    if result.returncode != 0:
+        err = result.stderr or result.stdout
+        print(f"ERROR: {error_label}: {err}", file=sys.stderr)
+        sys.exit(3)
+
+    pages = json.loads(result.stdout)
+    items: list[dict] = []
+    for page in pages:
+        if isinstance(page, list):
+            items.extend(page)
+        else:
+            items.append(page)
+    return items
+
+
 def _resolve_repo(owner: str, repo: str) -> tuple[str, str]:
     """Resolve owner/repo from arguments or git remote."""
     if owner and repo:
@@ -58,7 +82,15 @@ def _resolve_repo(owner: str, repo: str) -> tuple[str, str]:
         sys.exit(1)
 
     data = json.loads(result.stdout)
-    return data["owner"]["login"], data["name"]
+    if not isinstance(data, dict):
+        print("ERROR: Unexpected gh output for repository info.", file=sys.stderr)
+        sys.exit(3)
+    owner_obj = data.get("owner")
+    name = data.get("name")
+    if not isinstance(owner_obj, dict) or not owner_obj.get("login") or not name:
+        print("ERROR: Could not parse owner/name from gh output.", file=sys.stderr)
+        sys.exit(3)
+    return str(owner_obj["login"]), str(name)
 
 
 def _is_bot(login: str) -> bool:
@@ -87,52 +119,32 @@ def fetch_pr_metadata(owner: str, repo: str, pr_number: int) -> dict:
         print(f"ERROR: Failed to fetch PR: {err}", file=sys.stderr)
         sys.exit(3)
 
-    return json.loads(result.stdout)
+    metadata: dict = json.loads(result.stdout)
+    return metadata
 
 
 def fetch_pr_comments(owner: str, repo: str, pr_number: int) -> list[dict]:
     """Fetch issue-level comments on the PR."""
-    result = _run_gh([
-        "api", f"repos/{owner}/{repo}/issues/{pr_number}/comments",
-        "--paginate",
-    ], timeout=60)
-
-    if result.returncode != 0:
-        err = result.stderr or result.stdout
-        print(f"ERROR: Failed to fetch PR comments: {err}", file=sys.stderr)
-        sys.exit(3)
-
-    return json.loads(result.stdout)
+    return _paginated_items(
+        f"repos/{owner}/{repo}/issues/{pr_number}/comments",
+        "Failed to fetch PR comments",
+    )
 
 
 def fetch_pr_reviews(owner: str, repo: str, pr_number: int) -> list[dict]:
     """Fetch review events for the PR."""
-    result = _run_gh([
-        "api", f"repos/{owner}/{repo}/pulls/{pr_number}/reviews",
-        "--paginate",
-    ], timeout=60)
-
-    if result.returncode != 0:
-        err = result.stderr or result.stdout
-        print(f"ERROR: Failed to fetch PR reviews: {err}", file=sys.stderr)
-        sys.exit(3)
-
-    return json.loads(result.stdout)
+    return _paginated_items(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/reviews",
+        "Failed to fetch PR reviews",
+    )
 
 
 def fetch_pr_files(owner: str, repo: str, pr_number: int) -> list[dict]:
     """Fetch the list of changed files with stats."""
-    result = _run_gh([
-        "api", f"repos/{owner}/{repo}/pulls/{pr_number}/files",
-        "--paginate",
-    ], timeout=60)
-
-    if result.returncode != 0:
-        err = result.stderr or result.stdout
-        print(f"ERROR: Failed to fetch PR files: {err}", file=sys.stderr)
-        sys.exit(3)
-
-    return json.loads(result.stdout)
+    return _paginated_items(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/files",
+        "Failed to fetch PR files",
+    )
 
 
 def build_comment_distribution(comments: list[dict]) -> dict:

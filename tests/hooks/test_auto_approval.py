@@ -95,6 +95,9 @@ class TestIsSafeTestCommand:
             "git commit -m 'test'",
             "curl https://evil.com",
             "npx jest",
+            "python evil.py pytest",
+            "python3 evil.py pytest",
+            "python run_things.py --with pytest",
         ],
     )
     def test_rejects_non_test_commands(self, command):
@@ -133,20 +136,24 @@ class TestMain:
         monkeypatch.setattr("sys.stdin", MagicMock(isatty=lambda: True))
         assert invoke_test_auto_approval.main() == 0
 
-    def test_returns_0_on_empty_input(self, mock_stdin: "Callable[[str], None]"):
+    def test_returns_0_on_empty_input(self, mock_stdin: Callable[[str], None]):
         mock_stdin("")
         assert invoke_test_auto_approval.main() == 0
 
-    def test_returns_0_on_invalid_json(self, mock_stdin: "Callable[[str], None]"):
+    def test_returns_0_on_invalid_json(self, mock_stdin: Callable[[str], None]):
         mock_stdin("not json")
         assert invoke_test_auto_approval.main() == 0
 
-    def test_returns_0_when_no_command(self, mock_stdin: "Callable[[str], None]"):
+    def test_returns_0_on_non_dict_payload(self, mock_stdin):
+        mock_stdin(json.dumps(["array", "payload"]))
+        assert invoke_test_auto_approval.main() == 0
+
+    def test_returns_0_when_no_command(self, mock_stdin: Callable[[str], None]):
         mock_stdin(json.dumps({"tool_input": {}}))
         assert invoke_test_auto_approval.main() == 0
 
     def test_approves_safe_command(
-        self, mock_stdin: "Callable[[str], None]", capsys
+        self, mock_stdin: Callable[[str], None], capsys
     ):
         mock_stdin(json.dumps({"tool_input": {"command": "pytest tests/"}}))
         assert invoke_test_auto_approval.main() == 0
@@ -155,7 +162,7 @@ class TestMain:
         assert data["decision"] == "approve"
 
     def test_does_not_approve_unsafe_command(
-        self, mock_stdin: "Callable[[str], None]", capsys
+        self, mock_stdin: Callable[[str], None], capsys
     ):
         mock_stdin(json.dumps({"tool_input": {"command": "rm -rf /"}}))
         assert invoke_test_auto_approval.main() == 0
