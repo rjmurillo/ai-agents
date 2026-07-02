@@ -136,7 +136,11 @@ class TestAuditHookBypass:
 
 
 class TestPytestBanditSecurity:
-    """pytest.yml security job must fail on real findings and publish SARIF."""
+    """pytest.yml security job must fail on real findings (JSON artifact).
+
+    The code-scanning SARIF surfacing needs the bandit-sarif-formatter dep and
+    is deferred to a focused follow-up PR (see Run Bandit comment).
+    """
 
     def _workflow(self) -> dict[str, Any]:
         return _load_workflow("pytest.yml")
@@ -155,25 +159,16 @@ class TestPytestBanditSecurity:
         assert "--severity-level high" in run
         assert "--confidence-level high" in run
 
-    def test_security_job_grants_security_events_write(self) -> None:
-        perms = _job_permissions(self._workflow(), "security")
-        assert perms.get("security-events") == "write"
+    def test_bandit_writes_json_artifact(self) -> None:
+        # JSON is a built-in bandit formatter (no extra dep); the scan is
+        # self-contained and the artifact is uploaded below.
+        run = self._bandit_step()["run"]
+        assert "-f json" in run
+        assert "artifacts/bandit-results.json" in run
 
-    def test_sarif_uploaded_to_code_scanning_always(self) -> None:
-        steps = _job_steps(self._workflow(), "security")
-        step = _find_step_by_uses(steps, "github/codeql-action/upload-sarif")
-        assert step is not None
-        assert step.get("if") == "always()"
-        assert step.get("with", {}).get("sarif_file") == "artifacts/bandit-results.sarif"
-
-    def test_sarif_upload_action_pinned_to_sha(self) -> None:
-        steps = _job_steps(self._workflow(), "security")
-        step = _find_step_by_uses(steps, "github/codeql-action/upload-sarif")
-        assert step is not None
-        ref = step["uses"].split("@", 1)[1].split()[0]
-        # 40-char commit SHA, not a floating tag (universal.md MUST-6).
-        assert len(ref) == 40
-        assert all(c in "0123456789abcdef" for c in ref)
+    def test_bandit_excludes_test_paths(self) -> None:
+        # Test-only B324 SHA1-for-module-name false positives must not gate CI.
+        assert "-x" in self._bandit_step()["run"]
 
 
 class TestMemoryValidation:
