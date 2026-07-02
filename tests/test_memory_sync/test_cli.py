@@ -292,6 +292,19 @@ class TestReadQueueValidation:
         with pytest.raises(QueueReadError):
             _read_queue(project_root)
 
+    def test_null_path_raises(self, project_root: Path) -> None:
+        """Explicit JSON null path must raise, not crash on Path(None).
+
+        A present-but-null 'path' key returns None from the dict lookup,
+        so the KeyError guard misses it; Path(None) would raise TypeError.
+        """
+        self._write_raw(
+            project_root,
+            '[{"path": null, "operation": "create"}]',
+        )
+        with pytest.raises(QueueReadError):
+            _read_queue(project_root)
+
     def test_bad_operation_raises(self, project_root: Path) -> None:
         self._write_raw(
             project_root,

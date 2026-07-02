@@ -379,6 +379,11 @@ def _read_queue(project_root: Path) -> list[tuple[Path, SyncOperation]]:
             raise QueueReadError(
                 f"Queue entry in {queue_path} missing key {exc}"
             ) from exc
+        if not isinstance(raw_path, str):
+            raise QueueReadError(
+                f"Queue entry 'path' in {queue_path} must be a string, "
+                f"got {type(raw_path).__name__}"
+            )
         path = Path(raw_path)
         if not is_memory_file(path):
             _logger.warning("Skipping invalid queue path: %s", path)
