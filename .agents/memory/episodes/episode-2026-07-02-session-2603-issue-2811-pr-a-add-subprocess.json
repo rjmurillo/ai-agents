@@ -1,0 +1,67 @@
+{
+  "id": "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess",
+  "session": "2026-07-02-session-2603-issue-2811-pr-a-add-subprocess",
+  "timestamp": "2026-07-02T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Issue #2811 (PR-A): add subprocess timeouts to github-skill issue scripts (set_issue_labels, get_issue_context, set_issue_milestone) with copilot twins and regression tests. Remaining #2811 sites tracked for follow-up.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added subprocess timeout + TimeoutExpired handling to set_issue_labels, get_issue_context, and set_issue_milestone gh calls.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed pre-existing type debt on touched files (comprehension narrowing; dict signatures).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated copilot-cli skill twins via build_all.py; added tests/test_timeout_hardening_2811.py (7 tests).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: uv run pytest tests/test_timeout_hardening_2811.py => 7 passed; mypy => no issues.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-02T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: uv run pytest tests/test_timeout_hardening_2811.py => 7 passed; mypy => no issues.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 49afc89",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
