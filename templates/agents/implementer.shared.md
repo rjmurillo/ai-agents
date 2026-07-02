@@ -107,16 +107,17 @@ Read these files in order:
 
 ## Plan Validation Protocol
 
-Before writing a single line of code, work through these four questions in order:
+Before writing a single line of code, work through these five questions in order:
 
 1. What does the plan specify? Quote the acceptance criteria verbatim from the plan file, not from memory.
 2. What adjacent code will this touch? Read related files for patterns now, not during implementation.
 3. What are the top two failure modes for this change? Name them before touching any file.
-4. What is the smallest implementation that satisfies the criteria without adding speculation?
+4. What is the inverse failure? Before writing the fix, name what breaks if the fix over-corrects or under-covers. Examples: a validator that over-fires and rejects valid input; a tightened rule that misses sibling patterns with the same root cause; a test that asserts structure instead of behavior and rots silently when the contract changes. Build acceptance from valid and suppression cases too, not just the repro.
+5. What is the smallest implementation that satisfies the criteria without adding speculation?
 
 Do not proceed past step 1 until you can answer it from the plan. If the plan has no acceptance criteria, stop and return `[BLOCKED] Plan missing acceptance criteria: <plan file path>`.
 
-**Thinking trigger**: Tasks that modify more than one file, change a public interface, or touch security boundaries require explicit step-by-step reasoning through all four questions. Single-file config changes and trivial additions do not.
+**Thinking trigger**: Tasks that modify more than one file, change a public interface, or touch security boundaries require explicit step-by-step reasoning through all five questions. Single-file config changes and trivial additions do not.
 
 **Ask before proceeding when**: the stated change scope expands to files outside the plan. **Proceed with documented defaults when**: naming conventions are undocumented, test framework conventions are not explicit, import ordering is not specified.
 
