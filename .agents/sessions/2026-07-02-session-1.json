@@ -27,7 +27,7 @@
       "sessionLogCreated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This file plus .agents/sessions/2026-07-02-session-01-safety-audit.md narrative log."
+        "Evidence": "This file (JSON per PR #2359; narrative lives in .agents/audits/2026-07-02-safety-audit.md)."
       },
       "skillScriptsListed": {
         "level": "MUST",
