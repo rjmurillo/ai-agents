@@ -5,8 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from scripts.memory_sync.models import SyncOperation
 from scripts.memory_sync.sync_engine import (
+    StateError,
     build_create_payload,
     build_update_payload,
     compute_content_hash,
@@ -352,3 +355,38 @@ class TestSyncBatch:
         results = sync_batch(mock_mcp_client, changes, project_root)
         assert len(results) == 1
         assert results[0].success
+
+
+class TestLoadState:
+    """Boundary validation for load_state (issue #2813)."""
+
+    def test_absent_state_returns_empty(self, project_root: Path) -> None:
+        """A missing state file is a clean empty state, not an error."""
+        assert load_state(project_root) == {}
+
+    def test_valid_state_loads(self, project_root: Path) -> None:
+        """A well-formed JSON object round-trips through save/load."""
+        save_state(project_root, {"memory-a": {"forgetful_id": "1"}})
+        assert load_state(project_root) == {"memory-a": {"forgetful_id": "1"}}
+
+    def test_corrupt_json_raises(self, project_root: Path) -> None:
+        """Unparseable JSON raises StateError instead of crashing raw."""
+        (project_root / ".memory_sync_state.json").write_text(
+            "{not valid", encoding="utf-8"
+        )
+        with pytest.raises(StateError):
+            load_state(project_root)
+
+    def test_empty_file_raises(self, project_root: Path) -> None:
+        """An empty state file is invalid JSON and raises StateError."""
+        (project_root / ".memory_sync_state.json").write_text("", encoding="utf-8")
+        with pytest.raises(StateError):
+            load_state(project_root)
+
+    def test_non_object_json_raises(self, project_root: Path) -> None:
+        """A JSON array (wrong shape) raises StateError, not read as state."""
+        (project_root / ".memory_sync_state.json").write_text(
+            "[1, 2, 3]", encoding="utf-8"
+        )
+        with pytest.raises(StateError):
+            load_state(project_root)
