@@ -243,7 +243,11 @@ jobs:
       # codeql-analysis.yml.
       - name: Upload Bandit SARIF to code scanning
         uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4
+        # Best-effort surfacing: the Bandit step above is the hard gate. Code
+        # scanning may be unavailable (GHAS not enabled, fork PR), so do not let
+        # the upload fail the security job. Issue #2808.
         if: always()
+        continue-on-error: true
         with:
           sarif_file: artifacts/bandit-results.sarif
 
