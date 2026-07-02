@@ -26,7 +26,7 @@ import subprocess
 import sys
 
 
-def _get_file_path_from_input(hook_input: dict) -> str | None:
+def _get_file_path_from_input(hook_input: dict[str, object]) -> str | None:
     """Extract file_path from hook input."""
     tool_input = hook_input.get("tool_input", {})
     if isinstance(tool_input, dict):
@@ -35,7 +35,7 @@ def _get_file_path_from_input(hook_input: dict) -> str | None:
     return None
 
 
-def _get_project_directory(hook_input: dict) -> str:
+def _get_project_directory(hook_input: dict[str, object]) -> str:
     """Resolve project directory from env or hook input."""
     env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if env_dir:

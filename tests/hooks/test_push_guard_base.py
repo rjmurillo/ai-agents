@@ -14,6 +14,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -1012,7 +1013,7 @@ class TestStdinFailOpenTelemetry:
     empty stdin) stay silent."""
 
     @staticmethod
-    def _events(stderr_text: str) -> list[dict]:
+    def _events(stderr_text: str) -> list[dict[str, Any]]:
         return [
             json.loads(line[len("EVENT="):])
             for line in stderr_text.splitlines()
@@ -1021,7 +1022,8 @@ class TestStdinFailOpenTelemetry:
 
     def _run(self, monkeypatch: pytest.MonkeyPatch, payload_text: str) -> int:
         monkeypatch.setattr("sys.stdin", io.StringIO(payload_text))
-        return run_guard(_always_violates, ["*.md"], "test-guard")
+        result: int = run_guard(_always_violates, ["*.md"], "test-guard")
+        return result
 
     def test_invalid_json_emits_fail_open_event(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

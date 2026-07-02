@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -250,7 +251,7 @@ class TestSyncPluginLib:
         assert result == 1
 
 
-def _parse_events(stderr_text: str) -> list[dict]:
+def _parse_events(stderr_text: str) -> list[dict[str, Any]]:
     return [
         json.loads(line[len("EVENT="):])
         for line in stderr_text.splitlines()

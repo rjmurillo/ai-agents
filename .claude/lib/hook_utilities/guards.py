@@ -7,10 +7,10 @@ import subprocess
 import sys
 from typing import Literal
 
-try:
-    import tomllib  # Python 3.11+
-except ModuleNotFoundError:  # pragma: no cover - 3.10 fallback path
-    tomllib = None  # type: ignore[assignment]
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover - 3.10 fallback path
+    tomllib = None
 
 from .utilities import get_project_directory
 

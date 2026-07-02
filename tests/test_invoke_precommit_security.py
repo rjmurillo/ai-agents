@@ -121,17 +121,17 @@ class TestRunStagingFailClosed:
     """A staging failure must block the commit, not pass on the on-disk file."""
 
     def _wire_common(self, check: PreCommitSecurityCheck) -> None:
-        check._get_staged_powershell_files = MagicMock(  # type: ignore[method-assign]
+        check.__dict__["_get_staged_powershell_files"] = MagicMock(
             return_value=[Path("/repo/a.ps1")]
         )
-        check._check_critical_patterns = MagicMock(return_value=[])  # type: ignore[method-assign]
-        check._ensure_psscriptanalyzer = MagicMock(return_value=True)  # type: ignore[method-assign]
-        check._run_psscriptanalyzer = MagicMock(  # type: ignore[method-assign]
+        check.__dict__["_check_critical_patterns"] = MagicMock(return_value=[])
+        check.__dict__["_ensure_psscriptanalyzer"] = MagicMock(return_value=True)
+        check.__dict__["_run_psscriptanalyzer"] = MagicMock(
             return_value=PreCommitResult(
                 passed=True, findings=[], report_path=None
             )
         )
-        check._generate_security_report = MagicMock(  # type: ignore[method-assign]
+        check.__dict__["_generate_security_report"] = MagicMock(
             return_value=Path("/repo/.agents/security/SR-x.md")
         )
 
@@ -139,15 +139,15 @@ class TestRunStagingFailClosed:
         self, check: PreCommitSecurityCheck
     ) -> None:
         self._wire_common(check)
-        check._stage_security_report = MagicMock(return_value=False)  # type: ignore[method-assign]
+        check.__dict__["_stage_security_report"] = MagicMock(return_value=False)
         assert check.run() == 1
 
     def test_staging_success_passes(
         self, check: PreCommitSecurityCheck
     ) -> None:
         self._wire_common(check)
-        check._stage_security_report = MagicMock(return_value=True)  # type: ignore[method-assign]
-        check._verify_security_report = MagicMock(return_value=True)  # type: ignore[method-assign]
+        check.__dict__["_stage_security_report"] = MagicMock(return_value=True)
+        check.__dict__["_verify_security_report"] = MagicMock(return_value=True)
         assert check.run() == 0
 
 

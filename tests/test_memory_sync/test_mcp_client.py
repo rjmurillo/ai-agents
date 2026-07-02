@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import queue
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +17,7 @@ from scripts.memory_sync.mcp_client import (
 )
 
 
-def _frame(payload: dict) -> bytes:
+def _frame(payload: dict[str, Any]) -> bytes:
     """Encode a dict as one Content-Length framed JSON-RPC message."""
     body = json.dumps(payload).encode("utf-8")
     header = f"Content-Length: {len(body)}\r\n\r\n".encode()

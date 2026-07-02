@@ -32,7 +32,8 @@ _WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 def _load_workflow(name: str) -> dict[str, Any]:
     with (_WORKFLOWS / name).open(encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
+        loaded: dict[str, Any] = yaml.safe_load(handle)
+        return loaded
 
 
 def _job_steps(workflow: Any, job: str) -> list[dict[str, Any]]:

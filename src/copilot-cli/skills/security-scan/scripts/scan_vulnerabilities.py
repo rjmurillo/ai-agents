@@ -35,7 +35,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 # Sibling helpers must import when this file is loaded by path in tests.
 # Keep any sys.path change scoped to this import block.
@@ -103,9 +103,9 @@ class ScanResult:
         default_factory=lambda: datetime.now(UTC).isoformat()
     )
     files_scanned: int = 0
-    vulnerabilities: list = field(default_factory=list)
-    suppressed: list = field(default_factory=list)
-    errors: list = field(default_factory=list)
+    vulnerabilities: list[Any] = field(default_factory=list)
+    suppressed: list[Any] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 def get_language(file_path: str) -> str | None:
