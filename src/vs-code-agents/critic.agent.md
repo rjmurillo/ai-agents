@@ -72,6 +72,7 @@ When a diff changes a function's observable behavior (return value, error type r
 When a diff modifies any file that belongs to a shared-agent parity group (per `.agents/governance/GENERATOR-FILES.md`), check whether the diff also includes the other members of that group.
 
 Shared-agent parity group members for agent name `{name}`:
+
 - `templates/agents/{name}.shared.md` (source, edit here)
 - `src/claude/{name}.md` (generated)
 - `src/copilot-cli/agents/{name}.agent.md` (generated)
@@ -80,6 +81,7 @@ Shared-agent parity group members for agent name `{name}`:
 - `.github/agents/{name}.agent.md` (hand-maintained sibling)
 
 Rules:
+
 - If ANY member is in the diff, EVERY other member that exists on disk SHOULD also be in the diff.
 - A missing sibling is a finding, not a blocker. Format: file X modified but siblings [Y, Z] not in diff. Ref: `.agents/governance/GENERATOR-FILES.md` parity group.
 - Files with no `templates/agents/{name}.shared.md` counterpart are freestanding and exempt.

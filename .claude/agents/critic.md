@@ -52,6 +52,35 @@ For every changed function, walk this checklist before you score the diff. Each 
 
 When you find a gap, write the finding with: file:line, the checklist item it failed, and a one-sentence test the implementer should add. Do not propose a fix; the implementer writes the fix. Your job is to surface the gap.
 
+## Behavior-Change Drift Check
+
+When a diff changes a function's observable behavior (return value, error type raised, side effect, output format, or default parameter value), check whether the tests that exercised the old behavior are updated in the same diff.
+
+- **Changed behavior without test update = FAIL.** A function whose return type changes from `str` to `Optional[str]` while its test still asserts `isinstance(result, str)` is a finding. A function that switches from raising `ValueError` to `TypeError` while its test still catches `ValueError` is a finding.
+- **Scope**: code diffs only. Skip this check for prose artifacts.
+- **Finding format**: file:line of the changed function, the old behavior, the test file:line that still asserts the old contract, and a one-sentence instruction (update the test to assert the new return type / exception / side effect).
+- **Not a false positive**: if the behavior changed and the test was already loose enough to pass both old and new behavior, that is still a finding (test does not distinguish old from new behavior; tighten the assertion).
+
+## Generator-Drift Sibling Check
+
+When a diff modifies any file that belongs to a shared-agent parity group (per `.agents/governance/GENERATOR-FILES.md`), check whether the diff also includes the other members of that group.
+
+Shared-agent parity group members for agent name `{name}`:
+
+- `templates/agents/{name}.shared.md` (source, edit here)
+- `src/claude/{name}.md` (generated)
+- `src/copilot-cli/agents/{name}.agent.md` (generated)
+- `src/vs-code-agents/{name}.agent.md` (generated)
+- `.claude/agents/{name}.md` (hand-maintained sibling)
+- `.github/agents/{name}.agent.md` (hand-maintained sibling)
+
+Rules:
+
+- If ANY member is in the diff, EVERY other member that exists on disk SHOULD also be in the diff.
+- A missing sibling is a finding, not a blocker. Format: file X modified but siblings [Y, Z] not in diff. Ref: `.agents/governance/GENERATOR-FILES.md` parity group.
+- Files with no `templates/agents/{name}.shared.md` counterpart are freestanding and exempt.
+- Generated files (`src/claude/`, `src/copilot-cli/agents/`, `src/vs-code-agents/`) are regenerated from the template, not hand-edited. If a generated file appears in the diff without its template, that is also a finding.
+
 ## Persona Evaluation (Prose Artifacts Only)
 
 This pass applies **only to prose artifacts**: plans, ADRs, roadmaps, specs, design documents, and similar written deliverables. **It does not apply to code-diff review.** When the artifact in front of you is a code diff, skip this section entirely and behave exactly as the rest of this agent specifies; the Adversarial Coverage Checklist above is your code-diff instrument. Run this pass when, and only when, the artifact is written prose meant to be read by an audience.
