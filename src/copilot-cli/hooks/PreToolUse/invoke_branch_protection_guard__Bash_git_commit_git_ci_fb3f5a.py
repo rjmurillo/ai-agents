@@ -288,8 +288,17 @@ def _original_main(stdin_bytes):
 
             hook_input = json.loads(input_json)
         except (json.JSONDecodeError, ValueError) as exc:
-            print(f"branch_protection_guard: Failed to parse input JSON: {exc}", file=sys.stderr)
-            return 0
+            # Fail closed to match this file's contract: the git-error and generic
+            # exception paths below both block (return 2 via write_block_response).
+            # Unparseable input means branch safety cannot be verified, so block
+            # rather than allow a possibly-protected-branch commit or push.
+            msg = (
+                f"branch_protection_guard: Failed to parse input JSON: {exc}. "
+                "Cannot verify branch safety; blocking."
+            )
+            print(msg, file=sys.stderr)
+            write_block_response(msg)
+            return 2
 
         cwd = get_working_directory(hook_input)
 
