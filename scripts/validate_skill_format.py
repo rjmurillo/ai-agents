@@ -8,7 +8,8 @@ Enforces ADR-017 skill format requirements:
 
 EXIT CODES:
   0  - Success: All skill files follow atomic format and naming convention
-  1  - Error: Bundled format or naming violations detected (CI mode only)
+  1  - Error: Bundled format or naming violations detected, OR a file existed
+       but could not be read (CI mode only)
 
 See: ADR-035 Exit Code Standardization
 """
@@ -100,11 +101,16 @@ def main(argv: list[str] | None = None) -> int:
 
     bundled_files: list[tuple[str, int]] = []
     prefix_violations: list[str] = []
+    unreadable: list[str] = []
 
     for file_path in files:
         try:
             content = file_path.read_text(encoding="utf-8")
-        except OSError:
+        except OSError as exc:
+            # A present-but-unreadable file must not silently pass: a bundled
+            # skill hidden behind a read error would otherwise validate clean.
+            print(f"  UNREADABLE: {file_path.name} ({exc})")
+            unreadable.append(file_path.name)
             continue
 
         matches = SKILL_HEADER_RE.findall(content)
@@ -144,12 +150,25 @@ def main(argv: list[str] | None = None) -> int:
         print("Rename files to use domain prefix (e.g., pr-001-reviewer-enumeration.md).")
         print()
 
+    if unreadable:
+        print("=== Unreadable Files ===")
+        print("The following files exist but could not be read:")
+        for name in unreadable:
+            print(f"  - {name}")
+        print()
+        print("Fix permissions/encoding so the validator can inspect them.")
+        print()
+
     if has_issues:
         if args.ci:
             print("Result: FAILED")
             return 1
         print("Result: WARNING (non-blocking for local development)")
         return 0
+
+    if unreadable and args.ci:
+        print("Result: FAILED (unreadable skill files cannot be validated)")
+        return 1
 
     print("Result: PASSED - All skill files follow atomic format and naming convention")
     return 0

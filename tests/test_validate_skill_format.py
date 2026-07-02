@@ -67,3 +67,37 @@ class TestMain:
     def test_prefix_violation_fails_in_ci(self, tmp_path: Path) -> None:
         (tmp_path / "skill-bad-name.md").write_text("# Content", encoding="utf-8")
         assert main(["--path", str(tmp_path), "--ci"]) == 1
+
+
+class TestUnreadableFiles:
+    """A file that exists but cannot be read must not silently pass (#2809).
+
+    ``dir.md`` is a directory whose name matches the ``*.md`` glob, so it is
+    collected as a candidate; ``read_text`` on it raises IsADirectoryError (an
+    OSError subclass), a concrete stand-in for a present-but-unreadable file.
+    """
+
+    def test_unreadable_file_fails_in_ci(self, tmp_path: Path, capsys) -> None:
+        (tmp_path / "weird.md").mkdir()
+        rc = main(["--path", str(tmp_path), "--ci"])
+        assert rc == 1
+        assert "UNREADABLE" in capsys.readouterr().out
+
+    def test_unreadable_file_warns_but_passes_local(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        (tmp_path / "weird.md").mkdir()
+        rc = main(["--path", str(tmp_path)])
+        assert rc == 0
+        assert "UNREADABLE" in capsys.readouterr().out
+
+    def test_readable_files_alongside_unreadable_still_flag(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "weird.md").mkdir()
+        (tmp_path / "testing-001-ok.md").write_text(
+            "# Testing\n\nSingle skill.",
+            encoding="utf-8",
+        )
+        # CI still fails because of the unreadable entry.
+        assert main(["--path", str(tmp_path), "--ci"]) == 1
