@@ -29,6 +29,14 @@
       "content": "Report artifact: .agents/audits/2026-07-02-safety-audit.md. No code changed; report-only per audit brief.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR #2817 opened (draft). CI feedback handled: markdown session log removed (JSON-only), PR description rewritten to match diff. Filed #2818 for AI-review infra-failure red-check noise. Auto-retro committed. Remediation workflow for #2806-#2816 launched.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
