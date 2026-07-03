@@ -46,8 +46,19 @@ from github_core.output import (  # noqa: E402
     write_skill_output,
 )
 
-# Upper bound (seconds) for gh network calls; overridable via env.
-GH_TIMEOUT_SECONDS = int(os.environ.get("GH_TIMEOUT_SECONDS", "30"))
+def _env_timeout_seconds(default: int = 30) -> int:
+    """Parse GH_TIMEOUT_SECONDS, falling back to the default on a bad value.
+
+    The override is documented; a misconfigured value must not crash the
+    script at import time.
+    """
+    try:
+        return int(os.environ.get("GH_TIMEOUT_SECONDS", str(default)))
+    except ValueError:
+        return default
+
+
+GH_TIMEOUT_SECONDS = _env_timeout_seconds()
 
 
 def _write_github_output(outputs: dict[str, str]) -> None:

@@ -225,7 +225,9 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
     return [
         name
         for item in labels
-        if isinstance(item, dict) and isinstance(name := item.get("name"), str)
+        if isinstance(item, dict)
+        and isinstance(name := item.get("name"), str)
+        and name
     ]
 
 
