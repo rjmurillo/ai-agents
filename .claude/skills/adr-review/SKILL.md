@@ -2,7 +2,7 @@
 name: adr-review
 version: 1.1.0
 model: claude-opus-4-6
-description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", or on ADR create/edit. Do NOT use to author a new ADR (use adr-generator).
+description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when reviewing ADRs or durable architecture/design decision records, including intent like "review this decision record" or "check this rationale for future maintainers". Do NOT use to author a new ADR (use adr-generator).
 license: MIT
 metadata:
   subagent_model: claude-opus-4-6
@@ -13,7 +13,10 @@ metadata:
   file_triggers:
     patterns:
       - ".agents/architecture/ADR-*.md"
+      - "docs/adr/ADR-*.md"
       - "docs/architecture/ADR-*.md"
+      - "docs/decisions/ADR-*.md"
+      - "architecture/decisions/ADR-*.md"
       - ".agents/SESSION-PROTOCOL.md"
     events: [create, update, delete]
     auto_invoke: true
@@ -30,6 +33,8 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `review this ADR` | Full 6-agent debate on specified ADR |
 | `validate ADR-005` | Targeted review of specific ADR by number |
 | `check architecture decision` | ADR review with debate protocol |
+| `review this decision record` | ADR review for durable architecture/design decision records |
+| `check this rationale for future maintainers` | Review decision rationale before keeping it |
 | `ADR file created or modified` | Auto-triggered via detect_adr_changes.py |
 | `delete ADR-NNN` | Deletion workflow (D1-D4) |
 
@@ -42,6 +47,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 /adr-review .agents/architecture/ADR-005-api-versioning.md
 "review this ADR"
 "validate ADR-005"
+"review this decision record under docs/decisions"
 ```
 
 **Automatic Detection**: A Claude Code hook runs at session start and detects ADR changes, prompting you to invoke this skill. The pre-commit hook also detects staged ADR files and displays a reminder.
@@ -55,7 +61,10 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | Pattern | Location | Events |
 |---------|----------|--------|
 | `ADR-*.md` | `.agents/architecture/` | create, update, delete |
+| `ADR-*.md` | `docs/adr/` | create, update, delete |
 | `ADR-*.md` | `docs/architecture/` | create, update, delete |
+| `ADR-*.md` | `docs/decisions/` | create, update, delete |
+| `ADR-*.md` | `architecture/decisions/` | create, update, delete |
 | `SESSION-PROTOCOL.md` | `.agents/` | create, update, delete |
 
 **Detection**: `.claude/skills/adr-review/scripts/detect_adr_changes.py`
@@ -65,12 +74,13 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 **MANDATORY Triggers** (automatic):
 
 - Architect creates or updates an ADR
-- ANY agent modifies `.agents/architecture/ADR-*.md`
+- ANY agent modifies `.agents/architecture/ADR-*.md`, `docs/adr/ADR-*.md`, `docs/architecture/ADR-*.md`, `docs/decisions/ADR-*.md`, or `architecture/decisions/ADR-*.md`
 - ANY agent modifies `.agents/SESSION-PROTOCOL.md`
 
 **User-Initiated Triggers** (manual):
 
 - User requests ADR review ("review this ADR", "validate this decision")
+- User asks to review a durable design decision record or rationale for future maintainers
 - User requests multi-perspective validation for strategic decisions
 
 ## Agent Roles
