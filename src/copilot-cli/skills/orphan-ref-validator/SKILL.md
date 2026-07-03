@@ -2,7 +2,7 @@
 name: orphan-ref-validator
 version: 1.0.0
 model: claude-sonnet-4-6
-description: Detect references to skills, scripts, and counts in structured artifacts (specs, ADRs, eval fixtures, plugin manifests, skill descriptions) that do not match working-tree state. Run as a /build Mandatory Exit Gate to block orphan refs pre-commit instead of paying iteration rounds in /pr-quality:all post-PR.
+description: Detect references to skills and scripts in structured artifacts (specs, ADRs, eval fixtures, plugin manifests, skill descriptions) that do not match working-tree state. Run as a /build Mandatory Exit Gate to block orphan refs pre-commit instead of paying iteration rounds in /pr-quality:all post-PR.
 license: MIT
 ---
 
@@ -26,7 +26,6 @@ The skill ships with vendored installs. When a target path is not present (for e
 | `scan for orphan refs` | Run with default targets |
 | `validate orphan references` | Run on a specific path |
 | `check skill catalog drift` | Run with default targets |
-| `validate manifest counts` | Run on plugin manifests |
 | `build mandatory exit gate` | Invoked by the build lifecycle command |
 
 ## Path conventions
@@ -130,7 +129,7 @@ Use file-scope on M1-deletion specs and proposed-entity catalogs whose every ref
 
 ### Phase 4: Resolve and Verdict
 
-- For each surviving reference, check the source of truth (skill set, file presence, count enumeration).
+- For each surviving reference, check the source of truth (skill set, file presence).
 - Build the ADR-056 envelope with findings, counts, and verdict.
 - Verdict is `CRITICAL_FAIL` if any finding has severity `critical`, else `WARN` if findings exist, else `PASS`.
 - Print envelope and `VERDICT:` line. Exit 1 on CRITICAL_FAIL, 2 on configuration error, 0 otherwise.
@@ -211,7 +210,6 @@ Target paths are resolved with `pathlib.Path.resolve()` and must lie under the r
 | Symlink directory pointing outside repo | Skipped at recursion entry; logged as `WARNING` (CWE-22 / CWE-59) |
 | Symlink file pointing outside repo | Skipped post-resolution; logged as `WARNING` |
 | Oversized files (>5 MB) | Skipped; logged as `WARNING` |
-| Unknown count kind | ignored |
 
 ## When the /build gate fails
 
