@@ -27,7 +27,7 @@ _get_dependent_adrs = mod._get_dependent_adrs
 _run_git = mod._run_git
 _split_frontmatter = mod._split_frontmatter
 _is_frontmatter_only_change = mod._is_frontmatter_only_change
-_frontmatter_fields = mod._frontmatter_fields
+_frontmatter_fields = mod._parse_frontmatter
 _only_non_decision_fields_changed = mod._only_non_decision_fields_changed
 main = mod.main
 
@@ -247,6 +247,19 @@ class TestOnlyNonDecisionFieldsChanged:
         new = "status: accepted\nsupersedes:\n  - ADR-002\n"
         assert _only_non_decision_fields_changed(old, new) is False
 
+    def test_block_style_with_blank_line_change_is_not_exempt(self) -> None:
+        # YAML permits blank lines inside a block list; a change after the blank
+        # line must still be detected (review round-4 LOW finding).
+        old = "status: accepted\nsupersedes:\n  - ADR-001\n\n  - ADR-002\n"
+        new = "status: accepted\nsupersedes:\n  - ADR-001\n\n  - ADR-003\n"
+        assert _only_non_decision_fields_changed(old, new) is False
+
+    def test_malformed_frontmatter_fails_closed(self) -> None:
+        # Unparseable YAML must not be treated as an exempt no-op change.
+        old = "status: accepted\n"
+        new = "status: accepted\nsupersedes: [ADR-001\n"
+        assert _only_non_decision_fields_changed(old, new) is False
+
     def test_no_field_change_is_exempt(self) -> None:
         fm = "status: proposed\nimplemented: false\n"
         assert _only_non_decision_fields_changed(fm, fm) is True
@@ -265,16 +278,19 @@ class TestOnlyNonDecisionFieldsChanged:
 
 
 class TestFrontmatterFields:
-    """Tests for the lightweight frontmatter field parser."""
+    """Tests for the YAML frontmatter field parser."""
 
     def test_parses_top_level_scalars(self) -> None:
         fields = _frontmatter_fields("status: proposed\nimplemented: false\n")
-        assert fields == {"status": "proposed", "implemented": "false"}
+        assert fields == {"status": "proposed", "implemented": False}
 
     def test_captures_indented_block_value(self) -> None:
         fields = _frontmatter_fields("supersedes:\n  - ADR-001\n  - ADR-002\nstatus: proposed\n")
-        assert fields["supersedes"] == "\n  - ADR-001\n  - ADR-002"
+        assert fields["supersedes"] == ["ADR-001", "ADR-002"]
         assert fields["status"] == "proposed"
+
+    def test_malformed_returns_none(self) -> None:
+        assert _frontmatter_fields("supersedes: [ADR-001\n") is None
 
 
 class TestFrontmatterOnlyDetection:

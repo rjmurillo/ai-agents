@@ -26,6 +26,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+import yaml
+
 ADR_PATTERNS = (
     ".agents/architecture/ADR-*.md",
     "docs/architecture/ADR-*.md",
@@ -91,50 +93,38 @@ FRONTMATTER_DELIM = "---"
 # is exempt; that is the case #2845 was filed for.
 _NON_DECISION_FRONTMATTER_KEYS = frozenset({"implemented"})
 
-# Top-level ``key: value`` frontmatter line. Nested/indented lines are ignored
-# by the field parser; the governance keys we gate on are all single-line.
+# Top-level ``key:`` frontmatter line, used only to detect duplicate keys.
+# Value parsing is delegated to PyYAML so block-style lists, multi-line
+# values, and blank lines inside blocks are handled correctly.
 _FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 
 
-def _frontmatter_fields(frontmatter: str) -> dict[str, str]:
-    """Map each top-level key to its full value block.
+def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
+    """Parse frontmatter into a key -> value mapping.
 
-    The value is the text after the colon on the key line plus any following
-    indented continuation lines (a block-style list or map), joined with
-    newlines. Capturing the block means a change to a block-style governance
-    value (for example a ``supersedes:`` list) is detected, not just changes to
-    single-line scalars. First occurrence wins on a duplicate key, matching
-    ``_get_adr_status``; duplicates also fail closed in
-    :func:`_only_non_decision_fields_changed`.
+    Delegates to :func:`yaml.safe_load` so block-style lists, multi-line
+    values, and blank lines inside block values are parsed the same way the
+    real ADR tooling and CI parse them. Returns ``None`` on malformed input or
+    a non-mapping document so callers can fail closed (still trip the gate).
     """
-    blocks: dict[str, list[str]] = {}
-    current_key: str | None = None
-    for line in frontmatter.splitlines():
-        if line and (line[0] == " " or line[0] == "\t"):
-            if current_key is not None:
-                blocks[current_key].append(line)
-            continue
-        match = _FRONTMATTER_FIELD_RE.match(line)
-        if match:
-            key = match.group(1)
-            if key not in blocks:
-                blocks[key] = [match.group(2).strip()]
-                current_key = key
-            else:
-                # Duplicate top-level key: first wins. Stop attaching indented
-                # lines so a later block does not merge into the first value.
-                current_key = None
-        else:
-            current_key = None
-    return {key: "\n".join(lines) for key, lines in blocks.items()}
+    try:
+        loaded = yaml.safe_load(frontmatter)
+    except yaml.YAMLError:
+        return None
+    if loaded is None:
+        return {}
+    if not isinstance(loaded, dict):
+        return None
+    return loaded
 
 
 def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
     """True when a top-level frontmatter key appears more than once.
 
     Duplicate keys are malformed YAML and can hide a governance change (a
-    second ``status:`` line masking the first). The exemption fails closed on
-    them so the adr-review gate still fires and the author cleans up the block.
+    second ``status:`` line masking the first). PyYAML resolves duplicates
+    last-wins without error, so this explicit check lets the exemption fail
+    closed on them and the adr-review gate still fires.
     """
     seen: set[str] = set()
     for line in frontmatter.splitlines():
@@ -158,15 +148,18 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
     (for example ``status: proposed`` -> ``accepted``) makes this False so the
     adr-review gate still fires (ADR-073).
 
-    Fails closed when either side has a duplicate top-level key: a duplicated
-    governance key could otherwise mask a status change.
+    Fails closed when either side has a duplicate top-level key or malformed
+    frontmatter: a duplicated or unparseable governance key could otherwise
+    mask a status change.
     """
     if _has_duplicate_top_level_keys(old_frontmatter) or _has_duplicate_top_level_keys(
         new_frontmatter
     ):
         return False
-    old_fields = _frontmatter_fields(old_frontmatter)
-    new_fields = _frontmatter_fields(new_frontmatter)
+    old_fields = _parse_frontmatter(old_frontmatter)
+    new_fields = _parse_frontmatter(new_frontmatter)
+    if old_fields is None or new_fields is None:
+        return False
     changed_keys = {
         key
         for key in old_fields.keys() | new_fields.keys()
