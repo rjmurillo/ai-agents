@@ -119,7 +119,7 @@
     "Regenerated copilot-cli skill twins via build_all.py; added tests/test_timeout_hardening_2811.py (7 tests).",
     "Verification: uv run pytest tests/test_timeout_hardening_2811.py => 7 passed; mypy => no issues."
   ],
-  "endingCommit": "49afc89",
+  "endingCommit": "7ca5c13",
   "nextSteps": [
     "Follow-up PR: remaining #2811 sites (add_comment_reaction, set_item_milestone, invoke_copilot_assignment, resolve_pr_conflicts separator, worktree_identity, batch/install wrappers, three hooks, validate_slash_command)."
   ]
