@@ -103,7 +103,10 @@ def main(argv: list[str] | None = None) -> int:
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if final in FAIL_VERDICTS and not code_quality_failures:
+    if categories.get("security") == "INFRASTRUCTURE":
+        write_log("Security review did not run - preserving DID_NOT_RUN")
+        final = "DID_NOT_RUN"
+    elif final in FAIL_VERDICTS and not code_quality_failures:
         write_log("All failures are INFRASTRUCTURE - downgrading to WARN")
         final = "WARN"
 

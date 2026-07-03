@@ -18,12 +18,10 @@ Blocking verdict set (canonical source + documented divergence):
     scripts/ai_review_common/verdict.py:FAIL_VERDICTS =
         {"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"}
 
-This gate is STRICTER than canonical: it ALSO blocks on ``UNKNOWN``. Per
-REQ-008-05 (issue #1934) an UNKNOWN verdict from a crashed or unparseable skill
-must force explicit attention, so the workflow gate adds it. The blocking set
-here is therefore ``FAIL_VERDICTS | {"UNKNOWN"}``, matching the original pwsh
-``$blockingVerdicts`` array exactly
-(CRITICAL_FAIL, REJECTED, FAIL, NEEDS_REVIEW, NON_COMPLIANT, UNKNOWN).
+This gate is STRICTER than canonical: it ALSO blocks on ``UNKNOWN`` and
+``DID_NOT_RUN``. Per REQ-008-05 (issue #1934) an UNKNOWN verdict from a crashed
+or unparseable skill must force explicit attention, so the workflow gate adds it.
+Issue #2818 adds DID_NOT_RUN for infrastructure failures that skip the review.
 
 Input env vars:
     FINAL_VERDICT
@@ -52,8 +50,8 @@ sys.path.insert(0, str(_WORKSPACE))
 
 from scripts.ai_review_common import FAIL_VERDICTS  # noqa: E402
 
-# FAIL_VERDICTS plus UNKNOWN; see module docstring for the divergence rationale.
-BLOCKING_VERDICTS = frozenset(FAIL_VERDICTS | {"UNKNOWN"})
+# FAIL_VERDICTS plus UNKNOWN and DID_NOT_RUN; see module docstring.
+BLOCKING_VERDICTS = frozenset(FAIL_VERDICTS | {"UNKNOWN", "DID_NOT_RUN"})
 
 # Agent display names with emoji, in the canonical order. Mirrors the original
 # $agentVerdicts array in the workflow block.
