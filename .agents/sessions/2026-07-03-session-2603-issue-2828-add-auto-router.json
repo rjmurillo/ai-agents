@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2603,
+    "date": "2026-07-03",
+    "branch": "claude/auto-router-skill",
+    "startingCommit": "f13f73f",
+    "objective": "Issue #2828: add the /auto router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "LSP-first read/grep guards and topical-memory hooks enforced file access this session, confirming the Serena enforcement layer active."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial-instructions contract in effect; per-turn re-assertion hook firing."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected by the SessionStart context loader (read-only dashboard)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located new_session_log.py, validate_skill_format.py, build_all.py, bundle_registry.py via ls/find."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/skill-description-trigger-standard.md (description formula, length, no angle brackets) and scripts/validation/bundle_registry.py before authoring the skill."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and .claude/rules/* injected each turn; universal.md dash rule byte-verified on the new skill (0 em, 0 en)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse topical-memory hooks surfaced skills-pr-automation, utility-002-precommit-hook-autofix, enforcement-patterns observations."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/auto-router-skill"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/auto-router-skill"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f13f73f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items populated with honest evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched; git status clean of the read-only handoff dashboard (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new cross-session decision beyond what issue #2828 records; the issue body carries the buy-vs-build reasoning."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran markdownlint-cli2 --fix on the new SKILL.md; skill-format validator PASSED (ADR-017 atomic format)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed on branch claude/auto-router-skill before push (atomic commits under five files each)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran validate_skill_format.py --path .claude/skills/auto: PASSED; byte-check 0 em-dashes 0 en-dashes; build_all regenerated the copilot twin cleanly; ran `uv run pytest` not applicable (no runtime surface; markdown-only skill), format validator is the check."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task tracker reflects /auto shipped; #2811 PR-B and #2821 remain tracked."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked; single-artifact skill addition."
+      }
+    }
+  },
+  "workLog": [
+    "Fetched gstack autoplan SKILL.md.tmpl as the reference shape; surveyed internal prior art (steering-matcher, orchestrator, CLAUDE.md static table) and found no existing intent router.",
+    "Authored .claude/skills/auto/SKILL.md: Phase 0 intent+size classification, 16-row routing table with orchestrator fallback, Mechanical/Taste/Sovereignty decision classes mapped to the AGENTS.md Ask First list, final gate, escape hatches.",
+    "Removed a self-set drift trap: hardcoded skill count in the description (orphan-ref-validator flags stale counts).",
+    "Generated src/copilot-cli/skills/auto twin via build_all.py; bumped project-toolkit claude and copilot manifests to 0.5.255.",
+    "Filed issue #2828 with the design and buy-vs-build Quick-tier verdict.",
+    "Verification: validate_skill_format.py --path .claude/skills/auto PASSED; dash byte-check clean."
+  ],
+  "endingCommit": "f13f73f",
+  "nextSteps": [
+    "Open draft PR for #2828.",
+    "Follow-up: point the CLAUDE.md Skill routing section at /auto as the canonical router so the two tables do not drift."
+  ]
+}
