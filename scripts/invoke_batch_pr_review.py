@@ -30,7 +30,7 @@ def run_git(
         return subprocess.run(
             ["git", *args],
             capture_output=True,
-            text=True,
+            encoding="utf-8", errors="replace",
             cwd=cwd,
             timeout=timeout,
         )
@@ -48,7 +48,7 @@ def run_gh(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["gh", *args],
             capture_output=True,
-            text=True,
+            encoding="utf-8", errors="replace",
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:

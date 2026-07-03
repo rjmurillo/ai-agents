@@ -32,7 +32,7 @@ from scripts.github_core.repo import get_repo_root
 def run_git(*args: str, timeout: int = 10) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
-            ["git", *args], capture_output=True, text=True, timeout=timeout
+            ["git", *args], capture_output=True, encoding="utf-8", errors="replace", timeout=timeout
         )
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(

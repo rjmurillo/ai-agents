@@ -237,7 +237,7 @@ def create_issues(
                     "homework,enhancement",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8", errors="replace",
                 check=False,
                 shell=False,
                 timeout=60,
