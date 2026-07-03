@@ -27,6 +27,8 @@ _get_dependent_adrs = mod._get_dependent_adrs
 _run_git = mod._run_git
 _split_frontmatter = mod._split_frontmatter
 _is_frontmatter_only_change = mod._is_frontmatter_only_change
+_frontmatter_fields = mod._frontmatter_fields
+_only_non_decision_fields_changed = mod._only_non_decision_fields_changed
 main = mod.main
 
 
@@ -220,6 +222,47 @@ class TestSplitFrontmatter:
         assert body == content
 
 
+class TestOnlyNonDecisionFieldsChanged:
+    """Tests for the frontmatter allowlist gate (#2845, ADR-073)."""
+
+    def test_implemented_flip_is_exempt(self) -> None:
+        old = "status: proposed\nimplemented: false\n"
+        new = "status: proposed\nimplemented: true\n"
+        assert _only_non_decision_fields_changed(old, new) is True
+
+    def test_status_flip_is_not_exempt(self) -> None:
+        # A hand-edit to accepted MUST still trip the gate (ADR-073:61).
+        old = "status: proposed\nimplemented: true\n"
+        new = "status: accepted\nimplemented: true\n"
+        assert _only_non_decision_fields_changed(old, new) is False
+
+    def test_supersession_change_is_not_exempt(self) -> None:
+        old = "status: accepted\nsuperseded-by: null\n"
+        new = "status: accepted\nsuperseded-by: ADR-099\n"
+        assert _only_non_decision_fields_changed(old, new) is False
+
+    def test_no_field_change_is_exempt(self) -> None:
+        fm = "status: proposed\nimplemented: false\n"
+        assert _only_non_decision_fields_changed(fm, fm) is True
+
+    def test_governance_and_allowed_change_together_is_not_exempt(self) -> None:
+        old = "status: proposed\nimplemented: false\n"
+        new = "status: accepted\nimplemented: true\n"
+        assert _only_non_decision_fields_changed(old, new) is False
+
+
+class TestFrontmatterFields:
+    """Tests for the lightweight frontmatter field parser."""
+
+    def test_parses_top_level_scalars(self) -> None:
+        fields = _frontmatter_fields("status: proposed\nimplemented: false\n")
+        assert fields == {"status": "proposed", "implemented": "false"}
+
+    def test_ignores_indented_nested_lines(self) -> None:
+        fields = _frontmatter_fields("deciders:\n  - alice\n  - bob\nstatus: proposed\n")
+        assert fields == {"deciders": "", "status": "proposed"}
+
+
 class TestFrontmatterOnlyDetection:
     """Integration tests for frontmatter-only ADR change exemption (#2845)."""
 
@@ -270,6 +313,19 @@ class TestFrontmatterOnlyDetection:
         adr = adr_repo / self.ADR_REL
         new_body = self.BODY.replace("We do X.", "We do Y.")
         adr.write_text("---\nstatus: proposed\nimplemented: false\n---" + new_body)
+        data = self._run(adr_repo, capsys)
+        assert data["HasChanges"] is True
+        assert data["Modified"] == [self.ADR_REL]
+        assert data["ModifiedFrontmatterOnly"] == []
+        assert data["RecommendedAction"] == "review"
+
+    def test_status_flip_triggers_review(
+        self, adr_repo: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        # Frontmatter-only status flip to accepted MUST still fire the gate so
+        # the author binds it to adr-review evidence (ADR-073:61, #2845 review).
+        adr = adr_repo / self.ADR_REL
+        adr.write_text("---\nstatus: accepted\nimplemented: false\n---" + self.BODY)
         data = self._run(adr_repo, capsys)
         assert data["HasChanges"] is True
         assert data["Modified"] == [self.ADR_REL]
