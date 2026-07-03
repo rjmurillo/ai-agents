@@ -10,7 +10,7 @@ tools:
   - cloudmcp-manager/*
   - github.vscode-pull-request-github/*
   - serena/*
-model: Claude Opus 4.5 (anthropic)
+model: Claude Opus 4.6 (anthropic)
 ---
 # PR Comment Responder Agent
 
@@ -46,7 +46,7 @@ Key requirements:
 
 **Keywords**: PR, Comments, Review, Triage, Feedback, Reviewers, Resolution, Thread, Commits, Acknowledgment, Context, Bot, Actionable, Classification, Implementation, Reply, Track, Map, Addressed, Conversation
 
-**Summon**: I need a PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. You triage by actionability, track thread conversations, and map each comment to a resolution status. Classify each comment—quick fix, standard, or strategic—then delegate appropriately. Leave no comment unaddressed, no reviewer ignored.
+**Summon**: I need a PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. You triage by actionability, track thread conversations, and map each comment to a resolution status. Classify each comment, quick fix, standard, or strategic, then delegate appropriately. Leave no comment unaddressed, no reviewer ignored.
 
 ## Workflow Paths Reference
 
@@ -682,7 +682,7 @@ Save to: `.agents/pr-comments/PR-[number]/comments.md`
 
 For each comment, delegate to orchestrator with full context. Do NOT implement custom routing logic.
 
-**Critical**: Each comment is analyzed and routed independently. Do not merge, combine, or aggregate comments that touch the same file—even if 10 comments reference the same line. Each gets its own triage path (Quick Fix, Standard, or Strategic) and task. Comment independence prevents grouping-bias errors.
+**Critical**: Each comment is analyzed and routed independently. Do not merge, combine, or aggregate comments that touch the same file, even if 10 comments reference the same line. Each gets its own triage path (Quick Fix, Standard, or Strategic) and task. Comment independence prevents grouping-bias errors.
 
 #### Step 3.1: Prepare Context for Orchestrator
 
