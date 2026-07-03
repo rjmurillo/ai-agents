@@ -138,7 +138,7 @@ def get_repo_info() -> RepoInfo:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
             capture_output=True,
-            text=True,
+            encoding="utf-8", errors="replace",
             check=True,
             timeout=10,
         )
@@ -286,7 +286,7 @@ def _run_git(
         return subprocess.run(
             ["git", *args],
             capture_output=True,
-            text=True,
+            encoding="utf-8", errors="replace",
             cwd=cwd,
             timeout=timeout,
         )

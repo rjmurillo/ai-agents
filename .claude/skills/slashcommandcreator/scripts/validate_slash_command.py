@@ -139,7 +139,7 @@ def _validate_lint(path: str, violations: list[str]) -> None:
         result = subprocess.run(
             ["npx", "markdownlint-cli2", "--", path],
             capture_output=True,
-            text=True,
+            encoding="utf-8", errors="replace",
             timeout=120,
         )
     except subprocess.TimeoutExpired:

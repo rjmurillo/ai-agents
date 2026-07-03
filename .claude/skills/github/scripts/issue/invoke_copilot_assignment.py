@@ -122,7 +122,7 @@ def _load_synthesis_config(config_path: str) -> dict[str, Any]:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--git-common-dir"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, encoding="utf-8", errors="replace", timeout=10,
             )
             if result.returncode == 0:
                 git_common = Path(result.stdout.strip())
@@ -400,7 +400,7 @@ def _assign_copilot(owner: str, repo: str, issue_number: int) -> bool:
                 "--repo", f"{owner}/{repo}",
                 "--add-assignee", "copilot-swe-agent",
             ],
-            capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS,
+            capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
     except subprocess.TimeoutExpired:
@@ -533,7 +533,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
     try:
         issue_result = subprocess.run(
             ["gh", "api", f"repos/{owner}/{repo}/issues/{issue_number}"],
-            capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS,
+            capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
     except subprocess.TimeoutExpired:
