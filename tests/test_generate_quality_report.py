@@ -316,7 +316,7 @@ class TestSecurityNotice:
             rc = main(_make_argv(**argv_kwargs))
         assert rc == 0
         outputs = _read_outputs(output_file)
-        return Path(outputs["report_file"]).read_text()
+        return Path(outputs["report_file"]).read_text(encoding="utf-8")
 
     def test_caution_block_when_security_infrastructure(self, tmp_path, monkeypatch):
         content = self._render(
