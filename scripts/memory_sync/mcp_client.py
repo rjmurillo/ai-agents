@@ -289,6 +289,8 @@ class McpClient:
             )
         if error:
             raise error[0]
+        if not result:
+            raise McpError("MCP reader thread exited without data")
         return result[0]
 
     @staticmethod

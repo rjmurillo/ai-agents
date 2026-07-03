@@ -196,10 +196,16 @@ class SemgrepScanner:
 
             if result.returncode not in (0, 1):
                 logger.error("Semgrep execution error: %s", result.stderr)
-                return []
+                return [
+                    _scan_failure_finding(
+                        f"Semgrep exited {result.returncode}: "
+                        f"{result.stderr.strip() or 'no stderr'}"
+                    )
+                ]
 
             if not result.stdout.strip():
-                return []
+                logger.error("Semgrep produced no JSON output")
+                return [_scan_failure_finding("Semgrep produced no JSON output")]
 
             data = json.loads(result.stdout)
             findings = []

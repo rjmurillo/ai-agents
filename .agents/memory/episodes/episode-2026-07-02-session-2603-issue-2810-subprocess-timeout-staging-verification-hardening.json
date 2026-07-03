@@ -61,6 +61,14 @@
       "content": "Commit: f13f73f",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that returns a blocking ERROR semgrep-scan-failure finding so a hung scan cannot silently pass the gate.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -69,7 +77,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 2
+    "files_changed": 6
   },
   "lessons": []
 }

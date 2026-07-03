@@ -9,6 +9,7 @@ server must not block the reader forever (including on Windows, where
 from __future__ import annotations
 
 import subprocess
+import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -50,6 +51,46 @@ def test_run_semgrep_subprocess_error_fails_closed() -> None:
         findings = scanner._run_semgrep([Path("example.py")])
     assert len(findings) == 1
     assert findings[0].severity == "ERROR"
+
+
+def test_run_semgrep_nonzero_exit_fails_closed() -> None:
+    """semgrep exit codes other than 0/1 (bad config, crash) must yield a
+    blocking ERROR finding, not a clean [] that run() maps to PASS."""
+    scanner = SemgrepScanner()
+    crashed = subprocess.CompletedProcess(
+        args=["semgrep"], returncode=2, stdout="", stderr="bad config"
+    )
+    with patch("subprocess.run", return_value=crashed):
+        findings = scanner._run_semgrep([Path("example.py")])
+    assert len(findings) == 1
+    assert findings[0].severity == "ERROR"
+    assert findings[0].check_id == "semgrep-scan-failure"
+    assert "exited 2" in findings[0].message
+
+
+def test_run_semgrep_empty_stdout_fails_closed() -> None:
+    """A 0/1 exit with no JSON output means the scan did not really run."""
+    scanner = SemgrepScanner()
+    silent = subprocess.CompletedProcess(
+        args=["semgrep"], returncode=0, stdout="", stderr=""
+    )
+    with patch("subprocess.run", return_value=silent):
+        findings = scanner._run_semgrep([Path("example.py")])
+    assert len(findings) == 1
+    assert findings[0].severity == "ERROR"
+    assert findings[0].check_id == "semgrep-scan-failure"
+
+
+def test_mcp_win32_reader_exit_without_data_raises() -> None:
+    """A reader thread that exits without appending must raise McpError,
+    not IndexError (Copilot review on #2830)."""
+    client = McpClient.__new__(McpClient)
+    client._timeout = 1
+    with patch.object(threading.Thread, "start"), patch.object(
+        threading.Thread, "join"
+    ), patch.object(threading.Thread, "is_alive", return_value=False):
+        with pytest.raises(McpError, match="exited without data"):
+            client._read_fd_with_timeout_win32(0)
 
 
 def test_mcp_win32_read_timeout_raises() -> None:

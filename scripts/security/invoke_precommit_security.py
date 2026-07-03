@@ -189,14 +189,18 @@ class PreCommitSecurityCheck:
         owner, repo, branch = context
 
         # Check if gh CLI is available
-        gh_check = subprocess.run(
-            ["gh", "--version"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            check=False,
-        )
+        try:
+            gh_check = subprocess.run(
+                ["gh", "--version"],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.debug("gh CLI check failed (%s), skipping CodeQL alert fetch", e)
+            return []
         if gh_check.returncode != 0:
             logger.debug("gh CLI not available, skipping CodeQL alert fetch")
             return []

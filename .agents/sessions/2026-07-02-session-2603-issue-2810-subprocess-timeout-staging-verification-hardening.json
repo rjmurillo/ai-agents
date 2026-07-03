@@ -116,7 +116,7 @@
   "workLog": [
     "invoke_precommit_security.py: added timeouts to the gh --version, code-scanning gh api, Get-Module and Install-Module calls; a TimeoutExpired now degrades PSScriptAnalyzer to unavailable; the code-scanning timeout is caught by the existing SubprocessError handler and skips.",
     "invoke_precommit_security.py: the discarded _stage_security_report return is now checked; a staging failure fails the run with exit 1 instead of passing without the required report.",
-    "run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that logs a scan-failure and returns no findings.",
+    "run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that returns a blocking ERROR semgrep-scan-failure finding so a hung scan cannot silently pass the gate.",
     "mcp_client.py: added a win32 reader-thread read timeout so os.read cannot block forever on Windows, and an overall monotonic deadline in _read_response against notification/id-mismatch floods.",
     "Verification: uv run pytest tests/test_security_gate_timeouts_2810.py tests/test_memory_sync/test_mcp_client.py => 15 passed; mypy => no issues on the three scripts."
   ],
