@@ -45,6 +45,14 @@
       "content": "Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e5392ba",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -52,7 +60,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

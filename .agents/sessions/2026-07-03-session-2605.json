@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Atomic commit: aggregate_quality_verdicts.py, generate_quality_report.py, two test files, this session log (5 files at the ceiling)"
+        "Evidence": "Commits 22e4b4f (gate scripts + tests + this log), db14eaf (loader guard), e5392ba (test encoding); final code commit e5392ba recorded as endingCommit"
       },
       "validationPassed": {
         "level": "MUST",
@@ -131,7 +131,7 @@
       "action": "Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "e5392ba",
   "nextSteps": [
     "Push branch, open draft PR for #2821 owner review"
   ]
