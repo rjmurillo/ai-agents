@@ -116,6 +116,18 @@ class TestMcpClientProtocol:
 
         assert not client._stderr_thread.is_alive()
 
+    def test_read_bytes_uses_total_deadline(self, monkeypatch) -> None:
+        """Windows reads fail after the request deadline expires."""
+        mock_process = MagicMock()
+        mock_process.stderr = None
+        client = McpClient(mock_process, timeout=0.01)
+        client._read_deadline = 1.0
+
+        monkeypatch.setattr("scripts.memory_sync.mcp_client.time.monotonic", lambda: 2.0)
+
+        with pytest.raises(McpError, match="Timeout waiting for response"):
+            client._read_bytes(0)
+
 
 class TestIsAvailable:
     """Test availability check."""

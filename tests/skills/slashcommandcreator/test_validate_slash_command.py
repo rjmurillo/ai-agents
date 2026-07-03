@@ -40,6 +40,19 @@ class TestValidateSlashCommand:
         violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
         assert blocking == 0
 
+    def test_lint_invocation_includes_timeout(self, tmp_path: Path) -> None:
+        cmd = tmp_path / "test.md"
+        cmd.write_text(
+            "---\n"
+            "description: Use when testing validation\n"
+            "---\n\n"
+            "# Test Command\n"
+        )
+        with patch.object(mod.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            validate_slash_command(str(cmd), skip_lint=False)
+        assert run.call_args.kwargs["timeout"] == mod.SUBPROCESS_TIMEOUT_SECONDS
+
     def test_fails_missing_file(self, tmp_path: Path) -> None:
         violations, blocking, warnings = validate_slash_command(
             str(tmp_path / "nonexistent.md"), skip_lint=True

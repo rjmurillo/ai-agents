@@ -16,6 +16,7 @@ import select
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,7 @@ class McpClient:
         self._timeout = timeout
         self._request_id = 0
         self._stderr_lines: collections.deque[str] = collections.deque(maxlen=100)
+        self._read_deadline: float | None = None
         self._stderr_thread = threading.Thread(
             target=self._drain_stderr, daemon=True
         )
@@ -204,44 +206,53 @@ class McpClient:
         if stdout is None:
             raise McpError("Process stdout is not available")
         fd = stdout.fileno()
+        self._read_deadline = time.monotonic() + self._timeout
 
-        buf = b""
-        while True:
-            header_end = buf.find(b"\r\n\r\n")
-            while header_end == -1:
-                buf += self._read_bytes(fd)
+        try:
+            buf = b""
+            while True:
                 header_end = buf.find(b"\r\n\r\n")
+                while header_end == -1:
+                    buf += self._read_bytes(fd)
+                    header_end = buf.find(b"\r\n\r\n")
 
-            header = buf[:header_end + 4].decode("utf-8")
-            content_length = self._parse_content_length(header)
-            body_start = header_end + 4
+                header = buf[:header_end + 4].decode("utf-8")
+                content_length = self._parse_content_length(header)
+                body_start = header_end + 4
 
-            while len(buf) - body_start < content_length:
-                buf += self._read_bytes(fd)
+                while len(buf) - body_start < content_length:
+                    buf += self._read_bytes(fd)
 
-            body = buf[body_start:body_start + content_length]
-            buf = buf[body_start + content_length:]
+                body = buf[body_start:body_start + content_length]
+                buf = buf[body_start + content_length:]
 
-            response: dict[str, Any] = json.loads(body.decode("utf-8"))
+                response: dict[str, Any] = json.loads(body.decode("utf-8"))
 
-            if "id" not in response:
-                _logger.debug("Skipping notification: %s", response.get("method"))
-                continue
+                if "id" not in response:
+                    _logger.debug("Skipping notification: %s", response.get("method"))
+                    continue
 
-            if response["id"] != expected_id:
-                _logger.warning(
-                    "Unexpected response id %s, expected %s",
-                    response["id"],
-                    expected_id,
-                )
-                continue
+                if response["id"] != expected_id:
+                    _logger.warning(
+                        "Unexpected response id %s, expected %s",
+                        response["id"],
+                        expected_id,
+                    )
+                    continue
 
-            return response
+                return response
+        finally:
+            self._read_deadline = None
 
     def _read_bytes(self, fd: int) -> bytes:
         """Read available bytes from fd with timeout."""
+        if self._read_deadline is not None and time.monotonic() >= self._read_deadline:
+            raise McpError(f"Timeout waiting for response (>{self._timeout}s)")
         if sys.platform != "win32":
-            ready, _, _ = select.select([fd], [], [], self._timeout)
+            timeout = self._timeout
+            if self._read_deadline is not None:
+                timeout = max(0.0, self._read_deadline - time.monotonic())
+            ready, _, _ = select.select([fd], [], [], timeout)
             if not ready:
                 raise McpError(
                     f"Timeout waiting for response (>{self._timeout}s)"

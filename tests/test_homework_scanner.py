@@ -146,6 +146,24 @@ class TestBuildIssueBody:
         assert "Homework Scanner" in body
 
 
+class TestCreateIssues:
+    def test_create_issue_call_includes_timeout(self) -> None:
+        item = HomeworkItem(
+            pr_number=42,
+            comment_id=123,
+            author="reviewer",
+            body_excerpt="Deferred to follow-up",
+            matched_pattern="deferred",
+            comment_url="https://github.com/o/r/pull/42#discussion_r123",
+            source_type="review_comment",
+        )
+        with patch("scripts.homework_scanner.subprocess.run") as run:
+            run.return_value = MagicMock(returncode=0, stdout="https://github.com/o/r/issues/1")
+            create_issues("o", "r", [item], dry_run=False)
+
+        assert run.call_args.kwargs["timeout"] == 60
+
+
 # --- Scan PR tests ---
 
 

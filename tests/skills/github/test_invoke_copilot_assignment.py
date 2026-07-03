@@ -31,6 +31,12 @@ def _import_module():
 
 
 class TestHelpers:
+    def test_assign_copilot_includes_timeout(self, _import_module):
+        mod = _import_module
+        with patch("subprocess.run", return_value=make_completed_process()) as run:
+            assert mod._assign_copilot("o", "r", 1) is True
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
+
     def test_get_maintainer_guidance_bullets(self, _import_module):
         mod = _import_module
         comments = [{

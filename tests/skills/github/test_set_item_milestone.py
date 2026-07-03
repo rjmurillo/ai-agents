@@ -40,9 +40,10 @@ class TestGetItemMilestone:
         item_data = {"milestone": {"title": "v1.0.0"}}
         with patch("subprocess.run", return_value=make_completed_process(
             stdout=json.dumps(item_data)
-        )):
+        )) as run:
             result = mod._get_item_milestone("o", "r", 1)
         assert result == "v1.0.0"
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
 
     def test_no_milestone(self, _import_module):
         mod = _import_module
@@ -114,6 +115,12 @@ class TestSetItemMilestone:
         assert result["Success"] is True
         assert result["Data"]["action"] == "assigned"
         assert result["Data"]["milestone"] == "v1.0.0"
+
+    def test_assign_milestone_includes_timeout(self, _import_module):
+        mod = _import_module
+        with patch("subprocess.run", return_value=make_completed_process()) as run:
+            mod._assign_milestone("o", "r", 1, "v1.0.0")
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
 
     def test_api_error_exits_3(self, _import_module):
         mod = _import_module

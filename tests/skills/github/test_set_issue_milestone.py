@@ -66,6 +66,23 @@ class TestSetIssueMilestone:
         assert result["Data"]["action"] == "assigned"
         assert result["Data"]["milestone"] == "v1.0.0"
 
+    def test_all_gh_calls_include_timeout(self, _import_module):
+        mod = _import_module
+        with patch("subprocess.run", side_effect=[
+            make_completed_process(stdout="null"),
+            make_completed_process(stdout="v1.0.0"),
+            make_completed_process(),
+        ]) as run:
+            with (
+                patch("set_issue_milestone.assert_gh_authenticated"),
+                patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            ):
+                assert mod.main(["--issue", "1", "--milestone", "v1.0.0"]) == 0
+        assert all(
+            call.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
+            for call in run.call_args_list
+        )
+
     def test_already_has_same_milestone(self, _import_module, capsys):
         mod = _import_module
         with (

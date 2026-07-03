@@ -42,10 +42,11 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=make_completed_process(
                 stdout=json.dumps({"id": 1})
-            )),
+            )) as run,
         ):
             rc = mod.main(["--comment-id", "123", "--reaction", "eyes"])
         assert rc == 0
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["succeeded"] == 1
         assert result["Data"]["failed"] == 0

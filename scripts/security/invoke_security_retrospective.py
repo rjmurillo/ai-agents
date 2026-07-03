@@ -36,6 +36,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SUBPROCESS_TIMEOUT_SECONDS = 60
+
 
 class ExternalReviewSource(Enum):
     """Source of external security review."""
@@ -205,6 +207,7 @@ class SecurityRetrospective:
                 ],
                 capture_output=True,
                 text=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
                 check=False,
             )
 
@@ -272,6 +275,7 @@ class SecurityRetrospective:
                 ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
                 capture_output=True,
                 text=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
                 check=True,
             )
             return result.stdout.strip()

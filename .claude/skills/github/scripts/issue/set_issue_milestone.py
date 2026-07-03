@@ -39,6 +39,8 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
 )
+GH_TIMEOUT_SECONDS = 15
+
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
@@ -66,6 +68,7 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
         ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
         capture_output=True,
         text=True,
+        timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
     if result.returncode != 0:
@@ -82,6 +85,7 @@ def _get_milestone_titles(owner: str, repo: str) -> list[str]:
         ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
         capture_output=True,
         text=True,
+        timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
     if result.returncode != 0:
@@ -180,6 +184,7 @@ def main(argv: list[str] | None = None) -> int:
             ],
             capture_output=True,
             text=True,
+            timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
         if result.returncode != 0:
@@ -244,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         ],
         capture_output=True,
         text=True,
+        timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
     if result.returncode != 0:

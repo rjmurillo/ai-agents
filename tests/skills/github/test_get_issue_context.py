@@ -56,11 +56,12 @@ class TestGetIssueContext:
             patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=make_completed_process(
                 stdout=json.dumps(issue_data)
-            )),
+            )) as run,
         ):
             rc = mod.main(["--issue", "42"])
 
         assert rc == 0
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
         output = json.loads(capsys.readouterr().out)
         assert output["Success"] is True
         assert output["Data"]["number"] == 42

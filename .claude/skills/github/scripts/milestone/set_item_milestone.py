@@ -51,6 +51,7 @@ from github_core.output import (  # noqa: E402
 )
 
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+GH_TIMEOUT_SECONDS = 15
 
 
 def _parse_semver_tuple(version: str) -> tuple[int, ...]:
@@ -115,7 +116,7 @@ def _get_item_milestone(owner: str, repo: str, number: int) -> str | None:
     """Return the current milestone title for a PR/issue, or None."""
     result = subprocess.run(
         ["gh", "api", f"repos/{owner}/{repo}/issues/{number}"],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS, check=False,
     )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
@@ -158,7 +159,7 @@ def _assign_milestone(owner: str, repo: str, number: int, milestone_title: str) 
             "--repo", f"{owner}/{repo}",
             "--milestone", milestone_title,
         ],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS, check=False,
     )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()

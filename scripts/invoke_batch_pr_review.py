@@ -22,21 +22,25 @@ from pathlib import Path
 from scripts.github_core.repo import get_repo_root
 from scripts.github_core.worktree_identity import reset_worktree_identity
 
+SUBPROCESS_TIMEOUT_SECONDS = 60
 
-def run_git(*args: str, cwd: str | Path | None = None) -> subprocess.CompletedProcess[str]:
+
+def run_git(*args: str, cwd: str | Path | None = None, timeout: int = SUBPROCESS_TIMEOUT_SECONDS) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         capture_output=True,
         text=True,
         cwd=cwd,
+        timeout=timeout,
     )
 
 
-def run_gh(*args: str) -> subprocess.CompletedProcess[str]:
+def run_gh(*args: str, timeout: int = SUBPROCESS_TIMEOUT_SECONDS) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["gh", *args],
         capture_output=True,
         text=True,
+        timeout=timeout,
     )
 
 

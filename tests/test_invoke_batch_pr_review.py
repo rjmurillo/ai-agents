@@ -6,15 +6,29 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from scripts.invoke_batch_pr_review import (
+    SUBPROCESS_TIMEOUT_SECONDS,
     WorktreeStatus,
     get_pr_branch,
     get_worktree_status,
     main,
     print_status_table,
+    run_gh,
+    run_git,
 )
 
 
 class TestGetPrBranch:
+    @patch("scripts.invoke_batch_pr_review.subprocess.run")
+    def test_run_wrappers_pass_timeout(self, mock_run: MagicMock) -> None:
+        run_git("status")
+        run_gh("pr", "list")
+
+        assert mock_run.call_count == 2
+        assert all(
+            call.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS
+            for call in mock_run.call_args_list
+        )
+
     @patch("scripts.invoke_batch_pr_review.run_gh")
     def test_returns_branch_name(self, mock_gh: MagicMock) -> None:
         mock_gh.return_value = MagicMock(

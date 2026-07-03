@@ -31,6 +31,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SUBPROCESS_TIMEOUT_SECONDS = 120
+
 
 class SemgrepInstaller:
     """Handles semgrep installation across platforms."""
@@ -46,6 +48,7 @@ class SemgrepInstaller:
                 ["semgrep", "--version"],
                 capture_output=True,
                 text=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
                 check=False,
             )
             if result.returncode == 0:
@@ -65,6 +68,7 @@ class SemgrepInstaller:
                 [sys.executable, "-m", "pip", "install", "semgrep"],
                 capture_output=True,
                 text=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
                 check=False,
             )
 

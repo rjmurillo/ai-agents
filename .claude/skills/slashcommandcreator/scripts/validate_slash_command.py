@@ -20,6 +20,8 @@ import re
 import subprocess
 from pathlib import Path
 
+SUBPROCESS_TIMEOUT_SECONDS = 60
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -139,6 +141,7 @@ def _validate_lint(path: str, violations: list[str]) -> None:
         ["npx", "markdownlint-cli2", "--", path],
         capture_output=True,
         text=True,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
     )
 
     if result.returncode != 0:

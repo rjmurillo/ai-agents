@@ -177,6 +177,7 @@ def _apply_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
         capture_output=True,
         encoding="utf-8",
         errors="replace",
+        timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
     return result.returncode == 0
@@ -237,6 +238,7 @@ def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
         capture_output=True,
         encoding="utf-8",
         errors="replace",
+        timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
     return result.returncode == 0

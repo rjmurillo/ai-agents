@@ -32,6 +32,8 @@ if TYPE_CHECKING:
 
 # Patterns that indicate deferred work in PR comments.
 # Order: most specific first to reduce false positives.
+SUBPROCESS_TIMEOUT_SECONDS = 60
+
 HOMEWORK_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"deferred\s+to\s+follow[- ]?up", re.IGNORECASE),
     re.compile(r"future\s+improvement", re.IGNORECASE),
@@ -237,6 +239,7 @@ def create_issues(
             ],
             capture_output=True,
             text=True,
+            timeout=SUBPROCESS_TIMEOUT_SECONDS,
             check=False,
             shell=False,
         )

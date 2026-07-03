@@ -83,6 +83,8 @@ _DEFAULT_CONFIG: dict = {
     },
 }
 
+GH_TIMEOUT_SECONDS = 15
+
 
 def _extract_yaml_list(content: str, key: str) -> list[str]:
     """Extract items from a simple YAML list block, avoiding ReDoS-prone patterns.
@@ -394,7 +396,7 @@ def _assign_copilot(owner: str, repo: str, issue_number: int) -> bool:
             "--repo", f"{owner}/{repo}",
             "--add-assignee", "copilot-swe-agent",
         ],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS, check=False,
     )
     if result.returncode != 0:
         print(f"WARNING: Failed to assign copilot-swe-agent: {result.stderr}", file=sys.stderr)
@@ -519,7 +521,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
     # Fetch issue details
     issue_result = subprocess.run(
         ["gh", "api", f"repos/{owner}/{repo}/issues/{issue_number}"],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS, check=False,
     )
     if issue_result.returncode != 0:
         error_str = issue_result.stderr.strip() or issue_result.stdout.strip()

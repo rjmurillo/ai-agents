@@ -39,6 +39,8 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
 )
+GH_TIMEOUT_SECONDS = 15
+
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
@@ -75,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         ],
         capture_output=True,
         text=True,
+        timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
 
