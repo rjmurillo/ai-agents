@@ -54,6 +54,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Intent | Route |
 |--------|-------|
 | Build a feature, "add X" | Lifecycle chain per size tier above |
+| New capability (Context, module, scanner, validator, pipeline component) | Skill: buy-vs-build-framework (Quick tier) BEFORE /spec, then the Feature chain |
 | Bug, error, "why is this broken" | Skill: analyze, then /build for the fix |
 | PR, issue, label, milestone ops | Skill: github |
 | Respond to PR review threads | Skill: pr-comment-responder |
@@ -63,7 +64,8 @@ evidence (failing tests, widening diff), not on speculation.
 | "what do we know about X" | Skill: memory-search |
 | Research an unfamiliar topic | Skill: context-gather, then research-and-incorporate |
 | Code quality, health check | Skill: quality-grades (repo-wide) or review (pre-merge) |
-| Security question or diff | Skill: security-review; scan with security-scan |
+| "Did I touch security-critical files?" | Skill: security-detection |
+| Review a diff or snippet for vulnerabilities | Skill: security-review; injection scan via security-scan |
 | Save progress, checkpoint | Skill: session-end |
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
