@@ -29,17 +29,21 @@ Why a separate check (issue #2837 is the instance, #2838 the systemic gap):
 
 What it counts:
   Executable invocations of a bare ``.claude/skills/...`` script inside a
-  SKILL.md file. An invocation is a shell interpreter token (``python``,
-  ``python3``, ``bash``, ``sh``) followed by a bare ``.claude/skills/<path>``
-  ending in ``.py`` or ``.sh``. The interpreter must be a standalone token
+  SKILL.md file. An invocation is either (a) a shell interpreter token
+  (``python``, ``python3``, ``bash``, ``sh``), optionally followed by short
+  options (``python3 -u ...``), then a bare ``.claude/skills/<path>`` ending in
+  ``.py`` or ``.sh``, or (b) a direct ``./``-prefixed executable
+  (``./.claude/skills/x/y.sh``). The lead-in must be a standalone token
   (start of line, whitespace, backtick, or a shell operator such as ``|`` or
   ``&&`` precedes it) so that ``bash`` does not match the ``sh`` inside another
-  word. Path references that route through a resolved variable
+  word. Shell line continuations (a trailing backslash before a newline) are
+  joined before matching so a split invocation is still counted. Path references
+  that route through a resolved variable
   (``"$SCRIPTS_DIR/..."`` or ``"${CLAUDE_PLUGIN_ROOT:-.claude}/..."``) do NOT
   match: the literal substring is ``.claude}/skills`` (a ``}`` breaks the
   ``.claude/skills`` sequence) and there is no interpreter-then-bare-path shape.
   Prose cross-links (``see .claude/skills/x/SKILL.md``) do NOT match: no
-  interpreter prefix and the target is not a ``.py``/``.sh`` script.
+  execution lead-in and the target is not a ``.py``/``.sh`` script.
 
 Machine-readable opt-out (mirrors the prose guard's escape hatch, but distinct):
   A skill that genuinely must invoke a bare upstream path can DECLARE it with
@@ -89,12 +93,26 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
 )
 
 # An executable invocation of a bare .claude/skills script. The negative
-# lookbehind (?<![\w.]) keeps the interpreter a standalone token so that the
+# lookbehind (?<![\w.]) keeps the lead-in a standalone token so that the
 # "sh" inside "bash"/"flash" does not match, while still allowing a backtick,
 # whitespace, line start, or shell operator immediately before it.
+#
+# Two execution lead-ins are recognized, both anchored to an execution context
+# so bare *prose* path mentions stay exempt (the sibling prose guard owns those):
+#   1. An interpreter token (python/python3/bash/sh) with optional short options
+#      (`python3 -u .claude/...`, `bash -x .claude/...`).
+#   2. A direct `./`-prefixed executable (`./.claude/skills/x/y.sh`).
+# Shell line continuations (`python3 \<newline>.claude/...`) are normalized to a
+# single line before matching so a split invocation is not missed (issue #2838).
 EXEC_PATTERN = re.compile(
-    r"(?<![\w.])(?:python3?|bash|sh)\s+\.claude/skills/\S+\.(?:py|sh)"
+    r"(?<![\w.])(?:(?:python3?|bash|sh)\s+(?:-\S+\s+)*|\./)"
+    r"\.claude/skills/\S+\.(?:py|sh)"
 )
+
+# Shell line-continuation: a backslash immediately before a newline splices the
+# next line onto the current command. Collapse to a single space (what the shell
+# does) so `python3 \<newline>  .claude/...` is seen as one invocation.
+_CONTINUATION_PATTERN = re.compile(r"\\\n[ \t]*")
 
 # A skill self-declares an intentional bare invocation with this HTML comment.
 # When present, the file's invocations are suppressed (the escape hatch). This
@@ -127,7 +145,8 @@ def has_portability_marker(text: str) -> bool:
 
 def count_exec_invocations(text: str) -> int:
     """Count bare ``.claude/skills`` executable invocations in a SKILL.md."""
-    return len(EXEC_PATTERN.findall(text))
+    joined = _CONTINUATION_PATTERN.sub(" ", text)
+    return len(EXEC_PATTERN.findall(joined))
 
 
 def count_file_invocations(text: str) -> int:
