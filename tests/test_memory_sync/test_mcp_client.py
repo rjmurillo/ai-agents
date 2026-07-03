@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -127,6 +129,32 @@ class TestMcpClientProtocol:
 
         with pytest.raises(McpError, match="Timeout waiting for response"):
             client._read_bytes(0)
+
+    def test_read_via_thread_times_out_in_flight(self) -> None:
+        """Thread helper interrupts a read that has not produced bytes yet."""
+        read_fd, write_fd = os.pipe()
+        start = time.monotonic()
+        try:
+            with pytest.raises(McpError, match="Timeout waiting for response"):
+                McpClient._read_via_thread(read_fd, 0.2, 0.2)
+        finally:
+            os.close(write_fd)
+            os.close(read_fd)
+
+        assert time.monotonic() - start < 1.0
+
+    def test_read_bytes_posix_select_returns_data(self) -> None:
+        """POSIX select path still reads ready bytes."""
+        read_fd, write_fd = os.pipe()
+        mock_process = MagicMock()
+        mock_process.stderr = None
+        client = McpClient(mock_process, timeout=1.0)
+        try:
+            os.write(write_fd, b"abc")
+            assert client._read_bytes(read_fd) == b"abc"
+        finally:
+            os.close(write_fd)
+            os.close(read_fd)
 
 
 class TestIsAvailable:

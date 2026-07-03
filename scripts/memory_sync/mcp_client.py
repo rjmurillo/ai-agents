@@ -248,22 +248,46 @@ class McpClient:
         """Read available bytes from fd with timeout."""
         if self._read_deadline is not None and time.monotonic() >= self._read_deadline:
             raise McpError(f"Timeout waiting for response (>{self._timeout}s)")
-        if sys.platform != "win32":
-            timeout = self._timeout
-            if self._read_deadline is not None:
-                timeout = max(0.0, self._read_deadline - time.monotonic())
+
+        timeout = self._timeout
+        if self._read_deadline is not None:
+            timeout = max(0.0, self._read_deadline - time.monotonic())
+
+        if sys.platform == "win32":
+            chunk = self._read_via_thread(fd, timeout, self._timeout)
+        else:
             ready, _, _ = select.select([fd], [], [], timeout)
             if not ready:
                 raise McpError(
                     f"Timeout waiting for response (>{self._timeout}s)"
                 )
-        chunk = os.read(fd, 4096)
+            chunk = os.read(fd, 4096)
         if not chunk:
             stderr_tail = list(self._stderr_lines)[-10:]
             if stderr_tail:
                 _logger.debug("MCP server stderr: %s", "\n".join(stderr_tail))
             raise McpError("MCP server closed stdout unexpectedly")
         return chunk
+
+    @staticmethod
+    def _read_via_thread(fd: int, timeout: float, total_timeout: float) -> bytes:
+        """Read bytes in a daemon thread so Windows reads can time out."""
+        holder: dict[str, bytes | OSError] = {}
+
+        def _reader() -> None:
+            try:
+                holder["chunk"] = os.read(fd, 4096)
+            except OSError as exc:
+                holder["error"] = exc
+
+        thread = threading.Thread(target=_reader, daemon=True)
+        thread.start()
+        thread.join(timeout)
+        if thread.is_alive():
+            raise McpError(f"Timeout waiting for response (>{total_timeout}s)")
+        if "error" in holder:
+            raise McpError(f"Failed to read from MCP server: {holder['error']}")
+        return holder.get("chunk", b"")  # Defensive; the reader always sets this.
 
     @staticmethod
     def _parse_content_length(header: str) -> int:
