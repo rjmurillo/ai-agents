@@ -52,6 +52,24 @@ class SemgrepFinding:
     owasp: list[str]
 
 
+def _scan_failure_finding(message: str) -> SemgrepFinding:
+    """Blocking finding for a scan that could not complete.
+
+    A security scan that dies must fail closed: an empty findings list
+    reads as PASS in run(), silently bypassing the gate. An ERROR-severity
+    finding rides the existing blocking path instead.
+    """
+    return SemgrepFinding(
+        check_id="semgrep-scan-failure",
+        path="global",
+        line=0,
+        severity="ERROR",
+        message=message,
+        cwe=[],
+        owasp=[],
+    )
+
+
 class SemgrepScanner:
     """Orchestrates semgrep security scanning."""
 
@@ -169,7 +187,8 @@ class SemgrepScanner:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=self.repo_root,
                 timeout=300,
                 check=False,
@@ -212,14 +231,11 @@ class SemgrepScanner:
             return findings
 
         except subprocess.TimeoutExpired:
-            logger.error(
-                "Semgrep scan timed out after 300s; treating as scan failure, "
-                "not a clean result"
-            )
-            return []
+            logger.error("Semgrep scan timed out after 300s")
+            return [_scan_failure_finding("Semgrep scan timed out after 300s")]
         except (subprocess.SubprocessError, json.JSONDecodeError) as e:
             logger.error("Semgrep scan failed: %s", e)
-            return []
+            return [_scan_failure_finding(f"Semgrep scan failed: {e}")]
 
     def run(self) -> int:
         """Execute the semgrep scan workflow."""

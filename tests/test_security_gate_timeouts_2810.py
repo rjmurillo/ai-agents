@@ -28,11 +28,28 @@ def test_ensure_psscriptanalyzer_timeout_returns_false() -> None:
         assert check._ensure_psscriptanalyzer() is False
 
 
-def test_run_semgrep_timeout_returns_empty() -> None:
+def test_run_semgrep_timeout_fails_closed() -> None:
+    """A timed-out scan must yield a blocking ERROR finding, not a clean [].
+
+    run() maps an empty findings list to PASS/exit 0, so returning [] on
+    timeout would silently bypass the security gate.
+    """
     scanner = SemgrepScanner()
     timeout = subprocess.TimeoutExpired(cmd="semgrep", timeout=300)
     with patch("subprocess.run", side_effect=timeout):
-        assert scanner._run_semgrep([Path("example.py")]) == []
+        findings = scanner._run_semgrep([Path("example.py")])
+    assert len(findings) == 1
+    assert findings[0].severity == "ERROR"
+    assert findings[0].check_id == "semgrep-scan-failure"
+
+
+def test_run_semgrep_subprocess_error_fails_closed() -> None:
+    scanner = SemgrepScanner()
+    err = subprocess.SubprocessError("spawn failed")
+    with patch("subprocess.run", side_effect=err):
+        findings = scanner._run_semgrep([Path("example.py")])
+    assert len(findings) == 1
+    assert findings[0].severity == "ERROR"
 
 
 def test_mcp_win32_read_timeout_raises() -> None:

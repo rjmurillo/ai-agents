@@ -192,7 +192,8 @@ class PreCommitSecurityCheck:
         gh_check = subprocess.run(
             ["gh", "--version"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -221,7 +222,8 @@ class PreCommitSecurityCheck:
                     }}]""",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
                 check=False,
             )
@@ -425,7 +427,8 @@ class PreCommitSecurityCheck:
                     "Get-Module -ListAvailable PSScriptAnalyzer | Select-Object -First 1",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=60,
                 check=False,
             )
@@ -443,7 +446,8 @@ class PreCommitSecurityCheck:
                     "Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -AllowClobber",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=120,
                 check=False,
             )
