@@ -52,6 +52,21 @@ class TestDetectFailures:
         findings = detect_failures(tmp_path)
         assert findings[0].retry_count == 0
 
+    def test_unreadable_flag_raises(self, tmp_path: Path, monkeypatch) -> None:
+        path = tmp_path / "security-infrastructure-failure.txt"
+        path.write_text("true", encoding="utf-8")
+
+        def unreadable(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "read_text", unreadable)
+        try:
+            detect_failures(tmp_path)
+        except RuntimeError as exc:
+            assert "Unable to read infrastructure result file" in str(exc)
+        else:  # pragma: no cover - assertion clarity
+            raise AssertionError("unreadable infra flag must not pass")
+
     def test_non_numeric_retry_defaults_zero(self, tmp_path: Path) -> None:
         _write_infra(tmp_path, "qa", "true", retries="oops")
         findings = detect_failures(tmp_path)

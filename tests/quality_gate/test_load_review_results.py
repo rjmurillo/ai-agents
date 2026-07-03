@@ -61,6 +61,20 @@ class TestReadVerdict:
         (tmp_path / "qa-verdict.txt").write_text("", encoding="utf-8")
         assert read_verdict(tmp_path, "qa") == "NEEDS_REVIEW"
 
+    def test_unreadable_file_raises(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "qa-verdict.txt").write_text("PASS", encoding="utf-8")
+
+        def unreadable(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "read_text", unreadable)
+        try:
+            read_verdict(tmp_path, "qa")
+        except RuntimeError as exc:
+            assert "Unable to read review result file" in str(exc)
+        else:  # pragma: no cover - assertion clarity
+            raise AssertionError("unreadable verdict must not pass")
+
     def test_whitespace_only_file_yields_empty(self, tmp_path: Path) -> None:
         # Mirrors pwsh: Get-Content -Raw returns the whitespace (truthy),
         # then Trim() empties it.
