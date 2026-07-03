@@ -25,6 +25,8 @@ mod = import_skill_script(".claude/skills/adr-review/scripts/detect_adr_changes.
 _get_adr_status = mod._get_adr_status
 _get_dependent_adrs = mod._get_dependent_adrs
 _run_git = mod._run_git
+_split_frontmatter = mod._split_frontmatter
+_is_frontmatter_only_change = mod._is_frontmatter_only_change
 main = mod.main
 
 
@@ -194,3 +196,117 @@ class TestMain:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert "HasChanges" in data
+
+
+class TestSplitFrontmatter:
+    """Tests for _split_frontmatter helper."""
+
+    def test_splits_frontmatter_and_body(self) -> None:
+        content = "---\nstatus: proposed\n---\n\n# Body\n\nText.\n"
+        frontmatter, body = _split_frontmatter(content)
+        assert "status: proposed" in frontmatter
+        assert body == "\n# Body\n\nText.\n"
+
+    def test_no_frontmatter_returns_empty_and_full_content(self) -> None:
+        content = "# Body only\n\nNo frontmatter.\n"
+        frontmatter, body = _split_frontmatter(content)
+        assert frontmatter == ""
+        assert body == content
+
+    def test_unterminated_frontmatter_treated_as_body(self) -> None:
+        content = "---\nstatus: proposed\n# never closes\n"
+        frontmatter, body = _split_frontmatter(content)
+        assert frontmatter == ""
+        assert body == content
+
+
+class TestFrontmatterOnlyDetection:
+    """Integration tests for frontmatter-only ADR change exemption (#2845)."""
+
+    ADR_REL = ".agents/architecture/ADR-001.md"
+    BODY = "\n# ADR-001: Example\n\n## Decision\n\nWe do X.\n"
+
+    @pytest.fixture
+    def adr_repo(self, tmp_path: Path) -> Path:
+        def _git(*args: str) -> None:
+            subprocess.run(
+                ["git", *args], cwd=str(tmp_path), capture_output=True, check=True
+            )
+
+        _git("init")
+        _git("config", "core.hooksPath", "/dev/null")
+        _git("config", "user.email", "test@test.com")
+        _git("config", "user.name", "Test")
+        adr = tmp_path / self.ADR_REL
+        adr.parent.mkdir(parents=True)
+        adr.write_text("---\nstatus: proposed\nimplemented: false\n---" + self.BODY)
+        _git("add", ".")
+        _git("commit", "-m", "add ADR-001")
+        # Second commit on an unrelated file so HEAD~1 is the ADR commit.
+        (tmp_path / "README.md").write_text("readme\n")
+        _git("add", ".")
+        _git("commit", "-m", "readme")
+        return tmp_path
+
+    def _run(self, repo: Path, capsys: pytest.CaptureFixture) -> dict:
+        exit_code = main(["--base-path", str(repo)])
+        assert exit_code == 0
+        return json.loads(capsys.readouterr().out)
+
+    def test_frontmatter_only_flip_does_not_trigger(
+        self, adr_repo: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        adr = adr_repo / self.ADR_REL
+        adr.write_text("---\nstatus: proposed\nimplemented: true\n---" + self.BODY)
+        data = self._run(adr_repo, capsys)
+        assert data["HasChanges"] is False
+        assert data["RecommendedAction"] == "none"
+        assert data["Modified"] == []
+        assert data["ModifiedFrontmatterOnly"] == [self.ADR_REL]
+
+    def test_body_change_triggers_review(
+        self, adr_repo: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        adr = adr_repo / self.ADR_REL
+        new_body = self.BODY.replace("We do X.", "We do Y.")
+        adr.write_text("---\nstatus: proposed\nimplemented: false\n---" + new_body)
+        data = self._run(adr_repo, capsys)
+        assert data["HasChanges"] is True
+        assert data["Modified"] == [self.ADR_REL]
+        assert data["ModifiedFrontmatterOnly"] == []
+        assert data["RecommendedAction"] == "review"
+
+    def test_mixed_change_lists_only_substantive_as_modified(
+        self, adr_repo: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        # ADR-001: frontmatter-only flip. ADR-002: new body change.
+        adr2_rel = ".agents/architecture/ADR-002.md"
+        adr2 = adr_repo / adr2_rel
+        adr2.write_text("---\nstatus: proposed\n---\n# ADR-002\n\nOriginal.\n")
+        subprocess.run(
+            ["git", "add", "."], cwd=str(adr_repo), capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add ADR-002"],
+            cwd=str(adr_repo), capture_output=True, check=True,
+        )
+        # Unrelated commit so HEAD~1 contains ADR-002 (else it reads as Created).
+        (adr_repo / "README.md").write_text("readme2\n")
+        subprocess.run(
+            ["git", "add", "."], cwd=str(adr_repo), capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "readme2"],
+            cwd=str(adr_repo), capture_output=True, check=True,
+        )
+        # Working-tree edits (uncommitted): ADR-001 frontmatter-only flip,
+        # ADR-002 body change.
+        (adr_repo / self.ADR_REL).write_text(
+            "---\nstatus: proposed\nimplemented: true\n---" + self.BODY
+        )
+        adr2.write_text("---\nstatus: proposed\n---\n# ADR-002\n\nChanged.\n")
+        data = self._run(adr_repo, capsys)
+        assert data["HasChanges"] is True
+        assert data["Modified"] == [adr2_rel]
+        assert data["ModifiedFrontmatterOnly"] == [self.ADR_REL]
+        assert data["RecommendedAction"] == "review"
