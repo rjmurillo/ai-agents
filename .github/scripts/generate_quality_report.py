@@ -222,6 +222,22 @@ def main(argv: list[str] | None = None) -> int:
         f"> [!{alert_type}]",
         f"> {final_emoji} **Final Verdict: {final_verdict}**",
         "",
+    ]
+
+    # Issue #2821 option c: when the security axis hit an infrastructure
+    # failure, the review never ran; say so in a distinct alert instead of
+    # letting the generic WARN read as a passed security review.
+    if categories.get("security") == "INFRASTRUCTURE":
+        lines += [
+            "> [!CAUTION]",
+            "> **Security review did not run.** The security axis hit an"
+            " infrastructure failure, so this verdict does not certify a"
+            " security review. Re-run the gate or review security manually"
+            " before merge. Refs #2821.",
+            "",
+        ]
+
+    lines += [
         "<details>",
         "<summary>Walkthrough</summary>",
         "",

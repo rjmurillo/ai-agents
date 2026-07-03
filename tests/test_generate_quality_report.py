@@ -294,3 +294,54 @@ class TestBuildActionRequiredSection:
         assert "**Security**" in result
         assert "**QA**" in result
         assert "**Analyst**" not in result
+
+
+# ---------------------------------------------------------------------------
+# Tests: security did-not-run notice (issue #2821 option c)
+# ---------------------------------------------------------------------------
+
+
+class TestSecurityNotice:
+    """The report renders a distinct CAUTION block when the security axis hit
+    an infrastructure failure (issue #2821, option c)."""
+
+    def _render(self, tmp_path, monkeypatch, **argv_kwargs) -> str:
+        output_file = _setup_output(tmp_path, monkeypatch)
+        report_dir = tmp_path / "ai-review-results"
+        with patch(
+            "generate_quality_report.initialize_ai_review",
+            return_value=str(report_dir),
+        ):
+            report_dir.mkdir(parents=True, exist_ok=True)
+            rc = main(_make_argv(**argv_kwargs))
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        return Path(outputs["report_file"]).read_text()
+
+    def test_caution_block_when_security_infrastructure(self, tmp_path, monkeypatch):
+        content = self._render(
+            tmp_path,
+            monkeypatch,
+            final_verdict="WARN",
+            verdicts={"security": "NEEDS_REVIEW"},
+            categories={"security": "INFRASTRUCTURE"},
+        )
+        assert "[!CAUTION]" in content
+        assert "Security review did not run." in content
+        assert "#2821" in content
+
+    def test_no_caution_block_when_security_ran(self, tmp_path, monkeypatch):
+        content = self._render(tmp_path, monkeypatch)
+        assert "Security review did not run." not in content
+
+    def test_no_caution_block_for_nonsecurity_infrastructure(
+        self, tmp_path, monkeypatch
+    ):
+        content = self._render(
+            tmp_path,
+            monkeypatch,
+            final_verdict="WARN",
+            verdicts={"qa": "NEEDS_REVIEW"},
+            categories={"qa": "INFRASTRUCTURE"},
+        )
+        assert "Security review did not run." not in content
