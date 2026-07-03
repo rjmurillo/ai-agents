@@ -97,23 +97,36 @@ _FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 
 
 def _frontmatter_fields(frontmatter: str) -> dict[str, str]:
-    """Parse top-level ``key: value`` lines from a frontmatter block.
+    """Map each top-level key to its full value block.
 
-    First occurrence wins on a duplicate key, matching ``_get_adr_status``
-    (which reads the first ``status:`` line). Indented (nested) lines are
-    skipped: the governance keys this module gates on (``status``,
-    ``supersedes``, ``superseded-by``, ``implemented``) are all single-line
-    scalars, so a lightweight parser avoids a YAML dependency while still
-    detecting a value change on any of them.
+    The value is the text after the colon on the key line plus any following
+    indented continuation lines (a block-style list or map), joined with
+    newlines. Capturing the block means a change to a block-style governance
+    value (for example a ``supersedes:`` list) is detected, not just changes to
+    single-line scalars. First occurrence wins on a duplicate key, matching
+    ``_get_adr_status``; duplicates also fail closed in
+    :func:`_only_non_decision_fields_changed`.
     """
-    fields: dict[str, str] = {}
+    blocks: dict[str, list[str]] = {}
+    current_key: str | None = None
     for line in frontmatter.splitlines():
         if line and (line[0] == " " or line[0] == "\t"):
+            if current_key is not None:
+                blocks[current_key].append(line)
             continue
         match = _FRONTMATTER_FIELD_RE.match(line)
         if match:
-            fields.setdefault(match.group(1), match.group(2).strip())
-    return fields
+            key = match.group(1)
+            if key not in blocks:
+                blocks[key] = [match.group(2).strip()]
+                current_key = key
+            else:
+                # Duplicate top-level key: first wins. Stop attaching indented
+                # lines so a later block does not merge into the first value.
+                current_key = None
+        else:
+            current_key = None
+    return {key: "\n".join(lines) for key, lines in blocks.items()}
 
 
 def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
