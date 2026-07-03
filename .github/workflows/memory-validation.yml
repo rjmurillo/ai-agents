@@ -89,7 +89,6 @@ jobs:
       - name: Verify all memories
         if: steps.should-run.outputs.skip != 'true'
         id: verify
-        continue-on-error: true
         run: |
           # Issue #2808: GitHub runs steps with `bash -eo pipefail`, so a
           # verify-all crash aborted the step before `$?` was captured, and the
