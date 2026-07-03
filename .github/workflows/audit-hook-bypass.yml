@@ -50,37 +50,34 @@ jobs:
           # returns 0=no indicators, 1=indicators (intended non-blocking audit),
           # 2=config/crash. Capture the code and hard-fail on >=2 instead of
           # reporting a clean audit when the detector never ran.
-          rc=0
+          set +e
           python3 scripts/detect_hook_bypass.py \
             --base-ref origin/main \
-            --output artifacts/hook-bypass-audit.json \
-            || rc=$?
-
+            --output artifacts/hook-bypass-audit.json
+          rc=$?
+          set -e
+          # Exit contract: 0=clean, 1=indicators found (non-blocking), >=2=error.
+          # A crash (rc>=2) must NOT be masked as "0 indicators": that would hide a
+          # broken audit (#2808). Fail the step on rc>=2 and on missing JSON.
           if [ "$rc" -ge 2 ]; then
-            echo "::error::hook-bypass detection failed (exit $rc)"
+            echo "::error::detect_hook_bypass.py failed to run (exit $rc)"
             exit "$rc"
           fi
-
-          if [ -f artifacts/hook-bypass-audit.json ]; then
-            count=$(python3 -c "
+          test -s artifacts/hook-bypass-audit.json
+          count=$(python3 -c "
           import json
           with open('artifacts/hook-bypass-audit.json') as f:
               data = json.load(f)
           print(len(data.get('bypass_indicators', [])))
           ")
-            echo "indicator_count=$count" >> "$GITHUB_OUTPUT"
-          else
-            # No JSON means the detector produced no output: fail instead of
-            # masking it as a zero-indicator (clean) audit.
-            echo "::error::detection produced no JSON output"
-            exit 1
-          fi
+          echo "indicator_count=$count" >> "$GITHUB_OUTPUT"
 
       - name: Report findings
         if: steps.detect.outputs.indicator_count != '0'
         run: |
           echo "::warning::Hook bypass indicators detected. See audit report."
-          python3 scripts/detect_hook_bypass.py --base-ref origin/main
+          # Indicators are non-blocking (exit 1 by contract); do not fail the audit.
+          python3 scripts/detect_hook_bypass.py --base-ref origin/main || true
 
       - name: Upload audit report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

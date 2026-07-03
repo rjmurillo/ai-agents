@@ -48,6 +48,7 @@ if _SCRIPT_DIR not in sys.path:
 try:
     from scan_constants import (  # noqa: E402
         EXIT_ERROR,
+        EXIT_EXTERNAL,
         EXIT_SUCCESS,
         EXIT_VULNERABILITIES,
     )
@@ -64,6 +65,7 @@ finally:
 __all__ = [
     "CWE78_PATTERNS",
     "EXIT_ERROR",
+    "EXIT_EXTERNAL",
     "EXIT_SUCCESS",
     "EXIT_VULNERABILITIES",
     "format_console_output",
@@ -448,8 +450,11 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
         try:
             files_to_scan.extend(get_staged_files())
         except GitEnumerationError as exc:
+            # Git failed to enumerate staged files. Fail closed with an external
+            # dependency exit code (ADR-035: 3) so callers do not mistake a git
+            # failure for a clean scan.
             print(f"ERROR: {exc}", file=sys.stderr)
-            sys.exit(EXIT_ERROR)
+            sys.exit(EXIT_EXTERNAL)
 
     if args.directory:
         files_to_scan.extend(get_directory_files(args.directory))
@@ -458,6 +463,13 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
         files_to_scan.extend(args.files)
 
     if not files_to_scan:
+        # A mode flag was requested and enumeration succeeded, but there is
+        # genuinely nothing to scan (e.g. no staged files). That is a clean pass,
+        # not an error. Reserve EXIT_ERROR for the usage case where no input mode
+        # was provided at all.
+        if args.git_staged or args.directory or args.files:
+            print("No files to scan (nothing staged or matched).")
+            sys.exit(EXIT_SUCCESS)
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)
 

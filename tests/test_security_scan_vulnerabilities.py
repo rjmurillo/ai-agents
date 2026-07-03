@@ -721,17 +721,19 @@ def test_main_git_staged_scans_staged_files(
     assert "CWE-78" in captured.out
 
 
-def test_main_git_staged_no_files_exits_error(
+def test_main_git_staged_no_files_exits_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    # A successful staged-file enumeration that yields zero files is a clean pass,
+    # not an error. Only a git enumeration *failure* fails closed (see below).
     monkeypatch.setattr(scanner, "get_staged_files", lambda: [])
     code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
     captured = capsys.readouterr()
-    assert code == scanner.EXIT_ERROR
+    assert code == scanner.EXIT_SUCCESS
     assert "No files to scan" in captured.out
 
 
-def test_main_git_staged_failure_exits_error(
+def test_main_git_staged_failure_exits_external(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(
@@ -743,7 +745,7 @@ def test_main_git_staged_failure_exits_error(
     )
     code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
     captured = capsys.readouterr()
-    assert code == scanner.EXIT_ERROR
+    assert code == scanner.EXIT_EXTERNAL
     assert "git diff failed: fatal" in captured.err
 
 

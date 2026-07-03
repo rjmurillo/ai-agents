@@ -629,7 +629,11 @@ runs:
           echo "MESSAGE: AI review did not run because context build had an infrastructure failure." >> /tmp/ai-review-output.txt
           echo "infrastructure_failure=true" >> $GITHUB_OUTPUT
           echo "retry_count=0" >> $GITHUB_OUTPUT
-          exit 1
+          # Exit 0 (not 1) so the downstream parse step still runs and surfaces
+          # the DID_NOT_RUN verdict as a blocking exit_code. A non-zero exit here
+          # short-circuits the job before parse, leaving verdict/exit_code empty
+          # and silently dropping the review gate (#2821).
+          exit 0
         fi
 
         # Assemble prompt from template + context
