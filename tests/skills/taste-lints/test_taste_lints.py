@@ -146,6 +146,18 @@ class TestCheckNaming:
         result = check_naming("src/__init__.py", [])
         assert result == []
 
+    def test_leading_underscore_private_module_passes(self) -> None:
+        # PEP 8 private module; the directory convention in scripts/eval/. #2795.
+        result = check_naming("scripts/eval/_run_rollup_core.py", [])
+        assert [v for v in result if v.rule == "naming"] == []
+
+    def test_leading_underscore_then_pascal_case_still_fails(self) -> None:
+        # The optional underscore precedes snake_case only; _Pascal is not valid.
+        result = check_naming("src/_MyModule.py", [])
+        naming_violations = [v for v in result if v.rule == "naming"]
+        assert len(naming_violations) >= 1
+        assert "snake_case" in naming_violations[0].message
+
     def test_kebab_case_yaml_passes(self) -> None:
         result = check_naming("config/my-config.yml", [])
         assert result == []

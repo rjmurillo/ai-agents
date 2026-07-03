@@ -8241,6 +8241,96 @@
         "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
       ],
       "created": "2026-06-29T15:51:57.579140+00:00"
+    },
+    {
+      "id": "d8a0be3f94cb",
+      "type": "test",
+      "label": "test: Built scripts/eval/eval_run_rollup.py + _run_rollup_core.py. Verified: uv run pytest tests/eval/test_eval_run_rollup.py -> 28 passed; ruff + mypy clean; ran against 26 logs/1536 runs ($13.01, 47 drift flags).",
+      "episodes": [
+        "episode-2026-06-29-session-2599-triage-open-issues-build-harness"
+      ],
+      "created": "2026-06-30T16:56:20.063974+00:00"
+    },
+    {
+      "id": "ab3856577543",
+      "type": "test",
+      "label": "test: Built scripts/eval/_oneshot_bench_core.py + eval-oneshot-vs-shipped.py + seed fixture. Verified: uv run pytest tests/eval/ -> 332 passed (63 new); ruff + mypy clean; --dry-run zero-spend path validated.",
+      "episodes": [
+        "episode-2026-06-29-session-2599-triage-open-issues-build-harness"
+      ],
+      "created": "2026-06-30T16:56:20.064011+00:00"
+    },
+    {
+      "id": "c78743e7bed7",
+      "type": "commit",
+      "label": "commit: Commit: 64b1189e08",
+      "episodes": [
+        "episode-2026-06-29-session-2599-triage-open-issues-build-harness"
+      ],
+      "created": "2026-06-30T16:56:20.064042+00:00"
+    },
+    {
+      "id": "d0c60fbc1a68",
+      "type": "test",
+      "label": "test: Built scripts/eval/_oneshot_bench_core.py + eval-oneshot-vs-shipped.py + seed corpus. Review-thread fixes: explicit null handling, path containment, fixture corpus moved out of evals/**/fixtures, graded-only aggregation, named-edge intersection, and config exit code for missing API key. Verified: focused pytest 79 passed; ruff/mypy clean; --dry-run zero-spend path validated.",
+      "episodes": [
+        "episode-2026-06-29-session-2599-triage-open-issues-build-harness"
+      ],
+      "created": "2026-06-30T16:56:20.064072+00:00"
+    },
+    {
+      "id": "59ecc63fb249",
+      "type": "outcome",
+      "label": "Outcome: success - Triage open issues: build harness observability rollup (#2787), scope one-shot-vs-shipped benchmark (#2788), triage skill-catalog epic (#1944), verify mirror-obligation PR #2793",
+      "episodes": [
+        "episode-2026-06-29-session-2599-triage-open-issues-build-harness"
+      ],
+      "created": "2026-06-30T16:56:20.064104+00:00"
+    },
+    {
+      "id": "68d25f7f7739",
+      "type": "test",
+      "label": "test: _check_python_naming regex ^_?[a-z]... ; canonical+mirror regenerated. uv/.venv pytest tests/skills/taste-lints -> 64 passed; eval helpers no longer trip naming.",
+      "episodes": [
+        "episode-2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming"
+      ],
+      "created": "2026-06-30T16:56:20.064167+00:00"
+    },
+    {
+      "id": "4c47234559e2",
+      "type": "test",
+      "label": "test: scripts/skill_description_budget.py + tests. .venv pytest -> 20 passed; ruff+mypy clean; live corpus 77 skills/28665 chars.",
+      "episodes": [
+        "episode-2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming"
+      ],
+      "created": "2026-06-30T16:56:20.064197+00:00"
+    },
+    {
+      "id": "082562189785",
+      "type": "test",
+      "label": "test: _script_ref_resolves added; cleared 37/39 script_path FPs. pytest orphan-ref suites -> 102 passed; ruff+mypy(scan.py) clean. Contradiction logged; #2796 commented, kept open for skill_name FP class.",
+      "episodes": [
+        "episode-2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming"
+      ],
+      "created": "2026-06-30T16:56:20.064227+00:00"
+    },
+    {
+      "id": "2215235f2ed8",
+      "type": "commit",
+      "label": "commit: Commit: 9dc494e6d3464db8a6cb340ed3ed4ccd9d997c0f",
+      "episodes": [
+        "episode-2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming"
+      ],
+      "created": "2026-06-30T16:56:20.064256+00:00"
+    },
+    {
+      "id": "02a1552e0366",
+      "type": "outcome",
+      "label": "Outcome: success - Skill tooling hygiene: taste-lints naming fix (#2795), skill-description budget instrument (#2794), orphan-ref-validator skill-relative resolution (#2796)",
+      "episodes": [
+        "episode-2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming"
+      ],
+      "created": "2026-06-30T16:56:20.064285+00:00"
     }
   ],
   "patterns": [

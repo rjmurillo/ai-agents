@@ -123,7 +123,7 @@
       "evidence": "Re-ran failed AI-review jobs. Reproduced: Copilot CLI installs (1.0.63) but returns empty verdict, workflow labels it 'infrastructure failure, not blocking' yet the required check still concludes failure and branch protection blocks. Systemic CI bug, not fixable by editing the Renovate branches."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "2342e77f",
   "nextSteps": [
     "Renovate PRs #2826/#2825/#2819/#2804/#2803 remain BLOCKED by empty-verdict AI-review required checks; needs a workflow fix (make infra-failure verdicts non-required/passing) or authorized admin merge.",
     "Draft PR #2822 (claude/mirror-obligation-2789) appears to duplicate PR #2793 (same epic #2789); confirm which is canonical and close the other."

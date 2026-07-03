@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2599,
+    "date": "2026-06-29",
+    "branch": "feat/harness-observability-2787",
+    "startingCommit": "b4321f7253",
+    "objective": "Triage open issues: build harness observability rollup (#2787), scope one-shot-vs-shipped benchmark (#2788), triage skill-catalog epic (#1944), verify mirror-obligation PR #2793"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called mcp__serena__initial_instructions; project active"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual via initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by SessionStart context loader hook"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Available skills + agent types listed in session context"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and .claude/rules/*.md auto-loaded into context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS via AGENTS.md; .claude/rules/*.md auto-loaded"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md index in context; Serena topical memories surfaced per turn"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/harness-observability-2787"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/harness-observability-2787"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked at session start (clean branch off origin/main)"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "b4321f7253"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart + sessionEnd MUSTs complete with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 evals/oneshot-vs-shipped/README.md -> 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session work committed in 3 commits (2d3b4d0, d752035, 64b1189); session log committed in follow-up. Pre-existing dirty tracked files (.githooks/pre-commit, .serena/project.yml, uv.lock, retrospective/INDEX.md) predate this session and are out of scope."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/eval/test_oneshot_bench_core.py tests/eval/test_eval_oneshot_vs_shipped.py tests/eval/test_eval_run_rollup.py -q -> 79 passed; ruff changed Python clean; mypy changed scripts clean; one-shot dry-run and rollup CLI run passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: none"
+        ]
+      }
+    }
+  },
+  "workLog": [
+    {
+      "item": "#2787 cross-run rollup",
+      "evidence": "Built scripts/eval/eval_run_rollup.py + _run_rollup_core.py. Verified: uv run pytest tests/eval/test_eval_run_rollup.py -> 28 passed; ruff + mypy clean; ran against 26 logs/1536 runs ($13.01, 47 drift flags)."
+    },
+    {
+      "item": "#2788 one-shot-vs-shipped benchmark",
+      "evidence": "Built scripts/eval/_oneshot_bench_core.py + eval-oneshot-vs-shipped.py + seed corpus. Review-thread fixes: explicit null handling, path containment, fixture corpus moved out of evals/**/fixtures, graded-only aggregation, named-edge intersection, and config exit code for missing API key. Verified: focused pytest 79 passed; ruff/mypy clean; --dry-run zero-spend path validated."
+    },
+    {
+      "item": "#2789-2792 mirror-obligation",
+      "evidence": "Verified PR #2793 implements implementer/critic/TESTING-RIGOR changes; 87/87 checks passing. No duplicate work."
+    }
+  ],
+  "endingCommit": "64b1189e08",
+  "nextSteps": []
+}

@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-06-29-session-2599-triage-open-issues-build-harness",
+  "session": "2026-06-29-session-2599-triage-open-issues-build-harness",
+  "timestamp": "2026-06-29T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Triage open issues: build harness observability rollup (#2787), scope one-shot-vs-shipped benchmark (#2788), triage skill-catalog epic (#1944), verify mirror-obligation PR #2793",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Built scripts/eval/eval_run_rollup.py + _run_rollup_core.py. Verified: uv run pytest tests/eval/test_eval_run_rollup.py -> 28 passed; ruff + mypy clean; ran against 26 logs/1536 runs ($13.01, 47 drift flags).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Built scripts/eval/_oneshot_bench_core.py + eval-oneshot-vs-shipped.py + seed fixture. Verified: uv run pytest tests/eval/ -> 332 passed (63 new); ruff + mypy clean; --dry-run zero-spend path validated.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 64b1189e08",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Built scripts/eval/_oneshot_bench_core.py + eval-oneshot-vs-shipped.py + seed corpus. Review-thread fixes: explicit null handling, path containment, fixture corpus moved out of evals/**/fixtures, graded-only aggregation, named-edge intersection, and config exit code for missing API key. Verified: focused pytest 79 passed; ruff/mypy clean; --dry-run zero-spend path validated.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 11
+  },
+  "lessons": []
+}
