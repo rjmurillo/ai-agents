@@ -99,10 +99,12 @@ _FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 def _frontmatter_fields(frontmatter: str) -> dict[str, str]:
     """Parse top-level ``key: value`` lines from a frontmatter block.
 
-    Indented (nested) lines are skipped: the governance keys this module gates
-    on (``status``, ``supersedes``, ``superseded-by``, ``implemented``) are all
-    single-line scalars, so a lightweight parser avoids a YAML dependency while
-    still detecting a value change on any of them.
+    First occurrence wins on a duplicate key, matching ``_get_adr_status``
+    (which reads the first ``status:`` line). Indented (nested) lines are
+    skipped: the governance keys this module gates on (``status``,
+    ``supersedes``, ``superseded-by``, ``implemented``) are all single-line
+    scalars, so a lightweight parser avoids a YAML dependency while still
+    detecting a value change on any of them.
     """
     fields: dict[str, str] = {}
     for line in frontmatter.splitlines():
@@ -110,8 +112,28 @@ def _frontmatter_fields(frontmatter: str) -> dict[str, str]:
             continue
         match = _FRONTMATTER_FIELD_RE.match(line)
         if match:
-            fields[match.group(1)] = match.group(2).strip()
+            fields.setdefault(match.group(1), match.group(2).strip())
     return fields
+
+
+def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
+    """True when a top-level frontmatter key appears more than once.
+
+    Duplicate keys are malformed YAML and can hide a governance change (a
+    second ``status:`` line masking the first). The exemption fails closed on
+    them so the adr-review gate still fires and the author cleans up the block.
+    """
+    seen: set[str] = set()
+    for line in frontmatter.splitlines():
+        if line and (line[0] == " " or line[0] == "\t"):
+            continue
+        match = _FRONTMATTER_FIELD_RE.match(line)
+        if match:
+            key = match.group(1)
+            if key in seen:
+                return True
+            seen.add(key)
+    return False
 
 
 def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str) -> bool:
@@ -122,7 +144,14 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
     are in :data:`_NON_DECISION_FRONTMATTER_KEYS`; any governance key change
     (for example ``status: proposed`` -> ``accepted``) makes this False so the
     adr-review gate still fires (ADR-073).
+
+    Fails closed when either side has a duplicate top-level key: a duplicated
+    governance key could otherwise mask a status change.
     """
+    if _has_duplicate_top_level_keys(old_frontmatter) or _has_duplicate_top_level_keys(
+        new_frontmatter
+    ):
+        return False
     old_fields = _frontmatter_fields(old_frontmatter)
     new_fields = _frontmatter_fields(new_frontmatter)
     changed_keys = {
