@@ -203,6 +203,12 @@ class TestFetchHelpers:
         assert len(result) == 1
 
     @patch("scripts.analyze_pr_failure._run_gh")
+    def test_comments_parse_concatenated_paginated_arrays(self, mock_gh):
+        mock_gh.return_value = _completed(stdout='[{"id": 1}]\n[{"id": 2}]')
+        result = mod.fetch_pr_comments("owner", "repo", 1)
+        assert [comment["id"] for comment in result] == [1, 2]
+
+    @patch("scripts.analyze_pr_failure._run_gh")
     def test_comments_failure(self, mock_gh):
         mock_gh.return_value = _completed(stderr="API error", rc=1)
         with pytest.raises(SystemExit) as exc_info:

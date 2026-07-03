@@ -43,6 +43,10 @@ EXIT_IO_ERROR = 3
 QUEUE_FILE = Path(".memory_sync_queue.json")
 
 
+class QueueReadError(Exception):
+    """Queue file exists but cannot be parsed safely."""
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the CLI."""
     parser = _build_parser()
@@ -179,7 +183,11 @@ def _cmd_sync_batch(args: argparse.Namespace) -> int:
         staged_output = _get_staged_files()
         changes = detect_changes(staged_output)
     elif args.from_queue:
-        changes = _read_queue(project_root)
+        try:
+            changes = _read_queue(project_root)
+        except QueueReadError as exc:
+            _logger.error("Failed to read queue: %s", exc)
+            return EXIT_IO_ERROR
     else:
         _logger.error("Specify --staged or --from-queue")
         return EXIT_INVALID_ARGS
@@ -342,8 +350,7 @@ def _read_queue(project_root: Path) -> list[tuple[Path, SyncOperation]]:
             changes.append((path, operation))
         return changes
     except (json.JSONDecodeError, KeyError, ValueError) as exc:
-        _logger.warning("Failed to read queue file: %s", exc)
-        return []
+        raise QueueReadError(str(exc)) from exc
 
 
 def _write_queue(

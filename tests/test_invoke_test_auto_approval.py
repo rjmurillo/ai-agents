@@ -59,6 +59,7 @@ class TestIsSafeTestCommand:
             "pytest -v tests/test_foo.py",
             "python -m pytest",
             "python -m pytest tests/",
+            "python3 -m pytest tests/",
             "dotnet test",
             "dotnet test ./MyProject.Tests",
             "mvn test",
@@ -78,6 +79,7 @@ class TestIsSafeTestCommand:
             "ls -la",
             "curl http://example.com",
             "git push --force",
+            "python scripts/run.py pytest",
         ],
     )
     def test_rejects_non_test_commands(self, command: str) -> None:

@@ -10,7 +10,9 @@ import pytest
 
 from scripts.memory_sync.cli import (
     EXIT_INVALID_ARGS,
+    EXIT_IO_ERROR,
     EXIT_SUCCESS,
+    QueueReadError,
     _read_queue,
     _write_queue,
     main,
@@ -249,8 +251,19 @@ class TestQueueOperations:
         assert loaded == []
 
     def test_read_corrupt_queue(self, project_root: Path) -> None:
-        """Reading corrupt queue returns empty list."""
+        """Reading corrupt queue raises so corruption is not empty."""
         queue_path = project_root / ".memory_sync_queue.json"
         queue_path.write_text("not json", encoding="utf-8")
-        loaded = _read_queue(project_root)
-        assert loaded == []
+        with pytest.raises(QueueReadError):
+            _read_queue(project_root)
+
+    def test_sync_batch_from_corrupt_queue_fails(self, project_root: Path) -> None:
+        """sync-batch --from-queue reports corrupt queue as an IO error."""
+        queue_path = project_root / ".memory_sync_queue.json"
+        queue_path.write_text("not json", encoding="utf-8")
+        with patch(
+            "scripts.memory_sync.cli._find_project_root",
+            return_value=project_root,
+        ):
+            result = main(["sync-batch", "--from-queue"])
+        assert result == EXIT_IO_ERROR

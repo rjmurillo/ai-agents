@@ -452,11 +452,14 @@ def update_serena_memory(
         content = re.sub(pattern, new_table + "\n", content)
     else:
         # Insert after Overview section if Per-Reviewer section doesn't exist
-        content = re.sub(
+        content, replacements = re.subn(
             r"(## Overview.*?)(\n## )",
             rf"\1\n\n{new_table}\n\2",
             content,
         )
+        if replacements == 0:
+            logger.warning("No update target found in memory file: %s", memory_path)
+            return False
 
     with open(memory_path, "w", encoding="utf-8") as f:
         f.write(content)

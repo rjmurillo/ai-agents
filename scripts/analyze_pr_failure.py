@@ -47,6 +47,32 @@ def _run_gh(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[s
     )
 
 
+def _parse_gh_json_output(stdout: str) -> object:
+    """Parse gh JSON output, including concatenated --paginate arrays."""
+    decoder = json.JSONDecoder()
+    values: list[object] = []
+    index = 0
+    text = stdout.strip()
+
+    while index < len(text):
+        value, end = decoder.raw_decode(text, index)
+        values.append(value)
+        index = end
+        while index < len(text) and text[index].isspace():
+            index += 1
+
+    if len(values) == 1:
+        return values[0]
+
+    if all(isinstance(value, list) for value in values):
+        flattened: list[object] = []
+        for value in values:
+            flattened.extend(value)
+        return flattened
+
+    raise ValueError("gh returned multiple JSON documents with incompatible shapes")
+
+
 def _resolve_repo(owner: str, repo: str) -> tuple[str, str]:
     """Resolve owner/repo from arguments or git remote."""
     if owner and repo:
@@ -57,7 +83,9 @@ def _resolve_repo(owner: str, repo: str) -> tuple[str, str]:
         print("ERROR: Cannot detect repository. Use --owner and --repo.", file=sys.stderr)
         sys.exit(1)
 
-    data = json.loads(result.stdout)
+    data = _parse_gh_json_output(result.stdout)
+    if not isinstance(data, dict):
+        raise ValueError("gh repo view returned a non-object JSON response")
     return data["owner"]["login"], data["name"]
 
 
@@ -87,7 +115,10 @@ def fetch_pr_metadata(owner: str, repo: str, pr_number: int) -> dict:
         print(f"ERROR: Failed to fetch PR: {err}", file=sys.stderr)
         sys.exit(3)
 
-    return json.loads(result.stdout)
+    data = _parse_gh_json_output(result.stdout)
+    if not isinstance(data, dict):
+        raise ValueError("gh pr view returned a non-object JSON response")
+    return data
 
 
 def fetch_pr_comments(owner: str, repo: str, pr_number: int) -> list[dict]:
@@ -102,7 +133,10 @@ def fetch_pr_comments(owner: str, repo: str, pr_number: int) -> list[dict]:
         print(f"ERROR: Failed to fetch PR comments: {err}", file=sys.stderr)
         sys.exit(3)
 
-    return json.loads(result.stdout)
+    data = _parse_gh_json_output(result.stdout)
+    if not isinstance(data, list):
+        raise ValueError("gh issue comments returned a non-array JSON response")
+    return data
 
 
 def fetch_pr_reviews(owner: str, repo: str, pr_number: int) -> list[dict]:
@@ -117,7 +151,10 @@ def fetch_pr_reviews(owner: str, repo: str, pr_number: int) -> list[dict]:
         print(f"ERROR: Failed to fetch PR reviews: {err}", file=sys.stderr)
         sys.exit(3)
 
-    return json.loads(result.stdout)
+    data = _parse_gh_json_output(result.stdout)
+    if not isinstance(data, list):
+        raise ValueError("gh reviews returned a non-array JSON response")
+    return data
 
 
 def fetch_pr_files(owner: str, repo: str, pr_number: int) -> list[dict]:
@@ -132,7 +169,10 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> list[dict]:
         print(f"ERROR: Failed to fetch PR files: {err}", file=sys.stderr)
         sys.exit(3)
 
-    return json.loads(result.stdout)
+    data = _parse_gh_json_output(result.stdout)
+    if not isinstance(data, list):
+        raise ValueError("gh files returned a non-array JSON response")
+    return data
 
 
 def build_comment_distribution(comments: list[dict]) -> dict:

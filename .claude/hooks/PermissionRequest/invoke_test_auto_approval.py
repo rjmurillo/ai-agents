@@ -39,7 +39,7 @@ SAFE_TEST_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^pnpm\s+test"),
     re.compile(r"^yarn\s+test"),
     re.compile(r"^pytest(\s|$)"),
-    re.compile(r"^python\s+.*pytest"),
+    re.compile(r"^python(3)?\s+-m\s+pytest\b"),
     re.compile(r"^dotnet\s+test"),
     re.compile(r"^mvn\s+test"),
     re.compile(r"^gradle\s+test"),

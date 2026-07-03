@@ -469,6 +469,16 @@ class TestUpdateSerenaMemory:
         result = update_serena_memory({}, 0, 0, str(non_existent))
         assert result is False
 
+    def test_returns_false_when_no_update_section_matches(self, tmp_path: Path) -> None:
+        memory_file = tmp_path / "memory.md"
+        original = "# Memory\n\nNo matching headings here.\n"
+        memory_file.write_text(original, encoding="utf-8")
+
+        result = update_serena_memory({}, 0, 30, str(memory_file))
+
+        assert result is False
+        assert memory_file.read_text(encoding="utf-8") == original
+
     def test_high_signal_gets_bold(self, memory_file: Path) -> None:
         stats = {
             "star_reviewer": SignalStats(

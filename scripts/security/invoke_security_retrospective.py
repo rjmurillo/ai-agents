@@ -61,6 +61,10 @@ class FalseNegative:
     pr_number: int
 
 
+class ExternalReviewFetchError(Exception):
+    """External review comments could not be fetched or parsed."""
+
+
 class SecurityRetrospective:
     """Orchestrates security retrospective analysis and memory storage."""
 
@@ -107,7 +111,11 @@ class SecurityRetrospective:
             )
 
         # Step 2: Fetch external review comments
-        external_findings = self._fetch_external_review_comments()
+        try:
+            external_findings = self._fetch_external_review_comments()
+        except ExternalReviewFetchError as exc:
+            logger.error("[FAIL] Could not fetch external review comments: %s", exc)
+            return 1
         if not external_findings:
             logger.info(
                 "No external review found for PR #%d. This is expected for PRs "
@@ -194,7 +202,7 @@ class SecurityRetrospective:
         owner_repo = self._get_owner_repo()
         if not owner_repo:
             logger.error("[FAIL] Could not determine repository owner/repo")
-            return []
+            raise ExternalReviewFetchError("could not determine repository owner/repo")
 
         try:
             # Use gh CLI to fetch PR comments
@@ -222,7 +230,7 @@ class SecurityRetrospective:
                         "Failed to fetch PR comments: %s",
                         result.stderr,
                     )
-                return []
+                raise ExternalReviewFetchError(result.stderr or result.stdout)
 
             comments = json.loads(result.stdout) if result.stdout else []
 
@@ -241,10 +249,10 @@ class SecurityRetrospective:
 
         except json.JSONDecodeError as e:
             logger.error("[FAIL] Failed to parse GitHub API response: %s", e)
-            return []
+            raise ExternalReviewFetchError(f"invalid JSON: {e}") from e
         except subprocess.SubprocessError as e:
             logger.error("[FAIL] GitHub API call failed: %s", e)
-            return []
+            raise ExternalReviewFetchError(str(e)) from e
 
     def _is_security_comment(self, body: str) -> bool:
         """Determine if a comment is security-related."""
