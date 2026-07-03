@@ -223,26 +223,32 @@ def create_issues(
             )
             continue
 
-        result = subprocess.run(
-            [
-                "gh",
-                "issue",
-                "create",
-                "--repo",
-                f"{owner}/{repo}",
-                "--title",
-                title,
-                "--body",
-                body,
-                "--label",
-                "homework,enhancement",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=SUBPROCESS_TIMEOUT_SECONDS,
-            check=False,
-            shell=False,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "issue",
+                    "create",
+                    "--repo",
+                    f"{owner}/{repo}",
+                    "--title",
+                    title,
+                    "--body",
+                    body,
+                    "--label",
+                    "homework,enhancement",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                check=False,
+                shell=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            created.append(
+                {"title": title, "error": f"timed out after {exc.timeout}s"}
+            )
+            continue
         if result.returncode == 0:
             issue_url = result.stdout.strip()
             created.append({"title": title, "url": issue_url})

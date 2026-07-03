@@ -171,3 +171,19 @@ class TestMain:
     def test_fails_invalid_file(self, tmp_path: Path) -> None:
         result = main(["--path", str(tmp_path / "nope.md"), "--skip-lint"])
         assert result == 1
+
+    def test_main_returns_3_on_lint_timeout(self, tmp_path: Path) -> None:
+        cmd = tmp_path / "test.md"
+        cmd.write_text(
+            "---\n"
+            "description: Use when testing\n"
+            "---\n\n"
+            "# Test\n"
+        )
+        with patch.object(
+            mod,
+            "validate_slash_command",
+            side_effect=mod.subprocess.TimeoutExpired(cmd="markdownlint", timeout=60),
+        ):
+            result = main(["--path", str(cmd)])
+        assert result == 3

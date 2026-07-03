@@ -53,6 +53,7 @@ class McpClient:
         self._request_id = 0
         self._stderr_lines: collections.deque[str] = collections.deque(maxlen=100)
         self._read_deadline: float | None = None
+        self._broken = False
         self._stderr_thread = threading.Thread(
             target=self._drain_stderr, daemon=True
         )
@@ -162,6 +163,11 @@ class McpClient:
 
     def _send_request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Send a JSON-RPC request and read the response."""
+        if self._broken:
+            raise McpError(
+                "MCP connection is unusable after a prior read failure; "
+                "reuse is refused to avoid a desynchronized byte stream"
+            )
         request_id = self._next_id()
         message = {
             "jsonrpc": "2.0",
@@ -241,6 +247,15 @@ class McpClient:
                     continue
 
                 return response
+        except Exception:
+            # Any read failure (timeout, closed stdout, protocol/JSON desync)
+            # leaves the byte stream in an unknown state. On Windows the timed-out
+            # daemon reader in _read_via_thread is still blocked on this fd and
+            # would steal bytes from the next response. Tear down the subprocess
+            # (which unblocks that reader via EOF) and refuse further requests.
+            self._broken = True
+            self.close()
+            raise
         finally:
             self._read_deadline = None
 

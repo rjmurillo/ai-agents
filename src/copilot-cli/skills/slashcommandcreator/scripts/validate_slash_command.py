@@ -199,9 +199,16 @@ def validate_slash_command(
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    violations, blocking_count, warning_count = validate_slash_command(
-        args.path, args.skip_lint,
-    )
+    try:
+        violations, blocking_count, warning_count = validate_slash_command(
+            args.path, args.skip_lint,
+        )
+    except subprocess.TimeoutExpired as exc:
+        print(
+            f"[FAIL] Timed out after {exc.timeout}s running markdownlint on "
+            f"{args.path}"
+        )
+        return 3
 
     if violations:
         # Check if first violation is file-not-found (already printed)

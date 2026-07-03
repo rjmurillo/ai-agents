@@ -177,3 +177,45 @@ class TestIsAvailable:
             Path("/nonexistent/path/forgetful.db"),
         ):
             assert not McpClient.is_available()
+
+
+class TestMcpClientBrokenAfterReadFailure:
+    """A read failure must tear down the connection and refuse reuse (#2811).
+
+    Binding subprocess reads with a timeout introduced a Windows-only hazard:
+    _read_via_thread leaves a daemon reader blocked on the shared stdout fd, so
+    a subsequent request on the same client could have its response bytes stolen
+    by that dangling reader. The client now marks itself broken and terminates
+    the subprocess on any read failure, so reuse fails fast instead of corrupting
+    the byte stream.
+    """
+
+    def test_read_failure_marks_broken_terminates_and_refuses_reuse(
+        self, mock_server_command: list[str]
+    ) -> None:
+        client = McpClient.create(command=mock_server_command)
+        try:
+            # Simulate a read timeout mid-request.
+            with patch.object(
+                client,
+                "_read_bytes",
+                side_effect=McpError("Timeout waiting for response (>30s)"),
+            ):
+                with pytest.raises(McpError, match="Timeout"):
+                    client.call_tool("create_memory", {"title": "first"})
+
+            # Connection is marked broken and the subprocess is terminated,
+            # which unblocks any dangling reader via EOF.
+            assert client._broken is True
+            assert client._process.poll() is not None
+
+            # Reuse is refused BEFORE any further write, so no bytes can be
+            # written to or stolen from the desynchronized stream.
+            with patch.object(client, "_write_message") as write_spy:
+                with pytest.raises(
+                    McpError, match="unusable after a prior read failure"
+                ):
+                    client.call_tool("create_memory", {"title": "second"})
+                write_spy.assert_not_called()
+        finally:
+            client.close()

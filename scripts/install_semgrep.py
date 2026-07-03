@@ -79,6 +79,10 @@ class SemgrepInstaller:
             logger.error("Installation failed: %s", result.stderr)
             return False
 
+        except subprocess.TimeoutExpired:
+            # Surface timeouts as ADR-035 external errors (exit 3) via main(),
+            # rather than masking them as a generic install failure (exit 1).
+            raise
         except subprocess.SubprocessError as e:
             logger.error("Installation error: %s", e)
             return False
@@ -144,7 +148,11 @@ def main() -> int:
     args = parser.parse_args()
 
     installer = SemgrepInstaller(check_only=args.check)
-    return installer.run()
+    try:
+        return installer.run()
+    except subprocess.TimeoutExpired as exc:
+        logger.error("Semgrep operation timed out after %ss", exc.timeout)
+        return 3
 
 
 if __name__ == "__main__":

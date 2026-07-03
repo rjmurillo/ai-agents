@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -84,3 +85,13 @@ class TestMain:
             "--worktree-root", "/tmp",
         ])
         assert result == 0
+
+    @patch("scripts.invoke_batch_pr_review.get_worktree_status")
+    def test_returns_3_on_subprocess_timeout(self, mock_status: MagicMock) -> None:
+        mock_status.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=60)
+        result = main([
+            "--pr-numbers", "1",
+            "--operation", "status",
+            "--worktree-root", "/tmp",
+        ])
+        assert result == 3
