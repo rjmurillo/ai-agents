@@ -66,6 +66,7 @@ class SemgrepInstaller:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=300,
             )
 
             if result.returncode == 0:

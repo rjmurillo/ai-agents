@@ -165,7 +165,7 @@ class SecurityRetrospective:
 
     def _load_security_reports(self) -> list[dict[str, Any]]:
         """Load security reports from .agents/security/SR-*.md files."""
-        reports = []
+        reports: list[dict[str, object]] = []
         security_dir = self.repo_root / ".agents" / "security"
 
         if not security_dir.exists():
@@ -206,6 +206,7 @@ class SecurityRetrospective:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=120,
             )
 
             if result.returncode != 0:
@@ -285,7 +286,7 @@ class SecurityRetrospective:
     ) -> None:
         """Compare agent findings with external review to identify misses."""
         # Extract CWE IDs from security reports
-        agent_cwes = set()
+        agent_cwes: set[str] = set()
         for report in security_reports:
             content = report.get("content", "")
             # Simple CWE extraction pattern
