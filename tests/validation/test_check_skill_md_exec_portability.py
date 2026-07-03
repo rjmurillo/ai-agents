@@ -50,6 +50,24 @@ class TestCountExecInvocations:
         text = "foo | python3 .claude/skills/x/y.py && bash .claude/skills/z/w.sh\n"
         assert cep.count_exec_invocations(text) == 2
 
+    def test_counts_interpreter_options(self) -> None:
+        # Short options between the interpreter and the path (python3 -u ...,
+        # bash -x ...) are still bare, non-portable invocations.
+        text = "python3 -u .claude/skills/x/y.py\nbash -x .claude/skills/z/w.sh\n"
+        assert cep.count_exec_invocations(text) == 2
+
+    def test_counts_direct_dot_slash_execution(self) -> None:
+        # A ./-prefixed executable hard-codes the upstream tree just like an
+        # interpreter-prefixed one.
+        text = "./.claude/skills/x/y.sh --flag\n"
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_line_continuation_invocation(self) -> None:
+        # A shell backslash-newline splices the path onto the interpreter line;
+        # the split invocation must still be counted.
+        text = "python3 \\\n  .claude/skills/x/y.py --flag\n"
+        assert cep.count_exec_invocations(text) == 1
+
     def test_ignores_resolved_variable_forms(self) -> None:
         text = (
             'SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/x"\n'
@@ -61,6 +79,12 @@ class TestCountExecInvocations:
     def test_ignores_prose_crosslinks(self) -> None:
         # A cross-reference to a sibling skill doc is not an exec invocation.
         text = "See .claude/skills/review/SKILL.md and .claude/skills/memory/references/x.md.\n"
+        assert cep.count_exec_invocations(text) == 0
+
+    def test_ignores_prose_script_mention(self) -> None:
+        # A bare prose mention of a script path (no interpreter, no ./ lead-in)
+        # is not an invocation; the sibling prose guard owns those references.
+        text = "The `.claude/skills/x/y.py` helper does the work; run it via SCRIPTS_DIR.\n"
         assert cep.count_exec_invocations(text) == 0
 
     def test_interpreter_must_be_standalone_token(self) -> None:
