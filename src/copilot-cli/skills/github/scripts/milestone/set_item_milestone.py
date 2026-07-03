@@ -53,6 +53,10 @@ from github_core.output import (  # noqa: E402
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 
 
+# Upper bound (seconds) for each gh network call.
+GH_TIMEOUT_SECONDS = 30
+
+
 def _parse_semver_tuple(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split("."))
 
@@ -113,10 +117,16 @@ def _write_result(
 
 def _get_item_milestone(owner: str, repo: str, number: int) -> str | None:
     """Return the current milestone title for a PR/issue, or None."""
-    result = subprocess.run(
-        ["gh", "api", f"repos/{owner}/{repo}/issues/{number}"],
-        capture_output=True, text=True, check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/issues/{number}"],
+            capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit(
+            f"Query for item #{number} timed out after {GH_TIMEOUT_SECONDS}s", 3
+        )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         error_and_exit(f"Failed to query item #{number}: {error_str}", 3)
@@ -132,7 +142,7 @@ def _get_item_milestone(owner: str, repo: str, number: int) -> str | None:
     return None
 
 
-def _get_latest_semantic_milestone(owner: str, repo: str) -> dict:
+def _get_latest_semantic_milestone(owner: str, repo: str) -> dict[str, object]:
     """Detect the latest open semantic version milestone."""
     endpoint = f"repos/{owner}/{repo}/milestones?state=open"
     milestones = gh_api_paginated(endpoint)
@@ -152,14 +162,20 @@ def _get_latest_semantic_milestone(owner: str, repo: str) -> dict:
 
 def _assign_milestone(owner: str, repo: str, number: int, milestone_title: str) -> None:
     """Assign a milestone to a PR/issue via gh CLI."""
-    result = subprocess.run(
-        [
-            "gh", "issue", "edit", str(number),
-            "--repo", f"{owner}/{repo}",
-            "--milestone", milestone_title,
-        ],
-        capture_output=True, text=True, check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "issue", "edit", str(number),
+                "--repo", f"{owner}/{repo}",
+                "--milestone", milestone_title,
+            ],
+            capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit(
+            f"Milestone assign for #{number} timed out after {GH_TIMEOUT_SECONDS}s", 3
+        )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         error_and_exit(

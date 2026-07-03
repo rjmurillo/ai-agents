@@ -59,6 +59,10 @@ REACTION_EMOJI: dict[str, str] = {
 VALID_REACTIONS = list(REACTION_EMOJI.keys())
 
 
+# Upper bound (seconds) for each gh network call.
+GH_TIMEOUT_SECONDS = 30
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Add a reaction to one or more GitHub comments.",
@@ -99,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     emoji = REACTION_EMOJI.get(args.reaction, args.reaction)
     succeeded = 0
     failed = 0
-    results: list[dict] = []
+    results: list[dict[str, object]] = []
 
     for cid in args.comment_id:
         if args.comment_type == "review":
@@ -107,10 +111,21 @@ def main(argv: list[str] | None = None) -> int:
         else:
             endpoint = f"repos/{owner}/{repo}/issues/comments/{cid}/reactions"
 
-        result = subprocess.run(
-            ["gh", "api", endpoint, "-X", "POST", "-f", f"content={args.reaction}"],
-            capture_output=True, text=True, check=False,
-        )
+        try:
+            result = subprocess.run(
+                ["gh", "api", endpoint, "-X", "POST", "-f", f"content={args.reaction}"],
+                capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            # One hung reaction must not stall the whole loop.
+            failed += 1
+            results.append({
+                "success": False,
+                "comment_id": cid,
+                "error": f"gh api timed out after {GH_TIMEOUT_SECONDS}s",
+            })
+            continue
 
         # Duplicate reactions are OK (idempotent)
         success = result.returncode == 0 or "already reacted" in (result.stderr + result.stdout)
