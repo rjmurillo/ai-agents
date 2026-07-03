@@ -46,6 +46,7 @@ from github_core.output import (  # noqa: E402
     write_skill_output,
 )
 
+
 def _env_timeout_seconds(default: int = 30) -> int:
     """Parse GH_TIMEOUT_SECONDS, falling back to the default on a bad value.
 
