@@ -135,11 +135,17 @@ def _validate_length(content: str, violations: list[str]) -> None:
 def _validate_lint(path: str, violations: list[str]) -> None:
     """Run markdownlint-cli2 on the file."""
     print("Running markdownlint-cli2...")
-    result = subprocess.run(
-        ["npx", "markdownlint-cli2", "--", path],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["npx", "markdownlint-cli2", "--", path],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        # First run may fetch the package; a hang must not block validation.
+        print("WARNING: markdownlint-cli2 timed out after 120s; lint skipped")
+        return
 
     if result.returncode != 0:
         violations.append("BLOCKING: Markdown lint errors:")

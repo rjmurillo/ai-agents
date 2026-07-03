@@ -273,14 +273,30 @@ def _resolve_conflicted_file(
     return "resolved"
 
 
-def _run_git(*args: str, cwd: str | None = None) -> subprocess.CompletedProcess[str]:
-    """Run a git command and return the result."""
-    return subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+def _run_git(
+    *args: str, cwd: str | None = None, timeout: int = 60
+) -> subprocess.CompletedProcess[str]:
+    """Run a git command and return the result.
+
+    A timeout returns a synthetic nonzero result instead of raising, so
+    every caller's returncode check handles a hung fetch/push the same way
+    as any other git failure.
+    """
+    try:
+        return subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=["git", *args],
+            returncode=124,
+            stdout="",
+            stderr=f"git {args[0]} timed out after {timeout}s",
+        )
 
 
 def resolve_conflicts_runner(
@@ -295,6 +311,11 @@ def resolve_conflicts_runner(
         "files_resolved": [],
         "files_blocked": [],
     }
+
+    for ref in (branch_name, target_branch):
+        if ref.startswith("-"):
+            result["message"] = f"Invalid ref (leading dash): {ref}"
+            return result
 
     if dry_run:
         result["message"] = (
