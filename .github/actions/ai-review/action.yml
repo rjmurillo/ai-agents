@@ -48,11 +48,13 @@ inputs:
     default: ''
   copilot-model:
     description: |
-      AI model to use (e.g., choices: "claude-sonnet-4.5", "claude-haiku-4.5", "claude-opus-4.5",
-      "claude-sonnet-4", "gpt-5", "gpt-5.1", "gpt-5.1-codex-mini", "gpt-5.1-codex-max",
-      "gpt-5.1-codex", "gpt-5-mini", "gpt-4.1", "gemini-3-pro-preview")'
+      AI model to use. Default "auto" lets Copilot CLI pick an available model,
+      which stays valid when a specific model name is retired (e.g. the
+      claude-opus-4.5 retirement that broke required review checks). Pin an
+      explicit name only when a job needs a specific model (e.g. "claude-sonnet-4.5",
+      "claude-haiku-4.5", "claude-opus-4.6", "gpt-5.1", "gemini-3-pro-preview").
     required: false
-    default: 'claude-opus-4.5'
+    default: 'auto'
   enable-diagnostics:
     description: |
       Enable Copilot CLI diagnostic test before main invocation.
@@ -690,9 +692,15 @@ runs:
             return 0
           fi
 
-          # Check stderr for infrastructure keywords
-          if [ -n "$stderr" ]; then
-            if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504|No authentication|authentication failed|auth.*error)"; then
+          # Check stderr for infrastructure keywords.
+          # Skip this branch when stdout already carries a genuine VERDICT:.
+          # Reclassifying a real review result as infra would overwrite it with
+          # a synthetic CRITICAL_FAIL that downstream treats as non-blocking,
+          # masking a failing review. "not available" catches retired/unknown
+          # model names (e.g. a bumped Copilot CLI rejecting a pinned model), so
+          # a real infra failure with empty stdout still degrades to a warning.
+          if [ -n "$stderr" ] && ! echo "$output" | grep -qE "VERDICT:"; then
+            if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504|No authentication|authentication failed|auth.*error|not available)"; then
               return 0
             fi
           fi
