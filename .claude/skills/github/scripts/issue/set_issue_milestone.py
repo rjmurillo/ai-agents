@@ -62,14 +62,16 @@ def _write_github_output(outputs: dict[str, str]) -> None:
         pass
 
 
-def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
+def _get_current_milestone(
+    owner: str,
+    repo: str,
+    issue: int,
+    output_format: str = "json",
+) -> str | None:
     """Get the current milestone title for an issue, or None."""
-    result = subprocess.run(
+    result = _run_gh(
         ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
-        capture_output=True,
-        text=True,
-        timeout=GH_TIMEOUT_SECONDS,
-        check=False,
+        output_format=output_format,
     )
     if result.returncode != 0:
         return None
@@ -79,14 +81,15 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
     return title
 
 
-def _get_milestone_titles(owner: str, repo: str) -> list[str]:
+def _get_milestone_titles(
+    owner: str,
+    repo: str,
+    output_format: str = "json",
+) -> list[str]:
     """Get all milestone titles from the repository."""
-    result = subprocess.run(
+    result = _run_gh(
         ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
-        capture_output=True,
-        text=True,
-        timeout=GH_TIMEOUT_SECONDS,
-        check=False,
+        output_format=output_format,
     )
     if result.returncode != 0:
         return []
@@ -138,6 +141,26 @@ def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict
     )
 
 
+def _run_gh(command: list[str], *, output_format: str) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        write_skill_error(
+            f"Timed out running gh after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="Timeout",
+            output_format=output_format,
+            script_name="set_issue_milestone.py",
+        )
+        raise SystemExit(3) from err
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -156,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         raise SystemExit(2)
 
-    current_milestone = _get_current_milestone(owner, repo, args.issue)
+    current_milestone = _get_current_milestone(owner, repo, args.issue, fmt)
 
     output = {
         "issue": args.issue,
@@ -176,16 +199,13 @@ def main(argv: list[str] | None = None) -> int:
             })
             return 0
 
-        result = subprocess.run(
+        result = _run_gh(
             [
                 "gh", "api",
                 f"repos/{owner}/{repo}/issues/{args.issue}",
                 "-X", "PATCH", "-f", "milestone=",
             ],
-            capture_output=True,
-            text=True,
-            timeout=GH_TIMEOUT_SECONDS,
-            check=False,
+            output_format=fmt,
         )
         if result.returncode != 0:
             _emit_error(
@@ -207,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
         })
         return 0
 
-    milestone_titles = _get_milestone_titles(owner, repo)
+    milestone_titles = _get_milestone_titles(owner, repo, fmt)
     if args.milestone not in milestone_titles:
         _emit_error(
             f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
@@ -241,16 +261,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         raise SystemExit(5)
 
-    result = subprocess.run(
+    result = _run_gh(
         [
             "gh", "issue", "edit", str(args.issue),
             "--repo", f"{owner}/{repo}",
             "--milestone", args.milestone,
         ],
-        capture_output=True,
-        text=True,
-        timeout=GH_TIMEOUT_SECONDS,
-        check=False,
+        output_format=fmt,
     )
     if result.returncode != 0:
         _emit_error(

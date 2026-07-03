@@ -39,6 +39,8 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
 )
+GH_TIMEOUT_SECONDS = 15
+
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
@@ -67,16 +69,27 @@ def main(argv: list[str] | None = None) -> int:
     fmt = get_output_format(args.output_format)
 
     fields = "number,title,body,state,author,labels,milestone,assignees,createdAt,updatedAt"
-    result = subprocess.run(
-        [
-            "gh", "issue", "view", str(args.issue),
-            "--repo", f"{owner}/{repo}",
-            "--json", fields,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "issue", "view", str(args.issue),
+                "--repo", f"{owner}/{repo}",
+                "--json", fields,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        write_skill_error(
+            f"Timed out fetching issue #{args.issue} after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="get_issue_context.py",
+        )
+        raise SystemExit(3) from err
 
     if result.returncode != 0:
         write_skill_error(

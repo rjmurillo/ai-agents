@@ -109,10 +109,22 @@ def main(argv: list[str] | None = None) -> int:
         else:
             endpoint = f"repos/{owner}/{repo}/issues/comments/{cid}/reactions"
 
-        result = subprocess.run(
-            ["gh", "api", endpoint, "-X", "POST", "-f", f"content={args.reaction}"],
-            capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS, check=False,
-        )
+        try:
+            result = subprocess.run(
+                ["gh", "api", endpoint, "-X", "POST", "-f", f"content={args.reaction}"],
+                capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS, check=False,
+            )
+        except subprocess.TimeoutExpired:
+            failed += 1
+            results.append({
+                "success": False,
+                "comment_id": cid,
+                "comment_type": args.comment_type,
+                "reaction": args.reaction,
+                "emoji": emoji,
+                "error": f"Timed out running gh after {GH_TIMEOUT_SECONDS}s",
+            })
+            break
 
         # Duplicate reactions are OK (idempotent)
         success = result.returncode == 0 or "already reacted" in (result.stderr + result.stdout)
@@ -156,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"comment(s); {failed} failed"
             ),
             3,
-            error_type="ApiError",
+            error_type="Timeout" if any(r["error"] and "Timed out" in r["error"] for r in results) else "ApiError",
             output_format=fmt,
             script_name="add_comment_reaction.py",
             extra=summary,

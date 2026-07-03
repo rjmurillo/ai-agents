@@ -55,6 +55,7 @@ from github_core.api import (  # noqa: E402
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -388,15 +389,40 @@ def _find_existing_synthesis(
     return None
 
 
-def _assign_copilot(owner: str, repo: str, issue_number: int) -> bool:
+def _run_gh(command: list[str], *, output_format: str) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        write_skill_error(
+            f"Timed out running gh after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="Timeout",
+            output_format=output_format,
+            script_name="invoke_copilot_assignment.py",
+        )
+        raise SystemExit(3) from err
+
+
+def _assign_copilot(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    output_format: str = "json",
+) -> bool:
     """Assign copilot-swe-agent to the issue."""
-    result = subprocess.run(
+    result = _run_gh(
         [
             "gh", "issue", "edit", str(issue_number),
             "--repo", f"{owner}/{repo}",
             "--add-assignee", "copilot-swe-agent",
         ],
-        capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS, check=False,
+        output_format=output_format,
     )
     if result.returncode != 0:
         print(f"WARNING: Failed to assign copilot-swe-agent: {result.stderr}", file=sys.stderr)
@@ -519,9 +545,9 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         )
 
     # Fetch issue details
-    issue_result = subprocess.run(
+    issue_result = _run_gh(
         ["gh", "api", f"repos/{owner}/{repo}/issues/{issue_number}"],
-        capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS, check=False,
+        output_format=fmt,
     )
     if issue_result.returncode != 0:
         error_str = issue_result.stderr.strip() or issue_result.stdout.strip()
@@ -672,7 +698,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
     assigned = False
     if not args.skip_assignment:
         print("Assigning copilot-swe-agent...", file=sys.stderr)
-        assigned = _assign_copilot(owner, repo, issue_number)
+        assigned = _assign_copilot(owner, repo, issue_number, fmt)
         if assigned:
             print(f"Assigned copilot-swe-agent to issue #{issue_number}", file=sys.stderr)
     else:

@@ -1,6 +1,7 @@
 """Tests for add_comment_reaction.py."""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -91,6 +92,26 @@ class TestAddCommentReaction:
         assert result["Error"]["Code"] == 3
         assert result["Data"]["succeeded"] == 2
         assert result["Data"]["failed"] == 1
+
+    def test_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd="gh",
+                    timeout=mod.GH_TIMEOUT_SECONDS,
+                ),
+            ),
+        ):
+            rc = mod.main(["--comment-id", "1", "--reaction", "eyes", "--output-format", "json"])
+
+        assert rc == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"
 
     def test_duplicate_reaction_succeeds(self, _import_module, capsys):
         mod = _import_module

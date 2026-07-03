@@ -148,6 +148,28 @@ class TestSetIssueLabels:
                 mod.main(["--issue", "1", "--labels", "broken"])
         assert exc.value.code == 3
 
+    def test_gh_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("set_issue_labels._get_issue_labels", return_value=[]),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd="gh",
+                    timeout=mod.GH_TIMEOUT_SECONDS,
+                ),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--labels", "bug", "--output-format", "json"])
+
+        assert exc.value.code == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"
+
     def test_whitespace_labels_filtered(self, _import_module, capsys):
         mod = _import_module
         # Only "good" should be processed; "  " and "" are stripped and skipped

@@ -1,6 +1,7 @@
 """Tests for set_item_milestone.py."""
 
 import json
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -143,3 +144,20 @@ class TestSetItemMilestone:
             with pytest.raises(SystemExit) as exc:
                 mod._get_item_milestone("o", "r", 999)
         assert exc.value.code == 3
+
+    def test_gh_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
+        mod = _import_module
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(
+                cmd="gh",
+                timeout=mod.GH_TIMEOUT_SECONDS,
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod._get_item_milestone("o", "r", 1, "json")
+
+        assert exc.value.code == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"

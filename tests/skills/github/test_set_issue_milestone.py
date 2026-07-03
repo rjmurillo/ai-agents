@@ -1,6 +1,7 @@
 """Tests for set_issue_milestone.py."""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -185,6 +186,27 @@ class TestSetIssueMilestone:
         assert result["Success"] is False
         assert result["Error"]["Code"] == 3
         assert result["Error"]["Type"] == "ApiError"
+
+    def test_gh_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd="gh",
+                    timeout=mod.GH_TIMEOUT_SECONDS,
+                ),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--milestone", "v1.0.0", "--output-format", "json"])
+
+        assert exc.value.code == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"
 
     def test_clear_milestone(self, _import_module, capsys):
         mod = _import_module

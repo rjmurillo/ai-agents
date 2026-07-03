@@ -117,16 +117,38 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _label_exists(owner: str, repo: str, label_name: str) -> bool:
+def _run_gh(command: list[str], *, output_format: str) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            command,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        write_skill_error(
+            f"Timed out running gh after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="Timeout",
+            output_format=output_format,
+            script_name="set_issue_labels.py",
+        )
+        raise SystemExit(3) from err
+
+
+def _label_exists(
+    owner: str,
+    repo: str,
+    label_name: str,
+    output_format: str = "json",
+) -> bool:
     """Check if a label exists in the repository."""
     encoded = quote(label_name, safe="")
-    result = subprocess.run(
+    result = _run_gh(
         ["gh", "api", f"repos/{owner}/{repo}/labels/{encoded}"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=GH_TIMEOUT_SECONDS,
-        check=False,
+        output_format=output_format,
     )
     return result.returncode == 0
 
@@ -136,9 +158,10 @@ def _create_label(
     repo: str,
     label_name: str,
     color: str,
+    output_format: str = "json",
 ) -> bool:
     """Create a label in the repository. Returns True on success."""
-    result = subprocess.run(
+    result = _run_gh(
         [
             "gh",
             "api",
@@ -152,18 +175,20 @@ def _create_label(
             "-f",
             "description=Auto-created by AI triage",
         ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=GH_TIMEOUT_SECONDS,
-        check=False,
+        output_format=output_format,
     )
     return result.returncode == 0
 
 
-def _apply_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
+def _apply_label(
+    owner: str,
+    repo: str,
+    issue: int,
+    label_name: str,
+    output_format: str = "json",
+) -> bool:
     """Apply a label to an issue. Returns True on success."""
-    result = subprocess.run(
+    result = _run_gh(
         [
             "gh",
             "issue",
@@ -174,10 +199,7 @@ def _apply_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
             "--add-label",
             label_name,
         ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
+        output_format=output_format,
     )
     return result.returncode == 0
 
@@ -221,9 +243,15 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
     return [item.get("name") for item in labels if isinstance(item, dict) and item.get("name")]
 
 
-def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
+def _remove_label(
+    owner: str,
+    repo: str,
+    issue: int,
+    label_name: str,
+    output_format: str = "json",
+) -> bool:
     """Remove a label from an issue. Returns True on success."""
-    result = subprocess.run(
+    result = _run_gh(
         [
             "gh",
             "issue",
@@ -234,10 +262,7 @@ def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
             "--remove-label",
             label_name,
         ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
+        output_format=output_format,
     )
     return result.returncode == 0
 
@@ -247,6 +272,7 @@ def _reconcile_priorities(
     repo: str,
     issue: int,
     incoming: list[str],
+    output_format: str = "json",
 ) -> list[str]:
     """Remove existing priority labels that conflict with the incoming set.
 
@@ -258,7 +284,7 @@ def _reconcile_priorities(
     to_remove = compute_priority_removals(existing, incoming)
     removed: list[str] = []
     for label_name in to_remove:
-        if _remove_label(owner, repo, issue, label_name):
+        if _remove_label(owner, repo, issue, label_name, output_format):
             removed.append(label_name)
     return removed
 
@@ -309,11 +335,11 @@ def main(argv: list[str] | None = None) -> int:
         label_name = label_info["name"]
         label_color = label_info["color"]
 
-        exists = _label_exists(owner, repo, label_name)
+        exists = _label_exists(owner, repo, label_name, fmt)
 
         if not exists:
             if create_missing:
-                if _create_label(owner, repo, label_name, label_color):
+                if _create_label(owner, repo, label_name, label_color, fmt):
                     created.append(label_name)
                 else:
                     failed.append(label_name)
@@ -321,10 +347,12 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 continue
 
-        if _apply_label(owner, repo, args.issue, label_name):
+        if _apply_label(owner, repo, args.issue, label_name, fmt):
             applied.append(label_name)
             if label_name.lower().startswith(PRIORITY_PREFIX):
-                removed = _reconcile_priorities(owner, repo, args.issue, incoming_names)
+                removed = _reconcile_priorities(
+                    owner, repo, args.issue, incoming_names, fmt
+                )
         else:
             failed.append(label_name)
 
