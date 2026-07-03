@@ -36,7 +36,7 @@ def test_run_semgrep_timeout_returns_empty() -> None:
 
 
 def test_mcp_win32_read_timeout_raises() -> None:
-    client = McpClient(process=MagicMock(), timeout=0.1)
+    client = McpClient(process=MagicMock(stderr=None), timeout=0.1)
 
     def _blocking_read(_fd: int, _n: int) -> bytes:
         time.sleep(1.0)
@@ -47,7 +47,7 @@ def test_mcp_win32_read_timeout_raises() -> None:
 
 
 def test_mcp_overall_deadline_raises() -> None:
-    client = McpClient(process=MagicMock(), timeout=0.05)
+    client = McpClient(process=MagicMock(stderr=None), timeout=0.05)
     body = b'{"jsonrpc":"2.0","method":"notify"}'
     frame = f"Content-Length: {len(body)}\r\n\r\n".encode() + body
 
