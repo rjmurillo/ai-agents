@@ -19,7 +19,7 @@ tools:
   - github/search_code
   - github/search_issues
   - serena/*
-model: claude-opus-4.5
+model: claude-opus-4.6
 tier: builder
 # Implements code in an isolated workspace with tool access and branch-local state.
 isolation_required: true
