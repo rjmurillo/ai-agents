@@ -21,7 +21,7 @@ is_infrastructure_failure() {
 
   # Check stderr for infrastructure keywords
   if [ -n "$stderr" ]; then
-    if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504)"; then
+    if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504|No authentication|authentication failed|auth.*error|not available)"; then
       return 0
     fi
   fi
