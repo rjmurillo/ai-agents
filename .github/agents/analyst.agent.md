@@ -21,7 +21,7 @@ tools:
   - context7/*
   - perplexity/*
   - serena/*
-model: claude-opus-4.5
+model: claude-opus-4.6
 tier: integration
 ---
 
