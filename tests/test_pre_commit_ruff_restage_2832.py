@@ -116,7 +116,8 @@ def _run_fragment(repo: Path, stub_dir: Path, autofix: str) -> subprocess.Comple
         cwd=repo,
         env=env,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -126,7 +127,8 @@ def _staged_content(repo: Path) -> str:
     return subprocess.run(
         ["git", "-C", repo, "show", ":sample.py"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=15,
         check=True,
     ).stdout
@@ -186,7 +188,7 @@ def test_hook_restages_inside_autofix_block() -> None:
     """Structural pin on the real hook: the re-stage loop sits inside the
     autofix block, before the verify check, so the fragment above cannot
     drift from the hook without this test failing."""
-    hook = PRE_COMMIT.read_text()
+    hook = PRE_COMMIT.read_text(encoding="utf-8")
     autofix_idx = hook.index("Auto-fixing Python files with ruff...")
     restage_idx = hook.index('git add -- "$file"', autofix_idx)
     verify_idx = hook.index("Python linting found issues (non-blocking).", autofix_idx)
