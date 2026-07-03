@@ -86,6 +86,16 @@ record_skip() {
     echo_info "SKIP: $1"
 }
 
+pytest_output_has_session_summary() {
+    # A killed pytest process can leave the stream ending on the last test name.
+    # Treat that as an aborted run, not as proof the last streamed test failed.
+    grep -Eq '(^=+ (short test summary info|.*(passed|failed|error|errors|skipped|xfailed|xpassed|warnings).*) =+$)' "$1"
+}
+
+pytest_exit_was_signal() {
+    [ "$1" -ge 128 ] && [ "$1" -le 255 ]
+}
+
 # Temp file cleanup on exit (handles Ctrl+C, early exit, normal exit)
 TEMP_FILES=()
 # Auto-retro suppression sentinel (Issue #2327). Set once REPO_ROOT is known.
@@ -1197,11 +1207,23 @@ fi
                     rm -f "$TEST_OUTPUT"
                     record_pass "Python tests (pytest)"
                 else
+                    PYTEST_RC=$?
                     echo_info "  Test output (last 30 lines):"
                     tail -30 "$TEST_OUTPUT"
+                    if pytest_output_has_session_summary "$TEST_OUTPUT"; then
+                        record_fail "Python tests failed"
+                        echo_info "  Fix failing tests before pushing."
+                    else
+                        if pytest_exit_was_signal "$PYTEST_RC"; then
+                            PYTEST_SIGNAL=$((PYTEST_RC - 128))
+                            record_fail "Python tests aborted before pytest summary (exit $PYTEST_RC, signal $PYTEST_SIGNAL)"
+                        else
+                            record_fail "Python tests aborted before pytest summary (exit $PYTEST_RC)"
+                        fi
+                        echo_info "  Pytest did not print a session summary; the last streamed test may be innocent."
+                        echo_info "  Retry once. If it repeats, inspect resource kills or leaked threads."
+                    fi
                     rm -f "$TEST_OUTPUT"
-                    record_fail "Python tests failed"
-                    echo_info "  Fix failing tests before pushing."
                 fi
             else
                 record_skip "Python tests (tests/ directory not found)"
