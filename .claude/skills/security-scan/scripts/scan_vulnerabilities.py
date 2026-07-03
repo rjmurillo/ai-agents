@@ -108,6 +108,10 @@ class ScanResult:
     errors: list[str] = field(default_factory=list)
 
 
+class GitEnumerationError(RuntimeError):
+    """Raised when staged-file enumeration cannot be trusted."""
+
+
 def get_language(file_path: str) -> str | None:
     """Detect language from file extension."""
     ext = Path(file_path).suffix.lower()
@@ -164,24 +168,13 @@ def get_staged_files() -> list[str]:
             check=True,
         )
         return [f for f in result.stdout.strip().split("\n") if f]
-    except FileNotFoundError:
-        # git binary missing on PATH: distinct from a non-zero git exit. Emit a
-        # clear diagnostic and return [] so _collect_files_to_scan fails closed
-        # (prints "No files to scan" and exits EXIT_ERROR), never fail-open.
-        print(
-            "ERROR: git executable not found on PATH; cannot enumerate staged files.",
-            file=sys.stderr,
-        )
-        return []
     except subprocess.CalledProcessError as exc:
-        # git ran but returned non-zero. Report the failure explicitly; return []
-        # so the caller reports no files and exits with error (fail-closed).
-        print(
-            f"ERROR: git staged-file enumeration failed ({exc}); "
-            "scan will report no files and exit with error.",
-            file=sys.stderr,
-        )
-        return []
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise GitEnumerationError(
+            f"git diff --staged --name-only failed: {detail}"
+        ) from exc
+    except FileNotFoundError as exc:
+        raise GitEnumerationError("git executable not found") from exc
 
 
 def get_directory_files(directory: str) -> list[str]:
@@ -452,7 +445,11 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
     files_to_scan = []
 
     if args.git_staged:
-        files_to_scan.extend(get_staged_files())
+        try:
+            files_to_scan.extend(get_staged_files())
+        except GitEnumerationError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(EXIT_ERROR)
 
     if args.directory:
         files_to_scan.extend(get_directory_files(args.directory))

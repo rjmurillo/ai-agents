@@ -731,6 +731,44 @@ def test_main_git_staged_no_files_exits_error(
     assert "No files to scan" in captured.out
 
 
+def test_main_git_staged_failure_exits_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        scanner,
+        "get_staged_files",
+        lambda: (_ for _ in ()).throw(
+            scanner.GitEnumerationError("git diff failed: fatal")
+        ),
+    )
+    code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
+    captured = capsys.readouterr()
+    assert code == scanner.EXIT_ERROR
+    assert "git diff failed: fatal" in captured.err
+
+
+def test_get_staged_files_raises_on_git_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_git(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(
+            returncode=128,
+            cmd=["git", "diff", "--staged", "--name-only"],
+            stderr="fatal: not a git repository",
+        )
+
+    monkeypatch.setattr(scanner.subprocess, "run", fail_git)
+    with pytest.raises(scanner.GitEnumerationError, match="not a git repository"):
+        scanner.get_staged_files()
+
+
+def test_get_staged_files_raises_when_git_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    def missing_git(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(scanner.subprocess, "run", missing_git)
+    with pytest.raises(scanner.GitEnumerationError, match="git executable not found"):
+        scanner.get_staged_files()
+
+
 def test_main_json_format_in_process(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
