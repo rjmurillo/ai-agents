@@ -79,6 +79,56 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+FRONTMATTER_DELIM = "---"
+
+
+def _split_frontmatter(content: str) -> tuple[str, str]:
+    """Split content into (frontmatter, body).
+
+    Frontmatter is the YAML block delimited by a leading ``---`` line and a
+    closing ``---`` line at the very start of the file. Returns
+    ``("", content)`` when no complete frontmatter block is present.
+    """
+    lines = content.splitlines(keepends=True)
+    if not lines or lines[0].strip() != FRONTMATTER_DELIM:
+        return "", content
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == FRONTMATTER_DELIM:
+            frontmatter = "".join(lines[1:idx])
+            body = "".join(lines[idx + 1 :])
+            return frontmatter, body
+    return "", content
+
+
+def _is_frontmatter_only_change(
+    file_path: str, since_commit: str, base_path: Path
+) -> bool:
+    """Return True when a modified ADR changed only inside its frontmatter.
+
+    Compares the file body (content after the YAML frontmatter block) at
+    ``since_commit`` against the current working-tree body. Identical bodies
+    mean the diff is confined to frontmatter (for example an ADR-073
+    lifecycle-flag flip such as ``implemented: false`` -> ``true``), which is a
+    metadata sync with no decision content and must not trigger the
+    adr-review reminder (#2845).
+
+    A change that adds or removes the frontmatter block, or that touches the
+    body, is treated as substantive (returns False).
+    """
+    show = _run_git(["show", f"{since_commit}:{file_path}"], cwd=base_path)
+    if show.returncode != 0:
+        return False
+    try:
+        new_content = (base_path / file_path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    old_frontmatter, old_body = _split_frontmatter(show.stdout)
+    new_frontmatter, new_body = _split_frontmatter(new_content)
+    if not old_frontmatter or not new_frontmatter:
+        return False
+    return old_body == new_body
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Detect ADR file changes for automatic skill triggering.",
@@ -163,13 +213,21 @@ def main(argv: list[str] | None = None) -> int:
                         created.append(line)
 
         created = sorted(set(created))
-        modified = sorted(set(modified))
         deleted = sorted(set(deleted))
 
+        # Partition modified ADRs: frontmatter-only edits (for example an
+        # ADR-073 lifecycle-flag flip) are metadata syncs with no decision
+        # content and must not trigger the adr-review reminder (#2845).
+        substantive_modified: list[str] = []
+        frontmatter_only_modified: list[str] = []
+        for file_path in sorted(set(modified)):
+            if _is_frontmatter_only_change(file_path, args.since_commit, base_path):
+                frontmatter_only_modified.append(file_path)
+            else:
+                substantive_modified.append(file_path)
+
         recommended_action = "none"
-        if created:
-            recommended_action = "review"
-        elif modified:
+        if created or substantive_modified:
             recommended_action = "review"
         elif deleted:
             recommended_action = "archive"
@@ -187,10 +245,11 @@ def main(argv: list[str] | None = None) -> int:
 
         result_obj = {
             "Created": created,
-            "Modified": modified,
+            "Modified": substantive_modified,
+            "ModifiedFrontmatterOnly": frontmatter_only_modified,
             "Deleted": deleted,
             "DeletedDetails": deleted_details,
-            "HasChanges": len(created) + len(modified) + len(deleted) > 0,
+            "HasChanges": len(created) + len(substantive_modified) + len(deleted) > 0,
             "RecommendedAction": recommended_action,
             "Timestamp": datetime.now(UTC).isoformat(),
             "SinceCommit": args.since_commit,
