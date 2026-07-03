@@ -110,7 +110,12 @@ jobs:
       - name: Generate health report
         if: steps.should-run.outputs.skip != 'true'
         run: |
-          python -m memory_enhancement verify-all > memory-health-report.md
+          # Best-effort human-readable report. verify-all returns rc=1 for
+          # non-blocking invalid-citation findings (see the verify step above);
+          # that must not block the downstream parse/comment steps. A real crash
+          # is already caught by the verify step's empty-JSON guard, so tolerate a
+          # non-zero rc here rather than red-failing the whole job.
+          python -m memory_enhancement verify-all > memory-health-report.md || true
 
       - name: Upload validation results
         if: always() && steps.should-run.outputs.skip != 'true'

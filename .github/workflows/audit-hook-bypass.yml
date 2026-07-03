@@ -64,13 +64,11 @@ jobs:
             exit "$rc"
           fi
           test -s artifacts/hook-bypass-audit.json
-          count=$(python3 -c "
-          import json
-          with open('artifacts/hook-bypass-audit.json') as f:
-              data = json.load(f)
-          print(len(data.get('bypass_indicators', [])))
-          ")
-          echo "indicator_count=$count" >> "$GITHUB_OUTPUT"
+          # Count extraction lives in a tested script (ADR-006: no logic in YAML).
+          python3 scripts/ci/parse_hook_bypass_results.py \
+            --input artifacts/hook-bypass-audit.json \
+            --count-out hook-bypass-count.txt
+          echo "indicator_count=$(cat hook-bypass-count.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Report findings
         if: steps.detect.outputs.indicator_count != '0'

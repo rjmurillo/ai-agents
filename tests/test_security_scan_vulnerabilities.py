@@ -733,6 +733,22 @@ def test_main_git_staged_no_files_exits_success(
     assert "No files to scan" in captured.out
 
 
+def test_main_directory_missing_exits_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A --directory that does not exist is a mis-specified scan root, not a clean
+    # scan. os.walk silently yields nothing for a missing path, so without an
+    # explicit is_dir() guard this fails OPEN (exits 0, "all clean"). Pin the
+    # fail-closed contract: missing --directory exits EXIT_ERROR before walking.
+    missing = tmp_path / "does-not-exist"
+    code = _run_main_in_process(
+        monkeypatch, "--directory", str(missing), cwd=tmp_path
+    )
+    captured = capsys.readouterr()
+    assert code == scanner.EXIT_ERROR
+    assert "not found or not a directory" in captured.err
+
+
 def test_main_git_staged_failure_exits_external(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

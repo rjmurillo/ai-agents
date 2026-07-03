@@ -457,18 +457,28 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
             sys.exit(EXIT_EXTERNAL)
 
     if args.directory:
+        if not Path(args.directory).is_dir():
+            # A missing or non-directory --directory is a mis-specified scan root,
+            # not an empty result. Fail closed (EXIT_ERROR) so a typo is never
+            # silently treated as a clean scan (os.walk on a missing path yields
+            # nothing, which would otherwise look like "no files, all clean").
+            print(
+                f"ERROR: --directory not found or not a directory: {args.directory}",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_ERROR)
         files_to_scan.extend(get_directory_files(args.directory))
 
     if args.files:
         files_to_scan.extend(args.files)
 
     if not files_to_scan:
-        # A mode flag was requested and enumeration succeeded, but there is
-        # genuinely nothing to scan (e.g. no staged files). That is a clean pass,
-        # not an error. Reserve EXIT_ERROR for the usage case where no input mode
-        # was provided at all.
-        if args.git_staged or args.directory or args.files:
-            print("No files to scan (nothing staged or matched).")
+        # A successful --git-staged enumeration with nothing staged is a clean
+        # pass. Restrict that to the staged-only case: an explicit --directory or
+        # --files target that yielded nothing is a mis-specified request, not a
+        # clean scan, so it keeps the usage-error exit (EXIT_ERROR).
+        if args.git_staged and not args.directory and not args.files:
+            print("No files to scan (nothing staged).")
             sys.exit(EXIT_SUCCESS)
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)
