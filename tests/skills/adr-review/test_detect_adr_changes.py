@@ -241,6 +241,12 @@ class TestOnlyNonDecisionFieldsChanged:
         new = "status: accepted\nsuperseded-by: ADR-099\n"
         assert _only_non_decision_fields_changed(old, new) is False
 
+    def test_block_style_supersedes_change_is_not_exempt(self) -> None:
+        # A block-list supersedes change must be detected, not just scalars.
+        old = "status: accepted\nsupersedes:\n  - ADR-001\n"
+        new = "status: accepted\nsupersedes:\n  - ADR-002\n"
+        assert _only_non_decision_fields_changed(old, new) is False
+
     def test_no_field_change_is_exempt(self) -> None:
         fm = "status: proposed\nimplemented: false\n"
         assert _only_non_decision_fields_changed(fm, fm) is True
@@ -265,9 +271,10 @@ class TestFrontmatterFields:
         fields = _frontmatter_fields("status: proposed\nimplemented: false\n")
         assert fields == {"status": "proposed", "implemented": "false"}
 
-    def test_ignores_indented_nested_lines(self) -> None:
-        fields = _frontmatter_fields("deciders:\n  - alice\n  - bob\nstatus: proposed\n")
-        assert fields == {"deciders": "", "status": "proposed"}
+    def test_captures_indented_block_value(self) -> None:
+        fields = _frontmatter_fields("supersedes:\n  - ADR-001\n  - ADR-002\nstatus: proposed\n")
+        assert fields["supersedes"] == "\n  - ADR-001\n  - ADR-002"
+        assert fields["status"] == "proposed"
 
 
 class TestFrontmatterOnlyDetection:
