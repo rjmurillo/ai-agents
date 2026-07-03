@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed on branch claude/auto-router-skill before push (atomic commits under five files each)."
+        "Evidence": "Commits abcba45 (/auto skill + twin), d52748c (session log), 2d5870f (buy-vs-build + security-detection routing rows); final commit 2d5870f recorded as endingCommit"
       },
       "validationPassed": {
         "level": "MUST",
@@ -121,7 +121,7 @@
     "Filed issue #2828 with the design and buy-vs-build Quick-tier verdict.",
     "Verification: validate_skill_format.py --path .claude/skills/auto PASSED; dash byte-check clean."
   ],
-  "endingCommit": "f13f73f",
+  "endingCommit": "2d5870f",
   "nextSteps": [
     "Open draft PR for #2828.",
     "Follow-up: point the CLAUDE.md Skill routing section at /auto as the canonical router so the two tables do not drift."
