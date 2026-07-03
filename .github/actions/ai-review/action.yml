@@ -693,11 +693,13 @@ runs:
           fi
 
           # Check stderr for infrastructure keywords.
-          # "not available" catches retired/unknown model names (e.g. a bumped
-          # Copilot CLI rejecting a pinned model): treat as infra so the review
-          # degrades to a non-blocking warning instead of hard-failing required
-          # checks. Downstream (agent-review) exits 0 on CRITICAL_FAIL + infra.
-          if [ -n "$stderr" ]; then
+          # Skip this branch when stdout already carries a genuine VERDICT:.
+          # Reclassifying a real review result as infra would overwrite it with
+          # a synthetic CRITICAL_FAIL that downstream treats as non-blocking,
+          # masking a failing review. "not available" catches retired/unknown
+          # model names (e.g. a bumped Copilot CLI rejecting a pinned model), so
+          # a real infra failure with empty stdout still degrades to a warning.
+          if [ -n "$stderr" ] && ! echo "$output" | grep -qE "VERDICT:"; then
             if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504|No authentication|authentication failed|auth.*error|not available)"; then
               return 0
             fi

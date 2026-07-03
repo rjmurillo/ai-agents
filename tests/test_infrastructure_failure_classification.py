@@ -38,7 +38,8 @@ def _classify(exit_code: int, stdout: str, stderr: str) -> str:
     result = subprocess.run(
         ["bash", str(_SCRIPT), str(exit_code), stdout, stderr],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     return result.stdout.strip()
@@ -83,6 +84,14 @@ def test_infrastructure_failures_classified_true(
         # findings would be silently downgraded.
         (1, "VERDICT: FAIL\nMESSAGE: real code issue", ""),
         (1, "VERDICT: CRITICAL_FAIL\nMESSAGE: blocking defect", ""),
+        # Do-not-mask-verdicts contract: a real verdict on stdout must win even
+        # when stderr also carries an infrastructure keyword. Without this the
+        # retry loop would overwrite the genuine verdict with a synthetic
+        # CRITICAL_FAIL that downstream treats as non-blocking, letting a
+        # failing review pass. Locks the guard against future regex broadening.
+        (1, "VERDICT: FAIL\nMESSAGE: real code issue", _MODEL_UNAVAILABLE_STDERR),
+        (1, "VERDICT: CRITICAL_FAIL\nMESSAGE: blocking defect", "connection refused"),
+        (0, "VERDICT: PASS", "warning: auth error in unrelated log line"),
     ],
 )
 def test_non_infrastructure_outcomes_classified_false(

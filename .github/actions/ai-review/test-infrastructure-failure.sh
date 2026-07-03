@@ -19,8 +19,11 @@ is_infrastructure_failure() {
     return 0
   fi
 
-  # Check stderr for infrastructure keywords
-  if [ -n "$stderr" ]; then
+  # Check stderr for infrastructure keywords.
+  # Skip this branch when stdout already carries a genuine VERDICT:, so a real
+  # review result is never masked behind an infra reclassification. Mirrors the
+  # guard in action.yml is_infrastructure_failure().
+  if [ -n "$stderr" ] && ! echo "$output" | grep -qE "VERDICT:"; then
     if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504|No authentication|authentication failed|auth.*error|not available)"; then
       return 0
     fi
