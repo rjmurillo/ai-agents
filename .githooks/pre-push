@@ -807,6 +807,13 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
                 echo_info "  Install actionlint, the gh act extension"
                 echo_info "  (gh extension install nektos/gh-act), and Docker, or set"
                 echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
+            elif [ $WF_LOCAL_RC -eq 4 ]; then
+                cat "$WF_LOCAL_OUTPUT"
+                record_warn "Workflow local run skipped: changed workflow needs locally-absent secrets"
+                echo_info "  The changed workflow references secrets not present locally,"
+                echo_info "  so gh act cannot run it. CI runs it with the real secrets."
+                echo_info "  Provide them via a repo-root .secrets file or the environment"
+                echo_info "  to run it locally; no bypass flag is needed."
             else
                 cat "$WF_LOCAL_OUTPUT"
                 record_fail "Workflow local run failed (exit $WF_LOCAL_RC)"

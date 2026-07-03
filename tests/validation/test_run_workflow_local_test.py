@@ -329,6 +329,124 @@ def test_no_full_skips_execution_stage(all_tools, monkeypatch, tmp_path):
     assert [s.stage for s in r.stages] == ["actionlint", "gh act -n"]
 
 
+# --- secret-gap detection (#2841) ----------------------------------------
+
+
+def _write_wf_secrets(tmp_path, rel, *secret_names):
+    """Create a workflow file under tmp_path referencing the given secrets."""
+    path = tmp_path / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["name: x", "on: push", "jobs:", "  j:", "    runs-on: ubuntu-latest", "    steps:"]
+    for name in secret_names:
+        lines.append(f"      - run: echo ${{{{ secrets.{name} }}}}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def test_referenced_secrets_finds_names(tmp_path):
+    path = _write_wf_secrets(tmp_path, WF, "BOT_PAT", "COPILOT_TOKEN")
+    assert w._referenced_secrets(path) == {"BOT_PAT", "COPILOT_TOKEN"}
+
+
+def test_referenced_secrets_unreadable_file_is_empty(tmp_path):
+    assert w._referenced_secrets(tmp_path / "does-not-exist.yml") == set()
+
+
+def test_act_secret_file_keys_parses_dotenv(tmp_path):
+    (tmp_path / ".secrets").write_text(
+        "# comment\n\nBOT_PAT=abc\nOTHER = def\nBAD_LINE\n", encoding="utf-8"
+    )
+    assert w._act_secret_file_keys(tmp_path) == {"BOT_PAT", "OTHER"}
+
+
+def test_act_secret_file_keys_missing_file_is_empty(tmp_path):
+    assert w._act_secret_file_keys(tmp_path) == set()
+
+
+def test_missing_secrets_respects_available(tmp_path):
+    path = _write_wf_secrets(tmp_path, WF, "PRESENT", "ABSENT")
+    assert w._missing_secrets(path, {"PRESENT"}) == ["ABSENT"]
+    assert w._missing_secrets(path, {"PRESENT", "ABSENT"}) == []
+
+
+def test_all_workflows_secret_blocked_is_exit_4(monkeypatch, tmp_path):
+    # A changed workflow that needs a locally-absent secret cannot run under
+    # act. It must skip audibly (exit 4) WITHOUT requiring any local tool, so
+    # tool checks are stubbed absent to prove the short-circuit (#2841).
+    monkeypatch.setattr(w, "_have", lambda tool: False)
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 4
+    assert "BOT_PAT_2841" in r.note
+    assert r.stages == []
+
+
+def test_secret_present_in_env_is_runnable(all_tools, monkeypatch, tmp_path):
+    monkeypatch.setenv("BOT_PAT_2841", "token-value")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert len(r.stages) == 3
+
+
+def test_secret_present_in_dotsecrets_is_runnable(all_tools, monkeypatch, tmp_path):
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    (tmp_path / ".secrets").write_text("BOT_PAT_2841=token\n", encoding="utf-8")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert len(r.stages) == 3
+
+
+def test_mixed_runs_only_runnable_and_notes_skip(all_tools, monkeypatch, tmp_path):
+    # One workflow needs an absent secret (skipped), one is clean (runs). The
+    # clean one must pass and the stages must receive ONLY the runnable file;
+    # the skipped file is surfaced in the note (exit 0 preserved).
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    clean = ".github/workflows/clean.yml"
+    blocked = ".github/workflows/blocked.yml"
+    _write_wf_secrets(tmp_path, clean)
+    _write_wf_secrets(tmp_path, blocked, "BOT_PAT_2841")
+    seen = {}
+
+    def _capture(f, r):
+        seen["f"] = f
+        return _ok("actionlint")
+
+    monkeypatch.setattr(w, "_actionlint_stage", _capture)
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
+    r = w.run_local_test([blocked, clean], tmp_path)
+    assert r.exit_code == 0
+    assert seen["f"] == [clean]
+    assert "BOT_PAT_2841" in r.note
+    assert "blocked.yml" in r.note
+
+
+def test_exit_4_text_format_names_secret():
+    report = w.Report(
+        exit_code=4, note="unrunnable-locally: x.yml needs BOT_PAT_2841."
+    )
+    text = w._format_text(report)
+    assert "SKIPPED" in text
+    assert "BOT_PAT_2841" in text
+
+
+def test_cli_returns_4_for_secret_blocked(all_tools, monkeypatch, tmp_path, capsys):
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    rc = w.main(["--files", WF, "--repo-root", str(tmp_path)])
+    assert rc == 4
+    assert "SKIPPED" in capsys.readouterr().out
+
+
 # --- stage internals (subprocess mocked) ---------------------------------
 
 

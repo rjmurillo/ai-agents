@@ -48,6 +48,9 @@ EXIT CODES (per ADR-035, exit-code contract in AGENTS.md)
 1 - a stage ran and failed (block the push)
 2 - configuration error (bad args, repo root absent)
 3 - a required tool is unavailable (actionlint, gh act, or Docker)
+4 - unrunnable locally: every changed workflow references a secret absent from
+    this environment, so act has nothing to supply (auth per ADR-035). Skipped
+    audibly; CI runs it with the real secrets (Issue #2841).
 """
 
 from __future__ import annotations
@@ -308,6 +311,64 @@ def _select_workflow_files(
     return selected, None
 
 
+# --- Secret availability -------------------------------------------------
+
+# GitHub secret references appear as ``${{ secrets.NAME }}`` in workflow YAML.
+# act cannot supply a secret the developer does not have locally, so a changed
+# workflow that references an absent secret cannot run under act. Forcing a
+# manual bypass for that case is the friction this gate removes (Issue #2841).
+# Names follow GitHub's rule: a letter or ``_`` followed by word characters.
+_SECRET_REF_RE = re.compile(r"secrets\.([A-Za-z_][A-Za-z0-9_]*)")
+
+# act reads secrets from a repo-root ``.secrets`` file (dotenv ``KEY=VALUE``) by
+# default, in addition to the process environment. A secret defined there is
+# runnable locally, so it does not count as "missing".
+_ACT_SECRET_FILE = ".secrets"
+
+
+def _act_secret_file_keys(repo_root: Path) -> set[str]:
+    """Secret names defined in the act default secret file (repo-root .secrets).
+
+    Parsed as dotenv: ``KEY=VALUE`` per line; ``#`` comments and blank lines are
+    ignored. A missing or unreadable file yields an empty set (no secrets
+    supplied from disk).
+    """
+    keys: set[str] = set()
+    try:
+        text = (repo_root / _ACT_SECRET_FILE).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return keys
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key = stripped.split("=", 1)[0].strip()
+        if key:
+            keys.add(key)
+    return keys
+
+
+def _referenced_secrets(path: Path) -> set[str]:
+    """Secret names a workflow file references via ``${{ secrets.NAME }}``.
+
+    An unreadable file yields an empty set. Fail-open here is safe: the act
+    stages still run and fail closed, so a file we cannot read is treated as
+    runnable rather than skipped.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return set()
+    return set(_SECRET_REF_RE.findall(text))
+
+
+def _missing_secrets(path: Path, available: set[str]) -> list[str]:
+    """Secrets ``path`` references that are absent from ``available`` (sorted)."""
+    return sorted(
+        name for name in _referenced_secrets(path) if name not in available
+    )
+
+
 # --- Stages --------------------------------------------------------------
 
 
@@ -530,6 +591,38 @@ def run_local_test(
     if not files:
         return Report(exit_code=0, note="no workflow files to test")
 
+    # A changed workflow that references a secret absent from this environment
+    # cannot run under act; act has nothing to supply. Rather than force a
+    # manual bypass (the friction of Issue #2841), detect the gap and report it
+    # as a distinct, audible skip (exit 4, "auth" per ADR-035: authentication
+    # material is absent). A secret is available when it is in the process
+    # environment or the act default secret file (repo-root .secrets).
+    available = set(os.environ) | _act_secret_file_keys(repo_root)
+    runnable: list[str] = []
+    secret_blocked: list[tuple[str, list[str]]] = []
+    for rel in files:
+        missing = _missing_secrets(repo_root / rel, available)
+        if missing:
+            secret_blocked.append((rel, missing))
+        else:
+            runnable.append(rel)
+
+    if not runnable:
+        # Every changed workflow needs a locally-absent secret: nothing can run
+        # under act. Skip audibly instead of blocking on a manual bypass.
+        detail = "; ".join(
+            f"{rel} needs {', '.join(missing)}" for rel, missing in secret_blocked
+        )
+        return Report(
+            exit_code=4,
+            note=(
+                "unrunnable-locally: changed workflow(s) reference secrets absent "
+                f"from this environment ({detail}). Skipped the local act run; CI "
+                "runs it with the real secrets. Provide them via a repo-root "
+                ".secrets file or the environment to run it locally."
+            ),
+        )
+
     report = Report(exit_code=0)
 
     # Stage 1: actionlint.
@@ -541,7 +634,7 @@ def run_local_test(
             f"{_BYPASS_ENV}=true to bypass for an unrunnable workflow."
         )
         return report
-    s1 = _actionlint_stage(files, repo_root)
+    s1 = _actionlint_stage(runnable, repo_root)
     report.stages.append(s1)
     if not s1.ok:
         report.exit_code = 1
@@ -567,7 +660,7 @@ def run_local_test(
         report.note = worktree_error
         return report
 
-    s2 = _act_dryrun_stage(files, repo_root)
+    s2 = _act_dryrun_stage(runnable, repo_root)
     report.stages.append(s2)
     if not s2.ok:
         report.exit_code = 1
@@ -587,11 +680,24 @@ def run_local_test(
                 "workflow (or pass --no-full for the lint+dry-run tier)."
             )
             return report
-        s3 = _act_full_stage(files, repo_root)
+        s3 = _act_full_stage(runnable, repo_root)
         report.stages.append(s3)
         if not s3.ok:
             report.exit_code = 1
             return report
+
+    # Mixed batch: some workflows ran, others were skipped for absent secrets.
+    # The runnable ones passed (exit 0 preserved); surface the skips in the note
+    # so the developer sees which files CI will still exercise with real secrets.
+    if secret_blocked:
+        detail = "; ".join(
+            f"{rel} needs {', '.join(missing)}" for rel, missing in secret_blocked
+        )
+        skip_note = (
+            f"skipped (secrets absent locally): {detail}. CI runs these with "
+            "the real secrets."
+        )
+        report.note = f"{report.note} {skip_note}".strip() if report.note else skip_note
 
     return report
 
@@ -608,6 +714,8 @@ def _format_text(report: Report) -> str:
         return f"workflow-local-test: CONFIG ERROR\n  {report.note}"
     if report.exit_code == 3:
         return f"workflow-local-test: TOOL UNAVAILABLE\n  {report.note}"
+    if report.exit_code == 4:
+        return f"workflow-local-test: SKIPPED (secrets absent locally)\n  {report.note}"
     if report.exit_code == 0:
         passed = ", ".join(s.stage for s in report.stages) or report.note
         lines = [f"workflow-local-test: OK ({passed})"]
