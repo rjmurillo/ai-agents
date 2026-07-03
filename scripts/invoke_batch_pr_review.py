@@ -39,7 +39,7 @@ def run_git(
             args=['git', *args],
             returncode=124,
             stdout="",
-            stderr="git command timed out after 30s",
+            stderr=f"git command timed out after {timeout}s",
         )
 
 
@@ -56,7 +56,7 @@ def run_gh(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
             args=['gh', *args],
             returncode=124,
             stdout="",
-            stderr="gh command timed out after 60s",
+            stderr=f"gh command timed out after {timeout}s",
         )
 
 
