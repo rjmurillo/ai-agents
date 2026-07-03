@@ -61,7 +61,18 @@ def _paginated_items(endpoint: str, error_label: str, timeout: int = 60) -> list
         print(f"ERROR: {error_label}: {err}", file=sys.stderr)
         sys.exit(3)
 
-    pages = json.loads(result.stdout)
+    try:
+        pages = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: {error_label}: invalid JSON from gh: {exc}", file=sys.stderr)
+        sys.exit(3)
+    if not isinstance(pages, list):
+        print(
+            f"ERROR: {error_label}: expected a JSON array of pages, "
+            f"got {type(pages).__name__}",
+            file=sys.stderr,
+        )
+        sys.exit(3)
     items: list[dict] = []
     for page in pages:
         if isinstance(page, list):
@@ -119,7 +130,19 @@ def fetch_pr_metadata(owner: str, repo: str, pr_number: int) -> dict:
         print(f"ERROR: Failed to fetch PR: {err}", file=sys.stderr)
         sys.exit(3)
 
-    metadata: dict = json.loads(result.stdout)
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: invalid JSON from gh pr view: {exc}", file=sys.stderr)
+        sys.exit(3)
+    if not isinstance(parsed, dict):
+        print(
+            f"ERROR: expected a JSON object from gh pr view, "
+            f"got {type(parsed).__name__}",
+            file=sys.stderr,
+        )
+        sys.exit(3)
+    metadata: dict = parsed
     return metadata
 
 

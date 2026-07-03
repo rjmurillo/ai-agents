@@ -189,6 +189,38 @@ class TestFetchPrMetadata:
             mod.fetch_pr_metadata("owner", "repo", 908)
         assert exc_info.value.code == 3
 
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_invalid_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout="not json {")
+        with pytest.raises(SystemExit) as exc_info:
+            mod.fetch_pr_metadata("owner", "repo", 908)
+        assert exc_info.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_non_object_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout=json.dumps([1, 2]))
+        with pytest.raises(SystemExit) as exc_info:
+            mod.fetch_pr_metadata("owner", "repo", 908)
+        assert exc_info.value.code == 3
+
+
+class TestPaginatedItemsBoundary:
+    """Decode and shape guards for _paginated_items (issue #2813)."""
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_invalid_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout="][ broken")
+        with pytest.raises(SystemExit) as exc_info:
+            mod._paginated_items("repos/o/r/issues", "fetch issues")
+        assert exc_info.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_non_list_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout=json.dumps({"oops": True}))
+        with pytest.raises(SystemExit) as exc_info:
+            mod._paginated_items("repos/o/r/issues", "fetch issues")
+        assert exc_info.value.code == 3
+
 
 # ---------------------------------------------------------------------------
 # fetch_pr_comments / fetch_pr_reviews / fetch_pr_files

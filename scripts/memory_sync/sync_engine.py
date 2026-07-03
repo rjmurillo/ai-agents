@@ -57,8 +57,10 @@ def load_state(project_root: Path) -> dict[str, Any]:
         return {}
     try:
         parsed = json.loads(state_path.read_text("utf-8"))
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise StateError(f"Corrupt sync state file {state_path}: {exc}") from exc
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        raise StateError(
+            f"Unreadable or corrupt sync state file {state_path}: {exc}"
+        ) from exc
     if not isinstance(parsed, dict):
         raise StateError(
             f"Sync state file {state_path} must be a JSON object, "

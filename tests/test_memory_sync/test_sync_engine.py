@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
@@ -359,6 +360,23 @@ class TestSyncBatch:
 
 class TestLoadState:
     """Boundary validation for load_state (issue #2813)."""
+
+    def test_unreadable_state_raises_state_error(
+        self, project_root: Path
+    ) -> None:
+        """A present-but-unreadable state file raises StateError, not OSError.
+
+        Cannot use chmod 000 (tests may run as root); mock read_text instead.
+        """
+        state_path = project_root / ".memory_sync_state.json"
+        state_path.write_text("{}", encoding="utf-8")
+        with (
+            mock.patch.object(
+                Path, "read_text", side_effect=OSError("permission denied")
+            ),
+            pytest.raises(StateError, match="Unreadable or corrupt"),
+        ):
+            load_state(project_root)
 
     def test_absent_state_returns_empty(self, project_root: Path) -> None:
         """A missing state file is a clean empty state, not an error."""
