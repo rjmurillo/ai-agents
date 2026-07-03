@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-07-03-session-2604",
+  "session": "2026-07-03-session-2604",
+  "timestamp": "2026-07-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue 2832: pre-commit ruff autofix re-stage gap that trips the pre-push staleness gate",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Root-caused #2832: .githooks/pre-commit runs ruff check --fix on staged .py files but re-stages fixed files only in the verify-success branch; with pre-existing #2194 advisory findings the verify stays red, fixes stay unstaged, the commit records unfixed content, and the pre-push build_all --check staleness gate fails (observed twice: push11, push15 in session 2603)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix: hoisted the re-stage loop into the AUTOFIX block so mutated files are staged regardless of remaining advisory findings; verify branch now only reports",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests/test_pre_commit_ruff_restage_2832.py: 3 behavioral tests (advisory-findings-remain regression, verify-pass parity, AUTOFIX=0 negative) via bash fragment with stub ruff in a throwaway git repo, plus 1 structural test pinning re-stage ordering inside the real hook. uv run pytest: 4 passed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "test",
+      "content": "Added tests/test_pre_commit_ruff_restage_2832.py: 3 behavioral tests (advisory-findings-remain regression, verify-pass parity, AUTOFIX=0 negative) via bash fragment with stub ruff in a throwaway git repo, plus 1 structural test pinning re-stage ordering inside the real hook. uv run pytest: 4 passed",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
