@@ -1,0 +1,70 @@
+{
+  "id": "episode-2026-07-03-session-2605-fix-ai-review-model-auto",
+  "session": "2026-07-03-session-2605-fix-ai-review-model-auto",
+  "timestamp": "2026-07-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "unblock Renovate and all open PRs: retired claude-opus-4.5 default hard-fails ai-review; default to auto and reclassify retired-model errors as infra (Refs #2818)",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "design",
+      "context": "Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "chosen": "Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "rationale": ".github/actions/ai-review/action.yml: default claude-opus-4.5 -> auto (a meta-selector cannot be retired); added 'not available' to the stderr infra regex so retired-model errors become non-blocking (downstream agent-review/action.yml:314-323 exits 0 on CRITICAL_FAIL + infrastructure-failure=true). Re-synced test-infrastructure-failure.sh regex to match. ai-issue-triage.yml:237 copilot-model -> auto. New tests/test_infrastructure_failure_classification.py (11 tests, all pass) locks the classifier; verified genuine stdout verdicts (VERDICT: FAIL) are NOT masked. Committed as 1cdf33eb. Refs #2818, shares code path with #2814.",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Root-cause the Renovate/PR-wide ai-review block to the retired claude-opus-4.5 default model",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bump .github/agents copilot agent model claude-opus-4.5 -> claude-opus-4.6 across 18 files",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve pre-existing em-dashes in touched agent files to satisfy the dash-prohibition guard",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52c76a8c",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 18
+  },
+  "lessons": []
+}
