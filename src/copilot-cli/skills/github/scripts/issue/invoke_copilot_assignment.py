@@ -21,13 +21,12 @@ import argparse
 import json
 import os
 import re
-from typing import Any
-
 import subprocess
 import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
