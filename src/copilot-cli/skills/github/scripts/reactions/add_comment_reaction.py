@@ -114,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             result = subprocess.run(
                 ["gh", "api", endpoint, "-X", "POST", "-f", f"content={args.reaction}"],
-                capture_output=True, text=True, timeout=GH_TIMEOUT_SECONDS,
+                capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
                 check=False,
             )
         except subprocess.TimeoutExpired:

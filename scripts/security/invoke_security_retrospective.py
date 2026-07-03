@@ -129,8 +129,8 @@ class SecurityRetrospective:
             len(self.false_negatives),
         )
 
-        # Step 4: Store in memory systems
-        forgetful_success = self._store_in_forgetful()
+        # Step 4: Store in memory systems (Forgetful is best-effort, Serena blocks)
+        self._store_in_forgetful()
         serena_success = self._store_in_serena()
 
         # Serena is BLOCKING per plan requirements
@@ -204,7 +204,7 @@ class SecurityRetrospective:
                     "--paginate",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8", errors="replace",
                 check=False,
                 timeout=120,
             )
@@ -272,7 +272,7 @@ class SecurityRetrospective:
             result = subprocess.run(
                 ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8", errors="replace",
                 check=True,
             )
             return result.stdout.strip()
