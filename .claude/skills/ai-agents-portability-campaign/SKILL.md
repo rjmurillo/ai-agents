@@ -158,8 +158,9 @@ front may have moved:
    The module docstring cites #2342 and claims about 75 percent spawn reduction
    (docstring claim, not independently re-measured).
 4. ADR-068's Status header still reads `Proposed` (line 5) even though the
-   implementation shipped. Known weak point: trust file content and generated
-   artifacts over ADR status headers; verify content, not number or status.
+   implementation shipped. Known weak point: ADR status headers lag reality here;
+   weigh what the file body and the generated artifacts show on disk over the
+   status header, and verify by content, not by ADR number or status.
 5. NOT found in repo: any post-dispatcher kill-rate measurement under a live pinned
    Copilot CLI, and the GitHub open/closed state of #2295 (issue state is not in
    the local tree; check the issue tracker when online).
