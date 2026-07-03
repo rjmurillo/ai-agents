@@ -68,12 +68,13 @@ class InfraFinding:
 def _read_raw(path: Path) -> str | None:
     """Return the file text, or None only when the file is genuinely missing.
 
-    A present-but-unreadable flag file (permission error, IO error, bad
-    encoding surfacing as OSError) must NOT be swallowed: returning None there
-    would let ``detect_failures`` treat an infrastructure-failure flag it could
-    not read as "no failure", silently downgrading a safety signal. Only
-    FileNotFoundError (ENOENT) maps to the intended missing-file semantics; any
-    other OSError propagates to ``main`` and fails the step loudly (exit 3).
+    A present-but-unreadable flag file (permission or IO error surfacing as
+    OSError, invalid UTF-8 surfacing as UnicodeDecodeError) must NOT be
+    swallowed: returning None there would let ``detect_failures`` treat an
+    infrastructure-failure flag it could not read as "no failure", silently
+    downgrading a safety signal. Only FileNotFoundError (ENOENT) maps to the
+    intended missing-file semantics; any other OSError or a UnicodeDecodeError
+    propagates to ``main`` and fails the step loudly (exit 3).
     """
 
     try:
