@@ -127,9 +127,8 @@
       "action": "Added tests/test_pre_commit_ruff_restage_2832.py: 3 behavioral tests (advisory-findings-remain regression, verify-pass parity, AUTOFIX=0 negative) via bash fragment with stub ruff in a throwaway git repo, plus 1 structural test pinning re-stage ordering inside the real hook. uv run pytest: 4 passed"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "c380db3",
   "nextSteps": [
-    "Push branch and open draft PR for #2832",
-    "Comment on #2832 correcting the root-cause attribution from pre-push advisory ruff to the pre-commit re-stage gap"
+    "Owner review and merge of PR #2835"
   ]
 }
