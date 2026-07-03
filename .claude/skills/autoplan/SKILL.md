@@ -1,19 +1,18 @@
 ---
-name: auto
+name: autoplan
 version: 0.1.0
 description: Route any request to the right skill, command, or agent chain with
-  defaults, so nobody hand-picks from the full catalog. Use when you say `/auto`,
-  `just handle this`, `do the right thing`, or when a request names no skill.
-  Do NOT use when the user names a specific skill or lifecycle command;
-  invoke that directly.
+  defaults, so nobody hand-picks from the full catalog. Use when you say
+  `/autoplan`, `do it`, `handle it`, `figure this out`, or when a concrete
+  request names no skill. Do NOT use when the user names a specific skill or
+  lifecycle command; invoke that directly.
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   type: router
   inspiration: gstack /autoplan (garrytan/gstack autoplan/SKILL.md.tmpl)
 ---
 
-# Auto
+# Autoplan
 
 One lazy entry point for the whole catalog. Classify the request, route it,
 apply defaults, and only stop for decisions that are genuinely the user's.
@@ -23,10 +22,23 @@ Models and people do not hand-route across dozens of skills; this skill does.
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| `/auto` followed by the request text | Classify and route the request |
-| `just handle this` | Classify and route the current request |
-| `do the right thing` | Classify and route the current request |
-| `figure out what to run` | Classify, then report the route before running |
+| `/autoplan` followed by the request text | Classify and route the request |
+| `do it` | Classify and route the current request |
+| `handle it` | Classify and route the current request |
+| `figure this out` | Classify, then report the route before running |
+| `your call` | Classify, then report the route before running |
+
+The router also fires implicitly. Any concrete request that names no skill
+routes through the table below instead of defaulting to a bare answer, for
+example "why is CI failing", "investigate the flaky test", or "redo #1723
+properly".
+
+These phrases are grounded in this repo's own Copilot and Claude session
+history. The dominant real openers are continue, proceed, investigate, fix
+the X, do it, and handle it, not ceremonial delegation phrases. Continue and
+proceed are deliberately excluded as hard triggers: they mean resume the
+in-flight work, so they route to whatever is already running rather than
+re-classifying from scratch.
 
 ## Process
 
@@ -105,7 +117,7 @@ options with trade-offs per the Confusion Protocol and wait.
 
 ### Phase 4: Final gate
 
-Every /auto run ends with one summary block, not a narration stream:
+Every /autoplan run ends with one summary block, not a narration stream:
 
 1. **Route taken** and why (one line).
 2. **Auto-decided items**, Mechanical count plus each Taste decision with its
