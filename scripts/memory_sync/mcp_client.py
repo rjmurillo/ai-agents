@@ -273,7 +273,12 @@ class McpClient:
         if stderr is None:
             return
         try:
-            for line in iter(stderr.readline, b""):
+            while True:
+                line = stderr.readline()
+                if not line:
+                    break
+                if not isinstance(line, bytes):
+                    break
                 decoded = line.decode("utf-8", errors="replace").rstrip()
                 self._stderr_lines.append(decoded)
                 _logger.debug("MCP stderr: %s", decoded)

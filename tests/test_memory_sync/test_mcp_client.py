@@ -107,6 +107,15 @@ class TestMcpClientProtocol:
         with pytest.raises(McpError, match="Failed to write"):
             client._write_message({"jsonrpc": "2.0", "method": "test"})
 
+    def test_mock_stderr_drain_thread_exits(self) -> None:
+        """Direct construction with mock stderr does not leak a drain thread."""
+        mock_process = MagicMock()
+        client = McpClient(mock_process)
+
+        client._stderr_thread.join(timeout=0.1)
+
+        assert not client._stderr_thread.is_alive()
+
 
 class TestIsAvailable:
     """Test availability check."""
