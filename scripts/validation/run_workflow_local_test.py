@@ -48,9 +48,10 @@ EXIT CODES (per ADR-035, exit-code contract in AGENTS.md)
 1 - a stage ran and failed (block the push)
 2 - configuration error (bad args, repo root absent)
 3 - a required tool is unavailable (actionlint, gh act, or Docker)
-4 - unrunnable locally: every changed workflow references a secret absent from
-    this environment, so act has nothing to supply (auth per ADR-035). Skipped
-    audibly; CI runs it with the real secrets (Issue #2841).
+4 - unrunnable locally: actionlint passed but every changed workflow
+    references a secret absent from this environment, so act has nothing to
+    supply (auth per ADR-035). Skipped the act run audibly; CI runs it with the
+    real secrets (Issue #2841).
 """
 
 from __future__ import annotations
@@ -318,7 +319,10 @@ def _select_workflow_files(
 # workflow that references an absent secret cannot run under act. Forcing a
 # manual bypass for that case is the friction this gate removes (Issue #2841).
 # Names follow GitHub's rule: a letter or ``_`` followed by word characters.
-_SECRET_REF_RE = re.compile(r"secrets\.([A-Za-z_][A-Za-z0-9_]*)")
+# Match only inside ``${{ ... }}`` expressions: ``secrets.FOO`` in a comment or
+# a plain string is not a real secret reference and must not block the run.
+_EXPR_RE = re.compile(r"\$\{\{(.*?)\}\}", re.DOTALL)
+_SECRET_REF_RE = re.compile(r"\bsecrets\.([A-Za-z_][A-Za-z0-9_]*)")
 
 # act reads secrets from a repo-root ``.secrets`` file (dotenv ``KEY=VALUE``) by
 # default, in addition to the process environment. A secret defined there is
@@ -359,7 +363,10 @@ def _referenced_secrets(path: Path) -> set[str]:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return set()
-    return set(_SECRET_REF_RE.findall(text))
+    refs: set[str] = set()
+    for expr in _EXPR_RE.findall(text):
+        refs.update(_SECRET_REF_RE.findall(expr))
+    return refs
 
 
 def _missing_secrets(path: Path, available: set[str]) -> list[str]:
@@ -607,25 +614,18 @@ def run_local_test(
         else:
             runnable.append(rel)
 
-    if not runnable:
-        # Every changed workflow needs a locally-absent secret: nothing can run
-        # under act. Skip audibly instead of blocking on a manual bypass.
-        detail = "; ".join(
-            f"{rel} needs {', '.join(missing)}" for rel, missing in secret_blocked
-        )
-        return Report(
-            exit_code=4,
-            note=(
-                "unrunnable-locally: changed workflow(s) reference secrets absent "
-                f"from this environment ({detail}). Skipped the local act run; CI "
-                "runs it with the real secrets. Provide them via a repo-root "
-                ".secrets file or the environment to run it locally."
-            ),
-        )
+    if not runnable and not secret_blocked:
+        # Defensive: partition covered every file, so this only trips if files
+        # was empty (already handled by the earlier guard).
+        return Report(exit_code=0)
 
     report = Report(exit_code=0)
 
-    # Stage 1: actionlint.
+    # Stage 1: actionlint runs on ALL changed workflows, including
+    # secret-blocked ones. It is pure static analysis (syntax, expressions,
+    # action refs) and needs no secrets or Docker, so a secret-blocked workflow
+    # with a real syntax error must still be caught here; linting only the
+    # runnable subset would let that error bypass the gate (Issue #2841 review).
     if not _have("actionlint"):
         report.exit_code = 3
         report.note = (
@@ -634,10 +634,26 @@ def run_local_test(
             f"{_BYPASS_ENV}=true to bypass for an unrunnable workflow."
         )
         return report
-    s1 = _actionlint_stage(runnable, repo_root)
+    s1 = _actionlint_stage(files, repo_root)
     report.stages.append(s1)
     if not s1.ok:
         report.exit_code = 1
+        return report
+
+    if not runnable:
+        # Every changed workflow needs a locally-absent secret: nothing can run
+        # under act. actionlint already validated syntax above; skip only the
+        # act run, audibly, instead of blocking on a manual bypass.
+        detail = "; ".join(
+            f"{rel} needs {', '.join(missing)}" for rel, missing in secret_blocked
+        )
+        report.exit_code = 4
+        report.note = (
+            "unrunnable-locally: changed workflow(s) reference secrets absent "
+            f"from this environment ({detail}). actionlint passed; skipped the "
+            "local act run, which CI runs with the real secrets. Provide them "
+            "via a repo-root .secrets file or the environment to run it locally."
+        )
         return report
 
     # Stage 2 (dry-run) needs gh act but not a running Docker daemon: act -n
@@ -723,6 +739,11 @@ def _format_text(report: Report) -> str:
             if s.ok and s.detail:
                 for line in s.detail.splitlines()[:10]:
                     lines.append(f"  {line}")
+        # A mixed batch (some workflows ran, some skipped for absent secrets)
+        # sets note while stages exist; surface it so the skip is visible and
+        # the hook can flag it rather than reporting a silent clean pass.
+        if report.stages and report.note:
+            lines.append(f"  note: {report.note}")
         return "\n".join(lines)
     lines = ["workflow-local-test: FAIL"]
     for s in report.stages:

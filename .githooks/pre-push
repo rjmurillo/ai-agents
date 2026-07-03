@@ -800,7 +800,12 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
                 > "$WF_LOCAL_OUTPUT" 2>&1
             WF_LOCAL_RC=$?
             if [ $WF_LOCAL_RC -eq 0 ]; then
-                record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
+                if grep -q "skipped (secrets absent locally)" "$WF_LOCAL_OUTPUT"; then
+                    cat "$WF_LOCAL_OUTPUT"
+                    record_warn "Workflow local run: some workflows skipped (secrets absent locally); CI runs them with real secrets"
+                else
+                    record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
+                fi
             elif [ $WF_LOCAL_RC -eq 3 ]; then
                 cat "$WF_LOCAL_OUTPUT"
                 record_fail "Workflow local run: required tool unavailable"

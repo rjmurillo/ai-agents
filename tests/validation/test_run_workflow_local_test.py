@@ -371,15 +371,45 @@ def test_missing_secrets_respects_available(tmp_path):
 
 def test_all_workflows_secret_blocked_is_exit_4(monkeypatch, tmp_path):
     # A changed workflow that needs a locally-absent secret cannot run under
-    # act. It must skip audibly (exit 4) WITHOUT requiring any local tool, so
-    # tool checks are stubbed absent to prove the short-circuit (#2841).
-    monkeypatch.setattr(w, "_have", lambda tool: False)
+    # act. actionlint (static, no secrets) still runs; only the act run is
+    # skipped audibly (exit 4). The actionlint stage is recorded (#2841 review).
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 4
     assert "BOT_PAT_2841" in r.note
-    assert r.stages == []
+    assert [s.stage for s in r.stages] == ["actionlint"]
+
+
+def test_all_secret_blocked_lints_before_skipping(monkeypatch, tmp_path):
+    # actionlint must lint the secret-blocked file, so a syntax error in a
+    # workflow that cannot run under act is still caught (exit 1), not skipped.
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    seen = {}
+
+    def _capture(f, r):
+        seen["f"] = list(f)
+        return w.StageResult("actionlint", False, "syntax error")
+
+    monkeypatch.setattr(w, "_actionlint_stage", _capture)
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 1
+    assert seen["f"] == [WF]
+
+
+def test_all_secret_blocked_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
+    # actionlint is required for every changed workflow; its absence blocks
+    # (exit 3) even when every workflow is secret-blocked.
+    monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert "actionlint" in r.note
 
 
 def test_secret_present_in_env_is_runnable(all_tools, monkeypatch, tmp_path):
@@ -405,10 +435,31 @@ def test_secret_present_in_dotsecrets_is_runnable(all_tools, monkeypatch, tmp_pa
     assert len(r.stages) == 3
 
 
+def test_secret_in_comment_is_not_blocking(all_tools, monkeypatch, tmp_path):
+    # secrets.FOO outside a ${{ }} expression (comment/plain string) is not a
+    # real reference and must not mark the workflow secret-blocked (#2841 review).
+    monkeypatch.delenv("ABSENT_SECRET", raising=False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
+    path = tmp_path / WF
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "name: x\n# mentions secrets.ABSENT_SECRET in a comment\n"
+        'on: push\njobs:\n  j:\n    runs-on: ubuntu-latest\n    steps:\n'
+        '      - run: echo "the literal text secrets.ABSENT_SECRET is fine"\n',
+        encoding="utf-8",
+    )
+    assert w._referenced_secrets(path) == set()
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert len(r.stages) == 3
+
+
 def test_mixed_runs_only_runnable_and_notes_skip(all_tools, monkeypatch, tmp_path):
-    # One workflow needs an absent secret (skipped), one is clean (runs). The
-    # clean one must pass and the stages must receive ONLY the runnable file;
-    # the skipped file is surfaced in the note (exit 0 preserved).
+    # One workflow needs an absent secret (skipped), one is clean (runs).
+    # actionlint lints BOTH; the act stages receive only the runnable file; the
+    # skipped file is surfaced in the note (exit 0 preserved).
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     clean = ".github/workflows/clean.yml"
     blocked = ".github/workflows/blocked.yml"
@@ -416,18 +467,37 @@ def test_mixed_runs_only_runnable_and_notes_skip(all_tools, monkeypatch, tmp_pat
     _write_wf_secrets(tmp_path, blocked, "BOT_PAT_2841")
     seen = {}
 
-    def _capture(f, r):
-        seen["f"] = f
-        return _ok("actionlint")
-
-    monkeypatch.setattr(w, "_actionlint_stage", _capture)
-    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(
+        w, "_actionlint_stage", lambda f, r: seen.__setitem__("lint", list(f)) or _ok("actionlint")
+    )
+    monkeypatch.setattr(
+        w, "_act_dryrun_stage", lambda f, r: seen.__setitem__("act", list(f)) or _ok("gh act -n")
+    )
     monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
     r = w.run_local_test([blocked, clean], tmp_path)
     assert r.exit_code == 0
-    assert seen["f"] == [clean]
+    assert seen["lint"] == [blocked, clean]
+    assert seen["act"] == [clean]
     assert "BOT_PAT_2841" in r.note
     assert "blocked.yml" in r.note
+
+
+def test_mixed_skip_note_visible_in_text_format(all_tools, monkeypatch, tmp_path):
+    # The mixed-batch skip note must appear in exit-0 text output so the hook
+    # can surface it instead of reporting a silent clean pass (#2841 review).
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    clean = ".github/workflows/clean.yml"
+    blocked = ".github/workflows/blocked.yml"
+    _write_wf_secrets(tmp_path, clean)
+    _write_wf_secrets(tmp_path, blocked, "BOT_PAT_2841")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
+    r = w.run_local_test([blocked, clean], tmp_path)
+    text = w._format_text(r)
+    assert "OK" in text
+    assert "skipped (secrets absent locally)" in text
+    assert "blocked.yml" in text
 
 
 def test_exit_4_text_format_names_secret():
