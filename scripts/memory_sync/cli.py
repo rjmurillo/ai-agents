@@ -364,7 +364,7 @@ def _write_queue(
     ]
     payload = json.dumps(data, indent=2) + "\n"
     tmp_fd, tmp_name = tempfile.mkstemp(
-        dir=str(queue_path.parent), prefix=f".{queue_path.name}.", suffix=".tmp"
+        dir=str(queue_path.parent), prefix=f"{queue_path.name}.", suffix=".tmp"
     )
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as handle:
