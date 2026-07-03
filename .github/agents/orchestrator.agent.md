@@ -23,7 +23,7 @@ tools:
   - github/get_workflow_run
   - cloudmcp-manager/*
   - serena/*
-model: Claude Opus 4.5 (copilot)
+model: claude-opus-4.6
 tier: manager
 ---
 
