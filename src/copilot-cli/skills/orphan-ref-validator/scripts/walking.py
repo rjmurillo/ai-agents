@@ -7,16 +7,11 @@ and the per-file size cap. Symlink-followed directories that escape the
 repository root are skipped here so the upstream ``scan_file`` path never
 sees them.
 
-Per ``.claude/rules/canonical-source-mirror.md``, the canonical
-``_EXCLUDED_DIRS`` constant in
-``build/scripts/validate_marketplace_counts.py`` is, byte-for-byte:
-
-    _EXCLUDED_DIRS = frozenset({"node_modules", ".git", "worktrees", "cache", "__pycache__"})
-
-Stricter/looser/different than canonical: same five names. This module
-adds ``"references"`` and ``"templates"`` for skill-progressive-disclosure
-directories that legitimately cite external entities and would produce
-high-noise findings.
+``EXCLUDE_DIR_NAMES`` prunes five vendor/VCS directory names
+(``node_modules``, ``.git``, ``worktrees``, ``cache``, ``__pycache__``)
+plus ``references`` and ``templates`` (skill-progressive-disclosure
+subtrees that legitimately cite external entities and would otherwise
+produce high-noise findings).
 """
 
 from __future__ import annotations
@@ -30,8 +25,8 @@ LOGGER = logging.getLogger("orphan_ref_validator")
 
 SCAN_FILE_SUFFIXES: tuple[str, ...] = (".md", ".json", ".yaml", ".yml")
 
-# Mirrors validate_marketplace_counts.py:_EXCLUDED_DIRS plus two
-# skill-progressive-disclosure subtrees. Frozen for safety.
+# Five vendor/VCS names plus two skill-progressive-disclosure subtrees.
+# Frozen for safety.
 EXCLUDE_DIR_NAMES: frozenset[str] = frozenset({
     "node_modules", ".git", "worktrees", "cache", "__pycache__",
     "references", "templates",

@@ -26,7 +26,6 @@ Severity = Literal["critical", "warn"]
 Kind = Literal[
     "skill_name",
     "script_path",
-    "count_claim",
     "scan_truncated",
 ]
 Verdict = Literal["PASS", "WARN", "CRITICAL_FAIL"]
