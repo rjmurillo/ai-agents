@@ -41,7 +41,9 @@ def _get_project_directory(hook_input: dict[str, object]) -> str:
     if env_dir:
         return env_dir
     cwd = hook_input.get("cwd", os.getcwd())
-    return str(cwd) if cwd else os.getcwd()
+    if isinstance(cwd, str) and cwd:
+        return cwd
+    return os.getcwd()
 
 
 def _should_scan_file(file_path: str) -> bool:
@@ -87,6 +89,14 @@ def _get_language_from_file(file_path: str) -> str | None:
     return None
 
 
+def _log_non_blocking_error(exc: BaseException) -> None:
+    print(
+        f"**CodeQL Quick Scan WARNING**: Non-blocking hook error: "
+        f"{type(exc).__name__}: {exc}",
+        file=sys.stderr,
+    )
+
+
 def main() -> int:
     """Main hook entry point. Always returns 0 (non-blocking)."""
     try:
@@ -99,12 +109,7 @@ def main() -> int:
 
         hook_input = json.loads(input_json)
         if not isinstance(hook_input, dict):
-            # A bare JSON string/list would raise AttributeError on the .get()
-            # calls below and be swallowed by the catch-all; surface it instead.
-            print(
-                "CodeQL Quick Scan skipped (input JSON is not an object)",
-                file=sys.stderr,
-            )
+            _log_non_blocking_error(TypeError("hook input must be a JSON object"))
             return 0
         file_path = _get_file_path_from_input(hook_input)
 
@@ -185,14 +190,12 @@ def main() -> int:
                 f"- No findings\n"
             )
 
-    except (json.JSONDecodeError, ValueError, TypeError):
-        pass
-    except (OSError, PermissionError):
-        pass
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        _log_non_blocking_error(exc)
+    except OSError as exc:
+        _log_non_blocking_error(exc)
     except Exception as exc:
-        # Non-blocking hook: still return 0, but do not silently swallow an
-        # unexpected error. Surface the type and message so a broken scan is
-        # observable instead of vanishing.
+        _log_non_blocking_error(exc)
         print(
             f"CodeQL Quick Scan skipped (unexpected {type(exc).__name__}: {exc})",
             file=sys.stderr,

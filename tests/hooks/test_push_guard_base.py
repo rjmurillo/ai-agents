@@ -119,10 +119,19 @@ class TestStdinShapes:
         assert run_guard(_always_violates, ["*.md"], "test") == 0
 
     def test_invalid_json_returns_zero(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("{not json"))
         assert run_guard(_always_violates, ["*.md"], "test") == 0
+        event_lines = [
+            line
+            for line in capsys.readouterr().err.splitlines()
+            if line.startswith("EVENT=")
+        ]
+        assert len(event_lines) == 1
+        event = json.loads(event_lines[0].removeprefix("EVENT="))
+        assert event["outcome"] == "fail_open"
+        assert event["reason"] == "bad_stdin"
 
     def test_command_not_string_returns_zero(
         self, monkeypatch: pytest.MonkeyPatch
@@ -148,11 +157,20 @@ class TestStdinShapes:
         assert run_guard(_always_violates, ["*.md"], "test") == 0
 
     def test_json_list_payload_returns_zero(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """JSON top-level is a list, not a dict; must not raise AttributeError."""
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps([1, 2, 3])))
         assert run_guard(_always_violates, ["*.md"], "test") == 0
+        event_lines = [
+            line
+            for line in capsys.readouterr().err.splitlines()
+            if line.startswith("EVENT=")
+        ]
+        assert len(event_lines) == 1
+        event = json.loads(event_lines[0].removeprefix("EVENT="))
+        assert event["outcome"] == "fail_open"
+        assert event["reason"] == "bad_stdin"
 
     def test_non_git_push_command_returns_zero(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
