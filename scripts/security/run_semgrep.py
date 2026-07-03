@@ -115,7 +115,8 @@ class SemgrepScanner:
             result = subprocess.run(
                 ["semgrep", "--version"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
             return result.returncode == 0
@@ -128,7 +129,8 @@ class SemgrepScanner:
             merge_base_result = subprocess.run(
                 ["git", "merge-base", "origin/main", "HEAD"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
 
@@ -137,7 +139,8 @@ class SemgrepScanner:
                 result = subprocess.run(
                     ["git", "ls-files"],
                     capture_output=True,
-                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=True,
                 )
             else:
@@ -145,7 +148,8 @@ class SemgrepScanner:
                 result = subprocess.run(
                     ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
                     capture_output=True,
-                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=True,
                 )
 
