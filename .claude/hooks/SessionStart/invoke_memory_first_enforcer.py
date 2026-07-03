@@ -64,6 +64,18 @@ from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 EDUCATION_THRESHOLD = 3
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def test_memory_evidence(session_log_path: str) -> dict[str, object]:
     """Check session log for memory-first protocol compliance evidence.
 
@@ -144,7 +156,7 @@ def increment_invocation_count(state_dir: str, today: str) -> int:
 
     count = get_invocation_count(state_dir, today) + 1
     state_file = state_path / "memory-first-counter.txt"
-    state_file.write_text(f"{count}\n{today}", encoding="utf-8")
+    _atomic_write_text(state_file, f"{count}\n{today}")
     return count
 
 

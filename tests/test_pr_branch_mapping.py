@@ -134,6 +134,28 @@ class TestSaveMapping:
         assert loaded.current_session is not None
         assert loaded.current_session.session_id == "s1"
 
+    def test_save_mapping_uses_atomic_replace(self, tmp_path: Path) -> None:
+        mapping = PRBranchMapping()
+        memory_path = tmp_path / MEMORY_RELATIVE_PATH
+        calls = []
+
+        def recording_replace(src: Path, dst: Path) -> None:
+            calls.append((src, dst))
+            original_replace(src, dst)
+
+        from scripts import pr_branch_mapping
+
+        original_replace = pr_branch_mapping.os.replace
+        with patch.object(pr_branch_mapping.os, "replace", recording_replace):
+            save_mapping(tmp_path, mapping)
+
+        assert calls == [
+            (memory_path.with_name(
+                f".{memory_path.name}.{pr_branch_mapping.os.getpid()}.tmp"
+            ), memory_path)
+        ]
+        assert memory_path.exists()
+
 
 class TestAddMapping:
     """Tests for add_mapping function."""

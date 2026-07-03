@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -45,6 +46,19 @@ EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 
 SCHEMA_VERSION = 1
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
 
 # Evidence provenance weights. External signals (eval pass/fail, incidents,
 # critic verdicts) are ground truth; a self-referential claim is an agent
@@ -94,7 +108,7 @@ def load_skillbook_file(path: Path) -> dict[str, Any]:
 
 def save_skillbook_file(path: Path, data: dict[str, Any]) -> None:
     """Write a skillbook JSON file with stable formatting (2-space, trailing newline)."""
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    _atomic_write_text(path, json.dumps(data, indent=2) + "\n")
 
 
 # --------------------------------------------------------------------------

@@ -184,6 +184,29 @@ class TestInvocationCount:
         )
         assert count == 2
 
+    def test_increment_count_uses_atomic_replace(self, tmp_path, monkeypatch):
+        state_dir = tmp_path / "state"
+        calls = []
+        original_replace = invoke_memory_first_enforcer.os.replace
+
+        def recording_replace(src, dst):
+            calls.append((src, dst))
+            original_replace(src, dst)
+
+        monkeypatch.setattr(invoke_memory_first_enforcer.os, "replace", recording_replace)
+
+        assert invoke_memory_first_enforcer.increment_invocation_count(
+            str(state_dir), "2026-03-01"
+        ) == 1
+
+        target = state_dir / "memory-first-counter.txt"
+        assert calls == [
+            (target.with_name(
+                f".{target.name}.{invoke_memory_first_enforcer.os.getpid()}.tmp"
+            ), target)
+        ]
+        assert target.read_text(encoding="utf-8") == "1\n2026-03-01"
+
     def test_resets_on_new_day(self, tmp_path):
         state_dir = str(tmp_path / "state")
         invoke_memory_first_enforcer.increment_invocation_count(

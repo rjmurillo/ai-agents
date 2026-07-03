@@ -187,6 +187,22 @@ class TestWriteState:
         monkeypatch.setattr(lsp_gate_state.Path, "mkdir", boom)
         assert write_state(_CWD, {"cwd": _CWD}) is False
 
+    def test_write_state_uses_atomic_replace(self, monkeypatch):
+        calls = []
+        original_replace = lsp_gate_state.os.replace
+
+        def recording_replace(src, dst):
+            calls.append((src, dst))
+            original_replace(src, dst)
+
+        monkeypatch.setattr(lsp_gate_state.os, "replace", recording_replace)
+
+        assert write_state(_CWD, {"cwd": _CWD}) is True
+
+        target = state_path(_CWD)
+        assert calls == [(target.with_name(f".{target.name}.{lsp_gate_state.os.getpid()}.tmp"), target)]
+        assert read_state(_CWD)["cwd"] == _CWD
+
 
 # ---------------------------------------------------------------------------
 # reset_state (SessionStart, idempotent)

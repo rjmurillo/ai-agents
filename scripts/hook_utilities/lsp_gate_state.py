@@ -82,6 +82,18 @@ WARN_AT = 3
 _STATE_SUBDIR = "ai-agents-lsp-gate"
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def _state_dir() -> Path:
     """Return the user-scoped state directory, outside the git working tree.
 
@@ -194,7 +206,7 @@ def write_state(cwd: str, state: dict[str, Any]) -> bool:
     path = state_path(cwd)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(_normalize_state(state, cwd)), encoding="utf-8")
+        _atomic_write_text(path, json.dumps(_normalize_state(state, cwd)))
     except OSError:
         return False
     return True

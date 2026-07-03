@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
@@ -26,6 +27,18 @@ from pathlib import Path
 
 MEMORY_FILENAME = "pr-branch-mapping.md"
 MEMORY_RELATIVE_PATH = f".serena/memories/{MEMORY_FILENAME}"
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 @dataclass
@@ -103,7 +116,7 @@ def save_mapping(project_root: Path, mapping: PRBranchMapping) -> None:
 
     json_str = json.dumps(mapping.to_dict(), indent=2)
     content = _build_memory_content(json_str)
-    memory_path.write_text(content, encoding="utf-8")
+    _atomic_write_text(memory_path, content)
 
 
 def add_mapping(

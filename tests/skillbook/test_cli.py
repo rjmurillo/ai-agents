@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import scripts.skillbook as skillbook_module
 from scripts.skillbook import EXIT_CONFIG, EXIT_LOGIC, EXIT_OK, main
 from tests.skillbook.conftest import make_policy
 
@@ -22,6 +23,27 @@ def _load_policies(skillbook_dir: Path) -> list[dict[str, Any]]:
     """Read the policies array back from disk."""
     data = json.loads((skillbook_dir / "policies.json").read_text(encoding="utf-8"))
     return data["policies"]
+
+
+def test_save_skillbook_file_uses_atomic_replace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "policies.json"
+    calls = []
+    original_replace = skillbook_module.os.replace
+
+    def recording_replace(src: Path, dst: Path) -> None:
+        calls.append((src, dst))
+        original_replace(src, dst)
+
+    monkeypatch.setattr(skillbook_module.os, "replace", recording_replace)
+
+    skillbook_module.save_skillbook_file(target, {"policies": []})
+
+    assert calls == [
+        (target.with_name(f".{target.name}.{skillbook_module.os.getpid()}.tmp"), target)
+    ]
+    assert _load_policies(tmp_path) == []
 
 
 class TestStatus:
