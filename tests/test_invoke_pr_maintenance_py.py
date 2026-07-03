@@ -137,7 +137,7 @@ class TestHasFailingChecks:
         assert has_failing_checks(pr) is True
 
 
-class TestHasUnresolvedThreads:
+class TestHasUnresolvedThreadsReturnValues:
     def test_returns_true_when_threads_unresolved(self) -> None:
         pr = {
             "reviewThreads": {
