@@ -81,6 +81,59 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
 
 FRONTMATTER_DELIM = "---"
 
+# Frontmatter keys whose value can change without altering the ADR's decision
+# content, so a change confined to them does not need adr-review. Per ADR-073
+# (.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:57,61), `status`,
+# `supersedes`, and `superseded-by` are authoritative governance state: a
+# hand-edit to `status: accepted` MUST still trip the gate so the author binds
+# it to adr-review evidence. Those keys are therefore deliberately EXCLUDED.
+# Only the mechanical implementation flag (flips true at first merged change)
+# is exempt; that is the case #2845 was filed for.
+_NON_DECISION_FRONTMATTER_KEYS = frozenset({"implemented"})
+
+# Top-level ``key: value`` frontmatter line. Nested/indented lines are ignored
+# by the field parser; the governance keys we gate on are all single-line.
+_FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
+
+
+def _frontmatter_fields(frontmatter: str) -> dict[str, str]:
+    """Parse top-level ``key: value`` lines from a frontmatter block.
+
+    Indented (nested) lines are skipped: the governance keys this module gates
+    on (``status``, ``supersedes``, ``superseded-by``, ``implemented``) are all
+    single-line scalars, so a lightweight parser avoids a YAML dependency while
+    still detecting a value change on any of them.
+    """
+    fields: dict[str, str] = {}
+    for line in frontmatter.splitlines():
+        if line and (line[0] == " " or line[0] == "\t"):
+            continue
+        match = _FRONTMATTER_FIELD_RE.match(line)
+        if match:
+            fields[match.group(1)] = match.group(2).strip()
+    return fields
+
+
+def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str) -> bool:
+    """True when every frontmatter key that changed is a non-decision field.
+
+    Compares parsed field maps. A key that was added, removed, or whose value
+    changed counts as "changed". The change is exempt only when all such keys
+    are in :data:`_NON_DECISION_FRONTMATTER_KEYS`; any governance key change
+    (for example ``status: proposed`` -> ``accepted``) makes this False so the
+    adr-review gate still fires (ADR-073).
+    """
+    old_fields = _frontmatter_fields(old_frontmatter)
+    new_fields = _frontmatter_fields(new_frontmatter)
+    changed_keys = {
+        key
+        for key in old_fields.keys() | new_fields.keys()
+        if old_fields.get(key) != new_fields.get(key)
+    }
+    if not changed_keys:
+        return True
+    return changed_keys <= _NON_DECISION_FRONTMATTER_KEYS
+
 
 def _split_frontmatter(content: str) -> tuple[str, str]:
     """Split content into (frontmatter, body).
@@ -103,17 +156,19 @@ def _split_frontmatter(content: str) -> tuple[str, str]:
 def _is_frontmatter_only_change(
     file_path: str, since_commit: str, base_path: Path
 ) -> bool:
-    """Return True when a modified ADR changed only inside its frontmatter.
+    """Return True when a modified ADR changed only non-decision frontmatter.
 
     Compares the file body (content after the YAML frontmatter block) at
-    ``since_commit`` against the current working-tree body. Identical bodies
-    mean the diff is confined to frontmatter (for example an ADR-073
-    lifecycle-flag flip such as ``implemented: false`` -> ``true``), which is a
-    metadata sync with no decision content and must not trigger the
-    adr-review reminder (#2845).
+    ``since_commit`` against the current working-tree body, and requires every
+    changed frontmatter key to be a non-decision field
+    (:data:`_NON_DECISION_FRONTMATTER_KEYS`, currently the ADR-073
+    ``implemented`` flag). Such a change is a metadata sync with no decision
+    content and must not trigger the adr-review reminder (#2845).
 
-    A change that adds or removes the frontmatter block, or that touches the
-    body, is treated as substantive (returns False).
+    A change that touches the body, adds or removes the frontmatter block, or
+    alters a governance frontmatter key (``status``, ``supersedes``,
+    ``superseded-by``) is treated as substantive (returns False), so a hand-edit
+    to ``status: accepted`` still trips the gate (ADR-073).
     """
     show = _run_git(["show", f"{since_commit}:{file_path}"], cwd=base_path)
     if show.returncode != 0:
@@ -126,7 +181,9 @@ def _is_frontmatter_only_change(
     new_frontmatter, new_body = _split_frontmatter(new_content)
     if not old_frontmatter or not new_frontmatter:
         return False
-    return old_body == new_body
+    if old_body != new_body:
+        return False
+    return _only_non_decision_fields_changed(old_frontmatter, new_frontmatter)
 
 
 def build_parser() -> argparse.ArgumentParser:
