@@ -25,6 +25,23 @@ _get_adr_status = _mod._get_adr_status
 _get_dependent_adrs = _mod._get_dependent_adrs
 
 
+def test_declared_adr_locations_are_monitored() -> None:
+    assert _mod.ADR_PATTERNS == (
+        ".agents/architecture/ADR-*.md",
+        "docs/adr/ADR-*.md",
+        "docs/architecture/ADR-*.md",
+        "docs/decisions/ADR-*.md",
+        "architecture/decisions/ADR-*.md",
+    )
+    assert _mod.ADR_DIRECTORIES == (
+        ".agents/architecture",
+        "docs/adr",
+        "docs/architecture",
+        "docs/decisions",
+        "architecture/decisions",
+    )
+
+
 @pytest.fixture()
 def git_repo(tmp_path: Path) -> Path:
     """Create a minimal git repo for testing."""
@@ -143,6 +160,28 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["HasChanges"] is True
         assert len(output["Created"]) == 1
+        assert output["RecommendedAction"] == "review"
+
+    def test_created_docs_decisions_adr(
+        self,
+        git_repo: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        adr_dir = git_repo / "docs" / "decisions"
+        adr_dir.mkdir(parents=True)
+        (adr_dir / "ADR-002.md").write_text("# Docs Decisions ADR")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add docs decision adr"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        exit_code = main(["--base-path", str(git_repo), "--since-commit", "HEAD~1"])
+        assert exit_code == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["HasChanges"] is True
+        assert output["Created"] == ["docs/decisions/ADR-002.md"]
         assert output["RecommendedAction"] == "review"
 
     def test_include_untracked(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
