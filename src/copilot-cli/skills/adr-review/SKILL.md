@@ -65,7 +65,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `ADR-*.md` | `architecture/decisions/` | create, update, delete |
 | `SESSION-PROTOCOL.md` | `.agents/` | create, update, delete |
 
-**Detection**: from repo root, run `.claude/skills/adr-review/scripts/detect_adr_changes.py` for the Claude skill tree or `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py` for the Copilot CLI mirror.
+**Detection**: from the skill directory, run `python3 scripts/detect_adr_changes.py --base-path <repo-root>`. From repo root, run `.claude/skills/adr-review/scripts/detect_adr_changes.py` for the Claude skill tree or `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py` for the Copilot CLI mirror.
 
 ## When to Use
 
@@ -187,6 +187,11 @@ After structural and technical review, apply strategic lenses:
 # Basic detection from repo root
 python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
 
+# Skill-relative detection from the Claude skill directory
+cd .claude/skills/adr-review
+python3 scripts/detect_adr_changes.py --base-path ../../..
+cd ../../..
+
 # Compare to specific commit
 python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit abc123
 
@@ -195,6 +200,11 @@ python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untrac
 
 # Copilot CLI mirror from repo root
 python3 src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+
+# Skill-relative detection from the Copilot CLI mirror
+cd src/copilot-cli/skills/adr-review
+python3 scripts/detect_adr_changes.py --base-path ../../../..
+cd ../../../..
 ```
 
 ## Verification Checklist

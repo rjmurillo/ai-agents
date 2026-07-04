@@ -62,9 +62,9 @@ When a docstring, comment, or PR description contains any of:
 
 the claim MUST be backed by a level-1 lookup before the first commit. That means: open the cited file, run the cited script, or invoke the cited API; then quote the contract verbatim in the new component's docstring on the first commit. The quote is character-for-character: the regex, the schema, the function signature, the exit-code table.
 
-If the canonical source diverges from your component (your guard is stricter than the canonical validator, your adapter widens the type, your check skips a step), document the divergence in a `Stricter/looser/different than canonical` section in the same docstring.
-
 **Mirror obligation**: before asserting a claim or behavior is done, mirror it against the canonical source and name the inverse failure mode.
+
+If the canonical source diverges from your component (your guard is stricter than the canonical validator, your adapter widens the type, your check skips a step), document the divergence in a `Stricter/looser/different than canonical` section in the same docstring.
 
 This rule is operationalized in `.claude/rules/canonical-source-mirror.md`. Read that file before writing any code that mirrors an existing source.
 
