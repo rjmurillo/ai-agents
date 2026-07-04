@@ -104,7 +104,7 @@
    "validationPassed": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "uv run pytest tests/test_memory_sync/test_cli.py -q -> 18 passed; python3 -m py_compile scripts/memory_sync/cli.py tests/test_memory_sync/test_cli.py passed; local PR description validation passed. Pre-push later surfaced mypy blockers, fixed in the same PR babysitting commit series."
+    "Evidence": "uv run pytest tests/test_memory_sync/test_cli.py -q -> 18 passed; python3 -m py_compile scripts/memory_sync/cli.py tests/test_memory_sync/test_cli.py passed; local PR description validation passed. Pre-push later surfaced mypy blockers, fixed in the same PR babysitting commit series. Plugin lib sync check and build_all --check passed after regeneration."
    },
    "tasksUpdated": {
     "level": "SHOULD",
@@ -134,6 +134,10 @@
   {
    "summary": "Fixed pre-push mypy blockers in changed push range.",
    "evidence": "Added explicit Any annotations for empty reviewThreads test dictionaries and removed Any leakage from scripts/github_core/output.py:_detect_script_name."
+  },
+  {
+   "summary": "Resolved plugin copy drift caused by github_core output helper change.",
+   "evidence": "Ran python3 scripts/sync_plugin_lib.py and uv run --frozen python build/scripts/build_all.py. Bumped .claude/.claude-plugin/plugin.json from 0.5.254 to 0.5.255 and regenerated src/copilot-cli/lib/github_core/output.py."
   }
  ],
  "endingCommit": "",
