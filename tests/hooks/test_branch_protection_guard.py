@@ -99,24 +99,30 @@ class TestMain:
         result = invoke_branch_protection_guard.main()
         assert result == 0
 
-    def test_exits_0_on_empty_input(self, mock_stdin: "Callable[[str], None]"):
+    def test_exits_0_on_empty_input(self, mock_stdin: Callable[[str], None]):
         mock_stdin("")
         result = invoke_branch_protection_guard.main()
         assert result == 0
 
-    def test_exits_0_on_whitespace_input(self, mock_stdin: "Callable[[str], None]"):
+    def test_exits_0_on_whitespace_input(self, mock_stdin: Callable[[str], None]):
         mock_stdin("   ")
         result = invoke_branch_protection_guard.main()
         assert result == 0
 
-    def test_exits_0_on_invalid_json(self, mock_stdin: "Callable[[str], None]"):
+    def test_blocks_on_invalid_json(
+        self, mock_stdin: Callable[[str], None], capsys
+    ):
+        """Unparseable JSON cannot verify branch safety; fail closed (block)."""
         mock_stdin("not json")
         result = invoke_branch_protection_guard.main()
-        assert result == 0
+        assert result == 2
+        captured = capsys.readouterr()
+        data = json.loads(captured.out.strip())
+        assert data["decision"] == "block"
 
     @patch("invoke_branch_protection_guard.subprocess.run")
     def test_exits_0_on_feature_branch(
-        self, mock_run, mock_stdin: "Callable[[str], None]"
+        self, mock_run, mock_stdin: Callable[[str], None]
     ):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="feature/my-feature\n", stderr=""
@@ -127,7 +133,7 @@ class TestMain:
 
     @patch("invoke_branch_protection_guard.subprocess.run")
     def test_blocks_on_main_branch(
-        self, mock_run, mock_stdin: "Callable[[str], None]", capsys
+        self, mock_run, mock_stdin: Callable[[str], None], capsys
     ):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="main\n", stderr=""
@@ -142,7 +148,7 @@ class TestMain:
 
     @patch("invoke_branch_protection_guard.subprocess.run")
     def test_blocks_on_master_branch(
-        self, mock_run, mock_stdin: "Callable[[str], None]", capsys
+        self, mock_run, mock_stdin: Callable[[str], None], capsys
     ):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="master\n", stderr=""
@@ -157,7 +163,7 @@ class TestMain:
 
     @patch("invoke_branch_protection_guard.subprocess.run")
     def test_blocks_on_unexpected_exception(
-        self, mock_run, mock_stdin: "Callable[[str], None]", capsys
+        self, mock_run, mock_stdin: Callable[[str], None], capsys
     ):
         mock_run.side_effect = RuntimeError("unexpected")
         mock_stdin(json.dumps({"cwd": "/test", "tool_name": "Bash"}))
@@ -170,7 +176,7 @@ class TestMain:
 
     @patch("invoke_branch_protection_guard.subprocess.run")
     def test_blocks_on_exit_code_128(
-        self, mock_run, mock_stdin: "Callable[[str], None]", capsys
+        self, mock_run, mock_stdin: Callable[[str], None], capsys
     ):
         mock_run.return_value = MagicMock(
             returncode=128, stdout="", stderr="fatal: not a git repository"
@@ -181,7 +187,7 @@ class TestMain:
 
     @patch("invoke_branch_protection_guard.subprocess.run")
     def test_blocks_on_nonzero_exit_code(
-        self, mock_run, mock_stdin: "Callable[[str], None]"
+        self, mock_run, mock_stdin: Callable[[str], None]
     ):
         mock_run.return_value = MagicMock(
             returncode=1, stdout="", stderr="git error"
@@ -192,7 +198,7 @@ class TestMain:
 
     @patch("invoke_branch_protection_guard.subprocess.run")
     def test_blocks_when_git_not_found(
-        self, mock_run, mock_stdin: "Callable[[str], None]"
+        self, mock_run, mock_stdin: Callable[[str], None]
     ):
         mock_run.side_effect = FileNotFoundError("git not found")
         mock_stdin(json.dumps({"cwd": "/some/path", "tool_name": "Bash"}))
@@ -200,7 +206,7 @@ class TestMain:
         assert result == 2
 
     @patch("invoke_branch_protection_guard.subprocess.run")
-    def test_blocks_on_timeout(self, mock_run, mock_stdin: "Callable[[str], None]"):
+    def test_blocks_on_timeout(self, mock_run, mock_stdin: Callable[[str], None]):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=10)
         mock_stdin(json.dumps({"cwd": "/some/path", "tool_name": "Bash"}))
         result = invoke_branch_protection_guard.main()

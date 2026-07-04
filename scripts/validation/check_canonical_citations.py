@@ -25,7 +25,7 @@ to upgrade warnings to a hard FAIL (exit 1).
 EXIT CODES:
   0 - Success (no violations; OR violations only in soft-warn mode; OR no
       scan roots present, which prints `[SKIP] no scan roots present` and
-      treats the absence as benign — vendor installs without `.claude/`
+      treats the absence as benign: vendor installs without `.claude/`
       should not be a hard failure here)
   1 - Violations found AND STRICT_CANONICAL_CHECK=1
   2 - Configuration error (currently unused; reserved for future paths
@@ -73,6 +73,16 @@ _PATH_REF: re.Pattern[str] = re.compile(
     r"|templates/[\w./-]+"
     r"|[\w./-]+\.(?:py|ps1|md|json|yaml|yml|sh)\b"
     r")"
+)
+
+# Fallback module-docstring extractor for source that does not parse as Python
+# (ast.parse raised SyntaxError). Grabs the first leading triple-quoted string,
+# skipping an optional shebang and any blank/comment lines before it. Handles
+# both triple-double and triple-single quotes and the r/b/u/f string prefixes.
+_MODULE_DOCSTRING_RE: re.Pattern[str] = re.compile(
+    r"\A(?:\#![^\n]*\n)?(?:[ \t]*(?:\#[^\n]*)?\n)*"
+    r"[ \t]*[rRbBuUfF]{0,2}(?P<quote>\"\"\"|''')(?P<body>.*?)(?P=quote)",
+    re.DOTALL,
 )
 
 
@@ -139,7 +149,19 @@ def _extract_docstring_and_top_comments(source: str) -> str:
         if module_doc:
             docstring = module_doc
     except SyntaxError:
-        pass
+        # File does not parse (partial edit, mixed content). Fall back to a
+        # regex grab of the leading triple-quoted module docstring so a
+        # mirror-claim living only in that docstring is still scanned instead of
+        # silently dropped. Top-of-file comments above are already collected
+        # without parsing, so they are unaffected.
+        match = _MODULE_DOCSTRING_RE.search(source)
+        if match:
+            docstring = match.group("body")
+        else:
+            print(
+                "[SKIP] unparseable, module docstring not scanned",
+                file=sys.stderr,
+            )
 
     return "\n".join(top_comments + [docstring])
 
@@ -166,7 +188,12 @@ def scan_file(path: Path) -> Violation | None:
     """
     try:
         source = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    except (OSError, UnicodeDecodeError) as exc:
+        # The file exists but cannot be read/decoded. A silent skip here would
+        # let an uncited mirror-claim in an unreadable file pass unseen. This is
+        # a heuristic gate (violations stay empty to avoid false positives on an
+        # undecodable blob), but the skipped path is surfaced so CI logs it.
+        print(f"[SKIP] unreadable, not scanned: {path}: {exc}", file=sys.stderr)
         return None
 
     text = _extract_docstring_and_top_comments(source)

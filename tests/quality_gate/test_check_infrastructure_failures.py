@@ -10,8 +10,11 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from scripts.quality_gate import check_infrastructure_failures as mod
 from scripts.quality_gate.check_infrastructure_failures import (
+    _read_raw,
     detect_failures,
     main,
 )
@@ -187,3 +190,45 @@ class TestMainWithFailures:
         main(["--results-dir", str(results)])
         out = capsys.readouterr().out
         assert "::notice::Infrastructure failure detected for security agent (retries: 2)" in out
+
+
+# ---------------------------------------------------------------------------
+# _read_raw fail-loud on unreadable files (issue #2809)
+# ---------------------------------------------------------------------------
+
+
+class TestReadRawFailLoud:
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        # ENOENT is the intended missing-file semantics: None (no failure).
+        assert _read_raw(tmp_path / "absent.txt") is None
+
+    def test_present_readable_file_returns_text(self, tmp_path: Path) -> None:
+        target = tmp_path / "flag.txt"
+        target.write_text("true", encoding="utf-8")
+        assert _read_raw(target) == "true"
+
+    def test_unreadable_file_raises_oserror(self, tmp_path: Path) -> None:
+        # A directory read raises IsADirectoryError (an OSError subclass), a
+        # concrete stand-in for a present-but-unreadable file. It must NOT be
+        # swallowed into None (which would read as "no infra failure").
+        unreadable = tmp_path / "flag.txt"
+        unreadable.mkdir()
+        with pytest.raises(OSError):
+            _read_raw(unreadable)
+
+    def test_detect_failures_propagates_unreadable_flag(self, tmp_path: Path) -> None:
+        # The security infra flag exists but cannot be read.
+        (tmp_path / "security-infrastructure-failure.txt").mkdir()
+        with pytest.raises(OSError):
+            detect_failures(tmp_path)
+
+    def test_main_returns_three_on_unreadable_flag(
+        self, tmp_path, capsys
+    ) -> None:
+        results = tmp_path / "ai-review-results"
+        results.mkdir()
+        (results / "security-infrastructure-failure.txt").mkdir()
+        rc = main(["--results-dir", str(results)])
+        assert rc == 3
+        err = capsys.readouterr().err
+        assert "::error::Cannot read infrastructure-failure flag file" in err

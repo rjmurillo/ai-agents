@@ -23,21 +23,41 @@ from scripts.github_core.repo import get_repo_root
 from scripts.github_core.worktree_identity import reset_worktree_identity
 
 
-def run_git(*args: str, cwd: str | Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+def run_git(
+    *args: str, cwd: str | Path | None = None, timeout: int = 30
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            encoding="utf-8", errors="replace",
+            cwd=cwd,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=['git', *args],
+            returncode=124,
+            stdout="",
+            stderr=f"git command timed out after {timeout}s",
+        )
 
 
-def run_gh(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["gh", *args],
-        capture_output=True,
-        text=True,
-    )
+def run_gh(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["gh", *args],
+            capture_output=True,
+            encoding="utf-8", errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=['gh', *args],
+            returncode=124,
+            stdout="",
+            stderr=f"gh command timed out after {timeout}s",
+        )
 
 
 def get_pr_branch(pr_number: int) -> str | None:

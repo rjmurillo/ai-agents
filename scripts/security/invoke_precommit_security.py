@@ -16,6 +16,7 @@ Per ADR-042: Python-first for new scripts.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
 import subprocess
@@ -230,8 +231,8 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=30,
                 check=False,
+                timeout=30,
             )
 
             if result.returncode != 0:
@@ -247,8 +248,6 @@ class PreCommitSecurityCheck:
             if not result.stdout.strip() or result.stdout.strip() == "[]":
                 logger.info("No open CodeQL alerts for branch: %s", branch)
                 return []
-
-            import json
 
             alerts_data = json.loads(result.stdout)
             alerts = [
@@ -432,8 +431,8 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=60,
                 check=False,
+                timeout=60,
             )
 
             if "PSScriptAnalyzer" in result.stdout:
@@ -451,8 +450,8 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=120,
                 check=False,
+                timeout=120,
             )
 
             return install_result.returncode == 0
@@ -474,15 +473,17 @@ class PreCommitSecurityCheck:
         for file_path in files:
             try:
                 # Run PSScriptAnalyzer with JSON output
+                analyzer_command = (
+                    f"$findings = Invoke-ScriptAnalyzer -Path '{file_path}' "
+                    "-Severity Error,Warning\n"
+                    "$findings | ConvertTo-Json -Depth 3"
+                )
                 result = subprocess.run(
                     [
                         "pwsh",
                         "-NoProfile",
                         "-Command",
-                        f"""
-                        $findings = Invoke-ScriptAnalyzer -Path '{file_path}' -Severity Error,Warning
-                        $findings | ConvertTo-Json -Depth 3
-                        """,
+                        analyzer_command,
                     ],
                     capture_output=True,
                     encoding="utf-8",
@@ -502,8 +503,6 @@ class PreCommitSecurityCheck:
                     continue
 
                 # Parse JSON output
-                import json
-
                 try:
                     analyzer_findings = json.loads(result.stdout)
 
@@ -710,10 +709,20 @@ class PreCommitSecurityCheck:
         else:
             codeql_status = "PASS"
 
+        psscriptanalyzer_status = (
+            "PASS"
+            if severity_counts["CRITICAL"] == 0 and severity_counts["HIGH"] == 0
+            else "FAIL"
+        )
+        codeql_summary = (
+            f"{len(self.codeql_alerts)} open alert(s), "
+            f"{codeql_critical} critical/high"
+        )
+
         content += f"""## Validation Status
 
-- **CodeQL**: {codeql_status} ({len(self.codeql_alerts)} open alert(s), {codeql_critical} critical/high)
-- **PSScriptAnalyzer**: {"PASS" if severity_counts["CRITICAL"] == 0 and severity_counts["HIGH"] == 0 else "FAIL"}
+- **CodeQL**: {codeql_status} ({codeql_summary})
+- **PSScriptAnalyzer**: {psscriptanalyzer_status}
 - **Critical File Review**: {"REQUIRED" if critical_files else "NOT REQUIRED"}
 - **Agent Review**: {"SKIPPED" if self.skip_agent_review else "PENDING"}
 
