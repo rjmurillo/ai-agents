@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits pushed through a9627a4745. Latest main merge staged from cc1b4969f4; final merge commit will update endingCommit."
+        "Evidence": "Latest main merge committed as 72247a7ae2; previous PR fixes pushed through a9627a4745."
       },
       "validationPassed": {
         "level": "MUST",
@@ -113,7 +113,7 @@
       "evidence": "origin/main cc1b4969f4 merged into PR branch after resolving causal-graph.json by taking main and regenerating from episodes. Branch head before this merge was a9627a4745."
     }
   ],
-  "endingCommit": "a9627a4745",
+  "endingCommit": "72247a7ae2",
   "nextSteps": [
     "Push merge resolution to PR #2830 and wait for GitHub checks.",
     "Keep auto-merge enabled and poll until PR #2830 reports MERGED."
