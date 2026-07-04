@@ -1,6 +1,6 @@
 ---
 description: Use when performing local architecture review before pushing PR changes. Reviews design patterns, system boundaries, coupling/cohesion, and ADR compliance.
-argument-hint: [BASE_BRANCH]
+argument-hint: '[BASE_BRANCH]'
 allowed-tools:
   - Bash(git:*)
   - Read
