@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2606,
+    "date": "2026-07-04",
+    "branch": "fix/cluster-robust",
+    "startingCommit": "4f0d1e2d",
+    "objective": "Babysit PR 2849 to merge"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tool schemas loaded with api_tool.list_resources before code work; initial instructions executed."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md lines 1-120 read."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill context loaded and scripts listed by skill tool."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md lines 1-180 read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read; preToolUse memories reviewed; pr-2849-babysit-2026-07-04 written."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/cluster-robust"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/cluster-robust"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Dedicated worktree status checked repeatedly with git status --short."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4f0d1e2d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session end checklist completed in this JSON file."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only and not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory pr-2849-babysit-2026-07-04 written."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown lint requirement satisfied: changed files contain no markdown artifacts."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code, generated artifacts, plugin manifests, and this session log committed on fix/cluster-robust."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed after this update."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo table updated through thread resolution and merge phase."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Skipped, PR babysitting session with no new durable skill beyond memory entry."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-04T02:16Z",
+      "entry": "Created dedicated worktree ai-agents4-pr-2849 and assessed PR #2849 failing checks."
+    },
+    {
+      "time": "2026-07-04T02:18Z",
+      "entry": "Created session log 2026-07-04-session-2606.json."
+    },
+    {
+      "time": "2026-07-04T02:20Z",
+      "entry": "Ran build_all and synced generated Copilot hook artifacts."
+    },
+    {
+      "time": "2026-07-04T02:24Z",
+      "entry": "Fixed PermissionRequest non-object JSON boundary validation and added regression test."
+    },
+    {
+      "time": "2026-07-04T02:28Z",
+      "entry": "Fixed MCP Windows reader timeout by closing fd and added regression test."
+    },
+    {
+      "time": "2026-07-04T02:32Z",
+      "entry": "Resolved both outstanding review threads after fixes."
+    },
+    {
+      "time": "2026-07-04T02:35Z",
+      "entry": "Bumped both plugin manifests to 0.5.256 and validated plugin version gate."
+    }
+  ],
+  "endingCommit": "96c6bd74",
+  "nextSteps": [
+    "Push fix/cluster-robust, watch required checks, rebump plugin manifests on version races, enable auto-merge when checks pass."
+  ]
+}

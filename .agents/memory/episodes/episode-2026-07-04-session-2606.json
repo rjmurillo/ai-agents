@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-07-04-session-2606",
+  "session": "2026-07-04-session-2606",
+  "timestamp": "2026-07-04T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Babysit PR 2849 to merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created dedicated worktree ai-agents4-pr-2849 and assessed PR #2849 failing checks.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created session log 2026-07-04-session-2606.json.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran build_all and synced generated Copilot hook artifacts.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed PermissionRequest non-object JSON boundary validation and added regression test.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed MCP Windows reader timeout by closing fd and added regression test.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved both outstanding review threads after fixes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped both plugin manifests to 0.5.256 and validated plugin version gate.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 96c6bd74",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
