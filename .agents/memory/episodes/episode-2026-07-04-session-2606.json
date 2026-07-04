@@ -253,6 +253,38 @@
       "content": "Commit: 0bae7b2a9e",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched failing CI logs for PR 2844 and found pytest collection failed from duplicate test module basenames under tests/skills and .claude/skills.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Set pytest import mode to importlib and changed SkillForge modularity audit imports to load the sibling frontmatter helper by file path.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed pytest collection fix in 9edfb0fa6d after targeted SkillForge tests, generated mirror check, ruff, plugin-version-bump, and pytest collect-only passed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9edfb0fa6d",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
