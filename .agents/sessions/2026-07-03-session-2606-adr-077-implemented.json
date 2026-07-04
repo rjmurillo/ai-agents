@@ -130,7 +130,7 @@
    "evidence": "origin/main plugin version was 0.5.255; both plugin manifests now use 0.5.256."
   }
  ],
- "endingCommit": "see commit containing this session log",
+ "endingCommit": "5252a1624",
  "nextSteps": [
   "Push the plugin version bump.",
   "Observe auto-merge state until the pull request merges."
