@@ -37,6 +37,14 @@
       "content": "uv run pytest tests/test_memory_sync/test_cli.py -q returned 18 passed in 0.32s; python3 -m py_compile passed for scripts/memory_sync/cli.py and tests/test_memory_sync/test_cli.py.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed pre-push mypy blockers in changed push range.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -45,7 +53,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 0,
-    "files_changed": 3
+    "files_changed": 4
   },
   "lessons": []
 }

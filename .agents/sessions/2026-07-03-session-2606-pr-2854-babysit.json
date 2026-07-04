@@ -104,7 +104,7 @@
    "validationPassed": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "uv run pytest tests/test_memory_sync/test_cli.py -q -> 18 passed; python3 -m py_compile scripts/memory_sync/cli.py tests/test_memory_sync/test_cli.py passed; local PR description validation passed."
+    "Evidence": "uv run pytest tests/test_memory_sync/test_cli.py -q -> 18 passed; python3 -m py_compile scripts/memory_sync/cli.py tests/test_memory_sync/test_cli.py passed; local PR description validation passed. Pre-push later surfaced mypy blockers, fixed in the same PR babysitting commit series."
    },
    "tasksUpdated": {
     "level": "SHOULD",
@@ -130,11 +130,15 @@
   {
    "summary": "Validated the changed memory sync queue path.",
    "evidence": "uv run pytest tests/test_memory_sync/test_cli.py -q returned 18 passed in 0.32s; python3 -m py_compile passed for scripts/memory_sync/cli.py and tests/test_memory_sync/test_cli.py."
+  },
+  {
+   "summary": "Fixed pre-push mypy blockers in changed push range.",
+   "evidence": "Added explicit Any annotations for empty reviewThreads test dictionaries and removed Any leakage from scripts/github_core/output.py:_detect_script_name."
   }
  ],
  "endingCommit": "",
  "nextSteps": [
-  "Commit and push the descriptor-handling fix plus session log.",
+  "Push the final branch after mypy validation passes.",
   "Reply to and resolve thread PRRT_kwDOQoWRls6OSxUJ after push.",
   "Poll checks and enable squash auto-merge once PR #2854 is green."
  ]
