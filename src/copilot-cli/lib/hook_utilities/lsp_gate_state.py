@@ -82,6 +82,28 @@ WARN_AT = 3
 _STATE_SUBDIR = "ai-agents-lsp-gate"
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp_file:
+            tmp_file.write(content)
+            tmp_path = Path(tmp_file.name)
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 def _state_dir() -> Path:
     """Return the user-scoped state directory, outside the git working tree.
 
@@ -194,7 +216,7 @@ def write_state(cwd: str, state: dict[str, Any]) -> bool:
     path = state_path(cwd)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(_normalize_state(state, cwd)), encoding="utf-8")
+        _atomic_write_text(path, json.dumps(_normalize_state(state, cwd)))
     except OSError:
         return False
     return True
@@ -367,12 +389,16 @@ def is_gated_target(file_path: str, project_dir: str) -> bool:
     if root not in resolved.parents and resolved != root:
         return False
 
-    # Scratch under TMPDIR is never gated (mktemp staging).
+    # Scratch under TMPDIR is never gated (mktemp staging). If the project
+    # root itself lives under TMPDIR, keep gating in-repo files; the repo is
+    # the work target, not scratch.
     tmpdir = os.environ.get("TMPDIR", "").strip()
     if tmpdir:
         try:
             tmp_root = Path(tmpdir).resolve()
-            if tmp_root == resolved or tmp_root in resolved.parents:
+            root_under_tmp = tmp_root == root or tmp_root in root.parents
+            resolved_under_tmp = tmp_root == resolved or tmp_root in resolved.parents
+            if resolved_under_tmp and not root_under_tmp:
                 return False
         except (OSError, ValueError):
             return False

@@ -115,6 +115,7 @@ from validate_design_review import (  # noqa: E402, F401
 from validate_no_orphaned_build_deferrals import (  # noqa: E402, F401
     validate_no_orphaned_build_deferrals,
 )
+from validate_argument_hint import validate_argument_hint  # noqa: E402, F401
 from validate_python_syntax import validate_python_syntax  # noqa: E402, F401
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402, F401
 
@@ -480,6 +481,18 @@ def main(argv: list[str] | None = None) -> int:
         "Copilot Agent Frontmatter",
         state,
         lambda: validate_copilot_agent_frontmatter(repo_root),
+    )
+
+    # 6c4. Argument-hint frontmatter must be a bracket-safe string scalar: adjacent
+    # optional groups (e.g. ``[a] [b]``) make Copilot CLI parse separate flow nodes.
+    # Canonical CI source: .github/workflows/validate-generated-agents.yml, step
+    # "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which runs
+    # verbatim: ``python3 scripts/validation/validate_argument_hint.py``. This local
+    # check calls validate_argument_hint() over the same default scan surface.
+    run_validation(
+        "Argument-Hint Frontmatter",
+        state,
+        lambda: validate_argument_hint(repo_root),
     )
 
     # 6d. Git Hooks Installed (local clone must run the canonical .githooks;

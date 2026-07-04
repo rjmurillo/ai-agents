@@ -68,7 +68,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from _anthropic_api import call_api, load_api_key
+from _anthropic_api import DEFAULT_MODEL, call_api, load_api_key, verify_model_available
 from _eval_common import EST_TOKENS_PER_CALL
 from _providers import is_default_anthropic
 
@@ -561,7 +561,7 @@ def _parse_args() -> argparse.Namespace:
         help=f"Security-critical tier: {SECURITY_RUNS} runs, 100%% pass required"
     )
     parser.add_argument(
-        "--model", type=str, default="claude-sonnet-4-20250514",
+        "--model", type=str, default=DEFAULT_MODEL,
         help="Model for evaluation"
     )
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs, no API calls")
@@ -771,6 +771,12 @@ def main() -> None:
         except RuntimeError as e:
             print(f"ERROR: {e}", file=sys.stderr)
             sys.exit(2)
+
+    try:
+        verify_model_available(api_key, args.model)
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
 
     try:
         _run_and_report(api_key, before_text, after_text, scenarios, args, source)

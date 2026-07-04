@@ -14,6 +14,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -21,6 +22,7 @@ import pytest
 HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
 sys.path.insert(0, str(HOOK_DIR))
 
+import push_guard_base  # noqa: E402
 from push_guard_base import (  # noqa: E402
     _filter_by_globs,
     _match_glob,
@@ -117,10 +119,19 @@ class TestStdinShapes:
         assert run_guard(_always_violates, ["*.md"], "test") == 0
 
     def test_invalid_json_returns_zero(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("{not json"))
         assert run_guard(_always_violates, ["*.md"], "test") == 0
+        event_lines = [
+            line
+            for line in capsys.readouterr().err.splitlines()
+            if line.startswith("EVENT=")
+        ]
+        assert len(event_lines) == 1
+        event = json.loads(event_lines[0].removeprefix("EVENT="))
+        assert event["outcome"] == "fail_open"
+        assert event["reason"] == "bad_stdin"
 
     def test_command_not_string_returns_zero(
         self, monkeypatch: pytest.MonkeyPatch
@@ -146,11 +157,20 @@ class TestStdinShapes:
         assert run_guard(_always_violates, ["*.md"], "test") == 0
 
     def test_json_list_payload_returns_zero(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """JSON top-level is a list, not a dict; must not raise AttributeError."""
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps([1, 2, 3])))
         assert run_guard(_always_violates, ["*.md"], "test") == 0
+        event_lines = [
+            line
+            for line in capsys.readouterr().err.splitlines()
+            if line.startswith("EVENT=")
+        ]
+        assert len(event_lines) == 1
+        event = json.loads(event_lines[0].removeprefix("EVENT="))
+        assert event["outcome"] == "fail_open"
+        assert event["reason"] == "bad_stdin"
 
     def test_non_git_push_command_returns_zero(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -1003,3 +1023,80 @@ class TestMatchGlob:
         assert "templates/agents/sub/y.md" not in matched
         assert "src/foo.py" not in matched
         assert "docs/a.md" not in matched
+
+
+class TestStdinFailOpenTelemetry:
+    """Finding 1 (#2806): anomalous stdin shapes still fail open (rc 0) but now
+    emit a structured ``EVENT=...`` fail_open line; legitimate no-ops (tty and
+    empty stdin) stay silent."""
+
+    @staticmethod
+    def _events(stderr_text: str) -> list[dict[str, Any]]:
+        return [
+            json.loads(line[len("EVENT="):])
+            for line in stderr_text.splitlines()
+            if line.startswith("EVENT=")
+        ]
+
+    def _run(self, monkeypatch: pytest.MonkeyPatch, payload_text: str) -> int:
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload_text))
+        result: int = run_guard(_always_violates, ["*.md"], "test-guard")
+        return result
+
+    def test_invalid_json_emits_fail_open_event(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert self._run(monkeypatch, "{not json") == 0
+        events = self._events(capsys.readouterr().err)
+        assert len(events) == 1
+        assert events[0]["outcome"] == "fail_open"
+        assert events[0]["reason"] == "bad_stdin"
+        assert events[0]["guard"] == "test-guard"
+        assert events[0]["code"] == "E_TEST_GUARD"
+
+    def test_non_dict_payload_emits_fail_open_event(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert self._run(monkeypatch, json.dumps([1, 2, 3])) == 0
+        events = self._events(capsys.readouterr().err)
+        assert len(events) == 1
+        assert "not a JSON object" in events[0]["detail"]
+
+    def test_missing_tool_input_emits_fail_open_event(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert self._run(monkeypatch, json.dumps({"tool_name": "Bash"})) == 0
+        events = self._events(capsys.readouterr().err)
+        assert len(events) == 1
+        assert "tool_input" in events[0]["detail"]
+
+    def test_command_not_string_emits_fail_open_event(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert self._run(monkeypatch, json.dumps({"tool_input": {"command": 123}})) == 0
+        events = self._events(capsys.readouterr().err)
+        assert len(events) == 1
+        assert "command" in events[0]["detail"]
+
+    def test_oversize_stdin_emits_fail_open_event(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        big = "x" * (push_guard_base.MAX_STDIN_BYTES + 5)
+        assert self._run(monkeypatch, big) == 0
+        events = self._events(capsys.readouterr().err)
+        assert len(events) == 1
+        assert "exceeds" in events[0]["detail"]
+
+    def test_empty_stdin_emits_no_event(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert self._run(monkeypatch, "") == 0
+        assert self._events(capsys.readouterr().err) == []
+
+    def test_tty_emits_no_event(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch("push_guard_base.sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = True
+            assert run_guard(_always_violates, ["*.md"], "test-guard") == 0
+        assert self._events(capsys.readouterr().err) == []

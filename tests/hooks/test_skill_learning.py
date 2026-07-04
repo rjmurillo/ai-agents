@@ -21,6 +21,29 @@ sys.path.insert(0, HOOK_DIR)
 
 import invoke_skill_learning  # noqa: E402
 
+
+def test_atomic_write_text_uses_replace(tmp_path, monkeypatch):
+    target = tmp_path / "memory.md"
+    calls = []
+    original_replace = invoke_skill_learning.os.replace
+
+    def recording_replace(src, dst):
+        calls.append((src, dst))
+        original_replace(src, dst)
+
+    monkeypatch.setattr(invoke_skill_learning.os, "replace", recording_replace)
+
+    invoke_skill_learning._atomic_write_text(target, "updated")
+
+    assert len(calls) == 1
+    temp_path, replaced_path = calls[0]
+    assert replaced_path == target
+    assert temp_path.parent == target.parent
+    assert temp_path.name.startswith(f".{target.name}.")
+    assert temp_path.name.endswith(".tmp")
+    assert target.read_text(encoding="utf-8") == "updated"
+
+
 # ---------------------------------------------------------------------------
 # Unit tests for _validate_path_string
 # ---------------------------------------------------------------------------
@@ -185,7 +208,7 @@ class TestSafeBaseDirM7T5:
     The function honors ``CLAUDE_PROJECT_DIR`` when it contains the live
     hook script (CWE-22 containment guard added by commit be11bd53). When
     the env var is set but does not contain the script, it falls through
-    to the git walk-up — refusing to trust an attacker-controlled env that
+    to the git walk-up, refusing to trust an attacker-controlled env that
     points outside the script's true repository.
     """
 

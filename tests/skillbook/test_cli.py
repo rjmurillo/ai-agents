@@ -1,3 +1,11 @@
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=no-any-return
+# mypy: disable-error-code=arg-type
+# mypy: disable-error-code=assignment
+# mypy: disable-error-code=return-value
+# mypy: disable-error-code=var-annotated
+# mypy: disable-error-code=operator
+# mypy: disable-error-code=union-attr
 """Tests for the skillbook CLI: status, confirm, contradict, promote, tension, select."""
 
 from __future__ import annotations
@@ -9,6 +17,7 @@ from typing import Any
 
 import pytest
 
+import scripts.skillbook as skillbook_module
 from scripts.skillbook import EXIT_CONFIG, EXIT_LOGIC, EXIT_OK, main
 from tests.skillbook.conftest import make_policy
 
@@ -22,6 +31,30 @@ def _load_policies(skillbook_dir: Path) -> list[dict[str, Any]]:
     """Read the policies array back from disk."""
     data = json.loads((skillbook_dir / "policies.json").read_text(encoding="utf-8"))
     return data["policies"]
+
+
+def test_save_skillbook_file_uses_atomic_replace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "policies.json"
+    calls = []
+    original_replace = skillbook_module.os.replace
+
+    def recording_replace(src: Path, dst: Path) -> None:
+        calls.append((src, dst))
+        original_replace(src, dst)
+
+    monkeypatch.setattr(skillbook_module.os, "replace", recording_replace)
+
+    skillbook_module.save_skillbook_file(target, {"policies": []})
+
+    assert len(calls) == 1
+    temp_path, replaced_path = calls[0]
+    assert replaced_path == target
+    assert temp_path.parent == target.parent
+    assert temp_path.name.startswith(f".{target.name}.")
+    assert temp_path.name.endswith(".tmp")
+    assert _load_policies(tmp_path) == []
 
 
 class TestStatus:

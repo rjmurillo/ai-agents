@@ -66,8 +66,10 @@ def get_git_last_modified(file_path: Path) -> datetime | None:
             return datetime.fromisoformat(result.stdout.strip())
     except ValueError as e:
         print(f"Warning: invalid git date for {file_path}: {e}", file=sys.stderr)
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+    except subprocess.TimeoutExpired as e:
+        print(f"Warning: git log timed out for {file_path}: {e}", file=sys.stderr)
+    except FileNotFoundError as e:
+        print(f"Warning: git executable not found for {file_path}: {e}", file=sys.stderr)
     return None
 
 

@@ -52,14 +52,23 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     repository override variables the caller may have inherited.
     """
     env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
-    return subprocess.run(
-        ["git", "-C", str(cwd), *args],
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
+    try:
+        return subprocess.run(
+            ["git", "-C", str(cwd), *args],
+            cwd=str(cwd),
+            capture_output=True,
+            encoding="utf-8", errors="replace",
+            check=False,
+            env=env,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=["git", "-C", str(cwd), *args],
+            returncode=124,
+            stdout="",
+            stderr="git command timed out after 10s",
+        )
 
 
 def find_repo_root(start: Path) -> Path | None:

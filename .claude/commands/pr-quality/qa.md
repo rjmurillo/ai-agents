@@ -1,6 +1,6 @@
 ---
 description: Use when performing local QA review before pushing PR changes. Evaluates test coverage, error handling, and code quality.
-argument-hint: [BASE_BRANCH]
+argument-hint: '[BASE_BRANCH]'
 allowed-tools:
   - Bash(git:*)
   - Read

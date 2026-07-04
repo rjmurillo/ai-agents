@@ -1,6 +1,6 @@
 ---
 description: Use when performing local security review before pushing PR changes. Scans for vulnerabilities, secrets exposure, and security anti-patterns per OWASP Top 10.
-argument-hint: [BASE_BRANCH]
+argument-hint: '[BASE_BRANCH]'
 allowed-tools:
   - Bash(git:*)
   - Read

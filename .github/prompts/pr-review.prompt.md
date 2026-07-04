@@ -1,5 +1,5 @@
 ---
-argument-hint: <PR_NUMBERS> [--parallel] [--cleanup] [--dry-run]
+argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 description: Use when responding to PR review comments for specified pull request(s)
 tools:
   - vscode

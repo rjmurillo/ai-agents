@@ -86,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         write_output("final_verdict", "CRITICAL_FAIL")
+        write_output("security_review_ran", "false")
         for agent in _AGENTS:
             write_output(f"{agent}_verdict", "")
             write_output(f"{agent}_category", "N/A")
@@ -102,9 +103,27 @@ def main(argv: list[str] | None = None) -> int:
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if final in FAIL_VERDICTS and not code_quality_failures:
+    if categories.get("security") == "INFRASTRUCTURE" and not code_quality_failures:
+        write_log("Security review did not run - preserving DID_NOT_RUN")
+        final = "DID_NOT_RUN"
+    elif final in FAIL_VERDICTS and not code_quality_failures:
         write_log("All failures are INFRASTRUCTURE - downgrading to WARN")
         final = "WARN"
+
+    # Issue #2821 option c: the WARN downgrade is owner policy, but a security
+    # review that never ran must not be indistinguishable from one that
+    # passed. Surface a distinct annotation and a dedicated output so the PR
+    # comment and downstream tooling can render a non-ignorable notice.
+    security_review_ran = categories.get("security") != "INFRASTRUCTURE"
+    if not security_review_ran:
+        write_log("Security review did not run (infrastructure failure)")
+        print(
+            "::warning title=Security review did not run::The AI security "
+            "review hit an infrastructure failure and did not evaluate this "
+            "PR. The gate verdict does not certify a security review; re-run "
+            "the gate or review security manually before merge (issue #2821)."
+        )
+    write_output("security_review_ran", "true" if security_review_ran else "false")
 
     write_output("final_verdict", final)
     for agent in _AGENTS:

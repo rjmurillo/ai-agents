@@ -172,6 +172,51 @@ For larger skills, use progressive disclosure:
 
 `SKILL.md` should link to reference docs but not embed them.
 
+## Portable Script Invocations (Required)
+
+A `SKILL.md` runs in more than one place: the upstream `rjmurillo/ai-agents`
+checkout (root `./.claude`), a Claude Code plugin install, and a GitHub Copilot
+CLI vendored install. A command that hard-codes the upstream layout works only
+upstream and fails silently everywhere else.
+
+**Never invoke a bare `.claude/skills/...` script path:**
+
+```bash
+# WRONG: bare path exists only in the upstream checkout (issue #2837).
+python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request 1
+```
+
+**Resolve the script root through a plugin-root env var with a source
+fallback**, then invoke via the variable. Re-declare the variable at the top of
+each fenced `bash` block that uses it, so every snippet is runnable on its own:
+
+```bash
+# CORRECT: resolves in every harness; falls back to .claude for source checkouts.
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 1
+```
+
+For skills that only target Claude Code, the shorter
+`SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/..."` form is acceptable.
+
+This is enforced by `scripts/validation/check_skill_md_exec_portability.py` (CI
+job "Validate Vendor Portability"). The check grandfathers existing offenders in
+`scripts/validation/skill_md_exec_portability_baseline.json` and fails a PR that
+adds a new bare invocation or raises a file's count above its baseline. Migrate
+grandfathered skills to the resolved form and run the check with
+`--update-baseline` to tighten the baseline.
+
+If a skill genuinely must invoke a bare upstream path (for example, a bootstrap
+that runs before any plugin root exists), declare it with a machine-readable
+marker so the exemption is reviewable:
+
+```markdown
+<!-- vendor-portability-exec: bootstrap runs before COPILOT_PLUGIN_ROOT is set -->
+```
+
+This marker is distinct from the prose guard's `vendor-portability` marker:
+declaring a prose path dependency does not exempt executable invocations.
+
 ## Working Examples
 
 ### Haiku: Simple Pattern Matching

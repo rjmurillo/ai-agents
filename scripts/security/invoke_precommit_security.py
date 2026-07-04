@@ -16,6 +16,7 @@ Per ADR-042: Python-first for new scripts.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
 import subprocess
@@ -32,6 +33,15 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+SUBPROCESS_TIMEOUT_SECONDS = 60
+PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS = 300
+CODEQL_API_TIMEOUT_SECONDS = 30
+
+
+def _powershell_single_quoted_literal(value: str) -> str:
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
 
 
 @dataclass
@@ -132,8 +142,10 @@ class PreCommitSecurityCheck:
             remote_result = subprocess.run(
                 ["git", "remote", "get-url", "origin"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if remote_result.returncode != 0:
@@ -153,8 +165,10 @@ class PreCommitSecurityCheck:
             branch_result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,  # Don't raise, check returncode explicitly
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if branch_result.returncode != 0:
@@ -189,12 +203,18 @@ class PreCommitSecurityCheck:
         owner, repo, branch = context
 
         # Check if gh CLI is available
-        gh_check = subprocess.run(
-            ["gh", "--version"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            gh_check = subprocess.run(
+                ["gh", "--version"],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.debug("gh CLI check failed (%s), skipping CodeQL alert fetch", e)
+            return []
         if gh_check.returncode != 0:
             logger.debug("gh CLI not available, skipping CodeQL alert fetch")
             return []
@@ -220,8 +240,10 @@ class PreCommitSecurityCheck:
                     }}]""",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if result.returncode != 0:
@@ -237,8 +259,6 @@ class PreCommitSecurityCheck:
             if not result.stdout.strip() or result.stdout.strip() == "[]":
                 logger.info("No open CodeQL alerts for branch: %s", branch)
                 return []
-
-            import json
 
             alerts_data = json.loads(result.stdout)
             alerts = [
@@ -303,6 +323,10 @@ class PreCommitSecurityCheck:
         # Step 1: Get staged PowerShell files
         staged_files = self._get_staged_powershell_files()
 
+        if staged_files is None:
+            logger.error("[FAIL] Could not determine staged files")
+            return 1
+
         if not staged_files:
             logger.info("[PASS] No PowerShell files staged for commit")
             return 0
@@ -355,8 +379,12 @@ class PreCommitSecurityCheck:
             logger.info("Generated security report: %s", report_path)
 
             # Step 6: Stage the security report
-            if not self.dry_run:
-                self._stage_security_report(report_path)
+            if not self.dry_run and not self._stage_security_report(report_path):
+                logger.error(
+                    "[FAIL] Could not stage the security report; the commit would "
+                    "otherwise pass without the report it requires"
+                )
+                return 1
 
         # Step 7: Verify security report exists
         if not self._verify_security_report(report_path):
@@ -370,30 +398,39 @@ class PreCommitSecurityCheck:
         logger.info("[PASS] Pre-commit security check completed")
         return 0
 
-    def _get_staged_powershell_files(self) -> list[Path]:
-        """Get list of staged PowerShell files."""
+    def _get_staged_powershell_files(self) -> list[Path] | None:
+        """Get list of staged PowerShell files.
+
+        Returns:
+            List of staged PowerShell file paths, or None on error.
+        """
         try:
             result = subprocess.run(
                 ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             files = result.stdout.strip().split("\n") if result.stdout.strip() else []
 
             # Filter for PowerShell files
-            ps_files = [
-                self.repo_root / f
-                for f in files
-                if f.endswith((".ps1", ".psm1", ".psd1"))
-            ]
+            ps_files = [self.repo_root / f for f in files if f.endswith((".ps1", ".psm1", ".psd1"))]
 
             return ps_files
 
+        except subprocess.TimeoutExpired as e:
+            logger.error(
+                "[FAIL] Failed to get staged files before timeout after %ss: %s",
+                e.timeout,
+                e.cmd,
+            )
+            return None
         except subprocess.SubprocessError as e:
             logger.error("[FAIL] Failed to get staged files: %s", e)
-            return []
+            return None
 
     def _check_critical_patterns(self, files: list[Path]) -> list[Path]:
         """Check if any staged files match critical security patterns."""
@@ -419,8 +456,10 @@ class PreCommitSecurityCheck:
                     "Get-Module -ListAvailable PSScriptAnalyzer | Select-Object -First 1",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if "PSScriptAnalyzer" in result.stdout:
@@ -436,12 +475,19 @@ class PreCommitSecurityCheck:
                     "Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -AllowClobber",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
+                timeout=PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
             )
 
             return install_result.returncode == 0
 
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "[SKIP] PSScriptAnalyzer check/install timed out; treating as unavailable"
+            )
+            return False
         except FileNotFoundError:
             logger.error("[FAIL] PowerShell (pwsh) not found in PATH")
             return False
@@ -453,20 +499,30 @@ class PreCommitSecurityCheck:
 
         for file_path in files:
             try:
+                analyzer_command = (
+                    "$findings = Invoke-ScriptAnalyzer "
+                    f"-Path '{file_path}' -Severity Error,Warning\n"
+                    "$findings | ConvertTo-Json -Depth 3"
+                )
                 # Run PSScriptAnalyzer with JSON output
+                literal_path = _powershell_single_quoted_literal(str(file_path))
+                analyzer_command = (
+                    f"$findings = Invoke-ScriptAnalyzer -LiteralPath {literal_path} "
+                    "-Severity Error,Warning\n"
+                    "$findings | ConvertTo-Json -Depth 3"
+                )
                 result = subprocess.run(
                     [
                         "pwsh",
                         "-NoProfile",
                         "-Command",
-                        f"""
-                        $findings = Invoke-ScriptAnalyzer -Path '{file_path}' -Severity Error,Warning
-                        $findings | ConvertTo-Json -Depth 3
-                        """,
+                        analyzer_command,
                     ],
                     capture_output=True,
-                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=False,
+                    timeout=SUBPROCESS_TIMEOUT_SECONDS,
                 )
 
                 if result.returncode != 0 and result.stderr:
@@ -481,8 +537,6 @@ class PreCommitSecurityCheck:
                     continue
 
                 # Parse JSON output
-                import json
-
                 try:
                     analyzer_findings = json.loads(result.stdout)
 
@@ -501,9 +555,7 @@ class PreCommitSecurityCheck:
                                 message=finding.get("Message", "No message"),
                                 file_path=str(file_path.relative_to(self.repo_root)),
                                 line_number=finding.get("Line", 0),
-                                cwe_id=self._map_rule_to_cwe(
-                                    finding.get("RuleName", "")
-                                ),
+                                cwe_id=self._map_rule_to_cwe(finding.get("RuleName", "")),
                             )
                         )
 
@@ -516,6 +568,13 @@ class PreCommitSecurityCheck:
                         e,
                     )
                     failed_files.append(str(file_path))
+
+            except subprocess.TimeoutExpired:
+                logger.warning(
+                    "[TIMEOUT] PSScriptAnalyzer timed out for %s; adding to failed files",
+                    file_path.name,
+                )
+                failed_files.append(str(file_path))
 
             except subprocess.SubprocessError as e:
                 logger.error(
@@ -544,9 +603,7 @@ class PreCommitSecurityCheck:
         self.findings.extend(findings)
 
         # Check for blocking findings (CRITICAL or HIGH)
-        blocking_findings = [
-            f for f in findings if f.severity in ("CRITICAL", "HIGH")
-        ]
+        blocking_findings = [f for f in findings if f.severity in ("CRITICAL", "HIGH")]
 
         return PreCommitResult(
             passed=len(blocking_findings) == 0,
@@ -591,8 +648,10 @@ class PreCommitSecurityCheck:
             result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             branch = result.stdout.strip().replace("/", "-")
         except subprocess.SubprocessError:
@@ -605,9 +664,7 @@ class PreCommitSecurityCheck:
         # Count findings by severity
         severity_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
         for finding in self.findings:
-            severity_counts[finding.severity] = (
-                severity_counts.get(finding.severity, 0) + 1
-            )
+            severity_counts[finding.severity] = severity_counts.get(finding.severity, 0) + 1
 
         content = f"""# Security Report: {branch}
 
@@ -619,10 +676,10 @@ class PreCommitSecurityCheck:
 
 | Severity | Count |
 |----------|-------|
-| CRITICAL | {severity_counts['CRITICAL']} |
-| HIGH | {severity_counts['HIGH']} |
-| MEDIUM | {severity_counts['MEDIUM']} |
-| LOW | {severity_counts['LOW']} |
+| CRITICAL | {severity_counts["CRITICAL"]} |
+| HIGH | {severity_counts["HIGH"]} |
+| MEDIUM | {severity_counts["MEDIUM"]} |
+| LOW | {severity_counts["LOW"]} |
 
 ## Files Reviewed
 
@@ -657,7 +714,10 @@ class PreCommitSecurityCheck:
                     f"| `{alert.location_path}:{alert.location_line}` | {desc_short} |\n"
                 )
             content += "\n"
-            content += "**Agent Action Required**: Review each CodeQL finding above in the context of:\n"
+            content += (
+                "**Agent Action Required**: Review each CodeQL finding above "
+                "in the context of:\n"
+            )
             content += "- Business impact and data sensitivity\n"
             content += "- Deployment context (CLI tool vs API service)\n"
             content += "- Existing mitigations or compensating controls\n\n"
@@ -682,9 +742,7 @@ class PreCommitSecurityCheck:
 
         # Determine CodeQL status
         codeql_critical = sum(
-            1
-            for a in self.codeql_alerts
-            if a.security_severity_level in ("critical", "high")
+            1 for a in self.codeql_alerts if a.security_severity_level in ("critical", "high")
         )
 
         if self.skip_codeql:
@@ -694,10 +752,19 @@ class PreCommitSecurityCheck:
         else:
             codeql_status = "PASS"
 
+        psscriptanalyzer_status = (
+            "PASS"
+            if severity_counts["CRITICAL"] == 0 and severity_counts["HIGH"] == 0
+            else "FAIL"
+        )
+        codeql_summary = (
+            f"{codeql_status} ({len(self.codeql_alerts)} open alert(s), "
+            f"{codeql_critical} critical/high)"
+        )
         content += f"""## Validation Status
 
-- **CodeQL**: {codeql_status} ({len(self.codeql_alerts)} open alert(s), {codeql_critical} critical/high)
-- **PSScriptAnalyzer**: {'PASS' if severity_counts['CRITICAL'] == 0 and severity_counts['HIGH'] == 0 else 'FAIL'}
+- **CodeQL**: {codeql_summary}
+- **PSScriptAnalyzer**: {psscriptanalyzer_status}
 - **Critical File Review**: {'REQUIRED' if critical_files else 'NOT REQUIRED'}
 - **Agent Review**: {'SKIPPED' if self.skip_agent_review else 'PENDING'}
 
@@ -730,6 +797,7 @@ class PreCommitSecurityCheck:
                 ["git", "add", str(report_path)],
                 check=True,
                 capture_output=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             logger.info("Staged security report: %s", report_path.name)
             return True

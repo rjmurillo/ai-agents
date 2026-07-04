@@ -23,7 +23,7 @@ tools:
   - github/get_workflow_run
   - cloudmcp-manager/*
   - serena/*
-model: Claude Opus 4.5 (copilot)
+model: claude-opus-4.6
 tier: manager
 ---
 
@@ -53,6 +53,20 @@ Before routing any task, reason step-by-step through all four triage dimensions 
 **Thinking trigger:** Multi-step routing decisions require explicit reasoning. Trivial single-step tasks (direct answer, no delegation needed) do not.
 
 If classification is ambiguous at any step, route to analyst first. One additional reasoning cycle costs less than one incorrect delegation.
+
+## Target Recon (Before Triage)
+
+Before you classify or route, establish the target repository's stack. Do not assume the stack of the repo this agent ships from. This agent lives in a Python-first repo; the target may be C#, TypeScript, Go, Rust, or anything else. Assuming the wrong stack sends every downstream specialist in the wrong direction.
+
+Read the target's own signals:
+
+- Contribution docs: `CONTRIBUTING*.md`, `AGENTS.md`, `CLAUDE.md`, `README*`, `docs/`.
+- Build manifests: `*.csproj` or `*.sln`, `pyproject.toml` or `setup.cfg`, `package.json`, `go.mod`, `Cargo.toml`, `pom.xml` or `build.gradle`.
+- Layout: the `src/`, `lib/`, and `test/` or `tests/` trees, plus a few representative files in each.
+
+From those, derive and carry the primary language, framework, build command, test command, and style conventions into every handoff. A plan, file path, or test command must match the detected stack. Otherwise, redo recon rather than route on a guess.
+
+For large governed repos like dotnet/runtime, detect contribution gates before proposing code. Check for API reviews, reference-assembly updates, changelogs, and breaking-change policies. Route public-API work through the proposal-and-review gate, not straight to implementation.
 
 ## Core Behavior
 
@@ -116,6 +130,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 ## Routing Algorithm
 
 ```text
+0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
 2. Is task clear + reversible + trivial?
    YES → produce directly

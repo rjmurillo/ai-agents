@@ -721,14 +721,70 @@ def test_main_git_staged_scans_staged_files(
     assert "CWE-78" in captured.out
 
 
-def test_main_git_staged_no_files_exits_error(
+def test_main_git_staged_no_files_exits_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    # A successful staged-file enumeration that yields zero files is a clean pass,
+    # not an error. Only a git enumeration *failure* fails closed (see below).
     monkeypatch.setattr(scanner, "get_staged_files", lambda: [])
     code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
     captured = capsys.readouterr()
-    assert code == scanner.EXIT_ERROR
+    assert code == scanner.EXIT_SUCCESS
     assert "No files to scan" in captured.out
+
+
+def test_main_directory_missing_exits_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A --directory that does not exist is a mis-specified scan root, not a clean
+    # scan. os.walk silently yields nothing for a missing path, so without an
+    # explicit is_dir() guard this fails OPEN (exits 0, "all clean"). Pin the
+    # fail-closed contract: missing --directory exits EXIT_ERROR before walking.
+    missing = tmp_path / "does-not-exist"
+    code = _run_main_in_process(
+        monkeypatch, "--directory", str(missing), cwd=tmp_path
+    )
+    captured = capsys.readouterr()
+    assert code == scanner.EXIT_ERROR
+    assert "not found or not a directory" in captured.err
+
+
+def test_main_git_staged_failure_exits_external(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        scanner,
+        "get_staged_files",
+        lambda: (_ for _ in ()).throw(
+            scanner.GitEnumerationError("git diff failed: fatal")
+        ),
+    )
+    code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
+    captured = capsys.readouterr()
+    assert code == scanner.EXIT_EXTERNAL
+    assert "git diff failed: fatal" in captured.err
+
+
+def test_get_staged_files_raises_on_git_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_git(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(
+            returncode=128,
+            cmd=["git", "diff", "--staged", "--name-only"],
+            stderr="fatal: not a git repository",
+        )
+
+    monkeypatch.setattr(scanner.subprocess, "run", fail_git)
+    with pytest.raises(scanner.GitEnumerationError, match="not a git repository"):
+        scanner.get_staged_files()
+
+
+def test_get_staged_files_raises_when_git_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    def missing_git(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(scanner.subprocess, "run", missing_git)
+    with pytest.raises(scanner.GitEnumerationError, match="git executable not found"):
+        scanner.get_staged_files()
 
 
 def test_main_json_format_in_process(

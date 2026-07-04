@@ -5,11 +5,10 @@ Validates milestone exists before assigning, and optionally clears existing mile
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error
-    2 - Milestone not found
-    3 - External error (API failure)
+    1 - Logic/precondition error (includes: milestone already set without --force)
+    2 - Usage/config error (invalid arguments, milestone not found)
+    3 - External error (API failure, including a failed milestone query)
     4 - Auth error (not authenticated)
-    5 - Has milestone (use --force)
 """
 
 from __future__ import annotations
@@ -47,6 +46,21 @@ from github_core.output import (  # noqa: E402
 )
 
 
+def _env_timeout_seconds(default: int = 30) -> int:
+    """Parse GH_TIMEOUT_SECONDS, falling back to the default on a bad value.
+
+    The override is documented; a misconfigured value must not crash the
+    script at import time.
+    """
+    try:
+        return int(os.environ.get("GH_TIMEOUT_SECONDS", str(default)))
+    except ValueError:
+        return default
+
+
+GH_TIMEOUT_SECONDS = _env_timeout_seconds()
+
+
 def _write_github_output(outputs: dict[str, str]) -> None:
     """Write key=value pairs to GITHUB_OUTPUT if available."""
     output_file = os.environ.get("GITHUB_OUTPUT")
@@ -60,16 +74,43 @@ def _write_github_output(outputs: dict[str, str]) -> None:
         pass
 
 
+class _MilestoneQueryError(RuntimeError):
+    """A gh milestone query failed.
+
+    Distinct from "no milestone set". Callers must not treat a failed query as
+    "no milestone", or a transient API failure would let a set operation
+    silently overwrite an existing milestone without ``--force``.
+    """
+
+
+class _MilestoneTimeoutError(_MilestoneQueryError):
+    """A gh milestone query timed out."""
+
+
 def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
-    """Get the current milestone title for an issue, or None."""
-    result = subprocess.run(
-        ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """Get the current milestone title for an issue, or None if unset.
+
+    Raises _MilestoneQueryError when the gh query itself fails so a transient
+    API failure is never mistaken for "no milestone" (fail-closed).
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise _MilestoneTimeoutError(
+            f"Timed out querying current milestone for issue #{issue}"
+        ) from err
     if result.returncode != 0:
-        return None
+        raise _MilestoneQueryError(
+            f"Failed to query current milestone for issue #{issue}: "
+            f"{result.stderr.strip() or f'gh api exited {result.returncode}'}"
+        )
     title = result.stdout.strip()
     if not title or title == "null":
         return None
@@ -77,15 +118,29 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
 
 
 def _get_milestone_titles(owner: str, repo: str) -> list[str]:
-    """Get all milestone titles from the repository."""
-    result = subprocess.run(
-        ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """Get all milestone titles from the repository.
+
+    Raises _MilestoneQueryError when the gh query itself fails so a transient
+    API failure is never mistaken for "milestone does not exist" (fail-closed).
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise _MilestoneTimeoutError(
+            f"Timed out listing milestones for {owner}/{repo}"
+        ) from err
     if result.returncode != 0:
-        return []
+        raise _MilestoneQueryError(
+            f"Failed to list milestones for {owner}/{repo}: "
+            f"{result.stderr.strip() or f'gh api exited {result.returncode}'}"
+        )
     return [t.strip() for t in result.stdout.strip().splitlines() if t.strip()]
 
 
@@ -111,7 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _emit(output: dict, fmt: str) -> None:
+def _emit(output: dict[str, object], fmt: str) -> None:
     """Emit the canonical envelope for the milestone result payload."""
     write_skill_output(
         output,
@@ -123,7 +178,13 @@ def _emit(output: dict, fmt: str) -> None:
     )
 
 
-def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict) -> None:
+def _emit_error(
+    message: str,
+    code: int,
+    fmt: str,
+    error_type: str,
+    output: dict[str, object],
+) -> None:
     write_skill_error(
         message,
         code,
@@ -152,7 +213,26 @@ def main(argv: list[str] | None = None) -> int:
         )
         raise SystemExit(2)
 
-    current_milestone = _get_current_milestone(owner, repo, args.issue)
+    try:
+        current_milestone = _get_current_milestone(owner, repo, args.issue)
+    except _MilestoneTimeoutError as err:
+        _emit_error(
+            str(err),
+            3,
+            fmt,
+            "Timeout",
+            {"issue": args.issue, "milestone": None, "action": "failed"},
+        )
+        raise SystemExit(3) from err
+    except _MilestoneQueryError as err:
+        _emit_error(
+            str(err),
+            3,
+            fmt,
+            "ApiError",
+            {"issue": args.issue, "milestone": None, "action": "failed"},
+        )
+        raise SystemExit(3) from err
 
     output = {
         "issue": args.issue,
@@ -172,16 +252,28 @@ def main(argv: list[str] | None = None) -> int:
             })
             return 0
 
-        result = subprocess.run(
-            [
-                "gh", "api",
-                f"repos/{owner}/{repo}/issues/{args.issue}",
-                "-X", "PATCH", "-f", "milestone=",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "gh", "api",
+                    f"repos/{owner}/{repo}/issues/{args.issue}",
+                    "-X", "PATCH", "-f", "milestone=",
+                ],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=GH_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as err:
+            _emit_error(
+                f"Clear milestone timed out after {GH_TIMEOUT_SECONDS}s",
+                3,
+                fmt,
+                "Timeout",
+                output | {"action": "failed"},
+            )
+            raise SystemExit(3) from err
         if result.returncode != 0:
             _emit_error(
                 "Failed to clear milestone",
@@ -202,17 +294,6 @@ def main(argv: list[str] | None = None) -> int:
         })
         return 0
 
-    milestone_titles = _get_milestone_titles(owner, repo)
-    if args.milestone not in milestone_titles:
-        _emit_error(
-            f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
-            2,
-            fmt,
-            "NotFound",
-            output | {"milestone": args.milestone, "action": "failed"},
-        )
-        raise SystemExit(2)
-
     if current_milestone == args.milestone:
         output["milestone"] = args.milestone
         output["action"] = "no_change"
@@ -229,23 +310,65 @@ def main(argv: list[str] | None = None) -> int:
         _emit_error(
             f"Issue #{args.issue} already has milestone "
             f"'{current_milestone}'. Use --force to override.",
-            5,
+            1,
             fmt,
             "General",
             output | {"milestone": args.milestone, "action": "has_milestone"},
         )
-        raise SystemExit(5)
+        raise SystemExit(1)
 
-    result = subprocess.run(
-        [
-            "gh", "issue", "edit", str(args.issue),
-            "--repo", f"{owner}/{repo}",
-            "--milestone", args.milestone,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        milestone_titles = _get_milestone_titles(owner, repo)
+    except _MilestoneTimeoutError as err:
+        _emit_error(
+            str(err),
+            3,
+            fmt,
+            "Timeout",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(3) from err
+    except _MilestoneQueryError as err:
+        _emit_error(
+            str(err),
+            3,
+            fmt,
+            "ApiError",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(3) from err
+    if args.milestone not in milestone_titles:
+        _emit_error(
+            f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
+            2,
+            fmt,
+            "NotFound",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(2)
+
+    try:
+        result = subprocess.run(
+            [
+                "gh", "issue", "edit", str(args.issue),
+                "--repo", f"{owner}/{repo}",
+                "--milestone", args.milestone,
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        _emit_error(
+            f"Set milestone timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            fmt,
+            "Timeout",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(3) from err
     if result.returncode != 0:
         _emit_error(
             "Failed to set milestone",

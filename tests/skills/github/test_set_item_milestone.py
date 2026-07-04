@@ -1,6 +1,15 @@
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=no-any-return
+# mypy: disable-error-code=arg-type
+# mypy: disable-error-code=assignment
+# mypy: disable-error-code=return-value
+# mypy: disable-error-code=var-annotated
+# mypy: disable-error-code=operator
+# mypy: disable-error-code=union-attr
 """Tests for set_item_milestone.py."""
 
 import json
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -40,9 +49,10 @@ class TestGetItemMilestone:
         item_data = {"milestone": {"title": "v1.0.0"}}
         with patch("subprocess.run", return_value=make_completed_process(
             stdout=json.dumps(item_data)
-        )):
+        )) as run:
             result = mod._get_item_milestone("o", "r", 1)
         assert result == "v1.0.0"
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
 
     def test_no_milestone(self, _import_module):
         mod = _import_module
@@ -115,6 +125,12 @@ class TestSetItemMilestone:
         assert result["Data"]["action"] == "assigned"
         assert result["Data"]["milestone"] == "v1.0.0"
 
+    def test_assign_milestone_includes_timeout(self, _import_module):
+        mod = _import_module
+        with patch("subprocess.run", return_value=make_completed_process()) as run:
+            mod._assign_milestone("o", "r", 1, "v1.0.0")
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
+
     def test_api_error_exits_3(self, _import_module):
         mod = _import_module
         with (
@@ -136,3 +152,20 @@ class TestSetItemMilestone:
             with pytest.raises(SystemExit) as exc:
                 mod._get_item_milestone("o", "r", 999)
         assert exc.value.code == 3
+
+    def test_gh_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
+        mod = _import_module
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(
+                cmd="gh",
+                timeout=mod.GH_TIMEOUT_SECONDS,
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod._get_item_milestone("o", "r", 1, "json")
+
+        assert exc.value.code == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"

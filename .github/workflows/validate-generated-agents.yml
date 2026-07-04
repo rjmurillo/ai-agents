@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for relevant file changes
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         id: filter
         # Skip paths-filter for workflow_dispatch as it may not have proper context
         if: github.event_name != 'workflow_dispatch'
@@ -57,6 +57,7 @@ jobs:
               - 'build/generate_agents.py'
               - 'build/generate_agent_catalog.py'
               - 'build/scripts/**'
+              - 'scripts/validation/**'
               - '.claude/agents/**'
               - '.claude/skills/**'
               - '.claude/hooks/**'
@@ -64,6 +65,7 @@ jobs:
               - '.claude/rules/**'
               - '.github/agents/**'
               - '.github/instructions/**'
+              - '.github/prompts/**'
               - '.github/workflows/validate-generated-agents.yml'
 
       - name: Determine if validation should run
@@ -191,6 +193,7 @@ jobs:
           echo "Validating Copilot agent frontmatter..."
           python3 -m pip install 'PyYAML==6.0.3'
           python3 scripts/validation/validate_copilot_agent_frontmatter.py
+          python3 scripts/validation/validate_argument_hint.py
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'

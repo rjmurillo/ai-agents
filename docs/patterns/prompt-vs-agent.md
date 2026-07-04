@@ -78,11 +78,11 @@ This agent is callable by other agents. The orchestrator can route work to it. I
 
 ## Generation Pipeline
 
-Shared templates in `templates/agents/` contain the prompt body and platform-neutral frontmatter. The `build/Generate-Agents.ps1` script reads each `.shared.md` file, applies platform-specific transformations, and writes the output files.
+Shared templates in `templates/agents/` contain the prompt body and platform-neutral frontmatter. The `build/generate_agents.py` script reads each `.shared.md` file, applies platform-specific transformations, and writes the output files.
 
 ```mermaid
 flowchart LR
-    S["analyst.shared.md\n(templates/agents/)"] --> G["Generate-Agents.ps1\n(build/)"]
+    S["analyst.shared.md\n(templates/agents/)"] --> G["generate_agents.py\n(build/)"]
     C1["vscode.yaml\n(templates/platforms/)"] --> G
     C2["copilot-cli.yaml\n(templates/platforms/)"] --> G
     G --> V["analyst.agent.md\n(src/vs-code-agents/)"]
@@ -127,7 +127,7 @@ The `.github/agents/` directory contains both `.agent.md` and `.prompt.md` files
 
 | You want to... | Create a... |
 |----------------|-------------|
-| Add a new specialized agent | `.shared.md` in `templates/agents/`, then run `Generate-Agents.ps1` |
+| Add a new specialized agent | `.shared.md` in `templates/agents/`, then run `python3 build/generate_agents.py` |
 | Add a user-facing slash command | `.prompt.md` in `.github/prompts/` or `.github/agents/` |
 | Add an orchestration entry point | `.prompt.md` that delegates to agents via the `agent` tool |
 | Modify agent behavior | Edit the `.shared.md` source, then regenerate |
@@ -137,7 +137,7 @@ The `.github/agents/` directory contains both `.agent.md` and `.prompt.md` files
 Run the generator in validate mode to verify generated files match their templates:
 
 ```bash
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 ```
 
 This compares each generated file against what the current templates would produce. CI runs this check to prevent drift between templates and generated output.

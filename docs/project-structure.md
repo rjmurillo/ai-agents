@@ -30,7 +30,7 @@ ai-agents/
 │   └── platforms/            # Platform-specific generation config (YAML)
 │
 ├── build/                    # Build + generation scripts
-│   └── Generate-Agents.ps1   # Regenerates platform agent files from templates
+│   └── generate_agents.py    # Regenerates platform agent files from templates
 │
 ├── src/                      # GENERATED agent files for distribution
 │   ├── vs-code-agents/       # Generated VS Code prompt/agent files (don’t edit)
@@ -64,8 +64,8 @@ Edit the shared template:
 
 Then regenerate:
 
-```powershell
-pwsh build/Generate-Agents.ps1
+```bash
+python3 build/generate_agents.py
 ```
 
 Commit both the template and the generated outputs.

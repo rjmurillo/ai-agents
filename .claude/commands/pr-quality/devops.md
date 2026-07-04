@@ -1,6 +1,6 @@
 ---
 description: Use when performing local DevOps review before pushing PR changes. Evaluates CI/CD, build pipelines, and infrastructure changes.
-argument-hint: [BASE_BRANCH]
+argument-hint: '[BASE_BRANCH]'
 allowed-tools:
   - Bash(git:*)
   - Read

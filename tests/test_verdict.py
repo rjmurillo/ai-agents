@@ -119,6 +119,9 @@ class TestMergeVerdicts:
         # an axis failed to evaluate.
         assert merge_verdicts(["PASS", "UNKNOWN"]) == "UNKNOWN"
 
+    def test_did_not_run_with_pass(self):
+        assert merge_verdicts(["PASS", "DID_NOT_RUN"]) == "UNKNOWN"
+
     def test_unknown_with_warn(self):
         # UNKNOWN does not override a real WARN finding.
         assert merge_verdicts(["WARN", "UNKNOWN"]) == "WARN"
@@ -185,6 +188,7 @@ _REQ_008_05_AC_VECTORS = [
     (["PASS"], "PASS"),
     (["PASS", "WARN"], "WARN"),
     (["PASS", "UNKNOWN"], "UNKNOWN"),
+    (["PASS", "DID_NOT_RUN"], "UNKNOWN"),
     (["WARN", "UNKNOWN"], "WARN"),
     (["PASS", "WARN", "CRITICAL_FAIL"], "CRITICAL_FAIL"),
     (["PASS", "FAIL"], "CRITICAL_FAIL"),
@@ -271,6 +275,11 @@ class TestExtractVerdict:
 
         assert extract_verdict("Verdict: NEEDS_REVIEW") == "NEEDS_REVIEW"
         assert extract_verdict("Final verdict: NEEDS_REVIEW") == "NEEDS_REVIEW"
+
+    def test_extract_did_not_run_token(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+
+        assert extract_verdict("Verdict: DID_NOT_RUN") == "DID_NOT_RUN"
 
     def test_extract_bracketed_verdict(self):
         # PR #1965 copilot AA1: CI action.yml accepts `VERDICT: [PASS]`
@@ -435,3 +444,6 @@ class TestGetVerdictEmoji:
 
     def test_unknown(self):
         assert get_verdict_emoji("UNKNOWN") == "\u2754"
+
+    def test_did_not_run(self):
+        assert get_verdict_emoji("DID_NOT_RUN") == "\u2754"

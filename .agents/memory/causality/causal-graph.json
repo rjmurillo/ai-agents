@@ -8,7 +8,8 @@
       "success_rate": 1.0,
       "frequency": 1,
       "id": "n001",
-      "type": "decision"
+      "type": "decision",
+      "created": null
     },
     {
       "id": "b1cc1534da48",
@@ -5258,7 +5259,8 @@
       "type": "milestone",
       "label": "milestone: Updated PR description",
       "episodes": [
-        "episode-2026-06-07-session-2373"
+        "episode-2026-06-07-session-2373",
+        "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
       ],
       "created": "2026-06-07T04:02:14.139036+00:00"
     },
@@ -8189,6 +8191,60 @@
       "created": "2026-06-29T14:03:09.228701+00:00"
     },
     {
+      "id": "0b88e884ceb8",
+      "type": "milestone",
+      "label": "milestone: mirror-obligation cognition (#2789)",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.578982+00:00"
+    },
+    {
+      "id": "e3cbdc30cbd3",
+      "type": "test",
+      "label": "test: Implemented mirror-obligation cognition (epic #2789): implementer pre-code inverse step (#2790), TESTING-RIGOR flip-stale-tests clause (#2791), critic drift checks (#2792). Verification: uv run pytest tests/build_scripts/ -> 741 passed; detect_agent_drift rc=0 (mirrors agree); build_all --check rc=0; pre_pr --quick all validations passed; 0 em/en dashes.",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579021+00:00"
+    },
+    {
+      "id": "4d9b3da0adde",
+      "type": "commit",
+      "label": "commit: Commit: 1347a02e9aae10a782558369f1b8023ccfc7fb9f",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579051+00:00"
+    },
+    {
+      "id": "bf38d25e5e38",
+      "type": "test",
+      "label": "test: Added ADR-077 and focused ADR-057 scenarios. ADR review consensus: 6 ACCEPT, 0 BLOCK. Implementer eval gate PASS; critic eval gate PASS.",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579081+00:00"
+    },
+    {
+      "id": "ddbdc98fa5f0",
+      "type": "milestone",
+      "label": "milestone: ADR-077 and ADR-057 evidence for PR #2793",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579110+00:00"
+    },
+    {
+      "id": "9808741d2d48",
+      "type": "outcome",
+      "label": "Outcome: success - implement mirror-obligation cognition in implementer critic TESTING-RIGOR per epic 2789",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579140+00:00"
+    },
+    {
       "id": "d8a0be3f94cb",
       "type": "test",
       "label": "test: Built scripts/eval/eval_run_rollup.py + _run_rollup_core.py. Verified: uv run pytest tests/eval/test_eval_run_rollup.py -> 28 passed; ruff + mypy clean; ran against 26 logs/1536 runs ($13.01, 47 drift flags).",
@@ -8277,6 +8333,2861 @@
         "episode-2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming"
       ],
       "created": "2026-06-30T16:56:20.064285+00:00"
+    },
+    {
+      "id": "3c49a1eacf86",
+      "type": "milestone",
+      "label": "milestone: Re-reverted deferred debt-laden #2812 sites (skillbook.py, invoke_memory_first_enforcer.py + copilot mirror); confirmed they left git status.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544474+00:00"
+    },
+    {
+      "id": "55846222d65b",
+      "type": "milestone",
+      "label": "milestone: Kept 5 clean #2812 atomic-write sites: lsp_gate_state.py, cache_guard.py, pr_branch_mapping.py, update_reviewer_signal_stats.py, error_classification.py.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544539+00:00"
+    },
+    {
+      "id": "7c0da3801165",
+      "type": "milestone",
+      "label": "milestone: Added scoped pyproject.toml mypy override for memory_enhancement.serena_integration (pre-existing arg-type/return-value debt surfaced transitively by memory_sync imports).",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544583+00:00"
+    },
+    {
+      "id": "2bfa9046edd7",
+      "type": "milestone",
+      "label": "milestone: Verified mypy clean (15 files), 191 affected tests pass, 15 atomic-write tests pass, no security suppressions.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544621+00:00"
+    },
+    {
+      "id": "d47050729c73",
+      "type": "milestone",
+      "label": "milestone: Synced plugin lib mirrors (in sync), bumped .claude and copilot-cli plugin.json to 0.5.255.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544659+00:00"
+    },
+    {
+      "id": "cc8eba38b57c",
+      "type": "milestone",
+      "label": "milestone: Created and populated this session log; documented override decision to Serena memory (file fallback).",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544697+00:00"
+    },
+    {
+      "id": "2aec578b9126",
+      "type": "milestone",
+      "label": "milestone: Verification: `uv run pytest tests/test_atomic_writes_2812.py` => 15 passed; `uv run pytest tests/test_memory_sync ...` => 191 passed; mypy => no issues in 15 source files.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544736+00:00"
+    },
+    {
+      "id": "e9663b0969ed",
+      "type": "test",
+      "label": "test: Verification: `uv run pytest tests/test_atomic_writes_2812.py` => 15 passed; `uv run pytest tests/test_memory_sync ...` => 191 passed; mypy => no issues in 15 source files.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544774+00:00"
+    },
+    {
+      "id": "0b86152d5456",
+      "type": "commit",
+      "label": "commit: Commit: f13f73f",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813",
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts",
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-02T15:29:52.544813+00:00"
+    },
+    {
+      "id": "f8a0ae212c24",
+      "type": "outcome",
+      "label": "Outcome: success - Issues #2812 (atomic writes) + #2813 (memory_sync/auto-approval boundary hardening): 5 clean atomic-write sites, memory_sync JSON boundary fixes, scoped mypy override for pre-existing serena_integration debt, plugin version bumps. Deferred 3 debt-laden #2812 sites (skillbook, invoke_memory_first_enforcer, invoke_skill_learning).",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544852+00:00"
+    },
+    {
+      "id": "910da7b3cdf1",
+      "type": "milestone",
+      "label": "milestone: Read issue #2821 and its discourse; owner has not picked an option, so implemented the recommended option c (additive visibility, keeps the deliberate WARN policy intact) as a draft PR for the owner to accept or reject",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373258+00:00"
+    },
+    {
+      "id": "eac5b587de3f",
+      "type": "milestone",
+      "label": "milestone: aggregate_quality_verdicts.py: emit ::warning annotation and a security_review_ran output when the security axis category is INFRASTRUCTURE, including the no-verdicts CRITICAL_FAIL branch",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373319+00:00"
+    },
+    {
+      "id": "a9c342770ad5",
+      "type": "milestone",
+      "label": "milestone: generate_quality_report.py: render a distinct CAUTION block under the final verdict when the security axis hit an infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373356+00:00"
+    },
+    {
+      "id": "f5ec7a6f06ee",
+      "type": "milestone",
+      "label": "milestone: Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373391+00:00"
+    },
+    {
+      "id": "57d6b6d72657",
+      "type": "test",
+      "label": "test: Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373426+00:00"
+    },
+    {
+      "id": "b93aa9153be7",
+      "type": "commit",
+      "label": "commit: Commit: e5392ba",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373459+00:00"
+    },
+    {
+      "id": "8f0d460f7184",
+      "type": "outcome",
+      "label": "Outcome: success - Implement issue 2821 option c: distinct security-review-did-not-run annotation in the AI quality gate",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373493+00:00"
+    },
+    {
+      "id": "cacd29950384",
+      "type": "decision",
+      "label": "design: Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.349825+00:00"
+    },
+    {
+      "id": "98920abcfeba",
+      "type": "milestone",
+      "label": "milestone: Root-cause the Renovate/PR-wide ai-review block to the retired claude-opus-4.5 default model",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.349962+00:00"
+    },
+    {
+      "id": "b647453210a0",
+      "type": "milestone",
+      "label": "milestone: Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350056+00:00"
+    },
+    {
+      "id": "9e0e28724b34",
+      "type": "milestone",
+      "label": "milestone: Bump .github/agents copilot agent model claude-opus-4.5 -> claude-opus-4.6 across 18 files",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350146+00:00"
+    },
+    {
+      "id": "de3a96b598f3",
+      "type": "milestone",
+      "label": "milestone: Resolve pre-existing em-dashes in touched agent files to satisfy the dash-prohibition guard",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350235+00:00"
+    },
+    {
+      "id": "ee276df62c5b",
+      "type": "commit",
+      "label": "commit: Commit: 52c76a8c",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350323+00:00"
+    },
+    {
+      "id": "7b6e7a57e377",
+      "type": "outcome",
+      "label": "Outcome: success - unblock Renovate and all open PRs: retired claude-opus-4.5 default hard-fails ai-review; default to auto and reclassify retired-model errors as infra (Refs #2818)",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350413+00:00"
+    },
+    {
+      "id": "dfbd932789d7",
+      "type": "decision",
+      "label": "Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350838+00:00"
+    },
+    {
+      "id": "e161750067d4",
+      "type": "milestone",
+      "label": "Root-cause the Renovate/PR-wide ai-review block to the retired claude-opus-4.5 default model",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350957+00:00"
+    },
+    {
+      "id": "b895b21a3dc6",
+      "type": "milestone",
+      "label": "Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.351152+00:00"
+    },
+    {
+      "id": "9db0d42c6bb5",
+      "type": "milestone",
+      "label": "milestone: Assessed PR #2843 state.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351397+00:00"
+    },
+    {
+      "id": "7ec1ecd21f9f",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree outside shared root.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351518+00:00"
+    },
+    {
+      "id": "fcd9d3c18620",
+      "type": "milestone",
+      "label": "milestone: Ran generated artifact build.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351611+00:00"
+    },
+    {
+      "id": "2fdec6067b1f",
+      "type": "milestone",
+      "label": "milestone: Updated Serena memory for session protocol.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351702+00:00"
+    },
+    {
+      "id": "3422dfd1bf14",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR #2843 fix/cluster-vendor to merge",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351793+00:00"
+    },
+    {
+      "id": "47c59b451992",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree for PR #2853 branch fix/retire-count-claim-2842.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872526+00:00"
+    },
+    {
+      "id": "7bd124c68f5d",
+      "type": "milestone",
+      "label": "milestone: Verified zero unresolved review threads for PR #2853.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872714+00:00"
+    },
+    {
+      "id": "19e0514a20ce",
+      "type": "milestone",
+      "label": "milestone: Rebased branch onto origin/main and set both plugin manifests to 0.5.256.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872874+00:00"
+    },
+    {
+      "id": "27c6f4798199",
+      "type": "milestone",
+      "label": "milestone: Updated PR body to include Fixes #2842 and satisfy template sections without dash bytes.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873029+00:00"
+    },
+    {
+      "id": "1b1d8f9c73f4",
+      "type": "commit",
+      "label": "commit: Commit: a431df67c",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873181+00:00"
+    },
+    {
+      "id": "b6b5edd9c3ad",
+      "type": "milestone",
+      "label": "milestone: Fixed orphan-ref-validator type errors that blocked pre-push mypy.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873332+00:00"
+    },
+    {
+      "id": "a6a70ee894cb",
+      "type": "commit",
+      "label": "commit: Commit: ffec1840c",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873521+00:00"
+    },
+    {
+      "id": "d2cfdf687179",
+      "type": "commit",
+      "label": "commit: Commit: 55a536382",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873670+00:00"
+    },
+    {
+      "id": "f70e3924aa77",
+      "type": "milestone",
+      "label": "milestone: Fixed Copilot review: restored timezone.utc for Python 3.10 compatibility and suppressed UP017 at the two timestamp call sites.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873836+00:00"
+    },
+    {
+      "id": "5701699deae9",
+      "type": "commit",
+      "label": "commit: Commit: 19a1bac5b",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873995+00:00"
+    },
+    {
+      "id": "04fd4f042f5e",
+      "type": "milestone",
+      "label": "milestone: Committed Python 3.10 timezone fix and rebumped plugin manifests to 0.5.257.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874143+00:00"
+    },
+    {
+      "id": "bad540fb502e",
+      "type": "commit",
+      "label": "commit: Commit: fd55e44b6",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874285+00:00"
+    },
+    {
+      "id": "503d0d850bc1",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR 2853 to merge",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874436+00:00"
+    },
+    {
+      "id": "25d84d5d4f67",
+      "type": "milestone",
+      "label": "milestone: Added subprocess timeout + TimeoutExpired handling to set_issue_labels, get_issue_context, and set_issue_milestone gh calls.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
+      ],
+      "created": "2026-07-04T04:26:20.195600+00:00"
+    },
+    {
+      "id": "f439ec9b905b",
+      "type": "milestone",
+      "label": "milestone: Fixed pre-existing type debt on touched files (comprehension narrowing; dict signatures).",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
+      ],
+      "created": "2026-07-04T04:26:20.195663+00:00"
+    },
+    {
+      "id": "566a9d39293e",
+      "type": "milestone",
+      "label": "milestone: Regenerated copilot-cli skill twins via build_all.py; added tests/test_timeout_hardening_2811.py (7 tests).",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
+      ],
+      "created": "2026-07-04T04:26:20.195728+00:00"
+    },
+    {
+      "id": "614cc492dc0b",
+      "type": "milestone",
+      "label": "milestone: Verification: uv run pytest tests/test_timeout_hardening_2811.py => 7 passed; mypy => no issues.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
+      ],
+      "created": "2026-07-04T04:26:20.195776+00:00"
+    },
+    {
+      "id": "8ca7cb979664",
+      "type": "test",
+      "label": "test: Verification: uv run pytest tests/test_timeout_hardening_2811.py => 7 passed; mypy => no issues.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
+      ],
+      "created": "2026-07-04T04:26:20.195824+00:00"
+    },
+    {
+      "id": "ad58c694aac6",
+      "type": "commit",
+      "label": "commit: Commit: 49afc89",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
+      ],
+      "created": "2026-07-04T04:26:20.195871+00:00"
+    },
+    {
+      "id": "5126bbc67224",
+      "type": "commit",
+      "label": "commit: Commit: 7ca5c13",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
+      ],
+      "created": "2026-07-04T04:26:20.195919+00:00"
+    },
+    {
+      "id": "86a9c71ddd3f",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #2811 (PR-A): add subprocess timeouts to github-skill issue scripts (set_issue_labels, get_issue_context, set_issue_milestone) with copilot twins and regression tests. Remaining #2811 sites tracked for follow-up.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
+      ],
+      "created": "2026-07-04T04:26:20.195967+00:00"
+    },
+    {
+      "id": "fc05487923c7",
+      "type": "milestone",
+      "label": "milestone: Added gh timeouts with defined degradation to add_comment_reaction (per-item failure), set_item_milestone (exit 3), invoke_copilot_assignment (warn/exit 3); typed the files' pre-existing bare-dict annotations to dict[str, Any] (annotation-only, no cascade).",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.196662+00:00"
+    },
+    {
+      "id": "6aa18075f77b",
+      "type": "milestone",
+      "label": "milestone: merge-resolver _run_git: 60s timeout returning a synthetic exit-124 result so returncode-checking callers handle hangs; resolve_conflicts_runner rejects dash-leading refs (git refs cannot start with a dash; the triage plan's checkout -- suggestion was wrong because -- switches checkout to pathspec mode).",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.196717+00:00"
+    },
+    {
+      "id": "a43ebb1047f7",
+      "type": "milestone",
+      "label": "milestone: Wrapper timeouts with synthetic-124 pattern: invoke_batch_pr_review run_git/run_gh, install_git_hooks _run_git, invoke_session_start_gate run_git; worktree_identity git config timeout=10 (check-aware, loud expiry) synced to both lib mirrors.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.196764+00:00"
+    },
+    {
+      "id": "19071af20432",
+      "type": "milestone",
+      "label": "milestone: install_semgrep pip install timeout=300 (existing SubprocessError except covers expiry); invoke_security_retrospective gh --paginate timeout=120 plus two var annotations; homework_scanner per-create timeout=60 with error entry; validate_slash_command npx timeout=120 with non-blocking skip note.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.196812+00:00"
+    },
+    {
+      "id": "64a0193ccede",
+      "type": "milestone",
+      "label": "milestone: Deferred: three hook sites (observation_sync, adr_review_guard, session_initialization_enforcer) whose files carry the pre-existing bootstrap assignment/no-any-return mypy debt; same deferral precedent as the #2812 hook sites. Also deferred: homework_scanner search-before-create idempotency (resumability improvement beyond the timeout scope).",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.196859+00:00"
+    },
+    {
+      "id": "979d08ad841e",
+      "type": "milestone",
+      "label": "milestone: Verification: uv run pytest tests/skills/github tests/skills/merge-resolver 428 passed; tests/test_timeout_hardening_2811b.py 6 passed; mypy no issues in 12 source files.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.196907+00:00"
+    },
+    {
+      "id": "717ff653f622",
+      "type": "test",
+      "label": "test: Verification: uv run pytest tests/skills/github tests/skills/merge-resolver 428 passed; tests/test_timeout_hardening_2811b.py 6 passed; mypy no issues in 12 source files.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.196955+00:00"
+    },
+    {
+      "id": "644639eb8856",
+      "type": "commit",
+      "label": "commit: Commit: 05a16e6",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.197052+00:00"
+    },
+    {
+      "id": "50a96a8cbd97",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #2811 PR-B: subprocess timeouts for the remaining gh/git/npx/pip call sites (reactions, item milestone, copilot assignment, merge-resolver wrapper plus dash-ref guard, worktree identity, batch/install/gate wrappers, installers, security retrospective, homework scanner, slash-command lint). Hook sites deferred (pre-existing bootstrap type debt, same precedent as #2812).",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+      ],
+      "created": "2026-07-04T04:26:20.197099+00:00"
+    },
+    {
+      "id": "0867d602894a",
+      "type": "commit",
+      "label": "commit: Commit: 2342e77f",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-autofix-triage"
+      ],
+      "created": "2026-07-04T04:26:20.198854+00:00"
+    },
+    {
+      "id": "2bbb44c6dd6e",
+      "type": "outcome",
+      "label": "Outcome: success - pr-autofix triage of open PRs: resolve DIRTY conflict on PR #2793 (version-parity + causal-graph union), re-run transient AI-review infra failures on Renovate PRs",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-autofix-triage"
+      ],
+      "created": "2026-07-04T04:26:20.198917+00:00"
+    },
+    {
+      "id": "b4d789781137",
+      "type": "milestone",
+      "label": "milestone: Root-caused #2832: .githooks/pre-commit runs ruff check --fix on staged .py files but re-stages fixed files only in the verify-success branch; with pre-existing #2194 advisory findings the verify stays red, fixes stay unstaged, the commit records unfixed content, and the pre-push build_all --check staleness gate fails (observed twice: push11, push15 in session 2603)",
+      "episodes": [
+        "episode-2026-07-03-session-2604"
+      ],
+      "created": "2026-07-04T04:26:20.199640+00:00"
+    },
+    {
+      "id": "27923802cf58",
+      "type": "milestone",
+      "label": "milestone: Fix: hoisted the re-stage loop into the AUTOFIX block so mutated files are staged regardless of remaining advisory findings; verify branch now only reports",
+      "episodes": [
+        "episode-2026-07-03-session-2604"
+      ],
+      "created": "2026-07-04T04:26:20.199694+00:00"
+    },
+    {
+      "id": "da34c336a652",
+      "type": "milestone",
+      "label": "milestone: Added tests/test_pre_commit_ruff_restage_2832.py: 3 behavioral tests (advisory-findings-remain regression, verify-pass parity, AUTOFIX=0 negative) via bash fragment with stub ruff in a throwaway git repo, plus 1 structural test pinning re-stage ordering inside the real hook. uv run pytest: 4 passed",
+      "episodes": [
+        "episode-2026-07-03-session-2604"
+      ],
+      "created": "2026-07-04T04:26:20.199744+00:00"
+    },
+    {
+      "id": "b61f193889e9",
+      "type": "test",
+      "label": "test: Added tests/test_pre_commit_ruff_restage_2832.py: 3 behavioral tests (advisory-findings-remain regression, verify-pass parity, AUTOFIX=0 negative) via bash fragment with stub ruff in a throwaway git repo, plus 1 structural test pinning re-stage ordering inside the real hook. uv run pytest: 4 passed",
+      "episodes": [
+        "episode-2026-07-03-session-2604"
+      ],
+      "created": "2026-07-04T04:26:20.199790+00:00"
+    },
+    {
+      "id": "3275ba50f1b3",
+      "type": "commit",
+      "label": "commit: Commit: c380db3",
+      "episodes": [
+        "episode-2026-07-03-session-2604"
+      ],
+      "created": "2026-07-04T04:26:20.199836+00:00"
+    },
+    {
+      "id": "8fefd2e07318",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2832: pre-commit ruff autofix re-stage gap that trips the pre-push staleness gate",
+      "episodes": [
+        "episode-2026-07-03-session-2604"
+      ],
+      "created": "2026-07-04T04:26:20.199882+00:00"
+    },
+    {
+      "id": "6ca5ca3357f3",
+      "type": "milestone",
+      "label": "milestone: Assessed the current pull request state before editing",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204057+00:00"
+    },
+    {
+      "id": "e396ebe3e0bb",
+      "type": "milestone",
+      "label": "milestone: Changed only the ADR-077 lifecycle field",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204112+00:00"
+    },
+    {
+      "id": "2acfbffd6ad5",
+      "type": "milestone",
+      "label": "milestone: Validated the mechanical ADR lifecycle change",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204159+00:00"
+    },
+    {
+      "id": "0fde4d2412bf",
+      "type": "milestone",
+      "label": "milestone: Addressed three unresolved review threads",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204205+00:00"
+    },
+    {
+      "id": "4a84289f2490",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests after main advanced",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204254+00:00"
+    },
+    {
+      "id": "95118c2253a7",
+      "type": "commit",
+      "label": "commit: Commit: 5252a1624",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204302+00:00"
+    },
+    {
+      "id": "fad1009312e8",
+      "type": "milestone",
+      "label": "milestone: Resolved merge conflict with origin/main",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204350+00:00"
+    },
+    {
+      "id": "7d3af421ae4f",
+      "type": "commit",
+      "label": "commit: Commit: 63dda8fcf",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204396+00:00"
+    },
+    {
+      "id": "5208fbd8d10e",
+      "type": "outcome",
+      "label": "Outcome: success - Mark ADR-077 implemented after this branch added the mirror-obligation testing rule. Refs #2789.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-adr-077-implemented"
+      ],
+      "created": "2026-07-04T04:26:20.204443+00:00"
+    },
+    {
+      "id": "444a3e668198",
+      "type": "milestone",
+      "label": "milestone: Assessed PR #2836 state and enabled auto-merge after checks were green.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2836-babysitter"
+      ],
+      "created": "2026-07-04T04:26:20.204649+00:00"
+    },
+    {
+      "id": "4b7c75693cb7",
+      "type": "milestone",
+      "label": "milestone: Resolved stale merge drift against origin/main.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2836-babysitter"
+      ],
+      "created": "2026-07-04T04:26:20.204701+00:00"
+    },
+    {
+      "id": "b28a7aa58a3b",
+      "type": "milestone",
+      "label": "milestone: Validated the conflict resolution.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2836-babysitter"
+      ],
+      "created": "2026-07-04T04:26:20.204748+00:00"
+    },
+    {
+      "id": "e8bc1f0f91dc",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_generate_quality_report.py -x: 23 passed; byte check found zero conflict markers and zero prohibited dash bytes in tests/test_generate_quality_report.py.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2836-babysitter"
+      ],
+      "created": "2026-07-04T04:26:20.204794+00:00"
+    },
+    {
+      "id": "adb0a97314c1",
+      "type": "commit",
+      "label": "commit: Commit: d5c4d63a1",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2836-babysitter"
+      ],
+      "created": "2026-07-04T04:26:20.204842+00:00"
+    },
+    {
+      "id": "ae9e8d3832d0",
+      "type": "commit",
+      "label": "commit: Commit: c16297e77",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2836-babysitter"
+      ],
+      "created": "2026-07-04T04:26:20.204892+00:00"
+    },
+    {
+      "id": "86569b6f2355",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR #2836 to merged state by verifying checks, resolving merge drift, and preserving the security-axis annotation behavior.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2836-babysitter"
+      ],
+      "created": "2026-07-04T04:26:20.204939+00:00"
+    },
+    {
+      "id": "f029697047f0",
+      "type": "milestone",
+      "label": "milestone: Fixed PR #2854 metadata validation failure.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205124+00:00"
+    },
+    {
+      "id": "55fd60fd493e",
+      "type": "milestone",
+      "label": "milestone: Addressed Gemini unresolved review thread on tempfile descriptor handling.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205174+00:00"
+    },
+    {
+      "id": "7599529f79cf",
+      "type": "milestone",
+      "label": "milestone: Validated the changed memory sync queue path.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205223+00:00"
+    },
+    {
+      "id": "dc6fbe5f79d4",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_memory_sync/test_cli.py -q returned 18 passed in 0.32s; python3 -m py_compile passed for scripts/memory_sync/cli.py and tests/test_memory_sync/test_cli.py.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205271+00:00"
+    },
+    {
+      "id": "1f04687233ee",
+      "type": "milestone",
+      "label": "milestone: Fixed pre-push mypy blockers in changed push range.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205318+00:00"
+    },
+    {
+      "id": "83584a717aba",
+      "type": "milestone",
+      "label": "milestone: Resolved plugin copy drift caused by github_core output helper change.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205367+00:00"
+    },
+    {
+      "id": "83a67fc77efb",
+      "type": "milestone",
+      "label": "milestone: Bumped Copilot plugin manifest after generated Copilot helper changed.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205416+00:00"
+    },
+    {
+      "id": "346ccf7ce9be",
+      "type": "milestone",
+      "label": "milestone: Addressed post-push Copilot review threads.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205476+00:00"
+    },
+    {
+      "id": "73071aab616f",
+      "type": "commit",
+      "label": "commit: Commit: ba023bf21",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205525+00:00"
+    },
+    {
+      "id": "3d86f44b0d94",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR #2854 to merge by fixing validation metadata, addressing unresolved review feedback, and enabling merge readiness.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2854-babysit"
+      ],
+      "created": "2026-07-04T04:26:20.205576+00:00"
+    },
+    {
+      "id": "55139f66ea7c",
+      "type": "milestone",
+      "label": "milestone: Assessed PR 2848 block state",
+      "episodes": [
+        "episode-2026-07-03-session-2607"
+      ],
+      "created": "2026-07-04T04:26:20.206652+00:00"
+    },
+    {
+      "id": "388ca4bbdd94",
+      "type": "milestone",
+      "label": "milestone: Identified unresolved review threads as the blocker",
+      "episodes": [
+        "episode-2026-07-03-session-2607"
+      ],
+      "created": "2026-07-04T04:26:20.206707+00:00"
+    },
+    {
+      "id": "601df4180acc",
+      "type": "milestone",
+      "label": "milestone: Verified review feedback against current source",
+      "episodes": [
+        "episode-2026-07-03-session-2607"
+      ],
+      "created": "2026-07-04T04:26:20.206756+00:00"
+    },
+    {
+      "id": "f8623eee157e",
+      "type": "milestone",
+      "label": "milestone: Fixed test subprocess and environment isolation",
+      "episodes": [
+        "episode-2026-07-03-session-2607"
+      ],
+      "created": "2026-07-04T04:26:20.206805+00:00"
+    },
+    {
+      "id": "1638a0803648",
+      "type": "outcome",
+      "label": "Outcome: success - Clear PR 2848 review blockers and merge issue 2827 fix",
+      "episodes": [
+        "episode-2026-07-03-session-2607"
+      ],
+      "created": "2026-07-04T04:26:20.206854+00:00"
+    },
+    {
+      "id": "4824bd6d745f",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main to clear PR merge conflicts and replayed this PR episode into the causal graph.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:26:20.208181+00:00"
+    },
+    {
+      "id": "a29fe17eaaa2",
+      "type": "commit",
+      "label": "commit: Commit: f3cbb339ae",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:26:20.208235+00:00"
+    },
+    {
+      "id": "1c8ca2d22dce",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main and rebumped both plugin manifests above main after the plugin race advanced again.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:26:20.208285+00:00"
+    },
+    {
+      "id": "45397c0914d9",
+      "type": "milestone",
+      "label": "milestone: Committed latest origin/main merge and plugin rebump for PR 2853.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:26:20.208330+00:00"
+    },
+    {
+      "id": "1345e0394700",
+      "type": "commit",
+      "label": "commit: Commit: 7104d81cde",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:26:20.208377+00:00"
+    },
+    {
+      "id": "daee145e7a73",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree for PR #2850 and assessed failing checks.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.211644+00:00"
+    },
+    {
+      "id": "28c3cc1cd7ef",
+      "type": "milestone",
+      "label": "milestone: Rebased onto origin/main, resolved milestone setter conflicts, and kept timeout behavior from main.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.211701+00:00"
+    },
+    {
+      "id": "994f0d44a5bf",
+      "type": "milestone",
+      "label": "milestone: Fixed milestone exit codes, failed-query behavior, related tests, and dispatcher project-dir test isolation.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.211751+00:00"
+    },
+    {
+      "id": "d3d09b862026",
+      "type": "milestone",
+      "label": "milestone: Updated PR body to include Fixes #2847 and template sections.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.211799+00:00"
+    },
+    {
+      "id": "611f7eb45fac",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests to 0.5.256 and verified targeted pytest plus scoped ruff.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.211855+00:00"
+    },
+    {
+      "id": "59f5de8d322b",
+      "type": "commit",
+      "label": "commit: Commit: f1f33e3f3",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.211905+00:00"
+    },
+    {
+      "id": "1ba99a69ab2f",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests to 0.5.258 and verified targeted pytest plus scoped ruff.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.211955+00:00"
+    },
+    {
+      "id": "17be96c7485e",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests to 0.5.259 and verified targeted pytest plus scoped ruff.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.212009+00:00"
+    },
+    {
+      "id": "6bb1b2ffce86",
+      "type": "milestone",
+      "label": "milestone: Pushed PR branch after full pre-push validation passed.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.212071+00:00"
+    },
+    {
+      "id": "f839dc67f71d",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved Copilot review threads after verifying ADR-035 header text and dash bytes.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.212121+00:00"
+    },
+    {
+      "id": "76c99d297f65",
+      "type": "milestone",
+      "label": "milestone: Updated PR body references so Validate PR accepted contextual reference files.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.212170+00:00"
+    },
+    {
+      "id": "ee5b30c46a73",
+      "type": "milestone",
+      "label": "milestone: Fixed follow-up review threads by renaming timeout tests, moving no-force conflict check before milestone listing, and correcting session artifacts.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.212219+00:00"
+    },
+    {
+      "id": "6cfa98ccfaa4",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main, resolved generated causal graph and plugin manifest conflicts, and kept plugin manifests at 0.5.259.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.212269+00:00"
+    },
+    {
+      "id": "3392bb565b09",
+      "type": "commit",
+      "label": "commit: Commit: c015edc946",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.212318+00:00"
+    },
+    {
+      "id": "d3e34f57b4f2",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR 2850 milestone exit codes to merge",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:20.212366+00:00"
+    },
+    {
+      "id": "67c2a01e1050",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree for PR 2851 branch fix/adr-frontmatter-2845",
+      "episodes": [
+        "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
+      ],
+      "created": "2026-07-04T04:26:20.212583+00:00"
+    },
+    {
+      "id": "c87ef73b94c1",
+      "type": "milestone",
+      "label": "milestone: Assessed PR 2851 checks and review threads",
+      "episodes": [
+        "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
+      ],
+      "created": "2026-07-04T04:26:20.212635+00:00"
+    },
+    {
+      "id": "403a4a1750c4",
+      "type": "milestone",
+      "label": "milestone: Rebased branch onto origin/main and bumped plugin manifests",
+      "episodes": [
+        "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
+      ],
+      "created": "2026-07-04T04:26:20.212682+00:00"
+    },
+    {
+      "id": "b456d2e473a9",
+      "type": "milestone",
+      "label": "milestone: Fixed security review finding for ADR frontmatter file reads",
+      "episodes": [
+        "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
+      ],
+      "created": "2026-07-04T04:26:20.212730+00:00"
+    },
+    {
+      "id": "e6f78c2cad3f",
+      "type": "milestone",
+      "label": "milestone: Ran targeted validation",
+      "episodes": [
+        "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
+      ],
+      "created": "2026-07-04T04:26:20.212806+00:00"
+    },
+    {
+      "id": "dea065d2dfcf",
+      "type": "commit",
+      "label": "commit: Commit: cd40d4712",
+      "episodes": [
+        "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
+      ],
+      "created": "2026-07-04T04:26:20.212855+00:00"
+    },
+    {
+      "id": "1aa1b44e5b10",
+      "type": "outcome",
+      "label": "Outcome: success - Work on adr frontmatter 2845",
+      "episodes": [
+        "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
+      ],
+      "created": "2026-07-04T04:26:20.212902+00:00"
+    },
+    {
+      "id": "c04700343933",
+      "type": "milestone",
+      "label": "milestone: Aligned episode commit metrics after Copilot review thread verified two commit events.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:37.493870+00:00"
+    },
+    {
+      "id": "fca6c48c6968",
+      "type": "commit",
+      "label": "commit: Commit: f8f6c30142",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes"
+      ],
+      "created": "2026-07-04T04:26:37.493928+00:00"
+    },
+    {
+      "id": "be1e71a8f765",
+      "type": "milestone",
+      "label": "milestone: invoke_precommit_security.py: added timeouts to the gh --version, code-scanning gh api, Get-Module and Install-Module calls; a TimeoutExpired now degrades PSScriptAnalyzer to unavailable; the code-scanning timeout is caught by the existing SubprocessError handler and skips.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.902803+00:00"
+    },
+    {
+      "id": "67b9cfd93d39",
+      "type": "milestone",
+      "label": "milestone: invoke_precommit_security.py: the discarded _stage_security_report return is now checked; a staging failure fails the run with exit 1 instead of passing without the required report.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.903016+00:00"
+    },
+    {
+      "id": "3d68ef24d9bb",
+      "type": "milestone",
+      "label": "milestone: run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that logs a scan-failure and returns no findings.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.903218+00:00"
+    },
+    {
+      "id": "6cc2c28c5d6d",
+      "type": "milestone",
+      "label": "milestone: mcp_client.py: added a win32 reader-thread read timeout so os.read cannot block forever on Windows, and an overall monotonic deadline in _read_response against notification/id-mismatch floods.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.903407+00:00"
+    },
+    {
+      "id": "d3e739e2ddf6",
+      "type": "milestone",
+      "label": "milestone: Verification: uv run pytest tests/test_security_gate_timeouts_2810.py tests/test_memory_sync/test_mcp_client.py => 15 passed; mypy => no issues on the three scripts.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.903671+00:00"
+    },
+    {
+      "id": "661a36542a42",
+      "type": "test",
+      "label": "test: Verification: uv run pytest tests/test_security_gate_timeouts_2810.py tests/test_memory_sync/test_mcp_client.py => 15 passed; mypy => no issues on the three scripts.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.903865+00:00"
+    },
+    {
+      "id": "219019c219b4",
+      "type": "milestone",
+      "label": "milestone: run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that returns a blocking ERROR semgrep-scan-failure finding so a hung scan cannot silently pass the gate.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.904216+00:00"
+    },
+    {
+      "id": "00e3866ddcc1",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #2810: subprocess-timeout and staging-verification hardening for the pre-commit security gate (invoke_precommit_security.py), semgrep runner (run_semgrep.py), and MCP client (mcp_client.py including a win32 read timeout). 6 findings fixed with 4 tests.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.904402+00:00"
+    },
+    {
+      "id": "8c70ce923f88",
+      "type": "milestone",
+      "label": "milestone: Assessed PR #2830 state.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.916564+00:00"
+    },
+    {
+      "id": "9e9f7568f68b",
+      "type": "milestone",
+      "label": "milestone: Resolved origin/main merge conflicts.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.916764+00:00"
+    },
+    {
+      "id": "5a82a9e08509",
+      "type": "milestone",
+      "label": "milestone: Updated semgrep tests after main conflict.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.916945+00:00"
+    },
+    {
+      "id": "4d118c833607",
+      "type": "milestone",
+      "label": "milestone: Validated changed security paths.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.917136+00:00"
+    },
+    {
+      "id": "d7064d5cba17",
+      "type": "commit",
+      "label": "commit: Commit: e332c7cf3f",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.917317+00:00"
+    },
+    {
+      "id": "3bd9fb7e86c9",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after thread fixes.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.918732+00:00"
+    },
+    {
+      "id": "156534c3a941",
+      "type": "commit",
+      "label": "commit: Commit: af91793361",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.918938+00:00"
+    },
+    {
+      "id": "f539509514dc",
+      "type": "milestone",
+      "label": "milestone: Fixed semgrep diagnostic review threads.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.919126+00:00"
+    },
+    {
+      "id": "d97d52f2b486",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR #2830 to merge by resolving origin/main conflicts in the security gate timeout changes.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.919316+00:00"
+    },
+    {
+      "id": "861771ff2c13",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after semgrep thread fixes.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:47:11.157997+00:00"
+    },
+    {
+      "id": "b0942c95cc30",
+      "type": "commit",
+      "label": "commit: Commit: 72247a7ae2",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:47:11.158192+00:00"
+    },
+    {
+      "id": "e7f0acd99198",
+      "type": "commit",
+      "label": "commit: Commit: 2ee3e7fa1c",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T05:13:36.638984+00:00"
+    },
+    {
+      "id": "9554b922cab2",
+      "type": "milestone",
+      "label": "milestone: Fixed PSScriptAnalyzer path injection review thread.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T05:13:36.639043+00:00"
+    },
+    {
+      "id": "11d515d09565",
+      "type": "milestone",
+      "label": "milestone: Created dedicated PR worktree and assessed failing checks",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.932815+00:00"
+    },
+    {
+      "id": "07c74bec91e4",
+      "type": "milestone",
+      "label": "milestone: Rebased fix/cluster-secgate onto origin/main and resolved conflicts",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.933017+00:00"
+    },
+    {
+      "id": "66b4d42ec94a",
+      "type": "milestone",
+      "label": "milestone: Fixed Python test and security-gate defects",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.933193+00:00"
+    },
+    {
+      "id": "78989fcf0afb",
+      "type": "test",
+      "label": "test: Full suite passed: uv run pytest tests/ -x reported 13431 passed, 20 skipped, 45 xfailed before final session-log commit.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.933363+00:00"
+    },
+    {
+      "id": "02340370de8d",
+      "type": "milestone",
+      "label": "milestone: Regenerated generated artifacts and bumped plugin manifests",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.933546+00:00"
+    },
+    {
+      "id": "4716d04f381a",
+      "type": "milestone",
+      "label": "milestone: Updated PR body and resolved review feedback with fixes",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.933716+00:00"
+    },
+    {
+      "id": "7fb53d21e130",
+      "type": "milestone",
+      "label": "milestone: Stabilized LSP read-guard tests under context-mode environment variables",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.933885+00:00"
+    },
+    {
+      "id": "920b9f7d647a",
+      "type": "test",
+      "label": "test: tests/hooks/test_invoke_lsp_read_guard*.py now clear TMPDIR and pin CLAUDE_PROJECT_DIR in autouse fixtures. Targeted LSP guard tests passed: 67 passed.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.934055+00:00"
+    },
+    {
+      "id": "8af30c43be3c",
+      "type": "milestone",
+      "label": "milestone: Ran final validation before push",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.934238+00:00"
+    },
+    {
+      "id": "90de1649349d",
+      "type": "test",
+      "label": "test: uv run pytest tests/ -x passed: 13299 passed, 20 deselected-by-marker, 45 expected failures, 3 warnings. Scoped uv run ruff check on 31 PR Python files passed. Full repo ruff still has unrelated baseline violations.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.934408+00:00"
+    },
+    {
+      "id": "44e4cf48cb60",
+      "type": "commit",
+      "label": "commit: Commit: f7c1b1f8ef2d",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.934591+00:00"
+    },
+    {
+      "id": "11e25a7b5501",
+      "type": "milestone",
+      "label": "milestone: Rebased onto origin/main and rebumped plugin manifests after version race advanced",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.934763+00:00"
+    },
+    {
+      "id": "79c665a4e44f",
+      "type": "milestone",
+      "label": "milestone: Aligned aggregate quality verdict test with fail-closed security infra policy",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.934937+00:00"
+    },
+    {
+      "id": "b2520d5aa6a5",
+      "type": "test",
+      "label": "test: tests/test_aggregate_quality_verdicts.py now expects DID_NOT_RUN when the security review hits infrastructure failure without code-quality findings. Targeted aggregate tests passed: 25 passed.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.935112+00:00"
+    },
+    {
+      "id": "b353aa9e07b9",
+      "type": "milestone",
+      "label": "milestone: Rebased onto latest origin/main and rebumped plugin manifests again",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.935284+00:00"
+    },
+    {
+      "id": "77c6f9b855b0",
+      "type": "commit",
+      "label": "commit: Commit: 50a2e768074a",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.935456+00:00"
+    },
+    {
+      "id": "a98cd2c73423",
+      "type": "milestone",
+      "label": "milestone: Rebased onto latest origin/main and rebumped plugin manifests to stay ahead of main",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.935637+00:00"
+    },
+    {
+      "id": "ec1a2125c5b2",
+      "type": "commit",
+      "label": "commit: Commit: 4c0e1881b0c0",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.935808+00:00"
+    },
+    {
+      "id": "c46dcced6c7a",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR #2846 fix/cluster-secgate to merged. Work only in dedicated worktree.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2846-babysit"
+      ],
+      "created": "2026-07-04T06:31:50.935984+00:00"
+    },
+    {
+      "id": "a69bd23ce354",
+      "type": "milestone",
+      "label": "milestone: Assessed PR 2823 state, checks, and review threads.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.942130+00:00"
+    },
+    {
+      "id": "eb15c9ef2096",
+      "type": "milestone",
+      "label": "milestone: Enabled auto-merge for PR 2823.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.942311+00:00"
+    },
+    {
+      "id": "62ce05422411",
+      "type": "milestone",
+      "label": "milestone: Updated PR branch from origin/main in a dedicated worktree.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.942488+00:00"
+    },
+    {
+      "id": "920238e8f5e4",
+      "type": "milestone",
+      "label": "milestone: Logged session memory for the merge blocker and resolution.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.942664+00:00"
+    },
+    {
+      "id": "32935c75a6fb",
+      "type": "commit",
+      "label": "commit: Commit: c789a519f",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.942829+00:00"
+    },
+    {
+      "id": "ebeec3d0e49d",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after PR 2823 remained dirty.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.942994+00:00"
+    },
+    {
+      "id": "cfceb0b6c9d2",
+      "type": "milestone",
+      "label": "milestone: Validated latest merge resolution before commit.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.943159+00:00"
+    },
+    {
+      "id": "640336ed67b8",
+      "type": "commit",
+      "label": "commit: Commit: 0e91286c7",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.943326+00:00"
+    },
+    {
+      "id": "6b2474125707",
+      "type": "milestone",
+      "label": "milestone: Verified and fixed two current Copilot review findings after push.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.943502+00:00"
+    },
+    {
+      "id": "b7d9ed6c2953",
+      "type": "milestone",
+      "label": "milestone: Validated PR review fixes locally.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.943670+00:00"
+    },
+    {
+      "id": "ea6fcf601d4a",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_memory_sync/test_cli.py tests/test_analyze_pr_failure.py -q passed: 69 passed. uv run ruff check on changed files passed. uv run mypy scripts/memory_sync/cli.py scripts/analyze_pr_failure.py passed.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.943838+00:00"
+    },
+    {
+      "id": "196852fe8add",
+      "type": "milestone",
+      "label": "milestone: Resolved latest origin/main merge conflicts for PR 2823.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.944005+00:00"
+    },
+    {
+      "id": "668b34c19ad6",
+      "type": "milestone",
+      "label": "milestone: Validated the latest merge resolution locally.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.944172+00:00"
+    },
+    {
+      "id": "ede7ba1542ef",
+      "type": "test",
+      "label": "test: python3 build/scripts/build_all.py --check passed. uv run pytest tests/test_memory_sync/test_cli.py tests/test_analyze_pr_failure.py -q passed: 71 passed. uv run python scripts/validate_session_json.py .agents/sessions/2026-07-04-session-2606-babysit-2823-merge.json passed.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.944340+00:00"
+    },
+    {
+      "id": "6da16a913eb6",
+      "type": "milestone",
+      "label": "milestone: Re-bumped plugin manifests after pre-push detected stale version lineage.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.944523+00:00"
+    },
+    {
+      "id": "df75d2ff7ebd",
+      "type": "milestone",
+      "label": "milestone: Verified and fixed the remaining current Copilot review threads.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.944689+00:00"
+    },
+    {
+      "id": "66a66db3ca98",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after PR 2823 became dirty again.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.944855+00:00"
+    },
+    {
+      "id": "f5f0b196789d",
+      "type": "milestone",
+      "label": "milestone: Fixed two new Copilot review comments after latest bot scan.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.945022+00:00"
+    },
+    {
+      "id": "79287b3368e2",
+      "type": "test",
+      "label": "test: Updated tests/test_atomic_writes_2812.py section header to match update_reviewer_signal_stats helpers and added the missing mock_stdin Callable annotation in tests/hooks/test_auto_approval.py. Targeted tests passed: 63 passed. Ruff passed on both files.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.945190+00:00"
+    },
+    {
+      "id": "c92d8bc6a0f0",
+      "type": "milestone",
+      "label": "milestone: Re-bumped plugin manifests after main advanced to the same version.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.945356+00:00"
+    },
+    {
+      "id": "6b45d6b911b3",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR 2823 to merge",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2823-merge"
+      ],
+      "created": "2026-07-04T06:31:50.945536+00:00"
+    },
+    {
+      "id": "94599aa2b1fc",
+      "type": "decision",
+      "label": "recovery: Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.946046+00:00"
+    },
+    {
+      "id": "ded5a5d58d21",
+      "type": "milestone",
+      "label": "milestone: Fixed seven unresolved review thread findings in exec portability validator.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.946814+00:00"
+    },
+    {
+      "id": "eefb2d973ddf",
+      "type": "milestone",
+      "label": "milestone: Resolved seven PR #2843 review threads.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.946994+00:00"
+    },
+    {
+      "id": "855e49ab5a52",
+      "type": "milestone",
+      "label": "milestone: Ran pre-PR validation.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.947172+00:00"
+    },
+    {
+      "id": "017e4ca2011b",
+      "type": "milestone",
+      "label": "milestone: Committed plugin version bump.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.947356+00:00"
+    },
+    {
+      "id": "64a0ca97fad8",
+      "type": "commit",
+      "label": "commit: Commit: e12e3214821b0fe4544f0f896b117e01914a57c6",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.947541+00:00"
+    },
+    {
+      "id": "38fa22bd604c",
+      "type": "milestone",
+      "label": "milestone: Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.947717+00:00"
+    },
+    {
+      "id": "30bea2e943b8",
+      "type": "milestone",
+      "label": "milestone: Validated timeout fixes before final push attempt.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.947896+00:00"
+    },
+    {
+      "id": "07a9883ea54a",
+      "type": "commit",
+      "label": "commit: Commit: 7a3598e1e250feff924999d8cdcfacc2cfa16e31",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.948072+00:00"
+    },
+    {
+      "id": "abe109f6fc84",
+      "type": "milestone",
+      "label": "milestone: Synchronized plugin library mirrors after pre-push failure.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.948252+00:00"
+    },
+    {
+      "id": "e2d10b968783",
+      "type": "milestone",
+      "label": "milestone: Validated full Python suite after sync fix.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.948433+00:00"
+    },
+    {
+      "id": "73067467d6f7",
+      "type": "commit",
+      "label": "commit: Commit: 28fd01214d701ac5b59923adda3edd6a64021862",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.948622+00:00"
+    },
+    {
+      "id": "04e393c6f92f",
+      "type": "milestone",
+      "label": "milestone: Merged origin/fix-cluster-vendor ancestry after remote branch advanced.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.948801+00:00"
+    },
+    {
+      "id": "d0e6f1c8b150",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main after GitHub marked PR dirty.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.948978+00:00"
+    },
+    {
+      "id": "b0fb36ec0c55",
+      "type": "milestone",
+      "label": "milestone: Validated PR branch after push and body update.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.949155+00:00"
+    },
+    {
+      "id": "302dc3f437cc",
+      "type": "commit",
+      "label": "commit: Commit: ee02e065df6d2887dfef078997875e5fc1e537ad",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.949333+00:00"
+    },
+    {
+      "id": "bdb9e8aaeee6",
+      "type": "milestone",
+      "label": "milestone: Fixed completion gate config path review thread.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.949521+00:00"
+    },
+    {
+      "id": "267baff14c1f",
+      "type": "milestone",
+      "label": "milestone: Rebumped plugin manifests after origin main advanced.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.949704+00:00"
+    },
+    {
+      "id": "3d2ec8e1934e",
+      "type": "commit",
+      "label": "commit: Commit: d4dfaccd69dca48dd9ac63a0bb025c3ffaaf4687",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.949885+00:00"
+    },
+    {
+      "id": "20df8eefadc3",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after PR became conflicting.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.950064+00:00"
+    },
+    {
+      "id": "b8d7e69261a7",
+      "type": "milestone",
+      "label": "milestone: Fixed Copilot thread on ambiguous SKILL.md precedent paths.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.950245+00:00"
+    },
+    {
+      "id": "b109b5e3e292",
+      "type": "milestone",
+      "label": "milestone: Rebumped plugin manifests after origin/main advanced to 0.5.260.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.950434+00:00"
+    },
+    {
+      "id": "b665730b4478",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main f99ffc9fb6 after PR became dirty again.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.950623+00:00"
+    },
+    {
+      "id": "c8046ca4fd83",
+      "type": "decision",
+      "label": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.951526+00:00"
+    },
+    {
+      "id": "890ad3ba78e1",
+      "type": "milestone",
+      "label": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.951715+00:00"
+    },
+    {
+      "id": "184e28bd3bfa",
+      "type": "milestone",
+      "label": "Validated timeout fixes before final push attempt.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T06:31:50.952091+00:00"
+    },
+    {
+      "id": "f7fcd077518e",
+      "type": "milestone",
+      "label": "milestone: Assessed PR #2852 checks and fetched failed CodeQL and Python test evidence. CodeQL flagged clear-text output of missing secret names in workflow local testing",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.955682+00:00"
+    },
+    {
+      "id": "2aea52f845d2",
+      "type": "milestone",
+      "label": "milestone: Fixed workflow local test secret handling: redacted missing secret names from output, normalized secret names case-insensitively, and treated GITHUB_TOKEN as built-in for local act runs",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.955870+00:00"
+    },
+    {
+      "id": "3b01709800a5",
+      "type": "milestone",
+      "label": "milestone: Stabilized failing tests by isolating CLAUDE_PROJECT_DIR leakage, setting the dispatcher project-repo override, and preserving LSP gating when a repository lives under TMPDIR",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.956047+00:00"
+    },
+    {
+      "id": "c50379c211fd",
+      "type": "milestone",
+      "label": "milestone: Tightened validation repo-root detection so parent directories with .claude/skills do not masquerade as this repository",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.956224+00:00"
+    },
+    {
+      "id": "1057e33314ae",
+      "type": "milestone",
+      "label": "milestone: Verified full pytest and changed-file ruff. Full pytest reported 13427 passed, 20 skipped, 45 xfailed",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.956404+00:00"
+    },
+    {
+      "id": "7d5282f61122",
+      "type": "test",
+      "label": "test: Verified full pytest and changed-file ruff. Full pytest reported 13427 passed, 20 skipped, 45 xfailed",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.956594+00:00"
+    },
+    {
+      "id": "487adbb18f0c",
+      "type": "commit",
+      "label": "commit: Commit: 053e1ee109",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.956775+00:00"
+    },
+    {
+      "id": "a702adb1e5d1",
+      "type": "milestone",
+      "label": "milestone: Verified full pytest and changed-file ruff. Full pytest reported 13427 passed, 20 skip, 45 xfail",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.956955+00:00"
+    },
+    {
+      "id": "1bf8a6f9f521",
+      "type": "test",
+      "label": "test: Verified full pytest and changed-file ruff. Full pytest reported 13427 passed, 20 skip, 45 xfail",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.957134+00:00"
+    },
+    {
+      "id": "9b213f182c42",
+      "type": "commit",
+      "label": "commit: Commit: feeee2900e",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.957314+00:00"
+    },
+    {
+      "id": "8b19d3b1d940",
+      "type": "milestone",
+      "label": "milestone: Fixed review-thread findings: empty and quoted-empty local secret values no longer count as available, and pre-push reads structured secret_skipped JSON instead of grepping text",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.957504+00:00"
+    },
+    {
+      "id": "06ec013adf41",
+      "type": "milestone",
+      "label": "milestone: Fixed dispatcher artifact test to exercise a deterministic fail-closed branch-protection path after the current branch became safe to push",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.957682+00:00"
+    },
+    {
+      "id": "6f635e36d78d",
+      "type": "milestone",
+      "label": "milestone: Verified full pytest: 13472 passed, 20 skipped, 45 xfailed, exit 0; changed-file ruff and bash syntax passed",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.957860+00:00"
+    },
+    {
+      "id": "11478c293d6c",
+      "type": "test",
+      "label": "test: Verified full pytest: 13472 passed, 20 skipped, 45 xfailed, exit 0; changed-file ruff and bash syntax passed",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.958042+00:00"
+    },
+    {
+      "id": "8720f5c9d752",
+      "type": "milestone",
+      "label": "milestone: Observed repository-wide uv run ruff check . output with 699 baseline findings outside PR #2852 scope; used changed-file ruff for scoped PR validation",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.958219+00:00"
+    },
+    {
+      "id": "b9671791c7d1",
+      "type": "milestone",
+      "label": "milestone: Committed final review-thread fixes as fca68ca364",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.958403+00:00"
+    },
+    {
+      "id": "9af49683af2e",
+      "type": "commit",
+      "label": "commit: Commit: fca68ca364",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.958594+00:00"
+    },
+    {
+      "id": "41861230dd1c",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR #2852 for issue #2841 to merge by fixing genuine CodeQL, Python test, and review-thread defects",
+      "episodes": [
+        "episode-2026-07-04-session-2606-pr-2852-workflow-local-test-secrets"
+      ],
+      "created": "2026-07-04T06:31:50.958777+00:00"
+    },
+    {
+      "id": "f7a0f9c4dca8",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree /home/richard/src/GitHub/rjmurillo/ai-agents-pr-2844 for PR 2844.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.960902+00:00"
+    },
+    {
+      "id": "11a26e1c9c31",
+      "type": "milestone",
+      "label": "milestone: Rebased fix/cluster-prompts onto origin/main and resolved ADR skill conflicts by preserving broader trigger coverage.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.961091+00:00"
+    },
+    {
+      "id": "b017442a633c",
+      "type": "milestone",
+      "label": "milestone: Ran python3 build/scripts/build_all.py; regenerated docs/agent-catalog.md.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.961271+00:00"
+    },
+    {
+      "id": "4284ebcd996f",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests to one patch above origin/main.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.961453+00:00"
+    },
+    {
+      "id": "feff523d3f51",
+      "type": "milestone",
+      "label": "milestone: Resolved two Gemini review threads after verifying generated mirrors were regenerated from canonical sources.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.961644+00:00"
+    },
+    {
+      "id": "0a7bac3c7ac4",
+      "type": "milestone",
+      "label": "milestone: Created merge commit fd7bd9f62 so the PR branch can push without force.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.961825+00:00"
+    },
+    {
+      "id": "dfe6f78b6605",
+      "type": "milestone",
+      "label": "milestone: Committed plugin version bump 242ead05 and verified plugin-version-bump and build_all checks pass locally.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.962005+00:00"
+    },
+    {
+      "id": "d2a558d10465",
+      "type": "commit",
+      "label": "commit: Commit: 242ead05",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.962185+00:00"
+    },
+    {
+      "id": "110eee501c67",
+      "type": "milestone",
+      "label": "milestone: First push attempt failed because pre-push pytest found ADR change detection tests needed updated mocks and portability-safe fixtures.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.962372+00:00"
+    },
+    {
+      "id": "5b75583758f9",
+      "type": "milestone",
+      "label": "milestone: Fixed ADR change detection tests, regenerated the Copilot mirror, and verified targeted pytest plus build_all --check.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.962569+00:00"
+    },
+    {
+      "id": "7d0be160eb01",
+      "type": "commit",
+      "label": "commit: Commit: 18e8269aa",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.962751+00:00"
+    },
+    {
+      "id": "afb522e2ee42",
+      "type": "milestone",
+      "label": "milestone: Pushed fix/cluster-prompts; pre-push passed with Python tests, build_all --check, and plugin-version-bump.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.962932+00:00"
+    },
+    {
+      "id": "ed94cf185dd4",
+      "type": "milestone",
+      "label": "milestone: Merge readiness reported GitHub conflict state after main advanced.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.963115+00:00"
+    },
+    {
+      "id": "703a67f54ff7",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main, resolved generated docs/agent-catalog.md from regenerated output, and bumped plugin manifests to 0.5.257 and 0.3.31.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.963297+00:00"
+    },
+    {
+      "id": "2d3699e5d2a0",
+      "type": "commit",
+      "label": "commit: Commit: ecaa002a",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.963488+00:00"
+    },
+    {
+      "id": "ae42789b76c1",
+      "type": "milestone",
+      "label": "milestone: Fixed five Copilot review threads by aligning ADR trigger tables and making adr-review detector examples skill-relative.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.963671+00:00"
+    },
+    {
+      "id": "63b63a4fbe61",
+      "type": "milestone",
+      "label": "milestone: Committed ADR review-thread fixes in 9a58e35ff8 after validating byte-level dash counts, targeted ADR tests, and plugin-version-bump.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.963854+00:00"
+    },
+    {
+      "id": "c626d3abe646",
+      "type": "commit",
+      "label": "commit: Commit: 9a58e35ff8",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.964039+00:00"
+    },
+    {
+      "id": "a8da8706d3bd",
+      "type": "milestone",
+      "label": "milestone: Fixed Validate Generated Files install-parity failure by adding the critic and implementer prompt changes to .claude and .github install siblings.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.964222+00:00"
+    },
+    {
+      "id": "aaeaa0cddf82",
+      "type": "commit",
+      "label": "commit: Commit: 192d0537",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.964401+00:00"
+    },
+    {
+      "id": "d0cef8068d5b",
+      "type": "milestone",
+      "label": "milestone: Fetched unresolved PR 2844 review threads and verified five open Copilot comments about detector paths and stale ADR reference locations.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.964576+00:00"
+    },
+    {
+      "id": "759f2f9519da",
+      "type": "milestone",
+      "label": "milestone: Updated adr-review detector documentation to use repo-root runnable script paths for Claude and Copilot CLI, refreshed prior ADR reference lists, and regenerated mirrors.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.964745+00:00"
+    },
+    {
+      "id": "2572f192b0b4",
+      "type": "milestone",
+      "label": "milestone: Committed ADR detector documentation fix in 8e7537a347 after build_all --check, targeted ADR tests, plugin-version-bump, detector smoke runs, and dash byte checks passed.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.964917+00:00"
+    },
+    {
+      "id": "709a5d075581",
+      "type": "commit",
+      "label": "commit: Commit: 8e7537a347",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.965094+00:00"
+    },
+    {
+      "id": "511ac1cf481b",
+      "type": "milestone",
+      "label": "milestone: Pushed fix/cluster-prompts at 129695b044 after pre-push validation passed.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.965282+00:00"
+    },
+    {
+      "id": "7bfdc01e6b64",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved four remaining Copilot review threads after verifying the detector path fix.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.965473+00:00"
+    },
+    {
+      "id": "82e60da0243e",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main, resolved plugin manifest version conflict by setting project-toolkit manifests to 0.5.259, and committed c4c30e5586.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.965653+00:00"
+    },
+    {
+      "id": "6dfdd344b150",
+      "type": "commit",
+      "label": "commit: Commit: c4c30e5586",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.965838+00:00"
+    },
+    {
+      "id": "5ed7d669f559",
+      "type": "milestone",
+      "label": "milestone: Fetched six new unresolved PR 2844 review threads: implementer mirror order, skill-relative ADR detector examples, and stale session log text.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.966021+00:00"
+    },
+    {
+      "id": "1eea09d6d0b6",
+      "type": "milestone",
+      "label": "milestone: Added skill-relative ADR detector examples, aligned implementer mirror-obligation ordering with the canonical template, and regenerated the Copilot mirror.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.966205+00:00"
+    },
+    {
+      "id": "feafc50713d4",
+      "type": "commit",
+      "label": "commit: Commit: 0bae7b2a9e",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.966390+00:00"
+    },
+    {
+      "id": "7ef6c91f3a49",
+      "type": "milestone",
+      "label": "milestone: Fetched failing CI logs for PR 2844 and found pytest collection failed from duplicate test module basenames under tests/skills and .claude/skills.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.966582+00:00"
+    },
+    {
+      "id": "2044b6393921",
+      "type": "milestone",
+      "label": "milestone: Set pytest import mode to importlib and changed SkillForge modularity audit imports to load the sibling frontmatter helper by file path.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.966767+00:00"
+    },
+    {
+      "id": "92ce9d9ca4c1",
+      "type": "milestone",
+      "label": "milestone: Committed pytest collection fix in 9edfb0fa6d after targeted SkillForge tests, generated mirror check, ruff, plugin-version-bump, and pytest collect-only passed.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.966954+00:00"
+    },
+    {
+      "id": "21aabfcda059",
+      "type": "commit",
+      "label": "commit: Commit: 9edfb0fa6d",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.967138+00:00"
+    },
+    {
+      "id": "0cc916486d40",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after it advanced to 0.5.259 plugin manifests.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.967321+00:00"
+    },
+    {
+      "id": "102c6c3fd1a9",
+      "type": "milestone",
+      "label": "milestone: Bumped project-toolkit plugin manifests to 0.5.260 so the PR remains strictly above origin/main after the version race.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.967518+00:00"
+    },
+    {
+      "id": "90bd691de660",
+      "type": "commit",
+      "label": "commit: Commit: 61066a3ca5",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.967713+00:00"
+    },
+    {
+      "id": "5cd2c77bf2f2",
+      "type": "milestone",
+      "label": "milestone: Added commit-limit-bypass label to PR 2844 and reran the failed Validate PR job; Validate PR passed the commit-count gate afterward.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.967889+00:00"
+    },
+    {
+      "id": "116693df5410",
+      "type": "milestone",
+      "label": "milestone: Fetched failing Run Python Tests logs and found full skill-local pytest collection exposed unrelated pre-existing skill test failures.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.968078+00:00"
+    },
+    {
+      "id": "2dfe3698a4c7",
+      "type": "milestone",
+      "label": "milestone: Removed .claude/skills from default pytest testpaths while keeping importlib import mode; targeted ADR and SkillForge tests passed with 145 tests.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.968263+00:00"
+    },
+    {
+      "id": "f20f32a0fe2f",
+      "type": "milestone",
+      "label": "milestone: Verified pytest collection now returns 13552 tests with exit 0.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.968449+00:00"
+    },
+    {
+      "id": "025282c678e7",
+      "type": "commit",
+      "label": "commit: Commit: 534fd5cb7a",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.968645+00:00"
+    },
+    {
+      "id": "a6632eafcd08",
+      "type": "milestone",
+      "label": "milestone: Fetched all PR 2844 review threads and found two outdated but unresolved Copilot threads about SkillForge sys.path mutation.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.968830+00:00"
+    },
+    {
+      "id": "58d99a5fd03d",
+      "type": "milestone",
+      "label": "milestone: Removed SkillForge skill_modularity_audit sys.path mutation from canonical and Copilot mirror files, bumped project-toolkit manifests to 0.5.261, and regenerated mirrors.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.969017+00:00"
+    },
+    {
+      "id": "fa5ae158c6c0",
+      "type": "milestone",
+      "label": "milestone: Verified SkillForge modularity audit tests passed 29 tests and plugin-version-bump reported OK.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.969207+00:00"
+    },
+    {
+      "id": "74d43aa5e2f2",
+      "type": "commit",
+      "label": "commit: Commit: c5aa7ee39a",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.969394+00:00"
+    },
+    {
+      "id": "30336d8ee659",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after main advanced to project-toolkit 0.5.260, resolved plugin manifest conflicts by keeping both manifests at 0.5.261.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.969599+00:00"
+    },
+    {
+      "id": "3d841bfdfd30",
+      "type": "commit",
+      "label": "commit: Commit: 1892b07e45",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.969783+00:00"
+    },
+    {
+      "id": "77020344ff1c",
+      "type": "milestone",
+      "label": "milestone: Verified six unresolved PR 2844 Copilot threads after latest push: ADR generator trigger wording, SkillForge missing-helper error clarity, and stale session-log text.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.969966+00:00"
+    },
+    {
+      "id": "bf5d4e26a5a3",
+      "type": "milestone",
+      "label": "milestone: Restored write an ADR and write an architecture decision record trigger examples, added a SkillForge frontmatter helper existence check, and regenerated mirrors.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.970148+00:00"
+    },
+    {
+      "id": "fa718867678f",
+      "type": "milestone",
+      "label": "milestone: Validated review-thread fixes: SkillForge modularity audit tests passed 30 tests and plugin-version-bump reported OK after regeneration.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.970334+00:00"
+    },
+    {
+      "id": "ed67591a3868",
+      "type": "milestone",
+      "label": "milestone: Committed ADR generator trigger and SkillForge missing-helper review-thread fixes in e602877ae3 after pre-commit validation passed.",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.970479+00:00"
+    },
+    {
+      "id": "6ce59ffad60c",
+      "type": "commit",
+      "label": "commit: Commit: e602877ae3",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.970594+00:00"
+    },
+    {
+      "id": "fe86a72d6554",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR 2844 fix cluster prompts to merged",
+      "episodes": [
+        "episode-2026-07-04-session-2606"
+      ],
+      "created": "2026-07-04T06:31:50.970713+00:00"
+    },
+    {
+      "id": "ffb1d8460dc4",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree ai-agents4-pr-2849 and assessed PR #2849 failing checks.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.771557+00:00"
+    },
+    {
+      "id": "92ed456a3be4",
+      "type": "milestone",
+      "label": "milestone: Created session log 2026-07-04-session-2606.json.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.771714+00:00"
+    },
+    {
+      "id": "7dc4f63d069d",
+      "type": "milestone",
+      "label": "milestone: Ran build_all and synced generated Copilot hook artifacts.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.771831+00:00"
+    },
+    {
+      "id": "8f61f4dd08ee",
+      "type": "milestone",
+      "label": "milestone: Fixed PermissionRequest non-object JSON boundary validation and added regression test.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.771944+00:00"
+    },
+    {
+      "id": "3be0e9c6c45f",
+      "type": "milestone",
+      "label": "milestone: Fixed MCP Windows reader timeout by closing fd and added regression test.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772056+00:00"
+    },
+    {
+      "id": "164d013a30cf",
+      "type": "milestone",
+      "label": "milestone: Resolved both outstanding review threads after fixes.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772168+00:00"
+    },
+    {
+      "id": "0fe34f36808a",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests to 0.5.256 and validated plugin version gate.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772280+00:00"
+    },
+    {
+      "id": "4f2b27065f81",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main and origin/fix/cluster-robust, resolved conflicts, and preserved security timeout handling.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772392+00:00"
+    },
+    {
+      "id": "88eb8fefa495",
+      "type": "milestone",
+      "label": "milestone: Restored subprocess timeout constants in PR helper and security scripts.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772532+00:00"
+    },
+    {
+      "id": "b25c346fc822",
+      "type": "milestone",
+      "label": "milestone: Validated targeted pytest, ruff, and mypy for timeout changes.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772705+00:00"
+    },
+    {
+      "id": "78a7001c3aa7",
+      "type": "milestone",
+      "label": "milestone: Committed timeout fixes in 16993b8dfe.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772830+00:00"
+    },
+    {
+      "id": "ef67c2975967",
+      "type": "milestone",
+      "label": "milestone: Pushed timeout and review-thread fixes through db5769d684 and observed PR #2849 still open with main drift.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772948+00:00"
+    },
+    {
+      "id": "879bf9b6adc2",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into fix/cluster-robust, accepted upstream milestone and memory changes, and bumped both plugin manifests to 0.5.260.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773067+00:00"
+    },
+    {
+      "id": "dd730ebbfd1b",
+      "type": "milestone",
+      "label": "milestone: Fixed set_issue_milestone timeout error typing after merged main introduced fail-closed query handling.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773185+00:00"
+    },
+    {
+      "id": "88b3725a9006",
+      "type": "milestone",
+      "label": "milestone: Fixed CI-only corrupt memory sync queue failure by parsing queued changes before checking Forgetful availability.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773304+00:00"
+    },
+    {
+      "id": "7d01de6ff9f9",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after checks passed, resolved conflicts, and rebumped both plugin manifests to 0.5.261.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773423+00:00"
+    },
+    {
+      "id": "1064baaeff73",
+      "type": "milestone",
+      "label": "milestone: Fixed merge fallout in atomic-write helpers and paginated PR analysis parsing after latest main sync.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773548+00:00"
+    },
+    {
+      "id": "c0a108694f23",
+      "type": "milestone",
+      "label": "milestone: Rebumped both plugin manifests to 0.5.262 after origin/main reached 0.5.261.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773676+00:00"
+    },
+    {
+      "id": "b7d65034c2b2",
+      "type": "milestone",
+      "label": "milestone: Synced plugin library copy after latest main merge so build staleness and sync checks pass.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773790+00:00"
+    },
+    {
+      "id": "df99ab908cb2",
+      "type": "milestone",
+      "label": "milestone: Isolated LSP read guard tests from inherited CLAUDE_PROJECT_DIR and TMPDIR so they run correctly inside the Copilot context-mode harness.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773904+00:00"
+    },
+    {
+      "id": "b38c6556fb32",
+      "type": "milestone",
+      "label": "milestone: Validated read guard targeted tests, full tests, plugin lib sync, and generated artifact checks after the isolation fix.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774018+00:00"
+    },
+    {
+      "id": "d55e2ea406a2",
+      "type": "milestone",
+      "label": "milestone: Resolved latest main merge conflicts by preserving main session 2606 and renumbering this PR babysitting log to session 2607.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774132+00:00"
+    },
+    {
+      "id": "1559cf605999",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests to 0.5.263 after latest origin/main reached 0.5.262.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774247+00:00"
+    },
+    {
+      "id": "16493bea0784",
+      "type": "milestone",
+      "label": "milestone: Fixed unresolved Copilot feedback on LSP gate atomic temp-file uniqueness.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774362+00:00"
+    },
+    {
+      "id": "7e04dd918095",
+      "type": "milestone",
+      "label": "milestone: Fixed unresolved Copilot feedback on security retrospective external-review fetch failure contracts.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774482+00:00"
+    },
+    {
+      "id": "d8a4b2d17912",
+      "type": "milestone",
+      "label": "milestone: Ran full pytest after review-thread fixes with exit code 0.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774598+00:00"
+    },
+    {
+      "id": "061971c7c714",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR 2849 to merge",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774715+00:00"
     }
   ],
   "patterns": [
@@ -8326,7 +11237,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 43,
+      "occurrences": 55,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -8335,7 +11246,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 86,
+      "occurrences": 121,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -8344,7 +11255,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 172,
+      "occurrences": 220,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -8353,8 +11264,17 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 258,
+      "occurrences": 330,
       "created": "2026-06-02T04:20:23.790649+00:00"
+    },
+    {
+      "name": "recovery pattern",
+      "description": "Pattern from episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge",
+      "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "success_rate": 1.0,
+      "occurrences": 6,
+      "created": "2026-07-04T06:31:50.952133+00:00"
     }
   ],
   "edges": [
@@ -8363,7 +11283,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -8371,7 +11291,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -8379,7 +11299,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -8387,7 +11307,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -8395,7 +11315,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -8403,7 +11323,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -8411,7 +11331,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -8419,7 +11339,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -8427,7 +11347,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -8435,7 +11355,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -8443,7 +11363,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -8451,7 +11371,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -8459,7 +11379,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -8467,7 +11387,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -8475,7 +11395,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -8483,7 +11403,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -8491,7 +11411,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -8499,7 +11419,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -8507,7 +11427,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -8515,7 +11435,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -8523,7 +11443,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -8531,7 +11451,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -8539,7 +11459,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -8547,7 +11467,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -8555,7 +11475,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -8563,7 +11483,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -8571,7 +11491,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -8579,7 +11499,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -8587,7 +11507,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -8595,7 +11515,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -8603,7 +11523,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -8611,7 +11531,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -8619,7 +11539,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -8627,7 +11547,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -8635,7 +11555,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -8643,7 +11563,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -8651,7 +11571,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -8659,7 +11579,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -8667,7 +11587,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -8675,8 +11595,40 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.796919+00:00"
+    },
+    {
+      "source": "dfbd932789d7",
+      "target": "e161750067d4",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 11,
+      "created": "2026-07-04T02:21:24.350970+00:00"
+    },
+    {
+      "source": "dfbd932789d7",
+      "target": "b895b21a3dc6",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 11,
+      "created": "2026-07-04T02:21:24.351162+00:00"
+    },
+    {
+      "source": "c8046ca4fd83",
+      "target": "890ad3ba78e1",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 6,
+      "created": "2026-07-04T06:31:50.951735+00:00"
+    },
+    {
+      "source": "c8046ca4fd83",
+      "target": "184e28bd3bfa",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 6,
+      "created": "2026-07-04T06:31:50.952110+00:00"
     }
   ]
 }

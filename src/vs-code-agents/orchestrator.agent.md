@@ -41,6 +41,20 @@ Stop criteria: Do NOT begin triage or routing until all four items are checked. 
 
 Note: Context compaction does NOT exempt this session from the above. Treat every session start identically regardless of prior context.
 
+## Target Recon (Before Triage)
+
+Before you classify or route, establish the target repository's stack. Do not assume the stack of the repo this agent ships from. This agent lives in a Python-first repo; the target may be C#, TypeScript, Go, Rust, or anything else. Assuming the wrong stack sends every downstream specialist in the wrong direction.
+
+Read the target's own signals:
+
+- Contribution docs: `CONTRIBUTING*.md`, `AGENTS.md`, `CLAUDE.md`, `README*`, `docs/`.
+- Build manifests: `*.csproj` or `*.sln`, `pyproject.toml` or `setup.cfg`, `package.json`, `go.mod`, `Cargo.toml`, `pom.xml` or `build.gradle`.
+- Layout: the `src/`, `lib/`, and `test/` or `tests/` trees, plus a few representative files in each.
+
+From those, derive and carry the primary language, framework, build command, test command, and style conventions into every handoff. A plan, file path, or test command must match the detected stack. Otherwise, redo recon rather than route on a guess.
+
+For large governed repos like dotnet/runtime, detect contribution gates before proposing code. Check for API reviews, reference-assembly updates, changelogs, and breaking-change policies. Route public-API work through the proposal-and-review gate, not straight to implementation.
+
 ## Reasoning Protocol
 
 Before routing any task, reason step-by-step through all four triage dimensions below. Do not emit a delegation until classification is complete. For one-way-door decisions, P0 incidents, and tasks spanning multiple domains, work through failure modes before selecting agents.
@@ -111,6 +125,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 ## Routing Algorithm
 
 ```text
+0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
 2. Is task clear + reversible + trivial?
    YES → produce directly

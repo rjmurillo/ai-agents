@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check for relevant changes
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         id: filter
         with:
           filters: |
@@ -62,6 +62,18 @@ jobs:
       - name: Validate slash commands
         run: python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"
 
+      - name: Install eval extra (openai grader)
+        # setup-code-env installs only .[dev]; the github provider grader needs
+        # the openai package from .[eval]. Without this, eval-prompt-change.py
+        # exits 3 (missing package is not a provider outage, so the skip-net
+        # does not neutral-skip it). Gated on the same condition as the eval so
+        # it only runs when the /spec eval actually fires.
+        if: |
+          github.event_name == 'pull_request' &&
+          needs.check-paths.outputs.spec_evals_changed == 'true' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        run: uv pip install --system -e ".[eval]"
+
       - name: Run /spec behavioral evals
         # Grader: openai/gpt-5 via GitHub Models (the COPILOT_GITHUB_TOKEN CI
         # already uses), reachable as a reasoning model after #2712. The default
@@ -69,11 +81,8 @@ jobs:
         # gpt-5 is the highest grader GitHub Models offers (no gpt-5.5 / Opus).
         # CALIBRATION ROLLOUT tracked by issue #2718. The scenarios' expected
         # verdicts were authored for a Claude grader, so a cross-family grader
-        # may shift borderline verdicts. continue-on-error keeps calibration
-        # mismatch from red-failing PRs until live gpt-5 verdicts are confirmed.
-        # The skip-net in eval-prompt-change.py still neutral-skips genuine
-        # provider outages. Remove continue-on-error by 2026-07-08.
-        continue-on-error: true
+        # may shift borderline verdicts. The skip-net in eval-prompt-change.py
+        # still neutral-skips genuine provider outages.
         if: |
           github.event_name == 'pull_request' &&
           needs.check-paths.outputs.spec_evals_changed == 'true' &&

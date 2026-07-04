@@ -1,0 +1,91 @@
+{
+  "id": "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts",
+  "session": "2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts",
+  "timestamp": "2026-07-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Issue #2811 PR-B: subprocess timeouts for the remaining gh/git/npx/pip call sites (reactions, item milestone, copilot assignment, merge-resolver wrapper plus dash-ref guard, worktree identity, batch/install/gate wrappers, installers, security retrospective, homework scanner, slash-command lint). Hook sites deferred (pre-existing bootstrap type debt, same precedent as #2812).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added gh timeouts with defined degradation to add_comment_reaction (per-item failure), set_item_milestone (exit 3), invoke_copilot_assignment (warn/exit 3); typed the files' pre-existing bare-dict annotations to dict[str, Any] (annotation-only, no cascade).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "merge-resolver _run_git: 60s timeout returning a synthetic exit-124 result so returncode-checking callers handle hangs; resolve_conflicts_runner rejects dash-leading refs (git refs cannot start with a dash; the triage plan's checkout -- suggestion was wrong because -- switches checkout to pathspec mode).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrapper timeouts with synthetic-124 pattern: invoke_batch_pr_review run_git/run_gh, install_git_hooks _run_git, invoke_session_start_gate run_git; worktree_identity git config timeout=10 (check-aware, loud expiry) synced to both lib mirrors.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "install_semgrep pip install timeout=300 (existing SubprocessError except covers expiry); invoke_security_retrospective gh --paginate timeout=120 plus two var annotations; homework_scanner per-create timeout=60 with error entry; validate_slash_command npx timeout=120 with non-blocking skip note.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deferred: three hook sites (observation_sync, adr_review_guard, session_initialization_enforcer) whose files carry the pre-existing bootstrap assignment/no-any-return mypy debt; same deferral precedent as the #2812 hook sites. Also deferred: homework_scanner search-before-create idempotency (resumability improvement beyond the timeout scope).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: uv run pytest tests/skills/github tests/skills/merge-resolver 428 passed; tests/test_timeout_hardening_2811b.py 6 passed; mypy no issues in 12 source files.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: uv run pytest tests/skills/github tests/skills/merge-resolver 428 passed; tests/test_timeout_hardening_2811b.py 6 passed; mypy no issues in 12 source files.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f13f73f",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 05a16e6",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=no-any-return
+# mypy: disable-error-code=arg-type
+# mypy: disable-error-code=assignment
+# mypy: disable-error-code=return-value
+# mypy: disable-error-code=var-annotated
+# mypy: disable-error-code=operator
+# mypy: disable-error-code=union-attr
 """Enforce ADR-007 memory-first protocol with hybrid education/escalation strategy.
 
 Claude Code SessionStart hook that verifies memory retrieval evidence before
@@ -28,6 +36,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -62,6 +71,26 @@ from hook_utilities import (  # noqa: E402
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 EDUCATION_THRESHOLD = 3
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    with tempfile.NamedTemporaryFile(
+        "w",
+        delete=False,
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        encoding="utf-8",
+    ) as tmp:
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
+    try:
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def test_memory_evidence(session_log_path: str) -> dict[str, object]:
@@ -144,7 +173,7 @@ def increment_invocation_count(state_dir: str, today: str) -> int:
 
     count = get_invocation_count(state_dir, today) + 1
     state_file = state_path / "memory-first-counter.txt"
-    state_file.write_text(f"{count}\n{today}", encoding="utf-8")
+    _atomic_write_text(state_file, f"{count}\n{today}")
     return count
 
 

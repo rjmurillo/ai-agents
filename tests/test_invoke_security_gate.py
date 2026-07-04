@@ -12,12 +12,14 @@ import pytest
 
 _project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_project_root / ".claude" / "hooks" / "PreToolUse"))
+sys.path.insert(0, str(_project_root))
 
 from invoke_security_gate import (  # noqa: E402
     find_security_evidence,
     is_auth_path,
     main,
 )
+from scripts.security import invoke_precommit_security  # noqa: E402
 
 
 class TestIsAuthPath:
@@ -105,6 +107,73 @@ class TestFindSecurityEvidence:
         log.write_text(json.dumps({"notes": "implemented feature"}))
 
         assert find_security_evidence(str(tmp_path)) is False
+
+
+class TestPreCommitSecurityCheck:
+    def _checker(self, tmp_path: Path) -> invoke_precommit_security.PreCommitSecurityCheck:
+        with patch.object(
+            invoke_precommit_security.PreCommitSecurityCheck,
+            "_find_repo_root",
+            return_value=tmp_path,
+        ):
+            return invoke_precommit_security.PreCommitSecurityCheck(
+                skip_codeql=True,
+            )
+
+    def test_codeql_timeout_returns_no_alerts(self, tmp_path: Path) -> None:
+        checker = self._checker(tmp_path)
+
+        with patch.object(
+            checker,
+            "_get_github_context",
+            return_value=("owner", "repo", "branch"),
+        ), patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            side_effect=invoke_precommit_security.subprocess.TimeoutExpired(
+                cmd=["gh", "--version"],
+                timeout=invoke_precommit_security.SUBPROCESS_TIMEOUT_SECONDS,
+            ),
+        ):
+            assert checker._fetch_codeql_alerts() == []
+
+    def test_psscriptanalyzer_timeout_fails_setup(self, tmp_path: Path) -> None:
+        checker = self._checker(tmp_path)
+
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            side_effect=invoke_precommit_security.subprocess.TimeoutExpired(
+                cmd=["pwsh"],
+                timeout=invoke_precommit_security.SUBPROCESS_TIMEOUT_SECONDS,
+            ),
+        ):
+            assert checker._ensure_psscriptanalyzer() is False
+
+    def test_run_fails_when_security_report_not_staged(self, tmp_path: Path) -> None:
+        checker = self._checker(tmp_path)
+        report_path = tmp_path / ".agents" / "security" / "SR-test.md"
+        report_path.parent.mkdir(parents=True)
+        report_path.write_text("x" * 200, encoding="utf-8")
+
+        with patch.object(
+            checker,
+            "_get_staged_powershell_files",
+            return_value=[tmp_path / "script.ps1"],
+        ), patch.object(checker, "_check_critical_patterns", return_value=[]), patch.object(
+            checker, "_ensure_psscriptanalyzer", return_value=True
+        ), patch.object(
+            checker,
+            "_run_psscriptanalyzer",
+            return_value=invoke_precommit_security.PreCommitResult(
+                passed=True,
+                findings=[],
+                report_path=None,
+            ),
+        ), patch.object(
+            checker, "_generate_security_report", return_value=report_path
+        ), patch.object(
+            checker, "_stage_security_report", return_value=False
+        ):
+            assert checker.run() == 1
 
 
 class TestMainAllowPath:

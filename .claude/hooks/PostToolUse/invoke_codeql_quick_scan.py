@@ -26,7 +26,7 @@ import subprocess
 import sys
 
 
-def _get_file_path_from_input(hook_input: dict) -> str | None:
+def _get_file_path_from_input(hook_input: dict[str, object]) -> str | None:
     """Extract file_path from hook input."""
     tool_input = hook_input.get("tool_input", {})
     if isinstance(tool_input, dict):
@@ -35,13 +35,15 @@ def _get_file_path_from_input(hook_input: dict) -> str | None:
     return None
 
 
-def _get_project_directory(hook_input: dict) -> str:
+def _get_project_directory(hook_input: dict[str, object]) -> str:
     """Resolve project directory from env or hook input."""
     env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if env_dir:
         return env_dir
     cwd = hook_input.get("cwd", os.getcwd())
-    return str(cwd) if cwd else os.getcwd()
+    if isinstance(cwd, str) and cwd:
+        return cwd
+    return os.getcwd()
 
 
 def _should_scan_file(file_path: str) -> bool:
@@ -87,6 +89,14 @@ def _get_language_from_file(file_path: str) -> str | None:
     return None
 
 
+def _log_non_blocking_error(exc: BaseException) -> None:
+    print(
+        f"**CodeQL Quick Scan WARNING**: Non-blocking hook error: "
+        f"{type(exc).__name__}: {exc}",
+        file=sys.stderr,
+    )
+
+
 def main() -> int:
     """Main hook entry point. Always returns 0 (non-blocking)."""
     try:
@@ -98,6 +108,11 @@ def main() -> int:
             return 0
 
         hook_input = json.loads(input_json)
+        if not isinstance(hook_input, dict):
+            _log_non_blocking_error(
+                TypeError("hook input must be a JSON object; received value is not an object")
+            )
+            return 0
         file_path = _get_file_path_from_input(hook_input)
 
         if file_path is None or not _should_scan_file(file_path):
@@ -177,12 +192,16 @@ def main() -> int:
                 f"- No findings\n"
             )
 
-    except (json.JSONDecodeError, ValueError, TypeError):
-        pass
-    except (OSError, PermissionError):
-        pass
-    except Exception:
-        pass
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        _log_non_blocking_error(exc)
+    except OSError as exc:
+        _log_non_blocking_error(exc)
+    except Exception as exc:
+        _log_non_blocking_error(exc)
+        print(
+            f"CodeQL Quick Scan skipped (unexpected {type(exc).__name__}: {exc})",
+            file=sys.stderr,
+        )
 
     return 0
 

@@ -121,6 +121,11 @@ runs:
     - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
       if: inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true'
       id: review
+      # An internal ai-review infra failure (Copilot CLI unavailable) exits non-zero.
+      # continue-on-error lets the always() "Check verdict and fail if needed" step be
+      # the single authority on job pass/fail: infra failures exit 0 there (green,
+      # non-blocking), while a genuine code-quality FAIL still exits 1 there (red).
+      continue-on-error: true
       uses: ./.github/actions/ai-review
       with:
         agent: ${{ inputs.review-agent != '' && inputs.review-agent || inputs.agent }}

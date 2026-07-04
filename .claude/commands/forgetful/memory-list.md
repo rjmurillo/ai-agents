@@ -1,6 +1,6 @@
 ---
 description: "DEPRECATED: Use Serena list_memories instead. Lists recent memories from Forgetful with optional project filtering."
-argument-hint: [project-name]
+argument-hint: '[project-name]'
 allowed-tools:
   - mcp__forgetful__*
 ---
