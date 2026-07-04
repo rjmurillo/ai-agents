@@ -39,6 +39,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from _anthropic_api import DEFAULT_MODEL
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -475,7 +477,7 @@ def main() -> None:
     parser.add_argument("--scope", type=str,
                         choices=["prompts", "agents", "skills", "all"],
                         default="all", help="Limit to specific scope")
-    parser.add_argument("--model", type=str, default="claude-sonnet-4-20250514",
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
                         help="Model for LLM-based assessments")
     parser.add_argument("--dry-run", action="store_true",
                         help="Detect and classify only, no API calls")
