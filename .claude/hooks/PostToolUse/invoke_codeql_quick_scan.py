@@ -109,7 +109,9 @@ def main() -> int:
 
         hook_input = json.loads(input_json)
         if not isinstance(hook_input, dict):
-            _log_non_blocking_error(TypeError("hook input must be a JSON object"))
+            _log_non_blocking_error(
+                TypeError("hook input must be a JSON object; received value is not an object")
+            )
             return 0
         file_path = _get_file_path_from_input(hook_input)
 

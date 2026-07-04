@@ -37,6 +37,7 @@ def _run_entry(event: str, payload: dict[str, Any]) -> subprocess.CompletedProce
     env["CLAUDE_PROJECT_DIR"] = str(_REPO)
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
+    env["CLAUDE_PROJECT_DIR"] = str(_REPO)
     event_timeout_sec = int(_hooks()[event][0]["timeoutSec"])
     timeout_sec = min(event_timeout_sec + 5, _DISPATCH_TEST_TIMEOUT_CAP_SEC)
     return subprocess.run(
