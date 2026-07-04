@@ -22,6 +22,7 @@ Related: Issue #1267 (SkillsBench-informed skill modularity audit)
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -34,7 +35,18 @@ _PROJECT_ROOT = _SCRIPT_DIR.parents[3]
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from frontmatter import has_size_exception  # noqa: E402
+
+def _load_has_size_exception():
+    frontmatter_path = _SCRIPT_DIR / "frontmatter.py"
+    spec = importlib.util.spec_from_file_location("skillforge_frontmatter", frontmatter_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load SkillForge frontmatter helper: {frontmatter_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.has_size_exception
+
+
+has_size_exception = _load_has_size_exception()
 
 # Thresholds aligned with skill_size.py
 LINE_LIMIT: int = 500
