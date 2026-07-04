@@ -35,6 +35,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _powershell_single_quoted_literal(value: str) -> str:
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
 @dataclass
 class SecurityFinding:
     """Represents a security finding from static analysis."""
@@ -473,8 +478,9 @@ class PreCommitSecurityCheck:
         for file_path in files:
             try:
                 # Run PSScriptAnalyzer with JSON output
+                literal_path = _powershell_single_quoted_literal(str(file_path))
                 analyzer_command = (
-                    f"$findings = Invoke-ScriptAnalyzer -Path '{file_path}' "
+                    f"$findings = Invoke-ScriptAnalyzer -LiteralPath {literal_path} "
                     "-Severity Error,Warning\n"
                     "$findings | ConvertTo-Json -Depth 3"
                 )
