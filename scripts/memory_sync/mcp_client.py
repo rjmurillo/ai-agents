@@ -287,13 +287,14 @@ class McpClient:
     @staticmethod
     def _read_via_thread(fd: int, timeout: float, total_timeout: float) -> bytes:
         """Read bytes in a daemon thread so Windows reads can time out."""
-        holder: dict[str, bytes | OSError] = {}
+        holder: dict[str, bytes] = {}
+        errors: list[OSError] = []
 
         def _reader() -> None:
             try:
                 holder["chunk"] = os.read(fd, 4096)
             except OSError as exc:
-                holder["error"] = exc
+                errors.append(exc)
 
         thread = threading.Thread(target=_reader, daemon=True)
         thread.start()
@@ -304,8 +305,8 @@ class McpClient:
             except OSError:
                 pass
             raise McpError(f"Timeout waiting for response (>{total_timeout}s)")
-        if "error" in holder:
-            raise McpError(f"Failed to read from MCP server: {holder['error']}")
+        if errors:
+            raise McpError(f"Failed to read from MCP server: {errors[0]}")
         return holder.get("chunk", b"")  # Defensive; the reader always sets this.
 
     @staticmethod
