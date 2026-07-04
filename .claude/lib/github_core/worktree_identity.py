@@ -35,15 +35,23 @@ def _run_git_config(
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["LC_ALL"] = "C"
-    return subprocess.run(
-        ["git", "-C", str(cwd), "config", *args],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        env=env,
-        check=check,
-        timeout=10,
-    )
+    try:
+        return subprocess.run(
+            ["git", "-C", str(cwd), "config", *args],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            check=check,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=["git", "-C", str(cwd), "config", *args],
+            returncode=1,
+            stdout="",
+            stderr="timeout",
+        )
 
 
 def reset_worktree_identity(

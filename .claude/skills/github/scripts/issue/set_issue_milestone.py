@@ -76,18 +76,19 @@ def _write_github_output(outputs: dict[str, str]) -> None:
 
 
 def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
-    """Get the current milestone title for an issue, or None."""
-    try:
-        result = subprocess.run(
-            ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GH_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return None
+    """Get the current milestone title for an issue, or None.
+
+    Raises:
+        subprocess.TimeoutExpired: If the API call times out.
+    """
+    result = subprocess.run(
+        ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=GH_TIMEOUT_SECONDS,
+        check=False,
+    )
     if result.returncode != 0:
         return None
     title = result.stdout.strip()
@@ -177,7 +178,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         raise SystemExit(2)
 
-    current_milestone = _get_current_milestone(owner, repo, args.issue)
+    try:
+        current_milestone = _get_current_milestone(owner, repo, args.issue)
+    except subprocess.TimeoutExpired as err:
+        _emit_error(
+            f"Get milestone timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            fmt,
+            "ApiError",
+            {"issue": args.issue, "milestone": None, "action": "failed"},
+        )
+        raise SystemExit(3) from err
 
     output = {
         "issue": args.issue,
