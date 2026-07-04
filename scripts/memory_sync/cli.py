@@ -363,14 +363,20 @@ def _write_queue(
         for path, op in changes
     ]
     payload = json.dumps(data, indent=2) + "\n"
-    tmp_fd, tmp_name = tempfile.mkstemp(
-        dir=str(queue_path.parent), prefix=f"{queue_path.name}.", suffix=".tmp"
+    tmp_file = tempfile.NamedTemporaryFile(
+        dir=str(queue_path.parent),
+        prefix=f"{queue_path.name}.",
+        suffix=".tmp",
+        mode="w",
+        encoding="utf-8",
+        delete=False,
     )
+    tmp_name = tmp_file.name
     try:
-        with os.fdopen(tmp_fd, "w", encoding="utf-8") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
+        with tmp_file:
+            tmp_file.write(payload)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
         os.replace(tmp_name, queue_path)
     except BaseException:
         try:
