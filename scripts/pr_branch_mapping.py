@@ -22,7 +22,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -106,28 +105,6 @@ def load_mapping(project_root: Path) -> PRBranchMapping:
         current = CurrentSession(**data["current_session"])
 
     return PRBranchMapping(mappings=entries, current_session=current)
-
-
-def _atomic_write_text(path: str | os.PathLike[str], text: str) -> None:
-    """Write ``text`` to ``path`` atomically via a temp file plus ``os.replace``.
-
-    Mirrors ``skill_pattern_loader._atomic_json_write`` (temp file in the same
-    directory, then ``os.replace``) so a crash or two concurrent writers cannot
-    leave the file half-written or truncated. On failure the partial temp file
-    is removed and the ``OSError`` re-raised for the caller to handle.
-    """
-    directory = os.path.dirname(os.fspath(path)) or "."
-    fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.replace(tmp, path)
-    except OSError:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
 
 
 def _try_lock_helpers() -> tuple[
