@@ -349,6 +349,9 @@ class TestFrontmatterOnlyDetection:
         assert data["ModifiedFrontmatterOnly"] == []
         assert data["RecommendedAction"] == "review"
 
+    def test_path_traversal_fails_closed(self, adr_repo: Path) -> None:
+        assert _is_frontmatter_only_change("../outside.md", "HEAD~1", adr_repo) is False
+
     def test_status_flip_triggers_review(
         self, adr_repo: Path, capsys: pytest.CaptureFixture
     ) -> None:

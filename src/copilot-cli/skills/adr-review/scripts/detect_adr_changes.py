@@ -209,8 +209,12 @@ def _is_frontmatter_only_change(
     if show.returncode != 0:
         return False
     try:
-        new_content = (base_path / file_path).read_text(encoding="utf-8")
-    except OSError:
+        resolved_base = base_path.resolve()
+        resolved_path = (resolved_base / file_path).resolve()
+        if not resolved_path.is_relative_to(resolved_base):
+            return False
+        new_content = resolved_path.read_text(encoding="utf-8")
+    except (OSError, RuntimeError, ValueError):
         return False
     old_frontmatter, old_body = _split_frontmatter(show.stdout)
     new_frontmatter, new_body = _split_frontmatter(new_content)
@@ -341,6 +345,8 @@ def main(argv: list[str] | None = None) -> int:
             "ModifiedFrontmatterOnly": frontmatter_only_modified,
             "Deleted": deleted,
             "DeletedDetails": deleted_details,
+            # Frontmatter-only metadata edits are reported separately and do not
+            # count as actionable ADR changes for adr-review triggering.
             "HasChanges": len(created) + len(substantive_modified) + len(deleted) > 0,
             "RecommendedAction": recommended_action,
             "Timestamp": datetime.now(UTC).isoformat(),
