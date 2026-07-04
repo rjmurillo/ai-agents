@@ -4,7 +4,7 @@ This document describes the AI agents defined in the template system and how the
 
 ## Overview
 
-The `templates/` directory is the **source of truth** for AI agent definitions. It contains shared templates that are transformed by `build/Generate-Agents.ps1` into platform-specific agent files for VS Code and Copilot CLI.
+The `templates/` directory is the **source of truth** for AI agent definitions. It contains shared templates that are transformed by `build/generate_agents.py` into platform-specific agent files for VS Code and Copilot CLI.
 
 **Important**: Claude Code agents (`src/claude/`) are NOT generated from templates. They are hand-maintained separately. See `src/claude/AGENTS.md` for the Claude agent workflow.
 
@@ -16,7 +16,7 @@ The `templates/` directory is the **source of truth** for AI agent definitions. 
 templates/agents/*.shared.md ─────────┐
    (SOURCE for VS Code/Copilot)       │
                                       ▼
-                            build/Generate-Agents.ps1
+                            build/generate_agents.py
                                       │
               ┌───────────────────────┼───────────────────────┐
               ▼                       ▼                       │
@@ -56,7 +56,7 @@ flowchart TD
     end
 
     subgraph Build["build/"]
-        GEN[Generate-Agents.ps1]
+        GEN[generate_agents.py]
     end
 
     subgraph Output["src/"]
@@ -104,7 +104,7 @@ Per ADR-036, when adding content that applies to ALL platforms, you MUST update 
 ```text
 1. Edit templates/agents/{agent}.shared.md
 2. Edit src/claude/{agent}.md (MANUAL - not auto-synced!)
-3. Run: pwsh build/Generate-Agents.ps1
+3. Run: python3 build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -113,7 +113,7 @@ Per ADR-036, when adding content that applies to ALL platforms, you MUST update 
 ```text
 1. Identify universal changes in src/claude/{agent}.md
 2. Duplicate those changes to templates/agents/{agent}.shared.md
-3. Run: pwsh build/Generate-Agents.ps1
+3. Run: python3 build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -129,10 +129,10 @@ After ANY modification to `templates/`:
 
 ```powershell
 # Regenerate all platform files
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 
 # Validate generation succeeded
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 
 # Commit template AND generated files together
 git add templates/ src/vs-code-agents/ src/copilot-cli/
@@ -242,7 +242,7 @@ sequenceDiagram
     participant User
     participant Template as templates/agents/*.shared.md
     participant Config as platforms/*.yaml
-    participant Build as Generate-Agents.ps1
+    participant Build as generate_agents.py
     participant Output as src/*/*.agent.md
 
     User->>Template: Edit shared content
@@ -259,7 +259,7 @@ sequenceDiagram
 
 | Dependency | Type | Purpose |
 |------------|------|---------|
-| `build/Generate-Agents.ps1` | Script | Transforms templates to outputs |
+| `build/generate_agents.py` | Script | Transforms templates to outputs |
 | `build/Generate-Agents.Common.psm1` | Module | Shared transformation functions |
 | PowerShell 7.5.4+ | Runtime | Script execution |
 
@@ -283,19 +283,19 @@ sequenceDiagram
 ### Generate All Agents
 
 ```powershell
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 ```
 
 ### Preview Changes (Dry Run)
 
 ```powershell
-pwsh build/Generate-Agents.ps1 -WhatIf
+python3 build/generate_agents.py --what-if
 ```
 
 ### Validate Generated Files
 
 ```powershell
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 ```
 
 ## Monitoring

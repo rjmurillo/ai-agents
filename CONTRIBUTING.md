@@ -152,7 +152,7 @@ code templates/agents/analyst.shared.md
 Run the generation script:
 
 ```powershell
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 ```
 
 ### Step 3: Verify the Changes
@@ -161,10 +161,10 @@ Check that generated files look correct:
 
 ```powershell
 # Preview what would be generated without writing
-pwsh build/Generate-Agents.ps1 -WhatIf
+python3 build/generate_agents.py --what-if
 
 # Verify generated files match templates
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 ```
 
 ### Step 4: Commit Both Files
@@ -262,10 +262,10 @@ tools_copilot:
 
 ```powershell
 # Generate all agents
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 
 # Verify outputs
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 ```
 
 ### Step 5: Update Documentation
@@ -439,7 +439,7 @@ These files are auto-generated and include a header comment:
 ```markdown
 <!-- AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY
      Generated from: templates/agents/[name].shared.md
-     To modify this file, edit the source and run: pwsh build/Generate-Agents.ps1
+     To modify this file, edit the source and run: python3 build/generate_agents.py
 -->
 ```
 
@@ -449,16 +449,16 @@ These files are auto-generated and include a header comment:
 
 ```powershell
 # Generate all agent files from templates
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 
 # Verify generated files match templates (used in CI)
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 
 # Preview what would be generated without writing files
-pwsh build/Generate-Agents.ps1 -WhatIf
+python3 build/generate_agents.py --what-if
 
 # Generate with verbose logging
-pwsh build/Generate-Agents.ps1 -Verbose
+python3 build/generate_agents.py
 ```
 
 ## CI Drift Detection
@@ -738,20 +738,20 @@ uv run bandit -r .claude/ scripts/          # Static analysis
 
 ```powershell
 # Run all tests
-pwsh build/scripts/Invoke-PesterTests.ps1
+uv run pytest
 
 # CI mode (exits with error code on failure)
-pwsh build/scripts/Invoke-PesterTests.ps1 -CI
+uv run pytest
 
 # Run specific test file
-pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./tests/Validate-SessionJson.Tests.ps1"
+uv run pytest tests/test_validate_session_json.py
 ```
 
 ### Agent Generation Tests
 
 ```powershell
 # Run generation tests
-pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./build/tests/Generate-Agents.Tests.ps1"
+uv run pytest tests/build_scripts/test_generate_agents.py
 ```
 
 ## Copilot CLI Version Management
@@ -846,7 +846,7 @@ The script parses all ADR files, extracts RFC 2119 requirements, and reports cov
 
 1. **Spec references**: Feature PRs (`feat:`) require spec references (issue, REQ-*, or `.agents/planning/` files)
 2. **Template changes**: Always include both template and generated files
-3. **Validation**: Run `pwsh build/Generate-Agents.ps1 -Validate` before submitting
+3. **Validation**: Run `python3 build/generate_agents.py --validate` before submitting
 4. **Tests**: Ensure all tests pass
 5. **Documentation**: Update relevant docs if adding new agents
 6. **Commit messages**: Use conventional commit format (e.g., `feat(agent):`, `fix(template):`)

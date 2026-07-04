@@ -30,7 +30,7 @@ The template system maintains a single source of truth for agent behavior while 
 1. **Shared Templates** (`agents/*.shared.md`): Define agent behavior, responsibilities, and content
 2. **Toolset Definitions** (`toolsets.yaml`): Named groups of tools to reduce duplication
 3. **Platform Configs** (`platforms/*.yaml`): Specify platform-specific settings (model, tools, syntax)
-4. **Generation Script** (`build/Generate-Agents.ps1`): Transforms templates into platform-specific files
+4. **Generation Script** (`build/generate_agents.py`): Transforms templates into platform-specific files
 
 ### Toolsets
 
@@ -76,7 +76,7 @@ The generation script expands `$toolset:` references into individual tools using
 templates/agents/*.shared.md     Source of truth
            |
            v
-build/Generate-Agents.ps1        Transformation
+build/generate_agents.py        Transformation
            |
            +---> src/vs-code-agents/*.agent.md    VS Code output
            +---> src/copilot-cli/agents/*.agent.md  Copilot CLI output
@@ -112,13 +112,13 @@ Do NOT use `runSubagent(...)`, `Task(...)`, or `#runSubagent` directly in templa
 
 ```powershell
 # Generate all agents
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 
 # Preview without writing
-pwsh build/Generate-Agents.ps1 -WhatIf
+python3 build/generate_agents.py --what-if
 
 # Validate generated files match templates
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 ```
 
 ### Modify an Agent
@@ -129,7 +129,7 @@ For **universal changes** (content that applies to ALL platforms):
 
 1. Edit the source template: `templates/agents/{agent}.shared.md`
 2. **Also edit**: `src/claude/{agent}.md` (MANUAL - not auto-synced!)
-3. Regenerate: `pwsh build/Generate-Agents.ps1`
+3. Regenerate: `python3 build/generate_agents.py`
 4. Commit template, Claude source, and generated files together
 
 For **Claude-specific changes** (MCP tools, Serena integration):
@@ -173,7 +173,7 @@ For **Claude-specific changes** (MCP tools, Serena integration):
    ```
 
 3. Add agent content following existing patterns
-4. Run `pwsh build/Generate-Agents.ps1`
+4. Run `python3 build/generate_agents.py`
 5. Update documentation (README.md, CLAUDE.md)
 
 ## Drift Detection
@@ -249,7 +249,7 @@ When drift is detected:
 - [src/claude/AGENTS.md](../src/claude/AGENTS.md) - Claude agent synchronization rules
 - [.vscode/toolsets.jsonc](../.vscode/toolsets.jsonc) - VS Code native toolset definitions
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Full contribution guide
-- [build/Generate-Agents.ps1](../build/Generate-Agents.ps1) - Generation script
+- [build/generate_agents.py](../build/generate_agents.py) - Generation script
 - [build/scripts/Detect-AgentDrift.ps1](../build/scripts/Detect-AgentDrift.ps1) - Drift detection script
 - [.github/workflows/validate-generated-agents.yml](../.github/workflows/validate-generated-agents.yml) - CI validation
 - [.github/workflows/drift-detection.yml](../.github/workflows/drift-detection.yml) - Drift detection CI

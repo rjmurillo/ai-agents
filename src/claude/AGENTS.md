@@ -58,7 +58,7 @@ Per ADR-036 §Synchronization Requirement, when adding content that applies to A
 ```text
 1. Edit src/claude/{agent}.md
 2. Duplicate universal changes to templates/agents/{agent}.shared.md
-3. Run: pwsh build/Generate-Agents.ps1
+3. Run: python3 build/generate_agents.py
 4. Commit all changed files together
 ```
 
@@ -67,7 +67,7 @@ Per ADR-036 §Synchronization Requirement, when adding content that applies to A
 ```text
 1. Edit templates/agents/{agent}.shared.md
 2. Edit src/claude/{agent}.md (MANUAL - not auto-synced!)
-3. Run: pwsh build/Generate-Agents.ps1
+3. Run: python3 build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -117,7 +117,7 @@ flowchart TD
     end
 
     Claude -.->|Manual sync when<br>universal changes| Templates
-    Templates -->|build/Generate-Agents.ps1| Generated
+    Templates -->|build/generate_agents.py| Generated
 
     style Claude fill:#e1f5fe
     style Templates fill:#fff3e0
@@ -277,7 +277,7 @@ gh pr view 50 --json ...
 1. Create `src/claude/{agent-name}.md` with required sections
 2. Create `templates/agents/{agent-name}.shared.md` with platform-agnostic content
 3. Update `templates/platforms/*.yaml` if new tools needed
-4. Run `pwsh build/Generate-Agents.ps1`
+4. Run `python3 build/generate_agents.py`
 5. Update documentation (root AGENTS.md, AGENT-SYSTEM.md)
 6. Commit all files together
 
@@ -292,7 +292,7 @@ gh pr view 50 --json ...
 
 3. Edit templates/agents/{agent}.shared.md with equivalent changes
 
-4. Run: pwsh build/Generate-Agents.ps1
+4. Run: python3 build/generate_agents.py
 
 5. Review generated files in src/vs-code-agents/ and src/copilot-cli/
 
@@ -303,7 +303,7 @@ gh pr view 50 --json ...
 
 ```powershell
 # Validate generated files match templates
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 
 # Check for drift between Claude and VS Code
 pwsh build/scripts/Detect-AgentDrift.ps1
@@ -337,7 +337,7 @@ Invoke-Pester ./build/tests/
 |-------|----------|-----------|
 | Generation validation | `validate-generated-agents.yml` | On PR |
 | Drift detection | `drift-detection.yml` | Monday 9 AM UTC |
-| Lint validation | `pester-tests.yml` | On PR |
+| Lint validation | `pytest.yml` | On PR |
 
 ---
 

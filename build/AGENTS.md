@@ -17,11 +17,11 @@ flowchart TD
     end
 
     subgraph Build["Build Agents"]
-        GEN[Generate-Agents.ps1]
+        GEN[generate_agents.py]
         DFT[Detect-AgentDrift.ps1]
         VPA[Validate-PlanningArtifacts.ps1]
         VPN[Validate-PathNormalization.ps1]
-        IPT[Invoke-PesterTests.ps1]
+        IPT[pytest]
     end
 
     subgraph Outputs["Outputs"]
@@ -61,10 +61,10 @@ After modifying ANY file in `templates/`:
 
 ```powershell
 # Regenerate platform-specific files
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 
 # Verify generation succeeded
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 
 # Commit ALL affected files together
 git add templates/ src/vs-code-agents/ src/copilot-cli/
@@ -78,7 +78,7 @@ When `src/claude/` agents receive **universal changes**:
 ```text
 1. Edit src/claude/{agent}.md (Claude-specific source)
 2. Duplicate changes to templates/agents/{agent}.shared.md
-3. Run: pwsh build/Generate-Agents.ps1
+3. Run: python3 build/generate_agents.py
 4. Commit all files atomically
 ```
 
@@ -129,7 +129,7 @@ behind. There are zero deferrals today; the gate passes until someone adds one.
 
 ## Agent Catalog
 
-### Generate-Agents.ps1
+### generate_agents.py
 
 **Role**: Platform-specific agent file generator
 
@@ -150,13 +150,13 @@ behind. There are zero deferrals today; the gate passes until someone adds one.
 
 ```powershell
 # Generate all agents
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 
 # Preview changes (dry run)
-pwsh build/Generate-Agents.ps1 -WhatIf
+python3 build/generate_agents.py --what-if
 
 # CI validation mode
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 ```
 
 **Exit Codes**:
@@ -329,7 +329,7 @@ pwsh build/scripts/Validate-PathNormalization.ps1
 
 ---
 
-### Invoke-PesterTests.ps1
+### pytest
 
 **Role**: Reusable Pester test runner
 
@@ -344,16 +344,16 @@ pwsh build/scripts/Validate-PathNormalization.ps1
 
 ```powershell
 # Local development (detailed output)
-pwsh build/scripts/Invoke-PesterTests.ps1
+uv run pytest
 
 # CI mode (exit on failure)
-pwsh build/scripts/Invoke-PesterTests.ps1 -CI
+uv run pytest
 
 # Specific test file
-pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./scripts/tests/Install-Common.Tests.ps1"
+uv run pytest tests/build_scripts/
 
 # Maximum verbosity
-pwsh build/scripts/Invoke-PesterTests.ps1 -Verbosity Diagnostic
+uv run pytest -vv
 ```
 
 ---
@@ -363,7 +363,7 @@ pwsh build/scripts/Invoke-PesterTests.ps1 -Verbosity Diagnostic
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
-    participant Gen as Generate-Agents.ps1
+    participant Gen as generate_agents.py
     participant Drift as Detect-AgentDrift.ps1
     participant CI as GitHub Actions
 
@@ -393,17 +393,17 @@ sequenceDiagram
 
 | Agent | Error Scenario | Behavior |
 |-------|---------------|----------|
-| Generate-Agents.ps1 | Missing template | Exit 1 with path info |
-| Generate-Agents.ps1 | Invalid YAML | Parse error with line number |
+| generate_agents.py | Missing template | Exit 1 with path info |
+| generate_agents.py | Invalid YAML | Parse error with line number |
 | Detect-AgentDrift.ps1 | Missing agent | Report as "NO COUNTERPART" |
 | Validate-PlanningArtifacts.ps1 | Missing artifacts | Warning (not error) |
-| Invoke-PesterTests.ps1 | Test failure | Report details, exit 1 in CI |
+| pytest | Test failure | Report details, exit 1 in CI |
 
 ## Security Considerations
 
 | Agent | Security Control |
 |-------|-----------------|
-| Generate-Agents.ps1 | Output path validation (no traversal) |
+| generate_agents.py | Output path validation (no traversal) |
 | All scripts | No external input (static file sources) |
 | All scripts | No network access required |
 | All scripts | Code review required for changes |
@@ -412,11 +412,11 @@ sequenceDiagram
 
 | Agent | CI Workflow | Schedule |
 |-------|------------|----------|
-| Generate-Agents.ps1 | `validate-generated-agents.yml` | On PR |
+| generate_agents.py | `validate-generated-agents.yml` | On PR |
 | Detect-AgentDrift.ps1 | `drift-detection.yml` | Monday 9 AM UTC |
 | Validate-PlanningArtifacts.ps1 | `validate-planning-artifacts.yml` | On PR |
 | Validate-PathNormalization.ps1 | `validate-paths.yml` | On PR |
-| Invoke-PesterTests.ps1 | `pester-tests.yml` | On PR |
+| pytest | `pytest.yml` | On PR |
 
 ## Related Documentation
 

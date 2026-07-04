@@ -30,7 +30,7 @@ flowchart TD
         VP[validate-paths.yml]
         VPA[validate-planning-artifacts.yml]
         VPV[validate-plugin-version-bump.yml]
-        PT[pester-tests.yml]
+        PT[pytest.yml]
         CQ[codeql-analysis.yml]
     end
 
@@ -275,7 +275,7 @@ sequenceDiagram
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `templates/**` or `src/**` |
-| **Script** | `build/Generate-Agents.ps1 -Validate` |
+| **Script** | `build/generate_agents.py --validate` |
 | **Output** | Pass/fail status |
 | **Exit Behavior** | Fails if generated files don't match |
 
@@ -320,14 +320,14 @@ sequenceDiagram
 
 ---
 
-### pester-tests.yml
+### pytest.yml
 
 **Role**: PowerShell unit test runner
 
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `scripts/**` or `build/**` |
-| **Script** | `build/scripts/Invoke-PesterTests.ps1 -CI` |
+| **Script** | `uv run pytest` |
 | **Output** | Test results XML, pass/fail status |
 | **Coverage** | Installation, sync, validation scripts |
 

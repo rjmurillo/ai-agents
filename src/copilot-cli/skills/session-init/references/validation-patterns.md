@@ -6,25 +6,25 @@ How to validate session logs and handle common issues.
 
 ## Validation Script
 
-**Script**: `scripts/Validate-SessionJson.ps1`
+**Script**: `scripts/validate_session_json.py` (Python, per ADR-042)
 
 ### Basic Usage
 
-```powershell
-pwsh scripts/Validate-SessionJson.ps1 `
-    -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
-    
+```bash
+python3 scripts/validate_session_json.py \
+    .agents/sessions/2026-01-05-session-375.json
 ```
 
-### CI Mode
+The session log path is a positional argument.
 
-For GitHub Actions:
+### CI / Pre-commit Mode
 
-```powershell
-pwsh scripts/Validate-SessionJson.ps1 `
-    -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
-     `
-    -CI
+CI and the pre-commit hook run the same command; the exit code is the gate
+(0 = PASS, 1 = FAIL). The `--pre-commit` flag tightens output for hook use:
+
+```bash
+python3 scripts/validate_session_json.py \
+    .agents/sessions/2026-01-05-session-375.json --pre-commit
 ```
 
 ---
@@ -153,15 +153,15 @@ Regex patterns:
 
 ### SessionLogCompleteness (SHOULD)
 
-Checks for required sections:
+Checks for required sections (validator internals, Python):
 
-```powershell
-$expectedSections = @(
-    @{ Pattern = '(?i)##\s*Session\s+Info'; Name = 'Session Info' }
-    @{ Pattern = '(?i)##\s*Protocol\s+Compliance'; Name = 'Protocol Compliance' }
-    @{ Pattern = '(?i)##\s*Work\s+Log|##\s*Tasks?\s+Completed'; Name = 'Work Log' }
-    @{ Pattern = '(?i)##\s*Session\s+End|Session\s+End.*COMPLETE'; Name = 'Session End' }
-)
+```python
+expected_sections = [
+    (r'(?i)##\s*Session\s+Info', 'Session Info'),
+    (r'(?i)##\s*Protocol\s+Compliance', 'Protocol Compliance'),
+    (r'(?i)##\s*Work\s+Log|##\s*Tasks?\s+Completed', 'Work Log'),
+    (r'(?i)##\s*Session\s+End|Session\s+End.*COMPLETE', 'Session End'),
+]
 ```
 
 ### HandoffUpdated (MUST)
@@ -178,23 +178,16 @@ Checks for commit SHA evidence in the session log.
 
 For session-init skill, run validation immediately after creating the session log:
 
-```powershell
-$sessionPath = ".agents/sessions/.agents/sessions/2026-01-05-session-375.json"
+```bash
+SESSION_PATH=".agents/sessions/2026-01-05-session-375.json"
 
-# Run validation
-$result = & pwsh scripts/Validate-SessionJson.ps1 `
-    -SessionPath $sessionPath `
-    
-
-$exitCode = $LASTEXITCODE
-
-if ($exitCode -eq 0) {
-    Write-Host "Session log validated successfully" -ForegroundColor Green
-} else {
-    Write-Host "Validation failed:" -ForegroundColor Red
-    Write-Host $result
+# Run validation; exit code 0 = PASS, 1 = FAIL
+if python3 scripts/validate_session_json.py "$SESSION_PATH"; then
+    echo "Session log validated successfully"
+else
+    echo "Validation failed"
     exit 1
-}
+fi
 ```
 
 ---
@@ -203,24 +196,23 @@ if ($exitCode -eq 0) {
 
 ### View Full Validation Output
 
-```powershell
-pwsh scripts/Validate-SessionJson.ps1 `
-    -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" `
-     `
-    -Verbose
+The validator prints a full Markdown report by default:
+
+```bash
+python3 scripts/validate_session_json.py \
+    .agents/sessions/2026-01-05-session-375.json
 ```
 
 ### Check Specific Patterns
 
-```powershell
-$content = Get-Content -Path ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" -Raw
-
+```bash
 # Check Session End header
-if ($content -match '(?i)Session\s+End.*COMPLETE\s+ALL') {
-    Write-Host "Session End header: OK"
-} else {
-    Write-Host "Session End header: MISSING REQUIRED TEXT"
-}
+if grep -qiE 'Session\s+End.*COMPLETE\s+ALL' \
+    .agents/sessions/2026-01-05-session-375.json; then
+    echo "Session End header: OK"
+else
+    echo "Session End header: MISSING REQUIRED TEXT"
+fi
 ```
 
 ---

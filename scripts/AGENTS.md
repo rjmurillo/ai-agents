@@ -11,9 +11,14 @@ This document contains PowerShell coding standards and describes the automated a
 
 ### Language Constraint
 
-**PowerShell only** (.ps1/.psm1) per ADR-005.
+**Python-first** (.py) per ADR-042, which supersedes ADR-005 for new development.
 
-No bash or Python scripts in this directory. Cross-platform consistency via PowerShell.
+New scripts use Python. No bash scripts (.sh). ADR-005 originally mandated
+PowerShell-only; the repository has since completed the ADR-042 migration and
+retains zero PowerShell files. The PowerShell coding standards below are kept
+for historical reference and any reintroduced `.ps1` tooling. For new work,
+follow the Python guidance in
+[`.agents/guides/python-for-powershell-developers.md`](../.agents/guides/python-for-powershell-developers.md).
 
 ### Script Structure
 
