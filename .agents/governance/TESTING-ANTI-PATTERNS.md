@@ -105,7 +105,7 @@
 - Apply the mirror obligation in `TESTING-RIGOR.md`: grep for tests asserting the old contract and flip them in the same diff
 - Tighten assertions to the new shape, not just truthiness
 
-**Related**: `TESTING-RIGOR.md` Mirror Obligation section
+**Related**: `TESTING-RIGOR.md` Contract Changes: Flip the Stale Tests section
 
 ---
 

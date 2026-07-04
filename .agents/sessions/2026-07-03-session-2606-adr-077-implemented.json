@@ -120,12 +120,16 @@
   {
    "summary": "Validated the mechanical ADR lifecycle change",
    "evidence": "ADR-077 and the session log have 0 prohibited dash bytes; scoped markdownlint and session-log validation pass."
+  },
+  {
+   "summary": "Addressed three unresolved review threads",
+   "evidence": "Folded implementer and critic mirror-obligation eval scenarios into the standard scenario files, removed undiscovered split files, and fixed the TESTING-RIGOR cross-reference."
   }
  ],
  "endingCommit": "see commit containing this session log",
  "nextSteps": [
-  "Push the fix commit.",
-  "Reply to and resolve the ADR review thread.",
+  "Push the review-thread fix commit.",
+  "Reply to and resolve verified review threads.",
   "Observe auto-merge state until the pull request merges."
  ]
 }
