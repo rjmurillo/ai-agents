@@ -17,10 +17,12 @@ import logging
 import os
 import re
 import sys
+import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, TextIO
 
 workspace = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -307,6 +309,65 @@ def get_actionability_score(
     )
 
 
+def _atomic_write_text(path: str | os.PathLike[str], text: str) -> None:
+    """Write ``text`` to ``path`` atomically via a temp file plus ``os.replace``.
+
+    Mirrors ``skill_pattern_loader._atomic_json_write`` (temp file in the same
+    directory, then ``os.replace``) so a crash or two concurrent writers cannot
+    leave the file half-written or truncated. On failure the partial temp file
+    is removed and the ``OSError`` re-raised for the caller to handle.
+    """
+    directory = os.path.dirname(os.fspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _try_lock_helpers() -> tuple[
+    Callable[[TextIO], None] | None,
+    Callable[[TextIO], None] | None,
+]:
+    """Return ``(lock_file, unlock_file)`` from ``hook_utilities`` or ``(None, None)``.
+
+    Mirrors ``scripts/metrics/kill_criteria.py`` so the shared-append sites use
+    one lock strategy. The advisory lock is best-effort: when the helper module
+    is not importable (standalone CLI) the caller proceeds without it, which only
+    matters when two writers race.
+    """
+    try:
+        from hook_utilities import lock_file, unlock_file  # noqa: PLC0415
+    except ImportError:
+        return None, None
+    return lock_file, unlock_file
+
+
+def _locked_append(path: str | os.PathLike[str], text: str) -> None:
+    """Append ``text`` to ``path`` under a best-effort exclusive advisory lock.
+
+    Mirrors ``kill_criteria._append_line`` so concurrent writers do not interleave
+    partial lines. The lock is skipped when the hook_utilities helpers are absent.
+    """
+    lock_file, unlock_file = _try_lock_helpers()
+    with open(path, "a", encoding="utf-8") as handle:
+        if lock_file is not None and unlock_file is not None:
+            lock_file(handle)
+            try:
+                handle.write(text)
+                handle.flush()
+            finally:
+                unlock_file(handle)
+        else:
+            handle.write(text)
+
+
 def get_reviewer_signal_stats(
     reviewer_stats: dict[str, ReviewerStats],
     heuristics: dict[str, float | int] | None = None,
@@ -458,8 +519,7 @@ def update_serena_memory(
             content,
         )
 
-    with open(memory_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    _atomic_write_text(memory_path, content)
 
     logger.info("Updated Serena memory: %s", memory_path)
     logger.info("  Reviewers: %d", len(stats))
@@ -512,8 +572,7 @@ def _write_step_summary(
             f"| {reviewer} | {signal_percent}% | {trend_icon} | {data.total_comments} |"
         )
 
-    with open(summary_path, "a", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
+    _locked_append(summary_path, "\n".join(lines) + "\n")
 
 
 # ---------------------------------------------------------------------------

@@ -189,10 +189,14 @@
     {
       "summary": "Fixed Copilot thread on ambiguous SKILL.md precedent paths.",
       "evidence": "scripts/validation/check_skill_md_exec_portability.py now cites concrete repo paths. Targeted exec-portability tests passed: 34 tests. Validator passed with 316 grandfathered invocations across 72 files."
+    },
+    {
+      "summary": "Rebumped plugin manifests after origin/main advanced to 0.5.260.",
+      "evidence": "Both plugin manifests set to 0.5.261; origin/main plugin version was 0.5.260. Output helper conflicts resolved by taking main mypy-safe script_path form."
     }
   ],
   "endingCommit": "d4dfaccd69dca48dd9ac63a0bb025c3ffaaf4687",
   "nextSteps": [
-    "Commit the Copilot thread fix, push PR #2843, reply and resolve thread PRRT_kwDOQoWRls6OT2DP, enable auto-merge, and monitor until merged."
+    "Commit latest main merge and plugin rebump, push PR #2843, enable auto-merge, and monitor until merged."
   ]
 }

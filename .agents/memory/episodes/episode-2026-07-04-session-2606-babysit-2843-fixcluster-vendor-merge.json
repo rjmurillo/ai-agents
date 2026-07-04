@@ -208,6 +208,14 @@
       "content": "Fixed Copilot thread on ambiguous SKILL.md precedent paths.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebumped plugin manifests after origin/main advanced to 0.5.260.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

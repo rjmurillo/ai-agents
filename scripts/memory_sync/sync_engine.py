@@ -30,18 +30,44 @@ SOURCE_REPO = "rjmurillo/ai-agents"
 ENCODING_AGENT = "memory-sync/0.1.0"
 
 
+class StateError(Exception):
+    """Raised when the sync state file exists but cannot be parsed.
+
+    Distinguishes a corrupt state file from an absent one so callers fail
+    loudly (EXIT_IO_ERROR) instead of treating corruption as an empty state,
+    which would silently re-create every memory on the next sync.
+    """
+
+
 def compute_content_hash(content: str) -> str:
     """Compute SHA-256 hash of content for deduplication."""
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 def load_state(project_root: Path) -> dict[str, Any]:
-    """Load sync state from .memory_sync_state.json."""
+    """Load sync state from .memory_sync_state.json.
+
+    Raises:
+        StateError: The state file exists but is not parseable as a JSON
+            object. Callers map this to EXIT_IO_ERROR; a corrupt state file
+            must not read as an empty state.
+    """
     state_path = project_root / STATE_FILE
-    if state_path.exists():
-        result: dict[str, Any] = json.loads(state_path.read_text("utf-8"))
-        return result
-    return {}
+    if not state_path.exists():
+        return {}
+    try:
+        parsed = json.loads(state_path.read_text("utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        raise StateError(
+            f"Unreadable or corrupt sync state file {state_path}: {exc}"
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise StateError(
+            f"Sync state file {state_path} must be a JSON object, "
+            f"got {type(parsed).__name__}"
+        )
+    result: dict[str, Any] = parsed
+    return result
 
 
 def save_state(project_root: Path, state: dict[str, Any]) -> None:

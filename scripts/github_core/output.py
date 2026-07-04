@@ -15,7 +15,6 @@ import json
 import os
 import sys
 from datetime import UTC, datetime
-from typing import cast
 
 
 def add_output_format_arg(parser: argparse.ArgumentParser) -> None:
@@ -175,9 +174,10 @@ def _detect_script_name() -> str:
 
     frame = inspect.currentframe()
     if frame and frame.f_back and frame.f_back.f_back:
-        caller_file = frame.f_back.f_back.f_globals.get("__file__", "")
-        if caller_file and isinstance(caller_file, str):
-            return cast(str, os.path.basename(caller_file))
+        caller_file = frame.f_back.f_back.f_globals.get("__file__")
+        if isinstance(caller_file, str) and caller_file:
+            script_path: str = caller_file
+            return os.path.basename(script_path)
     return "unknown"
 
 
