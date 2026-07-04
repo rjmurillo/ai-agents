@@ -7,6 +7,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -143,7 +144,7 @@ class TestMain:
         )
         return tmp_path
 
-    def test_no_changes(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_no_changes(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         exit_code = main(["--base-path", str(git_repo)])
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -151,7 +152,7 @@ class TestMain:
         assert data["HasChanges"] is False
         assert data["RecommendedAction"] == "none"
 
-    def test_detects_created_adr(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_detects_created_adr(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         arch_dir = git_repo / ".agents" / "architecture"
         arch_dir.mkdir(parents=True)
         (arch_dir / "ADR-001.md").write_text("# ADR-001")
@@ -168,7 +169,7 @@ class TestMain:
         assert len(data["Created"]) == 1
         assert data["RecommendedAction"] == "review"
 
-    def test_result_has_timestamp(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_result_has_timestamp(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         exit_code = main(["--base-path", str(git_repo)])
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -180,7 +181,7 @@ class TestMain:
         exit_code = main(["--base-path", str(tmp_path)])
         assert exit_code == 1
 
-    def test_result_structure(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_result_structure(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         exit_code = main(["--base-path", str(git_repo)])
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -192,7 +193,7 @@ class TestMain:
         for key in required_keys:
             assert key in data
 
-    def test_outputs_json(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_outputs_json(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         exit_code = main(["--base-path", str(git_repo)])
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -321,13 +322,13 @@ class TestFrontmatterOnlyDetection:
         _git("commit", "-m", "readme")
         return tmp_path
 
-    def _run(self, repo: Path, capsys: pytest.CaptureFixture) -> dict:
+    def _run(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> dict[str, Any]:
         exit_code = main(["--base-path", str(repo)])
         assert exit_code == 0
-        return json.loads(capsys.readouterr().out)
+        return cast("dict[str, Any]", json.loads(capsys.readouterr().out))
 
     def test_frontmatter_only_flip_does_not_trigger(
-        self, adr_repo: Path, capsys: pytest.CaptureFixture
+        self, adr_repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         adr = adr_repo / self.ADR_REL
         adr.write_text("---\nstatus: proposed\nimplemented: true\n---" + self.BODY)
@@ -338,7 +339,7 @@ class TestFrontmatterOnlyDetection:
         assert data["ModifiedFrontmatterOnly"] == [self.ADR_REL]
 
     def test_body_change_triggers_review(
-        self, adr_repo: Path, capsys: pytest.CaptureFixture
+        self, adr_repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         adr = adr_repo / self.ADR_REL
         new_body = self.BODY.replace("We do X.", "We do Y.")
@@ -353,7 +354,7 @@ class TestFrontmatterOnlyDetection:
         assert _is_frontmatter_only_change("../outside.md", "HEAD~1", adr_repo) is False
 
     def test_status_flip_triggers_review(
-        self, adr_repo: Path, capsys: pytest.CaptureFixture
+        self, adr_repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         # Frontmatter-only status flip to accepted MUST still fire the gate so
         # the author binds it to adr-review evidence (ADR-073:61, #2845 review).
@@ -366,7 +367,7 @@ class TestFrontmatterOnlyDetection:
         assert data["RecommendedAction"] == "review"
 
     def test_mixed_change_lists_only_substantive_as_modified(
-        self, adr_repo: Path, capsys: pytest.CaptureFixture
+        self, adr_repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         # ADR-001: frontmatter-only flip. ADR-002: new body change.
         adr2_rel = ".agents/architecture/ADR-002.md"
