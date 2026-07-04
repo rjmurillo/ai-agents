@@ -381,25 +381,40 @@ def _detect_default_base_ref(cwd: str) -> str:
     return "origin/main"
 
 
-def _read_stdin_command() -> str | None:
+def _read_stdin_command(name: str) -> str | None:
+    """Parse the tool command from hook stdin, or return None.
+
+    Fail-open with telemetry: every anomalous stdin shape (oversize, unparseable
+    JSON, non-object payload, missing/mistyped tool_input, missing/mistyped
+    command) emits a structured ``EVENT=...`` fail-open line via _emit_fail_open
+    and still returns None, preserving the framework's documented allow-but-observe
+    contract (see the module docstring, "Operations and telemetry"). The isatty
+    and empty-stdin paths are legitimate no-ops (interactive terminal, nothing
+    piped) and do NOT emit an event.
+    """
     if sys.stdin.isatty():
         return None
     raw = sys.stdin.read(MAX_STDIN_BYTES + 1)
     if len(raw) > MAX_STDIN_BYTES:
+        _emit_fail_open(name, "bad_stdin", f"stdin exceeds {MAX_STDIN_BYTES} bytes")
         return None
     if not raw.strip():
         return None
     try:
         payload = json.loads(raw)
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError) as exc:
+        _emit_fail_open(name, "bad_stdin", f"unparseable JSON: {type(exc).__name__}")
         return None
     if not isinstance(payload, dict):
+        _emit_fail_open(name, "bad_stdin", "payload not a JSON object")
         return None
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
+        _emit_fail_open(name, "bad_stdin", "tool_input missing/not object")
         return None
     command = tool_input.get("command")
     if not isinstance(command, str) or not command:
+        _emit_fail_open(name, "bad_stdin", "command missing/not non-empty string")
         return None
     return command
 
@@ -481,7 +496,7 @@ def run_guard(
     if skip_if_consumer_repo(name):
         return 0
     try:
-        command = _read_stdin_command()
+        command = _read_stdin_command(name)
         if command is None:
             return 0
         # Defense in depth: even when the harness matcher is `Bash(git push*)`,

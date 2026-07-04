@@ -31,6 +31,8 @@ Args:
 Exit codes (ADR-035):
     0 - detection ran (label add is best-effort; failures do not fail the step)
     1 - unsafe results directory
+    3 - a flag file exists but could not be read (external/IO error); the step
+        fails loud rather than treating the unreadable flag as no-failure
 """
 
 from __future__ import annotations
@@ -64,9 +66,20 @@ class InfraFinding:
 
 
 def _read_raw(path: Path) -> str | None:
+    """Return the file text, or None only when the file is genuinely missing.
+
+    A present-but-unreadable flag file (permission or IO error surfacing as
+    OSError, invalid UTF-8 surfacing as UnicodeDecodeError) must NOT be
+    swallowed: returning None there would let ``detect_failures`` treat an
+    infrastructure-failure flag it could not read as "no failure", silently
+    downgrading a safety signal. Only FileNotFoundError (ENOENT) maps to the
+    intended missing-file semantics; any other OSError or a UnicodeDecodeError
+    propagates to ``main`` and fails the step loudly (exit 3).
+    """
+
     try:
         return path.read_text(encoding="utf-8")
-    except OSError:
+    except FileNotFoundError:
         return None
 
 
@@ -163,7 +176,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"::error::{exc}", file=sys.stderr)
         return 1
 
-    findings = detect_failures(results_dir)
+    try:
+        findings = detect_failures(results_dir)
+    except (OSError, UnicodeDecodeError) as exc:
+        print(
+            f"::error::Cannot read infrastructure-failure flag file: {exc}",
+            file=sys.stderr,
+        )
+        return 3
 
     for finding in findings:
         print(

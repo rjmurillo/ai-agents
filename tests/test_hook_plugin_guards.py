@@ -6,10 +6,12 @@ Verifies that project-specific hooks skip gracefully in consumer repos
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -247,3 +249,83 @@ class TestSyncPluginLib:
 
         result = sync_mod.main(["--check"])
         assert result == 1
+
+
+def _parse_events(stderr_text: str) -> list[dict[str, Any]]:
+    return [
+        json.loads(line[len("EVENT="):])
+        for line in stderr_text.splitlines()
+        if line.startswith("EVENT=")
+    ]
+
+
+class TestUnknownIdentityCorroboration:
+    """Finding 4 (#2806): when the git origin is unavailable, corroborate project
+    identity via pyproject [project].name before skipping every guard, and emit a
+    structured fail_open EVENT when the whole-surface skip still happens."""
+
+    def _force_unknown(
+        self, monkeypatch: pytest.MonkeyPatch, project_dir: Path
+    ) -> None:
+        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
+        guards._origin_repo_cache.clear()
+        monkeypatch.setattr(guards, "get_project_directory", lambda: str(project_dir))
+        monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: None)
+
+    def test_pyproject_name_corroborates_project_repo(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "ai-agents"\n')
+        self._force_unknown(monkeypatch, tmp_path)
+        assert skip_if_consumer_repo("test-hook") is False
+
+    def test_other_pyproject_name_skips_and_emits_event(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "other-repo"\n')
+        self._force_unknown(monkeypatch, tmp_path)
+        assert skip_if_consumer_repo("test-hook") is True
+        events = _parse_events(capsys.readouterr().err)
+        assert len(events) == 1
+        assert events[0]["outcome"] == "fail_open"
+        assert events[0]["reason"] == "identity_unknown"
+        assert events[0]["guard"] == "test-hook"
+        assert events[0]["code"] == "E_TEST_HOOK"
+
+    def test_missing_pyproject_skips_and_emits_event(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        self._force_unknown(monkeypatch, tmp_path)
+        assert skip_if_consumer_repo("test-hook") is True
+        events = _parse_events(capsys.readouterr().err)
+        assert len(events) == 1
+        assert events[0]["reason"] == "identity_unknown"
+
+
+class TestProjectRepoCorroborated:
+    """_project_repo_corroborated reads pyproject [project].name defensively."""
+
+    def test_true_for_ai_agents_name(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "ai-agents"\n')
+        assert guards._project_repo_corroborated(str(tmp_path)) is True
+
+    def test_false_for_other_name(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        assert guards._project_repo_corroborated(str(tmp_path)) is False
+
+    def test_false_when_missing(self, tmp_path: Path) -> None:
+        assert guards._project_repo_corroborated(str(tmp_path)) is False
+
+    def test_false_when_malformed(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text("[project\nname = broken")
+        assert guards._project_repo_corroborated(str(tmp_path)) is False
+
+    def test_false_when_no_project_table(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text('[tool.other]\nkey = "v"\n')
+        assert guards._project_repo_corroborated(str(tmp_path)) is False

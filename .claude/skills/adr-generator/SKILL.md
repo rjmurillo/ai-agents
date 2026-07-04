@@ -2,7 +2,7 @@
 name: adr-generator
 version: 1.1.0
 model: claude-opus-4-6
-description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions or creating new ADR files. Use when you say "write an ADR", "document this decision". Do NOT use to debate or review an existing ADR (use adr-review).
+description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions, creating new ADR files, or capturing rationale so future readers can revisit a choice. Use when you say "write an ADR", "document this decision", "document these design choices", "record why we chose this", "capture the rationale", or "for future maintainers", or when creating an ADR-like markdown file under docs/decisions/, docs/adr/, docs/architecture/, architecture/decisions/, or .agents/architecture/. Do NOT use to debate or review an existing ADR (use adr-review).
 license: MIT
 user-invocable: true
 metadata:
@@ -24,7 +24,7 @@ Create well-structured Architectural Decision Records that document technical de
 | `generate ADR` | Full ADR generation workflow |
 | `write an architecture decision record` | Full ADR generation workflow |
 | `new ADR for` | Targeted ADR for a specific decision |
-| `document this architecture decision` | Full ADR generation workflow |
+| `document these design choices` | Full ADR generation workflow (paraphrase) |
 
 ---
 
@@ -36,6 +36,7 @@ create an ADR for database selection
 new ADR for authentication strategy
 document this architecture decision about event sourcing
 generate ADR for switching from REST to gRPC
+document these design choices for future us to revisit as models change
 ```
 
 ---
@@ -84,7 +85,7 @@ Explore the codebase to find where ADRs live. Do not assume a fixed location.
 3. **Check for ADR tooling config**: Look for `.adr-dir` files (used by `adr-tools`) or ADR references in README, CONTRIBUTING, or project documentation
 4. **If user specifies a location**: Use that, regardless of what exists elsewhere
 
-Note: `.agents/architecture/` and `docs/architecture/` are monitored by `adr-review` for auto-triggered review. ADRs in other directories require manual `adr-review` invocation.
+Note: `.agents/architecture/` and `docs/architecture/` are monitored by `adr-review` for auto-triggered review. ADRs written to `docs/decisions/`, `docs/adr/`, or `architecture/decisions/` are NOT auto-monitored; after saving to any of these, explicitly recommend the user invoke `adr-review` manually. This keeps this skill's discovered path list aligned with `adr-review`'s real auto-trigger coverage.
 
 #### Step 2: Detect template from existing ADRs
 

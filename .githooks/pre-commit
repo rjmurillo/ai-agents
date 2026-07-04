@@ -420,6 +420,20 @@ if [ -n "$STAGED_PY_FILES" ]; then
             if [ "$AUTOFIX" = "1" ]; then
                 echo_action "Auto-fixing Python files with ruff..."
                 ruff check --fix -- "${PY_FILES[@]}" 2>/dev/null || true
+
+                # Re-stage fixed files even when unfixable advisory findings
+                # remain (Issue #2832). Re-staging only on a clean verify left
+                # the fix unstaged whenever the pre-existing #2194 backlog
+                # kept the verify red: the commit then recorded the unfixed
+                # content and the dirty tree tripped the pre-push
+                # build_all --check staleness gate on the next push.
+                for file in "${PY_FILES[@]}"; do
+                    if [ -f "$file" ] && ! git diff --quiet -- "$file" 2>/dev/null; then
+                        echo_success "Fixed: $file"
+                        git add -- "$file"
+                        FILES_FIXED=1
+                    fi
+                done
             fi
 
             # Verify (non-blocking)
@@ -428,14 +442,6 @@ if [ -n "$STAGED_PY_FILES" ]; then
                 echo_info "  Run: ruff check --fix <files>"
                 # Non-blocking: just warn, don't fail the commit
             else
-                # Re-stage any fixed files
-                for file in "${PY_FILES[@]}"; do
-                    if [ -f "$file" ] && ! git diff --quiet -- "$file" 2>/dev/null; then
-                        echo_success "Fixed: $file"
-                        git add -- "$file"
-                        FILES_FIXED=1
-                    fi
-                done
                 echo_success "Python files OK."
             fi
         fi
