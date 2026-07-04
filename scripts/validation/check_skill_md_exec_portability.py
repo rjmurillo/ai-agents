@@ -112,7 +112,8 @@ EXEC_PATTERN = re.compile(
 # Shell line-continuation: a backslash immediately before a newline splices the
 # next line onto the current command. Collapse to a single space (what the shell
 # does) so `python3 \<newline>  .claude/...` is seen as one invocation.
-_CONTINUATION_PATTERN = re.compile(r"\\\n[ \t]*")
+# The \r? handles CRLF line endings (backslash-CR-LF) as well as LF-only.
+_CONTINUATION_PATTERN = re.compile(r"\\\r?\n[ \t]*")
 
 # A skill self-declares an intentional bare invocation with this HTML comment.
 # When present, the file's invocations are suppressed (the escape hatch). This
