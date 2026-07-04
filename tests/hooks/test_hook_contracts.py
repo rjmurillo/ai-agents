@@ -437,6 +437,27 @@ class TestValidateExitCodeDocs:
         )
         assert hook_contracts.validate_exit_code_docs(entry, tmp_path) is None
 
+    def test_unreadable_script_flagged(self, tmp_path, monkeypatch):
+        # The script exists (is_file() is true) but cannot be read. Returning
+        # None here would treat it as "docs present"; instead it must flag an
+        # unreadable_script violation (issue #2809).
+        script = tmp_path / "hook.py"
+        script.write_text('"""Guard hook."""\n')
+
+        def _raise(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+            raise PermissionError("permission denied")
+
+        monkeypatch.setattr(hook_contracts.Path, "read_text", _raise)
+        entry = hook_contracts.HookEntry(
+            hook_type="PreToolUse",
+            script_path="hook.py",
+            command="python3 hook.py",
+        )
+        violation = hook_contracts.validate_exit_code_docs(entry, tmp_path)
+        assert violation is not None
+        assert violation.category == "unreadable_script"
+        assert "cannot be read" in violation.message
+
 
 # ---------------------------------------------------------------------------
 # validate_duplicate_entries

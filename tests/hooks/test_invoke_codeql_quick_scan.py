@@ -455,3 +455,31 @@ class TestModuleAsScript:
         with pytest.raises(SystemExit) as exc_info:
             runpy.run_path(hook_path, run_name="__main__")
         assert exc_info.value.code == 0
+
+
+class TestMainNonDictInput:
+    """Finding 3 (#2806): a non-object top-level payload is reported on stderr
+    and returns 0 instead of raising an AttributeError swallowed by the
+    catch-all; unexpected exceptions are surfaced, not silently swallowed."""
+
+    def test_list_payload_reports_and_returns_zero(self, monkeypatch, capsys):
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps([1, 2, 3])))
+        assert invoke_codeql_quick_scan.main() == 0
+        assert "not an object" in capsys.readouterr().err
+
+    def test_unexpected_exception_reports_on_stderr(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        py_file = tmp_path / "test.py"
+        py_file.write_text("x = 1")
+        input_data = json.dumps({
+            "tool_input": {"file_path": str(py_file)},
+            "cwd": str(tmp_path),
+        })
+        monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
+        with patch.object(
+            invoke_codeql_quick_scan, "_is_codeql_installed",
+            side_effect=RuntimeError("boom"),
+        ):
+            assert invoke_codeql_quick_scan.main() == 0
+        assert "unexpected RuntimeError" in capsys.readouterr().err

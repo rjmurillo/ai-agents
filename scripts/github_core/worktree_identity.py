@@ -42,6 +42,7 @@ def _run_git_config(
         errors="replace",
         env=env,
         check=check,
+        timeout=10,
     )
 
 
