@@ -78,6 +78,19 @@ if _lib_dir not in sys.path:
 
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 # Base directory for all project operations (path traversal floor / arbitrary
 # write blocker).
 #
@@ -1028,7 +1041,7 @@ def update_skill_memory(
     # Write memory file using validated resolved_path
     # lgtm[py/path-injection]
     # CodeQL suppression: resolved_path validated in Step 4 to be within project directory
-    resolved_path.write_text(new_content, encoding='utf-8')
+    _atomic_write_text(resolved_path, new_content)
 
     return True
 
