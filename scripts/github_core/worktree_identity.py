@@ -46,6 +46,8 @@ def _run_git_config(
             timeout=10,
         )
     except subprocess.TimeoutExpired:
+        if check:
+            raise
         return subprocess.CompletedProcess(
             args=["git", "-C", str(cwd), "config", *args],
             returncode=1,
