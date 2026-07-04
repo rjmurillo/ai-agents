@@ -381,6 +381,22 @@
       "content": "Commit: c5aa7ee39a",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e048",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged latest origin/main after main advanced to project-toolkit 0.5.260, resolved plugin manifest conflicts by keeping both manifests at 0.5.261.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e049",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1892b07e45",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -389,7 +405,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 8,
-    "files_changed": 39
+    "files_changed": 41
   },
   "lessons": []
 }
