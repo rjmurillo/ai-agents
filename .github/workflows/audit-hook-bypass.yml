@@ -50,36 +50,31 @@ jobs:
           # returns 0=no indicators, 1=indicators (intended non-blocking audit),
           # 2=config/crash. Capture the code and hard-fail on >=2 instead of
           # reporting a clean audit when the detector never ran.
-          rc=0
+          set +e
           python3 scripts/detect_hook_bypass.py \
             --base-ref origin/main \
-            --output artifacts/hook-bypass-audit.json \
-            || rc=$?
-
+            --output artifacts/hook-bypass-audit.json
+          rc=$?
+          set -e
+          # Exit contract: 0=clean, 1=indicators found (non-blocking), >=2=error.
+          # A crash (rc>=2) must NOT be masked as "0 indicators": that would hide a
+          # broken audit (#2808). Fail the step on rc>=2 and on missing JSON.
           if [ "$rc" -ge 2 ]; then
-            echo "::error::hook-bypass detection failed (exit $rc)"
+            echo "::error::detect_hook_bypass.py failed to run (exit $rc)"
             exit "$rc"
           fi
-
-          if [ -f artifacts/hook-bypass-audit.json ]; then
-            count=$(python3 -c "
-          import json
-          with open('artifacts/hook-bypass-audit.json') as f:
-              data = json.load(f)
-          print(len(data.get('bypass_indicators', [])))
-          ")
-            echo "indicator_count=$count" >> "$GITHUB_OUTPUT"
-          else
-            # No JSON means the detector produced no output: fail instead of
-            # masking it as a zero-indicator (clean) audit.
-            echo "::error::detection produced no JSON output"
-            exit 1
-          fi
+          test -s artifacts/hook-bypass-audit.json
+          # Count extraction lives in a tested script (ADR-006: no logic in YAML).
+          python3 scripts/ci/parse_hook_bypass_results.py \
+            --input artifacts/hook-bypass-audit.json \
+            --count-out hook-bypass-count.txt
+          echo "indicator_count=$(cat hook-bypass-count.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Report findings
         if: steps.detect.outputs.indicator_count != '0'
         run: |
           echo "::warning::Hook bypass indicators detected. See audit report."
+          # Indicators are non-blocking (exit 1 by contract); do not fail the audit.
           python3 scripts/detect_hook_bypass.py --base-ref origin/main || true
 
       - name: Upload audit report

@@ -64,6 +64,8 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure mode/skip env vars never leak between tests."""
     monkeypatch.delenv("SKIP_LSP_GATE", raising=False)
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(REPO_ROOT))
+    monkeypatch.delenv("TMPDIR", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -568,4 +570,3 @@ class TestLspRuntimeDownFailOpen:
 # ---------------------------------------------------------------------------
 # main: dispatch, kill switch, fail-open paths
 # ---------------------------------------------------------------------------
-

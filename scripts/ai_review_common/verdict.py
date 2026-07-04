@@ -75,11 +75,14 @@ FAIL_VERDICTS = frozenset(
 
 # Tokens accepted by .github/actions/ai-review/action.yml's parse step:
 # PASS, WARN, CRITICAL_FAIL, REJECTED, COMPLIANT, NON_COMPLIANT, PARTIAL, FAIL.
-# Plus NEEDS_REVIEW (added by Issue #470 fix) and UNKNOWN (added by #1934).
+# Plus NEEDS_REVIEW (added by Issue #470 fix), UNKNOWN (added by #1934), and
+# DID_NOT_RUN (added by #2818/#2821 for infrastructure failures that skipped review).
 # merge_verdicts must not treat these CI-valid tokens as unknown garbage.
 # PR #1965 coderabbit Y14.
 _KNOWN_VERDICT_TOKENS: frozenset[str] = (
-    frozenset({"PASS", "WARN", "UNKNOWN", "COMPLIANT", "NON_COMPLIANT", "PARTIAL"})
+    frozenset(
+        {"PASS", "WARN", "UNKNOWN", "DID_NOT_RUN", "COMPLIANT", "NON_COMPLIANT", "PARTIAL"}
+    )
     | FAIL_VERDICTS
 )
 
@@ -90,7 +93,7 @@ def merge_verdicts(verdicts: list[str]) -> str:
     Priority (highest first):
         1. Any token in FAIL_VERDICTS -> CRITICAL_FAIL
         2. Any WARN or PARTIAL -> WARN (PARTIAL is warn-equivalent)
-        3. Any UNKNOWN OR any unrecognized token (and none of the above) -> UNKNOWN
+        3. Any DID_NOT_RUN, UNKNOWN, or unrecognized token -> UNKNOWN
         4. Empty sequence -> UNKNOWN
         5. All remaining tokens (PASS or COMPLIANT) -> PASS (COMPLIANT is pass-equivalent)
 
@@ -114,9 +117,9 @@ def merge_verdicts(verdicts: list[str]) -> str:
     if "WARN" in verdicts or "PARTIAL" in verdicts:
         return "WARN"
 
-    # Any UNKNOWN or any unrecognized token -> UNKNOWN. Do NOT silently
+    # Any DID_NOT_RUN, UNKNOWN, or unrecognized token -> UNKNOWN. Do NOT silently
     # coerce unknown tokens to PASS.
-    if any(v not in _KNOWN_VERDICT_TOKENS or v == "UNKNOWN" for v in verdicts):
+    if any(v not in _KNOWN_VERDICT_TOKENS or v in {"DID_NOT_RUN", "UNKNOWN"} for v in verdicts):
         return "UNKNOWN"
 
     # All remaining tokens are PASS-equivalent (PASS or COMPLIANT).
@@ -140,7 +143,7 @@ def merge_verdicts(verdicts: list[str]) -> str:
 _EXTRACT_VERDICT_PATTERN = re.compile(
     r"(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*"
     r"\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|"
-    r"NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?",
+    r"NON_COMPLIANT|COMPLIANT|PARTIAL|DID_NOT_RUN|UNKNOWN)(?![|A-Z_])\]?",
 )
 
 

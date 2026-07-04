@@ -115,6 +115,7 @@ def test_workflow_local_mixed_secret_skip_uses_json_signal() -> None:
 
     assert "--format json --files" in workflow_section
     assert '.get("secret_skipped")' in workflow_section
+    assert "WF_SECRET_NOTE" in workflow_section
     assert "WF_SECRET_PARSE_RC" in workflow_section
     assert "returned malformed JSON" in workflow_section
     assert 'grep -q "skipped (secrets absent locally)"' not in workflow_section

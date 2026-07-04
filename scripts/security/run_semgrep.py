@@ -39,6 +39,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SEMGREP_OUTPUT_SNIPPET_CHARS = 500
+
 
 class SemgrepScanError(Exception):
     """Raised when the semgrep scan cannot complete (e.g. timeout).
@@ -60,6 +62,51 @@ class SemgrepFinding:
     message: str
     cwe: list[str]
     owasp: list[str]
+
+
+def _scan_failure_finding(message: str) -> SemgrepFinding:
+    """Blocking finding for a scan that could not complete.
+
+    A security scan that dies must fail closed: an empty findings list
+    reads as PASS in run(), silently bypassing the gate. An ERROR-severity
+    finding rides the existing blocking path instead.
+    """
+    return SemgrepFinding(
+        check_id="semgrep-scan-failure",
+        path="global",
+        line=0,
+        severity="ERROR",
+        message=message,
+        cwe=[],
+        owasp=[],
+    )
+
+
+def _semgrep_output_snippet(value: str, *, fallback: str) -> str:
+    """Return a bounded one-line diagnostic from semgrep output."""
+    if not value:
+        return fallback
+
+    prefix = value[:SEMGREP_OUTPUT_SNIPPET_CHARS]
+    text = prefix.strip()
+    if not text:
+        if len(value) <= SEMGREP_OUTPUT_SNIPPET_CHARS:
+            return fallback
+        return "[output begins with whitespace; truncated]"
+
+    text = text.replace("\r", "\\r").replace("\n", "\\n")
+    if len(value) <= SEMGREP_OUTPUT_SNIPPET_CHARS:
+        return text
+    return f"{text}... [truncated]"
+
+
+def _semgrep_failure_context(stdout: str, stderr: str) -> str:
+    return (
+        "stderr="
+        f"{_semgrep_output_snippet(stderr, fallback='no stderr')}; "
+        "stdout="
+        f"{_semgrep_output_snippet(stdout, fallback='no stdout')}"
+    )
 
 
 class SemgrepScanner:
@@ -112,7 +159,8 @@ class SemgrepScanner:
             result = subprocess.run(
                 ["semgrep", "--version"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
             return result.returncode == 0
@@ -125,7 +173,8 @@ class SemgrepScanner:
             merge_base_result = subprocess.run(
                 ["git", "merge-base", "origin/main", "HEAD"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
 
@@ -134,7 +183,8 @@ class SemgrepScanner:
                 result = subprocess.run(
                     ["git", "ls-files"],
                     capture_output=True,
-                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=True,
                 )
             else:
@@ -142,7 +192,8 @@ class SemgrepScanner:
                 result = subprocess.run(
                     ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
                     capture_output=True,
-                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=True,
                 )
 
@@ -175,7 +226,7 @@ class SemgrepScanner:
         ]
 
         if self.severity:
-            cmd.extend(["--severity", self.severity])
+            cmd.extend(["--severity", self.severity.upper()])
 
         for f in files:
             cmd.append(str(f))
@@ -184,20 +235,36 @@ class SemgrepScanner:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=self.repo_root,
                 check=False,
                 timeout=self.SCAN_TIMEOUT_SECONDS,
             )
 
             if result.returncode not in (0, 1):
-                logger.error("Semgrep execution error: %s", result.stderr)
-                return []
+                context = _semgrep_failure_context(result.stdout, result.stderr)
+                logger.error("Semgrep execution error: %s", context)
+                return [
+                    _scan_failure_finding(
+                        f"Semgrep exited {result.returncode}: {context}"
+                    )
+                ]
 
             if not result.stdout.strip():
-                return []
+                logger.error("Semgrep produced no JSON output")
+                return [_scan_failure_finding("Semgrep produced no JSON output")]
 
-            data = json.loads(result.stdout)
+            try:
+                data = json.loads(result.stdout)
+            except json.JSONDecodeError as e:
+                context = _semgrep_failure_context(result.stdout, result.stderr)
+                logger.error("Semgrep JSON parse failed: %s; %s", e, context)
+                return [
+                    _scan_failure_finding(
+                        f"Semgrep JSON parse failed: {e}; {context}"
+                    )
+                ]
             findings = []
 
             for finding in data.get("results", []):
@@ -234,9 +301,10 @@ class SemgrepScanner:
             raise SemgrepScanError(
                 f"Semgrep timed out after {self.SCAN_TIMEOUT_SECONDS}s"
             ) from e
-        except (subprocess.SubprocessError, json.JSONDecodeError) as e:
+        except subprocess.SubprocessError as e:
             logger.error("Semgrep scan failed: %s", e)
-            return []
+            message = _semgrep_output_snippet(str(e), fallback=type(e).__name__)
+            return [_scan_failure_finding(f"Semgrep scan failed: {message}")]
 
     def run(self) -> int:
         """Execute the semgrep scan workflow."""

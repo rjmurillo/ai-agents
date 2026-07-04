@@ -145,6 +145,7 @@ class Report:
     bypassed: bool = False
     degraded: bool = False
     secret_skipped: bool = False
+    missing_secret_names: dict[str, list[str]] = field(default_factory=dict)
     note: str = ""
 
 
@@ -389,11 +390,11 @@ def _missing_secrets(path: Path, available: set[str]) -> list[str]:
     )
 
 
-def _secret_gap_detail(secret_blocked: Sequence[tuple[str, int]]) -> str:
+def _secret_gap_detail(secret_blocked: Sequence[tuple[str, Sequence[str]]]) -> str:
     """Return an operator-safe summary without logging secret names."""
     return "; ".join(
-        f"{rel} needs {missing_count} locally absent secret(s)"
-        for rel, missing_count in secret_blocked
+        f"{rel} needs {len(missing)} locally absent secret(s)"
+        for rel, missing in secret_blocked
     )
 
 
@@ -630,11 +631,13 @@ def run_local_test(
     } | _act_secret_file_keys(repo_root)
     available |= _ACT_BUILTIN_SECRETS
     runnable: list[str] = []
-    secret_blocked: list[tuple[str, int]] = []
+    secret_blocked: list[tuple[str, list[str]]] = []
+    missing_secret_names: dict[str, list[str]] = {}
     for rel in files:
         missing = _missing_secrets(repo_root / rel, available)
         if missing:
-            secret_blocked.append((rel, len(missing)))
+            secret_blocked.append((rel, missing))
+            missing_secret_names[rel] = missing
         else:
             runnable.append(rel)
 
@@ -671,6 +674,7 @@ def run_local_test(
         detail = _secret_gap_detail(secret_blocked)
         report.exit_code = 4
         report.secret_skipped = True
+        report.missing_secret_names = missing_secret_names
         report.note = (
             "unrunnable-locally: changed workflow(s) reference secrets absent "
             f"from this environment ({detail}). actionlint passed; skipped the "
@@ -731,6 +735,7 @@ def run_local_test(
     if secret_blocked:
         detail = _secret_gap_detail(secret_blocked)
         report.secret_skipped = True
+        report.missing_secret_names = missing_secret_names
         skip_note = (
             f"skipped (secrets absent locally): {detail}. CI runs these with "
             "the real secrets."
@@ -784,6 +789,7 @@ def _format_json(report: Report) -> str:
             "bypassed": report.bypassed,
             "degraded": report.degraded,
             "secret_skipped": report.secret_skipped,
+            "missing_secret_names": report.missing_secret_names,
             "note": report.note,
             "stages": [
                 {"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages

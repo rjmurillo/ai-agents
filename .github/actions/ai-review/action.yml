@@ -625,9 +625,14 @@ runs:
         # Skip Copilot invocation if context build detected infrastructure failure
         if [ "${{ steps.context.outputs.context_infra_failure }}" = "true" ]; then
           echo "::warning::Skipping Copilot CLI invocation due to context build infrastructure failure"
-          echo "" > /tmp/ai-review-output.txt
+          echo "VERDICT: DID_NOT_RUN" > /tmp/ai-review-output.txt
+          echo "MESSAGE: AI review did not run because context build had an infrastructure failure." >> /tmp/ai-review-output.txt
           echo "infrastructure_failure=true" >> $GITHUB_OUTPUT
           echo "retry_count=0" >> $GITHUB_OUTPUT
+          # Exit 0 (not 1) so the downstream parse step still runs and surfaces
+          # the DID_NOT_RUN verdict as a blocking exit_code. A non-zero exit here
+          # short-circuits the job before parse, leaving verdict/exit_code empty
+          # and silently dropping the review gate (#2821).
           exit 0
         fi
 
@@ -897,7 +902,7 @@ runs:
         # rather than being coerced to NEEDS_REVIEW. Both tokens are in
         # $blockingVerdicts; the distinction matters for diagnostics.
         case "$verdict" in
-          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL|NEEDS_REVIEW|UNKNOWN)
+          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL|NEEDS_REVIEW|DID_NOT_RUN|UNKNOWN)
             # Valid verdict token - use as-is
             ;;
           *)
@@ -926,14 +931,14 @@ runs:
 
         # Determine exit code based on verdict
         # Failure verdicts (block): CRITICAL_FAIL, REJECTED, FAIL,
-        # NON_COMPLIANT, NEEDS_REVIEW, UNKNOWN. UNKNOWN added per PR #1965
+        # NON_COMPLIANT, NEEDS_REVIEW, DID_NOT_RUN, UNKNOWN. UNKNOWN added per PR #1965
         # cursor 6yn7: it sits in $blockingVerdicts in the workflow gate,
         # so the action's exit_code output must agree, otherwise consumers
         # of the action see a contradictory pass/block signal.
         # Pass/warning verdicts: PASS, WARN, COMPLIANT, PARTIAL
         exit_code=0
         case "$verdict" in
-          CRITICAL_FAIL|REJECTED|FAIL|NON_COMPLIANT|NEEDS_REVIEW|UNKNOWN)
+          CRITICAL_FAIL|REJECTED|FAIL|NON_COMPLIANT|NEEDS_REVIEW|DID_NOT_RUN|UNKNOWN)
             exit_code=1
             ;;
         esac

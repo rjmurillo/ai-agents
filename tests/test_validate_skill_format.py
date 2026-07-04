@@ -109,3 +109,14 @@ class TestUnreadableFiles:
         )
         # CI still fails because of the unreadable entry.
         assert main(["--path", str(tmp_path), "--ci"]) == 1
+
+    def test_unreadable_file_fails(self, tmp_path: Path, monkeypatch) -> None:
+        target = tmp_path / "testing-001-unreadable.md"
+        target.write_text("# Content", encoding="utf-8")
+
+        def unreadable(self: Path, *_args, **_kwargs):  # noqa: ANN002, ANN003
+            if self == target:
+                raise PermissionError("denied")
+            return "# Content"
+        monkeypatch.setattr(Path, "read_text", unreadable)
+        assert main(["--path", str(tmp_path), "--ci"]) == 1

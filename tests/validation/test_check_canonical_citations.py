@@ -158,7 +158,27 @@ def test_bare_matches_claim_flagged(fake_repo: Path) -> None:
     assert len(violations) == 1
     v = violations[0]
     assert v.path.name == "bare.py"
-    assert v.matched_token == "matches the"
+
+
+def test_unreadable_file_reports_violation(fake_repo: Path, monkeypatch) -> None:
+    path = _write_file(
+        fake_repo,
+        ".claude/hooks/unreadable.py",
+        '"""Clean docstring."""\n',
+    )
+
+    original = Path.read_text
+
+    def patched(self: Path, *_args, **_kwargs):  # noqa: ANN002, ANN003
+        if self == path:
+            raise PermissionError("denied")
+        return original(self, *_args, **_kwargs)
+
+    monkeypatch.setattr(Path, "read_text", patched)
+    violations = ccc.collect_violations(fake_repo)
+    assert len(violations) == 1
+    assert violations[0].path == path
+    assert violations[0].matched_token == "read_error"
 
 
 def test_mirrors_token_flagged(fake_repo: Path) -> None:
@@ -249,8 +269,10 @@ def test_no_scan_roots_returns_empty(tmp_path: Path) -> None:
     assert violations == []
 
 
-def test_unreadable_file_silent(fake_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A file that cannot be read (e.g., bad encoding) is silently skipped."""
+def test_unreadable_file_reports_decode_violation(
+    fake_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file that cannot be decoded is reported as a violation."""
     target = _write_file(
         fake_repo,
         ".claude/hooks/bin.py",
@@ -258,7 +280,9 @@ def test_unreadable_file_silent(fake_repo: Path, monkeypatch: pytest.MonkeyPatch
     )
     target.write_bytes(b"\xff\xfe\x00\x00")
     violations = ccc.collect_violations(fake_repo)
-    assert violations == []
+    assert len(violations) == 1
+    assert violations[0].path == target
+    assert violations[0].matched_token == "read_error"
 
 
 # --- main() / CLI ----------------------------------------------------------
@@ -349,11 +373,8 @@ def test_main_no_scan_roots_skips(
 # --- Unreadable / unparseable files signal instead of silent skip (#2809) ---
 
 
-def test_unreadable_file_emits_skip_to_stderr(
-    fake_repo: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """An undecodable file stays unflagged (heuristic) but logs a SKIP to
-    stderr instead of vanishing silently."""
+def test_unreadable_file_reports_violation_instead_of_skip(fake_repo: Path) -> None:
+    """An undecodable file is a violation instead of a silent skip."""
     target = _write_file(
         fake_repo,
         ".claude/hooks/bin.py",
@@ -361,9 +382,9 @@ def test_unreadable_file_emits_skip_to_stderr(
     )
     target.write_bytes(b"\xff\xfe\x00\x00")
     violations = ccc.collect_violations(fake_repo)
-    assert violations == []
-    err = capsys.readouterr().err
-    assert "[SKIP] unreadable" in err
+    assert len(violations) == 1
+    assert violations[0].path == target
+    assert violations[0].matched_token == "read_error"
 
 
 def test_syntax_error_docstring_mirror_claim_flagged(fake_repo: Path) -> None:

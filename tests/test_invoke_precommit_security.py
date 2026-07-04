@@ -26,6 +26,7 @@ import pytest
 from scripts.security.invoke_precommit_security import (
     PreCommitResult,
     PreCommitSecurityCheck,
+    _powershell_single_quoted_literal,
 )
 
 
@@ -115,6 +116,30 @@ class TestFetchCodeqlAlertsTimeout:
             assert check._fetch_codeql_alerts() == []
         # The gh api call (second invocation) carries an explicit timeout.
         assert run_mock.call_args_list[1].kwargs["timeout"] == 30
+
+
+class TestRunPsscriptAnalyzer:
+    """PowerShell file paths must be passed as literal paths."""
+
+    def test_powershell_single_quoted_literal_escapes_quotes(self) -> None:
+        assert _powershell_single_quoted_literal("O'Brien[1].ps1") == (
+            "'O''Brien[1].ps1'"
+        )
+
+    def test_uses_literal_path_with_escaped_file_path(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        file_path = Path("/repo/O'Brien[1].ps1")
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            return_value=_completed(0, stdout="null"),
+        ) as run_mock:
+            result = check._run_psscriptanalyzer([file_path])
+
+        command = run_mock.call_args.args[0][3]
+        assert result.passed is True
+        assert "Invoke-ScriptAnalyzer -LiteralPath '/repo/O''Brien[1].ps1'" in command
+        assert "Invoke-ScriptAnalyzer -Path" not in command
 
 
 class TestRunStagingFailClosed:

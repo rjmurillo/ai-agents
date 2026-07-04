@@ -536,6 +536,7 @@ def test_mixed_runs_only_runnable_and_notes_skip(all_tools, monkeypatch, tmp_pat
     r = w.run_local_test([blocked, clean], tmp_path)
     assert r.exit_code == 0
     assert r.secret_skipped is True
+    assert r.missing_secret_names == {blocked: ["BOT_PAT_2841"]}
     assert seen["lint"] == [blocked, clean]
     assert seen["act"] == [clean]
     assert "BOT_PAT_2841" not in r.note
@@ -573,7 +574,21 @@ def test_format_json_exposes_secret_skipped(all_tools, monkeypatch, tmp_path):
     r = w.run_local_test([blocked, clean], tmp_path)
     payload = json.loads(w._format_json(r))
     assert payload["secret_skipped"] is True
+    assert payload["missing_secret_names"] == {blocked: ["BOT_PAT_2841"]}
     assert payload["exit_code"] == 0
+
+
+def test_format_json_exposes_missing_secret_names_for_exit_4(
+    all_tools, monkeypatch, tmp_path
+):
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    r = w.run_local_test([WF], tmp_path)
+    payload = json.loads(w._format_json(r))
+    assert payload["secret_skipped"] is True
+    assert payload["missing_secret_names"] == {WF: ["BOT_PAT_2841"]}
+    assert "BOT_PAT_2841" not in w._format_text(r)
 
 
 def test_exit_4_text_format_omits_secret_name():
