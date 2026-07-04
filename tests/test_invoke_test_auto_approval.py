@@ -116,6 +116,14 @@ class TestMain:
         with patch("sys.stdin", StringIO("not json")):
             assert main() == 0
 
+    def test_returns_zero_for_non_object_json(self) -> None:
+        with (
+            patch("sys.stdin", StringIO("[]")),
+            patch("sys.stdout", new_callable=StringIO) as mock_stdout,
+        ):
+            assert main() == 0
+            assert mock_stdout.getvalue().strip() == ""
+
     def test_returns_zero_for_missing_command(self) -> None:
         input_data = json.dumps({"tool_input": {}})
         with patch("sys.stdin", StringIO(input_data)):

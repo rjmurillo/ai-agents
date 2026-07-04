@@ -95,6 +95,10 @@ def main() -> int:
         print(f"test_auto_approval: Failed to parse input JSON: {exc}", file=sys.stderr)
         return 0
 
+    if not isinstance(hook_input, dict):
+        print("test_auto_approval: Ignoring non-object JSON input", file=sys.stderr)
+        return 0
+
     command = get_command_from_input(hook_input)
     if not command:
         return 0
