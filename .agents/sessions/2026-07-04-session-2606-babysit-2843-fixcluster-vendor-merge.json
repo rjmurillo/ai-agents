@@ -193,10 +193,14 @@
     {
       "summary": "Rebumped plugin manifests after origin/main advanced to 0.5.260.",
       "evidence": "Both plugin manifests set to 0.5.261; origin/main plugin version was 0.5.260. Output helper conflicts resolved by taking main mypy-safe script_path form."
+    },
+    {
+      "summary": "Merged latest origin/main f99ffc9fb6 after PR became dirty again.",
+      "evidence": "Resolved causal graph conflict by union-preserving branch and main memory entries. Plugin manifests remain at 0.5.261, which is greater than origin/main 0.5.260."
     }
   ],
   "endingCommit": "d4dfaccd69dca48dd9ac63a0bb025c3ffaaf4687",
   "nextSteps": [
-    "Commit latest main merge and plugin rebump, push PR #2843, enable auto-merge, and monitor until merged."
+    "Commit latest origin/main merge, push PR #2843, enable auto-merge, and monitor until merged."
   ]
 }

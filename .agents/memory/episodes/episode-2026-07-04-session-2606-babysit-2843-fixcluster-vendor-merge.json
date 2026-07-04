@@ -216,6 +216,14 @@
       "content": "Rebumped plugin manifests after origin/main advanced to 0.5.260.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged latest origin/main f99ffc9fb6 after PR became dirty again.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -223,7 +231,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 72
   },
   "lessons": []
