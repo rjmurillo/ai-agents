@@ -101,6 +101,22 @@
       "content": "Commit: fd55e44b6",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main to clear PR merge conflicts and replayed this PR episode into the causal graph.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f3cbb339ae",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -109,7 +125,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 6
+    "files_changed": 11
   },
   "lessons": []
 }
