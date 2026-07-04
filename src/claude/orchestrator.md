@@ -26,6 +26,14 @@ Stop criteria: Do NOT begin triage or routing until all four items are checked. 
 
 Note: Context compaction does NOT exempt this session from the above. Treat every session start identically regardless of prior context.
 
+## Reasoning Protocol
+
+Before routing any task, reason step-by-step through all four triage dimensions below. Do not emit a delegation until classification is complete. For one-way-door decisions, P0 incidents, and tasks spanning multiple domains, work through failure modes before selecting agents.
+
+**Thinking trigger:** Multi-step routing decisions require explicit reasoning. Trivial single-step tasks (direct answer, no delegation needed) do not.
+
+If classification is ambiguous at any step, route to analyst first. One additional reasoning cycle costs less than one incorrect delegation.
+
 ## Target Recon (Before Triage)
 
 Before you classify or route, establish the target repository's stack. Do not assume the stack of the repo this agent ships from. This agent lives in a Python-first repo; the target may be C#, TypeScript, Go, Rust, or anything else. Assuming the wrong stack sends every downstream specialist in the wrong direction.

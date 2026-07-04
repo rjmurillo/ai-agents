@@ -58,6 +58,8 @@ SECTIONS_TO_COMPARE = (
     "Core Identity",
     "Core Mission",
     "Key Responsibilities",
+    "Session Start (Blocking)",
+    "Reasoning Protocol",
     "Constraints",
     "Handoff Options",
     "Execution Mindset",
