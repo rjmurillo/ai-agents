@@ -285,6 +285,30 @@
       "content": "Commit: 9edfb0fa6d",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged latest origin/main after it advanced to 0.5.259 plugin manifests.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped project-toolkit plugin manifests to 0.5.260 so the PR remains strictly above origin/main after the version race.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 61066a3ca5",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -292,7 +316,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 39
   },
   "lessons": []
