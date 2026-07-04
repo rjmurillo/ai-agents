@@ -200,7 +200,13 @@ class TestWriteState:
         assert write_state(_CWD, {"cwd": _CWD}) is True
 
         target = state_path(_CWD)
-        assert calls == [(target.with_name(f".{target.name}.{lsp_gate_state.os.getpid()}.tmp"), target)]
+        assert len(calls) == 1
+        tmp_path, dst_path = calls[0]
+        assert dst_path == target
+        assert tmp_path.parent == target.parent
+        assert tmp_path.name.startswith(f".{target.name}.")
+        assert tmp_path.name.endswith(".tmp")
+        assert tmp_path != target
         assert read_state(_CWD)["cwd"] == _CWD
 
 

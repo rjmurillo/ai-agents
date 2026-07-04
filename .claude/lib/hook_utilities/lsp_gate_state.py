@@ -83,15 +83,25 @@ _STATE_SUBDIR = "ai-agents-lsp-gate"
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
-    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp_path: Path | None = None
     try:
-        tmp_path.write_text(content, encoding="utf-8")
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp_file:
+            tmp_file.write(content)
+            tmp_path = Path(tmp_file.name)
         os.replace(tmp_path, path)
     finally:
-        try:
-            tmp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _state_dir() -> Path:
