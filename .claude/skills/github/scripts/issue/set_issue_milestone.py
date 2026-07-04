@@ -98,18 +98,19 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
 
 
 def _get_milestone_titles(owner: str, repo: str) -> list[str]:
-    """Get all milestone titles from the repository."""
-    try:
-        result = subprocess.run(
-            ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GH_TIMEOUT_SECONDS,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return []
+    """Get all milestone titles from the repository.
+
+    Raises:
+        subprocess.TimeoutExpired: If the API call times out.
+    """
+    result = subprocess.run(
+        ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=GH_TIMEOUT_SECONDS,
+        check=False,
+    )
     if result.returncode != 0:
         return []
     return [t.strip() for t in result.stdout.strip().splitlines() if t.strip()]
@@ -250,7 +251,17 @@ def main(argv: list[str] | None = None) -> int:
         })
         return 0
 
-    milestone_titles = _get_milestone_titles(owner, repo)
+    try:
+        milestone_titles = _get_milestone_titles(owner, repo)
+    except subprocess.TimeoutExpired as err:
+        _emit_error(
+            f"List milestones timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            fmt,
+            "ApiError",
+            {"issue": args.issue, "milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(3) from err
     if args.milestone not in milestone_titles:
         _emit_error(
             f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
