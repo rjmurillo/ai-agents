@@ -32,6 +32,7 @@ def _hooks() -> dict:
 
 def _run_entry(event: str, payload: dict) -> subprocess.CompletedProcess:
     env = dict(os.environ)
+    env["CLAUDE_PROJECT_DIR"] = str(_REPO)
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
     event_timeout_sec = int(_hooks()[event][0]["timeoutSec"])
