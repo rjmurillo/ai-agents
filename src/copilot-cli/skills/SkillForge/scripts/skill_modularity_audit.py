@@ -29,11 +29,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-# Add script directory to path for sibling imports
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_PROJECT_ROOT = _SCRIPT_DIR.parents[3]
-sys.path.insert(0, str(_SCRIPT_DIR))
-sys.path.insert(0, str(_PROJECT_ROOT))
 
 
 def _load_has_size_exception():
