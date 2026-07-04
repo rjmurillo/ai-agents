@@ -157,10 +157,18 @@
     {
       "time": "2026-07-04T03:34Z",
       "entry": "Committed timeout fixes in 16993b8dfe."
+    },
+    {
+      "time": "2026-07-04T05:05Z",
+      "entry": "Pushed timeout and review-thread fixes through db5769d684 and observed PR #2849 still open with main drift."
+    },
+    {
+      "time": "2026-07-04T05:05Z",
+      "entry": "Merged origin/main into fix/cluster-robust, accepted upstream milestone and memory changes, and bumped both plugin manifests to 0.5.260."
     }
   ],
-  "endingCommit": "16993b8d",
+  "endingCommit": "pending-merge-main",
   "nextSteps": [
-    "Push fix/cluster-robust, watch required checks, rebump plugin manifests on version races, enable auto-merge when checks pass."
+    "Commit merge from origin/main, push fix/cluster-robust, watch required checks, rebump plugin manifests on version races, and merge PR #2849 after required checks pass."
   ]
 }

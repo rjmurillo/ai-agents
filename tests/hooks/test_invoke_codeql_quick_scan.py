@@ -19,6 +19,11 @@ sys.path.insert(0, str(HOOKS_DIR))
 import invoke_codeql_quick_scan
 
 
+@pytest.fixture(autouse=True)
+def _clear_project_dir(monkeypatch):
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+
 class TestGetFilePathFromInput:
     """Tests for _get_file_path_from_input."""
 

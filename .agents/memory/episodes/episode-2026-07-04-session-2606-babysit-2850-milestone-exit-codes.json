@@ -1,16 +1,16 @@
 {
-  "id": "episode-2026-07-04-session-2606",
-  "session": "2026-07-04-session-2606",
+  "id": "episode-2026-07-04-session-2606-babysit-2850-milestone-exit-codes",
+  "session": "2026-07-04-session-2606-babysit-2850-milestone-exit-codes",
   "timestamp": "2026-07-04T00:00:00+00:00",
   "outcome": "success",
-  "task": "Babysit PR 2849 to merge",
+  "task": "Babysit PR 2850 milestone exit codes to merge",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Created dedicated worktree ai-agents4-pr-2849 and assessed PR #2849 failing checks.",
+      "content": "Created dedicated worktree for PR #2850 and assessed failing checks.",
       "caused_by": [],
       "leads_to": []
     },
@@ -18,7 +18,7 @@
       "id": "e002",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Created session log 2026-07-04-session-2606.json.",
+      "content": "Rebased onto origin/main, resolved milestone setter conflicts, and kept timeout behavior from main.",
       "caused_by": [],
       "leads_to": []
     },
@@ -26,7 +26,7 @@
       "id": "e003",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran build_all and synced generated Copilot hook artifacts.",
+      "content": "Fixed milestone exit codes, failed-query behavior, related tests, and dispatcher project-dir test isolation.",
       "caused_by": [],
       "leads_to": []
     },
@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Fixed PermissionRequest non-object JSON boundary validation and added regression test.",
+      "content": "Updated PR body to include Fixes #2847 and template sections.",
       "caused_by": [],
       "leads_to": []
     },
@@ -42,15 +42,15 @@
       "id": "e005",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Fixed MCP Windows reader timeout by closing fd and added regression test.",
+      "content": "Bumped both plugin manifests to 0.5.256 and verified targeted pytest plus scoped ruff.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e006",
       "timestamp": "2026-07-04T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Resolved both outstanding review threads after fixes.",
+      "type": "commit",
+      "content": "Commit: f1f33e3f3",
       "caused_by": [],
       "leads_to": []
     },
@@ -58,15 +58,15 @@
       "id": "e007",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Bumped both plugin manifests to 0.5.256 and validated plugin version gate.",
+      "content": "Bumped both plugin manifests to 0.5.258 and verified targeted pytest plus scoped ruff.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e008",
       "timestamp": "2026-07-04T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 96c6bd74",
+      "type": "milestone",
+      "content": "Bumped both plugin manifests to 0.5.259 and verified targeted pytest plus scoped ruff.",
       "caused_by": [],
       "leads_to": []
     },
@@ -74,7 +74,7 @@
       "id": "e009",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Merged origin/main and origin/fix/cluster-robust, resolved conflicts, and preserved security timeout handling.",
+      "content": "Pushed PR branch after full pre-push validation passed.",
       "caused_by": [],
       "leads_to": []
     },
@@ -82,7 +82,7 @@
       "id": "e010",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Restored subprocess timeout constants in PR helper and security scripts.",
+      "content": "Replied to and resolved Copilot review threads after verifying ADR-035 header text and dash bytes.",
       "caused_by": [],
       "leads_to": []
     },
@@ -90,15 +90,15 @@
       "id": "e011",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Validated targeted pytest, ruff, and mypy for timeout changes.",
+      "content": "Updated PR body references so Validate PR accepted contextual reference files.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e012",
       "timestamp": "2026-07-04T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 20e937e9",
+      "type": "milestone",
+      "content": "Fixed follow-up review threads by renaming timeout tests, moving no-force conflict check before milestone listing, and correcting session artifacts.",
       "caused_by": [],
       "leads_to": []
     },
@@ -106,7 +106,7 @@
       "id": "e013",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Committed timeout fixes in 16993b8dfe.",
+      "content": "Merged latest origin/main, resolved generated causal graph and plugin manifest conflicts, and kept plugin manifests at 0.5.259.",
       "caused_by": [],
       "leads_to": []
     },
@@ -114,7 +114,7 @@
       "id": "e014",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 16993b8d",
+      "content": "Commit: c015edc946",
       "caused_by": [],
       "leads_to": []
     },
@@ -122,15 +122,15 @@
       "id": "e015",
       "timestamp": "2026-07-04T00:00:00+00:00",
       "type": "milestone",
-      "content": "Pushed timeout and review-thread fixes through db5769d684 and observed PR #2849 still open with main drift.",
+      "content": "Aligned episode commit metrics after Copilot review thread verified two commit events.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e016",
       "timestamp": "2026-07-04T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Merged origin/main into fix/cluster-robust, accepted upstream milestone and memory changes, and bumped both plugin manifests to 0.5.260.",
+      "type": "commit",
+      "content": "Commit: f8f6c30142",
       "caused_by": [],
       "leads_to": []
     }
@@ -141,7 +141,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 2,
-    "files_changed": 31
+    "files_changed": 19
   },
   "lessons": []
 }
