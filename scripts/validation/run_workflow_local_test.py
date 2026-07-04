@@ -328,6 +328,7 @@ _SECRET_REF_RE = re.compile(r"\bsecrets\.([A-Za-z_][A-Za-z0-9_]*)")
 # default, in addition to the process environment. A secret defined there is
 # runnable locally, so it does not count as "missing".
 _ACT_SECRET_FILE = ".secrets"
+_ACT_BUILTIN_SECRETS = {"GITHUB_TOKEN"}
 
 
 def _act_secret_file_keys(repo_root: Path) -> set[str]:
@@ -348,7 +349,7 @@ def _act_secret_file_keys(repo_root: Path) -> set[str]:
             continue
         key = stripped.split("=", 1)[0].strip()
         if key:
-            keys.add(key)
+            keys.add(key.upper())
     return keys
 
 
@@ -365,7 +366,7 @@ def _referenced_secrets(path: Path) -> set[str]:
         return set()
     refs: set[str] = set()
     for expr in _EXPR_RE.findall(text):
-        refs.update(_SECRET_REF_RE.findall(expr))
+        refs.update(name.upper() for name in _SECRET_REF_RE.findall(expr))
     return refs
 
 
@@ -373,6 +374,14 @@ def _missing_secrets(path: Path, available: set[str]) -> list[str]:
     """Secrets ``path`` references that are absent from ``available`` (sorted)."""
     return sorted(
         name for name in _referenced_secrets(path) if name not in available
+    )
+
+
+def _secret_gap_detail(secret_blocked: Sequence[tuple[str, list[str]]]) -> str:
+    """Return an operator-safe summary without logging secret names."""
+    return "; ".join(
+        f"{rel} needs {len(missing)} locally absent secret(s)"
+        for rel, missing in secret_blocked
     )
 
 
@@ -604,7 +613,8 @@ def run_local_test(
     # as a distinct, audible skip (exit 4, "auth" per ADR-035: authentication
     # material is absent). A secret is available when it is in the process
     # environment or the act default secret file (repo-root .secrets).
-    available = set(os.environ) | _act_secret_file_keys(repo_root)
+    available = {name.upper() for name in os.environ} | _act_secret_file_keys(repo_root)
+    available |= _ACT_BUILTIN_SECRETS
     runnable: list[str] = []
     secret_blocked: list[tuple[str, list[str]]] = []
     for rel in files:
@@ -644,9 +654,7 @@ def run_local_test(
         # Every changed workflow needs a locally-absent secret: nothing can run
         # under act. actionlint already validated syntax above; skip only the
         # act run, audibly, instead of blocking on a manual bypass.
-        detail = "; ".join(
-            f"{rel} needs {', '.join(missing)}" for rel, missing in secret_blocked
-        )
+        detail = _secret_gap_detail(secret_blocked)
         report.exit_code = 4
         report.note = (
             "unrunnable-locally: changed workflow(s) reference secrets absent "
@@ -706,9 +714,7 @@ def run_local_test(
     # The runnable ones passed (exit 0 preserved); surface the skips in the note
     # so the developer sees which files CI will still exercise with real secrets.
     if secret_blocked:
-        detail = "; ".join(
-            f"{rel} needs {', '.join(missing)}" for rel, missing in secret_blocked
-        )
+        detail = _secret_gap_detail(secret_blocked)
         skip_note = (
             f"skipped (secrets absent locally): {detail}. CI runs these with "
             "the real secrets."
