@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -45,7 +46,7 @@ def _state(
     nav_count: int = 0,
     read_files: list[str] | None = None,
     last_tool: str = "",
-) -> dict:
+) -> dict[str, Any]:
     """Build a gate-state dict in the canonical shape."""
     files = list(read_files or [])
     return {
@@ -567,5 +568,4 @@ class TestLspRuntimeDownFailOpen:
 # ---------------------------------------------------------------------------
 # main: dispatch, kill switch, fail-open paths
 # ---------------------------------------------------------------------------
-
 

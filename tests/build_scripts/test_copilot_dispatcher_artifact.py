@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 _REPO = Path(__file__).resolve().parents[2]
 _COPILOT = _REPO / "src" / "copilot-cli"
@@ -26,11 +27,12 @@ _ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
 _DISPATCH_TEST_TIMEOUT_CAP_SEC = 60
 
 
-def _hooks() -> dict:
-    return json.loads(_HOOKS_JSON.read_text(encoding="utf-8"))["hooks"]
+def _hooks() -> dict[str, list[dict[str, Any]]]:
+    data = json.loads(_HOOKS_JSON.read_text(encoding="utf-8"))
+    return cast("dict[str, list[dict[str, Any]]]", data["hooks"])
 
 
-def _run_entry(event: str, payload: dict) -> subprocess.CompletedProcess:
+def _run_entry(event: str, payload: dict[str, object]) -> subprocess.CompletedProcess[bytes]:
     env = dict(os.environ)
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
@@ -85,10 +87,16 @@ class TestDispatcherArtifacts:
         assert proc.returncode == 0, proc.stderr.decode()[:600]
 
     def test_pretooluse_denies_blocked_tool(self):
-        # A direct commit trips the branch/session guards; the dispatcher must
+        # A direct push trips branch and PR guards; the dispatcher must
         # deny (#2295 fail-closed preserved end-to-end through consolidation).
         proc = _run_entry(
-            _GATING, {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}
+            _GATING,
+            {
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "git push origin fix/workflow-local-test-secrets-2841"
+                },
+            },
         )
         assert proc.returncode != 0, "dispatcher allowed a tool a guard blocks"
         combined = proc.stdout + proc.stderr
