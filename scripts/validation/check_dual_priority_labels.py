@@ -124,7 +124,7 @@ def _fetch_labels(kind: str, number: int) -> tuple[int, list[str] | None, str]:
 
     labels_field = payload.get("labels")
     labels = labels_field if isinstance(labels_field, list) else []
-    names = [item.get("name") for item in labels if isinstance(item, dict) and item.get("name")]
+    names = [str(item["name"]) for item in labels if isinstance(item, dict) and item.get("name")]
     return EXIT_OK, names, ""
 
 

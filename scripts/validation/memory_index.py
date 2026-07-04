@@ -529,9 +529,9 @@ def check_memory_index_references(
     file_refs = list({ref.strip() for ref in file_refs})
     for file_name in file_refs:
         # Parse markdown link syntax
-        link_match = _MARKDOWN_LINK_PATTERN.search(file_name)
-        if link_match:
-            link_target = link_match.group(2)
+        parsed_link = _MARKDOWN_LINK_PATTERN.search(file_name)
+        if parsed_link:
+            link_target = parsed_link.group(2)
             file_name = re.sub(r"\.md$", "", link_target)
 
         ref_path = memory_path / f"{file_name}.md"

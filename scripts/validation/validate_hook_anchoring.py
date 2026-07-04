@@ -34,7 +34,7 @@ import re
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 
 # Legacy fallback: the Copilot-CLI artifact path. Superseded by platform-
 # config discovery (_find_platform_hook_artifacts) which reads this value
@@ -120,7 +120,7 @@ def _load_generator(repo_root: Path) -> ModuleType:
         sys.path.insert(0, str(scripts_dir))
     import generate_hooks  # noqa: PLC0415
 
-    return generate_hooks
+    return cast(ModuleType, generate_hooks)
 
 
 def _script_name(command: str) -> str | None:

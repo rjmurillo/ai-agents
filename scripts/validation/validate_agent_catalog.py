@@ -51,8 +51,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: cannot import build/generate_agent_catalog.py: {exc}", file=sys.stderr)
         return 2
 
-    return generate_agent_catalog.main(
-        ["--check", "--templates-path", str(templates_dir), "--output", str(output_path)]
+    return int(
+        generate_agent_catalog.main(
+            ["--check", "--templates-path", str(templates_dir), "--output", str(output_path)]
+        )
     )
 
 
