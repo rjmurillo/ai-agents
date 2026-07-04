@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/output.py. Sync via scripts/sync_plugin_lib.py.
+"""Standard skill output helpers per ADR-056.
 
 Provides write_skill_output, write_skill_error, and get_output_format
 functions for consistent skill script output formatting. All skill scripts
@@ -15,6 +15,7 @@ import json
 import os
 import sys
 from datetime import UTC, datetime
+from typing import cast
 
 
 def add_output_format_arg(parser: argparse.ArgumentParser) -> None:
@@ -174,9 +175,9 @@ def _detect_script_name() -> str:
 
     frame = inspect.currentframe()
     if frame and frame.f_back and frame.f_back.f_back:
-        caller_file = frame.f_back.f_back.f_globals.get("__file__")
-        if isinstance(caller_file, str) and caller_file:
-            return os.path.basename(caller_file)
+        caller_file = frame.f_back.f_back.f_globals.get("__file__", "")
+        if caller_file and isinstance(caller_file, str):
+            return cast(str, os.path.basename(caller_file))
     return "unknown"
 
 
