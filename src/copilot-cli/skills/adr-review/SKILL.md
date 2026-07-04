@@ -2,7 +2,7 @@
 name: adr-review
 version: 1.1.0
 model: claude-opus-4-6
-description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when reviewing ADRs or durable architecture/design decision records, including intent like "review this decision record" or "check this rationale for future maintainers". Do NOT use to author a new ADR (use adr-generator).
+description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", when an ADR is created/edited/deleted, or when reviewing, accepting, or updating a decision file under .agents/architecture/, docs/architecture/, docs/decisions/, docs/adr/, or architecture/decisions/, including intent like "review this decision record" or "check this rationale for future maintainers". Do NOT use to author a new ADR (use adr-generator).
 license: MIT
 metadata:
   subagent_model: claude-opus-4-6
@@ -34,9 +34,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `validate ADR-005` | Targeted review of specific ADR by number |
 | `check architecture decision` | ADR review with debate protocol |
 | `review this decision record` | ADR review for durable architecture/design decision records |
-| `check this rationale for future maintainers` | Review decision rationale before keeping it |
-| `ADR file created or modified` | Auto-triggered via detect_adr_changes.py |
-| `delete ADR-NNN` | Deletion workflow (D1-D4) |
+| `ADR file created, modified, or deleted` | Auto-triggered via detect_adr_changes.py |
 
 ---
 

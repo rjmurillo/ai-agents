@@ -2,7 +2,7 @@
 name: adr-generator
 version: 1.1.0
 model: claude-opus-4-6
-description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting durable architecture or design decisions, including intent like "document design choices", "record this decision", or "capture the rationale for future maintainers". Do NOT use to debate or review an existing ADR (use adr-review).
+description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions, creating new ADR files, or capturing rationale so future readers can revisit a choice. Use when you say "write an ADR", "document this decision", "document these design choices", "record why we chose this", "capture the rationale", or "for future maintainers", or when creating an ADR-like markdown file under docs/decisions/, docs/adr/, docs/architecture/, architecture/decisions/, or .agents/architecture/. Do NOT use to debate or review an existing ADR (use adr-review).
 license: MIT
 user-invocable: true
 metadata:
@@ -21,12 +21,10 @@ Create well-structured Architectural Decision Records that document technical de
 | Trigger Phrase | Operation |
 |----------------|-----------|
 | `create an ADR` | Full ADR generation workflow |
-| `generate ADR` | Full ADR generation workflow |
 | `write an architecture decision record` | Full ADR generation workflow |
 | `new ADR for` | Targeted ADR for a specific decision |
 | `document this architecture decision` | Full ADR generation workflow |
-| `document design choices for future maintainers` | Intent-based ADR generation for durable design decisions |
-| `record why we chose this` | Capture rationale for a durable architecture or design decision |
+| `document these design choices` | Capture rationale for durable architecture or design decisions |
 
 ---
 
@@ -38,6 +36,7 @@ create an ADR for database selection
 new ADR for authentication strategy
 document this architecture decision about event sourcing
 generate ADR for switching from REST to gRPC
+document these design choices for future us to revisit as models change
 record why we chose this instruction-file structure for future maintainers
 ```
 

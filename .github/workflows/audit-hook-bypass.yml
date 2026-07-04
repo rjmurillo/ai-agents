@@ -46,10 +46,20 @@ jobs:
       - name: Run bypass detection
         id: detect
         run: |
+          # Issue #2808: `|| true` masked the crash path. detect_hook_bypass.py
+          # returns 0=no indicators, 1=indicators (intended non-blocking audit),
+          # 2=config/crash. Capture the code and hard-fail on >=2 instead of
+          # reporting a clean audit when the detector never ran.
+          rc=0
           python3 scripts/detect_hook_bypass.py \
             --base-ref origin/main \
             --output artifacts/hook-bypass-audit.json \
-            || true
+            || rc=$?
+
+          if [ "$rc" -ge 2 ]; then
+            echo "::error::hook-bypass detection failed (exit $rc)"
+            exit "$rc"
+          fi
 
           if [ -f artifacts/hook-bypass-audit.json ]; then
             count=$(python3 -c "
@@ -60,7 +70,10 @@ jobs:
           ")
             echo "indicator_count=$count" >> "$GITHUB_OUTPUT"
           else
-            echo "indicator_count=0" >> "$GITHUB_OUTPUT"
+            # No JSON means the detector produced no output: fail instead of
+            # masking it as a zero-indicator (clean) audit.
+            echo "::error::detection produced no JSON output"
+            exit 1
           fi
 
       - name: Report findings
