@@ -263,7 +263,7 @@ class TestSecurityReviewRan:
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["security_review_ran"] == "false"
-        assert outputs["final_verdict"] == "WARN"
+        assert outputs["final_verdict"] == "DID_NOT_RUN"
         captured = capsys.readouterr()
         assert "::warning title=Security review did not run::" in captured.out
 

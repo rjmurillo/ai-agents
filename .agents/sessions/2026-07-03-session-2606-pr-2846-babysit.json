@@ -84,7 +84,7 @@
    "changesCommitted": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "Final branch includes rebase onto origin/main and plugin manifest rebump to 0.5.259; commit follows this session-log update."
+    "Evidence": "Final branch includes rebase onto origin/main, plugin manifest rebump to 0.5.259, LSP test fixture stabilization, and aggregate verdict expectation alignment; commit follows this session-log update."
    },
    "validationPassed": {
     "level": "MUST",
@@ -125,6 +125,10 @@
   {
    "summary": "Rebased onto origin/main and rebumped plugin manifests after version race advanced",
    "evidence": "origin/main advanced both plugin manifests to 0.5.258. Local branch rebased successfully and both manifests were set to 0.5.259."
+  },
+  {
+   "summary": "Aligned aggregate quality verdict test with fail-closed security infra policy",
+   "evidence": "tests/test_aggregate_quality_verdicts.py now expects DID_NOT_RUN when the security review hits infrastructure failure without code-quality findings. Targeted aggregate tests passed: 25 passed."
   }
  ],
  "endingCommit": "f7c1b1f8ef2d",
