@@ -24,9 +24,12 @@ from pathlib import Path
 import pytest
 
 _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
-sys.path.insert(0, str(_VALIDATION))
-
-import check_skill_md_exec_portability as cep  # noqa: E402
+_ORIGINAL_SYS_PATH = sys.path.copy()
+try:
+    sys.path.insert(0, str(_VALIDATION))
+    import check_skill_md_exec_portability as cep  # noqa: E402
+finally:
+    sys.path[:] = _ORIGINAL_SYS_PATH
 
 
 class TestCountExecInvocations:
@@ -67,6 +70,14 @@ class TestCountExecInvocations:
         # the split invocation must still be counted.
         text = "python3 \\\n  .claude/skills/x/y.py --flag\n"
         assert cep.count_exec_invocations(text) == 1
+
+    def test_counts_quoted_script_path(self) -> None:
+        text = 'python3 ".claude/skills/github/scripts/pr/x.py" --flag\n'
+        assert cep.count_exec_invocations(text) == 1
+
+    def test_ignores_intermediate_script_extension(self) -> None:
+        text = "python3 .claude/skills/github/scripts/pr/x.py.tmp --flag\n"
+        assert cep.count_exec_invocations(text) == 0
 
     def test_ignores_resolved_variable_forms(self) -> None:
         text = (
@@ -237,20 +248,20 @@ class TestMainCli:
         rc = cep.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 0
 
-    def test_baseline_path_traversal_returns_empty(self, tmp_path: Path) -> None:
+    def test_baseline_path_traversal_returns_none(self, tmp_path: Path) -> None:
         root = tmp_path / "repo"
         root.mkdir()
         (root / ".claude" / "skills").mkdir(parents=True)
         result = cep._resolve_baseline_path(root, Path("../../etc/passwd"))
-        assert result == Path(""), "path traversal must return empty Path"
+        assert result is None, "path traversal must return None"
 
-    def test_absolute_baseline_outside_root_returns_empty(self, tmp_path: Path) -> None:
+    def test_absolute_baseline_outside_root_returns_none(self, tmp_path: Path) -> None:
         root = tmp_path / "repo"
         root.mkdir()
         outside = tmp_path / "outside.json"
         outside.write_text("{}", encoding="utf-8")
         result = cep._resolve_baseline_path(root, outside)
-        assert result == Path(""), "absolute path outside root must return empty Path"
+        assert result is None, "absolute path outside root must return None"
 
 
 class TestPrAutofixConverted:
