@@ -7,7 +7,8 @@ the loader can interpret adjacent ``[...]`` groups as flow nodes and fail at
 load time. PyYAML also parses an unquoted ``[VALUE]`` hint as a sequence, not a
 string. This gate blocks both shapes before they ship.
 
-Exit codes follow ADR-035:
+Exit codes follow ADR-035
+(`.agents/architecture/ADR-035-exit-code-standardization.md`):
     0 - All scanned argument-hint values are safe strings
     1 - One or more argument-hint values are unsafe
     2 - Config error
@@ -197,12 +198,17 @@ def _matches_default_scan(path: Path) -> bool:
 
 
 def _git_tracked_files(repo_root: Path) -> list[Path] | None:
-    result = subprocess.run(
-        ["git", "-C", str(repo_root), "ls-files"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except FileNotFoundError:
+        # git is not installed or not on PATH; fall back to glob scanning.
+        return None
     if result.returncode != 0:
         return None
     return [repo_root / line for line in result.stdout.splitlines() if line]
@@ -224,7 +230,10 @@ def _resolve_target(repo_root: Path, target: str) -> list[Path]:
     if any(char in target for char in _GLOB_CHARS):
         return sorted(repo_root.glob(target))
 
-    path = candidate if candidate.is_absolute() else repo_root / candidate
+    path = (candidate if candidate.is_absolute() else repo_root / candidate).expanduser().resolve()
+    if not path.is_relative_to(repo_root.resolve()):
+        # Reject paths outside the repository root (CWE-22 path traversal).
+        return []
     if path.is_dir():
         return sorted(p for p in path.rglob("*") if p.suffix in _MARKDOWN_SUFFIXES)
     if path.exists():

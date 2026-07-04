@@ -138,3 +138,31 @@ def test_real_repo_argument_hints_pass(capsys) -> None:
 
     assert result == 0
     assert "[PASS]" in capsys.readouterr().out
+
+
+def test_resolve_target_rejects_paths_outside_repo_root(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    outside = tmp_path / "outside" / "evil.md"
+    _write(outside, "argument-hint: '[a] [b]'\n")
+
+    # An absolute path outside the repo root must resolve to nothing
+    # (CWE-22 path-traversal guard) rather than reading arbitrary files.
+    assert v.collect_scan_paths(repo_root, [str(outside)]) == []
+
+
+def test_git_tracked_files_falls_back_when_git_missing(tmp_path: Path, monkeypatch) -> None:
+    def _raise(*_args, **_kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(v.subprocess, "run", _raise)
+
+    command = tmp_path / ".claude" / "commands" / "bad.md"
+    _write(command, "argument-hint: '[a] [b]'\n")
+
+    # git absent -> glob fallback still finds and flags the offender.
+    paths = v.collect_scan_paths(tmp_path, [])
+    violations = v.find_argument_hint_violations(paths)
+
+    assert command in paths
+    assert len(violations) == 1
