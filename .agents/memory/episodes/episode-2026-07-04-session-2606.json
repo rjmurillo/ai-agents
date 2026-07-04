@@ -181,6 +181,22 @@
       "content": "Synced plugin library copy after latest main merge so build staleness and sync checks pass.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Isolated LSP read guard tests from inherited CLAUDE_PROJECT_DIR and TMPDIR so they run correctly inside the Copilot context-mode harness.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated read guard targeted tests, full tests, plugin lib sync, and generated artifact checks after the isolation fix.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
