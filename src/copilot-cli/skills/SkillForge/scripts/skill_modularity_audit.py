@@ -34,6 +34,8 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 
 def _load_has_size_exception():
     frontmatter_path = _SCRIPT_DIR / "frontmatter.py"
+    if not frontmatter_path.is_file():
+        raise ImportError(f"SkillForge frontmatter helper not found: {frontmatter_path}")
     spec = importlib.util.spec_from_file_location("skillforge_frontmatter", frontmatter_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load SkillForge frontmatter helper: {frontmatter_path}")
