@@ -186,22 +186,22 @@ A GitHub Actions workflow runs weekly to detect semantic drift between Claude ag
 
 - **Schedule**: Monday 9 AM UTC
 - **Workflow**: `.github/workflows/drift-detection.yml`
-- **Script**: `build/scripts/Detect-AgentDrift.ps1`
+- **Script**: `build/scripts/detect_agent_drift.py`
 
 ### Run Locally
 
-```powershell
+```bash
 # Check for drift (default 80% similarity threshold)
-pwsh build/scripts/Detect-AgentDrift.ps1
+python3 build/scripts/detect_agent_drift.py
 
 # Get JSON output for tooling
-pwsh build/scripts/Detect-AgentDrift.ps1 -OutputFormat JSON
+python3 build/scripts/detect_agent_drift.py --output-format json
 
 # Get markdown report
-pwsh build/scripts/Detect-AgentDrift.ps1 -OutputFormat Markdown
+python3 build/scripts/detect_agent_drift.py --output-format markdown
 
 # Use stricter threshold
-pwsh build/scripts/Detect-AgentDrift.ps1 -SimilarityThreshold 90
+python3 build/scripts/detect_agent_drift.py --similarity-threshold 90
 ```
 
 ### What Gets Compared
@@ -250,7 +250,7 @@ When drift is detected:
 - [.vscode/toolsets.jsonc](../.vscode/toolsets.jsonc) - VS Code native toolset definitions
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Full contribution guide
 - [build/generate_agents.py](../build/generate_agents.py) - Generation script
-- [build/scripts/Detect-AgentDrift.ps1](../build/scripts/Detect-AgentDrift.ps1) - Drift detection script
+- [build/scripts/detect_agent_drift.py](../build/scripts/detect_agent_drift.py) - Drift detection script
 - [.github/workflows/validate-generated-agents.yml](../.github/workflows/validate-generated-agents.yml) - CI validation
 - [.github/workflows/drift-detection.yml](../.github/workflows/drift-detection.yml) - Drift detection CI
 

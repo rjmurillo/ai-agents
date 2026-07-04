@@ -107,19 +107,19 @@ Use [StringComparison]::OrdinalIgnoreCase for comparisons
 
 ### Testing Standards
 
-- Pester tests in `tests/` or adjacent to scripts
+- pytest tests in `tests/`
 - Test isolation: No global state
-- Parameterized tests: `@()` arrays
+- Parameterized tests: `@pytest.mark.parametrize`
 - CI validation: All tests run on push
 
 ### Module Structure
 
-```powershell
-# {Module}.psm1
-function Export-Function1 { }
-function Export-Function2 { }
+```python
+# {module}.py
+def function1(): ...
+def function2(): ...
 
-Export-ModuleMember -Function Export-Function1, Export-Function2
+__all__ = ["function1", "function2"]
 ```
 
 ### Security
@@ -132,7 +132,8 @@ Export-ModuleMember -Function Export-Function1, Export-Function2
 
 - Exit codes: `.agents/architecture/ADR-035-exit-code-standardization.md`
 - Skill development: `.claude/skills/CLAUDE.md`
-- ADR-005: PowerShell-only architecture
+- ADR-005: PowerShell-only architecture (superseded by ADR-042)
+- ADR-042: Python migration strategy
 
 ---
 
@@ -154,9 +155,9 @@ flowchart TD
     end
 
     subgraph Scripts["Script Agents"]
-        SYN[Sync-McpConfig.ps1]
+        SYN[sync_mcp_config.py]
         CHK[check_skill_exists.py]
-        VCS[Validate-Consistency.ps1]
+        VCS[consistency.py]
         VSP[validate_session_json.py]
     end
 
@@ -172,7 +173,7 @@ flowchart TD
 
 ## Agent Catalog
 
-### Sync-McpConfig.ps1
+### sync_mcp_config.py
 
 **Role**: MCP configuration synchronizer between Claude and VS Code
 
@@ -181,7 +182,7 @@ flowchart TD
 | **Input** | `.mcp.json` (Claude Code format) |
 | **Output** | `.vscode/mcp.json` (VS Code format) |
 | **Trigger** | Manual |
-| **Dependencies** | PowerShell 7.5.4+ |
+| **Dependencies** | Python 3.12+ |
 
 **Transformations Applied**:
 
@@ -193,20 +194,20 @@ flowchart TD
 
 **Invocation**:
 
-```powershell
-# Sync with default paths
-.\Sync-McpConfig.ps1
+```bash
+# Sync to both VS Code and Factory
+python3 -m scripts.sync_mcp_config --sync-all
 
 # Preview changes
-.\Sync-McpConfig.ps1 -WhatIf
+python3 -m scripts.sync_mcp_config --sync-all --dry-run
 
 # Force overwrite
-.\Sync-McpConfig.ps1 -Force
+python3 -m scripts.sync_mcp_config --sync-all --force
 ```
 
 ---
 
-### Check-SkillExists.ps1
+### check_skill_exists.py
 
 **Role**: Skill existence verification for Phase 1.5 BLOCKING gate
 
@@ -219,25 +220,25 @@ flowchart TD
 
 **Invocation**:
 
-```powershell
-# Check for specific skill
-.\Check-SkillExists.ps1 -Operation "pr" -Action "PRContext"  # Returns: $true
+```bash
+# Check for specific skill (exit 0 = found, exit 1 = not found)
+python3 scripts/check_skill_exists.py --operation pr --action PRContext
 
 # List all available skills
-.\Check-SkillExists.ps1 -ListAvailable
+python3 scripts/check_skill_exists.py --list-available
 ```
 
 **Parameters**:
 
 | Parameter | Values | Description |
 |-----------|--------|-------------|
-| `-Operation` | `pr`, `issue`, `reactions`, `label`, `milestone` | Skill category |
-| `-Action` | String | Substring match against script names |
-| `-ListAvailable` | Switch | List all skills organized by type |
+| `--operation` | `pr`, `issue`, `reactions`, `label`, `milestone` | Skill category |
+| `--action` | String | Substring match against script names |
+| `--list-available` | Switch | List all skills organized by type |
 
 ---
 
-### Validate-Consistency.ps1
+### consistency.py
 
 **Role**: Cross-document consistency validator
 
@@ -246,13 +247,23 @@ flowchart TD
 | **Input** | `.agents/` directory artifacts |
 | **Output** | Consistency report |
 | **Trigger** | Manual, CI |
-| **Dependencies** | PowerShell 7.5.4+ |
+| **Dependencies** | Python 3.12+ |
 
 **Validations**:
 
 - Naming convention compliance
 - Cross-reference integrity
 - Requirement coverage
+
+**Invocation**:
+
+```bash
+# Validate all features
+python3 scripts/validation/consistency.py --all
+
+# Specific feature, CI mode (exit 1 on failures)
+python3 scripts/validation/consistency.py --feature <name> --ci
+```
 
 ---
 
@@ -293,15 +304,15 @@ python3 scripts/validate_session_json.py .agents/sessions/2025-12-18-session-24.
 
 | Agent | Error Scenario | Behavior |
 |-------|---------------|----------|
-| Sync-McpConfig.ps1 | Source missing | Exit with path error |
+| sync_mcp_config.py | Source missing | Exit with path error |
 | validate_session_json.py | Session not found | Warning, continue |
-| Validate-*.ps1 | Validation failure | Exit with error code |
+| consistency.py | Validation failure | Exit with error code |
 
 ## Security Considerations
 
 | Agent | Security Control |
 |-------|-----------------|
-| Sync-McpConfig.ps1 | No external network access |
+| sync_mcp_config.py | No external network access |
 | All scripts | No credential handling |
 | All scripts | Path validation prevents traversal |
 
@@ -311,27 +322,27 @@ Tests are located in `tests/`:
 
 | Test File | Coverage |
 |-----------|----------|
-| `Sync-McpConfig.Tests.ps1` | MCP sync transformations |
-| `Validate-SessionJson.Tests.ps1` | Session protocol validation |
+| `test_sync_mcp_config.py` | MCP sync transformations |
+| `test_validate_session_json.py` | Session protocol validation |
 
 **Running Tests**:
 
-```powershell
+```bash
 # All tests
-Invoke-Pester -Path .\tests
+uv run pytest
 
 # Specific file
-Invoke-Pester -Path .\tests\Sync-McpConfig.Tests.ps1
+uv run pytest tests/test_sync_mcp_config.py
 
 # Detailed output
-Invoke-Pester -Path .\tests -Output Detailed
+uv run pytest -vv
 ```
 
 ## Monitoring
 
 | Agent | CI Workflow | Trigger |
 |-------|------------|---------|
-| Sync-McpConfig.ps1 | `pester-tests.yml` | PR to `scripts/**` |
+| sync_mcp_config.py | `pytest.yml` | PR to `scripts/**` |
 | validate_session_json.py | `ai-session-protocol.yml` | PR to `.agents/**` |
 
 ## Related Documentation

@@ -260,8 +260,8 @@ sequenceDiagram
 | Dependency | Type | Purpose |
 |------------|------|---------|
 | `build/generate_agents.py` | Script | Transforms templates to outputs |
-| `build/Generate-Agents.Common.psm1` | Module | Shared transformation functions |
-| PowerShell 7.5.4+ | Runtime | Script execution |
+| `build/generate_agents_common.py` | Module | Shared transformation functions |
+| Python 3.12+ | Runtime | Script execution |
 
 ## Security Considerations
 
@@ -304,7 +304,7 @@ python3 build/generate_agents.py --validate
 |-------|-----------|-----------|
 | Generation validation | `.github/workflows/validate-generated-agents.yml` | On PR |
 | Drift detection | `.github/workflows/drift-detection.yml` | Weekly |
-| Content consistency | `build/scripts/Detect-AgentDrift.ps1` | Manual/CI |
+| Content consistency | `build/scripts/detect_agent_drift.py` | Manual/CI |
 
 ## Related Documentation
 

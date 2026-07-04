@@ -301,15 +301,15 @@ gh pr view 50 --json ...
 
 ### Validating Changes
 
-```powershell
+```bash
 # Validate generated files match templates
 python3 build/generate_agents.py --validate
 
 # Check for drift between Claude and VS Code
-pwsh build/scripts/Detect-AgentDrift.ps1
+python3 build/scripts/detect_agent_drift.py
 
-# Run Pester tests if scripts modified
-Invoke-Pester ./build/tests/
+# Run tests if scripts modified
+uv run pytest
 ```
 
 ---

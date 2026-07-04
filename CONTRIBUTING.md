@@ -32,8 +32,6 @@ Thank you for your interest in contributing to this project. This guide explains
 **Required Versions:**
 
 - **Python 3.14.x** (primary scripting language per ADR-042)
-- **PowerShell 7.5.4+** (for existing scripts and cross-platform execution)
-- **Pester 5.7.1** (exact version, pinned for supply chain security)
 - **UV** (Python package manager, see [installation](https://docs.astral.sh/uv/getting-started/installation/))
 
 ### Setup Steps
@@ -525,8 +523,6 @@ is caught before push instead of silently bypassing the pre-push guards.
 The pre-commit hook automatically runs checks including, depending on staged files:
 
 - **markdownlint**: Fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
-- **PSScriptAnalyzer**: Validates PowerShell (`.ps1`/`.psm1`) scripts for syntax errors and coding standard violations. Error-level issues block commits; warnings are displayed but non-blocking. Skips gracefully if PowerShell is not installed.
-  - **Install**: `pwsh -Command 'Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force'`
 - **ruff**: Lints Python files for style and common issues when Python files are staged.
 - **actionlint**: Validates GitHub Actions workflow files (`.github/workflows/*.yml`) when they are staged.
 - **yamllint**: Validates general YAML files when they are staged.
@@ -544,7 +540,7 @@ The pre-push hook runs comprehensive branch-wide validation before each push. Un
 | **Fast Guards** | Branch guard, commit count (max 20), changed files count, total additions | Yes |
 | **Linting** | markdownlint, ruff, mypy, actionlint, yamllint | Yes (except yamllint) |
 | **Build Validation** | Agent generation drift, agent drift detection, path normalization | Yes |
-| **Tests** | Full Pester suite, pytest | Yes |
+| **Tests** | Full pytest suite | Yes |
 | **Security** | Suppression comment detection, session log validation | Yes |
 | **Governance** | Planning artifacts, ADR review reminder | Warn only |
 
@@ -553,7 +549,7 @@ The pre-push hook runs comprehensive branch-wide validation before each push. Un
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `SKIP_PREPUSH` | 0 | Set to 1 to bypass all checks (emergency only) |
-| `SKIP_TESTS` | 0 | Skip Pester and pytest (for documentation-only pushes) |
+| `SKIP_TESTS` | 0 | Skip pytest (for documentation-only pushes) |
 
 Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all checks.
 
@@ -713,9 +709,8 @@ The repository enforces quality automatically at multiple stages:
 | Stage | What Runs | Trigger |
 |-------|-----------|---------|
 | **Pre-commit hook** | Python linting (ruff), Markdown linting | Every commit |
-| **Pre-push hook** | Full Pester + pytest, drift detection, lint, security scans | Every push |
+| **Pre-push hook** | Full pytest, drift detection, lint, security scans | Every push |
 | **CI pytest.yml** | pytest, pip-audit, bandit | Every PR/push |
-| **CI pester.yml** | Pester tests | Every PR/push |
 
 **No manual test runs required for routine development.** Quality gates run automatically.
 
@@ -734,22 +729,9 @@ uv run pip-audit                            # Dependency vulnerabilities
 uv run bandit -r .claude/ scripts/          # Static analysis
 ```
 
-### PowerShell Tests (Pester)
-
-```powershell
-# Run all tests
-uv run pytest
-
-# CI mode (exits with error code on failure)
-uv run pytest
-
-# Run specific test file
-uv run pytest tests/test_validate_session_json.py
-```
-
 ### Agent Generation Tests
 
-```powershell
+```bash
 # Run generation tests
 uv run pytest tests/build_scripts/test_generate_agents.py
 ```
@@ -994,8 +976,8 @@ After configuration, verify the MCP connection in your client:
 
 Import the project's shared Forgetful memories to get cross-session context:
 
-```powershell
-pwsh scripts/forgetful/Import-ForgetfulMemories.ps1
+```bash
+python3 scripts/forgetful/import_forgetful_memories.py
 ```
 
 This imports all JSON exports from `.forgetful/exports/` into your local Forgetful database. The import is idempotent and safe to run multiple times.
@@ -1113,7 +1095,7 @@ license attribution in `THIRD-PARTY-NOTICES.TXT`.
 | Dev-only tools | pytest, ruff | No |
 | CI infrastructure | GitHub Actions | No |
 | Transitive pip packages | pydantic, httpx | No |
-| Test frameworks | Pester, pytest-cov | No |
+| Test frameworks | pytest, pytest-cov | No |
 
 ### Adding a New Third-Party Component
 

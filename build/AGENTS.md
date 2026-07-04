@@ -18,9 +18,9 @@ flowchart TD
 
     subgraph Build["Build Agents"]
         GEN[generate_agents.py]
-        DFT[Detect-AgentDrift.ps1]
-        VPA[Validate-PlanningArtifacts.ps1]
-        VPN[Validate-PathNormalization.ps1]
+        DFT[detect_agent_drift.py]
+        VPA[validate_planning_artifacts.py]
+        VPN[validate_path_normalization.py]
         IPT[pytest]
     end
 
@@ -138,7 +138,7 @@ behind. There are zero deferrals today; the gate passes until someone adds one.
 | **Input** | `templates/agents/*.shared.md`, `templates/platforms/*.yaml` |
 | **Output** | `src/vs-code-agents/*.agent.md`, `src/copilot-cli/agents/*.agent.md` |
 | **Trigger** | Manual, CI validation |
-| **Dependencies** | `Generate-Agents.Common.psm1`, PowerShell 7.5.4+ |
+| **Dependencies** | `generate_agents_common.py`, Python 3.12+ |
 
 **Transformations Applied**:
 
@@ -268,7 +268,7 @@ When you edit a shared-template agent, update the template
 
 ---
 
-### Validate-PlanningArtifacts.ps1
+### validate_planning_artifacts.py
 
 **Role**: Planning document consistency validator
 
@@ -277,7 +277,7 @@ When you edit a shared-template agent, update the template
 | **Input** | `.agents/planning/*.md` |
 | **Output** | Validation report |
 | **Trigger** | CI on planning changes, manual |
-| **Dependencies** | PowerShell 7.5.4+ |
+| **Dependencies** | Python 3.12+ |
 
 **Validations Performed**:
 
@@ -289,20 +289,20 @@ When you edit a shared-template agent, update the template
 
 **Invocation**:
 
-```powershell
+```bash
 # Validate specific feature
-pwsh build/scripts/Validate-PlanningArtifacts.ps1 -FeatureName "agent-consolidation"
+python3 build/scripts/validate_planning_artifacts.py --feature-name "agent-consolidation"
 
 # CI mode (exit on error)
-pwsh build/scripts/Validate-PlanningArtifacts.ps1 -FailOnError
+python3 build/scripts/validate_planning_artifacts.py --fail-on-error
 
 # Strict mode (warnings as errors)
-pwsh build/scripts/Validate-PlanningArtifacts.ps1 -FailOnWarning
+python3 build/scripts/validate_planning_artifacts.py --fail-on-warning
 ```
 
 ---
 
-### Validate-PathNormalization.ps1
+### validate_path_normalization.py
 
 **Role**: Path format validator for documentation
 
@@ -311,7 +311,7 @@ pwsh build/scripts/Validate-PlanningArtifacts.ps1 -FailOnWarning
 | **Input** | `**/*.md` (documentation files) |
 | **Output** | Path validation report |
 | **Trigger** | CI on PR, manual |
-| **Dependencies** | PowerShell 7.5.4+ |
+| **Dependencies** | Python 3.12+ |
 
 **Forbidden Patterns**:
 
@@ -323,26 +323,26 @@ pwsh build/scripts/Validate-PlanningArtifacts.ps1 -FailOnWarning
 
 **Invocation**:
 
-```powershell
-pwsh build/scripts/Validate-PathNormalization.ps1
+```bash
+python3 build/scripts/validate_path_normalization.py --fail-on-violation
 ```
 
 ---
 
 ### pytest
 
-**Role**: Reusable Pester test runner
+**Role**: Reusable pytest test runner
 
 | Attribute | Value |
 |-----------|-------|
-| **Input** | Test files (`**/*.Tests.ps1`) |
+| **Input** | Test files (`tests/**/*.py`) |
 | **Output** | Test results (XML, console) |
 | **Trigger** | CI, pre-commit, manual |
-| **Dependencies** | Pester 5.7.1 (exact), PowerShell 7.5.4+ |
+| **Dependencies** | pytest, uv, Python 3.12+ |
 
 **Invocation**:
 
-```powershell
+```bash
 # Local development (detailed output)
 uv run pytest
 
@@ -364,7 +364,7 @@ uv run pytest -vv
 sequenceDiagram
     participant Dev as Developer
     participant Gen as generate_agents.py
-    participant Drift as Detect-AgentDrift.ps1
+    participant Drift as detect_agent_drift.py
     participant CI as GitHub Actions
 
     Dev->>Gen: Edit template
@@ -373,7 +373,7 @@ sequenceDiagram
     Gen-->>Dev: Generated files
 
     Dev->>CI: Push changes
-    CI->>Gen: Validate (--Validate)
+    CI->>Gen: Validate (--validate)
     alt Files match
         Gen-->>CI: Exit 0
     else Files differ
@@ -395,8 +395,8 @@ sequenceDiagram
 |-------|---------------|----------|
 | generate_agents.py | Missing template | Exit 1 with path info |
 | generate_agents.py | Invalid YAML | Parse error with line number |
-| Detect-AgentDrift.ps1 | Missing agent | Report as "NO COUNTERPART" |
-| Validate-PlanningArtifacts.ps1 | Missing artifacts | Warning (not error) |
+| detect_agent_drift.py | Missing agent | Report as "NO COUNTERPART" |
+| validate_planning_artifacts.py | Missing artifacts | Warning (not error) |
 | pytest | Test failure | Report details, exit 1 in CI |
 
 ## Security Considerations
@@ -413,9 +413,9 @@ sequenceDiagram
 | Agent | CI Workflow | Schedule |
 |-------|------------|----------|
 | generate_agents.py | `validate-generated-agents.yml` | On PR |
-| Detect-AgentDrift.ps1 | `drift-detection.yml` | Monday 9 AM UTC |
-| Validate-PlanningArtifacts.ps1 | `validate-planning-artifacts.yml` | On PR |
-| Validate-PathNormalization.ps1 | `validate-paths.yml` | On PR |
+| detect_agent_drift.py | `drift-detection.yml` | Monday 9 AM UTC |
+| validate_planning_artifacts.py | `validate-planning-artifacts.yml` | On PR |
+| validate_path_normalization.py | `validate-paths.yml` | On PR |
 | pytest | `pytest.yml` | On PR |
 
 ## Related Documentation
