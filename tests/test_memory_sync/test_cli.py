@@ -245,7 +245,10 @@ class TestQueueOperations:
 
     def test_write_leaves_no_temp_files(self, project_root: Path) -> None:
         """A successful atomic write leaves no ``.tmp`` sidecar behind."""
-        _write_queue(project_root, [(Path("x.md"), SyncOperation.CREATE)])
+        _write_queue(
+            project_root,
+            [(Path(".serena/memories/test.md"), SyncOperation.CREATE)],
+        )
         leftovers = list(project_root.glob(".memory_sync_queue.json*.tmp"))
         assert leftovers == []
 
@@ -253,7 +256,10 @@ class TestQueueOperations:
         self, project_root: Path
     ) -> None:
         """If the rename fails mid-write, the prior queue and dir stay intact."""
-        _write_queue(project_root, [(Path("old.md"), SyncOperation.CREATE)])
+        _write_queue(
+            project_root,
+            [(Path(".serena/memories/old.md"), SyncOperation.CREATE)],
+        )
         before = (project_root / ".memory_sync_queue.json").read_text(
             encoding="utf-8"
         )
@@ -261,7 +267,10 @@ class TestQueueOperations:
             "scripts.memory_sync.cli.os.replace", side_effect=OSError("boom")
         ):
             with pytest.raises(OSError, match="boom"):
-                _write_queue(project_root, [(Path("new.md"), SyncOperation.UPDATE)])
+                _write_queue(
+                    project_root,
+                    [(Path(".serena/memories/new.md"), SyncOperation.UPDATE)],
+                )
         after = (project_root / ".memory_sync_queue.json").read_text(
             encoding="utf-8"
         )
