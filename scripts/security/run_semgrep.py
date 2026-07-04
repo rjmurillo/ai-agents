@@ -197,7 +197,7 @@ class SemgrepScanner:
         ]
 
         if self.severity:
-            cmd.extend(["--severity", self.severity])
+            cmd.extend(["--severity", self.severity.upper()])
 
         for f in files:
             cmd.append(str(f))

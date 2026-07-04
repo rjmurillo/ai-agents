@@ -8,8 +8,9 @@ server must not block the reader forever (including on Windows, where
 
 from __future__ import annotations
 
+import collections
+import queue
 import subprocess
-import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -18,7 +19,7 @@ import pytest
 
 from scripts.memory_sync.mcp_client import McpClient, McpError
 from scripts.security.invoke_precommit_security import PreCommitSecurityCheck
-from scripts.security.run_semgrep import SemgrepScanner
+from scripts.security.run_semgrep import SemgrepScanError, SemgrepScanner
 
 
 def test_ensure_psscriptanalyzer_timeout_returns_false() -> None:
@@ -30,7 +31,7 @@ def test_ensure_psscriptanalyzer_timeout_returns_false() -> None:
 
 
 def test_run_semgrep_timeout_fails_closed() -> None:
-    """A timed-out scan must yield a blocking ERROR finding, not a clean [].
+    """A timed-out scan must raise a fail-closed scan error, not return [].
 
     run() maps an empty findings list to PASS/exit 0, so returning [] on
     timeout would silently bypass the security gate.
@@ -38,10 +39,8 @@ def test_run_semgrep_timeout_fails_closed() -> None:
     scanner = SemgrepScanner()
     timeout = subprocess.TimeoutExpired(cmd="semgrep", timeout=300)
     with patch("subprocess.run", side_effect=timeout):
-        findings = scanner._run_semgrep([Path("example.py")])
-    assert len(findings) == 1
-    assert findings[0].severity == "ERROR"
-    assert findings[0].check_id == "semgrep-scan-failure"
+        with pytest.raises(SemgrepScanError, match="timed out"):
+            scanner._run_semgrep([Path("example.py")])
 
 
 def test_run_semgrep_subprocess_error_fails_closed() -> None:
@@ -81,27 +80,23 @@ def test_run_semgrep_empty_stdout_fails_closed() -> None:
     assert findings[0].check_id == "semgrep-scan-failure"
 
 
-def test_mcp_win32_reader_exit_without_data_raises() -> None:
-    """A reader thread that exits without appending must raise McpError,
-    not IndexError (Copilot review on #2830)."""
+def test_mcp_stdout_reader_eof_raises() -> None:
+    """A closed stdout sentinel must raise McpError, not look like timeout."""
     client = McpClient.__new__(McpClient)
     client._timeout = 1
-    with patch.object(threading.Thread, "start"), patch.object(
-        threading.Thread, "join"
-    ), patch.object(threading.Thread, "is_alive", return_value=False):
-        with pytest.raises(McpError, match="exited without data"):
-            client._read_fd_with_timeout_win32(0)
+    client._read_queue = queue.Queue()
+    client._stderr_lines = collections.deque()
+    client._read_queue.put(None)
+    with pytest.raises(McpError, match="closed stdout"):
+        client._read_bytes(1)
 
 
-def test_mcp_win32_read_timeout_raises() -> None:
-    client = McpClient(process=MagicMock(stderr=None), timeout=0.1)
-
-    def _blocking_read(_fd: int, _n: int) -> bytes:
-        time.sleep(1.0)
-        return b"never"
-
-    with patch("os.read", _blocking_read), pytest.raises(McpError, match="Timeout"):
-        client._read_fd_with_timeout_win32(0)
+def test_mcp_stdout_read_timeout_raises() -> None:
+    client = McpClient.__new__(McpClient)
+    client._timeout = 0.1
+    client._read_queue = queue.Queue()
+    with pytest.raises(McpError, match="Timeout"):
+        client._read_bytes(0.01)
 
 
 def test_mcp_overall_deadline_raises() -> None:
