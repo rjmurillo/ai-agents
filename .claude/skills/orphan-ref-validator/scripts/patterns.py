@@ -3,13 +3,6 @@
 
 Owns the regex constants and the line-by-line extractors. Each extractor
 honors the line-scope `<!-- orphan-ref-ignore -->` directive.
-
-The ``COUNT_CLAIM_RE`` and ``COUNT_LABEL_MAP`` mirror
-``build/scripts/validate_marketplace_counts.py:COUNT_PATTERN`` and
-``LABEL_MAP`` byte-for-byte. Per ``.claude/rules/canonical-source-mirror.md``
-the canonical contract is quoted in the docstring of ``COUNT_CLAIM_RE``
-below; the orphan-ref-validator does not implement the canonical's --fix
-path or YAML-driven per-plugin exclude resolution.
 """
 
 from __future__ import annotations
@@ -33,8 +26,6 @@ SINGLE_WORD_SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*)`")
 # PR2 (issue #1994) broadens the suffix from ``.py`` only to ``.py`` or
 # ``.ps1``: PowerShell helpers under these prefixes are referenced in specs
 # (e.g. backticked `scripts/Validate-SessionEnd.ps1`) and went undetected.
-# This regex is NOT under the canonical-source-mirror contract; only
-# COUNT_CLAIM_RE / COUNT_LABEL_MAP mirror the canonical validator.
 SCRIPT_REF_RE = re.compile(
     r"`(?<![\w/])((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.(?:py|ps1))(?!\w)`",
     re.IGNORECASE,
@@ -52,49 +43,8 @@ SKILL_SCRIPT_REF_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Mirrors COUNT_PATTERN and LABEL_MAP from
-# build/scripts/validate_marketplace_counts.py (canonical):
-#
-#     COUNT_PATTERN = re.compile(
-#         r"(\d+)\s+"
-#         r"(specialized\s+agent\s+definition"
-#         r"|agent\s+definition"
-#         r"|agent"
-#         r"|slash\s+command"
-#         r"|lifecycle\s+hook"
-#         r"|reusable\s+skill)"
-#         r"s?"
-#     )
-#     LABEL_MAP = {
-#         "specialized agent definition": "agent",
-#         "agent definition": "agent",
-#         "agent": "agent",
-#         "slash command": "slash command",
-#         "lifecycle hook": "lifecycle hook",
-#         "reusable skill": "reusable skill",
-#     }
-COUNT_CLAIM_RE = re.compile(
-    r"(\d+)\s+"
-    r"(specialized\s+agent\s+definition"
-    r"|agent\s+definition"
-    r"|agent"
-    r"|slash\s+command"
-    r"|lifecycle\s+hook"
-    r"|reusable\s+skill)"
-    r"s?"
-)
-COUNT_LABEL_MAP = {
-    "specialized agent definition": "agent",
-    "agent definition": "agent",
-    "agent": "agent",
-    "slash command": "slash command",
-    "lifecycle hook": "lifecycle hook",
-    "reusable skill": "reusable skill",
-}
-
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
-_WHITESPACE_RE = re.compile(r"\s+")
 
 
 def line_has_ignore_directive(line: str) -> bool:
@@ -148,21 +98,3 @@ def extract_skill_script_refs(text: str) -> Iterable[tuple[int, str]]:
                 continue
             seen.add(path)
             yield lineno, path
-
-
-def extract_count_claims(text: str) -> Iterable[tuple[int, int, str]]:
-    """Yield ``(lineno, count, canonical_label)`` triples.
-
-    ``canonical_label`` is the ``COUNT_LABEL_MAP`` value (one of "agent",
-    "slash command", "lifecycle hook", "reusable skill"); upstream
-    enumerators consume the same labels.
-    """
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        if line_has_ignore_directive(line):
-            continue
-        for match in COUNT_CLAIM_RE.finditer(line):
-            label_text = _WHITESPACE_RE.sub(" ", match.group(2).lower())
-            canonical = COUNT_LABEL_MAP.get(label_text)
-            if canonical is None:
-                continue
-            yield lineno, int(match.group(1)), canonical

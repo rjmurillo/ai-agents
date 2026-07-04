@@ -15,7 +15,6 @@
 Covers REQ-009 acceptance criteria:
 - AC2: skill_name detection (positive + negative)
 - AC3: script_path detection (positive + negative, repo-root containment)
-- AC4: count_claim detection (positive + negative + warn-when-undeterminable)
 - AC5: ADR-056 envelope + VERDICT line (PASS/WARN/CRITICAL_FAIL/ERROR)
 - AC6: vendored install (missing target path -> skip, no raise)
 - AC8: edge cases (empty file, mixed living+dead refs, secret denylist,
@@ -29,6 +28,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -56,13 +56,11 @@ Finding = _scan.Finding
 ScanResult = _scan.ScanResult
 load_baseline = _scan.load_baseline
 BaselineError = _scan.BaselineError
-extract_count_claims = _scan.extract_count_claims
 extract_script_refs = _scan.extract_script_refs
 extract_skill_refs = _scan.extract_skill_refs
 extract_single_word_skill_refs = _scan.extract_single_word_skill_refs
 extract_skill_script_refs = _scan.extract_skill_script_refs
 _check_skill_script_refs = _scan._check_skill_script_refs
-enumerate_count = _scan.enumerate_count
 enumerate_skills = _scan.enumerate_skills
 main = _scan.main
 render_envelope = _scan.render_envelope
@@ -117,21 +115,6 @@ def test_extract_script_refs_full_path_match():
     assert refs == [(1, "build/scripts/foo.py")]
 
 
-def test_extract_count_claims_matches_canonical_labels():
-    text = "Toolkit: 67 reusable skills, 23 agents, 12 slash commands, 30 lifecycle hooks."
-    claims = list(extract_count_claims(text))
-    kinds = [(c, k) for _, c, k in claims]
-    assert (67, "reusable skill") in kinds
-    assert (23, "agent") in kinds
-    assert (12, "slash command") in kinds
-    assert (30, "lifecycle hook") in kinds
-
-
-def test_extract_count_claims_does_not_match_unknown_kinds():
-    text = "We have 5 cats and 99 problems."
-    assert list(extract_count_claims(text)) == []
-
-
 # ---------- enumerator tests ----------
 
 
@@ -141,28 +124,6 @@ def test_enumerate_skills_returns_set(fake_repo):
 
 def test_enumerate_skills_handles_missing_dir(tmp_path):
     assert enumerate_skills(tmp_path) is None
-
-
-def test_enumerate_count_skills_canonical_label(fake_repo):
-    assert enumerate_count(fake_repo, "reusable skill") == 2
-
-
-def test_enumerate_count_skills_legacy_alias(fake_repo):
-    assert enumerate_count(fake_repo, "skills") == 2
-
-
-def test_enumerate_count_agents_canonical_label(fake_repo):
-    assert enumerate_count(fake_repo, "agent") == 1
-
-
-def test_enumerate_count_returns_none_when_dir_missing(tmp_path):
-    assert enumerate_count(tmp_path, "reusable skill") is None
-    assert enumerate_count(tmp_path, "skills") is None
-    assert enumerate_count(tmp_path, "agent") is None
-
-
-def test_enumerate_count_unknown_kind_returns_none(fake_repo):
-    assert enumerate_count(fake_repo, "elephants") is None
 
 
 # ---------- AC2: skill_name detection ----------
@@ -253,139 +214,6 @@ def test_ac3_broad_existing_ps1_yields_no_finding(fake_repo):
     write(target, "Call `scripts/Validate-Here.ps1` before push.\n")
     result = scan([target], fake_repo)
     assert [f for f in result.findings if f.kind == "script_path"] == []
-
-
-# ---------- AC4: count_claim detection ----------
-
-
-def test_ac4_count_extraction_runs_but_findings_delegated(fake_repo):
-    """Per canonical-source-mirror.md, count_claim enforcement is delegated
-    to build/scripts/validate_marketplace_counts.py. orphan-ref-validator
-    extracts the claim (refs_checked increments) but emits no Finding."""
-    plugin = fake_repo / ".claude-plugin" / "marketplace.json"
-    write(plugin, '{"description": "Catalog has 99 reusable skills total."}')
-    result = scan([plugin], fake_repo)
-    assert [f for f in result.findings if f.kind == "count_claim"] == []
-    # Refs are still counted so observability of detection coverage works.
-    assert result.refs_checked >= 1
-
-
-def test_ac4_count_match_yields_no_finding(fake_repo):
-    plugin = fake_repo / ".claude-plugin" / "marketplace.json"
-    write(plugin, '{"description": "Catalog has 2 reusable skills."}')
-    result = scan([plugin], fake_repo)
-    assert [f for f in result.findings if f.kind == "count_claim"] == []
-
-
-def test_ac4_count_only_in_manifest_files(fake_repo):
-    target = fake_repo / "docs" / "prose.md"
-    write(target, "We have 99 reusable skills.\n")
-    result = scan([target], fake_repo)
-    assert [f for f in result.findings if f.kind == "count_claim"] == []
-
-
-# ---------- AC4 --enforce-counts opt-in (PR2, issue #1994) ----------
-
-
-def test_enforce_counts_default_off_emits_no_count_finding(fake_repo):
-    """Default scan() (enforce_counts=False) extracts but does not emit
-    count_claim findings, preserving the canonical-source-mirror contract."""
-    plugin = fake_repo / ".claude-plugin" / "marketplace.json"
-    write(plugin, '{"description": "Catalog has 99 reusable skills."}')
-    result = scan([plugin], fake_repo)
-    assert [f for f in result.findings if f.kind == "count_claim"] == []
-    assert result.verdict == "PASS"
-
-
-def test_enforce_counts_on_emits_critical_on_divergence(fake_repo):
-    """With enforce_counts=True a divergent single-plugin count claim
-    (claimed 99, actual 2) in a plugin.json yields a critical count_claim
-    finding."""
-    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
-    write(plugin, '{"description": "Catalog has 99 reusable skills."}')
-    result = scan([plugin], fake_repo, enforce_counts=True)
-    count_findings = [f for f in result.findings if f.kind == "count_claim"]
-    assert len(count_findings) == 1
-    f = count_findings[0]
-    assert f.severity == "critical"
-    assert f.referenced_entity == "99 reusable skill"
-    assert f.expected == "99"
-    assert f.actual == "2"
-    assert result.verdict == "CRITICAL_FAIL"
-
-
-def test_enforce_counts_skips_multiplugin_marketplace(fake_repo):
-    """With enforce_counts=True a divergent count claim in a multi-plugin
-    marketplace.json is NOT emitted: enumerate_count enumerates the .claude/
-    tree only, so per-plugin marketplace claims cannot be validated against it.
-    Coverage for marketplace.json stays delegated to the canonical
-    build/scripts/validate_marketplace_counts.py."""
-    catalog = fake_repo / ".claude-plugin" / "marketplace.json"
-    write(
-        catalog,
-        '{"plugins": ['
-        '{"name": "claude-agents", "description": "Has 99 reusable skills."},'
-        '{"name": "project-toolkit", "description": "Has 7 reusable skills."}'
-        "]}",
-    )
-    result = scan([catalog], fake_repo, enforce_counts=True)
-    assert [f for f in result.findings if f.kind == "count_claim"] == []
-    assert result.verdict == "PASS"
-
-
-def test_enforce_counts_on_no_finding_when_count_matches(fake_repo):
-    """With enforce_counts=True a matching count claim (2 == 2) in a
-    plugin.json yields no finding."""
-    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
-    write(plugin, '{"description": "Catalog has 2 reusable skills."}')
-    result = scan([plugin], fake_repo, enforce_counts=True)
-    assert [f for f in result.findings if f.kind == "count_claim"] == []
-    assert result.verdict == "PASS"
-
-
-def test_enforce_counts_on_warns_when_count_undeterminable(tmp_path):
-    """With enforce_counts=True a count claim in a repo whose target dir is
-    absent yields a non-blocking warn finding, not a crash."""
-    repo = tmp_path / "no-skills"
-    repo.mkdir()
-    (repo / ".git").mkdir()
-    plugin = repo / ".claude" / ".claude-plugin" / "plugin.json"
-    write(plugin, '{"description": "Catalog has 7 reusable skills."}')
-    result = scan([plugin], repo, enforce_counts=True)
-    count_findings = [f for f in result.findings if f.kind == "count_claim"]
-    assert len(count_findings) == 1
-    assert count_findings[0].severity == "warn"
-    assert result.verdict == "WARN"
-
-
-def test_enforce_counts_cli_flag_flips_exit_code(fake_repo, capsys):
-    """The --enforce-counts CLI flag threads into scan(): a divergent count
-    claim in a plugin.json returns exit 0 without the flag and exit 1 with
-    it."""
-    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
-    write(plugin, '{"description": "Catalog has 99 reusable skills."}')
-    rc_off = main([
-        "--targets", str(plugin),
-        "--repo-root", str(fake_repo),
-    ])
-    assert rc_off == 0
-    capsys.readouterr()
-    rc_on = main([
-        "--targets", str(plugin),
-        "--repo-root", str(fake_repo),
-        "--enforce-counts",
-    ])
-    assert rc_on == 1
-
-
-def test_enforce_counts_default_off_via_cli(fake_repo):
-    """parse_args defaults enforce_counts to False so the bare CLI keeps the
-    delegated (no count_claim emission) behavior."""
-    args = _scan.parse_args([
-        "--targets", str(fake_repo / "x.md"),
-        "--repo-root", str(fake_repo),
-    ])
-    assert args.enforce_counts is False
 
 
 # ---------- AC5: envelope + verdict ----------
@@ -530,8 +358,8 @@ def test_exit_code_critical_fail(fake_repo, capsys):
 
 
 def test_exit_code_warn_does_not_block(fake_repo, capsys):
-    """A scan with no critical findings must exit 0. With count_claim
-    enforcement delegated, this manifest produces zero findings -> PASS,
+    """A scan with no critical findings must exit 0. This manifest carries
+    no skill or script references, so it produces zero findings -> PASS,
     which still satisfies the WARN-does-not-block contract."""
     plugin = fake_repo / ".claude-plugin" / "marketplace.json"
     write(plugin, '{"description": "Catalog has 5 agents."}')
@@ -711,7 +539,6 @@ def test_enumerate_skills_returns_none_when_path_is_file(tmp_path):
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "skills").write_text("oops not a directory")
     assert enumerate_skills(tmp_path) is None
-    assert enumerate_count(tmp_path, "skills") is None
 
 
 def test_resolve_repo_root_falls_back_to_cwd_when_no_git(tmp_path, monkeypatch):
@@ -1003,7 +830,7 @@ class TestBaselineSuppression:
     the verdict is PASS/WARN, while a new finding not in the baseline still
     drives CRITICAL_FAIL."""
 
-    def _orphan(self, fake_repo: Path) -> Finding:
+    def _orphan(self, fake_repo: Path) -> Any:
         target = fake_repo / "docs" / "stale.md"
         write(target, "Use the `gamma-skill` for things.\n")
         result = scan([target], fake_repo)
