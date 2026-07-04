@@ -173,6 +173,14 @@
       "content": "Rebumped both plugin manifests to 0.5.262 after origin/main reached 0.5.261.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Synced plugin library copy after latest main merge so build staleness and sync checks pass.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
