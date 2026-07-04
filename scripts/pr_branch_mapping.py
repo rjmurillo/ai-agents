@@ -17,12 +17,17 @@ See: ADR-035 Exit Code Standardization, Issue #683
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import os
 import subprocess
 import sys
+import tempfile
+from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TextIO
 
 MEMORY_FILENAME = "pr-branch-mapping.md"
 MEMORY_RELATIVE_PATH = f".serena/memories/{MEMORY_FILENAME}"
@@ -91,6 +96,71 @@ def load_mapping(project_root: Path) -> PRBranchMapping:
     return PRBranchMapping(mappings=entries, current_session=current)
 
 
+def _atomic_write_text(path: str | os.PathLike[str], text: str) -> None:
+    """Write ``text`` to ``path`` atomically via a temp file plus ``os.replace``.
+
+    Mirrors ``skill_pattern_loader._atomic_json_write`` (temp file in the same
+    directory, then ``os.replace``) so a crash or two concurrent writers cannot
+    leave the file half-written or truncated. On failure the partial temp file
+    is removed and the ``OSError`` re-raised for the caller to handle.
+    """
+    directory = os.path.dirname(os.fspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _try_lock_helpers() -> tuple[
+    Callable[[TextIO], None] | None,
+    Callable[[TextIO], None] | None,
+]:
+    """Return ``(lock_file, unlock_file)`` from ``hook_utilities`` or ``(None, None)``.
+
+    Mirrors ``scripts/metrics/kill_criteria.py`` so the shared-append sites use
+    one lock strategy. The advisory lock is best-effort: when the helper module
+    is not importable (standalone CLI) the caller proceeds without it, which only
+    matters when two writers race.
+    """
+    try:
+        from hook_utilities import lock_file, unlock_file  # noqa: PLC0415
+    except ImportError:
+        return None, None
+    return lock_file, unlock_file
+
+
+@contextlib.contextmanager
+def _mapping_lock(project_root: Path) -> Iterator[None]:
+    """Serialize the load-modify-save of the shared mapping file across processes.
+
+    Two concurrent ``pr_branch_mapping add`` runs (parallel Claude sessions)
+    would otherwise each load the same mapping, add an entry, and the second
+    save would clobber the first. An exclusive advisory lock on a sidecar file
+    makes the read-modify-write atomic. Best-effort: without the hook_utilities
+    helpers the block still runs, matching kill_criteria.py.
+    """
+    memory_path = project_root / MEMORY_RELATIVE_PATH
+    memory_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = memory_path.parent / f".{MEMORY_FILENAME}.lock"
+    lock_file, unlock_file = _try_lock_helpers()
+    with lock_path.open("a", encoding="utf-8") as handle:
+        if lock_file is not None and unlock_file is not None:
+            lock_file(handle)
+            try:
+                yield
+            finally:
+                unlock_file(handle)
+        else:
+            yield
+
+
 def save_mapping(project_root: Path, mapping: PRBranchMapping) -> None:
     """Write PR-branch mapping to the Serena memory file.
 
@@ -103,7 +173,7 @@ def save_mapping(project_root: Path, mapping: PRBranchMapping) -> None:
 
     json_str = json.dumps(mapping.to_dict(), indent=2)
     content = _build_memory_content(json_str)
-    memory_path.write_text(content, encoding="utf-8")
+    _atomic_write_text(memory_path, content)
 
 
 def add_mapping(
@@ -338,48 +408,49 @@ def main(argv: list[str] | None = None) -> int:
         args = _parse_args(argv)
         project_root: Path = args.project_root.resolve()
 
-        mapping = load_mapping(project_root)
+        with _mapping_lock(project_root):
+            mapping = load_mapping(project_root)
 
-        if args.command == "add":
-            add_mapping(mapping, args.pr, args.branch, args.session)
-            save_mapping(project_root, mapping)
-            print(f"Added mapping: PR #{args.pr} -> {args.branch}")
-            return 0
-
-        if args.command == "query":
-            if args.pr is not None:
-                branch = get_branch_for_pr(mapping, args.pr)
-                if branch:
-                    print(branch)
-                    return 0
-                print(f"No mapping found for PR #{args.pr}", file=sys.stderr)
-                return 1
-            pr = get_pr_for_branch(mapping, args.branch)
-            if pr is not None:
-                print(pr)
-                return 0
-            print(f"No mapping found for branch '{args.branch}'", file=sys.stderr)
-            return 1
-
-        if args.command == "validate":
-            is_ok, msg = validate_branch_pr_consistency(mapping)
-            print(msg)
-            return 0 if is_ok else 1
-
-        if args.command == "list":
-            if not mapping.mappings:
-                print("No mappings stored.")
-                return 0
-            for entry in mapping.mappings:
-                print(f"PR #{entry.pr_number} -> {entry.branch_name} ({entry.status})")
-            return 0
-
-        if args.command == "cleanup":
-            removed = remove_merged_entries(mapping)
-            if removed > 0:
+            if args.command == "add":
+                add_mapping(mapping, args.pr, args.branch, args.session)
                 save_mapping(project_root, mapping)
-            print(f"Removed {removed} merged/closed entries.")
-            return 0
+                print(f"Added mapping: PR #{args.pr} -> {args.branch}")
+                return 0
+
+            if args.command == "query":
+                if args.pr is not None:
+                    branch = get_branch_for_pr(mapping, args.pr)
+                    if branch:
+                        print(branch)
+                        return 0
+                    print(f"No mapping found for PR #{args.pr}", file=sys.stderr)
+                    return 1
+                pr = get_pr_for_branch(mapping, args.branch)
+                if pr is not None:
+                    print(pr)
+                    return 0
+                print(f"No mapping found for branch '{args.branch}'", file=sys.stderr)
+                return 1
+
+            if args.command == "validate":
+                is_ok, msg = validate_branch_pr_consistency(mapping)
+                print(msg)
+                return 0 if is_ok else 1
+
+            if args.command == "list":
+                if not mapping.mappings:
+                    print("No mappings stored.")
+                    return 0
+                for entry in mapping.mappings:
+                    print(f"PR #{entry.pr_number} -> {entry.branch_name} ({entry.status})")
+                return 0
+
+            if args.command == "cleanup":
+                removed = remove_merged_entries(mapping)
+                if removed > 0:
+                    save_mapping(project_root, mapping)
+                print(f"Removed {removed} merged/closed entries.")
+                return 0
 
     except json.JSONDecodeError as exc:
         print(f"ERROR: Corrupt mapping file: {exc}", file=sys.stderr)
