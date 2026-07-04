@@ -711,7 +711,25 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             # run each colliding-basename file individually.
             PY_FILES_UNIQUE=()
             PY_FILES_COLLIDING=()
+            PY_FILES_PATHMODULE=()
             for _f in "${PY_FILES[@]}"; do
+                # Issue #2876: scripts/validation/*.py use bare intra-package
+                # imports ("from checks_common import ...") plus a runtime
+                # sys.path self-insert, so they run without a package prefix.
+                # mypy at repo root cannot resolve those bare imports
+                # (ignore_missing_imports -> Any), which trips no-any-return on
+                # every checks_* wrapper ("return exit_code == 0"). MYPYPATH=
+                # scripts/validation fixes resolution, but batching a
+                # path-reachable module that is ALSO imported by another checked
+                # file yields "Source file found twice under different module
+                # names". Route these through a MYPYPATH loop, one file per
+                # invocation, where single-file runs never collide.
+                case "$_f" in
+                    scripts/validation/*.py)
+                        PY_FILES_PATHMODULE+=("$_f")
+                        continue
+                        ;;
+                esac
                 _bn="${_f##*/}"
                 _bn_count=0
                 for _candidate in "${PY_FILES[@]}"; do
@@ -751,6 +769,24 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
                     : # pass; aggregate recorded below
                 else
                     echo_info "  mypy issues in a colliding-basename file:"
+                    head -20 "$MYPY_OUTPUT"
+                    MYPY_OVERALL_PASS=false
+                fi
+                rm -f "$MYPY_OUTPUT"
+            done
+
+            # Issue #2876: scripts/validation modules -- MYPYPATH so bare
+            # intra-package imports resolve, one file per invocation so a
+            # path-reachable module that is also imported elsewhere never
+            # triggers "Source file found twice under different module names".
+            for pm_file in "${PY_FILES_PATHMODULE[@]}"; do
+                MYPY_OUTPUT=$(mktemp)
+                TEMP_FILES+=("$MYPY_OUTPUT")
+                if MYPYPATH="$REPO_ROOT/scripts/validation${MYPYPATH:+:$MYPYPATH}" \
+                    mypy "$pm_file" > "$MYPY_OUTPUT" 2>&1; then
+                    : # pass; aggregate recorded below
+                else
+                    echo_info "  mypy issues in a scripts/validation module:"
                     head -20 "$MYPY_OUTPUT"
                     MYPY_OVERALL_PASS=false
                 fi

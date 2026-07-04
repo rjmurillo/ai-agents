@@ -99,7 +99,10 @@ def extract_pinned_version(action_path: Path) -> str:
             f"multiple COPILOT_VERSION pins found in {action_path}: {matches}. "
             f"Remove duplicates to avoid ambiguity (bash uses the last assignment)."
         )
-    return matches[0]
+    # re.Pattern.findall returns list[Any]; the single capture group is a str.
+    # Cast keeps mypy's no-any-return happy once MYPYPATH lets this module be
+    # followed from checks_tooling (Issue #2876).
+    return str(matches[0])
 
 
 def check_action(action_path: Path) -> int:

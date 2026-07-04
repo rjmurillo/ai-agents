@@ -6,7 +6,7 @@ decision-makers: []
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-078: Autoplan and Orchestrator Router Boundary
@@ -157,7 +157,8 @@ responsibilities that do not fit it.
 |-----------|----------------|-----------------|------|
 | `.claude/skills/autoplan/SKILL.md` | Direct | Add a clause: route multi-domain/multi-agent execution to orchestrator; never claim to coordinate specialists itself. Hand-authored skill, not generated | Low |
 | `templates/agents/orchestrator.shared.md` | Direct | Add a clause: orchestrator is a routed-to destination; it does not invoke autoplan. This shared source regenerates the platform agent files | Low |
-| `.claude/agents/orchestrator.md`, `src/claude/orchestrator.md`, `src/copilot-cli/...`, `src/vs-code-agents/...` | Indirect (generated) | Regenerate from the shared source with `python3 build/generate_agents.py`; do not hand-edit | Low |
+| `src/copilot-cli/agents/orchestrator.agent.md`, `src/vs-code-agents/orchestrator.agent.md` | Indirect (generated) | Regenerate from the shared source with `python3 build/generate_agents.py`; do not hand-edit | Low |
+| `.claude/agents/orchestrator.md`, `src/claude/orchestrator.md`, `.github/agents/orchestrator.agent.md` | Direct (hand-maintained) | Hand-apply the same boundary clause; no generator writes these (REQ-003-010 forbids generators under `.claude/`; Claude sources are not template-generated). Install parity requires `.claude/agents` and `.github/agents` copies move together | Low |
 | `docs/agent-catalog.md` | Indirect (generated) | Regenerate if the orchestrator description changes | Low |
 
 ## Implementation Notes
@@ -166,9 +167,13 @@ responsibilities that do not fit it.
    (`.claude/skills/autoplan/SKILL.md`, hand-authored) and the orchestrator
    shared source (`templates/agents/orchestrator.shared.md`). State the boundary
    and the one-way handoff in each.
-2. Regenerate platform agent files with `python3 build/generate_agents.py` and
-   commit the generated output in the same change (generated artifacts ship
-   with the source change).
+2. Regenerate the generated platform files (`src/copilot-cli`, `src/vs-code-agents`,
+   `docs/agent-catalog.md`) with `python3 build/generate_agents.py` and commit the
+   output in the same change (generated artifacts ship with the source change).
+   Hand-apply the same boundary clause to the copies no generator writes:
+   `src/claude/orchestrator.md`, `.claude/agents/orchestrator.md`, and
+   `.github/agents/orchestrator.agent.md` (REQ-003-010). Verify with
+   `validate_install_parity.py` and `detect_agent_drift.py`.
 3. Consider a follow-up mechanical check that flags a routing surface claiming
    the other's responsibility, so the boundary does not drift. Track separately.
 
@@ -184,7 +189,12 @@ responsibilities that do not fit it.
 - `.claude/skills/autoplan/SKILL.md`
 - `templates/agents/orchestrator.shared.md` (shared source for the generated
   orchestrator agent files)
-- `.claude/agents/orchestrator.md`, `src/claude/orchestrator.md` (generated)
+- `src/copilot-cli/agents/orchestrator.agent.md`,
+  `src/vs-code-agents/orchestrator.agent.md` (generated from the shared source)
+- `.claude/agents/orchestrator.md`, `.github/agents/orchestrator.agent.md`
+  (hand-maintained install copies; no generator writes them, REQ-003-010)
+- `src/claude/orchestrator.md` (hand-maintained vendored Claude source; Claude
+  agents carry unique content and are not template-generated)
 - `docs/agent-catalog.md` (generated agent catalog)
 
 ---
