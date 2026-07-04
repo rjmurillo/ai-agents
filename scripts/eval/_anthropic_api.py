@@ -281,7 +281,21 @@ def list_available_models(api_key: str, *, timeout: int = 30) -> list[str]:
             "Anthropic models endpoint returned an unexpected 'data' shape "
             f"(expected list, got {type(data).__name__})."
         )
-    return [m["id"] for m in data if isinstance(m, dict) and m.get("id")]
+    # Each entry must be an object with a non-empty string `id`. A non-string
+    # id (e.g. `{"id": 123}`) would otherwise flow through and later crash
+    # `", ".join(sorted(...))` in verify_model_available with a TypeError that
+    # bypasses the fail-open handler. Treat any malformed entry as an
+    # infrastructure error so callers fail open on a hostile/garbled response.
+    ids: list[str] = []
+    for m in data:
+        model_id = m.get("id") if isinstance(m, dict) else None
+        if not isinstance(model_id, str) or not model_id:
+            raise RuntimeError(
+                "Anthropic models endpoint returned a malformed model entry "
+                f"(expected an object with a non-empty string 'id', got {m!r})."
+            )
+        ids.append(model_id)
+    return ids
 
 
 def verify_model_available(

@@ -206,6 +206,28 @@ def test_list_available_models_rejects_non_list_data(monkeypatch: pytest.MonkeyP
         _anthropic_api.list_available_models("key")
 
 
+def test_list_available_models_rejects_non_string_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda req, timeout=None: _Resp(json.dumps({"data": [{"id": 123}]}).encode()),
+    )
+    with pytest.raises(RuntimeError, match="malformed model entry"):
+        _anthropic_api.list_available_models("key")
+
+
+def test_verify_fails_open_on_non_string_id(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    monkeypatch.delenv("EVAL_SKIP_MODEL_PREFLIGHT", raising=False)
+    monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+    # A non-string id must not crash verify with a TypeError in the join;
+    # it is a malformed response -> RuntimeError -> fail open (warn, proceed).
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda req, timeout=None: _Resp(json.dumps({"data": [{"id": 123}]}).encode()),
+    )
+    _anthropic_api.verify_model_available("key", "claude-sonnet-4-6")
+    assert "preflight skipped" in capsys.readouterr().err
+
+
 # --- 404 enrichment in call_api ----------------------------------------
 
 
