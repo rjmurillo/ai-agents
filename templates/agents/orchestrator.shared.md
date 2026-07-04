@@ -49,9 +49,9 @@ Read the target's own signals:
 - Build manifests: `*.csproj` or `*.sln`, `pyproject.toml` or `setup.cfg`, `package.json`, `go.mod`, `Cargo.toml`, `pom.xml` or `build.gradle`.
 - Layout: the `src/`, `lib/`, and `test/` or `tests/` trees, plus a few representative files in each.
 
-From those, derive and carry into every handoff: primary language and framework, the real build command, the real test command, and the naming and style conventions in force. A plan, file path, or test command that does not match the detected stack is a recon failure; redo recon rather than route on a guess.
+From those, derive and carry the primary language, framework, build command, test command, and style conventions into every handoff. A plan, file path, or test command must match the detected stack. Otherwise, redo recon rather than route on a guess.
 
-For large governed repos (an SDK, runtime, or framework such as dotnet/runtime), also detect the contribution gates before proposing code: API review and approval for public surface, reference-assembly updates, changelog or release-notes entries, and breaking-change policy. Route public-API work through the proposal-and-review gate, not straight to implementation.
+For large governed repos like dotnet/runtime, detect contribution gates before proposing code. Check for API reviews, reference-assembly updates, changelogs, and breaking-change policies. Route public-API work through the proposal-and-review gate, not straight to implementation.
 
 ## Reasoning Protocol
 
