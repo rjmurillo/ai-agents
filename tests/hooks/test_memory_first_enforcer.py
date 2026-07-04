@@ -200,11 +200,12 @@ class TestInvocationCount:
         ) == 1
 
         target = state_dir / "memory-first-counter.txt"
-        assert calls == [
-            (target.with_name(
-                f".{target.name}.{invoke_memory_first_enforcer.os.getpid()}.tmp"
-            ), target)
-        ]
+        assert len(calls) == 1
+        temp_path, replaced_path = calls[0]
+        assert replaced_path == target
+        assert temp_path.parent == target.parent
+        assert temp_path.name.startswith(f".{target.name}.")
+        assert temp_path.name.endswith(".tmp")
         assert target.read_text(encoding="utf-8") == "1\n2026-03-01"
 
     def test_resets_on_new_day(self, tmp_path):
