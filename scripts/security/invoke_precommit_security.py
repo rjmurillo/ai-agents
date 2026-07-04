@@ -35,6 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SUBPROCESS_TIMEOUT_SECONDS = 60
+PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS = 300
 CODEQL_API_TIMEOUT_SECONDS = 30
 
 
@@ -477,7 +478,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=False,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
             )
 
             return install_result.returncode == 0

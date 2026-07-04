@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code follow-up fixes committed through 803054e5c4; this session log is included in the final session commit."
+        "Evidence": "Final PSScriptAnalyzer install-timeout fix and session log are staged for commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted pytest, scoped ruff with inherited E501 excluded, sync_plugin_lib.py --check, build_all.py --check, and validate_session_json.py passed."
+        "Evidence": "Targeted pytest, ruff, prohibited dash byte check, and validate_session_json.py passed for the PSScriptAnalyzer install-timeout follow-up."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -245,10 +245,18 @@
     {
       "time": "2026-07-04T08:06Z",
       "entry": "Validated 69 targeted tests, scoped ruff with inherited E501 excluded, sync_plugin_lib check, build_all check, and session JSON validation."
+    },
+    {
+      "time": "2026-07-04T08:26Z",
+      "entry": "Fixed new Copilot feedback by giving PSScriptAnalyzer installation a longer bounded timeout and adding regression coverage."
+    },
+    {
+      "time": "2026-07-04T08:26Z",
+      "entry": "Validated PSScriptAnalyzer timeout change with targeted pytest, ruff, and prohibited dash byte check."
     }
   ],
-  "endingCommit": "803054e5c4",
+  "endingCommit": "pending-psscriptanalyzer-timeout-fix",
   "nextSteps": [
-    "Push remaining PR #2849 commits, resolve all unresolved review threads including outdated threads, poll required checks, rebump plugin manifests on version races, and merge when checks pass."
+    "Commit and push the PSScriptAnalyzer install-timeout fix, resolve the verified Copilot thread, poll checks, rebump plugin manifests on version races, and merge PR #2849."
   ]
 }
