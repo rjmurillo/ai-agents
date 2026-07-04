@@ -227,7 +227,15 @@ def _default_scan_paths(repo_root: Path) -> list[Path]:
 def _resolve_target(repo_root: Path, target: str) -> list[Path]:
     candidate = Path(target)
     if any(char in target for char in _GLOB_CHARS):
-        return sorted(repo_root.glob(target))
+        repo_resolved = repo_root.resolve()
+        # Reject glob matches that escape the repo root (CWE-22). A pattern with
+        # ``..`` segments (e.g. ``../**/*.md``) traverses above repo_root just
+        # like a literal path, so the containment guard must cover this branch too.
+        return sorted(
+            match
+            for match in repo_root.glob(target)
+            if match.resolve().is_relative_to(repo_resolved)
+        )
 
     path = (candidate if candidate.is_absolute() else repo_root / candidate).expanduser().resolve()
     if not path.is_relative_to(repo_root.resolve()):
@@ -259,7 +267,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "targets",
         nargs="*",
-        help="Optional file, directory, or glob target(s). Defaults to command and skill markdown.",
+        help=(
+            "Optional file, directory, or glob target(s). Defaults to the scan "
+            "surface in _matches_default_scan: .claude/commands/**, "
+            ".github/prompts/**, any SKILL.md, and src/copilot-cli/** markdown."
+        ),
     )
     parser.add_argument(
         "--repo-root",
@@ -284,11 +296,20 @@ def _print_violation_report(
 
 
 def validate_argument_hint(repo_root: Path) -> bool:
-    """Scan default command/skill markdown; return True when all hints are safe.
+    """Scan the default command/skill markdown; True when all hints are safe.
 
-    Convenience wrapper for the local shift-left runner (``pre_pr.py``) so the
-    ``argument-hint`` gate matches the CI check in
-    ``validate-generated-agents.yml`` and gives contributors fast feedback.
+    Convenience wrapper for the local shift-left runner (``pre_pr.py``).
+
+    Canonical CI source: ``.github/workflows/validate-generated-agents.yml``,
+    step "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which
+    runs verbatim::
+
+        python3 scripts/validation/validate_argument_hint.py
+
+    Different than canonical: that CI invocation runs ``main([])`` and returns a
+    process exit code (0/1). This wrapper scans the identical default surface
+    (``_default_scan_paths``) via the shared ``find_argument_hint_violations``
+    and returns a bool for ``run_validation``; detection logic is not duplicated.
     """
 
     paths = _default_scan_paths(repo_root)

@@ -151,6 +151,17 @@ def test_resolve_target_rejects_paths_outside_repo_root(tmp_path: Path) -> None:
     assert v.collect_scan_paths(repo_root, [str(outside)]) == []
 
 
+def test_resolve_target_glob_rejects_traversal_outside_repo_root(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    outside = tmp_path / "outside" / "evil.md"
+    _write(outside, "argument-hint: '[a] [b]'\n")
+
+    # A glob pattern with ``..`` must not escape the repo root either
+    # (CWE-22 guard covers the glob branch, not only literal paths).
+    assert v.collect_scan_paths(repo_root, ["../**/*.md"]) == []
+
+
 def test_git_tracked_files_falls_back_when_git_missing(tmp_path: Path, monkeypatch) -> None:
     def _raise(*_args, **_kwargs):
         raise FileNotFoundError("git")

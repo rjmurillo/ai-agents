@@ -485,7 +485,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # 6c4. Argument-hint frontmatter must be a bracket-safe string scalar: adjacent
     # optional groups (e.g. ``[a] [b]``) make Copilot CLI parse separate flow nodes.
-    # Mirrors the CI gate in validate-generated-agents.yml for local fast feedback.
+    # Canonical CI source: .github/workflows/validate-generated-agents.yml, step
+    # "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which runs
+    # verbatim: ``python3 scripts/validation/validate_argument_hint.py``. This local
+    # check calls validate_argument_hint() over the same default scan surface.
     run_validation(
         "Argument-Hint Frontmatter",
         state,
