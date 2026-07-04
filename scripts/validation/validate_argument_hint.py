@@ -72,11 +72,6 @@ def _raw_frontmatter_lines(text: str) -> list[str] | None:
     return None
 
 
-def _is_quoted_scalar(raw_value: str) -> bool:
-    stripped = raw_value.strip()
-    return len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in {"'", '"'}
-
-
 def _strip_inline_comment(raw_value: str) -> str:
     """Return ``raw_value`` without a trailing YAML comment."""
 
@@ -165,7 +160,11 @@ def find_argument_hint_violations(paths: list[Path]) -> list[ArgumentHintViolati
         if frontmatter_lines is None:
             continue
         for offset, line in enumerate(frontmatter_lines, start=2):
-            if not line.startswith("argument-hint:"):
+            # Fast-path anchors on a column-0 ``argument-hint`` key. Match without
+            # the colon so ``argument-hint : [x]`` (YAML permits whitespace before
+            # the colon) is not silently skipped; the partition check below still
+            # enforces the exact top-level key name.
+            if not line.startswith("argument-hint"):
                 continue
             prefix, separator, raw_value = line.partition(":")
             if separator != ":" or prefix.strip() != "argument-hint":
@@ -270,6 +269,34 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _print_violation_report(
+    paths: list[Path], violations: list[ArgumentHintViolation]
+) -> None:
+    """Print the shared PASS/FAIL report for a scan result."""
+
+    if violations:
+        print(f"[FAIL] {len(violations)} unsafe argument-hint value(s) found:")
+        for violation in violations:
+            print(f"  - {violation.path}:{violation.line}:{violation.column}: {violation.reason}")
+            print(f"    Fix: {violation.suggestion}")
+        return
+    print(f"[PASS] All argument-hint values are safe strings in {len(paths)} scanned file(s).")
+
+
+def validate_argument_hint(repo_root: Path) -> bool:
+    """Scan default command/skill markdown; return True when all hints are safe.
+
+    Convenience wrapper for the local shift-left runner (``pre_pr.py``) so the
+    ``argument-hint`` gate matches the CI check in
+    ``validate-generated-agents.yml`` and gives contributors fast feedback.
+    """
+
+    paths = _default_scan_paths(repo_root)
+    violations = find_argument_hint_violations(paths)
+    _print_violation_report(paths, violations)
+    return not violations
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = Path(args.repo_root).resolve()
@@ -284,15 +311,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     violations = find_argument_hint_violations(paths)
-    if violations:
-        print(f"[FAIL] {len(violations)} unsafe argument-hint value(s) found:")
-        for violation in violations:
-            print(f"  - {violation.path}:{violation.line}:{violation.column}: {violation.reason}")
-            print(f"    Fix: {violation.suggestion}")
-        return 1
-
-    print(f"[PASS] All argument-hint values are safe strings in {len(paths)} scanned file(s).")
-    return 0
+    _print_violation_report(paths, violations)
+    return 1 if violations else 0
 
 
 if __name__ == "__main__":

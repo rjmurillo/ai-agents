@@ -166,3 +166,30 @@ def test_git_tracked_files_falls_back_when_git_missing(tmp_path: Path, monkeypat
 
     assert command in paths
     assert len(violations) == 1
+
+
+def test_whitespace_before_colon_is_not_bypassed(tmp_path: Path) -> None:
+    command = tmp_path / ".claude" / "commands" / "spaced.md"
+    # YAML permits whitespace before the colon; the key is still ``argument-hint``.
+    _write(command, "argument-hint : '[a] [b]'\n")
+
+    violations = v.find_argument_hint_violations([command])
+
+    assert len(violations) == 1
+    assert "adjacent bracket groups" in violations[0].reason
+
+
+def test_validate_argument_hint_wrapper_passes_on_clean_repo(tmp_path: Path, capsys) -> None:
+    command = tmp_path / ".claude" / "commands" / "good.md"
+    _write(command, "argument-hint: '[BASE_BRANCH]'\n")
+
+    assert v.validate_argument_hint(tmp_path) is True
+    assert "[PASS]" in capsys.readouterr().out
+
+
+def test_validate_argument_hint_wrapper_fails_on_violation(tmp_path: Path, capsys) -> None:
+    command = tmp_path / ".claude" / "commands" / "bad.md"
+    _write(command, "argument-hint: '[a] [b]'\n")
+
+    assert v.validate_argument_hint(tmp_path) is False
+    assert "[FAIL]" in capsys.readouterr().out
