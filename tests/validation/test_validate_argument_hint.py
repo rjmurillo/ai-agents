@@ -43,7 +43,38 @@ def test_unquoted_adjacent_bracket_groups_fail(tmp_path: Path) -> None:
     assert "adjacent bracket groups" in violations[0].reason
     assert (
         violations[0].suggestion
-        == "argument-hint: '<PR_NUMBERS> [--parallel] [--cleanup]'"
+        == "argument-hint: '<PR_NUMBERS> [--parallel --cleanup]'"
+    )
+
+
+def test_quoted_adjacent_bracket_groups_fail(tmp_path: Path) -> None:
+    command = tmp_path / ".claude" / "commands" / "bad.md"
+    _write(command, "argument-hint: '[a] [b]'\n")
+
+    violations = v.find_argument_hint_violations([command])
+
+    assert len(violations) == 1
+    assert "adjacent bracket groups" in violations[0].reason
+    assert violations[0].suggestion == "argument-hint: '[a b]'"
+
+
+def test_quoted_single_bracket_group_passes(tmp_path: Path) -> None:
+    command = tmp_path / ".claude" / "commands" / "good.md"
+    _write(command, "argument-hint: '[BASE_BRANCH]'\n")
+
+    assert v.find_argument_hint_violations([command]) == []
+
+
+def test_quoted_pr_review_triple_group_suggests_single_group(tmp_path: Path) -> None:
+    command = tmp_path / ".claude" / "commands" / "bad.md"
+    _write(command, "argument-hint: '<PR_NUMBERS> [--parallel] [--cleanup] [--dry-run]'\n")
+
+    violations = v.find_argument_hint_violations([command])
+
+    assert len(violations) == 1
+    assert (
+        violations[0].suggestion
+        == "argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'"
     )
 
 

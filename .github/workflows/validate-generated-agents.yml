@@ -57,6 +57,7 @@ jobs:
               - 'build/generate_agents.py'
               - 'build/generate_agent_catalog.py'
               - 'build/scripts/**'
+              - 'scripts/validation/**'
               - '.claude/agents/**'
               - '.claude/skills/**'
               - '.claude/hooks/**'

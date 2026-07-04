@@ -16,6 +16,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ _DEFAULT_PATTERNS = (
 )
 _MARKDOWN_SUFFIXES = (".md", ".mdx")
 _GLOB_CHARS = "*?["
+_ADJACENT_BRACKET_GROUPS = re.compile(r"\]\s+\[")
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +116,12 @@ def _has_unbalanced_square_brackets(value: str) -> bool:
     return depth != 0
 
 
+def _collapse_adjacent_bracket_groups(value: str) -> str:
+    """Collapse adjacent optional groups into one bracket group."""
+
+    return _ADJACENT_BRACKET_GROUPS.sub(" ", value)
+
+
 def _argument_hint_error(raw_value: str) -> tuple[str, str] | None:
     """Return ``(reason, intended_value)`` for an unsafe hint."""
 
@@ -135,11 +143,11 @@ def _argument_hint_error(raw_value: str) -> tuple[str, str] | None:
     if _has_unbalanced_square_brackets(parsed):
         return ("argument-hint contains unbalanced square brackets", parsed)
 
-    if not _is_quoted_scalar(stripped) and "] [" in parsed:
+    if _ADJACENT_BRACKET_GROUPS.search(parsed):
         return (
-            "unquoted argument-hint contains adjacent bracket groups that "
-            "Copilot CLI can parse as flow nodes",
-            parsed,
+            "argument-hint contains adjacent bracket groups that Copilot CLI parses "
+            "as separate flow nodes; combine them into a single bracket group",
+            _collapse_adjacent_bracket_groups(parsed),
         )
 
     return None
