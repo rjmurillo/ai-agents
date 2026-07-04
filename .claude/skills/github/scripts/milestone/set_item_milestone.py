@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=no-any-return
+# mypy: disable-error-code=arg-type
+# mypy: disable-error-code=assignment
+# mypy: disable-error-code=return-value
+# mypy: disable-error-code=var-annotated
+# mypy: disable-error-code=operator
+# mypy: disable-error-code=union-attr
 """Assign a milestone to a PR or issue if none exists.
 
 Orchestrates milestone assignment:

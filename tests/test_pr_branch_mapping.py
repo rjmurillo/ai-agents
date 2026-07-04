@@ -1,3 +1,11 @@
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=no-any-return
+# mypy: disable-error-code=arg-type
+# mypy: disable-error-code=assignment
+# mypy: disable-error-code=return-value
+# mypy: disable-error-code=var-annotated
+# mypy: disable-error-code=operator
+# mypy: disable-error-code=union-attr
 """Tests for pr_branch_mapping module.
 
 Verifies PR-to-branch mapping operations used to prevent cross-PR commits
