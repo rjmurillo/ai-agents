@@ -3,7 +3,7 @@
   "session": "2026-07-03-session-2603-issue-2828-add-auto-router",
   "timestamp": "2026-07-03T00:00:00+00:00",
   "outcome": "success",
-  "task": "Issue #2828: add the /autoplanplan router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps.",
+  "task": "Issue #2828: add the /autoplan router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps.",
   "decisions": [],
   "events": [
     {

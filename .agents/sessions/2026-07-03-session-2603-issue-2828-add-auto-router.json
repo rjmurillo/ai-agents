@@ -5,7 +5,7 @@
     "date": "2026-07-03",
     "branch": "claude/auto-router-skill",
     "startingCommit": "f13f73f",
-    "objective": "Issue #2828: add the /autoplanplan router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps."
+    "objective": "Issue #2828: add the /autoplan router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps."
   },
   "protocolCompliance": {
     "sessionStart": {
