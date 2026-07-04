@@ -117,6 +117,22 @@
       "content": "Commit: c015edc946",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned episode commit metrics after Copilot review thread verified two commit events.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f8f6c30142",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -124,7 +140,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 19
   },
   "lessons": []
