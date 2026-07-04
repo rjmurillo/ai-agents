@@ -236,7 +236,9 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     wrong and a clean run cannot be trusted. A missing local tool (exit 3) does
     NOT block here, because the pre-push gate is the authoritative enforcer;
     pre_pr only warns so a contributor without actionlint installed is not
-    stopped pre-PR.
+    stopped pre-PR. When all changed workflows need secrets absent locally (exit
+    4), actionlint still validates syntax; only the act run is skipped, matching
+    the pre-push behavior.
 
     Change detection uses :func:`_resolve_default_base_ref` to choose a default
     branch ref for the diff. The branch's own upstream is deliberately not used:
@@ -290,6 +292,12 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
         print(
             "[WARN] workflow local-run tools unavailable locally; the pre-push "
             "hook enforces the full gate (actionlint + gh act)."
+        )
+        return True
+    if exit_code == 4:
+        print(
+            "[WARN] workflow local-run: changed workflow(s) need secrets absent "
+            "locally; actionlint passed. CI runs with the real secrets."
         )
         return True
     return exit_code == 0
