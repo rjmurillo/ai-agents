@@ -96,15 +96,18 @@ jobs:
           # Re-run to get JSON output for issue body. Issue #2808: the old
           # `2>/dev/null || true` swallowed stderr and every exit code, so a
           # crashed re-run fed empty JSON to parse_drift_results.py. This step
-          # only runs when drift was already detected, so exit 1 (blocking
-          # drift) is the EXPECTED path here; only exit >=2 (config/crash) is a
-          # real failure. Capture the code, keep stderr, and fail on >=2.
-          rc=0
-          python3 build/scripts/detect_agent_drift.py --output-format json > "drift-results.json" || rc=$?
+          # only runs when drift was already detected, so rc=1 is expected.
+          # Only rc>=2 is a real failure. Capture the code, keep stderr, and
+          # require non-empty JSON so a crash cannot feed empty data to the parser.
+          set +e
+          python3 build/scripts/detect_agent_drift.py --output-format json > "drift-results.json"
+          rc=$?
+          set -e
           if [ "$rc" -ge 2 ]; then
             echo "::error::drift detection crashed on re-run (exit $rc)"
             exit "$rc"
           fi
+          test -s drift-results.json
 
           # Parse JSON into the issue body and agent count (ADR-006: no logic in YAML).
           python3 scripts/ci/parse_drift_results.py \

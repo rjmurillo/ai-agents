@@ -61,6 +61,20 @@ class TestReadVerdict:
         (tmp_path / "qa-verdict.txt").write_text("", encoding="utf-8")
         assert read_verdict(tmp_path, "qa") == "NEEDS_REVIEW"
 
+    def test_unreadable_file_raises(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "qa-verdict.txt").write_text("PASS", encoding="utf-8")
+
+        def unreadable(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "read_text", unreadable)
+        try:
+            read_verdict(tmp_path, "qa")
+        except RuntimeError as exc:
+            assert "Unable to read review result file" in str(exc)
+        else:  # pragma: no cover - assertion clarity
+            raise AssertionError("unreadable verdict must not pass")
+
     def test_whitespace_only_file_yields_empty(self, tmp_path: Path) -> None:
         # Mirrors pwsh: Get-Content -Raw returns the whitespace (truthy),
         # then Trim() empties it.
@@ -180,7 +194,7 @@ class TestReadRawFailLoud:
         # present-but-unreadable file must not be swallowed into None.
         unreadable = tmp_path / "verdict.txt"
         unreadable.mkdir()
-        with pytest.raises(OSError):
+        with pytest.raises(RuntimeError):
             _read_raw(unreadable)
 
     def test_read_infra_missing_still_false(self, tmp_path: Path) -> None:
@@ -189,7 +203,7 @@ class TestReadRawFailLoud:
 
     def test_collect_propagates_unreadable_infra(self, tmp_path: Path) -> None:
         (tmp_path / "security-infrastructure-failure.txt").mkdir()
-        with pytest.raises(OSError):
+        with pytest.raises(RuntimeError):
             collect(tmp_path)
 
     def test_main_returns_three_on_unreadable_file(

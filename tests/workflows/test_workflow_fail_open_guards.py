@@ -124,7 +124,9 @@ class TestAuditHookBypass:
 
     def test_captures_and_hard_fails_on_crash(self) -> None:
         run = self._detect_step()["run"]
-        assert "|| rc=$?" in run
+        assert "set +e" in run
+        assert "rc=$?" in run
+        assert "set -e" in run
         assert 'if [ "$rc" -ge 2 ]' in run
         assert 'exit "$rc"' in run
 
@@ -132,7 +134,7 @@ class TestAuditHookBypass:
         run = self._detect_step()["run"]
         # The else branch must fail instead of reporting a clean audit.
         assert "indicator_count=0" not in run
-        assert "exit 1" in run
+        assert "test -s artifacts/hook-bypass-audit.json" in run
 
 
 class TestPytestBanditSecurity:
@@ -184,8 +186,6 @@ class TestMemoryValidation:
         return step
 
     def _parse_step(self) -> dict[str, Any]:
-        steps = _job_steps(self._workflow(), "validate-memories")
-        step = _find_step_by_run(steps, "memory-validation-results.json")
         # The verify step also references the results file; pick the parser.
         for candidate in _job_steps(self._workflow(), "validate-memories"):
             run = candidate.get("run")
@@ -195,7 +195,9 @@ class TestMemoryValidation:
 
     def test_verify_captures_exit_code_before_pipefail(self) -> None:
         run = self._verify_step()["run"]
-        assert "|| rc=$?" in run
+        assert "set +e" in run
+        assert "rc=$?" in run
+        assert "set -e" in run
         assert "exit_code=$rc" in run
         # The buggy form captured $? on a separate line after the redirect.
         assert 'echo "exit_code=$?"' not in run
@@ -231,7 +233,9 @@ class TestDriftDetection:
     def test_fails_only_on_config_or_crash(self) -> None:
         run = self._collect_step()["run"]
         # exit 1 is the expected drift path for this step; only >=2 fails.
-        assert "|| rc=$?" in run
+        assert "set +e" in run
+        assert "rc=$?" in run
+        assert "set -e" in run
         assert 'if [ "$rc" -ge 2 ]' in run
         assert 'exit "$rc"' in run
 

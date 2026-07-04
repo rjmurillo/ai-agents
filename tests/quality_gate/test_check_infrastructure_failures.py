@@ -52,6 +52,21 @@ class TestDetectFailures:
         findings = detect_failures(tmp_path)
         assert findings[0].retry_count == 0
 
+    def test_unreadable_flag_raises(self, tmp_path: Path, monkeypatch) -> None:
+        path = tmp_path / "security-infrastructure-failure.txt"
+        path.write_text("true", encoding="utf-8")
+
+        def unreadable(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "read_text", unreadable)
+        try:
+            detect_failures(tmp_path)
+        except RuntimeError as exc:
+            assert "Unable to read infrastructure result file" in str(exc)
+        else:  # pragma: no cover - assertion clarity
+            raise AssertionError("unreadable infra flag must not pass")
+
     def test_non_numeric_retry_defaults_zero(self, tmp_path: Path) -> None:
         _write_infra(tmp_path, "qa", "true", retries="oops")
         findings = detect_failures(tmp_path)
@@ -213,13 +228,13 @@ class TestReadRawFailLoud:
         # swallowed into None (which would read as "no infra failure").
         unreadable = tmp_path / "flag.txt"
         unreadable.mkdir()
-        with pytest.raises(OSError):
+        with pytest.raises(RuntimeError):
             _read_raw(unreadable)
 
     def test_detect_failures_propagates_unreadable_flag(self, tmp_path: Path) -> None:
         # The security infra flag exists but cannot be read.
         (tmp_path / "security-infrastructure-failure.txt").mkdir()
-        with pytest.raises(OSError):
+        with pytest.raises(RuntimeError):
             detect_failures(tmp_path)
 
     def test_main_returns_three_on_unreadable_flag(

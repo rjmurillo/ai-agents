@@ -43,7 +43,7 @@ def _all_pass_env(final: str = "PASS") -> dict[str, str]:
 
 
 class TestBlockingVerdicts:
-    def test_matches_original_workflow_set(self) -> None:
+    def test_matches_workflow_blocking_set(self) -> None:
         assert BLOCKING_VERDICTS == {
             "CRITICAL_FAIL",
             "REJECTED",
@@ -51,6 +51,7 @@ class TestBlockingVerdicts:
             "NEEDS_REVIEW",
             "NON_COMPLIANT",
             "UNKNOWN",
+            "DID_NOT_RUN",
         }
 
     def test_pass_and_warn_not_blocking(self) -> None:
@@ -99,7 +100,16 @@ class TestFindMissing:
 
 class TestFindBlocking:
     @pytest.mark.parametrize(
-        "verdict", ["CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT", "UNKNOWN"]
+        "verdict",
+        [
+            "CRITICAL_FAIL",
+            "REJECTED",
+            "FAIL",
+            "NEEDS_REVIEW",
+            "NON_COMPLIANT",
+            "UNKNOWN",
+            "DID_NOT_RUN",
+        ],
     )
     def test_each_blocking_verdict_detected(self, verdict: str) -> None:
         env = _all_pass_env()

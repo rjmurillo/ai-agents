@@ -45,7 +45,7 @@ def _state(
     nav_count: int = 0,
     read_files: list[str] | None = None,
     last_tool: str = "",
-) -> dict:
+) -> dict[str, object]:
     """Build a gate-state dict in the canonical shape."""
     files = list(read_files or [])
     return {
@@ -63,6 +63,8 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure mode/skip env vars never leak between tests."""
     monkeypatch.delenv("SKIP_LSP_GATE", raising=False)
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(REPO_ROOT))
+    monkeypatch.delenv("TMPDIR", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -560,5 +562,3 @@ class TestLspRuntimeDownFailOpen:
 # ---------------------------------------------------------------------------
 # main: dispatch, kill switch, fail-open paths
 # ---------------------------------------------------------------------------
-
-

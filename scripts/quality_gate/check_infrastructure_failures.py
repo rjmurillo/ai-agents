@@ -81,6 +81,8 @@ def _read_raw(path: Path) -> str | None:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RuntimeError(f"Unable to read infrastructure result file {path}: {exc}") from exc
 
 
 def _read_retry_count(results_dir: Path, agent: str) -> int:
@@ -178,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         findings = detect_failures(results_dir)
-    except (OSError, UnicodeDecodeError) as exc:
+    except (OSError, RuntimeError, UnicodeDecodeError) as exc:
         print(
             f"::error::Cannot read infrastructure-failure flag file: {exc}",
             file=sys.stderr,
