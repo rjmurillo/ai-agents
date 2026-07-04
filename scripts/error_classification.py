@@ -19,10 +19,11 @@ import json
 import logging
 import re
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import yaml
 
@@ -153,6 +154,43 @@ def _match_hints(
     return tuple(matched)
 
 
+def _try_lock_helpers() -> tuple[
+    Callable[[TextIO], None] | None,
+    Callable[[TextIO], None] | None,
+]:
+    """Return ``(lock_file, unlock_file)`` from ``hook_utilities`` or ``(None, None)``.
+
+    Mirrors ``scripts/metrics/kill_criteria.py`` so the shared-append sites use
+    one lock strategy. The advisory lock is best-effort: when the helper module
+    is not importable (standalone CLI) the caller proceeds without it, which only
+    matters when two writers race.
+    """
+    try:
+        from hook_utilities import lock_file, unlock_file  # noqa: PLC0415
+    except ImportError:
+        return None, None
+    return lock_file, unlock_file
+
+
+def _locked_append(path: Path, text: str) -> None:
+    """Append ``text`` to ``path`` under a best-effort exclusive advisory lock.
+
+    Mirrors ``kill_criteria._append_line`` so concurrent writers do not interleave
+    partial lines. The lock is skipped when the hook_utilities helpers are absent.
+    """
+    lock_file, unlock_file = _try_lock_helpers()
+    with open(path, "a", encoding="utf-8") as handle:
+        if lock_file is not None and unlock_file is not None:
+            lock_file(handle)
+            try:
+                handle.write(text)
+                handle.flush()
+            finally:
+                unlock_file(handle)
+        else:
+            handle.write(text)
+
+
 def classify_error(
     tool_name: str,
     exit_code: int,
@@ -249,8 +287,7 @@ def log_error(
         success=success,
     )
 
-    with log_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(asdict(entry)) + "\n")
+    _locked_append(log_path, json.dumps(asdict(entry)) + "\n")
 
 
 def get_graduation_candidates(

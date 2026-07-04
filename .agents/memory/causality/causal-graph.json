@@ -8334,6 +8334,96 @@
       "created": "2026-06-30T16:56:20.064285+00:00"
     },
     {
+      "id": "3c49a1eacf86",
+      "type": "milestone",
+      "label": "milestone: Re-reverted deferred debt-laden #2812 sites (skillbook.py, invoke_memory_first_enforcer.py + copilot mirror); confirmed they left git status.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544474+00:00"
+    },
+    {
+      "id": "55846222d65b",
+      "type": "milestone",
+      "label": "milestone: Kept 5 clean #2812 atomic-write sites: lsp_gate_state.py, cache_guard.py, pr_branch_mapping.py, update_reviewer_signal_stats.py, error_classification.py.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544539+00:00"
+    },
+    {
+      "id": "7c0da3801165",
+      "type": "milestone",
+      "label": "milestone: Added scoped pyproject.toml mypy override for memory_enhancement.serena_integration (pre-existing arg-type/return-value debt surfaced transitively by memory_sync imports).",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544583+00:00"
+    },
+    {
+      "id": "2bfa9046edd7",
+      "type": "milestone",
+      "label": "milestone: Verified mypy clean (15 files), 191 affected tests pass, 15 atomic-write tests pass, no security suppressions.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544621+00:00"
+    },
+    {
+      "id": "d47050729c73",
+      "type": "milestone",
+      "label": "milestone: Synced plugin lib mirrors (in sync), bumped .claude and copilot-cli plugin.json to 0.5.255.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544659+00:00"
+    },
+    {
+      "id": "cc8eba38b57c",
+      "type": "milestone",
+      "label": "milestone: Created and populated this session log; documented override decision to Serena memory (file fallback).",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544697+00:00"
+    },
+    {
+      "id": "2aec578b9126",
+      "type": "milestone",
+      "label": "milestone: Verification: `uv run pytest tests/test_atomic_writes_2812.py` => 15 passed; `uv run pytest tests/test_memory_sync ...` => 191 passed; mypy => no issues in 15 source files.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544736+00:00"
+    },
+    {
+      "id": "e9663b0969ed",
+      "type": "test",
+      "label": "test: Verification: `uv run pytest tests/test_atomic_writes_2812.py` => 15 passed; `uv run pytest tests/test_memory_sync ...` => 191 passed; mypy => no issues in 15 source files.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544774+00:00"
+    },
+    {
+      "id": "0b86152d5456",
+      "type": "commit",
+      "label": "commit: Commit: f13f73f",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544813+00:00"
+    },
+    {
+      "id": "f8a0ae212c24",
+      "type": "outcome",
+      "label": "Outcome: success - Issues #2812 (atomic writes) + #2813 (memory_sync/auto-approval boundary hardening): 5 clean atomic-write sites, memory_sync JSON boundary fixes, scoped mypy override for pre-existing serena_integration debt, plugin version bumps. Deferred 3 debt-laden #2812 sites (skillbook, invoke_memory_first_enforcer, invoke_skill_learning).",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
+      ],
+      "created": "2026-07-02T15:29:52.544852+00:00"
+    },
+    {
       "id": "910da7b3cdf1",
       "type": "milestone",
       "label": "milestone: Read issue #2821 and its discourse; owner has not picked an option, so implemented the recommended option c (additive visibility, keeps the deliberate WARN policy intact) as a draft PR for the owner to accept or reject",
@@ -8653,7 +8743,8 @@
       "type": "commit",
       "label": "commit: Commit: f13f73f",
       "episodes": [
-        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
+        "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts",
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
       "created": "2026-07-04T04:26:20.197003+00:00"
     },
@@ -9378,166 +9469,193 @@
       "created": "2026-07-04T04:26:37.493928+00:00"
     },
     {
-      "id": "ffb1d8460dc4",
+      "id": "be1e71a8f765",
       "type": "milestone",
-      "label": "milestone: Created dedicated worktree ai-agents4-pr-2849 and assessed PR #2849 failing checks.",
+      "label": "milestone: invoke_precommit_security.py: added timeouts to the gh --version, code-scanning gh api, Get-Module and Install-Module calls; a TimeoutExpired now degrades PSScriptAnalyzer to unavailable; the code-scanning timeout is caught by the existing SubprocessError handler and skips.",
       "episodes": [
-        "episode-2026-07-04-session-2606"
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T05:17:02.058364+00:00"
+      "created": "2026-07-04T04:45:44.902803+00:00"
     },
     {
-      "id": "92ed456a3be4",
+      "id": "67b9cfd93d39",
       "type": "milestone",
-      "label": "milestone: Created session log 2026-07-04-session-2606.json.",
+      "label": "milestone: invoke_precommit_security.py: the discarded _stage_security_report return is now checked; a staging failure fails the run with exit 1 instead of passing without the required report.",
       "episodes": [
-        "episode-2026-07-04-session-2606"
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T05:17:02.058576+00:00"
+      "created": "2026-07-04T04:45:44.903016+00:00"
     },
     {
-      "id": "7dc4f63d069d",
+      "id": "3d68ef24d9bb",
       "type": "milestone",
-      "label": "milestone: Ran build_all and synced generated Copilot hook artifacts.",
+      "label": "milestone: run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that logs a scan-failure and returns no findings.",
       "episodes": [
-        "episode-2026-07-04-session-2606"
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T05:17:02.058749+00:00"
+      "created": "2026-07-04T04:45:44.903218+00:00"
     },
     {
-      "id": "8f61f4dd08ee",
+      "id": "6cc2c28c5d6d",
       "type": "milestone",
-      "label": "milestone: Fixed PermissionRequest non-object JSON boundary validation and added regression test.",
+      "label": "milestone: mcp_client.py: added a win32 reader-thread read timeout so os.read cannot block forever on Windows, and an overall monotonic deadline in _read_response against notification/id-mismatch floods.",
       "episodes": [
-        "episode-2026-07-04-session-2606"
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T05:17:02.058919+00:00"
+      "created": "2026-07-04T04:45:44.903407+00:00"
     },
     {
-      "id": "3be0e9c6c45f",
+      "id": "d3e739e2ddf6",
       "type": "milestone",
-      "label": "milestone: Fixed MCP Windows reader timeout by closing fd and added regression test.",
+      "label": "milestone: Verification: uv run pytest tests/test_security_gate_timeouts_2810.py tests/test_memory_sync/test_mcp_client.py => 15 passed; mypy => no issues on the three scripts.",
       "episodes": [
-        "episode-2026-07-04-session-2606"
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T05:17:02.059088+00:00"
+      "created": "2026-07-04T04:45:44.903671+00:00"
     },
     {
-      "id": "164d013a30cf",
+      "id": "661a36542a42",
+      "type": "test",
+      "label": "test: Verification: uv run pytest tests/test_security_gate_timeouts_2810.py tests/test_memory_sync/test_mcp_client.py => 15 passed; mypy => no issues on the three scripts.",
+      "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+      ],
+      "created": "2026-07-04T04:45:44.903865+00:00"
+    },
+    {
+      "id": "219019c219b4",
       "type": "milestone",
-      "label": "milestone: Resolved both outstanding review threads after fixes.",
+      "label": "milestone: run_semgrep.py: added a 300s timeout to the scan subprocess and a dedicated TimeoutExpired branch that returns a blocking ERROR semgrep-scan-failure finding so a hung scan cannot silently pass the gate.",
       "episodes": [
-        "episode-2026-07-04-session-2606"
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T05:17:02.059264+00:00"
+      "created": "2026-07-04T04:45:44.904216+00:00"
     },
     {
-      "id": "0fe34f36808a",
-      "type": "milestone",
-      "label": "milestone: Bumped both plugin manifests to 0.5.256 and validated plugin version gate.",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.059432+00:00"
-    },
-    {
-      "id": "78f2edcdb436",
-      "type": "commit",
-      "label": "commit: Commit: 96c6bd74",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.059605+00:00"
-    },
-    {
-      "id": "4f2b27065f81",
-      "type": "milestone",
-      "label": "milestone: Merged origin/main and origin/fix/cluster-robust, resolved conflicts, and preserved security timeout handling.",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.059771+00:00"
-    },
-    {
-      "id": "88eb8fefa495",
-      "type": "milestone",
-      "label": "milestone: Restored subprocess timeout constants in PR helper and security scripts.",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.059945+00:00"
-    },
-    {
-      "id": "b25c346fc822",
-      "type": "milestone",
-      "label": "milestone: Validated targeted pytest, ruff, and mypy for timeout changes.",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.060117+00:00"
-    },
-    {
-      "id": "3e37874ce2f1",
-      "type": "commit",
-      "label": "commit: Commit: 20e937e9",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.060289+00:00"
-    },
-    {
-      "id": "78a7001c3aa7",
-      "type": "milestone",
-      "label": "milestone: Committed timeout fixes in 16993b8dfe.",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.060460+00:00"
-    },
-    {
-      "id": "7164d4a97a3a",
-      "type": "commit",
-      "label": "commit: Commit: 16993b8d",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.060759+00:00"
-    },
-    {
-      "id": "ef67c2975967",
-      "type": "milestone",
-      "label": "milestone: Pushed timeout and review-thread fixes through db5769d684 and observed PR #2849 still open with main drift.",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.061025+00:00"
-    },
-    {
-      "id": "879bf9b6adc2",
-      "type": "milestone",
-      "label": "milestone: Merged origin/main into fix/cluster-robust, accepted upstream milestone and memory changes, and bumped both plugin manifests to 0.5.260.",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.061215+00:00"
-    },
-    {
-      "id": "dd730ebbfd1b",
-      "type": "milestone",
-      "label": "milestone: Fixed set_issue_milestone timeout error typing after merged main introduced fail-closed query handling.",
-      "episodes": [
-        "episode-2026-07-04-session-2606"
-      ],
-      "created": "2026-07-04T05:17:02.061386+00:00"
-    },
-    {
-      "id": "061971c7c714",
+      "id": "00e3866ddcc1",
       "type": "outcome",
-      "label": "Outcome: success - Babysit PR 2849 to merge",
+      "label": "Outcome: success - Issue #2810: subprocess-timeout and staging-verification hardening for the pre-commit security gate (invoke_precommit_security.py), semgrep runner (run_semgrep.py), and MCP client (mcp_client.py including a win32 read timeout). 6 findings fixed with 4 tests.",
       "episodes": [
-        "episode-2026-07-04-session-2606"
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T05:17:02.061565+00:00"
+      "created": "2026-07-04T04:45:44.904402+00:00"
+    },
+    {
+      "id": "8c70ce923f88",
+      "type": "milestone",
+      "label": "milestone: Assessed PR #2830 state.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.916564+00:00"
+    },
+    {
+      "id": "9e9f7568f68b",
+      "type": "milestone",
+      "label": "milestone: Resolved origin/main merge conflicts.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.916764+00:00"
+    },
+    {
+      "id": "5a82a9e08509",
+      "type": "milestone",
+      "label": "milestone: Updated semgrep tests after main conflict.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.916945+00:00"
+    },
+    {
+      "id": "4d118c833607",
+      "type": "milestone",
+      "label": "milestone: Validated changed security paths.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.917136+00:00"
+    },
+    {
+      "id": "d7064d5cba17",
+      "type": "commit",
+      "label": "commit: Commit: e332c7cf3f",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.917317+00:00"
+    },
+    {
+      "id": "3bd9fb7e86c9",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after thread fixes.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.918732+00:00"
+    },
+    {
+      "id": "156534c3a941",
+      "type": "commit",
+      "label": "commit: Commit: af91793361",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.918938+00:00"
+    },
+    {
+      "id": "f539509514dc",
+      "type": "milestone",
+      "label": "milestone: Fixed semgrep diagnostic review threads.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.919126+00:00"
+    },
+    {
+      "id": "d97d52f2b486",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR #2830 to merge by resolving origin/main conflicts in the security gate timeout changes.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:45:44.919316+00:00"
+    },
+    {
+      "id": "861771ff2c13",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after semgrep thread fixes.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:47:11.157997+00:00"
+    },
+    {
+      "id": "b0942c95cc30",
+      "type": "commit",
+      "label": "commit: Commit: 72247a7ae2",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:47:11.158192+00:00"
+    },
+    {
+      "id": "e7f0acd99198",
+      "type": "commit",
+      "label": "commit: Commit: 2ee3e7fa1c",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T05:13:36.638984+00:00"
+    },
+    {
+      "id": "9554b922cab2",
+      "type": "milestone",
+      "label": "milestone: Fixed PSScriptAnalyzer path injection review thread.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T05:13:36.639043+00:00"
     }
   ],
   "patterns": [
@@ -9587,7 +9705,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 47,
+      "occurrences": 49,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -9596,7 +9714,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 97,
+      "occurrences": 103,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -9605,7 +9723,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 188,
+      "occurrences": 196,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -9614,7 +9732,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 282,
+      "occurrences": 294,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -9624,7 +9742,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -9632,7 +9750,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -9640,7 +9758,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -9648,7 +9766,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -9656,7 +9774,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -9664,7 +9782,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -9672,7 +9790,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -9680,7 +9798,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -9688,7 +9806,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -9696,7 +9814,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -9704,7 +9822,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -9712,7 +9830,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -9720,7 +9838,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -9728,7 +9846,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -9736,7 +9854,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -9744,7 +9862,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -9752,7 +9870,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -9760,7 +9878,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -9768,7 +9886,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -9776,7 +9894,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -9784,7 +9902,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -9792,7 +9910,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -9800,7 +9918,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -9808,7 +9926,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -9816,7 +9934,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -9824,7 +9942,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -9832,7 +9950,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -9840,7 +9958,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -9848,7 +9966,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -9856,7 +9974,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -9864,7 +9982,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -9872,7 +9990,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -9880,7 +9998,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -9888,7 +10006,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -9896,7 +10014,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -9904,7 +10022,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -9912,7 +10030,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -9920,7 +10038,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -9928,7 +10046,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -9936,7 +10054,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 47,
+      "evidence_count": 49,
       "created": "2026-06-02T04:20:23.796919+00:00"
     },
     {
@@ -9944,7 +10062,7 @@
       "target": "e161750067d4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 3,
+      "evidence_count": 5,
       "created": "2026-07-04T04:26:20.200729+00:00"
     },
     {
@@ -9952,7 +10070,7 @@
       "target": "b895b21a3dc6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 3,
+      "evidence_count": 5,
       "created": "2026-07-04T04:26:20.200828+00:00"
     }
   ]

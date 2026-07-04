@@ -189,6 +189,38 @@ class TestFetchPrMetadata:
             mod.fetch_pr_metadata("owner", "repo", 908)
         assert exc_info.value.code == 3
 
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_invalid_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout="not json {")
+        with pytest.raises(SystemExit) as exc_info:
+            mod.fetch_pr_metadata("owner", "repo", 908)
+        assert exc_info.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_non_object_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout=json.dumps([1, 2]))
+        with pytest.raises(SystemExit) as exc_info:
+            mod.fetch_pr_metadata("owner", "repo", 908)
+        assert exc_info.value.code == 3
+
+
+class TestPaginatedItemsBoundary:
+    """Decode and shape guards for _paginated_items (issue #2813)."""
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_invalid_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout="][ broken")
+        with pytest.raises(SystemExit) as exc_info:
+            mod._paginated_items("repos/o/r/issues", "fetch issues")
+        assert exc_info.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_non_list_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout=json.dumps({"oops": True}))
+        with pytest.raises(SystemExit) as exc_info:
+            mod._paginated_items("repos/o/r/issues", "fetch issues")
+        assert exc_info.value.code == 3
+
 
 # ---------------------------------------------------------------------------
 # fetch_pr_comments / fetch_pr_reviews / fetch_pr_files
@@ -411,3 +443,80 @@ class TestBuildParser:
         assert args.owner == "myorg"
         assert args.repo == "myrepo"
         assert args.output_format == "markdown"
+
+
+class TestPaginatedItems:
+    """Pagination flattening for gh api --paginate --slurp (issue #2813)."""
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_flattens_multiple_pages(self, mock_gh):
+        pages = [[{"id": 1}, {"id": 2}], [{"id": 3}]]
+        mock_gh.return_value = _completed(stdout=json.dumps(pages))
+        result = mod._paginated_items("repos/o/r/x", "label")
+        assert result == [{"id": 1}, {"id": 2}, {"id": 3}]
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_passes_paginate_and_slurp(self, mock_gh):
+        mock_gh.return_value = _completed(stdout="[]")
+        mod._paginated_items("repos/o/r/x", "label")
+        gh_args = mock_gh.call_args.args[0]
+        assert "--paginate" in gh_args
+        assert "--slurp" in gh_args
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_single_page_object_appended(self, mock_gh):
+        mock_gh.return_value = _completed(stdout=json.dumps([{"id": 1}]))
+        assert mod._paginated_items("x", "l") == [{"id": 1}]
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_failure_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stderr="boom", rc=1)
+        with pytest.raises(SystemExit) as exc:
+            mod._paginated_items("repos/o/r/x", "label")
+        assert exc.value.code == 3
+
+
+class TestResolveRepoShape:
+    """Shape guards on gh repo-view output (issue #2813)."""
+
+    def test_uses_explicit_args_without_gh(self):
+        assert mod._resolve_repo("me", "proj") == ("me", "proj")
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_resolves_from_gh(self, mock_gh):
+        mock_gh.return_value = _completed(
+            stdout=json.dumps({"owner": {"login": "octo"}, "name": "repo"})
+        )
+        assert mod._resolve_repo("", "") == ("octo", "repo")
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_non_dict_payload_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout=json.dumps(["unexpected"]))
+        with pytest.raises(SystemExit) as exc:
+            mod._resolve_repo("", "")
+        assert exc.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_malformed_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout="{")
+        with pytest.raises(SystemExit) as exc:
+            mod._resolve_repo("", "")
+        assert exc.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_missing_owner_login_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(
+            stdout=json.dumps({"owner": {}, "name": "repo"})
+        )
+        with pytest.raises(SystemExit) as exc:
+            mod._resolve_repo("", "")
+        assert exc.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
+    def test_missing_name_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(
+            stdout=json.dumps({"owner": {"login": "octo"}})
+        )
+        with pytest.raises(SystemExit) as exc:
+            mod._resolve_repo("", "")
+        assert exc.value.code == 3

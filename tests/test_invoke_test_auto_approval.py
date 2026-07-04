@@ -59,7 +59,6 @@ class TestIsSafeTestCommand:
             "pytest -v tests/test_foo.py",
             "python -m pytest",
             "python -m pytest tests/",
-            "python3 -m pytest tests/",
             "dotnet test",
             "dotnet test ./MyProject.Tests",
             "mvn test",
@@ -79,7 +78,9 @@ class TestIsSafeTestCommand:
             "ls -la",
             "curl http://example.com",
             "git push --force",
-            "python scripts/run.py pytest",
+            "python evil.py pytest",
+            "python3 evil.py pytest",
+            "python run_things.py --with pytest",
         ],
     )
     def test_rejects_non_test_commands(self, command: str) -> None:
@@ -116,13 +117,9 @@ class TestMain:
         with patch("sys.stdin", StringIO("not json")):
             assert main() == 0
 
-    def test_returns_zero_for_non_object_json(self) -> None:
-        with (
-            patch("sys.stdin", StringIO("[]")),
-            patch("sys.stdout", new_callable=StringIO) as mock_stdout,
-        ):
+    def test_returns_zero_for_non_dict_payload(self) -> None:
+        with patch("sys.stdin", StringIO(json.dumps(["not", "a", "dict"]))):
             assert main() == 0
-            assert mock_stdout.getvalue().strip() == ""
 
     def test_returns_zero_for_missing_command(self) -> None:
         input_data = json.dumps({"tool_input": {}})

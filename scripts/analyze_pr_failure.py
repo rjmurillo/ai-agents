@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-# mypy: disable-error-code=type-arg
-# mypy: disable-error-code=no-any-return
-# mypy: disable-error-code=arg-type
-# mypy: disable-error-code=assignment
-# mypy: disable-error-code=return-value
-# mypy: disable-error-code=var-annotated
-# mypy: disable-error-code=operator
-# mypy: disable-error-code=union-attr
 """Analyze a GitHub Pull Request for retrospective data gathering.
 
 Extracts structured metrics from a PR to bootstrap retrospective Phase 0
@@ -55,30 +47,39 @@ def _run_gh(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[s
     )
 
 
-def _parse_gh_json_output(stdout: str) -> object:
-    """Parse gh JSON output, including concatenated --paginate arrays."""
-    decoder = json.JSONDecoder()
-    values: list[object] = []
-    index = 0
-    text = stdout.strip()
+def _paginated_items(endpoint: str, error_label: str, timeout: int = 60) -> list[dict]:
+    """Fetch every page of a gh api array endpoint as one flat list.
 
-    while index < len(text):
-        value, end = decoder.raw_decode(text, index)
-        values.append(value)
-        index = end
-        while index < len(text) and text[index].isspace():
-            index += 1
+    `gh api --paginate` alone concatenates one JSON array per page, so once
+    results exceed a single page (>100 items) the combined stdout is not valid
+    JSON and json.loads fails at the page boundary. `--slurp` wraps the pages
+    into a single JSON array of pages, which we flatten into one list of items.
+    """
+    result = _run_gh(["api", endpoint, "--paginate", "--slurp"], timeout=timeout)
+    if result.returncode != 0:
+        err = result.stderr or result.stdout
+        print(f"ERROR: {error_label}: {err}", file=sys.stderr)
+        sys.exit(3)
 
-    if len(values) == 1:
-        return values[0]
-
-    if all(isinstance(value, list) for value in values):
-        flattened: list[object] = []
-        for value in values:
-            flattened.extend(value)
-        return flattened
-
-    raise ValueError("gh returned multiple JSON documents with incompatible shapes")
+    try:
+        pages = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: {error_label}: invalid JSON from gh: {exc}", file=sys.stderr)
+        sys.exit(3)
+    if not isinstance(pages, list):
+        print(
+            f"ERROR: {error_label}: expected a JSON array of pages, "
+            f"got {type(pages).__name__}",
+            file=sys.stderr,
+        )
+        sys.exit(3)
+    items: list[dict] = []
+    for page in pages:
+        if isinstance(page, list):
+            items.extend(page)
+        else:
+            items.append(page)
+    return items
 
 
 def _resolve_repo(owner: str, repo: str) -> tuple[str, str]:
@@ -91,10 +92,20 @@ def _resolve_repo(owner: str, repo: str) -> tuple[str, str]:
         print("ERROR: Cannot detect repository. Use --owner and --repo.", file=sys.stderr)
         sys.exit(1)
 
-    data = _parse_gh_json_output(result.stdout)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: Invalid JSON from gh repo view: {exc}", file=sys.stderr)
+        sys.exit(3)
     if not isinstance(data, dict):
-        raise ValueError("gh repo view returned a non-object JSON response")
-    return data["owner"]["login"], data["name"]
+        print("ERROR: Unexpected gh output for repository info.", file=sys.stderr)
+        sys.exit(3)
+    owner_obj = data.get("owner")
+    name = data.get("name")
+    if not isinstance(owner_obj, dict) or not owner_obj.get("login") or not name:
+        print("ERROR: Could not parse owner/name from gh output.", file=sys.stderr)
+        sys.exit(3)
+    return str(owner_obj["login"]), str(name)
 
 
 def _is_bot(login: str) -> bool:
@@ -123,64 +134,44 @@ def fetch_pr_metadata(owner: str, repo: str, pr_number: int) -> dict:
         print(f"ERROR: Failed to fetch PR: {err}", file=sys.stderr)
         sys.exit(3)
 
-    data = _parse_gh_json_output(result.stdout)
-    if not isinstance(data, dict):
-        raise ValueError("gh pr view returned a non-object JSON response")
-    return data
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: invalid JSON from gh pr view: {exc}", file=sys.stderr)
+        sys.exit(3)
+    if not isinstance(parsed, dict):
+        print(
+            f"ERROR: expected a JSON object from gh pr view, "
+            f"got {type(parsed).__name__}",
+            file=sys.stderr,
+        )
+        sys.exit(3)
+    metadata: dict = parsed
+    return metadata
 
 
 def fetch_pr_comments(owner: str, repo: str, pr_number: int) -> list[dict]:
     """Fetch issue-level comments on the PR."""
-    result = _run_gh([
-        "api", f"repos/{owner}/{repo}/issues/{pr_number}/comments",
-        "--paginate",
-    ], timeout=60)
-
-    if result.returncode != 0:
-        err = result.stderr or result.stdout
-        print(f"ERROR: Failed to fetch PR comments: {err}", file=sys.stderr)
-        sys.exit(3)
-
-    data = _parse_gh_json_output(result.stdout)
-    if not isinstance(data, list):
-        raise ValueError("gh issue comments returned a non-array JSON response")
-    return data
+    return _paginated_items(
+        f"repos/{owner}/{repo}/issues/{pr_number}/comments",
+        "Failed to fetch PR comments",
+    )
 
 
 def fetch_pr_reviews(owner: str, repo: str, pr_number: int) -> list[dict]:
     """Fetch review events for the PR."""
-    result = _run_gh([
-        "api", f"repos/{owner}/{repo}/pulls/{pr_number}/reviews",
-        "--paginate",
-    ], timeout=60)
-
-    if result.returncode != 0:
-        err = result.stderr or result.stdout
-        print(f"ERROR: Failed to fetch PR reviews: {err}", file=sys.stderr)
-        sys.exit(3)
-
-    data = _parse_gh_json_output(result.stdout)
-    if not isinstance(data, list):
-        raise ValueError("gh reviews returned a non-array JSON response")
-    return data
+    return _paginated_items(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/reviews",
+        "Failed to fetch PR reviews",
+    )
 
 
 def fetch_pr_files(owner: str, repo: str, pr_number: int) -> list[dict]:
     """Fetch the list of changed files with stats."""
-    result = _run_gh([
-        "api", f"repos/{owner}/{repo}/pulls/{pr_number}/files",
-        "--paginate",
-    ], timeout=60)
-
-    if result.returncode != 0:
-        err = result.stderr or result.stdout
-        print(f"ERROR: Failed to fetch PR files: {err}", file=sys.stderr)
-        sys.exit(3)
-
-    data = _parse_gh_json_output(result.stdout)
-    if not isinstance(data, list):
-        raise ValueError("gh files returned a non-array JSON response")
-    return data
+    return _paginated_items(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/files",
+        "Failed to fetch PR files",
+    )
 
 
 def build_comment_distribution(comments: list[dict]) -> dict:
@@ -388,12 +379,8 @@ def main(argv: list[str] | None = None) -> int:
         0 on success, non-zero on failure (per ADR-035).
     """
     args = build_parser().parse_args(argv)
-    try:
-        owner, repo = _resolve_repo(args.owner, args.repo)
-        analysis = analyze_pr(owner, repo, args.pr)
-    except ValueError as e:
-        print(f"ERROR: Malformed API response: {e}", file=sys.stderr)
-        sys.exit(3)
+    owner, repo = _resolve_repo(args.owner, args.repo)
+    analysis = analyze_pr(owner, repo, args.pr)
 
     if args.output_format == "markdown":
         print(format_markdown(analysis))

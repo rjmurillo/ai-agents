@@ -39,6 +39,11 @@ SAFE_TEST_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^pnpm\s+test"),
     re.compile(r"^yarn\s+test"),
     re.compile(r"^pytest(\s|$)"),
+    # Anchor to the module-invocation form (`python -m pytest`). The prior
+    # `^python\s+.*pytest` matched any command whose first token was `python`
+    # and had `pytest` anywhere in argv, so `python evil.py pytest` (run an
+    # arbitrary script that merely mentions pytest) auto-approved. The `-m`
+    # anchor and trailing \b restrict approval to the real test runner.
     re.compile(r"^python(3)?\s+-m\s+pytest\b"),
     re.compile(r"^dotnet\s+test"),
     re.compile(r"^mvn\s+test"),
@@ -96,7 +101,9 @@ def main() -> int:
         return 0
 
     if not isinstance(hook_input, dict):
-        print("test_auto_approval: Ignoring non-object JSON input", file=sys.stderr)
+        # A JSON array or scalar payload has no .get(); calling
+        # get_command_from_input on it would raise AttributeError and crash
+        # the hook with exit 1 instead of the clean non-blocking exit 0.
         return 0
 
     command = get_command_from_input(hook_input)

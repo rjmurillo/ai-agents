@@ -173,9 +173,13 @@
     {
       "time": "2026-07-04T05:31Z",
       "entry": "Fixed CI-only corrupt memory sync queue failure by parsing queued changes before checking Forgetful availability."
+    },
+    {
+      "time": "2026-07-04T05:48Z",
+      "entry": "Merged latest origin/main after checks passed, resolved conflicts, and rebumped both plugin manifests to 0.5.261."
     }
   ],
-  "endingCommit": "pending-memory-sync-ci-fix",
+  "endingCommit": "pending-latest-main-merge",
   "nextSteps": [
     "Commit merge from origin/main, push fix/cluster-robust, watch required checks, rebump plugin manifests on version races, and merge PR #2849 after required checks pass."
   ]

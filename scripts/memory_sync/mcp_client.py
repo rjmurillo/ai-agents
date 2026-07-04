@@ -215,10 +215,14 @@ class McpClient:
         the entire wait for this response, so streaming notifications or a stream
         of id-mismatched responses cannot loop forever.
         """
-        deadline = time.monotonic() + self._timeout
-
         buf = b""
+        deadline = time.monotonic() + self._timeout
         while True:
+            if time.monotonic() > deadline:
+                raise McpError(
+                    f"Overall read deadline exceeded (>{self._timeout}s); "
+                    "server may be streaming notifications or mismatched ids"
+                )
             header_end = buf.find(b"\r\n\r\n")
             while header_end == -1:
                 buf += self._read_bytes(deadline - time.monotonic())
