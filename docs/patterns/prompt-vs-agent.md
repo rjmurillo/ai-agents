@@ -127,7 +127,7 @@ The `.github/agents/` directory contains both `.agent.md` and `.prompt.md` files
 
 | You want to... | Create a... |
 |----------------|-------------|
-| Add a new specialized agent | `.shared.md` in `templates/agents/`, then run `generate_agents.py` |
+| Add a new specialized agent | `.shared.md` in `templates/agents/`, then run `python3 build/generate_agents.py` |
 | Add a user-facing slash command | `.prompt.md` in `.github/prompts/` or `.github/agents/` |
 | Add an orchestration entry point | `.prompt.md` that delegates to agents via the `agent` tool |
 | Modify agent behavior | Edit the `.shared.md` source, then regenerate |
