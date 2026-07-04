@@ -344,3 +344,62 @@ def test_main_no_scan_roots_skips(
     assert rc == 0
     out = capsys.readouterr().out
     assert "[SKIP]" in out
+
+
+# --- Unreadable / unparseable files signal instead of silent skip (#2809) ---
+
+
+def test_unreadable_file_emits_skip_to_stderr(
+    fake_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An undecodable file stays unflagged (heuristic) but logs a SKIP to
+    stderr instead of vanishing silently."""
+    target = _write_file(
+        fake_repo,
+        ".claude/hooks/bin.py",
+        '"""matches the foo bar."""\n',
+    )
+    target.write_bytes(b"\xff\xfe\x00\x00")
+    violations = ccc.collect_violations(fake_repo)
+    assert violations == []
+    err = capsys.readouterr().err
+    assert "[SKIP] unreadable" in err
+
+
+def test_syntax_error_docstring_mirror_claim_flagged(fake_repo: Path) -> None:
+    """A mirror-claim living ONLY in the module docstring of an unparseable
+    file is still flagged via the regex fallback (not dropped by ast.parse)."""
+    _write_file(
+        fake_repo,
+        ".claude/hooks/brokendoc.py",
+        '"""Matches the validator with no path here."""\n'
+        "def (((:\n",
+    )
+    violations = ccc.collect_violations(fake_repo)
+    assert len(violations) == 1
+    assert violations[0].matched_token == "matches the"
+
+
+def test_syntax_error_docstring_with_path_not_flagged(fake_repo: Path) -> None:
+    """The regex fallback still honors a path citation: a docstring that names
+    a canonical path in an unparseable file is not a violation."""
+    _write_file(
+        fake_repo,
+        ".claude/hooks/okdoc.py",
+        '"""Matches scripts/validation/hook_contracts.py exactly."""\n'
+        "def (((:\n",
+    )
+    violations = ccc.collect_violations(fake_repo)
+    assert violations == []
+
+
+def test_syntax_error_no_docstring_emits_skip(
+    fake_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An unparseable file with no docstring and no top comment logs a SKIP for
+    the un-scanned docstring and produces no violation."""
+    _write_file(fake_repo, ".claude/hooks/nodoc.py", "def (((:\n")
+    violations = ccc.collect_violations(fake_repo)
+    assert violations == []
+    err = capsys.readouterr().err
+    assert "[SKIP] unparseable" in err

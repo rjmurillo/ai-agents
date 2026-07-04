@@ -91,8 +91,16 @@ jobs:
         id: verify
         continue-on-error: true
         run: |
-          python -m memory_enhancement verify-all --json > memory-validation-results.json
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          # Issue #2808: GitHub runs steps with `bash -eo pipefail`, so a
+          # verify-all crash aborted the step before `$?` was captured, and the
+          # parse step below then defaulted to a green Pass. Capture the code
+          # explicitly so the parse step can distinguish crash from clean.
+          rc=0
+          python -m memory_enhancement verify-all --json > memory-validation-results.json || rc=$?
+          echo "exit_code=$rc" >> $GITHUB_OUTPUT
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::verify-all exited $rc; results may be incomplete"
+          fi
 
       - name: Generate health report
         if: steps.should-run.outputs.skip != 'true'
@@ -113,7 +121,10 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         id: parse
         run: |
-          if [ -f memory-validation-results.json ]; then
+          # Issue #2808: use -s (exists AND non-empty) so a truncated results
+          # file from a crashed verify-all falls into the error branch instead
+          # of a silent Pass.
+          if [ -s memory-validation-results.json ]; then
             total=$(jq 'length' memory-validation-results.json)
             stale=$(jq '[.[] | select(.valid == false)] | length' memory-validation-results.json)
             valid=$((total - stale))
@@ -128,7 +139,10 @@ jobs:
               echo "has_stale=false" >> $GITHUB_OUTPUT
             fi
           else
-            echo "has_stale=false" >> $GITHUB_OUTPUT
+            # Missing/empty results means verify-all crashed. Fail the job
+            # instead of posting the green Pass banner on a broken run.
+            echo "::error::memory-validation-results.json missing or empty (verify-all likely crashed)"
+            exit 1
           fi
 
       - name: Post PR comment

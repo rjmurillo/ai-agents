@@ -33,6 +33,8 @@ Exit codes (ADR-035):
     0 - all outputs written
     1 - unsafe results directory
     2 - GITHUB_OUTPUT is not set (config error)
+    3 - a verdict/infra file exists but could not be read (external/IO error);
+        the step fails loud rather than emitting a default from an unread flag
 """
 
 from __future__ import annotations
@@ -54,11 +56,20 @@ from quality_gate_agents import QUALITY_GATE_AGENTS  # noqa: E402
 
 
 def _read_raw(path: Path) -> str | None:
-    """Return file text, or None when the file is absent (mirrors Test-Path)."""
+    """Return file text, or None only when the file is absent (Test-Path).
+
+    A genuinely missing verdict/infra file returns None, which the callers map
+    to the intended missing-file semantics (verdict -> NEEDS_REVIEW, infra ->
+    "false"). A present-but-unreadable file (permission/IO error) is NOT
+    swallowed: swallowing it would write ``<agent>_infra=false`` to
+    GITHUB_OUTPUT from a flag the step could not read, silently downgrading a
+    safety signal. Non-ENOENT OSError propagates to ``main`` and fails the step
+    loudly (exit 3).
+    """
 
     try:
         return path.read_text(encoding="utf-8")
-    except OSError:
+    except FileNotFoundError:
         return None
 
 
@@ -114,7 +125,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    rows = collect(results_dir)
+    try:
+        rows = collect(results_dir)
+    except (OSError, UnicodeDecodeError) as exc:
+        print(f"error: cannot read verdict/infra file: {exc}", file=sys.stderr)
+        return 3
 
     print("Loaded verdicts:")
     for agent, verdict, infra in rows:
