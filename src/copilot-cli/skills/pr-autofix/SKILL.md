@@ -35,16 +35,11 @@ Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready),
 **Per-PR live-state gate (BLOCKING, issue #2455).** Before any action runs on a PR (any tier: arming auto-merge, pushing a CI fix, posting a thread reply), call `check_pr_live_state.py` and branch on the JSON envelope `Data.action` field. The session-start triage snapshot is stale by the time the walk reaches each row in a repo with heavy merge automation, and the consequences of acting on a stale row are concrete: armed auto-merge on a redundant PR, conflict merges into a closed branch, duplicate logic landed twice.
 
 ```bash
-# Resolve the github PR scripts dir through the harness plugin root, falling
-# back to the in-repo .claude tree for Claude Code / source checkouts. A bare
-# `.claude/skills/...` path is not portable to a vendored install (issue #2837).
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
-
 # One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
 git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main"
 
 # Per PR, immediately before any per-tier action:
-LIVE=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
+LIVE=$(python3 .claude/skills/github/scripts/pr/check_pr_live_state.py \
     --pull-request "$PR" --skip-fetch --output-format json)
 ACTION=$(echo "$LIVE" | jq -r '.Data.action')
 if [ "$ACTION" = "SKIP" ]; then
@@ -117,29 +112,24 @@ Quote every variable expansion. The shell does not treat `:` specially in a refs
 ## Scripts
 
 ```bash
-# Resolve the github PR scripts dir through the harness plugin root, with a
-# source-tree fallback (issue #2837). Re-declared per block so each snippet is
-# runnable on its own.
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
-
 # Check merge readiness
-python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr}
+python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}
 
 # Per-PR live-state gate (BLOCKING per Phase 2; issue #2455). Returns
 # exit 0 + Data.action=ACT when safe to proceed, exit 1 + Data.action=SKIP when
 # the PR is merged/closed/draft or fully superseded by base.
-python3 "$SCRIPTS_DIR/check_pr_live_state.py" --pull-request {pr} --skip-fetch --output-format json
+python3 .claude/skills/github/scripts/pr/check_pr_live_state.py --pull-request {pr} --skip-fetch --output-format json
 
 # Get CI check logs
-python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
-  python3 "$SCRIPTS_DIR/get_pr_check_logs.py" --pull-request {pr} --checks-input -
+python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {pr} | \
+  python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --pull-request {pr} --checks-input -
 
 # CLEAN path: try auto-merge only when there is pending branch-protection work to wait on.
 # If GitHub rejects an already-CLEAN PR with "clean status", use the printed direct-merge fallback.
-python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" --pull-request {pr} --enable --merge-method SQUASH
+python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --pull-request {pr} --enable --merge-method SQUASH
 
 # Direct merge: already-CLEAN fallback or UNSTABLE state with documented non-required failures.
-python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash
+python3 .claude/skills/github/scripts/pr/merge_pr.py --pull-request {pr} --strategy squash
 ```
 
 ### Merge path by `mergeStateStatus`
@@ -170,18 +160,16 @@ failed on PR #2289 (#2308).
 When invoking from autofix code:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 PR_NUMBER="123"
-python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request "$PR_NUMBER" | jq -e '.merged == true'
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" | jq -e '.merged == true'
 ```
 
 To restore the legacy skip-review sentinel (only for callers that already
 encoded "100 = merged"):
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 PR_NUMBER="123"
-python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request "$PR_NUMBER" --exit-100-on-merged
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" --exit-100-on-merged
 ```
 
 The legacy `--exit-zero-on-merged` flag (from #2277) still parses as a no-op
@@ -192,8 +180,7 @@ for backward compatibility.
 Run after all threads resolved and CI passes:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
-python3 "$SCRIPTS_DIR/run_completion_gate.py" \
+python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
   --config .claude/commands/pr-review-config.yaml \
   --pull-request {pr} --json
 ```
