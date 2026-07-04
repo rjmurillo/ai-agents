@@ -84,7 +84,7 @@
    "changesCommitted": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "Implementation commits through f7c1b1f8ef2d; final test-fixture and session-log commit follows this file update."
+    "Evidence": "Final branch includes rebase onto origin/main and plugin manifest rebump to 0.5.259; commit follows this session-log update."
    },
    "validationPassed": {
     "level": "MUST",
@@ -121,6 +121,10 @@
   {
    "summary": "Ran final validation before push",
    "evidence": "uv run pytest tests/ -x passed: 13299 passed, 20 deselected-by-marker, 45 expected failures, 3 warnings. Scoped uv run ruff check on 31 PR Python files passed. Full repo ruff still has unrelated baseline violations."
+  },
+  {
+   "summary": "Rebased onto origin/main and rebumped plugin manifests after version race advanced",
+   "evidence": "origin/main advanced both plugin manifests to 0.5.258. Local branch rebased successfully and both manifests were set to 0.5.259."
   }
  ],
  "endingCommit": "f7c1b1f8ef2d",

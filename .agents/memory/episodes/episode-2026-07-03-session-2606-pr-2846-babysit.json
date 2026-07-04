@@ -93,6 +93,14 @@
       "content": "Commit: f7c1b1f8ef2d",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased onto origin/main and rebumped plugin manifests after version race advanced",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
