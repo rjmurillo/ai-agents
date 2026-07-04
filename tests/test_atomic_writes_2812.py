@@ -19,7 +19,6 @@ safe.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -29,15 +28,6 @@ import scripts.error_classification as error_classification
 import scripts.pr_branch_mapping as pr_branch_mapping
 import scripts.update_reviewer_signal_stats as urss
 from scripts.hook_utilities import lsp_gate_state
-
-_STOP_HOOK_DIR = str(Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "Stop")
-_SESSIONSTART_HOOK_DIR = str(
-    Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "SessionStart"
-)
-for _d in (_STOP_HOOK_DIR, _SESSIONSTART_HOOK_DIR):
-    if _d not in sys.path:
-        sys.path.insert(0, _d)
-
 
 
 def _tmp_files(directory: Path) -> list[Path]:
