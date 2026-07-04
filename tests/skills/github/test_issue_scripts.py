@@ -698,7 +698,7 @@ class TestSetIssueMilestone:
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["action"] == "no_change"
 
-    def test_different_milestone_no_force_exits_5(self):
+    def test_different_milestone_no_force_exits_1(self):
         mod = self._import()
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
@@ -710,7 +710,7 @@ class TestSetIssueMilestone:
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--milestone", "new-ms"])
-        assert exc.value.code == 5
+        assert exc.value.code == 1
 
     def test_force_replaces_milestone(self, capsys):
         mod = self._import()

@@ -151,7 +151,9 @@ class TestSetIssueMilestone:
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", side_effect=[
                 make_completed_process(stdout="null"),                    # _get_current_milestone
-                make_completed_process(stderr="api down", returncode=1),  # _get_milestone_titles fails
+                make_completed_process(
+                    stderr="api down", returncode=1
+                ),  # _get_milestone_titles fails
             ]),
         ):
             with pytest.raises(SystemExit) as exc:

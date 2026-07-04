@@ -5,8 +5,8 @@ Validates milestone exists before assigning, and optionally clears existing mile
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error (includes: milestone already set without --force)
-    2 - Milestone not found
+    1 - Logic/precondition error (includes: milestone already set without --force)
+    2 - Usage/config error (invalid arguments, milestone not found)
     3 - External error (API failure, including a failed milestone query)
     4 - Auth error (not authenticated)
 """
@@ -174,7 +174,13 @@ def _emit(output: dict[str, object], fmt: str) -> None:
     )
 
 
-def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict[str, object]) -> None:
+def _emit_error(
+    message: str,
+    code: int,
+    fmt: str,
+    error_type: str,
+    output: dict[str, object],
+) -> None:
     write_skill_error(
         message,
         code,
