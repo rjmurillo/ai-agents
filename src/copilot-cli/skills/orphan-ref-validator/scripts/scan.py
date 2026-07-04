@@ -2,18 +2,15 @@
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: scan.py groups the regex constants,
-# extractors, enumerators, scan(), render_envelope() bridge, and main()
+# extractors, enumerator, scan(), render_envelope() bridge, and main()
 # entry point that together implement REQ-009 in a single auditable
-# module. Splitting further would scatter the canonical-source-mirror
-# contract (`.claude/rules/canonical-source-mirror.md`) across more
-# files, multiplying the surfaces that must stay byte-for-byte aligned
-# with `build/scripts/validate_marketplace_counts.py`. The extractor
-# helpers already live in sibling modules (``filters.py``, ``envelope.py``,
-# ``walking.py``); the residual size is the orchestration core.
+# module. The extractor helpers already live in sibling modules
+# (``filters.py``, ``envelope.py``, ``walking.py``); the residual size is
+# the orchestration core.
 """Orphan-ref validator: detect references to absent entities in structured artifacts.
 
-Scans target paths for references to skill names, script paths, and count claims
-that do not match working-tree state. Emits ADR-056 envelope plus final
+Scans target paths for references to skill names and script paths that do
+not match working-tree state. Emits ADR-056 envelope plus final
 ``VERDICT: PASS|WARN|CRITICAL_FAIL`` line. Exit code per ADR-035.
 
 Reference: REQ-009, DESIGN-009, issue #1939, epic #1933.
@@ -53,11 +50,7 @@ OPT_IN_SKILL_TARGETS = (
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from counts import (
-        enumerate_count,
         enumerate_skills,
-        is_manifest_file,
-        is_marketplace_manifest,
-        reset_count_cache,
     )
     from envelope import (
         Finding,
@@ -69,7 +62,6 @@ if __package__ in (None, ""):
     from filters import is_known_kebab_word, is_known_single_word_skill
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
-        extract_count_claims,
         extract_script_refs,
         extract_single_word_skill_refs,
         extract_skill_refs,
@@ -78,11 +70,7 @@ if __package__ in (None, ""):
     from walking import walk_targets
 else:
     from .counts import (
-        enumerate_count,
         enumerate_skills,
-        is_manifest_file,
-        is_marketplace_manifest,
-        reset_count_cache,
     )
     from .envelope import (
         Finding,
@@ -94,7 +82,6 @@ else:
     from .filters import is_known_kebab_word, is_known_single_word_skill
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
-        extract_count_claims,
         extract_script_refs,
         extract_single_word_skill_refs,
         extract_skill_refs,
@@ -130,7 +117,6 @@ def scan_file(
     target_path: Path,
     repo_root: Path,
     known_skills: set[str],
-    enforce_counts: bool = False,
     skill_catalog_present: bool = True,
 ) -> tuple[list[Finding], int]:
     """Scan one file. Returns findings and count of refs checked.
@@ -139,10 +125,8 @@ def scan_file(
     delegate the three reference checks to private helpers. Each helper is
     small enough to unit-test in isolation.
 
-    ``enforce_counts`` is reserved for an opt-in single-plugin count_claim
-    enforcement path. PR1 leaves it ``False`` and defers count enforcement
-    to the canonical validator. ``skill_catalog_present`` distinguishes
-    "no skills directory exists" (warn) from "empty catalog" (critical).
+    ``skill_catalog_present`` distinguishes "no skills directory exists"
+    (warn) from "empty catalog" (critical).
     """
     findings: list[Finding] = []
     refs_checked = 0
@@ -174,19 +158,6 @@ def scan_file(
     )
     findings.extend(skill_script_findings)
     refs_checked += skill_script_refs
-
-    if is_manifest_file(target_path):
-        # Count enforcement is single-plugin scoped: enumerate_count only
-        # enumerates the .claude/ tree. marketplace.json catalogs are
-        # multi-plugin (or describe the copilot tree), so enforcing their
-        # per-plugin claims against .claude/* yields false positives. Skip
-        # emission for them; refs are still counted for coverage.
-        file_enforce = enforce_counts and not is_marketplace_manifest(target_path)
-        count_findings, count_refs = _check_count_claims(
-            text, rel, repo_root, file_enforce
-        )
-        findings.extend(count_findings)
-        refs_checked += count_refs
 
     return findings, refs_checked
 
@@ -339,65 +310,6 @@ def _check_skill_script_refs(
     return findings, refs_checked
 
 
-def _check_count_claims(
-    text: str, rel: str, repo_root: Path, enforce_counts: bool
-) -> tuple[list[Finding], int]:
-    """Extract count_claim regex matches. Findings are emitted only when
-    ``enforce_counts`` is True (PR2 path); PR1 delegates emission to
-    ``build/scripts/validate_marketplace_counts.py`` per
-    ``.claude/rules/canonical-source-mirror.md``.
-    """
-    findings: list[Finding] = []
-    refs_checked = 0
-    for lineno, claimed, kind in extract_count_claims(text):
-        refs_checked += 1
-        if not enforce_counts:
-            continue
-        actual = enumerate_count(repo_root, kind)
-        if actual is None:
-            findings.append(_count_warn_finding(rel, lineno, claimed, kind))
-            continue
-        if actual != claimed:
-            findings.append(
-                _count_critical_finding(rel, lineno, claimed, kind, actual)
-            )
-    return findings, refs_checked
-
-
-def _count_warn_finding(rel: str, lineno: int, claimed: int, kind: str) -> Finding:
-    return Finding(
-        kind="count_claim",
-        severity="warn",
-        target_file=rel,
-        line=lineno,
-        referenced_entity=f"{claimed} {kind}",
-        recommendation=(
-            f"Cannot enumerate {kind} (target directory absent). "
-            "Verify count manually or restore the directory."
-        ),
-        expected=str(claimed),
-        actual=None,
-    )
-
-
-def _count_critical_finding(
-    rel: str, lineno: int, claimed: int, kind: str, actual: int
-) -> Finding:
-    return Finding(
-        kind="count_claim",
-        severity="critical",
-        target_file=rel,
-        line=lineno,
-        referenced_entity=f"{claimed} {kind}",
-        recommendation=(
-            f"Manifest claims {claimed} {kind}; actual count is {actual}. "
-            "Update manifest or use a count-validating generator."
-        ),
-        expected=str(claimed),
-        actual=str(actual),
-    )
-
-
 def _expand_target(target: Path, repo_root: Path) -> list[Path]:
     """Expand a target into concrete paths.
 
@@ -511,25 +423,14 @@ def scan(
     targets: list[Path],
     repo_root: Path,
     max_findings: int = MAX_FINDINGS,
-    enforce_counts: bool = False,
     baseline: set[str] | None = None,
 ) -> ScanResult:
     """Scan all targets relative to repo_root.
-
-    Clears the per-process count cache at entry so programmatic use
-    (multiple ``scan()`` calls in the same process) does not see stale
-    enumerations after filesystem mutation. The CLI runs one scan per
-    process so cache reset is also safe there.
 
     ``max_findings`` bounds memory growth on pathologically large
     catalogs. When reached, scanning halts early and a synthetic warning
     finding records the truncation so the operator can re-scan with
     narrower targets.
-
-    ``enforce_counts`` opts into single-plugin count_claim emission. Default
-    off keeps marketplace.json multi-plugin coverage delegated to the
-    canonical ``build/scripts/validate_marketplace_counts.py`` per
-    ``.claude/rules/canonical-source-mirror.md``.
 
     ``baseline`` is a set of known pre-existing finding keys
     (``target_file:line:kind:referenced_entity``, see ``Finding.key``). A
@@ -538,7 +439,6 @@ def scan(
     that predates the gate (issue #2371). A new finding not in the baseline
     still yields CRITICAL_FAIL.
     """
-    reset_count_cache()
     repo_root = repo_root.resolve()
     skills = enumerate_skills(repo_root)
     skill_catalog_present = skills is not None
@@ -569,7 +469,6 @@ def scan(
                     path,
                     repo_root,
                     known_skills,
-                    enforce_counts=enforce_counts,
                     skill_catalog_present=skill_catalog_present,
                 )
                 if baseline:
@@ -625,18 +524,6 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Also scan .claude/skills/*/SKILL.md (opt-in until preexisting drift is cleaned).",
-    )
-    parser.add_argument(
-        "--enforce-counts",
-        action="store_true",
-        default=False,
-        help=(
-            "Emit count_claim findings for plugin-manifest count claims that "
-            "diverge from working-tree state (single-plugin scope). Default off: "
-            "marketplace.json multi-plugin coverage is delegated to the canonical "
-            "build/scripts/validate_marketplace_counts.py per "
-            ".claude/rules/canonical-source-mirror.md."
-        ),
     )
     parser.add_argument(
         "--repo-root",
@@ -766,7 +653,6 @@ def main(argv: list[str] | None = None) -> int:
         result = scan(
             targets,
             repo_root,
-            enforce_counts=args.enforce_counts,
             baseline=baseline,
         )
         print(render_envelope(result, args.output))

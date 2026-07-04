@@ -29,6 +29,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+import yaml
+
 ADR_PATTERNS = (
     ".agents/architecture/ADR-*.md",
     "docs/adr/ADR-*.md",
@@ -86,6 +88,150 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         cwd=cwd,
         check=False,
     )
+
+
+FRONTMATTER_DELIM = "---"
+
+# Frontmatter keys whose value can change without altering the ADR's decision
+# content, so a change confined to them does not need adr-review. Per ADR-073
+# (.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:57,61), `status`,
+# `supersedes`, and `superseded-by` are authoritative governance state: a
+# hand-edit to `status: accepted` MUST still trip the gate so the author binds
+# it to adr-review evidence. Those keys are therefore deliberately EXCLUDED.
+# Only the mechanical implementation flag (flips true at first merged change)
+# is exempt; that is the case #2845 was filed for.
+_NON_DECISION_FRONTMATTER_KEYS = frozenset({"implemented"})
+
+# Top-level ``key:`` frontmatter line, used only to detect duplicate keys.
+# Value parsing is delegated to PyYAML so block-style lists, multi-line
+# values, and blank lines inside blocks are handled correctly.
+_FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
+
+
+def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
+    """Parse frontmatter into a key -> value mapping.
+
+    Delegates to :func:`yaml.safe_load` so block-style lists, multi-line
+    values, and blank lines inside block values are parsed the same way the
+    real ADR tooling and CI parse them. Returns ``None`` on malformed input or
+    a non-mapping document so callers can fail closed (still trip the gate).
+    """
+    try:
+        loaded = yaml.safe_load(frontmatter)
+    except yaml.YAMLError:
+        return None
+    if loaded is None:
+        return {}
+    if not isinstance(loaded, dict):
+        return None
+    return loaded
+
+
+def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
+    """True when a top-level frontmatter key appears more than once.
+
+    Duplicate keys are malformed YAML and can hide a governance change (a
+    second ``status:`` line masking the first). PyYAML resolves duplicates
+    last-wins without error, so this explicit check lets the exemption fail
+    closed on them and the adr-review gate still fires.
+    """
+    seen: set[str] = set()
+    for line in frontmatter.splitlines():
+        if line and (line[0] == " " or line[0] == "\t"):
+            continue
+        match = _FRONTMATTER_FIELD_RE.match(line)
+        if match:
+            key = match.group(1)
+            if key in seen:
+                return True
+            seen.add(key)
+    return False
+
+
+def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str) -> bool:
+    """True when every frontmatter key that changed is a non-decision field.
+
+    Compares parsed field maps. A key that was added, removed, or whose value
+    changed counts as "changed". The change is exempt only when all such keys
+    are in :data:`_NON_DECISION_FRONTMATTER_KEYS`; any governance key change
+    (for example ``status: proposed`` -> ``accepted``) makes this False so the
+    adr-review gate still fires (ADR-073).
+
+    Fails closed when either side has a duplicate top-level key or malformed
+    frontmatter: a duplicated or unparseable governance key could otherwise
+    mask a status change.
+    """
+    if _has_duplicate_top_level_keys(old_frontmatter) or _has_duplicate_top_level_keys(
+        new_frontmatter
+    ):
+        return False
+    old_fields = _parse_frontmatter(old_frontmatter)
+    new_fields = _parse_frontmatter(new_frontmatter)
+    if old_fields is None or new_fields is None:
+        return False
+    changed_keys = {
+        key
+        for key in old_fields.keys() | new_fields.keys()
+        if old_fields.get(key) != new_fields.get(key)
+    }
+    if not changed_keys:
+        return True
+    return changed_keys <= _NON_DECISION_FRONTMATTER_KEYS
+
+
+def _split_frontmatter(content: str) -> tuple[str, str]:
+    """Split content into (frontmatter, body).
+
+    Frontmatter is the YAML block delimited by a leading ``---`` line and a
+    closing ``---`` line at the very start of the file. Returns
+    ``("", content)`` when no complete frontmatter block is present.
+    """
+    lines = content.splitlines(keepends=True)
+    if not lines or lines[0].strip() != FRONTMATTER_DELIM:
+        return "", content
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == FRONTMATTER_DELIM:
+            frontmatter = "".join(lines[1:idx])
+            body = "".join(lines[idx + 1 :])
+            return frontmatter, body
+    return "", content
+
+
+def _is_frontmatter_only_change(
+    file_path: str, since_commit: str, base_path: Path
+) -> bool:
+    """Return True when a modified ADR changed only non-decision frontmatter.
+
+    Compares the file body (content after the YAML frontmatter block) at
+    ``since_commit`` against the current working-tree body, and requires every
+    changed frontmatter key to be a non-decision field
+    (:data:`_NON_DECISION_FRONTMATTER_KEYS`, currently the ADR-073
+    ``implemented`` flag). Such a change is a metadata sync with no decision
+    content and must not trigger the adr-review reminder (#2845).
+
+    A change that touches the body, adds or removes the frontmatter block, or
+    alters a governance frontmatter key (``status``, ``supersedes``,
+    ``superseded-by``) is treated as substantive (returns False), so a hand-edit
+    to ``status: accepted`` still trips the gate (ADR-073).
+    """
+    show = _run_git(["show", f"{since_commit}:{file_path}"], cwd=base_path)
+    if show.returncode != 0:
+        return False
+    try:
+        resolved_base = base_path.resolve()
+        resolved_path = (resolved_base / file_path).resolve()
+        if not resolved_path.is_relative_to(resolved_base):
+            return False
+        new_content = resolved_path.read_text(encoding="utf-8")
+    except (OSError, RuntimeError, ValueError):
+        return False
+    old_frontmatter, old_body = _split_frontmatter(show.stdout)
+    new_frontmatter, new_body = _split_frontmatter(new_content)
+    if not old_frontmatter or not new_frontmatter:
+        return False
+    if old_body != new_body:
+        return False
+    return _only_non_decision_fields_changed(old_frontmatter, new_frontmatter)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -172,13 +318,21 @@ def main(argv: list[str] | None = None) -> int:
                         created.append(line)
 
         created = sorted(set(created))
-        modified = sorted(set(modified))
         deleted = sorted(set(deleted))
 
+        # Partition modified ADRs: frontmatter-only edits (for example an
+        # ADR-073 lifecycle-flag flip) are metadata syncs with no decision
+        # content and must not trigger the adr-review reminder (#2845).
+        substantive_modified: list[str] = []
+        frontmatter_only_modified: list[str] = []
+        for file_path in sorted(set(modified)):
+            if _is_frontmatter_only_change(file_path, args.since_commit, base_path):
+                frontmatter_only_modified.append(file_path)
+            else:
+                substantive_modified.append(file_path)
+
         recommended_action = "none"
-        if created:
-            recommended_action = "review"
-        elif modified:
+        if created or substantive_modified:
             recommended_action = "review"
         elif deleted:
             recommended_action = "archive"
@@ -196,10 +350,13 @@ def main(argv: list[str] | None = None) -> int:
 
         result_obj = {
             "Created": created,
-            "Modified": modified,
+            "Modified": substantive_modified,
+            "ModifiedFrontmatterOnly": frontmatter_only_modified,
             "Deleted": deleted,
             "DeletedDetails": deleted_details,
-            "HasChanges": len(created) + len(modified) + len(deleted) > 0,
+            # Frontmatter-only metadata edits are reported separately and do not
+            # count as actionable ADR changes for adr-review triggering.
+            "HasChanges": len(created) + len(substantive_modified) + len(deleted) > 0,
             "RecommendedAction": recommended_action,
             "Timestamp": datetime.now(UTC).isoformat(),
             "SinceCommit": args.since_commit,

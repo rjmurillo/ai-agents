@@ -8331,6 +8331,186 @@
         "episode-2026-06-30-session-2600-skill-tooling-hygiene-taste-lints-naming"
       ],
       "created": "2026-06-30T16:56:20.064285+00:00"
+    },
+    {
+      "id": "910da7b3cdf1",
+      "type": "milestone",
+      "label": "milestone: Read issue #2821 and its discourse; owner has not picked an option, so implemented the recommended option c (additive visibility, keeps the deliberate WARN policy intact) as a draft PR for the owner to accept or reject",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373258+00:00"
+    },
+    {
+      "id": "eac5b587de3f",
+      "type": "milestone",
+      "label": "milestone: aggregate_quality_verdicts.py: emit ::warning annotation and a security_review_ran output when the security axis category is INFRASTRUCTURE, including the no-verdicts CRITICAL_FAIL branch",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373319+00:00"
+    },
+    {
+      "id": "a9c342770ad5",
+      "type": "milestone",
+      "label": "milestone: generate_quality_report.py: render a distinct CAUTION block under the final verdict when the security axis hit an infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373356+00:00"
+    },
+    {
+      "id": "f5ec7a6f06ee",
+      "type": "milestone",
+      "label": "milestone: Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373391+00:00"
+    },
+    {
+      "id": "57d6b6d72657",
+      "type": "test",
+      "label": "test: Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373426+00:00"
+    },
+    {
+      "id": "b93aa9153be7",
+      "type": "commit",
+      "label": "commit: Commit: e5392ba",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373459+00:00"
+    },
+    {
+      "id": "8f0d460f7184",
+      "type": "outcome",
+      "label": "Outcome: success - Implement issue 2821 option c: distinct security-review-did-not-run annotation in the AI quality gate",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373493+00:00"
+    },
+    {
+      "id": "47c59b451992",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree for PR #2853 branch fix/retire-count-claim-2842.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872526+00:00"
+    },
+    {
+      "id": "7bd124c68f5d",
+      "type": "milestone",
+      "label": "milestone: Verified zero unresolved review threads for PR #2853.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872714+00:00"
+    },
+    {
+      "id": "19e0514a20ce",
+      "type": "milestone",
+      "label": "milestone: Rebased branch onto origin/main and set both plugin manifests to 0.5.256.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872874+00:00"
+    },
+    {
+      "id": "27c6f4798199",
+      "type": "milestone",
+      "label": "milestone: Updated PR body to include Fixes #2842 and satisfy template sections without dash bytes.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873029+00:00"
+    },
+    {
+      "id": "1b1d8f9c73f4",
+      "type": "commit",
+      "label": "commit: Commit: a431df67c",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873181+00:00"
+    },
+    {
+      "id": "b6b5edd9c3ad",
+      "type": "milestone",
+      "label": "milestone: Fixed orphan-ref-validator type errors that blocked pre-push mypy.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873332+00:00"
+    },
+    {
+      "id": "a6a70ee894cb",
+      "type": "commit",
+      "label": "commit: Commit: ffec1840c",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873521+00:00"
+    },
+    {
+      "id": "d2cfdf687179",
+      "type": "commit",
+      "label": "commit: Commit: 55a536382",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873670+00:00"
+    },
+    {
+      "id": "f70e3924aa77",
+      "type": "milestone",
+      "label": "milestone: Fixed Copilot review: restored timezone.utc for Python 3.10 compatibility and suppressed UP017 at the two timestamp call sites.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873836+00:00"
+    },
+    {
+      "id": "5701699deae9",
+      "type": "commit",
+      "label": "commit: Commit: 19a1bac5b",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873995+00:00"
+    },
+    {
+      "id": "04fd4f042f5e",
+      "type": "milestone",
+      "label": "milestone: Committed Python 3.10 timezone fix and rebumped plugin manifests to 0.5.257.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874143+00:00"
+    },
+    {
+      "id": "bad540fb502e",
+      "type": "commit",
+      "label": "commit: Commit: fd55e44b6",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874285+00:00"
+    },
+    {
+      "id": "503d0d850bc1",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR 2853 to merge",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874436+00:00"
     }
   ],
   "patterns": [
@@ -8380,7 +8560,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 43,
+      "occurrences": 44,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -8389,7 +8569,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 86,
+      "occurrences": 88,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -8398,7 +8578,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 172,
+      "occurrences": 176,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -8407,7 +8587,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 258,
+      "occurrences": 264,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -8417,7 +8597,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -8425,7 +8605,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -8433,7 +8613,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -8441,7 +8621,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -8449,7 +8629,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -8457,7 +8637,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -8465,7 +8645,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -8473,7 +8653,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -8481,7 +8661,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -8489,7 +8669,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -8497,7 +8677,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -8505,7 +8685,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -8513,7 +8693,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -8521,7 +8701,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -8529,7 +8709,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -8537,7 +8717,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -8545,7 +8725,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -8553,7 +8733,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -8561,7 +8741,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -8569,7 +8749,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -8577,7 +8757,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -8585,7 +8765,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -8593,7 +8773,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -8601,7 +8781,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -8609,7 +8789,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -8617,7 +8797,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -8625,7 +8805,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -8633,7 +8813,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -8641,7 +8821,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -8649,7 +8829,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -8657,7 +8837,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -8665,7 +8845,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -8673,7 +8853,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -8681,7 +8861,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -8689,7 +8869,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -8697,7 +8877,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -8705,7 +8885,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -8713,7 +8893,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -8721,7 +8901,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -8729,7 +8909,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 43,
+      "evidence_count": 44,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
