@@ -131,7 +131,7 @@
       "entry": "PR #2817 opened (draft). CI feedback handled: markdown session log removed (JSON-only), PR description rewritten to match diff. Filed #2818 for AI-review infra-failure red-check noise. Auto-retro committed. Remediation workflow for #2806-#2816 launched."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "294906cd98",
   "nextSteps": [
     "Per-issue remediation campaign: one PR per issue for #2806-#2816 (user-directed follow-up)."
   ]
