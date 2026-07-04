@@ -32,8 +32,8 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 |----------------|-----------|
 | `review this ADR` | Full 6-agent debate on specified ADR |
 | `validate ADR-005` | Targeted review of specific ADR by number |
-| `check architecture decision` | ADR review with debate protocol |
 | `review this decision record` | ADR review for durable architecture/design decision records |
+| `delete ADR-NNN` | Deletion review with dependency and supersession checks |
 | `ADR file created, modified, or deleted` | Auto-triggered via detect_adr_changes.py |
 
 ---
@@ -65,7 +65,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `ADR-*.md` | `architecture/decisions/` | create, update, delete |
 | `SESSION-PROTOCOL.md` | `.agents/` | create, update, delete |
 
-**Detection**: `.claude/skills/adr-review/scripts/detect_adr_changes.py`
+**Detection**: `scripts/detect_adr_changes.py`
 
 ## When to Use
 
@@ -184,13 +184,13 @@ After structural and technical review, apply strategic lenses:
 
 ```bash
 # Basic detection
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
+python3 scripts/detect_adr_changes.py
 
 # Compare to specific commit
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit abc123
+python3 scripts/detect_adr_changes.py --since-commit abc123
 
 # Include untracked ADR files
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+python3 scripts/detect_adr_changes.py --include-untracked
 ```
 
 ## Verification Checklist
@@ -198,7 +198,7 @@ python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untrac
 Before marking complete, run the bundled detector to check for pending ADR changes:
 
 ```bash
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+python3 scripts/detect_adr_changes.py --include-untracked
 echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 ```
 

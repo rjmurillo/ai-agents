@@ -21,7 +21,7 @@ Create well-structured Architectural Decision Records that document technical de
 | Trigger Phrase | Operation |
 |----------------|-----------|
 | `create an ADR` | Full ADR generation workflow |
-| `write an architecture decision record` | Full ADR generation workflow |
+| `generate ADR for` | Full ADR generation workflow |
 | `new ADR for` | Targeted ADR for a specific decision |
 | `document this architecture decision` | Full ADR generation workflow |
 | `document these design choices` | Capture rationale for durable architecture or design decisions |
