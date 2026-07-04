@@ -30,7 +30,7 @@ flowchart TD
         VP[validate-paths.yml]
         VPA[validate-planning-artifacts.yml]
         VPV[validate-plugin-version-bump.yml]
-        PT[pester-tests.yml]
+        PT[pytest.yml]
         CQ[codeql-analysis.yml]
     end
 
@@ -80,7 +80,7 @@ flowchart TD
 
 > **IMPORTANT**: When creating a new AI-powered workflow with concurrency control, you MUST:
 >
-> 1. Add the workflow name to `.github/scripts/Measure-WorkflowCoalescing.ps1` (line 47, `$Workflows` parameter)
+> 1. Add the workflow name to `.github/scripts/measure_workflow_coalescing.py` (the `DEFAULT_WORKFLOWS` list)
 > 2. Follow concurrency group naming pattern: `{prefix}-${{ github.event.pull_request.number || inputs.pr_number }}` (include `inputs.pr_number` for `workflow_dispatch` runs)
 > 3. Document the workflow in this file
 >
@@ -229,7 +229,7 @@ gh workflow run ai-pr-quality-gate.yml \
 - Specific PRs with rapid commit patterns
 - High-value PRs where duplicate runs are costly
 
-**Monitoring**: Use `Measure-WorkflowCoalescing.ps1` to track effectiveness before/after enabling debouncing.
+**Monitoring**: Use `measure_workflow_coalescing.py` to track effectiveness before/after enabling debouncing.
 
 ---
 
@@ -242,7 +242,7 @@ gh workflow run ai-pr-quality-gate.yml \
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | Weekly (Monday 9 AM UTC), manual |
-| **Script** | `build/scripts/Detect-AgentDrift.ps1` |
+| **Script** | `build/scripts/detect_agent_drift.py` |
 | **Output** | GitHub issue if drift detected |
 | **Threshold** | 80% similarity |
 
@@ -252,7 +252,7 @@ gh workflow run ai-pr-quality-gate.yml \
 sequenceDiagram
     participant Schedule
     participant Workflow
-    participant Script as Detect-AgentDrift.ps1
+    participant Script as detect_agent_drift.py
     participant GitHub
 
     Schedule->>Workflow: Cron trigger
@@ -275,7 +275,7 @@ sequenceDiagram
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `templates/**` or `src/**` |
-| **Script** | `build/Generate-Agents.ps1 -Validate` |
+| **Script** | `python3 build/generate_agents.py --validate` |
 | **Output** | Pass/fail status |
 | **Exit Behavior** | Fails if generated files don't match |
 
@@ -288,7 +288,7 @@ sequenceDiagram
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `**/*.md` |
-| **Script** | `build/scripts/Validate-PathNormalization.ps1` |
+| **Script** | `build/scripts/validate_path_normalization.py` |
 | **Output** | Pass/fail status |
 | **Forbidden** | Absolute paths (`C:\`, `/Users/`, `/home/`) |
 
@@ -301,7 +301,7 @@ sequenceDiagram
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `.agents/planning/**` |
-| **Script** | `build/scripts/Validate-PlanningArtifacts.ps1` |
+| **Script** | `build/scripts/validate_planning_artifacts.py` |
 | **Output** | Consistency report |
 | **Checks** | Effort estimates, orphan conditions, coverage |
 
@@ -320,14 +320,14 @@ sequenceDiagram
 
 ---
 
-### pester-tests.yml
+### pytest.yml
 
-**Role**: PowerShell unit test runner
+**Role**: Python unit test runner (pytest)
 
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `scripts/**` or `build/**` |
-| **Script** | `build/scripts/Invoke-PesterTests.ps1 -CI` |
+| **Script** | `uv run pytest` |
 | **Output** | Test results XML, pass/fail status |
 | **Coverage** | Installation, sync, validation scripts |
 
@@ -489,7 +489,7 @@ sequenceDiagram
 | ai-pr-quality-gate | All agents fail | Post error summary, don't block |
 | drift-detection | Detection error | Exit 2, no issue created |
 | validate-* | Script failure | Fail workflow, block merge |
-| pester-tests | Test failure | Report details, fail workflow |
+| pytest | Test failure | Report details, fail workflow |
 
 ## Security Considerations
 
@@ -614,19 +614,19 @@ The repository implements several strategies to reduce the impact of race condit
 
 The repository includes automated monitoring of workflow run coalescing effectiveness:
 
-**Script**: `.github/scripts/Measure-WorkflowCoalescing.ps1`
+**Script**: `.github/scripts/measure_workflow_coalescing.py`
 
 **Usage**:
 
 ```bash
 # Analyze last 30 days
-pwsh .github/scripts/Measure-WorkflowCoalescing.ps1
+python3 .github/scripts/measure_workflow_coalescing.py
 
 # Analyze last 90 days with JSON output
-pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Since 90 -Output Json
+python3 .github/scripts/measure_workflow_coalescing.py --since 90 --output json
 
 # Analyze specific workflows
-pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Workflows @('ai-pr-quality-gate', 'ai-spec-validation')
+python3 .github/scripts/measure_workflow_coalescing.py --workflows ai-pr-quality-gate --workflows ai-spec-validation
 ```
 
 **Metrics Collected**:
@@ -648,7 +648,7 @@ pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Workflows @('ai-pr-quality-
 | ai-issue-triage | Labels applied | No labels or error |
 | drift-detection | No issue created | New drift alert issue |
 | validate-* | Green check | Red X on PR |
-| pester-tests | All tests pass | Test failures reported |
+| pytest | All tests pass | Test failures reported |
 
 ## Related Documentation
 
