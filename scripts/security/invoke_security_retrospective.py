@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-# mypy: disable-error-code=type-arg
-# mypy: disable-error-code=no-any-return
-# mypy: disable-error-code=arg-type
-# mypy: disable-error-code=assignment
-# mypy: disable-error-code=return-value
-# mypy: disable-error-code=var-annotated
-# mypy: disable-error-code=operator
-# mypy: disable-error-code=union-attr
 """
 Security Retrospective Script
 
@@ -44,8 +36,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SUBPROCESS_TIMEOUT_SECONDS = 60
-
 
 class ExternalReviewSource(Enum):
     """Source of external security review."""
@@ -67,10 +57,6 @@ class FalseNegative:
     external_reviewer: str
     remediation: str
     pr_number: int
-
-
-class ExternalReviewFetchError(Exception):
-    """External review comments could not be fetched or parsed."""
 
 
 class SecurityRetrospective:
@@ -119,11 +105,7 @@ class SecurityRetrospective:
             )
 
         # Step 2: Fetch external review comments
-        try:
-            external_findings = self._fetch_external_review_comments()
-        except ExternalReviewFetchError as exc:
-            logger.error("[FAIL] Could not fetch external review comments: %s", exc)
-            return 1
+        external_findings = self._fetch_external_review_comments()
         if not external_findings:
             logger.info(
                 "No external review found for PR #%d. This is expected for PRs "
@@ -147,8 +129,8 @@ class SecurityRetrospective:
             len(self.false_negatives),
         )
 
-        # Step 4: Store in memory systems
-        forgetful_success = self._store_in_forgetful()
+        # Step 4: Store in memory systems (Forgetful is best-effort, Serena blocks)
+        self._store_in_forgetful()
         serena_success = self._store_in_serena()
 
         # Serena is BLOCKING per plan requirements
@@ -183,7 +165,7 @@ class SecurityRetrospective:
 
     def _load_security_reports(self) -> list[dict[str, Any]]:
         """Load security reports from .agents/security/SR-*.md files."""
-        reports = []
+        reports: list[dict[str, object]] = []
         security_dir = self.repo_root / ".agents" / "security"
 
         if not security_dir.exists():
@@ -210,7 +192,7 @@ class SecurityRetrospective:
         owner_repo = self._get_owner_repo()
         if not owner_repo:
             logger.error("[FAIL] Could not determine repository owner/repo")
-            raise ExternalReviewFetchError("could not determine repository owner/repo")
+            return []
 
         try:
             # Use gh CLI to fetch PR comments
@@ -222,9 +204,9 @@ class SecurityRetrospective:
                     "--paginate",
                 ],
                 capture_output=True,
-                text=True,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                encoding="utf-8", errors="replace",
                 check=False,
+                timeout=120,
             )
 
             if result.returncode != 0:
@@ -238,7 +220,7 @@ class SecurityRetrospective:
                         "Failed to fetch PR comments: %s",
                         result.stderr,
                     )
-                raise ExternalReviewFetchError(result.stderr or result.stdout)
+                return []
 
             comments = json.loads(result.stdout) if result.stdout else []
 
@@ -257,10 +239,10 @@ class SecurityRetrospective:
 
         except json.JSONDecodeError as e:
             logger.error("[FAIL] Failed to parse GitHub API response: %s", e)
-            raise ExternalReviewFetchError(f"invalid JSON: {e}") from e
+            return []
         except subprocess.SubprocessError as e:
             logger.error("[FAIL] GitHub API call failed: %s", e)
-            raise ExternalReviewFetchError(str(e)) from e
+            return []
 
     def _is_security_comment(self, body: str) -> bool:
         """Determine if a comment is security-related."""
@@ -290,8 +272,7 @@ class SecurityRetrospective:
             result = subprocess.run(
                 ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
                 capture_output=True,
-                text=True,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                encoding="utf-8", errors="replace",
                 check=True,
             )
             return result.stdout.strip()
@@ -305,7 +286,7 @@ class SecurityRetrospective:
     ) -> None:
         """Compare agent findings with external review to identify misses."""
         # Extract CWE IDs from security reports
-        agent_cwes = set()
+        agent_cwes: set[str] = set()
         for report in security_reports:
             content = report.get("content", "")
             # Simple CWE extraction pattern

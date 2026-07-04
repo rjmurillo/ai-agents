@@ -12,9 +12,8 @@ import collections
 import json
 import logging
 import os
-import select
+import queue
 import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
@@ -25,6 +24,10 @@ _logger = logging.getLogger(__name__)
 FORGETFUL_DB_PATH = Path.home() / ".local" / "share" / "forgetful" / "forgetful.db"
 DEFAULT_TIMEOUT = 10.0
 MCP_COMMAND = ["uvx", "forgetful-ai"]
+
+# Sentinel enqueued by the stdout reader thread when the subprocess closes its
+# stdout (EOF) or the read fails. Distinguishes a real close from a read timeout.
+_STDOUT_EOF = object()
 
 
 class McpError(Exception):
@@ -52,12 +55,19 @@ class McpClient:
         self._timeout = timeout
         self._request_id = 0
         self._stderr_lines: collections.deque[str] = collections.deque(maxlen=100)
-        self._read_deadline: float | None = None
-        self._broken = False
         self._stderr_thread = threading.Thread(
             target=self._drain_stderr, daemon=True
         )
         self._stderr_thread.start()
+        # Blocking os.read runs on a daemon thread that feeds this queue, so the
+        # reader is decoupled from the deadline check. This gives every platform
+        # (including Windows, where select on a pipe fd is unavailable) a real
+        # read timeout via queue.Queue.get(timeout=...).
+        self._read_queue: queue.Queue[Any] = queue.Queue()
+        self._stdout_thread = threading.Thread(
+            target=self._drain_stdout, daemon=True
+        )
+        self._stdout_thread.start()
 
     @classmethod
     def create(
@@ -163,11 +173,6 @@ class McpClient:
 
     def _send_request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Send a JSON-RPC request and read the response."""
-        if self._broken:
-            raise McpError(
-                "MCP connection is unusable after a prior read failure; "
-                "reuse is refused to avoid a desynchronized byte stream"
-            )
         request_id = self._next_id()
         message = {
             "jsonrpc": "2.0",
@@ -203,111 +208,94 @@ class McpClient:
     def _read_response(self, expected_id: int) -> dict[str, Any]:
         """Read a JSON-RPC response matching the expected ID.
 
-        Uses os.read on the raw file descriptor with select for timeouts.
-        This avoids the buffered I/O + select incompatibility where
-        BufferedReader consumes data from the fd into its internal buffer,
-        making subsequent select calls miss available data.
+        Bytes arrive from a daemon reader thread via ``self._read_queue`` (the
+        thread does the blocking ``os.read`` on the raw fd, avoiding the buffered
+        I/O incompatibility where a BufferedReader pulls data into its internal
+        buffer). A single overall deadline of ``self._timeout`` seconds bounds
+        the entire wait for this response, so streaming notifications or a stream
+        of id-mismatched responses cannot loop forever.
         """
-        stdout = self._process.stdout
-        if stdout is None:
-            raise McpError("Process stdout is not available")
-        fd = stdout.fileno()
-        self._read_deadline = time.monotonic() + self._timeout
+        deadline = time.monotonic() + self._timeout
 
-        try:
-            buf = b""
-            while True:
+        buf = b""
+        while True:
+            header_end = buf.find(b"\r\n\r\n")
+            while header_end == -1:
+                buf += self._read_bytes(deadline - time.monotonic())
                 header_end = buf.find(b"\r\n\r\n")
-                while header_end == -1:
-                    buf += self._read_bytes(fd)
-                    header_end = buf.find(b"\r\n\r\n")
 
-                header = buf[:header_end + 4].decode("utf-8")
-                content_length = self._parse_content_length(header)
-                body_start = header_end + 4
+            header = buf[:header_end + 4].decode("utf-8")
+            content_length = self._parse_content_length(header)
+            body_start = header_end + 4
 
-                while len(buf) - body_start < content_length:
-                    buf += self._read_bytes(fd)
+            while len(buf) - body_start < content_length:
+                buf += self._read_bytes(deadline - time.monotonic())
 
-                body = buf[body_start:body_start + content_length]
-                buf = buf[body_start + content_length:]
+            body = buf[body_start:body_start + content_length]
+            buf = buf[body_start + content_length:]
 
-                response: dict[str, Any] = json.loads(body.decode("utf-8"))
+            response: dict[str, Any] = json.loads(body.decode("utf-8"))
 
-                if "id" not in response:
-                    _logger.debug("Skipping notification: %s", response.get("method"))
-                    continue
+            if "id" not in response:
+                _logger.debug("Skipping notification: %s", response.get("method"))
+                continue
 
-                if response["id"] != expected_id:
-                    _logger.warning(
-                        "Unexpected response id %s, expected %s",
-                        response["id"],
-                        expected_id,
-                    )
-                    continue
-
-                return response
-        except Exception:
-            # Any read failure (timeout, closed stdout, protocol/JSON desync)
-            # leaves the byte stream in an unknown state. On Windows the timed-out
-            # daemon reader in _read_via_thread is still blocked on this fd and
-            # would steal bytes from the next response. Tear down the subprocess
-            # (which unblocks that reader via EOF) and refuse further requests.
-            self._broken = True
-            self.close()
-            raise
-        finally:
-            self._read_deadline = None
-
-    def _read_bytes(self, fd: int) -> bytes:
-        """Read available bytes from fd with timeout."""
-        if self._read_deadline is not None and time.monotonic() >= self._read_deadline:
-            raise McpError(f"Timeout waiting for response (>{self._timeout}s)")
-
-        timeout = self._timeout
-        if self._read_deadline is not None:
-            timeout = max(0.0, self._read_deadline - time.monotonic())
-
-        if sys.platform == "win32":
-            chunk = self._read_via_thread(fd, timeout, self._timeout)
-        else:
-            ready, _, _ = select.select([fd], [], [], timeout)
-            if not ready:
-                raise McpError(
-                    f"Timeout waiting for response (>{self._timeout}s)"
+            if response["id"] != expected_id:
+                _logger.warning(
+                    "Unexpected response id %s, expected %s",
+                    response["id"],
+                    expected_id,
                 )
-            chunk = os.read(fd, 4096)
-        if not chunk:
+                continue
+
+            return response
+
+    def _read_bytes(self, remaining: float) -> bytes:
+        """Return the next chunk from the reader thread within ``remaining`` seconds.
+
+        Raises McpError if the overall deadline has passed (``remaining`` <= 0),
+        if no chunk arrives before ``remaining`` elapses, or if the subprocess
+        closed its stdout (EOF sentinel).
+        """
+        if remaining <= 0:
+            raise McpError(f"Timeout waiting for response (>{self._timeout}s)")
+        try:
+            chunk = self._read_queue.get(timeout=remaining)
+        except queue.Empty:
+            raise McpError(
+                f"Timeout waiting for response (>{self._timeout}s)"
+            ) from None
+        if not isinstance(chunk, bytes):
+            # The _STDOUT_EOF sentinel (or any non-bytes marker) means the
+            # reader thread saw stdout close or fail.
             stderr_tail = list(self._stderr_lines)[-10:]
             if stderr_tail:
                 _logger.debug("MCP server stderr: %s", "\n".join(stderr_tail))
             raise McpError("MCP server closed stdout unexpectedly")
         return chunk
 
-    @staticmethod
-    def _read_via_thread(fd: int, timeout: float, total_timeout: float) -> bytes:
-        """Read bytes in a daemon thread so Windows reads can time out."""
-        holder: dict[str, bytes] = {}
-        errors: list[OSError] = []
+    def _drain_stdout(self) -> None:
+        """Read stdout on a background thread, feeding chunks to the read queue.
 
-        def _reader() -> None:
-            try:
-                holder["chunk"] = os.read(fd, 4096)
-            except OSError as exc:
-                errors.append(exc)
-
-        thread = threading.Thread(target=_reader, daemon=True)
-        thread.start()
-        thread.join(timeout)
-        if thread.is_alive():
-            try:
-                os.close(fd)
-            except OSError:
-                pass
-            raise McpError(f"Timeout waiting for response (>{total_timeout}s)")
-        if errors:
-            raise McpError(f"Failed to read from MCP server: {errors[0]}")
-        return holder.get("chunk", b"")  # Defensive; the reader always sets this.
+        Runs blocking ``os.read`` on the raw fd so the deadline logic in
+        ``_read_response`` never blocks on the pipe. On EOF or read error, an
+        ``_STDOUT_EOF`` sentinel is enqueued so a waiting reader unblocks.
+        """
+        stdout = self._process.stdout
+        if stdout is None:
+            self._read_queue.put(_STDOUT_EOF)
+            return
+        try:
+            fd = stdout.fileno()
+            while True:
+                chunk = os.read(fd, 4096)
+                if not chunk:
+                    break
+                self._read_queue.put(chunk)
+        except (OSError, ValueError):
+            pass
+        finally:
+            self._read_queue.put(_STDOUT_EOF)
 
     @staticmethod
     def _parse_content_length(header: str) -> int:
@@ -328,12 +316,7 @@ class McpClient:
         if stderr is None:
             return
         try:
-            while True:
-                line = stderr.readline()
-                if not line:
-                    break
-                if not isinstance(line, bytes):
-                    break
+            for line in iter(stderr.readline, b""):
                 decoded = line.decode("utf-8", errors="replace").rstrip()
                 self._stderr_lines.append(decoded)
                 _logger.debug("MCP stderr: %s", decoded)

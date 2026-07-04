@@ -39,14 +39,27 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
 )
-GH_TIMEOUT_SECONDS = 15
-
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
     write_skill_error,
     write_skill_output,
 )
+
+
+def _env_timeout_seconds(default: int = 30) -> int:
+    """Parse GH_TIMEOUT_SECONDS, falling back to the default on a bad value.
+
+    The override is documented; a misconfigured value must not crash the
+    script at import time.
+    """
+    try:
+        return int(os.environ.get("GH_TIMEOUT_SECONDS", str(default)))
+    except ValueError:
+        return default
+
+
+GH_TIMEOUT_SECONDS = _env_timeout_seconds()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -77,15 +90,16 @@ def main(argv: list[str] | None = None) -> int:
                 "--json", fields,
             ],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
     except subprocess.TimeoutExpired as err:
         write_skill_error(
-            f"Timed out fetching issue #{args.issue} after {GH_TIMEOUT_SECONDS}s",
+            f"gh issue view timed out after {GH_TIMEOUT_SECONDS}s",
             3,
-            error_type="Timeout",
+            error_type="ApiError",
             output_format=fmt,
             script_name="get_issue_context.py",
         )

@@ -22,26 +22,42 @@ from pathlib import Path
 from scripts.github_core.repo import get_repo_root
 from scripts.github_core.worktree_identity import reset_worktree_identity
 
-SUBPROCESS_TIMEOUT_SECONDS = 60
+
+def run_git(
+    *args: str, cwd: str | Path | None = None, timeout: int = 30
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            encoding="utf-8", errors="replace",
+            cwd=cwd,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=['git', *args],
+            returncode=124,
+            stdout="",
+            stderr=f"git command timed out after {timeout}s",
+        )
 
 
-def run_git(*args: str, cwd: str | Path | None = None, timeout: int = SUBPROCESS_TIMEOUT_SECONDS) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-        timeout=timeout,
-    )
-
-
-def run_gh(*args: str, timeout: int = SUBPROCESS_TIMEOUT_SECONDS) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["gh", *args],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+def run_gh(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["gh", *args],
+            capture_output=True,
+            encoding="utf-8", errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=['gh', *args],
+            returncode=124,
+            stdout="",
+            stderr=f"gh command timed out after {timeout}s",
+        )
 
 
 def get_pr_branch(pr_number: int) -> str | None:
@@ -227,49 +243,42 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    try:
-        if not args.worktree_root:
-            repo_root = get_repo_root()
-            if repo_root is None:
-                print("ERROR: Not in a git repository", file=sys.stderr)
-                return 1
-            args.worktree_root = repo_root.parent
+    if not args.worktree_root:
+        repo_root = get_repo_root()
+        if repo_root is None:
+            print("ERROR: Not in a git repository", file=sys.stderr)
+            return 1
+        args.worktree_root = repo_root.parent
 
-        op = args.operation
+    op = args.operation
 
-        if op in ("setup", "all"):
-            pr_list = ", ".join(str(p) for p in args.pr_numbers)
-            print(f"\n=== Setting up worktrees for PRs: {pr_list} ===")
-            for pr in args.pr_numbers:
-                create_worktree(pr, args.worktree_root, operator=args.operator_identity)
+    if op in ("setup", "all"):
+        pr_list = ", ".join(str(p) for p in args.pr_numbers)
+        print(f"\n=== Setting up worktrees for PRs: {pr_list} ===")
+        for pr in args.pr_numbers:
+            create_worktree(pr, args.worktree_root, operator=args.operator_identity)
 
-        if op in ("status", "all"):
-            print("\n=== Worktree Status ===")
-            statuses = [get_worktree_status(pr, args.worktree_root) for pr in args.pr_numbers]
-            print_status_table(statuses)
+    if op in ("status", "all"):
+        print("\n=== Worktree Status ===")
+        statuses = [get_worktree_status(pr, args.worktree_root) for pr in args.pr_numbers]
+        print_status_table(statuses)
 
-        if op == "cleanup":
-            print("\n=== Cleaning up worktrees ===")
-            for pr in args.pr_numbers:
-                push_worktree_changes(pr, args.worktree_root)
-            for pr in args.pr_numbers:
-                remove_worktree(pr, args.worktree_root, force=args.force)
-            print("\n=== Remaining worktrees ===")
-            result = run_git("worktree", "list")
-            if result.stdout:
-                print(result.stdout)
+    if op == "cleanup":
+        print("\n=== Cleaning up worktrees ===")
+        for pr in args.pr_numbers:
+            push_worktree_changes(pr, args.worktree_root)
+        for pr in args.pr_numbers:
+            remove_worktree(pr, args.worktree_root, force=args.force)
+        print("\n=== Remaining worktrees ===")
+        result = run_git("worktree", "list")
+        if result.stdout:
+            print(result.stdout)
 
-        if op == "all":
-            print("\n=== Ready for parallel PR review ===")
-            print(f"Worktrees created at: {args.worktree_root}")
+    if op == "all":
+        print("\n=== Ready for parallel PR review ===")
+        print(f"Worktrees created at: {args.worktree_root}")
 
-        return 0
-    except subprocess.TimeoutExpired as exc:
-        print(
-            f"ERROR: git/gh subprocess timed out after {exc.timeout}s",
-            file=sys.stderr,
-        )
-        return 3
+    return 0
 
 
 if __name__ == "__main__":

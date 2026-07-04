@@ -32,8 +32,6 @@ if TYPE_CHECKING:
 
 # Patterns that indicate deferred work in PR comments.
 # Order: most specific first to reduce false positives.
-SUBPROCESS_TIMEOUT_SECONDS = 60
-
 HOMEWORK_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"deferred\s+to\s+follow[- ]?up", re.IGNORECASE),
     re.compile(r"future\s+improvement", re.IGNORECASE),
@@ -239,14 +237,14 @@ def create_issues(
                     "homework,enhancement",
                 ],
                 capture_output=True,
-                text=True,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                encoding="utf-8", errors="replace",
                 check=False,
                 shell=False,
+                timeout=60,
             )
-        except subprocess.TimeoutExpired as exc:
+        except subprocess.TimeoutExpired:
             created.append(
-                {"title": title, "error": f"timed out after {exc.timeout}s"}
+                {"title": title, "error": "gh issue create timed out after 60s"}
             )
             continue
         if result.returncode == 0:

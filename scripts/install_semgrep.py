@@ -31,8 +31,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SUBPROCESS_TIMEOUT_SECONDS = 120
-
 
 class SemgrepInstaller:
     """Handles semgrep installation across platforms."""
@@ -47,8 +45,7 @@ class SemgrepInstaller:
             result = subprocess.run(
                 ["semgrep", "--version"],
                 capture_output=True,
-                text=True,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                encoding="utf-8", errors="replace",
                 check=False,
             )
             if result.returncode == 0:
@@ -67,9 +64,9 @@ class SemgrepInstaller:
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", "semgrep"],
                 capture_output=True,
-                text=True,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                encoding="utf-8", errors="replace",
                 check=False,
+                timeout=300,
             )
 
             if result.returncode == 0:
@@ -79,10 +76,6 @@ class SemgrepInstaller:
             logger.error("Installation failed: %s", result.stderr)
             return False
 
-        except subprocess.TimeoutExpired:
-            # Surface timeouts as ADR-035 external errors (exit 3) via main(),
-            # rather than masking them as a generic install failure (exit 1).
-            raise
         except subprocess.SubprocessError as e:
             logger.error("Installation error: %s", e)
             return False
@@ -148,11 +141,7 @@ def main() -> int:
     args = parser.parse_args()
 
     installer = SemgrepInstaller(check_only=args.check)
-    try:
-        return installer.run()
-    except subprocess.TimeoutExpired as exc:
-        logger.error("Semgrep operation timed out after %ss", exc.timeout)
-        return 3
+    return installer.run()
 
 
 if __name__ == "__main__":

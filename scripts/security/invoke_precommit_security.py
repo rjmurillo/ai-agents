@@ -34,8 +34,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SUBPROCESS_TIMEOUT_SECONDS = 60
-
 
 @dataclass
 class SecurityFinding:
@@ -137,7 +135,6 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if remote_result.returncode != 0:
@@ -159,7 +156,6 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,  # Don't raise, check returncode explicitly
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if branch_result.returncode != 0:
@@ -177,9 +173,6 @@ class PreCommitSecurityCheck:
 
             return owner, repo, branch
 
-        except subprocess.TimeoutExpired as e:
-            logger.error("Git command timed out after %ss during context retrieval: %s", e.timeout, e.cmd)
-            return None
         except subprocess.SubprocessError as e:
             logger.error("Git command failed during context retrieval: %s", e)
             return None
@@ -196,19 +189,18 @@ class PreCommitSecurityCheck:
 
         owner, repo, branch = context
 
-        try:
-            # Check if gh CLI is available
-            gh_check = subprocess.run(
-                ["gh", "--version"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
-            )
-            if gh_check.returncode != 0:
-                logger.debug("gh CLI not available, skipping CodeQL alert fetch")
-                return []
+        # Check if gh CLI is available
+        gh_check = subprocess.run(
+            ["gh", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if gh_check.returncode != 0:
+            logger.debug("gh CLI not available, skipping CodeQL alert fetch")
+            return []
 
+        try:
             result = subprocess.run(
                 [
                     "gh",
@@ -231,7 +223,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=30,
             )
 
             if result.returncode != 0:
@@ -274,9 +266,6 @@ class PreCommitSecurityCheck:
                 e,
             )
             raise  # Fail hard on JSON decode errors
-        except subprocess.TimeoutExpired as e:
-            logger.warning("Timed out fetching CodeQL alerts after %ss: %s", e.timeout, e.cmd)
-            return []
         except subprocess.SubprocessError as e:
             logger.warning("Failed to fetch CodeQL alerts: %s", e)
             return []
@@ -368,7 +357,9 @@ class PreCommitSecurityCheck:
             # Step 6: Stage the security report
             if not self.dry_run:
                 if not self._stage_security_report(report_path):
-                    logger.error("[FAIL] Security report was generated but not staged")
+                    logger.error(
+                        "[FAIL] Failed to stage security report; commit blocked"
+                    )
                     return 1
 
         # Step 7: Verify security report exists
@@ -391,7 +382,6 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             files = result.stdout.strip().split("\n") if result.stdout.strip() else []
@@ -405,9 +395,6 @@ class PreCommitSecurityCheck:
 
             return ps_files
 
-        except subprocess.TimeoutExpired as e:
-            logger.error("[FAIL] Failed to get staged files before timeout after %ss: %s", e.timeout, e.cmd)
-            return []
         except subprocess.SubprocessError as e:
             logger.error("[FAIL] Failed to get staged files: %s", e)
             return []
@@ -438,7 +425,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=60,
             )
 
             if "PSScriptAnalyzer" in result.stdout:
@@ -456,13 +443,16 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=120,
             )
 
             return install_result.returncode == 0
 
-        except subprocess.TimeoutExpired as e:
-            logger.error("[FAIL] PSScriptAnalyzer setup timed out after %ss: %s", e.timeout, e.cmd)
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "PSScriptAnalyzer availability check timed out; "
+                "treating as unavailable"
+            )
             return False
         except FileNotFoundError:
             logger.error("[FAIL] PowerShell (pwsh) not found in PATH")
@@ -489,7 +479,6 @@ class PreCommitSecurityCheck:
                     capture_output=True,
                     text=True,
                     check=False,
-                    timeout=SUBPROCESS_TIMEOUT_SECONDS,
                 )
 
                 if result.returncode != 0 and result.stderr:
@@ -503,6 +492,7 @@ class PreCommitSecurityCheck:
                 if not result.stdout.strip() or result.stdout.strip() == "null":
                     continue
 
+                # Parse JSON output
                 try:
                     analyzer_findings = json.loads(result.stdout)
 
@@ -537,14 +527,6 @@ class PreCommitSecurityCheck:
                     )
                     failed_files.append(str(file_path))
 
-            except subprocess.TimeoutExpired as e:
-                logger.error(
-                    "[FAIL] PSScriptAnalyzer timed out after %ss for %s: %s",
-                    e.timeout,
-                    file_path.name,
-                    e.cmd,
-                )
-                failed_files.append(str(file_path))
             except subprocess.SubprocessError as e:
                 logger.error(
                     "[FAIL] PSScriptAnalyzer failed for %s: %s",
@@ -621,12 +603,8 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             branch = result.stdout.strip().replace("/", "-")
-        except subprocess.TimeoutExpired as e:
-            logger.warning("Timed out getting current branch for security report after %ss: %s", e.timeout, e.cmd)
-            branch = "unknown"
         except subprocess.SubprocessError:
             branch = "unknown"
 
@@ -762,13 +740,9 @@ class PreCommitSecurityCheck:
                 ["git", "add", str(report_path)],
                 check=True,
                 capture_output=True,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             logger.info("Staged security report: %s", report_path.name)
             return True
-        except subprocess.TimeoutExpired as e:
-            logger.warning("Timed out staging security report after %ss: %s", e.timeout, e.cmd)
-            return False
         except subprocess.SubprocessError as e:
             logger.warning("Failed to stage security report: %s", e)
             return False

@@ -19,8 +19,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from scripts.memory_sync.freshness import check_freshness
@@ -356,13 +358,39 @@ def _read_queue(project_root: Path) -> list[tuple[Path, SyncOperation]]:
 def _write_queue(
     project_root: Path, changes: list[tuple[Path, SyncOperation]]
 ) -> None:
-    """Write changes to the queue file."""
+    """Write changes to the queue file atomically.
+
+    Serialize to a temp file in the same directory, fsync, then ``os.replace``
+    onto the target so a crash mid-write cannot leave a truncated or corrupt
+    queue that ``_read_queue`` would silently drop.
+    """
     queue_path = project_root / QUEUE_FILE
     data = [
         {"path": str(path), "operation": op.value}
         for path, op in changes
     ]
-    queue_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    payload = json.dumps(data, indent=2) + "\n"
+    tmp_file = tempfile.NamedTemporaryFile(
+        dir=str(queue_path.parent),
+        prefix=f"{queue_path.name}.",
+        suffix=".tmp",
+        mode="w",
+        encoding="utf-8",
+        delete=False,
+    )
+    tmp_name = tmp_file.name
+    try:
+        with tmp_file:
+            tmp_file.write(payload)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        os.replace(tmp_name, queue_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _clear_queue(project_root: Path) -> None:

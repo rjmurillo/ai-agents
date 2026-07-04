@@ -3,17 +3,42 @@
 from __future__ import annotations
 
 import json
-import os
-import time
+import queue
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from scripts.memory_sync.mcp_client import (
+    _STDOUT_EOF,
     McpClient,
     McpError,
 )
+
+
+def _frame(payload: dict[str, Any]) -> bytes:
+    """Encode a dict as one Content-Length framed JSON-RPC message."""
+    body = json.dumps(payload).encode("utf-8")
+    header = f"Content-Length: {len(body)}\r\n\r\n".encode()
+    return header + body
+
+
+def _detached_client(timeout: float = 0.2) -> McpClient:
+    """Build a client whose subprocess I/O is inert, with a fresh read queue.
+
+    ``stdout``/``stderr`` are None so the drain threads exit immediately; the
+    test then owns ``_read_queue`` directly.
+    """
+    process = MagicMock()
+    process.stdout = None
+    process.stderr = None
+    client = McpClient(process, timeout=timeout)
+    # Let the init-spawned reader thread finish putting its EOF into the
+    # original queue, then swap in a fresh queue the test fully controls.
+    client._stdout_thread.join(timeout=1.0)
+    client._read_queue = queue.Queue()
+    return client
 
 
 class TestMcpClientCreate:
@@ -109,54 +134,6 @@ class TestMcpClientProtocol:
         with pytest.raises(McpError, match="Failed to write"):
             client._write_message({"jsonrpc": "2.0", "method": "test"})
 
-    def test_mock_stderr_drain_thread_exits(self) -> None:
-        """Direct construction with mock stderr does not leak a drain thread."""
-        mock_process = MagicMock()
-        client = McpClient(mock_process)
-
-        client._stderr_thread.join(timeout=0.1)
-
-        assert not client._stderr_thread.is_alive()
-
-    def test_read_bytes_uses_total_deadline(self, monkeypatch) -> None:
-        """Windows reads fail after the request deadline expires."""
-        mock_process = MagicMock()
-        mock_process.stderr = None
-        client = McpClient(mock_process, timeout=0.01)
-        client._read_deadline = 1.0
-
-        monkeypatch.setattr("scripts.memory_sync.mcp_client.time.monotonic", lambda: 2.0)
-
-        with pytest.raises(McpError, match="Timeout waiting for response"):
-            client._read_bytes(0)
-
-    def test_read_via_thread_times_out_in_flight(self) -> None:
-        """Thread helper interrupts a read that has not produced bytes yet."""
-        read_fd, write_fd = os.pipe()
-        start = time.monotonic()
-        try:
-            with pytest.raises(McpError, match="Timeout waiting for response"):
-                McpClient._read_via_thread(read_fd, 0.2, 0.2)
-            with pytest.raises(OSError):
-                os.fstat(read_fd)
-        finally:
-            os.close(write_fd)
-
-        assert time.monotonic() - start < 1.0
-
-    def test_read_bytes_posix_select_returns_data(self) -> None:
-        """POSIX select path still reads ready bytes."""
-        read_fd, write_fd = os.pipe()
-        mock_process = MagicMock()
-        mock_process.stderr = None
-        client = McpClient(mock_process, timeout=1.0)
-        try:
-            os.write(write_fd, b"abc")
-            assert client._read_bytes(read_fd) == b"abc"
-        finally:
-            os.close(write_fd)
-            os.close(read_fd)
-
 
 class TestIsAvailable:
     """Test availability check."""
@@ -180,43 +157,100 @@ class TestIsAvailable:
             assert not McpClient.is_available()
 
 
-class TestMcpClientBrokenAfterReadFailure:
-    """A read failure must tear down the connection and refuse reuse (#2811).
+class TestReadBytesTimeout:
+    """``_read_bytes`` enforces a timeout on every platform (issue #2810).
 
-    Binding subprocess reads with a timeout introduced a Windows-only hazard:
-    _read_via_thread leaves a daemon reader blocked on the shared stdout fd, so
-    a subsequent request on the same client could have its response bytes stolen
-    by that dangling reader. The client now marks itself broken and terminates
-    the subprocess on any read failure, so reuse fails fast instead of corrupting
-    the byte stream.
+    Before the fix the timeout was skipped entirely on Windows (the select
+    branch was guarded by ``sys.platform != "win32"``), so ``os.read`` could
+    block forever. The queue-based reader has no platform branch, so these
+    tests exercise the single cross-platform path.
     """
 
-    def test_read_failure_marks_broken_terminates_and_refuses_reuse(
-        self, mock_server_command: list[str]
-    ) -> None:
-        client = McpClient.create(command=mock_server_command)
-        try:
-            # Simulate a read timeout mid-request.
-            with patch.object(
-                client,
-                "_read_bytes",
-                side_effect=McpError("Timeout waiting for response (>30s)"),
-            ):
-                with pytest.raises(McpError, match="Timeout"):
-                    client.call_tool("create_memory", {"title": "first"})
+    def test_returns_chunk_when_available(self) -> None:
+        client = _detached_client()
+        client._read_queue.put(b"payload")
+        assert client._read_bytes(1.0) == b"payload"
 
-            # Connection is marked broken and the subprocess is terminated,
-            # which unblocks any dangling reader via EOF.
-            assert client._broken is True
-            assert client._process.poll() is not None
+    def test_nonpositive_remaining_raises_timeout(self) -> None:
+        client = _detached_client()
+        with pytest.raises(McpError, match="Timeout waiting for response"):
+            client._read_bytes(0.0)
 
-            # Reuse is refused BEFORE any further write, so no bytes can be
-            # written to or stolen from the desynchronized stream.
-            with patch.object(client, "_write_message") as write_spy:
-                with pytest.raises(
-                    McpError, match="unusable after a prior read failure"
-                ):
-                    client.call_tool("create_memory", {"title": "second"})
-                write_spy.assert_not_called()
-        finally:
-            client.close()
+    def test_empty_queue_raises_timeout(self) -> None:
+        client = _detached_client(timeout=0.05)
+        with pytest.raises(McpError, match="Timeout waiting for response"):
+            client._read_bytes(0.05)
+
+    def test_eof_sentinel_raises_closed_error(self) -> None:
+        client = _detached_client()
+        client._read_queue.put(_STDOUT_EOF)
+        with pytest.raises(McpError, match="closed stdout"):
+            client._read_bytes(1.0)
+
+
+class TestReadResponseDeadline:
+    """``_read_response`` bounds the whole wait, not just each read (issue #2810).
+
+    Without an overall deadline, a server streaming notifications or replying
+    with mismatched ids would loop forever. The deadline makes both cases
+    terminate with a timeout.
+    """
+
+    def test_matching_response_returned(self) -> None:
+        client = _detached_client(timeout=1.0)
+        client._read_queue.put(_frame({"jsonrpc": "2.0", "id": 1, "result": {}}))
+        response = client._read_response(1)
+        assert response["id"] == 1
+
+    def test_notification_stream_times_out(self) -> None:
+        client = _detached_client(timeout=0.2)
+        for _ in range(3):
+            client._read_queue.put(
+                _frame({"jsonrpc": "2.0", "method": "notifications/progress"})
+            )
+        with pytest.raises(McpError, match="Timeout waiting for response"):
+            client._read_response(1)
+
+    def test_id_mismatch_stream_times_out(self) -> None:
+        client = _detached_client(timeout=0.2)
+        client._read_queue.put(
+            _frame({"jsonrpc": "2.0", "id": 999, "result": {}})
+        )
+        with pytest.raises(McpError, match="Timeout waiting for response"):
+            client._read_response(1)
+
+
+class TestDrainStdout:
+    """The reader thread feeds chunks then an EOF sentinel."""
+
+    def test_none_stdout_enqueues_eof(self) -> None:
+        client = _detached_client()
+        client._process.stdout = None
+        client._drain_stdout()
+        assert client._read_queue.get_nowait() is _STDOUT_EOF
+
+    def test_reads_chunks_then_eof(self) -> None:
+        client = _detached_client()
+        fake_stdout = MagicMock()
+        fake_stdout.fileno.return_value = 3
+        client._process.stdout = fake_stdout
+        with patch(
+            "scripts.memory_sync.mcp_client.os.read",
+            side_effect=[b"chunk-a", b"chunk-b", b""],
+        ):
+            client._drain_stdout()
+        assert client._read_queue.get_nowait() == b"chunk-a"
+        assert client._read_queue.get_nowait() == b"chunk-b"
+        assert client._read_queue.get_nowait() is _STDOUT_EOF
+
+    def test_read_error_enqueues_eof(self) -> None:
+        client = _detached_client()
+        fake_stdout = MagicMock()
+        fake_stdout.fileno.return_value = 3
+        client._process.stdout = fake_stdout
+        with patch(
+            "scripts.memory_sync.mcp_client.os.read",
+            side_effect=OSError("pipe error"),
+        ):
+            client._drain_stdout()
+        assert client._read_queue.get_nowait() is _STDOUT_EOF

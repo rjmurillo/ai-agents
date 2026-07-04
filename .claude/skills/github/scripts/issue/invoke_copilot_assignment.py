@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-# mypy: disable-error-code=type-arg
-# mypy: disable-error-code=no-any-return
-# mypy: disable-error-code=arg-type
-# mypy: disable-error-code=assignment
-# mypy: disable-error-code=return-value
-# mypy: disable-error-code=var-annotated
-# mypy: disable-error-code=operator
-# mypy: disable-error-code=union-attr
 """Synthesize context and assign GitHub Copilot to an issue.
 
 Fetches issue comments, extracts context from trusted sources (maintainers, AI agents),
@@ -34,6 +26,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -63,7 +56,6 @@ from github_core.api import (  # noqa: E402
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
-    write_skill_error,
     write_skill_output,
 )
 
@@ -71,7 +63,7 @@ from github_core.output import (  # noqa: E402
 # Configuration
 # ---------------------------------------------------------------------------
 
-_DEFAULT_CONFIG: dict = {
+_DEFAULT_CONFIG: dict[str, Any] = {
     "trusted_sources": {
         "maintainers": [],
         "ai_agents": [],
@@ -92,7 +84,9 @@ _DEFAULT_CONFIG: dict = {
     },
 }
 
-GH_TIMEOUT_SECONDS = 15
+
+# Upper bound (seconds) for each gh network call.
+GH_TIMEOUT_SECONDS = 30
 
 
 def _extract_yaml_list(content: str, key: str) -> list[str]:
@@ -118,7 +112,7 @@ def _extract_yaml_list(content: str, key: str) -> list[str]:
     return items
 
 
-def _load_synthesis_config(config_path: str) -> dict:
+def _load_synthesis_config(config_path: str) -> dict[str, Any]:
     """Load copilot-synthesis.yml configuration or return empty defaults.
 
     When the config file is missing, returns empty trusted_sources lists.
@@ -128,7 +122,7 @@ def _load_synthesis_config(config_path: str) -> dict:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--git-common-dir"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, encoding="utf-8", errors="replace", timeout=10,
             )
             if result.returncode == 0:
                 git_common = Path(result.stdout.strip())
@@ -148,7 +142,7 @@ def _load_synthesis_config(config_path: str) -> dict:
 
     try:
         content = Path(config_path).read_text(encoding="utf-8")
-        config: dict = json.loads(json.dumps(_DEFAULT_CONFIG))
+        config: dict[str, Any] = json.loads(json.dumps(_DEFAULT_CONFIG))
 
         # Extract maintainers (line-by-line to avoid ReDoS)
         config["trusted_sources"]["maintainers"] = [
@@ -185,7 +179,7 @@ def _load_synthesis_config(config_path: str) -> dict:
 
 
 def _get_maintainer_guidance(
-    comments: list[dict], maintainers: list[str],
+    comments: list[dict[str, Any]], maintainers: list[str],
 ) -> list[str]:
     """Extract key decisions from maintainer comments.
 
@@ -228,8 +222,8 @@ def _get_maintainer_guidance(
 
 
 def _get_coderabbit_plan(
-    comments: list[dict], patterns: dict,
-) -> dict | None:
+    comments: list[dict[str, Any]], patterns: dict[str, Any],
+) -> dict[str, Any] | None:
     """Extract implementation plan from CodeRabbit comments."""
     rabbit_comments = [
         c for c in comments if c.get("user", {}).get("login") == patterns["username"]
@@ -237,7 +231,7 @@ def _get_coderabbit_plan(
     if not rabbit_comments:
         return None
 
-    plan: dict = {"implementation": None, "related_issues": [], "related_prs": []}
+    plan: dict[str, Any] = {"implementation": None, "related_issues": [], "related_prs": []}
 
     impl_pattern = re.escape(patterns["implementation_plan"])
     issues_raw = re.escape(patterns["related_issues"])
@@ -278,8 +272,8 @@ def _get_coderabbit_plan(
 
 
 def _get_ai_triage_info(
-    comments: list[dict], triage_marker: str,
-) -> dict | None:
+    comments: list[dict[str, Any]], triage_marker: str,
+) -> dict[str, Any] | None:
     """Extract triage information from AI Triage comments."""
     escaped_marker = re.escape(triage_marker)
     triage_comment = None
@@ -316,8 +310,8 @@ def _get_ai_triage_info(
 
 def _has_synthesizable_content(
     maintainer_guidance: list[str],
-    coderabbit_plan: dict | None,
-    ai_triage: dict | None,
+    coderabbit_plan: dict[str, Any] | None,
+    ai_triage: dict[str, Any] | None,
 ) -> bool:
     """Check if there is content worth synthesizing."""
     if maintainer_guidance:
@@ -341,8 +335,8 @@ def _has_synthesizable_content(
 def _build_synthesis_comment(
     marker: str,
     maintainer_guidance: list[str],
-    coderabbit_plan: dict | None,
-    ai_triage: dict | None,
+    coderabbit_plan: dict[str, Any] | None,
+    ai_triage: dict[str, Any] | None,
 ) -> str:
     """Generate the synthesis comment body."""
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -387,8 +381,8 @@ def _build_synthesis_comment(
 
 
 def _find_existing_synthesis(
-    comments: list[dict], marker: str,
-) -> dict | None:
+    comments: list[dict[str, Any]], marker: str,
+) -> dict[str, Any] | None:
     """Find existing synthesis comment by marker."""
     escaped = re.escape(marker)
     for c in comments:
@@ -397,41 +391,24 @@ def _find_existing_synthesis(
     return None
 
 
-def _run_gh(command: list[str], *, output_format: str) -> subprocess.CompletedProcess[str]:
+def _assign_copilot(owner: str, repo: str, issue_number: int) -> bool:
+    """Assign copilot-swe-agent to the issue."""
     try:
-        return subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=GH_TIMEOUT_SECONDS,
+        result = subprocess.run(
+            [
+                "gh", "issue", "edit", str(issue_number),
+                "--repo", f"{owner}/{repo}",
+                "--add-assignee", "copilot-swe-agent",
+            ],
+            capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
-    except subprocess.TimeoutExpired as err:
-        write_skill_error(
-            f"Timed out running gh after {GH_TIMEOUT_SECONDS}s",
-            3,
-            error_type="Timeout",
-            output_format=output_format,
-            script_name="invoke_copilot_assignment.py",
+    except subprocess.TimeoutExpired:
+        print(
+            f"WARNING: copilot assign timed out after {GH_TIMEOUT_SECONDS}s",
+            file=sys.stderr,
         )
-        raise SystemExit(3) from err
-
-
-def _assign_copilot(
-    owner: str,
-    repo: str,
-    issue_number: int,
-    output_format: str = "json",
-) -> bool:
-    """Assign copilot-swe-agent to the issue."""
-    result = _run_gh(
-        [
-            "gh", "issue", "edit", str(issue_number),
-            "--repo", f"{owner}/{repo}",
-            "--add-assignee", "copilot-swe-agent",
-        ],
-        output_format=output_format,
-    )
+        return False
     if result.returncode != 0:
         print(f"WARNING: Failed to assign copilot-swe-agent: {result.stderr}", file=sys.stderr)
         return False
@@ -439,7 +416,7 @@ def _assign_copilot(
 
 
 def _create_context_file(
-    issue: dict, trusted_comments: list[dict], issue_number: int,
+    issue: dict[str, Any], trusted_comments: list[dict[str, Any]], issue_number: int,
 ) -> str:
     """Create a context file for AI synthesis."""
     context_file = os.path.join(tempfile.gettempdir(), f"issue-{issue_number}-context.md")
@@ -553,10 +530,16 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         )
 
     # Fetch issue details
-    issue_result = _run_gh(
-        ["gh", "api", f"repos/{owner}/{repo}/issues/{issue_number}"],
-        output_format=fmt,
-    )
+    try:
+        issue_result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/issues/{issue_number}"],
+            capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit(
+            f"Issue fetch timed out after {GH_TIMEOUT_SECONDS}s", 3
+        )
     if issue_result.returncode != 0:
         error_str = issue_result.stderr.strip() or issue_result.stdout.strip()
         if "Not Found" in error_str:
@@ -706,7 +689,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
     assigned = False
     if not args.skip_assignment:
         print("Assigning copilot-swe-agent...", file=sys.stderr)
-        assigned = _assign_copilot(owner, repo, issue_number, fmt)
+        assigned = _assign_copilot(owner, repo, issue_number)
         if assigned:
             print(f"Assigned copilot-swe-agent to issue #{issue_number}", file=sys.stderr)
     else:
