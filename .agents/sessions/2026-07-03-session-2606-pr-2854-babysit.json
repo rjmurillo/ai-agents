@@ -138,6 +138,10 @@
   {
    "summary": "Resolved plugin copy drift caused by github_core output helper change.",
    "evidence": "Ran python3 scripts/sync_plugin_lib.py and uv run --frozen python build/scripts/build_all.py. Bumped .claude/.claude-plugin/plugin.json from 0.5.254 to 0.5.255 and regenerated src/copilot-cli/lib/github_core/output.py."
+  },
+  {
+   "summary": "Bumped Copilot plugin manifest after generated Copilot helper changed.",
+   "evidence": "src/copilot-cli/.claude-plugin/plugin.json version bumped from 0.5.254 to 0.5.255 so the Copilot plugin source change passes plugin-version-bump validation."
   }
  ],
  "endingCommit": "",

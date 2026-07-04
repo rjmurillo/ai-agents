@@ -53,6 +53,14 @@
       "content": "Resolved plugin copy drift caused by github_core output helper change.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped Copilot plugin manifest after generated Copilot helper changed.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
