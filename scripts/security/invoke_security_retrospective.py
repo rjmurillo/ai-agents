@@ -77,6 +77,7 @@ class SecurityRetrospective:
         self.non_interactive = non_interactive
         self.repo_root = self._find_repo_root()
         self.false_negatives: list[FalseNegative] = []
+        self.external_review_fetch_failed = False
 
     def _find_repo_root(self) -> Path:
         """Find the git repository root."""
@@ -109,6 +110,8 @@ class SecurityRetrospective:
         # Step 2: Fetch external review comments
         external_findings = self._fetch_external_review_comments()
         if not external_findings:
+            if self.external_review_fetch_failed:
+                return 1
             logger.info(
                 "No external review found for PR #%d. This is expected for PRs "
                 "without bot/human security review.",
@@ -212,6 +215,7 @@ class SecurityRetrospective:
             )
 
             if result.returncode != 0:
+                self.external_review_fetch_failed = True
                 if "rate limit" in result.stderr.lower():
                     logger.error(
                         "[FAIL] GitHub API rate limit exceeded. "
@@ -240,9 +244,11 @@ class SecurityRetrospective:
             return security_comments
 
         except json.JSONDecodeError as e:
+            self.external_review_fetch_failed = True
             logger.error("[FAIL] Failed to parse GitHub API response: %s", e)
             return []
         except subprocess.SubprocessError as e:
+            self.external_review_fetch_failed = True
             logger.error("[FAIL] GitHub API call failed: %s", e)
             return []
 

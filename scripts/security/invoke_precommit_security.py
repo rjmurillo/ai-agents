@@ -35,6 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SUBPROCESS_TIMEOUT_SECONDS = 60
+CODEQL_API_TIMEOUT_SECONDS = 30
 
 
 @dataclass
@@ -137,7 +138,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if remote_result.returncode != 0:
@@ -159,7 +160,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,  # Don't raise, check returncode explicitly
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if branch_result.returncode != 0:
@@ -233,7 +234,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if result.returncode != 0:

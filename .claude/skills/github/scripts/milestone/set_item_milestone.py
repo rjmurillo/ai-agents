@@ -47,6 +47,7 @@ from github_core.api import (  # noqa: E402
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -115,7 +116,12 @@ def _write_result(
     )
 
 
-def _get_item_milestone(owner: str, repo: str, number: int) -> str | None:
+def _get_item_milestone(
+    owner: str,
+    repo: str,
+    number: int,
+    output_format: str = "auto",
+) -> str | None:
     """Return the current milestone title for a PR/issue, or None."""
     try:
         result = subprocess.run(
@@ -123,10 +129,15 @@ def _get_item_milestone(owner: str, repo: str, number: int) -> str | None:
             capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
-    except subprocess.TimeoutExpired:
-        error_and_exit(
-            f"Query for item #{number} timed out after {GH_TIMEOUT_SECONDS}s", 3
+    except subprocess.TimeoutExpired as err:
+        write_skill_error(
+            f"Query for item #{number} timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="Timeout",
+            output_format=output_format,
+            script_name="set_item_milestone.py",
         )
+        raise SystemExit(3) from err
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         error_and_exit(f"Failed to query item #{number}: {error_str}", 3)
@@ -218,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     # Check current milestone
-    existing = _get_item_milestone(owner, repo, item_number)
+    existing = _get_item_milestone(owner, repo, item_number, fmt)
     if existing:
         msg = (
             f"Already has milestone '{existing}'. "
