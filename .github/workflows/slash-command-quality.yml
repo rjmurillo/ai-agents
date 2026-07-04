@@ -62,6 +62,18 @@ jobs:
       - name: Validate slash commands
         run: python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"
 
+      - name: Install eval extra (openai grader)
+        # setup-code-env installs only .[dev]; the github provider grader needs
+        # the openai package from .[eval]. Without this, eval-prompt-change.py
+        # exits 3 (missing package is not a provider outage, so the skip-net
+        # does not neutral-skip it). Gated on the same condition as the eval so
+        # it only runs when the /spec eval actually fires.
+        if: |
+          github.event_name == 'pull_request' &&
+          needs.check-paths.outputs.spec_evals_changed == 'true' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        run: uv pip install --system -e ".[eval]"
+
       - name: Run /spec behavioral evals
         # Grader: openai/gpt-5 via GitHub Models (the COPILOT_GITHUB_TOKEN CI
         # already uses), reachable as a reasoning model after #2712. The default
