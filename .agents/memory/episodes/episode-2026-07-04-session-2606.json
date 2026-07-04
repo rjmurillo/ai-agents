@@ -125,6 +125,30 @@
       "content": "Commit: ecaa002a",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed five Copilot review threads by aligning ADR trigger tables and making adr-review detector examples skill-relative.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed ADR review-thread fixes in 9a58e35ff8 after validating byte-level dash counts, targeted ADR tests, and plugin-version-bump.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9a58e35ff8",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

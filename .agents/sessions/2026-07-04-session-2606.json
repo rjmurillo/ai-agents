@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code changes committed through ecaa002a; main refresh and version re-bump staged for the next merge commit."
+        "Evidence": "Code changes committed through 9a58e35ff8; session log update committed last."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-07-04-session-2606.json passed after the main refresh update."
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-07-04-session-2606.json passed after ADR review-thread fixes."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -161,10 +161,18 @@
     {
       "time": "2026-07-04T03:17:00Z",
       "entry": "Merged origin/main, resolved generated docs/agent-catalog.md from regenerated output, and bumped plugin manifests to 0.5.257 and 0.3.31."
+    },
+    {
+      "time": "2026-07-04T03:27:00Z",
+      "entry": "Fixed five Copilot review threads by aligning ADR trigger tables and making adr-review detector examples skill-relative."
+    },
+    {
+      "time": "2026-07-04T03:31:00Z",
+      "entry": "Committed ADR review-thread fixes in 9a58e35ff8 after validating byte-level dash counts, targeted ADR tests, and plugin-version-bump."
     }
   ],
-  "endingCommit": "ecaa002a",
+  "endingCommit": "9a58e35ff8",
   "nextSteps": [
-    "Commit the main refresh, push fix/cluster-prompts, watch checks, and merge PR 2844 once GitHub reports it ready."
+    "Commit this session log update, push fix/cluster-prompts, resolve the five review threads, watch checks, and merge PR 2844 once GitHub reports it ready."
   ]
 }
