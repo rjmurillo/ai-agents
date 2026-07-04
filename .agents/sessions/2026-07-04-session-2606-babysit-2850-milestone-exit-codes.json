@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2606,
+    "date": "2026-07-04",
+    "branch": "fix/milestone-exit-codes-2847",
+    "startingCommit": "4cc17b14",
+    "objective": "Babysit PR 2850 milestone exit codes to merge"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions loaded; activate_project unavailable in this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md lines 1-117 read; no issue handoff found for #2847."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts/pr/*.py listed in session output."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/memory-index.md read; relevant GitHub and testing memories surfaced by hooks."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/milestone-exit-codes-2847"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/milestone-exit-codes-2847"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked in dedicated worktree."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4cc17b14"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session checklist completed before final validation."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only and not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory pr/pr-2850-milestone-exit-codes written."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed in git diff; markdownlint not applicable."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code, test, plugin manifest, and session log changes committed on branch fix/milestone-exit-codes-2847."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py run after this update."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Todos updated in session database."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Serena memory captured session learning; retrospective skill not required for this PR babysit."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-04T02:15:00-05:00",
+      "entry": "Created dedicated worktree for PR #2850 and assessed failing checks."
+    },
+    {
+      "time": "2026-07-04T02:30:00-05:00",
+      "entry": "Rebased onto origin/main, resolved milestone setter conflicts, and kept timeout behavior from main."
+    },
+    {
+      "time": "2026-07-04T02:45:00-05:00",
+      "entry": "Fixed milestone exit codes, failed-query behavior, related tests, and dispatcher project-dir test isolation."
+    },
+    {
+      "time": "2026-07-04T03:00:00-05:00",
+      "entry": "Updated PR body to include Fixes #2847 and template sections."
+    },
+    {
+      "time": "2026-07-04T03:10:00-05:00",
+      "entry": "Bumped both plugin manifests to 0.5.256 and verified targeted pytest plus scoped ruff."
+    }
+  ],
+  "endingCommit": "f1f33e3f3",
+  "nextSteps": [
+    "Push branch, resolve PR #2850 review threads after remote diff updates, enable auto-merge, and poll until merged."
+  ]
+}
