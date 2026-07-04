@@ -94,7 +94,7 @@
    "changesCommitted": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "Merge-resolution commit d5c4d63a1 created in dedicated PR worktree"
+    "Evidence": "Merge-resolution commit c16297e77 created in dedicated PR worktree"
    },
    "validationPassed": {
     "level": "MUST",
@@ -127,7 +127,7 @@
    "evidence": "uv run pytest tests/test_generate_quality_report.py -x: 23 passed; byte check found zero conflict markers and zero prohibited dash bytes in tests/test_generate_quality_report.py."
   }
  ],
- "endingCommit": "d5c4d63a1",
+ "endingCommit": "c16297e77",
  "nextSteps": [
   "Commit and push the merge resolution, then re-enable auto-merge if GitHub cleared it.",
   "Poll PR #2836 until state is MERGED; do not report merge before observing it."
