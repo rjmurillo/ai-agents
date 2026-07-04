@@ -8397,13 +8397,130 @@
       "created": "2026-07-03T16:17:16.373493+00:00"
     },
     {
+      "id": "47c59b451992",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree for PR #2853 branch fix/retire-count-claim-2842.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872526+00:00"
+    },
+    {
+      "id": "7bd124c68f5d",
+      "type": "milestone",
+      "label": "milestone: Verified zero unresolved review threads for PR #2853.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872714+00:00"
+    },
+    {
+      "id": "19e0514a20ce",
+      "type": "milestone",
+      "label": "milestone: Rebased branch onto origin/main and set both plugin manifests to 0.5.256.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.872874+00:00"
+    },
+    {
+      "id": "27c6f4798199",
+      "type": "milestone",
+      "label": "milestone: Updated PR body to include Fixes #2842 and satisfy template sections without dash bytes.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873029+00:00"
+    },
+    {
+      "id": "1b1d8f9c73f4",
+      "type": "commit",
+      "label": "commit: Commit: a431df67c",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873181+00:00"
+    },
+    {
+      "id": "b6b5edd9c3ad",
+      "type": "milestone",
+      "label": "milestone: Fixed orphan-ref-validator type errors that blocked pre-push mypy.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873332+00:00"
+    },
+    {
+      "id": "a6a70ee894cb",
+      "type": "commit",
+      "label": "commit: Commit: ffec1840c",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873521+00:00"
+    },
+    {
+      "id": "d2cfdf687179",
+      "type": "commit",
+      "label": "commit: Commit: 55a536382",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873670+00:00"
+    },
+    {
+      "id": "f70e3924aa77",
+      "type": "milestone",
+      "label": "milestone: Fixed Copilot review: restored timezone.utc for Python 3.10 compatibility and suppressed UP017 at the two timestamp call sites.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873836+00:00"
+    },
+    {
+      "id": "5701699deae9",
+      "type": "commit",
+      "label": "commit: Commit: 19a1bac5b",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.873995+00:00"
+    },
+    {
+      "id": "04fd4f042f5e",
+      "type": "milestone",
+      "label": "milestone: Committed Python 3.10 timezone fix and rebumped plugin manifests to 0.5.257.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874143+00:00"
+    },
+    {
+      "id": "bad540fb502e",
+      "type": "commit",
+      "label": "commit: Commit: fd55e44b6",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874285+00:00"
+    },
+    {
+      "id": "503d0d850bc1",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR 2853 to merge",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T03:23:12.874436+00:00"
+    },
+    {
       "id": "be1e71a8f765",
       "type": "milestone",
       "label": "milestone: invoke_precommit_security.py: added timeouts to the gh --version, code-scanning gh api, Get-Module and Install-Module calls; a TimeoutExpired now degrades PSScriptAnalyzer to unavailable; the code-scanning timeout is caught by the existing SubprocessError handler and skips.",
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T03:56:51.420597+00:00"
+      "created": "2026-07-04T04:06:38.556001+00:00"
     },
     {
       "id": "67b9cfd93d39",
@@ -8412,7 +8529,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T03:56:51.420783+00:00"
+      "created": "2026-07-04T04:06:38.556055+00:00"
     },
     {
       "id": "3d68ef24d9bb",
@@ -8421,7 +8538,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T03:56:51.420942+00:00"
+      "created": "2026-07-04T04:06:38.556098+00:00"
     },
     {
       "id": "6cc2c28c5d6d",
@@ -8430,7 +8547,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T03:56:51.421098+00:00"
+      "created": "2026-07-04T04:06:38.556140+00:00"
     },
     {
       "id": "d3e739e2ddf6",
@@ -8439,7 +8556,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T03:56:51.421250+00:00"
+      "created": "2026-07-04T04:06:38.556182+00:00"
     },
     {
       "id": "661a36542a42",
@@ -8448,7 +8565,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T03:56:51.421403+00:00"
+      "created": "2026-07-04T04:06:38.556223+00:00"
     },
     {
       "id": "0b86152d5456",
@@ -8458,7 +8575,7 @@
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening",
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.421567+00:00"
+      "created": "2026-07-04T04:06:38.556263+00:00"
     },
     {
       "id": "219019c219b4",
@@ -8467,7 +8584,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T03:56:51.421722+00:00"
+      "created": "2026-07-04T04:06:38.556305+00:00"
     },
     {
       "id": "00e3866ddcc1",
@@ -8476,7 +8593,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
       ],
-      "created": "2026-07-04T03:56:51.421876+00:00"
+      "created": "2026-07-04T04:06:38.556346+00:00"
     },
     {
       "id": "25d84d5d4f67",
@@ -8485,7 +8602,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
       ],
-      "created": "2026-07-04T03:56:51.422281+00:00"
+      "created": "2026-07-04T04:06:38.556441+00:00"
     },
     {
       "id": "f439ec9b905b",
@@ -8494,7 +8611,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
       ],
-      "created": "2026-07-04T03:56:51.422440+00:00"
+      "created": "2026-07-04T04:06:38.556614+00:00"
     },
     {
       "id": "566a9d39293e",
@@ -8503,7 +8620,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
       ],
-      "created": "2026-07-04T03:56:51.422608+00:00"
+      "created": "2026-07-04T04:06:38.556659+00:00"
     },
     {
       "id": "614cc492dc0b",
@@ -8512,7 +8629,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
       ],
-      "created": "2026-07-04T03:56:51.422759+00:00"
+      "created": "2026-07-04T04:06:38.556700+00:00"
     },
     {
       "id": "8ca7cb979664",
@@ -8521,7 +8638,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
       ],
-      "created": "2026-07-04T03:56:51.422908+00:00"
+      "created": "2026-07-04T04:06:38.556740+00:00"
     },
     {
       "id": "ad58c694aac6",
@@ -8530,7 +8647,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
       ],
-      "created": "2026-07-04T03:56:51.423061+00:00"
+      "created": "2026-07-04T04:06:38.556780+00:00"
     },
     {
       "id": "5126bbc67224",
@@ -8539,7 +8656,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
       ],
-      "created": "2026-07-04T03:56:51.423216+00:00"
+      "created": "2026-07-04T04:06:38.556820+00:00"
     },
     {
       "id": "86a9c71ddd3f",
@@ -8548,7 +8665,7 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issue-2811-pr-a-add-subprocess"
       ],
-      "created": "2026-07-04T03:56:51.423366+00:00"
+      "created": "2026-07-04T04:06:38.556865+00:00"
     },
     {
       "id": "fc05487923c7",
@@ -8557,7 +8674,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.423824+00:00"
+      "created": "2026-07-04T04:06:38.556976+00:00"
     },
     {
       "id": "6aa18075f77b",
@@ -8566,7 +8683,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.423997+00:00"
+      "created": "2026-07-04T04:06:38.557018+00:00"
     },
     {
       "id": "a43ebb1047f7",
@@ -8575,7 +8692,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.424152+00:00"
+      "created": "2026-07-04T04:06:38.557058+00:00"
     },
     {
       "id": "19071af20432",
@@ -8584,7 +8701,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.424313+00:00"
+      "created": "2026-07-04T04:06:38.557099+00:00"
     },
     {
       "id": "64a0193ccede",
@@ -8593,7 +8710,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.424481+00:00"
+      "created": "2026-07-04T04:06:38.557140+00:00"
     },
     {
       "id": "979d08ad841e",
@@ -8602,7 +8719,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.424632+00:00"
+      "created": "2026-07-04T04:06:38.557181+00:00"
     },
     {
       "id": "717ff653f622",
@@ -8611,7 +8728,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.424785+00:00"
+      "created": "2026-07-04T04:06:38.557223+00:00"
     },
     {
       "id": "644639eb8856",
@@ -8620,7 +8737,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.425083+00:00"
+      "created": "2026-07-04T04:06:38.557303+00:00"
     },
     {
       "id": "50a96a8cbd97",
@@ -8629,7 +8746,7 @@
       "episodes": [
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts"
       ],
-      "created": "2026-07-04T03:56:51.425237+00:00"
+      "created": "2026-07-04T04:06:38.557346+00:00"
     },
     {
       "id": "0867d602894a",
@@ -8638,7 +8755,7 @@
       "episodes": [
         "episode-2026-07-03-session-2604-pr-autofix-triage"
       ],
-      "created": "2026-07-04T03:56:51.425650+00:00"
+      "created": "2026-07-04T04:06:38.557432+00:00"
     },
     {
       "id": "2bbb44c6dd6e",
@@ -8647,7 +8764,7 @@
       "episodes": [
         "episode-2026-07-03-session-2604-pr-autofix-triage"
       ],
-      "created": "2026-07-04T03:56:51.425810+00:00"
+      "created": "2026-07-04T04:06:38.557481+00:00"
     },
     {
       "id": "b4d789781137",
@@ -8656,7 +8773,7 @@
       "episodes": [
         "episode-2026-07-03-session-2604"
       ],
-      "created": "2026-07-04T03:56:51.426192+00:00"
+      "created": "2026-07-04T04:06:38.557571+00:00"
     },
     {
       "id": "27923802cf58",
@@ -8665,7 +8782,7 @@
       "episodes": [
         "episode-2026-07-03-session-2604"
       ],
-      "created": "2026-07-04T03:56:51.426355+00:00"
+      "created": "2026-07-04T04:06:38.557614+00:00"
     },
     {
       "id": "da34c336a652",
@@ -8674,7 +8791,7 @@
       "episodes": [
         "episode-2026-07-03-session-2604"
       ],
-      "created": "2026-07-04T03:56:51.426529+00:00"
+      "created": "2026-07-04T04:06:38.557657+00:00"
     },
     {
       "id": "b61f193889e9",
@@ -8683,7 +8800,7 @@
       "episodes": [
         "episode-2026-07-03-session-2604"
       ],
-      "created": "2026-07-04T03:56:51.426684+00:00"
+      "created": "2026-07-04T04:06:38.557699+00:00"
     },
     {
       "id": "3275ba50f1b3",
@@ -8692,7 +8809,7 @@
       "episodes": [
         "episode-2026-07-03-session-2604"
       ],
-      "created": "2026-07-04T03:56:51.426841+00:00"
+      "created": "2026-07-04T04:06:38.557741+00:00"
     },
     {
       "id": "8fefd2e07318",
@@ -8701,7 +8818,7 @@
       "episodes": [
         "episode-2026-07-03-session-2604"
       ],
-      "created": "2026-07-04T03:56:51.427009+00:00"
+      "created": "2026-07-04T04:06:38.557785+00:00"
     },
     {
       "id": "cacd29950384",
@@ -8710,7 +8827,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.427665+00:00"
+      "created": "2026-07-04T04:06:38.557881+00:00"
     },
     {
       "id": "98920abcfeba",
@@ -8719,7 +8836,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.427831+00:00"
+      "created": "2026-07-04T04:06:38.557924+00:00"
     },
     {
       "id": "b647453210a0",
@@ -8728,7 +8845,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.427982+00:00"
+      "created": "2026-07-04T04:06:38.557965+00:00"
     },
     {
       "id": "9e0e28724b34",
@@ -8737,7 +8854,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.428137+00:00"
+      "created": "2026-07-04T04:06:38.558006+00:00"
     },
     {
       "id": "de3a96b598f3",
@@ -8746,7 +8863,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.428290+00:00"
+      "created": "2026-07-04T04:06:38.558047+00:00"
     },
     {
       "id": "ee276df62c5b",
@@ -8755,7 +8872,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.428444+00:00"
+      "created": "2026-07-04T04:06:38.558414+00:00"
     },
     {
       "id": "7b6e7a57e377",
@@ -8764,7 +8881,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.428605+00:00"
+      "created": "2026-07-04T04:06:38.558468+00:00"
     },
     {
       "id": "dfbd932789d7",
@@ -8773,7 +8890,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.429195+00:00"
+      "created": "2026-07-04T04:06:38.558650+00:00"
     },
     {
       "id": "e161750067d4",
@@ -8782,7 +8899,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.429361+00:00"
+      "created": "2026-07-04T04:06:38.558696+00:00"
     },
     {
       "id": "b895b21a3dc6",
@@ -8791,7 +8908,7 @@
       "episodes": [
         "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
       ],
-      "created": "2026-07-04T03:56:51.429709+00:00"
+      "created": "2026-07-04T04:06:38.558784+00:00"
     },
     {
       "id": "6ca5ca3357f3",
@@ -8800,7 +8917,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.431408+00:00"
+      "created": "2026-07-04T04:06:38.559237+00:00"
     },
     {
       "id": "e396ebe3e0bb",
@@ -8809,7 +8926,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.431590+00:00"
+      "created": "2026-07-04T04:06:38.559282+00:00"
     },
     {
       "id": "2acfbffd6ad5",
@@ -8818,7 +8935,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.431745+00:00"
+      "created": "2026-07-04T04:06:38.559322+00:00"
     },
     {
       "id": "0fde4d2412bf",
@@ -8827,7 +8944,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.431900+00:00"
+      "created": "2026-07-04T04:06:38.559363+00:00"
     },
     {
       "id": "4a84289f2490",
@@ -8836,7 +8953,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.432055+00:00"
+      "created": "2026-07-04T04:06:38.559403+00:00"
     },
     {
       "id": "95118c2253a7",
@@ -8845,7 +8962,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.432209+00:00"
+      "created": "2026-07-04T04:06:38.559444+00:00"
     },
     {
       "id": "fad1009312e8",
@@ -8854,7 +8971,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.432363+00:00"
+      "created": "2026-07-04T04:06:38.559489+00:00"
     },
     {
       "id": "7d3af421ae4f",
@@ -8863,7 +8980,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.432536+00:00"
+      "created": "2026-07-04T04:06:38.559530+00:00"
     },
     {
       "id": "5208fbd8d10e",
@@ -8872,7 +8989,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-adr-077-implemented"
       ],
-      "created": "2026-07-04T03:56:51.432693+00:00"
+      "created": "2026-07-04T04:06:38.559574+00:00"
     },
     {
       "id": "8c70ce923f88",
@@ -8881,7 +8998,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
       ],
-      "created": "2026-07-04T03:56:51.433112+00:00"
+      "created": "2026-07-04T04:06:38.559669+00:00"
     },
     {
       "id": "9e9f7568f68b",
@@ -8890,7 +9007,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
       ],
-      "created": "2026-07-04T03:56:51.433276+00:00"
+      "created": "2026-07-04T04:06:38.559711+00:00"
     },
     {
       "id": "5a82a9e08509",
@@ -8899,7 +9016,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
       ],
-      "created": "2026-07-04T03:56:51.433432+00:00"
+      "created": "2026-07-04T04:06:38.559752+00:00"
     },
     {
       "id": "4d118c833607",
@@ -8908,7 +9025,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
       ],
-      "created": "2026-07-04T03:56:51.433605+00:00"
+      "created": "2026-07-04T04:06:38.559792+00:00"
     },
     {
       "id": "d7064d5cba17",
@@ -8917,7 +9034,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
       ],
-      "created": "2026-07-04T03:56:51.433763+00:00"
+      "created": "2026-07-04T04:06:38.559833+00:00"
     },
     {
       "id": "d97d52f2b486",
@@ -8926,7 +9043,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
       ],
-      "created": "2026-07-04T03:56:51.433942+00:00"
+      "created": "2026-07-04T04:06:38.559876+00:00"
     },
     {
       "id": "444a3e668198",
@@ -8935,7 +9052,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2836-babysitter"
       ],
-      "created": "2026-07-04T03:56:51.434352+00:00"
+      "created": "2026-07-04T04:06:38.560007+00:00"
     },
     {
       "id": "4b7c75693cb7",
@@ -8944,7 +9061,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2836-babysitter"
       ],
-      "created": "2026-07-04T03:56:51.434542+00:00"
+      "created": "2026-07-04T04:06:38.560051+00:00"
     },
     {
       "id": "b28a7aa58a3b",
@@ -8953,7 +9070,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2836-babysitter"
       ],
-      "created": "2026-07-04T03:56:51.434705+00:00"
+      "created": "2026-07-04T04:06:38.560092+00:00"
     },
     {
       "id": "e8bc1f0f91dc",
@@ -8962,7 +9079,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2836-babysitter"
       ],
-      "created": "2026-07-04T03:56:51.434869+00:00"
+      "created": "2026-07-04T04:06:38.560133+00:00"
     },
     {
       "id": "adb0a97314c1",
@@ -8971,7 +9088,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2836-babysitter"
       ],
-      "created": "2026-07-04T03:56:51.435028+00:00"
+      "created": "2026-07-04T04:06:38.560174+00:00"
     },
     {
       "id": "ae9e8d3832d0",
@@ -8980,7 +9097,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2836-babysitter"
       ],
-      "created": "2026-07-04T03:56:51.435190+00:00"
+      "created": "2026-07-04T04:06:38.560215+00:00"
     },
     {
       "id": "86569b6f2355",
@@ -8989,7 +9106,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2836-babysitter"
       ],
-      "created": "2026-07-04T03:56:51.435348+00:00"
+      "created": "2026-07-04T04:06:38.560258+00:00"
     },
     {
       "id": "f029697047f0",
@@ -8998,7 +9115,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.435776+00:00"
+      "created": "2026-07-04T04:06:38.560357+00:00"
     },
     {
       "id": "55fd60fd493e",
@@ -9007,7 +9124,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.435941+00:00"
+      "created": "2026-07-04T04:06:38.560399+00:00"
     },
     {
       "id": "7599529f79cf",
@@ -9016,7 +9133,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.436098+00:00"
+      "created": "2026-07-04T04:06:38.560440+00:00"
     },
     {
       "id": "dc6fbe5f79d4",
@@ -9025,7 +9142,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.436257+00:00"
+      "created": "2026-07-04T04:06:38.560491+00:00"
     },
     {
       "id": "1f04687233ee",
@@ -9034,7 +9151,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.436415+00:00"
+      "created": "2026-07-04T04:06:38.560533+00:00"
     },
     {
       "id": "83584a717aba",
@@ -9043,7 +9160,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.436586+00:00"
+      "created": "2026-07-04T04:06:38.560575+00:00"
     },
     {
       "id": "83a67fc77efb",
@@ -9052,7 +9169,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.436748+00:00"
+      "created": "2026-07-04T04:06:38.560618+00:00"
     },
     {
       "id": "346ccf7ce9be",
@@ -9061,7 +9178,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.436910+00:00"
+      "created": "2026-07-04T04:06:38.560660+00:00"
     },
     {
       "id": "73071aab616f",
@@ -9070,7 +9187,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.437072+00:00"
+      "created": "2026-07-04T04:06:38.560703+00:00"
     },
     {
       "id": "3d86f44b0d94",
@@ -9079,7 +9196,7 @@
       "episodes": [
         "episode-2026-07-03-session-2606-pr-2854-babysit"
       ],
-      "created": "2026-07-04T03:56:51.437231+00:00"
+      "created": "2026-07-04T04:06:38.560746+00:00"
     },
     {
       "id": "55139f66ea7c",
@@ -9088,7 +9205,7 @@
       "episodes": [
         "episode-2026-07-03-session-2607"
       ],
-      "created": "2026-07-04T03:56:51.437630+00:00"
+      "created": "2026-07-04T04:06:38.560851+00:00"
     },
     {
       "id": "388ca4bbdd94",
@@ -9097,7 +9214,7 @@
       "episodes": [
         "episode-2026-07-03-session-2607"
       ],
-      "created": "2026-07-04T03:56:51.437797+00:00"
+      "created": "2026-07-04T04:06:38.560895+00:00"
     },
     {
       "id": "601df4180acc",
@@ -9106,7 +9223,7 @@
       "episodes": [
         "episode-2026-07-03-session-2607"
       ],
-      "created": "2026-07-04T03:56:51.437963+00:00"
+      "created": "2026-07-04T04:06:38.560937+00:00"
     },
     {
       "id": "f8623eee157e",
@@ -9115,7 +9232,7 @@
       "episodes": [
         "episode-2026-07-03-session-2607"
       ],
-      "created": "2026-07-04T03:56:51.438124+00:00"
+      "created": "2026-07-04T04:06:38.560980+00:00"
     },
     {
       "id": "1638a0803648",
@@ -9124,7 +9241,52 @@
       "episodes": [
         "episode-2026-07-03-session-2607"
       ],
-      "created": "2026-07-04T03:56:51.438285+00:00"
+      "created": "2026-07-04T04:06:38.561025+00:00"
+    },
+    {
+      "id": "4824bd6d745f",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main to clear PR merge conflicts and replayed this PR episode into the causal graph.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:06:38.561593+00:00"
+    },
+    {
+      "id": "a29fe17eaaa2",
+      "type": "commit",
+      "label": "commit: Commit: f3cbb339ae",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:06:38.561638+00:00"
+    },
+    {
+      "id": "1c8ca2d22dce",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main and rebumped both plugin manifests above main after the plugin race advanced again.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:06:38.561681+00:00"
+    },
+    {
+      "id": "45397c0914d9",
+      "type": "milestone",
+      "label": "milestone: Committed latest origin/main merge and plugin rebump for PR 2853.",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:06:38.561724+00:00"
+    },
+    {
+      "id": "1345e0394700",
+      "type": "commit",
+      "label": "commit: Commit: 7104d81cde",
+      "episodes": [
+        "episode-2026-07-04-session-1"
+      ],
+      "created": "2026-07-04T04:06:38.561767+00:00"
     },
     {
       "id": "67c2a01e1050",
@@ -9133,7 +9295,7 @@
       "episodes": [
         "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
       ],
-      "created": "2026-07-04T03:56:51.438765+00:00"
+      "created": "2026-07-04T04:06:38.561913+00:00"
     },
     {
       "id": "c87ef73b94c1",
@@ -9142,7 +9304,7 @@
       "episodes": [
         "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
       ],
-      "created": "2026-07-04T03:56:51.438935+00:00"
+      "created": "2026-07-04T04:06:38.561957+00:00"
     },
     {
       "id": "403a4a1750c4",
@@ -9151,7 +9313,7 @@
       "episodes": [
         "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
       ],
-      "created": "2026-07-04T03:56:51.439107+00:00"
+      "created": "2026-07-04T04:06:38.562001+00:00"
     },
     {
       "id": "b456d2e473a9",
@@ -9160,7 +9322,7 @@
       "episodes": [
         "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
       ],
-      "created": "2026-07-04T03:56:51.439267+00:00"
+      "created": "2026-07-04T04:06:38.562044+00:00"
     },
     {
       "id": "e6f78c2cad3f",
@@ -9169,7 +9331,7 @@
       "episodes": [
         "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
       ],
-      "created": "2026-07-04T03:56:51.439549+00:00"
+      "created": "2026-07-04T04:06:38.562113+00:00"
     },
     {
       "id": "dea065d2dfcf",
@@ -9178,7 +9340,7 @@
       "episodes": [
         "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
       ],
-      "created": "2026-07-04T03:56:51.439711+00:00"
+      "created": "2026-07-04T04:06:38.562156+00:00"
     },
     {
       "id": "1aa1b44e5b10",
@@ -9187,7 +9349,25 @@
       "episodes": [
         "episode-2026-07-04-session-2606-work-adr-frontmatter-2845"
       ],
-      "created": "2026-07-04T03:56:51.439873+00:00"
+      "created": "2026-07-04T04:06:38.562201+00:00"
+    },
+    {
+      "id": "3bd9fb7e86c9",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after thread fixes.",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:09:44.066222+00:00"
+    },
+    {
+      "id": "a1018096dcde",
+      "type": "commit",
+      "label": "commit: Commit: 1d3e4c52ab",
+      "episodes": [
+        "episode-2026-07-03-session-2606-pr-2830-merge-conflicts"
+      ],
+      "created": "2026-07-04T04:09:44.066426+00:00"
     }
   ],
   "patterns": [
@@ -9237,7 +9417,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 45,
+      "occurrences": 46,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -9246,7 +9426,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 91,
+      "occurrences": 94,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -9255,7 +9435,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 180,
+      "occurrences": 184,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -9264,7 +9444,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 270,
+      "occurrences": 276,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -9274,7 +9454,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -9282,7 +9462,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -9290,7 +9470,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -9298,7 +9478,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -9306,7 +9486,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -9314,7 +9494,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -9322,7 +9502,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -9330,7 +9510,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -9338,7 +9518,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -9346,7 +9526,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -9354,7 +9534,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -9362,7 +9542,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -9370,7 +9550,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -9378,7 +9558,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -9386,7 +9566,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -9394,7 +9574,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -9402,7 +9582,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -9410,7 +9590,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -9418,7 +9598,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -9426,7 +9606,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -9434,7 +9614,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -9442,7 +9622,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -9450,7 +9630,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -9458,7 +9638,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -9466,7 +9646,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -9474,7 +9654,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -9482,7 +9662,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -9490,7 +9670,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -9498,7 +9678,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -9506,7 +9686,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -9514,7 +9694,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -9522,7 +9702,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -9530,7 +9710,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -9538,7 +9718,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -9546,7 +9726,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -9554,7 +9734,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -9562,7 +9742,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -9570,7 +9750,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -9578,7 +9758,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -9586,7 +9766,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 45,
+      "evidence_count": 46,
       "created": "2026-06-02T04:20:23.796919+00:00"
     },
     {
@@ -9594,16 +9774,16 @@
       "target": "e161750067d4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 1,
-      "created": "2026-07-04T03:56:51.429383+00:00"
+      "evidence_count": 2,
+      "created": "2026-07-04T04:06:38.558703+00:00"
     },
     {
       "source": "dfbd932789d7",
       "target": "b895b21a3dc6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 1,
-      "created": "2026-07-04T03:56:51.429730+00:00"
+      "evidence_count": 2,
+      "created": "2026-07-04T04:06:38.558789+00:00"
     }
   ]
 }
