@@ -89,23 +89,33 @@ jobs:
       - name: Verify all memories
         if: steps.should-run.outputs.skip != 'true'
         id: verify
-        continue-on-error: true
         run: |
           # Issue #2808: GitHub runs steps with `bash -eo pipefail`, so a
           # verify-all crash aborted the step before `$?` was captured, and the
           # parse step below then defaulted to a green Pass. Capture the code
           # explicitly so the parse step can distinguish crash from clean.
-          rc=0
-          python -m memory_enhancement verify-all --json > memory-validation-results.json || rc=$?
-          echo "exit_code=$rc" >> $GITHUB_OUTPUT
+          set +e
+          python -m memory_enhancement verify-all --json > memory-validation-results.json
+          rc=$?
+          set -e
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           if [ "$rc" -ne 0 ]; then
             echo "::warning::verify-all exited $rc; results may be incomplete"
           fi
+          # rc=1 means invalid-citation findings, which are non-blocking (see the
+          # health-report gate below). Do NOT exit on rc: doing so blocks the report
+          # and PR comment. An empty file signals a real crash, so keep the guard.
+          test -s memory-validation-results.json
 
       - name: Generate health report
         if: steps.should-run.outputs.skip != 'true'
         run: |
-          python -m memory_enhancement verify-all > memory-health-report.md
+          # Best-effort human-readable report. verify-all returns rc=1 for
+          # non-blocking invalid-citation findings (see the verify step above);
+          # that must not block the downstream parse/comment steps. A real crash
+          # is already caught by the verify step's empty-JSON guard, so tolerate a
+          # non-zero rc here rather than red-failing the whole job.
+          python -m memory_enhancement verify-all > memory-health-report.md || true
 
       - name: Upload validation results
         if: always() && steps.should-run.outputs.skip != 'true'

@@ -34,7 +34,10 @@ ADR Review Request (Phase 1: Independent Review)
 Check alignment with existing decisions in:
 
 - .agents/architecture/ADR-*.md
+- docs/adr/ADR-*.md
 - docs/architecture/ADR-*.md
+- docs/decisions/ADR-*.md
+- architecture/decisions/ADR-*.md
 
 ## Review Checklist
 

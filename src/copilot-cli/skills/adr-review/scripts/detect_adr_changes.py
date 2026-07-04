@@ -6,7 +6,10 @@ since the last check. Returns structured JSON output for skill orchestration.
 
 Patterns monitored:
 - .agents/architecture/ADR-*.md
+- docs/adr/ADR-*.md
 - docs/architecture/ADR-*.md
+- docs/decisions/ADR-*.md
+- architecture/decisions/ADR-*.md
 
 Exit codes follow ADR-035:
     0 - Success (changes detected or no changes found)
@@ -30,12 +33,18 @@ import yaml
 
 ADR_PATTERNS = (
     ".agents/architecture/ADR-*.md",
+    "docs/adr/ADR-*.md",
     "docs/architecture/ADR-*.md",
+    "docs/decisions/ADR-*.md",
+    "architecture/decisions/ADR-*.md",
 )
 
 ADR_DIRECTORIES = (
     ".agents/architecture",
+    "docs/adr",
     "docs/architecture",
+    "docs/decisions",
+    "architecture/decisions",
 )
 
 

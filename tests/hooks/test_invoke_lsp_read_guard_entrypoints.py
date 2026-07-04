@@ -29,6 +29,7 @@ import pytest
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK_DIR = REPO_ROOT / ".claude" / "hooks" / "PreToolUse"
@@ -52,7 +53,7 @@ def _state(
     nav_count: int = 0,
     read_files: list[str] | None = None,
     last_tool: str = "",
-) -> dict:
+) -> dict[str, Any]:
     """Build a gate-state dict in the canonical shape."""
     files = list(read_files or [])
     return {
@@ -70,7 +71,7 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure mode/skip/project/scratch env vars never leak between tests."""
     monkeypatch.delenv("SKIP_LSP_GATE", raising=False)
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
-    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(REPO_ROOT))
     monkeypatch.delenv("TMPDIR", raising=False)
 
 

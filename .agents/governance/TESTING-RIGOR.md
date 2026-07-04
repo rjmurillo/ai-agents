@@ -11,6 +11,8 @@
 
 **Every new function MUST have positive AND negative tests.** Happy path alone is insufficient. Don't ship "the change works" with only success-case tests; bots and reviewers will catch what tests missed (whitespace, type validation, error paths, conditional branches).
 
+**Mirror obligation**: a contract change MUST grep for tests asserting the old contract and flip them in the same diff. Tests must mirror the changed obligation, not only the new happy path.
+
 Coverage measurement makes the gap visible: in PR #1756, the original 20 unit tests gave 24% block coverage. After negative + edge + branch tests, coverage rose to 100%, and the additional tests caught real defects (whitespace handling on verdict matching, conditional OTHER-hint emission, scenario type validation) that the bots had flagged.
 
 ---

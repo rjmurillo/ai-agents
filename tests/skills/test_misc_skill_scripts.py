@@ -96,7 +96,6 @@ class TestDetectAdrChanges:
         importlib.reload(mod)
         (tmp_path / ".git").mkdir()
         # Mock _run_git to return empty diff
-        original_run_git = mod._run_git
         mock_result = MagicMock(returncode=0, stdout="")
         with patch.object(mod, "_run_git", return_value=mock_result):
             exit_code = mod.main(["--base-path", str(tmp_path)])
@@ -114,9 +113,11 @@ class TestDetectAdrChanges:
         mock_results = [
             # First pattern returns a created file
             MagicMock(returncode=0, stdout="A\t.agents/architecture/ADR-001.md"),
-            # Second pattern returns nothing
-            MagicMock(returncode=0, stdout=""),
         ]
+        mock_results.extend(
+            MagicMock(returncode=0, stdout="")
+            for _ in range(len(mod.ADR_PATTERNS) - 1)
+        )
         with patch.object(mod, "_run_git", side_effect=mock_results):
             exit_code = mod.main(["--base-path", str(tmp_path)])
         assert exit_code == 0

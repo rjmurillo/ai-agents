@@ -84,10 +84,16 @@ _DEFAULT_BASELINE_NAME = "skill_portability_baseline.json"
 
 
 def _repo_root(start: Path) -> Path:
-    """Walk up from ``start`` to the repo root (the dir containing .claude)."""
+    """Walk up from ``start`` to the repo root."""
     base = start if start.is_dir() else start.parent
     for ancestor in (base, *base.parents):
-        if (ancestor / ".claude" / "skills").is_dir():
+        has_skills = (ancestor / ".claude" / "skills").is_dir()
+        has_repo_marker = (
+            (ancestor / ".git").exists()
+            or (ancestor / "pyproject.toml").is_file()
+            or (ancestor / "AGENTS.md").is_file()
+        )
+        if has_skills and has_repo_marker:
             return ancestor
     return base
 

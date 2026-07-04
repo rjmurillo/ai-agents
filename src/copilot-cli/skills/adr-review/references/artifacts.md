@@ -72,7 +72,10 @@ Return to orchestrator with structured recommendations:
 Check these locations for existing ADRs and patterns:
 
 - `.agents/architecture/ADR-*.md`
+- `docs/adr/ADR-*.md`
 - `docs/architecture/ADR-*.md`
+- `docs/decisions/ADR-*.md`
+- `architecture/decisions/ADR-*.md`
 
 ### ADR Template Reference
 

@@ -37,6 +37,7 @@ def _run_entry(event: str, payload: dict[str, Any]) -> subprocess.CompletedProce
     env["CLAUDE_PROJECT_DIR"] = str(_REPO)
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
+    env["AI_AGENTS_PROJECT_REPO"] = "1"
     event_timeout_sec = int(_hooks()[event][0]["timeoutSec"])
     timeout_sec = min(event_timeout_sec + 5, _DISPATCH_TEST_TIMEOUT_CAP_SEC)
     return subprocess.run(
@@ -87,13 +88,21 @@ class TestDispatcherArtifacts:
         assert proc.returncode == 0, proc.stderr.decode()[:600]
 
     def test_pretooluse_denies_blocked_tool(self):
-        # Raw gh trips the skill-first guard; the dispatcher must deny (#2295
-        # fail-closed preserved end-to-end through consolidation).
+        # An unresolvable cwd trips branch protection fail-closed; the dispatcher
+        # must deny (#2295 preserved end-to-end through consolidation).
         proc = _run_entry(
-            _GATING, {"tool_name": "Bash", "tool_input": {"command": "gh issue list"}}
+            _GATING,
+            {
+                "cwd": str(_REPO / "missing-dispatcher-test-repo"),
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "git push origin fix/workflow-local-test-secrets-2841"
+                },
+            },
         )
         assert proc.returncode != 0, "dispatcher allowed a tool a guard blocks"
-        assert b"Raw" in proc.stdout or b"Blocked" in proc.stdout or b"skill" in proc.stderr.lower()
+        combined = proc.stdout + proc.stderr
+        assert b"block" in combined.lower() or b"session" in combined.lower()
 
     def test_observe_events_run_in_one_process_and_return_zero(self):
         # Each observational dispatcher runs its real shim set end to end and

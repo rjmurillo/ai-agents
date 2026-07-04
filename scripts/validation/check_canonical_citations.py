@@ -189,12 +189,11 @@ def scan_file(path: Path) -> Violation | None:
     try:
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        # The file exists but cannot be read/decoded. A silent skip here would
-        # let an uncited mirror-claim in an unreadable file pass unseen. This is
-        # a heuristic gate (violations stay empty to avoid false positives on an
-        # undecodable blob), but the skipped path is surfaced so CI logs it.
-        print(f"[SKIP] unreadable, not scanned: {path}: {exc}", file=sys.stderr)
-        return None
+        return Violation(
+            path=path,
+            matched_token="read_error",
+            excerpt=f"Unable to read file: {exc}",
+        )
 
     text = _extract_docstring_and_top_comments(source)
     if not text:
