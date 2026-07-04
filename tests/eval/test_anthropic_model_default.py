@@ -22,6 +22,11 @@ sys.path.insert(0, str(_EVAL_DIR))
 try:
     import _anthropic_api  # noqa: E402
     import _eval_common  # noqa: E402
+
+    # verify_model_available lazily does `from _providers import ...` at
+    # runtime. Import it here so it is cached in sys.modules and resolves
+    # even after sys.path is restored below (mirrors test_providers.py).
+    import _providers  # noqa: E402,F401
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 
@@ -157,6 +162,48 @@ def test_verify_fails_open_on_infra_error(monkeypatch: pytest.MonkeyPatch, capsy
     # Infra error must NOT raise; it warns and proceeds (fail-open doctrine).
     _anthropic_api.verify_model_available("key", "claude-sonnet-4-6")
     assert "preflight skipped" in capsys.readouterr().err
+
+
+def test_verify_fails_closed_on_empty_model_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("EVAL_SKIP_MODEL_PREFLIGHT", raising=False)
+    monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+    # Probe succeeds (HTTP 200) but returns zero models -> provably unreachable.
+    monkeypatch.setattr(
+        "urllib.request.urlopen", lambda req, timeout=None: _Resp(_models_payload([]))
+    )
+    with pytest.raises(RuntimeError, match=r"Reachable ids: \(none\)"):
+        _anthropic_api.verify_model_available("key", "claude-sonnet-4-6")
+
+
+def test_verify_fails_open_on_malformed_shape(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    monkeypatch.delenv("EVAL_SKIP_MODEL_PREFLIGHT", raising=False)
+    monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+    # Valid JSON, wrong shape (a bare list). Must NOT crash with AttributeError;
+    # list_available_models raises RuntimeError -> verify fails open (warns).
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda req, timeout=None: _Resp(json.dumps([1, 2, 3]).encode()),
+    )
+    _anthropic_api.verify_model_available("key", "claude-sonnet-4-6")
+    assert "preflight skipped" in capsys.readouterr().err
+
+
+def test_list_available_models_rejects_non_dict_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda req, timeout=None: _Resp(json.dumps("not-an-object").encode()),
+    )
+    with pytest.raises(RuntimeError, match="unexpected payload shape"):
+        _anthropic_api.list_available_models("key")
+
+
+def test_list_available_models_rejects_non_list_data(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda req, timeout=None: _Resp(json.dumps({"data": {"id": "x"}}).encode()),
+    )
+    with pytest.raises(RuntimeError, match="unexpected 'data' shape"):
+        _anthropic_api.list_available_models("key")
 
 
 # --- 404 enrichment in call_api ----------------------------------------

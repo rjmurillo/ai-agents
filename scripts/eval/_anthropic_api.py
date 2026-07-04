@@ -266,7 +266,22 @@ def list_available_models(api_key: str, *, timeout: int = 30) -> list[str]:
             f"Anthropic models endpoint returned invalid JSON: {e.msg}."
         ) from e
 
-    return [m["id"] for m in result.get("data", []) if isinstance(m, dict) and m.get("id")]
+    # A 200 with valid JSON can still be the wrong shape (a bare list, a
+    # string, or a non-list `data`). Treat any shape violation as an
+    # infrastructure error (RuntimeError) so callers fail open rather than
+    # crashing on an unguarded AttributeError/TypeError.
+    if not isinstance(result, dict):
+        raise RuntimeError(
+            "Anthropic models endpoint returned an unexpected payload shape "
+            f"(expected object, got {type(result).__name__})."
+        )
+    data = result.get("data", [])
+    if not isinstance(data, list):
+        raise RuntimeError(
+            "Anthropic models endpoint returned an unexpected 'data' shape "
+            f"(expected list, got {type(data).__name__})."
+        )
+    return [m["id"] for m in data if isinstance(m, dict) and m.get("id")]
 
 
 def verify_model_available(
@@ -324,10 +339,15 @@ def verify_model_available(
         )
         return
 
-    if reachable and model not in reachable:
+    # A successful probe that does not list `model` means it is provably
+    # unreachable with this key -> fail closed. An empty list is the same
+    # signal (the probe worked and returned zero models), so it also fails
+    # closed rather than silently proceeding to a guaranteed 404.
+    if model not in reachable:
+        listed = ", ".join(sorted(reachable)) if reachable else "(none)"
         raise RuntimeError(
             f"Model '{model}' is not reachable with this API key. "
-            f"Reachable ids: {', '.join(sorted(reachable))}. "
+            f"Reachable ids: {listed}. "
             "Pass --model with one of these, or update DEFAULT_MODEL in "
             "scripts/eval/_anthropic_api.py."
         )
