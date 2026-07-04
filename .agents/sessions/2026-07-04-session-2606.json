@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2606,
+    "date": "2026-07-04",
+    "branch": "fix/cluster-prompts",
+    "startingCommit": "2dfb0972",
+    "objective": "Drive PR 2844 fix cluster prompts to merged"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded; activate_project unavailable in Copilot deferred tools."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned manual in transcript."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md lines 1-116 read."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed 50 GitHub skill Python scripts under .claude/skills/github/scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md lines 1-200 read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index, skills-github-cli-index, skills-pr-review-index, validation-pr-gates, skills-git-index."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/cluster-prompts"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/cluster-prompts"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short checked in dedicated worktree."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "2dfb0972"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST fields completed with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only. git status shows no HANDOFF.md modification."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote Serena memory session/pr-2844-cluster-prompts-babysit."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit ran markdownlint on docs/agent-catalog.md with 0 errors."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code changes committed in fd7bd9f62 and 242ead05. This session log is committed last."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-07-04-session-2606.json passed after final update."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todos updated through validation and merge phase."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Not invoked. PR babysit continuation did not need a retrospective artifact."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-04T02:15:00Z",
+      "entry": "Created dedicated worktree /home/richard/src/GitHub/rjmurillo/ai-agents-pr-2844 for PR 2844."
+    },
+    {
+      "time": "2026-07-04T02:18:00Z",
+      "entry": "Rebased fix/cluster-prompts onto origin/main and resolved ADR skill conflicts by preserving broader trigger coverage."
+    },
+    {
+      "time": "2026-07-04T02:21:00Z",
+      "entry": "Ran python3 build/scripts/build_all.py; regenerated docs/agent-catalog.md."
+    },
+    {
+      "time": "2026-07-04T02:24:00Z",
+      "entry": "Bumped both plugin manifests to one patch above origin/main."
+    },
+    {
+      "time": "2026-07-04T02:28:00Z",
+      "entry": "Resolved two Gemini review threads after verifying generated mirrors were regenerated from canonical sources."
+    },
+    {
+      "time": "2026-07-04T02:33:00Z",
+      "entry": "Created merge commit fd7bd9f62 so the PR branch can push without force."
+    },
+    {
+      "time": "2026-07-04T02:35:00Z",
+      "entry": "Committed plugin version bump 242ead05 and verified plugin-version-bump and build_all checks pass locally."
+    }
+  ],
+  "endingCommit": "242ead05",
+  "nextSteps": [
+    "Push fix/cluster-prompts, monitor required checks, re-bump plugin versions if the version race is lost, then enable auto-merge."
+  ]
+}
