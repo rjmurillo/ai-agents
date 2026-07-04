@@ -12,6 +12,7 @@ Covers:
 
 import json
 import subprocess
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -19,14 +20,16 @@ from github_core.api import RepoInfo
 from test_helpers import import_skill_script
 
 
-def make_proc(stdout="", stderr="", returncode=0):
+def make_proc(
+    stdout: str = "", stderr: str = "", returncode: int = 0,
+) -> subprocess.CompletedProcess[str]:
     """Return a mock CompletedProcess."""
     return subprocess.CompletedProcess(
         args=[], returncode=returncode, stdout=stdout, stderr=stderr,
     )
 
 
-def _extract_json(text: str) -> dict:
+def _extract_json(text: str) -> dict[str, Any]:
     """Extract the last JSON object from output that may contain text before it.
 
     Walks lines from the bottom and returns the first one that parses as a
@@ -37,7 +40,7 @@ def _extract_json(text: str) -> dict:
         if not candidate.startswith("{"):
             continue
         try:
-            return json.loads(candidate)
+            return cast("dict[str, Any]", json.loads(candidate))
         except json.JSONDecodeError:
             continue
     raise ValueError(f"No JSON found in output: {text!r}")
