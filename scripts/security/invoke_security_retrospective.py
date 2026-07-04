@@ -36,6 +36,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SUBPROCESS_TIMEOUT_SECONDS = 120
+
 
 class ExternalReviewSource(Enum):
     """Source of external security review."""
@@ -206,7 +208,7 @@ class SecurityRetrospective:
                 capture_output=True,
                 encoding="utf-8", errors="replace",
                 check=False,
-                timeout=120,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if result.returncode != 0:
@@ -274,6 +276,7 @@ class SecurityRetrospective:
                 capture_output=True,
                 encoding="utf-8", errors="replace",
                 check=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             return result.stdout.strip()
         except subprocess.SubprocessError:

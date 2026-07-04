@@ -34,6 +34,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SUBPROCESS_TIMEOUT_SECONDS = 60
+
 
 @dataclass
 class SecurityFinding:
@@ -135,6 +137,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if remote_result.returncode != 0:
@@ -156,6 +159,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,  # Don't raise, check returncode explicitly
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if branch_result.returncode != 0:
@@ -190,12 +194,18 @@ class PreCommitSecurityCheck:
         owner, repo, branch = context
 
         # Check if gh CLI is available
-        gh_check = subprocess.run(
-            ["gh", "--version"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            gh_check = subprocess.run(
+                ["gh", "--version"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            logger.debug("gh CLI version check timed out, skipping CodeQL alert fetch")
+            return []
+
         if gh_check.returncode != 0:
             logger.debug("gh CLI not available, skipping CodeQL alert fetch")
             return []
@@ -223,7 +233,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=30,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if result.returncode != 0:
@@ -390,6 +400,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             files = result.stdout.strip().split("\n") if result.stdout.strip() else []
@@ -440,7 +451,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=60,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if "PSScriptAnalyzer" in result.stdout:
@@ -458,7 +469,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=120,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             return install_result.returncode == 0
@@ -480,20 +491,23 @@ class PreCommitSecurityCheck:
 
         for file_path in files:
             try:
+                analyzer_command = (
+                    "$findings = Invoke-ScriptAnalyzer "
+                    f"-Path '{file_path}' -Severity Error,Warning\n"
+                    "$findings | ConvertTo-Json -Depth 3"
+                )
                 # Run PSScriptAnalyzer with JSON output
                 result = subprocess.run(
                     [
                         "pwsh",
                         "-NoProfile",
                         "-Command",
-                        f"""
-                        $findings = Invoke-ScriptAnalyzer -Path '{file_path}' -Severity Error,Warning
-                        $findings | ConvertTo-Json -Depth 3
-                        """,
+                        analyzer_command,
                     ],
                     capture_output=True,
                     text=True,
                     check=False,
+                    timeout=SUBPROCESS_TIMEOUT_SECONDS,
                 )
 
                 if result.returncode != 0 and result.stderr:
@@ -618,6 +632,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             branch = result.stdout.strip().replace("/", "-")
         except subprocess.SubprocessError:
@@ -682,7 +697,10 @@ class PreCommitSecurityCheck:
                     f"| `{alert.location_path}:{alert.location_line}` | {desc_short} |\n"
                 )
             content += "\n"
-            content += "**Agent Action Required**: Review each CodeQL finding above in the context of:\n"
+            content += (
+                "**Agent Action Required**: Review each CodeQL finding above "
+                "in the context of:\n"
+            )
             content += "- Business impact and data sensitivity\n"
             content += "- Deployment context (CLI tool vs API service)\n"
             content += "- Existing mitigations or compensating controls\n\n"
@@ -719,10 +737,19 @@ class PreCommitSecurityCheck:
         else:
             codeql_status = "PASS"
 
+        psscriptanalyzer_status = (
+            "PASS"
+            if severity_counts["CRITICAL"] == 0 and severity_counts["HIGH"] == 0
+            else "FAIL"
+        )
+        codeql_summary = (
+            f"{codeql_status} ({len(self.codeql_alerts)} open alert(s), "
+            f"{codeql_critical} critical/high)"
+        )
         content += f"""## Validation Status
 
-- **CodeQL**: {codeql_status} ({len(self.codeql_alerts)} open alert(s), {codeql_critical} critical/high)
-- **PSScriptAnalyzer**: {'PASS' if severity_counts['CRITICAL'] == 0 and severity_counts['HIGH'] == 0 else 'FAIL'}
+- **CodeQL**: {codeql_summary}
+- **PSScriptAnalyzer**: {psscriptanalyzer_status}
 - **Critical File Review**: {'REQUIRED' if critical_files else 'NOT REQUIRED'}
 - **Agent Review**: {'SKIPPED' if self.skip_agent_review else 'PENDING'}
 
@@ -755,6 +782,7 @@ class PreCommitSecurityCheck:
                 ["git", "add", str(report_path)],
                 check=True,
                 capture_output=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             logger.info("Staged security report: %s", report_path.name)
             return True

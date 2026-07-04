@@ -31,6 +31,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SUBPROCESS_TIMEOUT_SECONDS = 300
+
 
 class SemgrepInstaller:
     """Handles semgrep installation across platforms."""
@@ -47,6 +49,7 @@ class SemgrepInstaller:
                 capture_output=True,
                 encoding="utf-8", errors="replace",
                 check=False,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             if result.returncode == 0:
                 version = result.stdout.strip()
@@ -66,7 +69,7 @@ class SemgrepInstaller:
                 capture_output=True,
                 encoding="utf-8", errors="replace",
                 check=False,
-                timeout=300,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if result.returncode == 0:
@@ -76,6 +79,8 @@ class SemgrepInstaller:
             logger.error("Installation failed: %s", result.stderr)
             return False
 
+        except subprocess.TimeoutExpired:
+            raise
         except subprocess.SubprocessError as e:
             logger.error("Installation error: %s", e)
             return False
@@ -141,7 +146,11 @@ def main() -> int:
     args = parser.parse_args()
 
     installer = SemgrepInstaller(check_only=args.check)
-    return installer.run()
+    try:
+        return installer.run()
+    except subprocess.TimeoutExpired as e:
+        logger.error("Semgrep installation timed out after %ss: %s", e.timeout, e.cmd)
+        return 3
 
 
 if __name__ == "__main__":
