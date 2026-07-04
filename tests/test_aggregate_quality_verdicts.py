@@ -16,6 +16,8 @@ _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 
 def _import_script(name: str):
     spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
+    assert spec is not None, f"Could not load spec for {name}"
+    assert spec.loader is not None, f"Spec for {name} has no loader"
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
@@ -223,3 +225,91 @@ class TestMain:
         outputs = _read_outputs(output_file)
         # Real WARN outranks UNKNOWN per merge_verdicts severity order.
         assert outputs["final_verdict"] == "WARN"
+
+
+# ---------------------------------------------------------------------------
+# Tests: security_review_ran output (issue #2821 option c)
+# ---------------------------------------------------------------------------
+
+
+class TestSecurityReviewRan:
+    """A security-axis infrastructure failure must be visibly distinct from a
+    security review that actually ran (issue #2821, option c)."""
+
+    def test_security_infra_failure_sets_ran_false_and_annotates(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "NEEDS_REVIEW"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["security_review_ran"] == "false"
+        assert outputs["final_verdict"] == "WARN"
+        captured = capsys.readouterr()
+        assert "::warning title=Security review did not run::" in captured.out
+
+    def test_all_pass_sets_ran_true_without_annotation(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        infra = {a: "false" for a in _AGENTS}
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["security_review_ran"] == "true"
+        captured = capsys.readouterr()
+        assert "Security review did not run" not in captured.out
+
+    def test_security_code_quality_failure_counts_as_ran(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "CRITICAL_FAIL"
+        infra = {a: "false" for a in _AGENTS}
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["security_review_ran"] == "true"
+        assert outputs["final_verdict"] != "WARN"
+        captured = capsys.readouterr()
+        assert "Security review did not run" not in captured.out
+
+    def test_no_verdicts_sets_ran_false(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "" for a in _AGENTS}
+
+        rc = main(_make_argv(verdicts))
+
+        assert rc == 1
+        outputs = _read_outputs(output_file)
+        assert outputs["security_review_ran"] == "false"
+
+    def test_nonsecurity_infra_failure_keeps_ran_true(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["qa"] = "NEEDS_REVIEW"
+        infra = {a: "false" for a in _AGENTS}
+        infra["qa"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["security_review_ran"] == "true"
+        assert outputs["final_verdict"] == "WARN"
+        captured = capsys.readouterr()
+        assert "Security review did not run" not in captured.out

@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Prior branch updates committed through 0a8126ab5; review-thread fixes and this session log are staged for the next commit."
+        "Evidence": "Latest origin/main merge conflict resolution is staged for the merge commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest validation passed: 69 targeted tests passed, ruff passed on changed files, mypy passed on changed scripts, and session log validation passed."
+        "Evidence": "Latest validation passed: build_all.py --check, 71 targeted tests, and session log validation."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -145,10 +145,18 @@
     {
       "summary": "Validated PR review fixes locally.",
       "evidence": "uv run pytest tests/test_memory_sync/test_cli.py tests/test_analyze_pr_failure.py -q passed: 69 passed. uv run ruff check on changed files passed. uv run mypy scripts/memory_sync/cli.py scripts/analyze_pr_failure.py passed."
+    },
+    {
+      "summary": "Resolved latest origin/main merge conflicts for PR 2823.",
+      "evidence": "origin/main advanced to daa6f9445e. Resolved .agents/memory/causality/causal-graph.json by preserving both episode node sets and resolved github_core/output.py mirrors with the type-safe caller_file path handling."
+    },
+    {
+      "summary": "Validated the latest merge resolution locally.",
+      "evidence": "python3 build/scripts/build_all.py --check passed. uv run pytest tests/test_memory_sync/test_cli.py tests/test_analyze_pr_failure.py -q passed: 71 passed. uv run python scripts/validate_session_json.py .agents/sessions/2026-07-04-session-2606-babysit-2823-merge.json passed."
     }
   ],
   "endingCommit": "0e91286c7",
   "nextSteps": [
-    "Commit and push review-thread fixes, reply and resolve PR 2823 threads, then poll until merged."
+    "Commit and push the latest origin/main merge, verify review threads, keep auto-merge enabled, and poll until PR 2823 is merged."
   ]
 }

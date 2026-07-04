@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -137,7 +138,7 @@ class TestHasFailingChecks:
         assert has_failing_checks(pr) is True
 
 
-class TestHasUnresolvedThreads:
+class TestHasUnresolvedThreadsReturnValues:
     def test_returns_true_when_threads_unresolved(self) -> None:
         pr = {
             "reviewThreads": {
@@ -161,7 +162,7 @@ class TestHasUnresolvedThreads:
         assert has_unresolved_threads(pr) is False
 
     def test_returns_false_when_no_threads(self) -> None:
-        pr = {"reviewThreads": {"nodes": []}}
+        pr: dict[str, Any] = {"reviewThreads": {"nodes": []}}
         assert has_unresolved_threads(pr) is False
 
     def test_returns_false_when_missing_key(self) -> None:
@@ -436,7 +437,7 @@ class TestHasUnresolvedThreads:
     def test_returns_false_when_no_threads(self) -> None:
         from scripts.invoke_pr_maintenance import has_unresolved_threads
 
-        pr = {"reviewThreads": {"nodes": []}}
+        pr: dict[str, Any] = {"reviewThreads": {"nodes": []}}
         assert has_unresolved_threads(pr) is False
 
     def test_warns_when_threads_truncated(

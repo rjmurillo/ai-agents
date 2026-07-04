@@ -8421,6 +8421,69 @@
         "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813"
       ],
       "created": "2026-07-02T15:29:52.544852+00:00"
+    },
+    {
+      "id": "910da7b3cdf1",
+      "type": "milestone",
+      "label": "milestone: Read issue #2821 and its discourse; owner has not picked an option, so implemented the recommended option c (additive visibility, keeps the deliberate WARN policy intact) as a draft PR for the owner to accept or reject",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373258+00:00"
+    },
+    {
+      "id": "eac5b587de3f",
+      "type": "milestone",
+      "label": "milestone: aggregate_quality_verdicts.py: emit ::warning annotation and a security_review_ran output when the security axis category is INFRASTRUCTURE, including the no-verdicts CRITICAL_FAIL branch",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373319+00:00"
+    },
+    {
+      "id": "a9c342770ad5",
+      "type": "milestone",
+      "label": "milestone: generate_quality_report.py: render a distinct CAUTION block under the final verdict when the security axis hit an infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373356+00:00"
+    },
+    {
+      "id": "f5ec7a6f06ee",
+      "type": "milestone",
+      "label": "milestone: Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373391+00:00"
+    },
+    {
+      "id": "57d6b6d72657",
+      "type": "test",
+      "label": "test: Added 8 regression tests (5 aggregate: infra-failure, all-pass, code-quality-failure, no-verdicts, nonsecurity-infra; 3 report: caution-present, caution-absent, nonsecurity-infra). uv run pytest: 42 passed across both suites",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373426+00:00"
+    },
+    {
+      "id": "b93aa9153be7",
+      "type": "commit",
+      "label": "commit: Commit: e5392ba",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373459+00:00"
+    },
+    {
+      "id": "8f0d460f7184",
+      "type": "outcome",
+      "label": "Outcome: success - Implement issue 2821 option c: distinct security-review-did-not-run annotation in the AI quality gate",
+      "episodes": [
+        "episode-2026-07-03-session-2605"
+      ],
+      "created": "2026-07-03T16:17:16.373493+00:00"
     }
   ],
   "patterns": [
