@@ -189,6 +189,13 @@ class TestMergeInProgressBypass:
         # No marker files present.
         assert guard.is_gated_target(str(target), str(repo)) is True
 
+    def test_repo_under_tmpdir_still_gates_in_repo_files(self, tmp_path, monkeypatch):
+        # TMPDIR scratch bypass must not disable the gate for a real checkout
+        # whose root lives under TMPDIR, which happens in some test harnesses.
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        repo, target = self._make_repo(tmp_path)
+        assert guard.is_gated_target(str(target), str(repo)) is True
+
 
 class TestConflictMarkerBypass:
     """Issue #2454: files whose leading window starts a line with conflict
