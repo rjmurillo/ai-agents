@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 _REPO = Path(__file__).resolve().parents[2]
 _COPILOT = _REPO / "src" / "copilot-cli"
@@ -26,12 +27,14 @@ _ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
 _DISPATCH_TEST_TIMEOUT_CAP_SEC = 60
 
 
-def _hooks() -> dict:
-    return json.loads(_HOOKS_JSON.read_text(encoding="utf-8"))["hooks"]
+def _hooks() -> dict[str, list[dict[str, Any]]]:
+    data = json.loads(_HOOKS_JSON.read_text(encoding="utf-8"))
+    return cast("dict[str, list[dict[str, Any]]]", data["hooks"])
 
 
-def _run_entry(event: str, payload: dict) -> subprocess.CompletedProcess:
+def _run_entry(event: str, payload: dict[str, Any]) -> subprocess.CompletedProcess[bytes]:
     env = dict(os.environ)
+    env["CLAUDE_PROJECT_DIR"] = str(_REPO)
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
     event_timeout_sec = int(_hooks()[event][0]["timeoutSec"])
