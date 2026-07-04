@@ -32,8 +32,9 @@ def _hooks() -> dict[str, list[dict[str, Any]]]:
     return cast("dict[str, list[dict[str, Any]]]", data["hooks"])
 
 
-def _run_entry(event: str, payload: dict[str, object]) -> subprocess.CompletedProcess[bytes]:
+def _run_entry(event: str, payload: dict[str, Any]) -> subprocess.CompletedProcess[bytes]:
     env = dict(os.environ)
+    env["CLAUDE_PROJECT_DIR"] = str(_REPO)
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
     env["AI_AGENTS_PROJECT_REPO"] = "1"

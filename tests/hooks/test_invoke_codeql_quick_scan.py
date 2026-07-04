@@ -20,7 +20,7 @@ import invoke_codeql_quick_scan
 
 
 @pytest.fixture(autouse=True)
-def clear_project_dir_env(monkeypatch):
+def _clear_project_dir(monkeypatch):
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
 
 
