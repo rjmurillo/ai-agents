@@ -3,7 +3,7 @@
   "session": "2026-07-03-session-2603-issue-2828-add-auto-router",
   "timestamp": "2026-07-03T00:00:00+00:00",
   "outcome": "success",
-  "task": "Issue #2828: add the /auto router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps.",
+  "task": "Issue #2828: add the /autoplanplan router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps.",
   "decisions": [],
   "events": [
     {
@@ -18,7 +18,7 @@
       "id": "e002",
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
-      "content": "Authored .claude/skills/auto/SKILL.md: Phase 0 intent+size classification, 16-row routing table with orchestrator fallback, Mechanical/Taste/Sovereignty decision classes mapped to the AGENTS.md Ask First list, final gate, escape hatches.",
+      "content": "Authored .claude/skills/autoplan/SKILL.md: Phase 0 intent+size classification, 16-row routing table with orchestrator fallback, Mechanical/Taste/Sovereignty decision classes mapped to the AGENTS.md Ask First list, final gate, escape hatches.",
       "caused_by": [],
       "leads_to": []
     },
@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
-      "content": "Generated src/copilot-cli/skills/auto twin via build_all.py; bumped project-toolkit claude and copilot manifests to 0.5.255.",
+      "content": "Generated src/copilot-cli/skills/autoplan twin via build_all.py; bumped project-toolkit claude and copilot manifests to 0.5.256.",
       "caused_by": [],
       "leads_to": []
     },
@@ -50,7 +50,7 @@
       "id": "e006",
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
-      "content": "Verification: validate_skill_format.py --path .claude/skills/auto PASSED; dash byte-check clean.",
+      "content": "Verification: validate_skill_format.py --path .claude/skills/autoplan PASSED; dash byte-check clean.",
       "caused_by": [],
       "leads_to": []
     },
@@ -66,18 +66,18 @@
       "id": "e008",
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 2d5870f",
+      "content": "Commit: dca57fa",
       "caused_by": [],
       "leads_to": []
     }
   ],
   "metrics": {
     "duration_minutes": 0,
-    "tool_calls": 0,
+    "tool_calls": 8,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 6
+    "commits": 5,
+    "files_changed": 7
   },
   "lessons": []
 }

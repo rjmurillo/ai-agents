@@ -5,7 +5,7 @@
     "date": "2026-07-03",
     "branch": "claude/auto-router-skill",
     "startingCommit": "f13f73f",
-    "objective": "Issue #2828: add the /auto router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps."
+    "objective": "Issue #2828: add the /autoplanplan router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits abcba45 (/auto skill + twin), d52748c (session log), 2d5870f (buy-vs-build + security-detection routing rows); final commit 2d5870f recorded as endingCommit"
+        "Evidence": "Commits abcba45 (/auto skill + twin), d52748c (session log), 2d5870f (buy-vs-build + security-detection routing rows); final commit dca57fa recorded as endingCommit"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ran validate_skill_format.py --path .claude/skills/auto: PASSED; byte-check 0 em-dashes 0 en-dashes; build_all regenerated the copilot twin cleanly; ran `uv run pytest` not applicable (no runtime surface; markdown-only skill), format validator is the check."
+        "Evidence": "Ran validate_skill_format.py --path .claude/skills/autoplan: PASSED; byte-check 0 em-dashes 0 en-dashes; build_all regenerated the copilot twin cleanly; ran `uv run pytest` not applicable (no runtime surface; markdown-only skill), format validator is the check."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,15 +115,15 @@
   },
   "workLog": [
     "Fetched gstack autoplan SKILL.md.tmpl as the reference shape; surveyed internal prior art (steering-matcher, orchestrator, CLAUDE.md static table) and found no existing intent router.",
-    "Authored .claude/skills/auto/SKILL.md: Phase 0 intent+size classification, 16-row routing table with orchestrator fallback, Mechanical/Taste/Sovereignty decision classes mapped to the AGENTS.md Ask First list, final gate, escape hatches.",
+    "Authored .claude/skills/autoplan/SKILL.md: Phase 0 intent+size classification, 16-row routing table with orchestrator fallback, Mechanical/Taste/Sovereignty decision classes mapped to the AGENTS.md Ask First list, final gate, escape hatches.",
     "Removed a self-set drift trap: hardcoded skill count in the description (orphan-ref-validator flags stale counts).",
-    "Generated src/copilot-cli/skills/auto twin via build_all.py; bumped project-toolkit claude and copilot manifests to 0.5.255.",
+    "Generated src/copilot-cli/skills/autoplan twin via build_all.py; bumped project-toolkit claude and copilot manifests to 0.5.256.",
     "Filed issue #2828 with the design and buy-vs-build Quick-tier verdict.",
-    "Verification: validate_skill_format.py --path .claude/skills/auto PASSED; dash byte-check clean."
+    "Verification: validate_skill_format.py --path .claude/skills/autoplan PASSED; dash byte-check clean."
   ],
-  "endingCommit": "2d5870f",
+  "endingCommit": "dca57fa",
   "nextSteps": [
-    "Open draft PR for #2828.",
-    "Follow-up: point the CLAUDE.md Skill routing section at /auto as the canonical router so the two tables do not drift."
+    "Draft PR #2829 opened for #2828.",
+    "Follow-up: point the CLAUDE.md Skill routing section at /autoplan as the canonical router so the two tables do not drift."
   ]
 }
