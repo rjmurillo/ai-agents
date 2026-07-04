@@ -489,6 +489,7 @@ class PreCommitSecurityCheck:
                     encoding="utf-8",
                     errors="replace",
                     check=False,
+                    timeout=60,
                 )
 
                 if result.returncode != 0 and result.stderr:
@@ -534,6 +535,13 @@ class PreCommitSecurityCheck:
                         e,
                     )
                     failed_files.append(str(file_path))
+
+            except subprocess.TimeoutExpired:
+                logger.warning(
+                    "[TIMEOUT] PSScriptAnalyzer timed out for %s; adding to failed files",
+                    file_path.name,
+                )
+                failed_files.append(str(file_path))
 
             except subprocess.SubprocessError as e:
                 logger.error(

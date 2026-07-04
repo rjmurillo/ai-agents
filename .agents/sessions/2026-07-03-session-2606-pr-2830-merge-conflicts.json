@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits pushed: 79b81c09c, fbef362b0, 1b2162a88, c3b3909d97, e332c7cf3f, 08949646d3. Latest main merge committed as 1d3e4c52ab."
+        "Evidence": "Commits pushed: 79b81c09c, fbef362b0, 1b2162a88, c3b3909d97, e332c7cf3f, 08949646d3. Latest main and remote PR merge commit recorded as cbc1e18e18."
       },
       "validationPassed": {
         "level": "MUST",
@@ -105,7 +105,7 @@
       "evidence": "origin/main 9c88990b77 merged into PR branch after resolving causal-graph.json by taking main and regenerating from episodes. Branch head before this merge was 08949646d3."
     }
   ],
-  "endingCommit": "1d3e4c52ab",
+  "endingCommit": "cbc1e18e18",
   "nextSteps": [
     "Push merge resolution to PR #2830 and wait for GitHub checks.",
     "Keep auto-merge enabled and poll until PR #2830 reports MERGED."
