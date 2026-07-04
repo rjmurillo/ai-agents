@@ -311,6 +311,18 @@ async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
 
 **Programming by Intention**: Sergeant methods direct workflow via private methods. Single purpose, clear names, separation of concerns.
 
+## Mirror Obligation: Close the Inverse (Before Writing a Fix)
+
+A behavior change carries a mirror obligation: the inverse case it could break. Before you write the fix, name the inverse and plan to close it in the same diff. Three recurring inverses:
+
+- **Broaden detection, or add a guard?** Add the no-over-fire check. A change that catches the target must not fire on a valid existing case.
+- **Add a partial guard, or a new branch?** Cover every branch and operand, not only the one in the report.
+- **Change a contract?** Find and flip the tests that assert the OLD contract in the same diff.
+
+If inspection proves sibling branches share the same failure shape, fix the reachable sibling branches in the same diff. Do not ask for permission to leave a known sibling broken. If the new contract is explicit and old-contract tests exist, flip those tests in the same diff. Do not block only because the old tests need updating.
+
+State the inverse before coding. If you genuinely cannot name one, say so explicitly; do not skip the step silently.
+
 ## Implementation Process
 
 For each task:
