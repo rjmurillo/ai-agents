@@ -65,7 +65,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `ADR-*.md` | `architecture/decisions/` | create, update, delete |
 | `SESSION-PROTOCOL.md` | `.agents/` | create, update, delete |
 
-**Detection**: `scripts/detect_adr_changes.py`
+**Detection**: from repo root, run `.claude/skills/adr-review/scripts/detect_adr_changes.py` for the Claude skill tree or `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py` for the Copilot CLI mirror.
 
 ## When to Use
 
@@ -180,17 +180,21 @@ After structural and technical review, apply strategic lenses:
 
 | Script | Purpose |
 |--------|---------|
-| `detect_adr_changes.py` | Detect ADR file changes for auto-trigger |
+| `.claude/skills/adr-review/scripts/detect_adr_changes.py` | Detect ADR file changes for the Claude skill tree |
+| `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py` | Detect ADR file changes for the Copilot CLI mirror |
 
 ```bash
-# Basic detection
-python3 scripts/detect_adr_changes.py
+# Basic detection from repo root
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
 
 # Compare to specific commit
-python3 scripts/detect_adr_changes.py --since-commit abc123
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit abc123
 
 # Include untracked ADR files
-python3 scripts/detect_adr_changes.py --include-untracked
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+
+# Copilot CLI mirror from repo root
+python3 src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
 ```
 
 ## Verification Checklist
@@ -198,11 +202,11 @@ python3 scripts/detect_adr_changes.py --include-untracked
 Before marking complete, run the bundled detector to check for pending ADR changes:
 
 ```bash
-python3 scripts/detect_adr_changes.py --include-untracked
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
 echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 ```
 
-- [ ] `detect_adr_changes.py` exited 0 (no git or I/O errors)
+- [ ] The detector script exited 0 (no git or I/O errors)
 - [ ] If skill was auto-triggered by a file change, `HasChanges` should be `true`; if skill was manually invoked on an existing committed ADR, `HasChanges: false` is expected and acceptable
 
 After skill invocation:
