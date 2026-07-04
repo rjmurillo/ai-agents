@@ -56,6 +56,7 @@ from github_core.api import (  # noqa: E402
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -391,7 +392,12 @@ def _find_existing_synthesis(
     return None
 
 
-def _assign_copilot(owner: str, repo: str, issue_number: int) -> bool:
+def _assign_copilot(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    output_format: str = "auto",
+) -> bool:
     """Assign copilot-swe-agent to the issue."""
     try:
         result = subprocess.run(
@@ -403,12 +409,15 @@ def _assign_copilot(owner: str, repo: str, issue_number: int) -> bool:
             capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
-    except subprocess.TimeoutExpired:
-        print(
-            f"WARNING: copilot assign timed out after {GH_TIMEOUT_SECONDS}s",
-            file=sys.stderr,
+    except subprocess.TimeoutExpired as err:
+        write_skill_error(
+            f"copilot assign timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="Timeout",
+            output_format=output_format,
+            script_name="invoke_copilot_assignment.py",
         )
-        return False
+        raise SystemExit(3) from err
     if result.returncode != 0:
         print(f"WARNING: Failed to assign copilot-swe-agent: {result.stderr}", file=sys.stderr)
         return False
@@ -536,10 +545,15 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
-    except subprocess.TimeoutExpired:
-        error_and_exit(
-            f"Issue fetch timed out after {GH_TIMEOUT_SECONDS}s", 3
+    except subprocess.TimeoutExpired as err:
+        write_skill_error(
+            f"Issue fetch timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="invoke_copilot_assignment.py",
         )
+        raise SystemExit(3) from err
     if issue_result.returncode != 0:
         error_str = issue_result.stderr.strip() or issue_result.stdout.strip()
         if "Not Found" in error_str:
@@ -689,7 +703,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
     assigned = False
     if not args.skip_assignment:
         print("Assigning copilot-swe-agent...", file=sys.stderr)
-        assigned = _assign_copilot(owner, repo, issue_number)
+        assigned = _assign_copilot(owner, repo, issue_number, fmt)
         if assigned:
             print(f"Assigned copilot-swe-agent to issue #{issue_number}", file=sys.stderr)
     else:

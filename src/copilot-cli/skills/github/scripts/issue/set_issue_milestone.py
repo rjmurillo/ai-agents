@@ -75,7 +75,13 @@ def _write_github_output(outputs: dict[str, str]) -> None:
         pass
 
 
-def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
+def _get_current_milestone(
+    owner: str,
+    repo: str,
+    issue: int,
+    *,
+    raise_on_timeout: bool = False,
+) -> str | None:
     """Get the current milestone title for an issue, or None."""
     try:
         result = subprocess.run(
@@ -87,6 +93,8 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
             check=False,
         )
     except subprocess.TimeoutExpired:
+        if raise_on_timeout:
+            raise
         return None
     if result.returncode != 0:
         return None
@@ -96,7 +104,12 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
     return title
 
 
-def _get_milestone_titles(owner: str, repo: str) -> list[str]:
+def _get_milestone_titles(
+    owner: str,
+    repo: str,
+    *,
+    raise_on_timeout: bool = False,
+) -> list[str]:
     """Get all milestone titles from the repository."""
     try:
         result = subprocess.run(
@@ -108,6 +121,8 @@ def _get_milestone_titles(owner: str, repo: str) -> list[str]:
             check=False,
         )
     except subprocess.TimeoutExpired:
+        if raise_on_timeout:
+            raise
         return []
     if result.returncode != 0:
         return []
@@ -148,7 +163,13 @@ def _emit(output: dict[str, object], fmt: str) -> None:
     )
 
 
-def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict[str, object]) -> None:
+def _emit_error(
+    message: str,
+    code: int,
+    fmt: str,
+    error_type: str,
+    output: dict[str, object],
+) -> None:
     write_skill_error(
         message,
         code,
@@ -157,6 +178,11 @@ def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict
         script_name="set_issue_milestone.py",
         extra=output,
     )
+
+
+def _emit_timeout(message: str, fmt: str, output: dict[str, object]) -> None:
+    _emit_error(message, 3, fmt, "Timeout", output | {"action": "failed"})
+    raise SystemExit(3)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -177,14 +203,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         raise SystemExit(2)
 
-    current_milestone = _get_current_milestone(owner, repo, args.issue)
-
     output = {
         "issue": args.issue,
         "milestone": None,
-        "previous_milestone": current_milestone,
+        "previous_milestone": None,
         "action": "none",
     }
+    try:
+        current_milestone = _get_current_milestone(
+            owner,
+            repo,
+            args.issue,
+            raise_on_timeout=True,
+        )
+    except subprocess.TimeoutExpired as err:
+        output["previous_milestone"] = None
+        _emit_timeout(
+            f"Current milestone lookup timed out after {GH_TIMEOUT_SECONDS}s",
+            fmt,
+            output,
+        )
+        raise SystemExit(3) from err
+    output["previous_milestone"] = current_milestone
 
     if args.clear:
         if not current_milestone:
@@ -239,7 +279,15 @@ def main(argv: list[str] | None = None) -> int:
         })
         return 0
 
-    milestone_titles = _get_milestone_titles(owner, repo)
+    try:
+        milestone_titles = _get_milestone_titles(owner, repo, raise_on_timeout=True)
+    except subprocess.TimeoutExpired as err:
+        _emit_timeout(
+            f"Milestone title lookup timed out after {GH_TIMEOUT_SECONDS}s",
+            fmt,
+            output,
+        )
+        raise SystemExit(3) from err
     if args.milestone not in milestone_titles:
         _emit_error(
             f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
