@@ -50,7 +50,8 @@ TypeScript, Go, Rust, or anything else.
 
 Read the target's own signals: `CONTRIBUTING*`, `AGENTS.md`/`CLAUDE.md`,
 `README*`, build manifests (`*.csproj`/`*.sln`, `pyproject.toml`,
-`package.json`, `go.mod`, `Cargo.toml`, `pom.xml`/`build.gradle`), and the
+`package.json`, `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`,
+`build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`), and the
 `src/`, `lib/`, `test/`/`tests/` layout. Derive language, build command, test
 command, and conventions; carry them into every route. A plan, path, or test
 command that does not match the detected stack is a recon failure. For large
