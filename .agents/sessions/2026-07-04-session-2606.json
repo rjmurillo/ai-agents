@@ -181,9 +181,13 @@
     {
       "time": "2026-07-04T05:58Z",
       "entry": "Fixed merge fallout in atomic-write helpers and paginated PR analysis parsing after latest main sync."
+    },
+    {
+      "time": "2026-07-04T05:58Z",
+      "entry": "Rebumped both plugin manifests to 0.5.262 after origin/main reached 0.5.261."
     }
   ],
-  "endingCommit": "pending-merge-fallout-fix",
+  "endingCommit": "pending-plugin-rebump-0.5.262",
   "nextSteps": [
     "Commit merge from origin/main, push fix/cluster-robust, watch required checks, rebump plugin manifests on version races, and merge PR #2849 after required checks pass."
   ]

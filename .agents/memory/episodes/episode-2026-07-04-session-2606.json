@@ -165,6 +165,14 @@
       "content": "Fixed merge fallout in atomic-write helpers and paginated PR analysis parsing after latest main sync.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebumped both plugin manifests to 0.5.262 after origin/main reached 0.5.261.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
