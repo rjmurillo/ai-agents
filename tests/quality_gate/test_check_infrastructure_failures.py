@@ -228,13 +228,13 @@ class TestReadRawFailLoud:
         # swallowed into None (which would read as "no infra failure").
         unreadable = tmp_path / "flag.txt"
         unreadable.mkdir()
-        with pytest.raises(OSError):
+        with pytest.raises(RuntimeError):
             _read_raw(unreadable)
 
     def test_detect_failures_propagates_unreadable_flag(self, tmp_path: Path) -> None:
         # The security infra flag exists but cannot be read.
         (tmp_path / "security-infrastructure-failure.txt").mkdir()
-        with pytest.raises(OSError):
+        with pytest.raises(RuntimeError):
             detect_failures(tmp_path)
 
     def test_main_returns_three_on_unreadable_flag(

@@ -71,7 +71,7 @@ def _read_raw(path: Path) -> str | None:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None
-    except (OSError, UnicodeDecodeError) as exc:
+    except (OSError, RuntimeError, UnicodeDecodeError) as exc:
         raise RuntimeError(f"Unable to read review result file {path}: {exc}") from exc
 
 
@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         rows = collect(results_dir)
-    except (OSError, UnicodeDecodeError) as exc:
+    except (OSError, RuntimeError, UnicodeDecodeError) as exc:
         print(f"error: cannot read verdict/infra file: {exc}", file=sys.stderr)
         return 3
 

@@ -194,7 +194,7 @@ class TestReadRawFailLoud:
         # present-but-unreadable file must not be swallowed into None.
         unreadable = tmp_path / "verdict.txt"
         unreadable.mkdir()
-        with pytest.raises(OSError):
+        with pytest.raises(RuntimeError):
             _read_raw(unreadable)
 
     def test_read_infra_missing_still_false(self, tmp_path: Path) -> None:
@@ -203,7 +203,7 @@ class TestReadRawFailLoud:
 
     def test_collect_propagates_unreadable_infra(self, tmp_path: Path) -> None:
         (tmp_path / "security-infrastructure-failure.txt").mkdir()
-        with pytest.raises(OSError):
+        with pytest.raises(RuntimeError):
             collect(tmp_path)
 
     def test_main_returns_three_on_unreadable_file(
