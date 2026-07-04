@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code changes committed in fd7bd9f62 and 242ead05. This session log is committed last."
+        "Evidence": "Code changes committed in fd7bd9f62, 242ead05, 67823e5a, and 18e8269aa. This session log is committed last."
       },
       "validationPassed": {
         "level": "MUST",
@@ -141,9 +141,17 @@
     {
       "time": "2026-07-04T02:35:00Z",
       "entry": "Committed plugin version bump 242ead05 and verified plugin-version-bump and build_all checks pass locally."
+    },
+    {
+      "time": "2026-07-04T02:53:00Z",
+      "entry": "First push attempt failed because pre-push pytest found ADR change detection tests needed updated mocks and portability-safe fixtures."
+    },
+    {
+      "time": "2026-07-04T03:02:00Z",
+      "entry": "Fixed ADR change detection tests, regenerated the Copilot mirror, and verified targeted pytest plus build_all --check."
     }
   ],
-  "endingCommit": "242ead05",
+  "endingCommit": "18e8269aa",
   "nextSteps": [
     "Push fix/cluster-prompts, monitor required checks, re-bump plugin versions if the version race is lost, then enable auto-merge."
   ]

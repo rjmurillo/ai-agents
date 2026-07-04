@@ -69,6 +69,30 @@
       "content": "Commit: 242ead05",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First push attempt failed because pre-push pytest found ADR change detection tests needed updated mocks and portability-safe fixtures.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed ADR change detection tests, regenerated the Copilot mirror, and verified targeted pytest plus build_all --check.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 18e8269aa",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -76,7 +100,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 2
   },
   "lessons": []
