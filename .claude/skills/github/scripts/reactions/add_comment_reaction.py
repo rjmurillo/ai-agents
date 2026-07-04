@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     emoji = REACTION_EMOJI.get(args.reaction, args.reaction)
     succeeded = 0
     failed = 0
-    timeout_failed = False
+    timeout_failures = 0
     results: list[dict[str, object]] = []
 
     for cid in args.comment_id:
@@ -121,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         except subprocess.TimeoutExpired:
             # One hung reaction must not stall the whole loop.
             failed += 1
-            timeout_failed = True
+            timeout_failures += 1
             results.append({
                 "success": False,
                 "comment_id": cid,
@@ -171,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"comment(s); {failed} failed"
             ),
             3,
-            error_type="Timeout" if timeout_failed else "ApiError",
+            error_type="Timeout" if timeout_failures == failed else "ApiError",
             output_format=fmt,
             script_name="add_comment_reaction.py",
             extra=summary,

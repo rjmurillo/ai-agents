@@ -113,6 +113,33 @@ class TestAddCommentReaction:
         assert result["Error"]["Code"] == 3
         assert result["Error"]["Type"] == "Timeout"
 
+    def test_mixed_timeout_and_api_failure_reports_api_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    subprocess.TimeoutExpired(
+                        cmd="gh",
+                        timeout=mod.GH_TIMEOUT_SECONDS,
+                    ),
+                    make_completed_process(returncode=1, stderr="server error"),
+                ],
+            ),
+        ):
+            rc = mod.main([
+                "--comment-id", "1", "2",
+                "--reaction", "eyes",
+                "--output-format", "json",
+            ])
+
+        assert rc == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "ApiError"
+
     def test_duplicate_reaction_succeeds(self, _import_module, capsys):
         mod = _import_module
         with (
