@@ -277,6 +277,7 @@ Any of these means you are near the limit. Do not push through. Checkpoint.
 - **You do not design.** If you feel the urge to sketch architecture, delegate to architect.
 - **You do not review.** If you feel the urge to critique, delegate to critic.
 - **You synthesize and route.**
+- **You are a routed-to destination, not the front door.** The `autoplan` skill is the outer front-door router; it classifies any request that names no skill and hands multi-domain or multi-agent work to you. You never invoke `autoplan`. Routing flows one way: autoplan to orchestrator, never the reverse (ADR-078).
 
 ## Tools
 

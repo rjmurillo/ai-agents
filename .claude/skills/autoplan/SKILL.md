@@ -106,6 +106,15 @@ evidence (failing tests, widening diff), not on speculation.
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
 
+**Router boundary (ADR-078).** Autoplan is the outer front-door router at the
+skill tier. It classifies any request that names no skill and routes it to one
+destination: a skill, a lifecycle command, or an agent chain. When a request is
+multi-domain or multi-agent execution, autoplan hands off to `orchestrator`
+(last row above). Orchestrator is one of the destinations autoplan routes to,
+not a peer: it owns multi-agent coordination, handoff management, and synthesis,
+and it never routes back to autoplan. Rule: autoplan routes; orchestrator
+coordinates specialists.
+
 ### Phase 3: Execute with defaults
 
 Apply these without asking. Log each application for the final gate.
