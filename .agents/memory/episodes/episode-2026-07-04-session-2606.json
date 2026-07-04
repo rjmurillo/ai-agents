@@ -165,6 +165,38 @@
       "content": "Commit: 192d0537",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched unresolved PR 2844 review threads and verified five open Copilot comments about detector paths and stale ADR reference locations.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated adr-review detector documentation to use repo-root runnable script paths for Claude and Copilot CLI, refreshed prior ADR reference lists, and regenerated mirrors.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed ADR detector documentation fix in 8e7537a347 after build_all --check, targeted ADR tests, plugin-version-bump, detector smoke runs, and dash byte checks passed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8e7537a347",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
