@@ -37,6 +37,14 @@
       "content": "Addressed three unresolved review threads",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped both plugin manifests after main advanced",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
