@@ -26,12 +26,12 @@ Vocabulary, defined once: an "instrument" is a script whose output you read, not
 |---|---|---|
 | Description budget | How much standing context do skill descriptions cost? | `uv run python ./scripts/skill_description_budget.py` |
 | Skill size | Which SKILL.md files exceed the 300-warn / 500-block line limits? | `uv run python ./scripts/validation/skill_size.py` |
-| Orphan refs | Do specs, evals, and manifests reference entities that no longer exist? | `uv run python .claude/skills/orphan-ref-validator/scripts/scan.py` |
-| Golden principles | Where does the repo violate GP-001..GP-005 mechanical rules? | `uv run python .claude/skills/golden-principles/scripts/scan_principles.py` |
+| Orphan refs | Do specs, evals, and manifests reference entities that no longer exist? | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` |
+| Golden principles | Where does the repo violate GP-001..GP-005 mechanical rules? | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` |
 | Agent drift | Do generated agent files match their templates? | `uv run python build/generate_agents.py --validate` |
 | Mirror drift | Do the 7 generated mirror trees match `.claude/` canonical sources? | `uv run python build/scripts/build_all.py --check` |
 | Lib drift | Do `.claude/lib/` copies match `scripts/` canonical modules? | `uv run python ./scripts/sync_plugin_lib.py --check` |
-| Guard maturity | Which push guards earn their keep? | `uv run python .claude/skills/guard-maturity/scripts/run_report.py` |
+| Guard maturity | Which push guards earn their keep? | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/guard-maturity/scripts/run_report.py"` |
 | Coverage | Is changed code actually exercised by tests? | `uv run pytest <tests> --cov=<module> --cov-branch` |
 | Eval A/B | Did a prompt or agent change alter behavior, measurably? | `uv run python ./scripts/eval/eval-prompt-change.py --scenarios <file> --dry-run` |
 | Commit count | Am I approaching the 20-commit PR cap? | `git rev-list --count HEAD ^origin/main` |
@@ -109,8 +109,8 @@ uv run python ./scripts/validation/skill_size.py --path .claude/skills/<name>/SK
 Scans structured artifacts for references to skills, scripts, and counts that do not match the working tree (REQ-009, issue #1939). Default targets: `.agents/specs`, `tests/evals`, `.claude/.claude-plugin/plugin.json`, and both `marketplace.json` files.
 
 ```bash
-uv run python .claude/skills/orphan-ref-validator/scripts/scan.py            # ADR-056 JSON envelope + VERDICT line
-uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --include-adrs
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"            # ADR-056 JSON envelope + VERDICT line
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py" --include-adrs
 ```
 
 - Output contract: JSON envelope then a final `VERDICT: PASS|WARN|CRITICAL_FAIL` line. Exit 0 for PASS/WARN, 1 for CRITICAL_FAIL, 2 for config error.
@@ -125,9 +125,9 @@ uv run python .claude/skills/orphan-ref-validator/scripts/scan.py --include-adrs
 Mechanical enforcement of `.agents/governance/golden-principles.md`: rules `script-language`, `skill-frontmatter`, `agent-definition`, `yaml-logic`, `actions-pinned`.
 
 ```bash
-uv run python .claude/skills/golden-principles/scripts/scan_principles.py                     # whole repo
-uv run python .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope main   # only your changed files
-uv run python .claude/skills/golden-principles/scripts/scan_principles.py --rules yaml-logic --format json
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"                     # whole repo
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py" --diff-scope main   # only your changed files
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py" --rules yaml-logic --format json
 ```
 
 - Exit codes: 0 clean, 1 script error, 10 violations. 10 is a finding, not a crash.
@@ -154,7 +154,7 @@ Three separate drift surfaces; run all three when you suspect any generation pro
 Push guards built on `.claude/hooks/PreToolUse/push_guard_base.py` emit one `EVENT={...}` JSON line to stderr per run. Two build scripts consume them: `build/scripts/aggregate_guard_intercepts.py` (reads `.agents/telemetry/` when present, else stdin) and `build/scripts/classify_guard_maturity.py` (assigns tiers). The `guard-maturity` skill wraps both:
 
 ```bash
-uv run python .claude/skills/guard-maturity/scripts/run_report.py
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/guard-maturity/scripts/run_report.py"
 ```
 
 Tier semantics (from `classify_guard_maturity.py`, first match wins): Harmful (3+ intercepts, fitness below -0.02: remove), Proficient (60+ days, 10+ intercepts, fitness at or above +0.02: keep), Mature (30+ days, 5+ intercepts, fitness at or above 0), Inert (30+ days, 0 intercepts: prune candidate), Growing (14+ days, 1+ intercept), Budding (under 14 days). Fitness is `block_rate - 0.5`.
@@ -249,10 +249,10 @@ Re-verify one-liners for every volatile fact:
 |---|---|
 | Description budget totals | `uv run python ./scripts/skill_description_budget.py` |
 | Skill size FAIL list | `uv run python ./scripts/validation/skill_size.py` |
-| Orphan-ref verdict and counts | `uv run python .claude/skills/orphan-ref-validator/scripts/scan.py` (read last line) |
-| Golden-principles totals | `uv run python .claude/skills/golden-principles/scripts/scan_principles.py` (read last line, expect exit 10 while baseline is red) |
+| Orphan-ref verdict and counts | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` (read last line) |
+| Golden-principles totals | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` (read last line, expect exit 10 while baseline is red) |
 | Drift gates green | run all three gate commands in the drift table |
-| Guard tiers and telemetry dir | `uv run python .claude/skills/guard-maturity/scripts/run_report.py` and `ls .agents/telemetry/` |
+| Guard tiers and telemetry dir | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/guard-maturity/scripts/run_report.py"` and `ls .agents/telemetry/` |
 | push_guard_base location | `ls .claude/hooks/PreToolUse/push_guard_base.py` |
 | Coverage pin forms | `grep -n "cov-fail-under" .github/workflows/pytest.yml` |
 | Commit count | `git rev-list --count HEAD ^origin/main` |

@@ -63,7 +63,7 @@ Create early. SESSION-PROTOCOL.md Phase 5: the log SHOULD exist within the
 first 5 tool calls and MUST NOT be deferred to session end.
 
 ```bash
-uv run python .claude/skills/session-init/scripts/new_session_log.py \
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-init/scripts/new_session_log.py" \
   --session-number 2601 --objective "Fix issue 2785"
 uv run python3 scripts/validate_session_json.py .agents/sessions/<file>.json
 ```
