@@ -15,6 +15,7 @@ Exit Codes:
     0: Pass (no blocking findings)
     1: Fail (HIGH/CRITICAL findings or errors)
     2: Configuration error
+    3: External tool failure (semgrep timed out before completing)
 
 Per ADR-042: Python-first for new scripts.
 Per issue #939: Recommended semgrep over CodeQL for faster local feedback (<1 minute).
@@ -37,6 +38,15 @@ logging.basicConfig(
     format="%(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+class SemgrepScanError(Exception):
+    """Raised when the semgrep scan cannot complete (e.g. timeout).
+
+    Signals a fail-closed condition: unlike a clean empty-findings return, this
+    means the scan did not run to completion and its result must not be treated
+    as "no findings". ``run()`` maps it to exit code 3 (external tool failure).
+    """
 
 
 @dataclass
@@ -70,6 +80,11 @@ class SemgrepScanner:
         "WARNING": 2,
         "INFO": 3,
     }
+
+    # Wall-clock ceiling for a single semgrep invocation. A wedged scan must not
+    # hang the pre-push hook indefinitely; on timeout the scan fails closed
+    # (exit 3) rather than reporting a clean pass.
+    SCAN_TIMEOUT_SECONDS = 300
 
     def __init__(
         self,
@@ -172,6 +187,7 @@ class SemgrepScanner:
                 text=True,
                 cwd=self.repo_root,
                 check=False,
+                timeout=self.SCAN_TIMEOUT_SECONDS,
             )
 
             if result.returncode not in (0, 1):
@@ -210,6 +226,14 @@ class SemgrepScanner:
 
             return findings
 
+        except subprocess.TimeoutExpired as e:
+            logger.error(
+                "Semgrep timed out after %ds; failing scan",
+                self.SCAN_TIMEOUT_SECONDS,
+            )
+            raise SemgrepScanError(
+                f"Semgrep timed out after {self.SCAN_TIMEOUT_SECONDS}s"
+            ) from e
         except (subprocess.SubprocessError, json.JSONDecodeError) as e:
             logger.error("Semgrep scan failed: %s", e)
             return []
@@ -238,7 +262,11 @@ class SemgrepScanner:
 
         logger.info("Scanning %d file(s)", len(changed_files))
 
-        findings = self._run_semgrep(changed_files)
+        try:
+            findings = self._run_semgrep(changed_files)
+        except SemgrepScanError as e:
+            logger.error("FAIL: %s", e)
+            return 3
 
         if not findings:
             logger.info("PASS: No security findings")
