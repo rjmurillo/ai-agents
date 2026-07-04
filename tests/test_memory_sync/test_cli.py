@@ -298,6 +298,9 @@ class TestQueueOperations:
         with patch(
             "scripts.memory_sync.cli._find_project_root",
             return_value=project_root,
+        ), patch(
+            "scripts.memory_sync.cli.McpClient.is_available",
+            return_value=False,
         ):
             result = main(["sync-batch", "--from-queue"])
         assert result == EXIT_IO_ERROR

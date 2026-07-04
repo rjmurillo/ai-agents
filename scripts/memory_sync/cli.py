@@ -175,13 +175,12 @@ def _cmd_sync_batch(args: argparse.Namespace) -> int:
     """Handle the sync-batch subcommand."""
     project_root = _find_project_root()
 
-    if not McpClient.is_available():
-        _logger.error("Forgetful is not available (database not found)")
-        return EXIT_INVALID_ARGS
-
     changes: list[tuple[Path, SyncOperation]] = []
 
     if args.staged:
+        if not McpClient.is_available():
+            _logger.error("Forgetful is not available (database not found)")
+            return EXIT_INVALID_ARGS
         staged_output = _get_staged_files()
         changes = detect_changes(staged_output)
     elif args.from_queue:
@@ -190,6 +189,9 @@ def _cmd_sync_batch(args: argparse.Namespace) -> int:
         except QueueReadError as exc:
             _logger.error("Failed to read queue: %s", exc)
             return EXIT_IO_ERROR
+        if not McpClient.is_available():
+            _logger.error("Forgetful is not available (database not found)")
+            return EXIT_INVALID_ARGS
     else:
         _logger.error("Specify --staged or --from-queue")
         return EXIT_INVALID_ARGS

@@ -169,9 +169,13 @@
     {
       "time": "2026-07-04T05:16Z",
       "entry": "Fixed set_issue_milestone timeout error typing after merged main introduced fail-closed query handling."
+    },
+    {
+      "time": "2026-07-04T05:31Z",
+      "entry": "Fixed CI-only corrupt memory sync queue failure by parsing queued changes before checking Forgetful availability."
     }
   ],
-  "endingCommit": "pending-timeout-type-fix",
+  "endingCommit": "pending-memory-sync-ci-fix",
   "nextSteps": [
     "Commit merge from origin/main, push fix/cluster-robust, watch required checks, rebump plugin manifests on version races, and merge PR #2849 after required checks pass."
   ]
