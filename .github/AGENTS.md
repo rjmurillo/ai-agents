@@ -275,7 +275,7 @@ sequenceDiagram
 | Attribute | Value |
 |-----------|-------|
 | **Trigger** | PR modifying `templates/**` or `src/**` |
-| **Script** | `build/generate_agents.py --validate` |
+| **Script** | `python3 build/generate_agents.py --validate` |
 | **Output** | Pass/fail status |
 | **Exit Behavior** | Fails if generated files don't match |
 
@@ -322,7 +322,7 @@ sequenceDiagram
 
 ### pytest.yml
 
-**Role**: PowerShell unit test runner
+**Role**: Python unit test runner (pytest)
 
 | Attribute | Value |
 |-----------|-------|
@@ -626,7 +626,7 @@ python3 .github/scripts/measure_workflow_coalescing.py
 python3 .github/scripts/measure_workflow_coalescing.py --since 90 --output json
 
 # Analyze specific workflows
-python3 .github/scripts/measure_workflow_coalescing.py --workflows "ai-pr-quality-gate,ai-spec-validation"
+python3 .github/scripts/measure_workflow_coalescing.py --workflows ai-pr-quality-gate --workflows ai-spec-validation
 ```
 
 **Metrics Collected**:

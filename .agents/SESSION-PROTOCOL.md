@@ -188,7 +188,7 @@ The agent MUST validate skill availability before starting work. This is a **blo
 2. The agent MUST list available GitHub skill scripts:
 
    ```bash
-   find .claude/skills/github/scripts -type f -name "*.py" -printf "%f\n"
+   find .claude/skills/github/scripts -type f -name "*.py" -exec basename {} \;
    ```
 
 3. The agent MUST read the usage-mandatory memory using `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`
@@ -596,7 +596,7 @@ The agent SHOULD export memories created during the session for sharing and vers
 1. The agent SHOULD export memories using session-specific naming:
 
    ```bash
-   python3 .claude-mem/scripts/export_claude_mem_memories.py --session-number NNN --topic "topic"
+   python3 .claude-mem/scripts/export_claude_mem_memories.py "<query>" --session-number NNN --topic "topic"
    ```
 
 2. The agent MUST perform security review before committing (BLOCKING):
@@ -910,7 +910,7 @@ Copy this checklist to each session log and verify completion:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| SHOULD | Export session memories: `python3 .claude-mem/scripts/export_claude_mem_memories.py --session-number NNN --topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
+| SHOULD | Export session memories: `python3 .claude-mem/scripts/export_claude_mem_memories.py "<query>" --session-number NNN --topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
 | MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |

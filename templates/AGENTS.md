@@ -282,19 +282,19 @@ sequenceDiagram
 
 ### Generate All Agents
 
-```powershell
+```bash
 python3 build/generate_agents.py
 ```
 
 ### Preview Changes (Dry Run)
 
-```powershell
+```bash
 python3 build/generate_agents.py --what-if
 ```
 
 ### Validate Generated Files
 
-```powershell
+```bash
 python3 build/generate_agents.py --validate
 ```
 

@@ -140,7 +140,7 @@ To change an existing agent's behavior, follow these steps:
 
 Edit the source file in `templates/agents/`:
 
-```powershell
+```bash
 # Example: Modify the analyst agent
 code templates/agents/analyst.shared.md
 ```
@@ -149,7 +149,7 @@ code templates/agents/analyst.shared.md
 
 Run the generation script:
 
-```powershell
+```bash
 python3 build/generate_agents.py
 ```
 
@@ -157,7 +157,7 @@ python3 build/generate_agents.py
 
 Check that generated files look correct:
 
-```powershell
+```bash
 # Preview what would be generated without writing
 python3 build/generate_agents.py --what-if
 
@@ -182,7 +182,7 @@ git commit -m "feat(analyst): add new research capability"
 
 Create a new file in `templates/agents/` with the `.shared.md` extension:
 
-```powershell
+```bash
 # Example: Create a new "reviewer" agent
 code templates/agents/reviewer.shared.md
 ```
@@ -258,7 +258,7 @@ tools_copilot:
 
 ### Step 4: Generate and Verify
 
-```powershell
+```bash
 # Generate all agents
 python3 build/generate_agents.py
 
@@ -445,7 +445,7 @@ These files are auto-generated and include a header comment:
 
 ## Useful Commands
 
-```powershell
+```bash
 # Generate all agent files from templates
 python3 build/generate_agents.py
 

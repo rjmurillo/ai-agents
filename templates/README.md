@@ -110,7 +110,7 @@ Do NOT use `runSubagent(...)`, `Task(...)`, or `#runSubagent` directly in templa
 
 ### Generate Platform Files
 
-```powershell
+```bash
 # Generate all agents
 python3 build/generate_agents.py
 

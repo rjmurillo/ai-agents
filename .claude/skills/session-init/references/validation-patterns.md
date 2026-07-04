@@ -20,7 +20,7 @@ The session log path is a positional argument.
 ### CI / Pre-commit Mode
 
 CI and the pre-commit hook run the same command; the exit code is the gate
-(0 = PASS, 1 = FAIL). The `--pre-commit` flag tightens output for hook use:
+(non-zero = FAIL; treat exit code 2 as failure). The `--pre-commit` flag tightens output for hook use:
 
 ```bash
 python3 scripts/validate_session_json.py \
@@ -35,6 +35,7 @@ python3 scripts/validate_session_json.py \
 |------|---------|--------|
 | 0 | PASS - All MUST requirements met | Proceed with session |
 | 1 | FAIL - One or more MUST requirements failed | Fix issues before proceeding |
+| 2 | FAIL - Unexpected/internal error | Treat as failure; inspect stderr and fix the script or runtime issue |
 
 ---
 
@@ -181,7 +182,7 @@ For session-init skill, run validation immediately after creating the session lo
 ```bash
 SESSION_PATH=".agents/sessions/2026-01-05-session-375.json"
 
-# Run validation; exit code 0 = PASS, 1 = FAIL
+# Run validation; exit code 0 = PASS, non-zero = FAIL
 if python3 scripts/validate_session_json.py "$SESSION_PATH"; then
     echo "Session log validated successfully"
 else

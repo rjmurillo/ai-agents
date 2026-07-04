@@ -59,7 +59,7 @@ flowchart TD
 
 After modifying ANY file in `templates/`:
 
-```powershell
+```bash
 # Regenerate platform-specific files
 python3 build/generate_agents.py
 
@@ -349,7 +349,7 @@ uv run pytest
 # CI mode (exit on failure)
 uv run pytest
 
-# Specific test file
+# Specific test directory
 uv run pytest tests/build_scripts/
 
 # Maximum verbosity
