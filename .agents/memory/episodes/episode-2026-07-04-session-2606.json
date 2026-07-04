@@ -397,6 +397,46 @@
       "content": "Commit: 1892b07e45",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e050",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified six unresolved PR 2844 Copilot threads after latest push: ADR generator trigger wording, SkillForge missing-helper error clarity, and stale session-log text.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e051",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored write an ADR and write an architecture decision record trigger examples, added a SkillForge frontmatter helper existence check, and regenerated mirrors.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e052",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated review-thread fixes: SkillForge modularity audit tests passed 30 tests and plugin-version-bump reported OK after regeneration.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e053",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed ADR generator trigger and SkillForge missing-helper review-thread fixes in e602877ae3 after pre-commit validation passed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e054",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e602877ae3",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
