@@ -2,7 +2,7 @@
 name: adr-review
 version: 1.1.0
 model: claude-opus-4-6
-description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", or on ADR create/edit. Do NOT use to author a new ADR (use adr-generator).
+description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", when an ADR is created/edited/deleted, or when reviewing, accepting, or updating a decision file under .agents/architecture/, docs/architecture/, docs/decisions/, docs/adr/, or architecture/decisions/ (only .agents/architecture and docs/architecture auto-trigger; the rest need manual invocation). Do NOT use to author a new ADR (use adr-generator).
 license: MIT
 metadata:
   subagent_model: claude-opus-4-6

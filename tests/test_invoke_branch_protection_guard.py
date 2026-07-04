@@ -87,11 +87,17 @@ class TestMainAllowPath:
             assert main() == 0
 
     @patch("invoke_branch_protection_guard.sys.stdin", new_callable=StringIO)
-    def test_allows_on_invalid_json(self, mock_stdin: StringIO) -> None:
+    def test_blocks_on_invalid_json(
+        self, mock_stdin: StringIO, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Unparseable JSON cannot verify branch safety; fail closed (block)."""
         mock_stdin.write("not json")
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
-            assert main() == 0
+            assert main() == 2
+        captured = capsys.readouterr()
+        data = json.loads(captured.out.strip())
+        assert data["decision"] == "block"
 
 
 class TestMainBlockPath:
