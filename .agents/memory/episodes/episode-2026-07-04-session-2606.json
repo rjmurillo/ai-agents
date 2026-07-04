@@ -229,6 +229,30 @@
       "content": "Commit: c4c30e5586",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched six new unresolved PR 2844 review threads: implementer mirror order, skill-relative ADR detector examples, and stale session log text.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added skill-relative ADR detector examples, aligned implementer mirror-obligation ordering with the canonical template, and regenerated the Copilot mirror.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0bae7b2a9e",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -236,7 +260,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 39
   },
   "lessons": []
