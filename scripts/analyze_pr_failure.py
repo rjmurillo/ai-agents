@@ -92,7 +92,11 @@ def _resolve_repo(owner: str, repo: str) -> tuple[str, str]:
         print("ERROR: Cannot detect repository. Use --owner and --repo.", file=sys.stderr)
         sys.exit(1)
 
-    data = json.loads(result.stdout)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: Invalid JSON from gh repo view: {exc}", file=sys.stderr)
+        sys.exit(3)
     if not isinstance(data, dict):
         print("ERROR: Unexpected gh output for repository info.", file=sys.stderr)
         sys.exit(3)

@@ -491,6 +491,13 @@ class TestResolveRepoShape:
         assert exc.value.code == 3
 
     @patch("scripts.analyze_pr_failure._run_gh")
+    def test_malformed_json_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout="{")
+        with pytest.raises(SystemExit) as exc:
+            mod._resolve_repo("", "")
+        assert exc.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
     def test_missing_owner_login_exits_3(self, mock_gh):
         mock_gh.return_value = _completed(
             stdout=json.dumps({"owner": {}, "name": "repo"})

@@ -313,6 +313,17 @@ class TestReadQueueValidation:
         with pytest.raises(QueueReadError):
             _read_queue(project_root)
 
+    def test_unreadable_queue_raises(self, project_root: Path) -> None:
+        self._write_raw(
+            project_root,
+            '[{"path": ".serena/memories/a.md", "operation": "create"}]',
+        )
+        with (
+            patch("pathlib.Path.read_text", side_effect=OSError("permission denied")),
+            pytest.raises(QueueReadError),
+        ):
+            _read_queue(project_root)
+
     def test_invalid_memory_path_skipped(self, project_root: Path) -> None:
         """A non-memory path is skipped, not fatal (matches prior behavior)."""
         self._write_raw(

@@ -358,7 +358,7 @@ def _read_queue(project_root: Path) -> list[tuple[Path, SyncOperation]]:
         return []
     try:
         data = json.loads(queue_path.read_text("utf-8"))
-    except (json.JSONDecodeError, ValueError) as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         raise QueueReadError(f"Corrupt queue file {queue_path}: {exc}") from exc
     if not isinstance(data, list):
         raise QueueReadError(
