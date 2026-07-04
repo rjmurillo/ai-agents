@@ -186,8 +186,9 @@ Run after all threads resolved and CI passes:
 
 ```bash
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+CONFIG_PATH="${PR_REVIEW_CONFIG_PATH:-.claude/commands/pr-review-config.yaml}"
 python3 "$SCRIPTS_DIR/run_completion_gate.py" \
-  --config .claude/commands/pr-review-config.yaml \
+  --config "$CONFIG_PATH" \
   --pull-request {pr} --json
 ```
 
