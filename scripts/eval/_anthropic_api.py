@@ -168,20 +168,29 @@ def call_api(
             raw_body = ""
         sanitized = "".join(ch for ch in raw_body if 32 <= ord(ch) < 127)[:200]
         message = f"Anthropic API returned HTTP {e.code}: {sanitized}"
-        if e.code == 404 and (provider is None or is_default_anthropic(selected or "")):
-            # A 404 on the messages endpoint almost always means the model id
-            # is unknown to this key (issue #2857). Turn the bare 404 into an
-            # actionable message that lists the ids the key can actually reach.
-            # Best-effort only: never let the enrichment lookup raise.
-            try:
-                reachable = list_available_models(api_key)
-                if reachable:
-                    message += (
-                        f". Model '{model}' may be unavailable; reachable ids: "
-                        f"{', '.join(sorted(reachable))}"
+        if e.code == 404:
+            # Bind the name here regardless of whether the provider fast-path
+            # above ran (that import is guarded by `selected is not None`).
+            # Keeps static analysis clean and the reference unambiguous.
+            from _providers import is_default_anthropic
+
+            if provider is None or is_default_anthropic(selected or ""):
+                # A 404 on the messages endpoint almost always means the model id
+                # is unknown to this key (issue #2857). Turn the bare 404 into an
+                # actionable message that lists the ids the key can actually reach.
+                # Best-effort only: never let the enrichment lookup raise.
+                try:
+                    reachable = list_available_models(api_key)
+                    if reachable:
+                        message += (
+                            f". Model '{model}' may be unavailable; reachable ids: "
+                            f"{', '.join(sorted(reachable))}"
+                        )
+                except Exception as enrich_err:  # noqa: BLE001 - enrichment is best-effort
+                    print(
+                        f"warning: reachable-model lookup failed: {enrich_err}",
+                        file=sys.stderr,
                     )
-            except Exception:  # noqa: BLE001 - enrichment is best-effort
-                pass
         raise RuntimeError(message) from e
     except urllib.error.URLError as e:
         # urllib often wraps socket.timeout in URLError.reason; classify it
