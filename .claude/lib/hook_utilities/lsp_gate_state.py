@@ -389,12 +389,16 @@ def is_gated_target(file_path: str, project_dir: str) -> bool:
     if root not in resolved.parents and resolved != root:
         return False
 
-    # Scratch under TMPDIR is never gated (mktemp staging).
+    # Scratch under TMPDIR is never gated (mktemp staging). If the project
+    # root itself lives under TMPDIR, keep gating in-repo files; the repo is
+    # the work target, not scratch.
     tmpdir = os.environ.get("TMPDIR", "").strip()
     if tmpdir:
         try:
             tmp_root = Path(tmpdir).resolve()
-            if tmp_root == resolved or tmp_root in resolved.parents:
+            root_under_tmp = tmp_root == root or tmp_root in root.parents
+            resolved_under_tmp = tmp_root == resolved or tmp_root in resolved.parents
+            if resolved_under_tmp and not root_under_tmp:
                 return False
         except (OSError, ValueError):
             return False
