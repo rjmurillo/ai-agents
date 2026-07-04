@@ -106,7 +106,7 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
 # single line before matching so a split invocation is not missed (issue #2838).
 EXEC_PATTERN = re.compile(
     r"(?<![\w.])(?:(?:python3?|bash|sh)\s+(?:-\S+\s+)*|\./)"
-    r"\.claude/skills/\S+\.(?:py|sh)"
+    r"[\"']?\.claude/skills/\S+\.(?:py|sh)(?!\.\w)[\"']?"
 )
 
 # Shell line-continuation: a backslash immediately before a newline splices the
@@ -261,20 +261,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _resolve_root(repo_root: Path | None) -> Path:
     if repo_root:
-        return repo_root.resolve()
+        return repo_root.expanduser().resolve()
     return _repo_root(Path(__file__).resolve())
 
 
-def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path:
+def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
     if baseline is None:
         return root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
-    resolved = (
-        baseline.expanduser().resolve()
-        if baseline.is_absolute()
-        else (root / baseline).expanduser().resolve()
-    )
+    resolved = baseline.expanduser()
+    if not resolved.is_absolute():
+        resolved = root / resolved
+    resolved = resolved.resolve()
     if not resolved.is_relative_to(root.resolve()):
-        return Path("")
+        return None
     return resolved
 
 
@@ -305,11 +304,52 @@ def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:
     return 0
 
 
+def _has_scan_root(root: Path) -> bool:
+    return any(root.joinpath(*parts).is_dir() for parts in SCAN_ROOTS)
+
+
+def _print_report(
+    output_format: str,
+    regressions: list[str],
+    improvements: list[str],
+    current: dict[str, int],
+    baseline: dict[str, int],
+) -> None:
+    if output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "regressions": regressions,
+                    "improvements": improvements,
+                    "current_total": sum(current.values()),
+                    "baseline_total": sum(baseline.values()),
+                },
+                indent=2,
+            )
+        )
+        return
+
+    if improvements:
+        print("Portability improved (tighten the baseline with --update-baseline):")
+        for line in improvements:
+            print(f"  [IMPROVED] {line}")
+    if regressions:
+        print("Skill exec-path vendor-portability drift detected (issue #2838):")
+        for line in regressions:
+            print(f"  [DRIFT] {line}")
+        return
+    print(
+        f"No skill exec-path vendor-portability drift. "
+        f"{sum(current.values())} grandfathered invocations across "
+        f"{len(current)} files (baseline {sum(baseline.values())})."
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
 
-    if not any(root.joinpath(*parts).is_dir() for parts in SCAN_ROOTS):
+    if not _has_scan_root(root):
         print(
             f"No skill scan roots found under {root} "
             f"({', '.join('/'.join(p) for p in SCAN_ROOTS)}).",
@@ -318,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     baseline_path = _resolve_baseline_path(root, args.baseline)
-    if baseline_path == Path(""):
+    if baseline_path is None:
         print(
             f"--baseline path is outside the repository root, rejecting: {args.baseline}",
             file=sys.stderr,
@@ -341,34 +381,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-
-    if args.output_format == "json":
-        print(
-            json.dumps(
-                {
-                    "regressions": regressions,
-                    "improvements": improvements,
-                    "current_total": sum(current.values()),
-                    "baseline_total": sum(baseline.values()),
-                },
-                indent=2,
-            )
-        )
-    else:
-        if improvements:
-            print("Portability improved (tighten the baseline with --update-baseline):")
-            for line in improvements:
-                print(f"  [IMPROVED] {line}")
-        if regressions:
-            print("Skill exec-path vendor-portability drift detected (issue #2838):")
-            for line in regressions:
-                print(f"  [DRIFT] {line}")
-        else:
-            print(
-                f"No skill exec-path vendor-portability drift. "
-                f"{sum(current.values())} grandfathered invocations across "
-                f"{len(current)} files (baseline {sum(baseline.values())})."
-            )
+    _print_report(args.output_format, regressions, improvements, current, baseline)
 
     return 1 if regressions else 0
 
