@@ -388,8 +388,12 @@ def main(argv: list[str] | None = None) -> int:
         0 on success, non-zero on failure (per ADR-035).
     """
     args = build_parser().parse_args(argv)
-    owner, repo = _resolve_repo(args.owner, args.repo)
-    analysis = analyze_pr(owner, repo, args.pr)
+    try:
+        owner, repo = _resolve_repo(args.owner, args.repo)
+        analysis = analyze_pr(owner, repo, args.pr)
+    except ValueError as e:
+        print(f"ERROR: Malformed API response: {e}", file=sys.stderr)
+        sys.exit(3)
 
     if args.output_format == "markdown":
         print(format_markdown(analysis))

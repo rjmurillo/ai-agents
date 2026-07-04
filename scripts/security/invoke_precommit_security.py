@@ -303,6 +303,10 @@ class PreCommitSecurityCheck:
         # Step 1: Get staged PowerShell files
         staged_files = self._get_staged_powershell_files()
 
+        if staged_files is None:
+            logger.error("[FAIL] Could not determine staged files")
+            return 1
+
         if not staged_files:
             logger.info("[PASS] No PowerShell files staged for commit")
             return 0
@@ -374,8 +378,12 @@ class PreCommitSecurityCheck:
         logger.info("[PASS] Pre-commit security check completed")
         return 0
 
-    def _get_staged_powershell_files(self) -> list[Path]:
-        """Get list of staged PowerShell files."""
+    def _get_staged_powershell_files(self) -> list[Path] | None:
+        """Get list of staged PowerShell files.
+
+        Returns:
+            List of staged PowerShell file paths, or None on error.
+        """
         try:
             result = subprocess.run(
                 ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
@@ -395,9 +403,16 @@ class PreCommitSecurityCheck:
 
             return ps_files
 
+        except subprocess.TimeoutExpired as e:
+            logger.error(
+                "[FAIL] Failed to get staged files before timeout after %ss: %s",
+                e.timeout,
+                e.cmd,
+            )
+            return None
         except subprocess.SubprocessError as e:
             logger.error("[FAIL] Failed to get staged files: %s", e)
-            return []
+            return None
 
     def _check_critical_patterns(self, files: list[Path]) -> list[Path]:
         """Check if any staged files match critical security patterns."""
