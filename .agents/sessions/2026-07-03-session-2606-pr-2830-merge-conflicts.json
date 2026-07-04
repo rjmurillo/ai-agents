@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits pushed: 79b81c09c, fbef362b0, 1b2162a88, c3b3909d97, e332c7cf3f, 08949646d3, e4587b4a7c. Semgrep diagnostic fix committed as af91793361; session metadata follows."
+        "Evidence": "Commits pushed through a9627a4745. Latest main merge staged from cc1b4969f4; final merge commit will update endingCommit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -107,9 +107,13 @@
     {
       "summary": "Fixed semgrep diagnostic review threads.",
       "evidence": "Commit af91793361 bounds semgrep stderr/stdout diagnostics, includes JSON parse context, and updates tests/test_run_semgrep.py for timeout and non-timeout fail-closed behavior."
+    },
+    {
+      "summary": "Merged latest origin/main after semgrep thread fixes.",
+      "evidence": "origin/main cc1b4969f4 merged into PR branch after resolving causal-graph.json by taking main and regenerating from episodes. Branch head before this merge was a9627a4745."
     }
   ],
-  "endingCommit": "af91793361",
+  "endingCommit": "a9627a4745",
   "nextSteps": [
     "Push merge resolution to PR #2830 and wait for GitHub checks.",
     "Keep auto-merge enabled and poll until PR #2830 reports MERGED."
