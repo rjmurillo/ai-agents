@@ -187,7 +187,7 @@ class TestMain:
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "FAIL"
-        verdicts["qa"] = "FAIL"
+        verdicts["qa"] = "CRITICAL_FAIL"
         infra = {a: "false" for a in _AGENTS}
         infra["security"] = "true"
         # qa is CODE_QUALITY, security is INFRASTRUCTURE
@@ -196,6 +196,7 @@ class TestMain:
         outputs = _read_outputs(output_file)
         # Not all failures are infra, so no downgrade
         assert outputs["final_verdict"] != "WARN"
+        assert outputs["final_verdict"] == "CRITICAL_FAIL"
 
     def test_unknown_verdict_propagates_to_final(self, tmp_path, monkeypatch):
         # REQ-008-05 (issue #1934): UNKNOWN downgrades a would-be PASS so a
