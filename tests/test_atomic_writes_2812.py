@@ -186,7 +186,7 @@ class TestPrBranchMappingSave:
 
 
 # ---------------------------------------------------------------------------
-# skillbook.save_skillbook_file
+# update_reviewer_signal_stats helpers
 # ---------------------------------------------------------------------------
 class TestReviewerSignalStatsHelpers:
     def test_positive_atomic_write_text(self, tmp_path):

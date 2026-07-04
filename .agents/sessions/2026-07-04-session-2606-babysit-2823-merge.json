@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest origin/main merge and session evidence are staged for the merge commit."
+        "Evidence": "Latest bot review comment fixes and session evidence are staged for the next commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest validation passed: build_all.py --check, 86 targeted tests, and session log validation after merging origin/main 9c88990b77."
+        "Evidence": "Latest validation passed: uv run pytest tests/test_atomic_writes_2812.py tests/hooks/test_auto_approval.py -q (63 passed), uv run ruff check on both files, and session log validation."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -165,10 +165,14 @@
     {
       "summary": "Merged latest origin/main after PR 2823 became dirty again.",
       "evidence": "origin/main advanced to 9c88990b77. Resolved plugin manifest conflicts by keeping 0.5.259, above main 0.5.258. Validated build_all.py --check, 86 targeted tests, and session log validation."
+    },
+    {
+      "summary": "Fixed two new Copilot review comments after latest bot scan.",
+      "evidence": "Updated tests/test_atomic_writes_2812.py section header to match update_reviewer_signal_stats helpers and added the missing mock_stdin Callable annotation in tests/hooks/test_auto_approval.py. Targeted tests passed: 63 passed. Ruff passed on both files."
     }
   ],
   "endingCommit": "0e91286c7",
   "nextSteps": [
-    "Commit and push the latest origin/main merge, verify zero unresolved threads, keep auto-merge enabled, and poll until PR 2823 is merged."
+    "Commit and push the latest bot review fixes, resolve the two threads, verify zero unresolved threads, and poll until PR 2823 is merged."
   ]
 }

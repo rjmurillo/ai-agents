@@ -144,7 +144,9 @@ class TestMain:
         mock_stdin("not json")
         assert invoke_test_auto_approval.main() == 0
 
-    def test_returns_0_on_non_dict_payload(self, mock_stdin):
+    def test_returns_0_on_non_dict_payload(
+        self, mock_stdin: Callable[[str], None]
+    ):
         mock_stdin(json.dumps(["array", "payload"]))
         assert invoke_test_auto_approval.main() == 0
 
