@@ -142,7 +142,7 @@ ai-agents/
 │   ├── agents/               # Shared agent templates (edit these)
 │   └── platforms/            # Platform generation config
 ├── build/
-│   └── Generate-Agents.ps1  # Template-to-platform generator
+│   └── generate_agents.py   # Template-to-platform generator
 ├── src/
 │   ├── claude/               # Claude Code agents
 │   ├── copilot-cli/          # Copilot CLI agents
