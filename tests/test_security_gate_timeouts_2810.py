@@ -100,7 +100,7 @@ def test_mcp_stdout_read_timeout_raises() -> None:
 
 
 def test_mcp_overall_deadline_raises() -> None:
-    client = McpClient(process=MagicMock(stderr=None), timeout=0.05)
+    client = McpClient(process=MagicMock(stdout=None, stderr=None), timeout=0.05)
     body = b'{"jsonrpc":"2.0","method":"notify"}'
     frame = f"Content-Length: {len(body)}\r\n\r\n".encode() + body
 
