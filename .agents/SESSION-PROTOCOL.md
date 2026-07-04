@@ -163,7 +163,7 @@ The agent SHOULD import shared memories at session start.
 1. The agent SHOULD run the import script:
 
    ```bash
-   pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+   python3 .claude-mem/scripts/import_claude_mem_memories.py
    ```
 
 2. The agent SHOULD document import count in session log
@@ -187,8 +187,8 @@ The agent MUST validate skill availability before starting work. This is a **blo
 1. The agent MUST verify `.claude/skills/` directory exists
 2. The agent MUST list available GitHub skill scripts:
 
-   ```powershell
-   Get-ChildItem -Path ".claude/skills/github/scripts" -Recurse -Filter "*.ps1" | Select-Object -ExpandProperty Name
+   ```bash
+   find .claude/skills/github/scripts -type f -name "*.py" -printf "%f\n"
    ```
 
 3. The agent MUST read the usage-mandatory memory using `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`
@@ -293,7 +293,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Read usage-mandatory memory | [ ] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [ ] | Content in context |
 | MUST | Read memory-index, load task-relevant memories | [ ] | List memories loaded |
-| SHOULD | Import shared memories: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1` | [ ] | Import count: N (or "None") |
+| SHOULD | Import shared memories: `python3 .claude-mem/scripts/import_claude_mem_memories.py` | [ ] | Import count: N (or "None") |
 | MUST | Verify and declare current branch | [ ] | Branch documented below |
 | MUST | Confirm not on main/master | [ ] | On feature branch |
 | SHOULD | Verify git status | [ ] | Output documented below |
@@ -596,14 +596,14 @@ The agent SHOULD export memories created during the session for sharing and vers
 1. The agent SHOULD export memories using session-specific naming:
 
    ```bash
-   pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"
+   python3 .claude-mem/scripts/export_claude_mem_memories.py --session-number NNN --topic "topic"
    ```
 
 2. The agent MUST perform security review before committing (BLOCKING):
 
    ```bash
-   # Option 1: PowerShell security review script (recommended)
-   pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile [export-file].json
+   # Option 1: security review script (recommended)
+   python3 scripts/review_memory_export_security.py [export-file].json
 
    # Option 2: Manual grep scan
    grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [export-file].json
@@ -718,7 +718,7 @@ The agent MUST run quality checks before ending.
    - Session objective explicitly includes "format all files"
    - Creating a dedicated formatting cleanup PR
 
-2. The agent SHOULD run validation scripts if available (e.g., `Validate-Consistency.ps1`)
+2. The agent SHOULD run validation scripts if available (e.g., `python3 scripts/validation/consistency.py`)
 3. The agent SHOULD check memory sizes if `.serena/memories/` files were created or modified:
 
    ```bash
@@ -819,7 +819,7 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 1. The agent MUST run the PR readiness validation script:
 
    ```bash
-   pwsh .agents/scripts/Validate-PRReadiness.ps1
+   python3 scripts/validation/pre_pr.py
    ```
 
 2. The script validates:
@@ -833,7 +833,7 @@ The agent MUST run pre-PR validation before creating a pull request. This is a *
 
 **Verification Checklist:**
 
-- [ ] `Validate-PRReadiness.ps1` executed and passed (exit code 0)
+- [ ] `pre_pr.py` executed and passed (exit code 0)
 - [ ] No BLOCKING issues in validation output
 - [ ] Commit count within limits
 - [ ] Session log complete and valid
@@ -910,13 +910,13 @@ Copy this checklist to each session log and verify completion:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| SHOULD | Export session memories: `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "[query]" -SessionNumber NNN -Topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
+| SHOULD | Export session memories: `python3 .claude-mem/scripts/export_claude_mem_memories.py --session-number NNN --topic "topic"` | [ ] | Export file: [path] (or "Skipped") |
 | MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
-| MUST | Run pre-PR validation: `pwsh .agents/scripts/Validate-PRReadiness.ps1` | [ ] | Exit code 0 |
+| MUST | Run pre-PR validation: `python3 scripts/validation/pre_pr.py` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | MUST | Preserve `.agents/HANDOFF.md` (read-only) | [ ] | HANDOFF.md unchanged |
 | MUST | Write per-issue handoff to `.agents/sessions/handoffs/{date}-{issue}-handoff.md` (if issue incomplete) | [ ] | File path: _______ (or "SKIPPED: issue closed / no issue") |
@@ -956,10 +956,7 @@ python3 .claude/skills/session-init/scripts/new_session_log.py
 **Validation**:
 
 ```bash
-# JSON schema validation (structural)
-pwsh -Command "Test-Json -Json (Get-Content [session].json -Raw) -Schema (Get-Content .agents/schemas/session-log.schema.json -Raw)"
-
-# Script validation (business rules)
+# Validation (structural schema + business rules)
 python3 scripts/validate_session_json.py [session].json
 ```
 
