@@ -84,7 +84,7 @@
    "changesCommitted": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "Final branch includes rebase onto latest origin/main, plugin manifest rebump to 0.5.260, LSP test fixture stabilization, and aggregate verdict expectation alignment; commit follows this session-log update."
+    "Evidence": "Final branch includes rebase onto latest origin/main, plugin manifest rebump to 0.5.261, pre-push mypy fixes, and aggregate verdict expectation alignment; commit follows this session-log update."
    },
    "validationPassed": {
     "level": "MUST",
@@ -133,9 +133,13 @@
   {
    "summary": "Rebased onto latest origin/main and rebumped plugin manifests again",
    "evidence": "origin/main advanced to cc1b4969f415 with plugin manifests at 0.5.259. Local branch rebased successfully and both manifests were set to 0.5.260."
+  },
+  {
+   "summary": "Rebased onto latest origin/main and rebumped plugin manifests to stay ahead of main",
+   "evidence": "origin/main plugin manifests were at 0.5.260 after rebase. Both local manifests were set to 0.5.261."
   }
  ],
- "endingCommit": "50a2e768074a",
+ "endingCommit": "4c0e1881b0c0",
  "nextSteps": [
   "Push fix/cluster-secgate, monitor PR #2846 checks, rebump plugin manifests if the version race advances, enable auto-merge, and remove the dedicated worktree after merge."
  ]
