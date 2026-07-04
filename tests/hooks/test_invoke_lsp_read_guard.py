@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -45,7 +46,7 @@ def _state(
     nav_count: int = 0,
     read_files: list[str] | None = None,
     last_tool: str = "",
-) -> dict:
+) -> dict[str, Any]:
     """Build a gate-state dict in the canonical shape."""
     files = list(read_files or [])
     return {
@@ -60,9 +61,11 @@ def _state(
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure mode/skip env vars never leak between tests."""
+    """Ensure mode/skip/project/scratch env vars never leak between tests."""
     monkeypatch.delenv("SKIP_LSP_GATE", raising=False)
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(REPO_ROOT))
+    monkeypatch.delenv("TMPDIR", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +190,13 @@ class TestMergeInProgressBypass:
         # Regression guard: the bypass is conditional, not unconditional.
         repo, target = self._make_repo(tmp_path)
         # No marker files present.
+        assert guard.is_gated_target(str(target), str(repo)) is True
+
+    def test_repo_under_tmpdir_still_gates_in_repo_files(self, tmp_path, monkeypatch):
+        # TMPDIR scratch bypass must not disable the gate for a real checkout
+        # whose root lives under TMPDIR, which happens in some test harnesses.
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        repo, target = self._make_repo(tmp_path)
         assert guard.is_gated_target(str(target), str(repo)) is True
 
 
@@ -560,5 +570,3 @@ class TestLspRuntimeDownFailOpen:
 # ---------------------------------------------------------------------------
 # main: dispatch, kill switch, fail-open paths
 # ---------------------------------------------------------------------------
-
-

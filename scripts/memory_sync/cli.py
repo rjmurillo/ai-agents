@@ -19,14 +19,17 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from scripts.memory_sync.freshness import check_freshness
 from scripts.memory_sync.mcp_client import McpClient, McpError
 from scripts.memory_sync.models import FreshnessStatus, SyncOperation
 from scripts.memory_sync.sync_engine import (
+    StateError,
     detect_changes,
     is_memory_file,
     sync_batch,
@@ -41,6 +44,15 @@ EXIT_INVALID_ARGS = 2
 EXIT_IO_ERROR = 3
 
 QUEUE_FILE = Path(".memory_sync_queue.json")
+
+
+class QueueReadError(Exception):
+    """Raised when the sync queue file exists but cannot be parsed.
+
+    Distinguishes a corrupt queue from an empty one so a failed read maps to
+    EXIT_IO_ERROR instead of the "No memory changes to sync" / exit-0 path,
+    which would silently drop queued changes.
+    """
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -60,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         _logger.info("Interrupted")
         return EXIT_SYNC_FAILURE
+    except StateError as exc:
+        _logger.error("Sync state error: %s", exc)
+        return EXIT_IO_ERROR
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -169,17 +184,23 @@ def _cmd_sync_batch(args: argparse.Namespace) -> int:
     """Handle the sync-batch subcommand."""
     project_root = _find_project_root()
 
-    if not McpClient.is_available():
-        _logger.error("Forgetful is not available (database not found)")
-        return EXIT_INVALID_ARGS
-
     changes: list[tuple[Path, SyncOperation]] = []
 
     if args.staged:
+        if not McpClient.is_available():
+            _logger.error("Forgetful is not available (database not found)")
+            return EXIT_INVALID_ARGS
         staged_output = _get_staged_files()
         changes = detect_changes(staged_output)
     elif args.from_queue:
-        changes = _read_queue(project_root)
+        try:
+            changes = _read_queue(project_root)
+        except QueueReadError as exc:
+            _logger.error("%s", exc)
+            return EXIT_IO_ERROR
+        if not McpClient.is_available():
+            _logger.error("Forgetful is not available (database not found)")
+            return EXIT_INVALID_ARGS
     else:
         _logger.error("Specify --staged or --from-queue")
         return EXIT_INVALID_ARGS
@@ -326,36 +347,97 @@ def _get_staged_files() -> list[str]:
 
 
 def _read_queue(project_root: Path) -> list[tuple[Path, SyncOperation]]:
-    """Read changes from the queue file."""
+    """Read changes from the queue file.
+
+    Returns an empty list only when the queue file does not exist. A queue
+    file that exists but is corrupt (bad JSON, wrong shape, missing keys, or
+    an unknown operation) raises QueueReadError so the caller can exit with
+    EXIT_IO_ERROR instead of mistaking corruption for "no changes".
+
+    Raises:
+        QueueReadError: The queue file exists but cannot be parsed.
+    """
     queue_path = project_root / QUEUE_FILE
     if not queue_path.exists():
         return []
     try:
         data = json.loads(queue_path.read_text("utf-8"))
-        changes: list[tuple[Path, SyncOperation]] = []
-        for entry in data:
-            path = Path(entry["path"])
-            if not is_memory_file(path):
-                _logger.warning("Skipping invalid queue path: %s", path)
-                continue
-            operation = SyncOperation(entry["operation"])
-            changes.append((path, operation))
-        return changes
-    except (json.JSONDecodeError, KeyError, ValueError) as exc:
-        _logger.warning("Failed to read queue file: %s", exc)
-        return []
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        raise QueueReadError(f"Corrupt queue file {queue_path}: {exc}") from exc
+    if not isinstance(data, list):
+        raise QueueReadError(
+            f"Queue file {queue_path} must be a JSON array, "
+            f"got {type(data).__name__}"
+        )
+    changes: list[tuple[Path, SyncOperation]] = []
+    for entry in data:
+        if not isinstance(entry, dict):
+            raise QueueReadError(
+                f"Queue entry in {queue_path} must be an object, "
+                f"got {type(entry).__name__}"
+            )
+        try:
+            raw_path = entry["path"]
+            raw_operation = entry["operation"]
+        except KeyError as exc:
+            raise QueueReadError(
+                f"Queue entry in {queue_path} missing key {exc}"
+            ) from exc
+        if not isinstance(raw_path, str):
+            raise QueueReadError(
+                f"Queue entry 'path' in {queue_path} must be a string, "
+                f"got {type(raw_path).__name__}"
+            )
+        path = Path(raw_path)
+        if not is_memory_file(path):
+            _logger.warning("Skipping invalid queue path: %s", path)
+            continue
+        try:
+            operation = SyncOperation(raw_operation)
+        except ValueError as exc:
+            raise QueueReadError(
+                f"Invalid operation {raw_operation!r} in {queue_path}"
+            ) from exc
+        changes.append((path, operation))
+    return changes
 
 
 def _write_queue(
     project_root: Path, changes: list[tuple[Path, SyncOperation]]
 ) -> None:
-    """Write changes to the queue file."""
+    """Write changes to the queue file atomically.
+
+    Serialize to a temp file in the same directory, fsync, then ``os.replace``
+    onto the target so a crash mid-write cannot leave a truncated or corrupt
+    queue that ``_read_queue`` would silently drop.
+    """
     queue_path = project_root / QUEUE_FILE
     data = [
         {"path": str(path), "operation": op.value}
         for path, op in changes
     ]
-    queue_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    payload = json.dumps(data, indent=2) + "\n"
+    tmp_file = tempfile.NamedTemporaryFile(
+        dir=str(queue_path.parent),
+        prefix=f"{queue_path.name}.",
+        suffix=".tmp",
+        mode="w",
+        encoding="utf-8",
+        delete=False,
+    )
+    tmp_name = tmp_file.name
+    try:
+        with tmp_file:
+            tmp_file.write(payload)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        os.replace(tmp_name, queue_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _clear_queue(project_root: Path) -> None:

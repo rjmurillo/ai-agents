@@ -164,6 +164,7 @@ class TestParseSettings:
         assert len(entries) == 1
         assert entries[0].matcher is None
 
+
     def test_powershell_command_reported(self, tmp_path):
         settings = {
             "hooks": {
@@ -422,6 +423,26 @@ class TestValidateExitCodeDocs:
         )
         assert hook_contracts.validate_exit_code_docs(entry, tmp_path) is None
 
+    def test_unreadable_script_reports_violation(self, tmp_path: Path, monkeypatch) -> None:
+        script = tmp_path / "hook.py"
+        script.write_text('"""Exit codes: 0 allow, 2 block."""\n', encoding="utf-8")
+        original = Path.read_text
+
+        def unreadable(self: Path, *_args, **_kwargs):  # noqa: ANN002, ANN003
+            if self == script:
+                raise PermissionError("denied")
+            return original(self, *_args, **_kwargs)
+
+        monkeypatch.setattr(Path, "read_text", unreadable)
+        entry = hook_contracts.HookEntry(
+            hook_type="PreToolUse",
+            script_path="hook.py",
+            command="python3 hook.py",
+        )
+        violation = hook_contracts.validate_exit_code_docs(entry, tmp_path)
+        assert violation is not None
+        assert violation.category == "unreadable_script"
+
     def test_block_keyword_in_docstring(self, tmp_path):
         script = tmp_path / "hook.py"
         script.write_text(
@@ -436,6 +457,27 @@ class TestValidateExitCodeDocs:
             command="python3 hook.py",
         )
         assert hook_contracts.validate_exit_code_docs(entry, tmp_path) is None
+
+    def test_unreadable_script_flagged(self, tmp_path, monkeypatch):
+        # The script exists (is_file() is true) but cannot be read. Returning
+        # None here would treat it as "docs present"; instead it must flag an
+        # unreadable_script violation (issue #2809).
+        script = tmp_path / "hook.py"
+        script.write_text('"""Guard hook."""\n')
+
+        def _raise(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+            raise PermissionError("permission denied")
+
+        monkeypatch.setattr(hook_contracts.Path, "read_text", _raise)
+        entry = hook_contracts.HookEntry(
+            hook_type="PreToolUse",
+            script_path="hook.py",
+            command="python3 hook.py",
+        )
+        violation = hook_contracts.validate_exit_code_docs(entry, tmp_path)
+        assert violation is not None
+        assert violation.category == "unreadable_script"
+        assert "cannot be read" in violation.message
 
 
 # ---------------------------------------------------------------------------

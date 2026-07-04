@@ -35,7 +35,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 # Sibling helpers must import when this file is loaded by path in tests.
 # Keep any sys.path change scoped to this import block.
@@ -48,6 +48,7 @@ if _SCRIPT_DIR not in sys.path:
 try:
     from scan_constants import (  # noqa: E402
         EXIT_ERROR,
+        EXIT_EXTERNAL,
         EXIT_SUCCESS,
         EXIT_VULNERABILITIES,
     )
@@ -64,6 +65,7 @@ finally:
 __all__ = [
     "CWE78_PATTERNS",
     "EXIT_ERROR",
+    "EXIT_EXTERNAL",
     "EXIT_SUCCESS",
     "EXIT_VULNERABILITIES",
     "format_console_output",
@@ -103,9 +105,13 @@ class ScanResult:
         default_factory=lambda: datetime.now(UTC).isoformat()
     )
     files_scanned: int = 0
-    vulnerabilities: list = field(default_factory=list)
-    suppressed: list = field(default_factory=list)
-    errors: list = field(default_factory=list)
+    vulnerabilities: list[Any] = field(default_factory=list)
+    suppressed: list[Any] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+class GitEnumerationError(RuntimeError):
+    """Raised when staged-file enumeration cannot be trusted."""
 
 
 def get_language(file_path: str) -> str | None:
@@ -164,8 +170,13 @@ def get_staged_files() -> list[str]:
             check=True,
         )
         return [f for f in result.stdout.strip().split("\n") if f]
-    except subprocess.CalledProcessError:
-        return []
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise GitEnumerationError(
+            f"git diff --staged --name-only failed: {detail}"
+        ) from exc
+    except FileNotFoundError as exc:
+        raise GitEnumerationError("git executable not found") from exc
 
 
 def get_directory_files(directory: str) -> list[str]:
@@ -436,15 +447,39 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
     files_to_scan = []
 
     if args.git_staged:
-        files_to_scan.extend(get_staged_files())
+        try:
+            files_to_scan.extend(get_staged_files())
+        except GitEnumerationError as exc:
+            # Git failed to enumerate staged files. Fail closed with an external
+            # dependency exit code (ADR-035: 3) so callers do not mistake a git
+            # failure for a clean scan.
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(EXIT_EXTERNAL)
 
     if args.directory:
+        if not Path(args.directory).is_dir():
+            # A missing or non-directory --directory is a mis-specified scan root,
+            # not an empty result. Fail closed (EXIT_ERROR) so a typo is never
+            # silently treated as a clean scan (os.walk on a missing path yields
+            # nothing, which would otherwise look like "no files, all clean").
+            print(
+                f"ERROR: --directory not found or not a directory: {args.directory}",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_ERROR)
         files_to_scan.extend(get_directory_files(args.directory))
 
     if args.files:
         files_to_scan.extend(args.files)
 
     if not files_to_scan:
+        # A successful --git-staged enumeration with nothing staged is a clean
+        # pass. Restrict that to the staged-only case: an explicit --directory or
+        # --files target that yielded nothing is a mis-specified request, not a
+        # clean scan, so it keeps the usage-error exit (EXIT_ERROR).
+        if args.git_staged and not args.directory and not args.files:
+            print("No files to scan (nothing staged).")
+            sys.exit(EXIT_SUCCESS)
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)
 

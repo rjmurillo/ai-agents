@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check for relevant changes
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         id: filter
         with:
           filters: |
@@ -69,11 +69,8 @@ jobs:
         # gpt-5 is the highest grader GitHub Models offers (no gpt-5.5 / Opus).
         # CALIBRATION ROLLOUT tracked by issue #2718. The scenarios' expected
         # verdicts were authored for a Claude grader, so a cross-family grader
-        # may shift borderline verdicts. continue-on-error keeps calibration
-        # mismatch from red-failing PRs until live gpt-5 verdicts are confirmed.
-        # The skip-net in eval-prompt-change.py still neutral-skips genuine
-        # provider outages. Remove continue-on-error by 2026-07-08.
-        continue-on-error: true
+        # may shift borderline verdicts. The skip-net in eval-prompt-change.py
+        # still neutral-skips genuine provider outages.
         if: |
           github.event_name == 'pull_request' &&
           needs.check-paths.outputs.spec_evals_changed == 'true' &&

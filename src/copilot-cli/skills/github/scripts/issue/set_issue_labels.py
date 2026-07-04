@@ -163,22 +163,26 @@ def _create_label(
 
 def _apply_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
     """Apply a label to an issue. Returns True on success."""
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "edit",
-            str(issue),
-            "--repo",
-            f"{owner}/{repo}",
-            "--add-label",
-            label_name,
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "edit",
+                str(issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--add-label",
+                label_name,
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
     return result.returncode == 0
 
 
@@ -218,27 +222,37 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
         return []
     labels_field = payload.get("labels")
     labels = labels_field if isinstance(labels_field, list) else []
-    return [item.get("name") for item in labels if isinstance(item, dict) and item.get("name")]
+    return [
+        name
+        for item in labels
+        if isinstance(item, dict)
+        and isinstance(name := item.get("name"), str)
+        and name
+    ]
 
 
 def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
     """Remove a label from an issue. Returns True on success."""
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "edit",
-            str(issue),
-            "--repo",
-            f"{owner}/{repo}",
-            "--remove-label",
-            label_name,
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "edit",
+                str(issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--remove-label",
+                label_name,
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
     return result.returncode == 0
 
 
@@ -305,28 +319,47 @@ def main(argv: list[str] | None = None) -> int:
     failed: list[str] = []
     removed: list[str] = []
 
-    for label_info in all_labels:
-        label_name = label_info["name"]
-        label_color = label_info["color"]
+    try:
+        for label_info in all_labels:
+            label_name = label_info["name"]
+            label_color = label_info["color"]
 
-        exists = _label_exists(owner, repo, label_name)
+            exists = _label_exists(owner, repo, label_name)
 
-        if not exists:
-            if create_missing:
-                if _create_label(owner, repo, label_name, label_color):
-                    created.append(label_name)
+            if not exists:
+                if create_missing:
+                    if _create_label(owner, repo, label_name, label_color):
+                        created.append(label_name)
+                    else:
+                        failed.append(label_name)
+                        continue
                 else:
-                    failed.append(label_name)
                     continue
-            else:
-                continue
 
-        if _apply_label(owner, repo, args.issue, label_name):
-            applied.append(label_name)
-            if label_name.lower().startswith(PRIORITY_PREFIX):
-                removed = _reconcile_priorities(owner, repo, args.issue, incoming_names)
-        else:
-            failed.append(label_name)
+            if _apply_label(owner, repo, args.issue, label_name):
+                applied.append(label_name)
+                if label_name.lower().startswith(PRIORITY_PREFIX):
+                    removed = _reconcile_priorities(owner, repo, args.issue, incoming_names)
+            else:
+                failed.append(label_name)
+    except subprocess.TimeoutExpired as err:
+        data = {
+            "issue": args.issue,
+            "applied": applied,
+            "created": created,
+            "removed": removed,
+            "failed": failed,
+            "total_applied": len(applied),
+        }
+        write_skill_error(
+            f"GitHub label operation timed out after {GH_TIMEOUT_SECONDS}s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="set_issue_labels.py",
+            extra=data,
+        )
+        raise SystemExit(3) from err
 
     data = {
         "issue": args.issue,

@@ -215,17 +215,25 @@ jobs:
             --ignore-vuln CVE-2026-3219 \
             --ignore-vuln CVE-2026-6357
 
+      # Issue #2808: `|| true` masked both bandit crashes and genuine findings,
+      # turning this step green regardless (bandit even errored on the missing
+      # SARIF formatter and nobody noticed). Gate on high severity AND high
+      # confidence so real high-risk findings fail CI, scoped off test-only
+      # false positives. JSON output keeps the artifact self-contained; the
+      # code-scanning SARIF surfacing needs the bandit-sarif-formatter dep and
+      # is deferred to a focused follow-up PR (lockfile change, over this PR's
+      # file budget).
       - name: Run Bandit
         run: |
           mkdir -p artifacts
-          bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif || true
+          bandit -r .claude/ scripts/ -x '*/tests/*,*/test/*' -f json -o artifacts/bandit-results.json --severity-level high --confidence-level high
 
       - name: Upload Bandit results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: bandit-results
-          path: artifacts/bandit-results.sarif
+          path: artifacts/bandit-results.json
           retention-days: 7
 
   # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.

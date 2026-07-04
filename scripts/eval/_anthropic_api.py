@@ -10,10 +10,20 @@ from __future__ import annotations
 import json
 import os
 import socket
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+# Single source of truth for the default eval model. Every eval script imports
+# this instead of hard-coding an id, so a model bump is a one-line change here
+# (issue #2858). The previous default `claude-sonnet-4-20250514` is a dead id
+# that returns HTTP 404 against a current key; `claude-sonnet-4-6` is reachable
+# and priced in `_eval_common.py`.
+DEFAULT_MODEL = "claude-sonnet-4-6"
+
+_MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
 
 
 def load_api_key() -> str:
@@ -76,7 +86,7 @@ def call_api(
     api_key: str,
     messages: list[dict[str, str]],
     system: str = "",
-    model: str = "claude-sonnet-4-20250514",
+    model: str = DEFAULT_MODEL,
     max_tokens: int = 1024,
     temperature: float = 0.0,
     provider: str | None = None,
@@ -157,9 +167,31 @@ def call_api(
         except Exception:  # noqa: BLE001 - body read is best-effort only
             raw_body = ""
         sanitized = "".join(ch for ch in raw_body if 32 <= ord(ch) < 127)[:200]
-        raise RuntimeError(
-            f"Anthropic API returned HTTP {e.code}: {sanitized}"
-        ) from e
+        message = f"Anthropic API returned HTTP {e.code}: {sanitized}"
+        if e.code == 404:
+            # Bind the name here regardless of whether the provider fast-path
+            # above ran (that import is guarded by `selected is not None`).
+            # Keeps static analysis clean and the reference unambiguous.
+            from _providers import is_default_anthropic
+
+            if provider is None or is_default_anthropic(selected or ""):
+                # A 404 on the messages endpoint almost always means the model id
+                # is unknown to this key (issue #2857). Turn the bare 404 into an
+                # actionable message that lists the ids the key can actually reach.
+                # Best-effort only: never let the enrichment lookup raise.
+                try:
+                    reachable = list_available_models(api_key)
+                    if reachable:
+                        message += (
+                            f". Model '{model}' may be unavailable; reachable ids: "
+                            f"{', '.join(sorted(reachable))}"
+                        )
+                except Exception as enrich_err:  # noqa: BLE001 - enrichment is best-effort
+                    print(
+                        f"warning: reachable-model lookup failed: {enrich_err}",
+                        file=sys.stderr,
+                    )
+        raise RuntimeError(message) from e
     except urllib.error.URLError as e:
         # urllib often wraps socket.timeout in URLError.reason; classify it
         # as a timeout so the error message is actionable.
@@ -188,6 +220,160 @@ def call_api(
         if block.get("type") == "text"
     ]
     return "\n".join(text_parts)
+
+
+def list_available_models(api_key: str, *, timeout: int = 30) -> list[str]:
+    """Return the model ids reachable with ``api_key`` via ``GET /v1/models``.
+
+    Args:
+        api_key: The Anthropic API key.
+        timeout: Socket timeout in seconds.
+
+    Returns:
+        A list of model id strings (``data[].id``). May be empty if the
+        account exposes no models.
+
+    Raises:
+        RuntimeError: On HTTP error, network failure, timeout, or invalid
+            JSON. Original exception chained via ``__cause__``. Callers that
+            want fail-open behavior on infrastructure errors should catch this.
+    """
+    req = urllib.request.Request(
+        f"{_MODELS_ENDPOINT}?limit=1000",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode(errors="replace"))
+    except urllib.error.HTTPError as e:
+        try:
+            raw_body = e.read().decode(errors="replace")
+        except Exception:  # noqa: BLE001 - body read is best-effort only
+            raw_body = ""
+        sanitized = "".join(ch for ch in raw_body if 32 <= ord(ch) < 127)[:200]
+        raise RuntimeError(
+            f"Anthropic models endpoint returned HTTP {e.code}: {sanitized}"
+        ) from e
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, (TimeoutError, socket.timeout)):
+            raise RuntimeError(
+                f"Anthropic models endpoint timed out after {timeout}s."
+            ) from e
+        raise RuntimeError(
+            f"Anthropic models endpoint network error: {e.reason}."
+        ) from e
+    except TimeoutError as e:
+        raise RuntimeError(
+            f"Anthropic models endpoint timed out after {timeout}s."
+        ) from e
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"Anthropic models endpoint returned invalid JSON: {e.msg}."
+        ) from e
+
+    # A 200 with valid JSON can still be the wrong shape (a bare list, a
+    # string, or a non-list `data`). Treat any shape violation as an
+    # infrastructure error (RuntimeError) so callers fail open rather than
+    # crashing on an unguarded AttributeError/TypeError.
+    if not isinstance(result, dict):
+        raise RuntimeError(
+            "Anthropic models endpoint returned an unexpected payload shape "
+            f"(expected object, got {type(result).__name__})."
+        )
+    data = result.get("data", [])
+    if not isinstance(data, list):
+        raise RuntimeError(
+            "Anthropic models endpoint returned an unexpected 'data' shape "
+            f"(expected list, got {type(data).__name__})."
+        )
+    # Each entry must be an object with a non-empty string `id`. A non-string
+    # id (e.g. `{"id": 123}`) would otherwise flow through and later crash
+    # `", ".join(sorted(...))` in verify_model_available with a TypeError that
+    # bypasses the fail-open handler. Treat any malformed entry as an
+    # infrastructure error so callers fail open on a hostile/garbled response.
+    ids: list[str] = []
+    for m in data:
+        model_id = m.get("id") if isinstance(m, dict) else None
+        if not isinstance(model_id, str) or not model_id:
+            raise RuntimeError(
+                "Anthropic models endpoint returned a malformed model entry "
+                f"(expected an object with a non-empty string 'id', got {m!r})."
+            )
+        ids.append(model_id)
+    return ids
+
+
+def verify_model_available(
+    api_key: str,
+    model: str,
+    *,
+    provider: str | None = None,
+    timeout: int = 30,
+) -> None:
+    """Fail fast before the first scored call if ``model`` is unreachable.
+
+    Preflight for the eval harness (issue #2857). Semantics follow the repo
+    fail-open/fail-closed doctrine:
+
+    - **Protocol violation (fail-closed):** the key reaches ``/v1/models`` and
+      ``model`` is not in the returned list -> raise ``RuntimeError`` listing
+      the reachable ids, so a live run never spends on a dead model id.
+    - **Infrastructure error (fail-open):** the ``/v1/models`` lookup itself
+      fails (network down, auth error, malformed body) -> print a warning to
+      stderr and return, letting the run proceed and surface the real error
+      (now 404-enriched) at first call rather than blocking on a flaky probe.
+
+    No-ops when ``EVAL_SKIP_MODEL_PREFLIGHT`` is set (truthy) or when a
+    non-default provider is selected (those adapters self-manage credentials
+    and model routing).
+
+    Args:
+        api_key: The Anthropic API key. Ignored for non-anthropic providers.
+        model: The model id the run intends to use.
+        provider: Optional transport selector. ``None`` falls back to the
+            ``EVAL_PROVIDER`` env var.
+        timeout: Socket timeout in seconds for the probe.
+
+    Raises:
+        RuntimeError: If the model is provably unreachable (fail-closed).
+    """
+    if os.environ.get("EVAL_SKIP_MODEL_PREFLIGHT"):
+        return
+
+    selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
+    if selected:
+        from _providers import is_default_anthropic
+
+        if not is_default_anthropic(selected):
+            return
+
+    try:
+        reachable = list_available_models(api_key, timeout=timeout)
+    except RuntimeError as e:
+        # Infrastructure error: fail open so a flaky probe cannot block a run.
+        print(
+            f"WARNING: model preflight skipped ({e}). "
+            "Proceeding; a bad model id will surface at first API call.",
+            file=sys.stderr,
+        )
+        return
+
+    # A successful probe that does not list `model` means it is provably
+    # unreachable with this key -> fail closed. An empty list is the same
+    # signal (the probe worked and returned zero models), so it also fails
+    # closed rather than silently proceeding to a guaranteed 404.
+    if model not in reachable:
+        listed = ", ".join(sorted(reachable)) if reachable else "(none)"
+        raise RuntimeError(
+            f"Model '{model}' is not reachable with this API key. "
+            f"Reachable ids: {listed}. "
+            "Pass --model with one of these, or update DEFAULT_MODEL in "
+            "scripts/eval/_anthropic_api.py."
+        )
 
 
 def load_custom_prompts(path: str) -> dict[str, list[dict[str, Any]]]:

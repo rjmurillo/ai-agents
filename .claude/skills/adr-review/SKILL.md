@@ -2,7 +2,7 @@
 name: adr-review
 version: 1.1.0
 model: claude-opus-4-6
-description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", or on ADR create/edit. Do NOT use to author a new ADR (use adr-generator).
+description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", when an ADR is created/edited/deleted, or when reviewing, accepting, or updating a decision file under .agents/architecture/, docs/architecture/, docs/decisions/, docs/adr/, or architecture/decisions/, including intent like "review this decision record" or "check this rationale for future maintainers". Do NOT use to author a new ADR (use adr-generator).
 license: MIT
 metadata:
   subagent_model: claude-opus-4-6
@@ -13,7 +13,10 @@ metadata:
   file_triggers:
     patterns:
       - ".agents/architecture/ADR-*.md"
+      - "docs/adr/ADR-*.md"
       - "docs/architecture/ADR-*.md"
+      - "docs/decisions/ADR-*.md"
+      - "architecture/decisions/ADR-*.md"
       - ".agents/SESSION-PROTOCOL.md"
     events: [create, update, delete]
     auto_invoke: true
@@ -29,9 +32,9 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 |----------------|-----------|
 | `review this ADR` | Full 6-agent debate on specified ADR |
 | `validate ADR-005` | Targeted review of specific ADR by number |
-| `check architecture decision` | ADR review with debate protocol |
-| `ADR file created or modified` | Auto-triggered via detect_adr_changes.py |
-| `delete ADR-NNN` | Deletion workflow (D1-D4) |
+| `review this decision record` | ADR review for durable architecture/design decision records |
+| `delete ADR-NNN` | Deletion review with dependency and supersession checks |
+| `ADR file created, modified, or deleted` | Auto-triggered via detect_adr_changes.py |
 
 ---
 
@@ -42,6 +45,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 /adr-review .agents/architecture/ADR-005-api-versioning.md
 "review this ADR"
 "validate ADR-005"
+"review this decision record under docs/decisions"
 ```
 
 **Automatic Detection**: A Claude Code hook runs at session start and detects ADR changes, prompting you to invoke this skill. The pre-commit hook also detects staged ADR files and displays a reminder.
@@ -55,22 +59,26 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | Pattern | Location | Events |
 |---------|----------|--------|
 | `ADR-*.md` | `.agents/architecture/` | create, update, delete |
+| `ADR-*.md` | `docs/adr/` | create, update, delete |
 | `ADR-*.md` | `docs/architecture/` | create, update, delete |
+| `ADR-*.md` | `docs/decisions/` | create, update, delete |
+| `ADR-*.md` | `architecture/decisions/` | create, update, delete |
 | `SESSION-PROTOCOL.md` | `.agents/` | create, update, delete |
 
-**Detection**: `.claude/skills/adr-review/scripts/detect_adr_changes.py`
+**Detection**: from the skill directory, run `python3 scripts/detect_adr_changes.py --base-path <repo-root>`. From repo root, run `.claude/skills/adr-review/scripts/detect_adr_changes.py` for the Claude skill tree or `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py` for the Copilot CLI mirror.
 
 ## When to Use
 
 **MANDATORY Triggers** (automatic):
 
 - Architect creates or updates an ADR
-- ANY agent modifies `.agents/architecture/ADR-*.md`
+- ANY agent modifies `.agents/architecture/ADR-*.md`, `docs/adr/ADR-*.md`, `docs/architecture/ADR-*.md`, `docs/decisions/ADR-*.md`, or `architecture/decisions/ADR-*.md`
 - ANY agent modifies `.agents/SESSION-PROTOCOL.md`
 
 **User-Initiated Triggers** (manual):
 
 - User requests ADR review ("review this ADR", "validate this decision")
+- User asks to review a durable design decision record or rationale for future maintainers
 - User requests multi-perspective validation for strategic decisions
 
 ## Agent Roles
@@ -172,17 +180,31 @@ After structural and technical review, apply strategic lenses:
 
 | Script | Purpose |
 |--------|---------|
-| `detect_adr_changes.py` | Detect ADR file changes for auto-trigger |
+| `.claude/skills/adr-review/scripts/detect_adr_changes.py` | Detect ADR file changes for the Claude skill tree |
+| `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py` | Detect ADR file changes for the Copilot CLI mirror |
 
 ```bash
-# Basic detection
+# Basic detection from repo root
 python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
+
+# Skill-relative detection from the Claude skill directory
+cd .claude/skills/adr-review
+python3 scripts/detect_adr_changes.py --base-path ../../..
+cd ../../..
 
 # Compare to specific commit
 python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit abc123
 
 # Include untracked ADR files
 python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+
+# Copilot CLI mirror from repo root
+python3 src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
+
+# Skill-relative detection from the Copilot CLI mirror
+cd src/copilot-cli/skills/adr-review
+python3 scripts/detect_adr_changes.py --base-path ../../../..
+cd ../../../..
 ```
 
 ## Verification Checklist
@@ -194,7 +216,7 @@ python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untrac
 echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 ```
 
-- [ ] `detect_adr_changes.py` exited 0 (no git or I/O errors)
+- [ ] The detector script exited 0 (no git or I/O errors)
 - [ ] If skill was auto-triggered by a file change, `HasChanges` should be `true`; if skill was manually invoked on an existing committed ADR, `HasChanges: false` is expected and acceptable
 
 After skill invocation:

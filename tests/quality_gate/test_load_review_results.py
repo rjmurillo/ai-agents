@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.quality_gate.load_review_results import (
+    _read_raw,
     collect,
     main,
     read_infra,
@@ -57,6 +60,20 @@ class TestReadVerdict:
     def test_empty_file_yields_needs_review(self, tmp_path: Path) -> None:
         (tmp_path / "qa-verdict.txt").write_text("", encoding="utf-8")
         assert read_verdict(tmp_path, "qa") == "NEEDS_REVIEW"
+
+    def test_unreadable_file_raises(self, tmp_path: Path, monkeypatch) -> None:
+        (tmp_path / "qa-verdict.txt").write_text("PASS", encoding="utf-8")
+
+        def unreadable(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "read_text", unreadable)
+        try:
+            read_verdict(tmp_path, "qa")
+        except RuntimeError as exc:
+            assert "Unable to read review result file" in str(exc)
+        else:  # pragma: no cover - assertion clarity
+            raise AssertionError("unreadable verdict must not pass")
 
     def test_whitespace_only_file_yields_empty(self, tmp_path: Path) -> None:
         # Mirrors pwsh: Get-Content -Raw returns the whitespace (truthy),
@@ -156,3 +173,48 @@ class TestMain:
         text = output.read_text(encoding="utf-8")
         assert "security_verdict=NEEDS_REVIEW" in text
         assert "security_infra=false" in text
+
+
+# ---------------------------------------------------------------------------
+# _read_raw fail-loud on unreadable files (issue #2809)
+# ---------------------------------------------------------------------------
+
+
+class TestReadRawFailLoud:
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        assert _read_raw(tmp_path / "absent.txt") is None
+
+    def test_present_readable_file_returns_text(self, tmp_path: Path) -> None:
+        target = tmp_path / "verdict.txt"
+        target.write_text("PASS", encoding="utf-8")
+        assert _read_raw(target) == "PASS"
+
+    def test_unreadable_file_raises_oserror(self, tmp_path: Path) -> None:
+        # Directory read raises IsADirectoryError (OSError subclass): a
+        # present-but-unreadable file must not be swallowed into None.
+        unreadable = tmp_path / "verdict.txt"
+        unreadable.mkdir()
+        with pytest.raises(RuntimeError):
+            _read_raw(unreadable)
+
+    def test_read_infra_missing_still_false(self, tmp_path: Path) -> None:
+        # Genuinely missing infra file keeps the intended default.
+        assert read_infra(tmp_path, "security") == "false"
+
+    def test_collect_propagates_unreadable_infra(self, tmp_path: Path) -> None:
+        (tmp_path / "security-infrastructure-failure.txt").mkdir()
+        with pytest.raises(RuntimeError):
+            collect(tmp_path)
+
+    def test_main_returns_three_on_unreadable_file(
+        self, tmp_path, monkeypatch, capsys
+    ) -> None:
+        results = tmp_path / "ai-review-results"
+        results.mkdir()
+        (results / "security-infrastructure-failure.txt").mkdir()
+        # GITHUB_OUTPUT is irrelevant: collect() fails before it is read.
+        monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+        rc = main(["--results-dir", str(results)])
+        assert rc == 3
+        err = capsys.readouterr().err
+        assert "cannot read verdict/infra file" in err

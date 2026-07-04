@@ -59,10 +59,16 @@ PYCACHE_SEGMENT = "__pycache__"
 
 
 def _resolve_repo_root(start: Path) -> Path | None:
-    """Walk up from ``start`` to the directory that holds ``.claude/skills``."""
+    """Walk up from ``start`` to the repository that holds ``.claude/skills``."""
     base = start if start.is_dir() else start.parent
     for ancestor in (base, *base.parents):
-        if (ancestor / ".claude" / "skills").is_dir():
+        has_skills = (ancestor / ".claude" / "skills").is_dir()
+        has_repo_marker = (
+            (ancestor / ".git").exists()
+            or (ancestor / "pyproject.toml").is_file()
+            or (ancestor / "AGENTS.md").is_file()
+        )
+        if has_skills and has_repo_marker:
             return ancestor
     return None
 

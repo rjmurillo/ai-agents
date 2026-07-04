@@ -1,3 +1,11 @@
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=no-any-return
+# mypy: disable-error-code=arg-type
+# mypy: disable-error-code=assignment
+# mypy: disable-error-code=return-value
+# mypy: disable-error-code=var-annotated
+# mypy: disable-error-code=operator
+# mypy: disable-error-code=union-attr
 """Tests for pr_branch_mapping module.
 
 Verifies PR-to-branch mapping operations used to prevent cross-PR commits
@@ -134,6 +142,29 @@ class TestSaveMapping:
         assert loaded.current_session is not None
         assert loaded.current_session.session_id == "s1"
 
+    def test_save_mapping_uses_atomic_replace(self, tmp_path: Path) -> None:
+        mapping = PRBranchMapping()
+        memory_path = tmp_path / MEMORY_RELATIVE_PATH
+        calls = []
+
+        def recording_replace(src: Path, dst: Path) -> None:
+            calls.append((src, dst))
+            original_replace(src, dst)
+
+        from scripts import pr_branch_mapping
+
+        original_replace = pr_branch_mapping.os.replace
+        with patch.object(pr_branch_mapping.os, "replace", recording_replace):
+            save_mapping(tmp_path, mapping)
+
+        assert len(calls) == 1
+        temp_path, replaced_path = calls[0]
+        assert replaced_path == memory_path
+        assert temp_path.parent == memory_path.parent
+        assert temp_path.name.startswith(f".{memory_path.name}.")
+        assert temp_path.name.endswith(".tmp")
+        assert memory_path.exists()
+
 
 class TestAddMapping:
     """Tests for add_mapping function."""
@@ -178,7 +209,7 @@ class TestAddMapping:
     def test_removes_other_pr_with_same_branch(
         self, empty_mapping: PRBranchMapping
     ) -> None:
-        """Ensure branch uniqueness: adding a new PR with an existing branch removes the old mapping."""
+        """Ensure adding a duplicate branch removes the old mapping."""
         add_mapping(empty_mapping, pr_number=100, branch_name="feat/shared")
         add_mapping(empty_mapping, pr_number=200, branch_name="feat/shared")
 

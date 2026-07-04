@@ -60,6 +60,8 @@ When a docstring, comment, or PR description contains any of:
 
 the claim MUST be backed by a level-1 lookup before the first commit. That means: open the cited file, run the cited script, or invoke the cited API; then quote the contract verbatim in the new component's docstring on the first commit. The quote is character-for-character: the regex, the schema, the function signature, the exit-code table.
 
+**Mirror obligation**: before asserting a claim or behavior is done, mirror it against the canonical source and name the inverse failure mode.
+
 If the canonical source diverges from your component (your guard is stricter than the canonical validator, your adapter widens the type, your check skips a step), document the divergence in a `Stricter/looser/different than canonical` section in the same docstring.
 
 This rule is operationalized in `.claude/rules/canonical-source-mirror.md`. Read that file before writing any code that mirrors an existing source.
@@ -308,6 +310,18 @@ async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
 **Testability as leverage**: If it is hard to test, that signals poor encapsulation, tight coupling, weak cohesion, or procedural thinking. Always ask "how would I test this?" even without writing tests.
 
 **Programming by Intention**: Sergeant methods direct workflow via private methods. Single purpose, clear names, separation of concerns.
+
+## Mirror Obligation: Close the Inverse (Before Writing a Fix)
+
+A behavior change carries a mirror obligation: the inverse case it could break. Before you write the fix, name the inverse and plan to close it in the same diff. Three recurring inverses:
+
+- **Broaden detection, or add a guard?** Add the no-over-fire check. A change that catches the target must not fire on a valid existing case.
+- **Add a partial guard, or a new branch?** Cover every branch and operand, not only the one in the report.
+- **Change a contract?** Find and flip the tests that assert the OLD contract in the same diff.
+
+If inspection proves sibling branches share the same failure shape, fix the reachable sibling branches in the same diff. Do not ask for permission to leave a known sibling broken. If the new contract is explicit and old-contract tests exist, flip those tests in the same diff. Do not block only because the old tests need updating.
+
+State the inverse before coding. If you genuinely cannot name one, say so explicitly; do not skip the step silently.
 
 ## Implementation Process
 

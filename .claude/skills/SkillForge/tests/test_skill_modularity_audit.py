@@ -9,6 +9,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add SkillForge scripts directory to path for imports
 _TEST_DIR = Path(__file__).resolve().parent
 _SKILLFORGE_ROOT = _TEST_DIR.parent
@@ -17,7 +19,7 @@ _PROJECT_ROOT = _TEST_DIR.parents[3]
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from frontmatter import has_size_exception  # noqa: E402
+import skill_modularity_audit as audit_module  # noqa: E402
 from skill_modularity_audit import (  # noqa: E402
     IDEAL_MAX_LINES,
     MAX_H2_SECTIONS,
@@ -27,6 +29,7 @@ from skill_modularity_audit import (  # noqa: E402
     _score_modularity,
     audit_all_skills,
     audit_skill,
+    has_size_exception,
     main,
 )
 
@@ -48,6 +51,16 @@ class TestHasSizeException:
     def test_unclosed_frontmatter(self) -> None:
         content = "---\nsize-exception: true\nNo closing"
         assert has_size_exception(content) is False
+
+    def test_missing_frontmatter_helper_reports_targeted_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        monkeypatch.setattr(audit_module, "_SCRIPT_DIR", tmp_path)
+
+        with pytest.raises(ImportError, match="SkillForge frontmatter helper not found"):
+            audit_module._load_has_size_exception()
 
 
 class TestCountHeadings:

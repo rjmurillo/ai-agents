@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +11,10 @@ import pytest
 
 from scripts.memory_sync.cli import (
     EXIT_INVALID_ARGS,
+    EXIT_IO_ERROR,
     EXIT_SUCCESS,
+    QueueReadError,
+    _cmd_sync_batch,
     _read_queue,
     _write_queue,
     main,
@@ -243,14 +247,141 @@ class TestQueueOperations:
         assert loaded[0] == (Path(".serena/memories/a.md"), SyncOperation.CREATE)
         assert loaded[1] == (Path(".serena/memories/b.md"), SyncOperation.UPDATE)
 
+    def test_write_leaves_no_temp_files(self, project_root: Path) -> None:
+        """A successful atomic write leaves no ``.tmp`` sidecar behind."""
+        _write_queue(
+            project_root,
+            [(Path(".serena/memories/test.md"), SyncOperation.CREATE)],
+        )
+        leftovers = list(project_root.glob(".memory_sync_queue.json*.tmp"))
+        assert leftovers == []
+
+    def test_write_atomic_failure_preserves_existing_queue(
+        self, project_root: Path
+    ) -> None:
+        """If the rename fails mid-write, the prior queue and dir stay intact."""
+        _write_queue(
+            project_root,
+            [(Path(".serena/memories/old.md"), SyncOperation.CREATE)],
+        )
+        before = (project_root / ".memory_sync_queue.json").read_text(
+            encoding="utf-8"
+        )
+        with patch(
+            "scripts.memory_sync.cli.os.replace", side_effect=OSError("boom")
+        ):
+            with pytest.raises(OSError, match="boom"):
+                _write_queue(
+                    project_root,
+                    [(Path(".serena/memories/new.md"), SyncOperation.UPDATE)],
+                )
+        after = (project_root / ".memory_sync_queue.json").read_text(
+            encoding="utf-8"
+        )
+        assert after == before
+        assert list(project_root.glob(".memory_sync_queue.json*.tmp")) == []
+
     def test_read_empty_queue(self, project_root: Path) -> None:
         """Reading nonexistent queue returns empty list."""
         loaded = _read_queue(project_root)
         assert loaded == []
 
     def test_read_corrupt_queue(self, project_root: Path) -> None:
-        """Reading corrupt queue returns empty list."""
+        """A corrupt queue raises QueueReadError, not a silent empty read.
+
+        Behavior change (issue #2813): a corrupt queue previously returned []
+        and the sync exited 0 as "no changes", silently dropping queued work.
+        """
         queue_path = project_root / ".memory_sync_queue.json"
         queue_path.write_text("not json", encoding="utf-8")
-        loaded = _read_queue(project_root)
-        assert loaded == []
+        with pytest.raises(QueueReadError):
+            _read_queue(project_root)
+
+
+class TestReadQueueValidation:
+    """Boundary validation for _read_queue (issue #2813)."""
+
+    _QUEUE = ".memory_sync_queue.json"
+
+    def _write_raw(self, project_root: Path, content: str) -> None:
+        (project_root / self._QUEUE).write_text(content, encoding="utf-8")
+
+    def test_valid_queue_returns_changes(self, project_root: Path) -> None:
+        change = (Path(".serena/memories/a.md"), SyncOperation.CREATE)
+        _write_queue(project_root, [change])
+        assert _read_queue(project_root) == [change]
+
+    def test_non_list_raises(self, project_root: Path) -> None:
+        self._write_raw(project_root, '{"path": "x"}')
+        with pytest.raises(QueueReadError):
+            _read_queue(project_root)
+
+    def test_entry_not_object_raises(self, project_root: Path) -> None:
+        self._write_raw(project_root, '["just a string"]')
+        with pytest.raises(QueueReadError):
+            _read_queue(project_root)
+
+    def test_missing_key_raises(self, project_root: Path) -> None:
+        self._write_raw(project_root, '[{"path": ".serena/memories/a.md"}]')
+        with pytest.raises(QueueReadError):
+            _read_queue(project_root)
+
+    def test_null_path_raises(self, project_root: Path) -> None:
+        """Explicit JSON null path must raise, not crash on Path(None).
+
+        A present-but-null 'path' key returns None from the dict lookup,
+        so the KeyError guard misses it; Path(None) would raise TypeError.
+        """
+        self._write_raw(
+            project_root,
+            '[{"path": null, "operation": "create"}]',
+        )
+        with pytest.raises(QueueReadError):
+            _read_queue(project_root)
+
+    def test_bad_operation_raises(self, project_root: Path) -> None:
+        self._write_raw(
+            project_root,
+            '[{"path": ".serena/memories/a.md", "operation": "BOGUS"}]',
+        )
+        with pytest.raises(QueueReadError):
+            _read_queue(project_root)
+
+    def test_unreadable_queue_raises(self, project_root: Path) -> None:
+        self._write_raw(
+            project_root,
+            '[{"path": ".serena/memories/a.md", "operation": "create"}]',
+        )
+        with (
+            patch("pathlib.Path.read_text", side_effect=OSError("permission denied")),
+            pytest.raises(QueueReadError),
+        ):
+            _read_queue(project_root)
+
+    def test_invalid_memory_path_skipped(self, project_root: Path) -> None:
+        """A non-memory path is skipped, not fatal (matches prior behavior)."""
+        self._write_raw(
+            project_root,
+            '[{"path": "not/a/memory.txt", "operation": "create"}]',
+        )
+        assert _read_queue(project_root) == []
+
+    def test_sync_batch_maps_queue_error_to_io_error(
+        self, project_root: Path
+    ) -> None:
+        """A corrupt queue surfaces as EXIT_IO_ERROR, not EXIT_SUCCESS."""
+        args = argparse.Namespace(
+            staged=False, from_queue=True, force=False, dry_run=False
+        )
+        self._write_raw(project_root, "not json")
+        with (
+            patch(
+                "scripts.memory_sync.cli.McpClient.is_available",
+                return_value=False,
+            ),
+            patch(
+                "scripts.memory_sync.cli._find_project_root",
+                return_value=project_root,
+            ),
+        ):
+            assert _cmd_sync_batch(args) == EXIT_IO_ERROR

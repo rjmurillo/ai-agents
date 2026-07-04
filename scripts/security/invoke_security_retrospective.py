@@ -36,6 +36,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SUBPROCESS_TIMEOUT_SECONDS = 120
+
 
 class ExternalReviewSource(Enum):
     """Source of external security review."""
@@ -75,6 +77,7 @@ class SecurityRetrospective:
         self.non_interactive = non_interactive
         self.repo_root = self._find_repo_root()
         self.false_negatives: list[FalseNegative] = []
+        self.external_review_fetch_failed = False
 
     def _find_repo_root(self) -> Path:
         """Find the git repository root."""
@@ -87,7 +90,7 @@ class SecurityRetrospective:
         """Execute the security retrospective workflow.
 
         Returns:
-            Exit code: 0 for success, 1 for failure
+            Exit code: 0 for success, 1 for failure, 3 for external fetch failure
         """
         logger.info("Starting security retrospective for PR #%d", self.pr_number)
         logger.info("External review source: %s", self.source.value)
@@ -107,6 +110,8 @@ class SecurityRetrospective:
         # Step 2: Fetch external review comments
         external_findings = self._fetch_external_review_comments()
         if not external_findings:
+            if self.external_review_fetch_failed:
+                return 3
             logger.info(
                 "No external review found for PR #%d. This is expected for PRs "
                 "without bot/human security review.",
@@ -129,8 +134,8 @@ class SecurityRetrospective:
             len(self.false_negatives),
         )
 
-        # Step 4: Store in memory systems
-        forgetful_success = self._store_in_forgetful()
+        # Step 4: Store in memory systems (Forgetful is best-effort, Serena blocks)
+        self._store_in_forgetful()
         serena_success = self._store_in_serena()
 
         # Serena is BLOCKING per plan requirements
@@ -165,7 +170,7 @@ class SecurityRetrospective:
 
     def _load_security_reports(self) -> list[dict[str, Any]]:
         """Load security reports from .agents/security/SR-*.md files."""
-        reports = []
+        reports: list[dict[str, object]] = []
         security_dir = self.repo_root / ".agents" / "security"
 
         if not security_dir.exists():
@@ -204,11 +209,14 @@ class SecurityRetrospective:
                     "--paginate",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if result.returncode != 0:
+                self.external_review_fetch_failed = True
                 if "rate limit" in result.stderr.lower():
                     logger.error(
                         "[FAIL] GitHub API rate limit exceeded. "
@@ -237,9 +245,11 @@ class SecurityRetrospective:
             return security_comments
 
         except json.JSONDecodeError as e:
+            self.external_review_fetch_failed = True
             logger.error("[FAIL] Failed to parse GitHub API response: %s", e)
             return []
-        except subprocess.SubprocessError as e:
+        except (FileNotFoundError, subprocess.SubprocessError) as e:
+            self.external_review_fetch_failed = True
             logger.error("[FAIL] GitHub API call failed: %s", e)
             return []
 
@@ -271,11 +281,20 @@ class SecurityRetrospective:
             result = subprocess.run(
                 ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
-            return result.stdout.strip()
-        except subprocess.SubprocessError:
+            owner_repo = result.stdout.strip()
+            if not owner_repo:
+                self.external_review_fetch_failed = True
+                logger.error("[FAIL] GitHub repo lookup returned empty owner/repo")
+                return None
+            return owner_repo
+        except (FileNotFoundError, subprocess.SubprocessError) as e:
+            self.external_review_fetch_failed = True
+            logger.error("[FAIL] GitHub repo lookup failed: %s", e)
             return None
 
     def _identify_false_negatives(
@@ -285,7 +304,7 @@ class SecurityRetrospective:
     ) -> None:
         """Compare agent findings with external review to identify misses."""
         # Extract CWE IDs from security reports
-        agent_cwes = set()
+        agent_cwes: set[str] = set()
         for report in security_reports:
             content = report.get("content", "")
             # Simple CWE extraction pattern
@@ -664,6 +683,7 @@ Examples:
 Exit Codes:
     0: Success (no issues or all operations completed)
     1: Failure (Serena unavailable or critical error)
+    3: External error (GitHub API failure, timeout, or empty external review fetch)
         """,
     )
 

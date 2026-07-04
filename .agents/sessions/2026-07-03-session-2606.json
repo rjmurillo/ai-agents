@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2606,
+    "date": "2026-07-03",
+    "branch": "fix/test-isolation-2827",
+    "startingCommit": "07649da0",
+    "objective": "Diagnose and fix issue 2827 intermittent pytest isolation flake"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tool schemas loaded for repository worktree; project path /home/richard/src/GitHub/rjmurillo/ai-agents-work used for operations"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions executed at session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md lines 1-116; confirmed read-only protocol"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded context-mode skill and inspected session-init generator availability"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md-derived runtime instructions and test/security scoped instructions"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .github/instructions/testing.instructions.md and security.instructions.md for touched paths"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant correction memories surfaced by hooks; wrote issue-2827-pytest-abort-classification memory"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/test-isolation-2827"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/test-isolation-2827"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked on fix/test-isolation-2827 at 07649da0"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "07649da0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items completed before final response; commit created with scoped pathspec"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only and unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory issue-2827-pytest-abort-classification written"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed; markdownlint not applicable"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed scoped issue #2827 hook fix, tests, and session log on fix/test-isolation-2827 as 8c1efc10"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-07-03-session-2606.json passed before commit; bash -n and targeted pytest passed; full pytest passed after fix"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No PROJECT-PLAN task in scope for issue #2827"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked; scoped hook fix with tests"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "summary": "Checked ordering mechanism and victim tests",
+      "evidence": "pyproject.toml/conftest.py/tests/conftest.py have no pytest-randomly config; python3 -m pytest --help | grep -i random returned no random plugin output; importlib found pytest_randomly_installed=False. Both named victim tests passed in isolation under python3 -m pytest."
+    },
+    {
+      "summary": "Could not reproduce the alleged setup/teardown ERROR or shared-state pollution",
+      "evidence": "Full suite before hook change passed in a clean Bash environment: 13339 passed, 20 skipped, 45 xfailed. Neighbor/window runs around both victims passed. Full suite after hook change passed: 13341 passed, 20 skipped, 45 xfailed. No ERROR traceback was produced."
+    },
+    {
+      "summary": "Identified live issue root cause as pre-push misclassification of an aborted pytest stream",
+      "evidence": "gh issue view 2827 comments state the pytest stream truncated with no traceback, no short summary, and no session summary. The hook appended ERROR: Python tests failed to the last streamed test line, making innocent tests look like failures."
+    },
+    {
+      "summary": "Fixed .githooks/pre-push to distinguish aborted pytest runs from real test failures",
+      "evidence": "Added pytest_output_has_session_summary and pytest_exit_was_signal. No-summary exits now report Python tests aborted before pytest summary and preserve fail-closed behavior. Summary-bearing pytest failures still report Python tests failed."
+    },
+    {
+      "summary": "Validated behavior and security posture",
+      "evidence": "Before/after fixture: origin/main hook prints ERROR: Python tests failed after last streamed victim; fixed hook prints ERROR: Python tests aborted before pytest summary (exit 137, signal 9). Targeted tests: 31 passed. Full pytest after fix: 13341 passed, 20 skipped, 45 xfailed. security-review agent found no vulnerabilities."
+    }
+  ],
+  "endingCommit": "8c1efc10",
+  "nextSteps": [
+    "Push was intentionally not performed per user instruction."
+  ]
+}

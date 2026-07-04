@@ -1,6 +1,7 @@
 """Tests for add_comment_reaction.py."""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -42,10 +43,11 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=make_completed_process(
                 stdout=json.dumps({"id": 1})
-            )),
+            )) as run,
         ):
             rc = mod.main(["--comment-id", "123", "--reaction", "eyes"])
         assert rc == 0
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["succeeded"] == 1
         assert result["Data"]["failed"] == 0
@@ -90,6 +92,53 @@ class TestAddCommentReaction:
         assert result["Error"]["Code"] == 3
         assert result["Data"]["succeeded"] == 2
         assert result["Data"]["failed"] == 1
+
+    def test_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd="gh",
+                    timeout=mod.GH_TIMEOUT_SECONDS,
+                ),
+            ),
+        ):
+            rc = mod.main(["--comment-id", "1", "--reaction", "eyes", "--output-format", "json"])
+
+        assert rc == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"
+
+    def test_mixed_timeout_and_api_failure_reports_api_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    subprocess.TimeoutExpired(
+                        cmd="gh",
+                        timeout=mod.GH_TIMEOUT_SECONDS,
+                    ),
+                    make_completed_process(returncode=1, stderr="server error"),
+                ],
+            ),
+        ):
+            rc = mod.main([
+                "--comment-id", "1", "2",
+                "--reaction", "eyes",
+                "--output-format", "json",
+            ])
+
+        assert rc == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "ApiError"
 
     def test_duplicate_reaction_succeeds(self, _import_module, capsys):
         mod = _import_module

@@ -4,11 +4,35 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 _AGENT_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 NON_CACHEABLE_VERDICTS = frozenset({"NEEDS_REVIEW"})
+
+
+def _atomic_write_text(path: str | os.PathLike[str], text: str) -> None:
+    """Write ``text`` to ``path`` atomically via a temp file plus ``os.replace``.
+
+    Mirrors ``skill_pattern_loader._atomic_json_write`` (temp file in the same
+    directory, then ``os.replace``) so a crash or two concurrent writers cannot
+    leave the file half-written or truncated. On failure the partial temp file
+    is removed and the ``OSError`` re-raised for the caller to handle.
+    """
+    directory = os.path.dirname(os.fspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def get_repo_root(start: Path | None = None) -> Path:
@@ -86,12 +110,20 @@ def populate_cache(
 
     cache_dir = cache_root / safe_agent
     cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / "verdict.txt").write_text(verdict, encoding="utf-8")
-    (cache_dir / "findings.txt").write_text(findings, encoding="utf-8")
-    (cache_dir / "infrastructure-failure.txt").write_text(
-        infra_failure or "false",
-        encoding="utf-8",
-    )
+    try:
+        _atomic_write_text(cache_dir / "verdict.txt", verdict)
+        _atomic_write_text(cache_dir / "findings.txt", findings)
+        _atomic_write_text(
+            cache_dir / "infrastructure-failure.txt", infra_failure or "false"
+        )
+    except OSError as exc:
+        # A crash mid-sequence must not leave a partial cache dir that a later
+        # read treats as a populated hit. Remove what landed and report
+        # not-populated so the caller re-runs the review instead of trusting it.
+        shutil.rmtree(cache_dir, ignore_errors=True)
+        append_github_output(github_output, "cache_populated", "false")
+        print(f"Failed to populate cache for {safe_agent}: {exc}", file=sys.stderr)
+        return False
     append_github_output(github_output, "cache_populated", "true")
     print(f"Populated cache directory for {safe_agent}")
     return True

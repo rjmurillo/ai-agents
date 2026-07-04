@@ -40,6 +40,19 @@ class TestValidateSlashCommand:
         violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
         assert blocking == 0
 
+    def test_lint_invocation_includes_timeout(self, tmp_path: Path) -> None:
+        cmd = tmp_path / "test.md"
+        cmd.write_text(
+            "---\n"
+            "description: Use when testing validation\n"
+            "---\n\n"
+            "# Test Command\n"
+        )
+        with patch.object(mod.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            validate_slash_command(str(cmd), skip_lint=False)
+        assert run.call_args.kwargs["timeout"] == mod.SUBPROCESS_TIMEOUT_SECONDS
+
     def test_fails_missing_file(self, tmp_path: Path) -> None:
         violations, blocking, warnings = validate_slash_command(
             str(tmp_path / "nonexistent.md"), skip_lint=True
@@ -158,3 +171,19 @@ class TestMain:
     def test_fails_invalid_file(self, tmp_path: Path) -> None:
         result = main(["--path", str(tmp_path / "nope.md"), "--skip-lint"])
         assert result == 1
+
+    def test_main_returns_3_on_lint_timeout(self, tmp_path: Path) -> None:
+        cmd = tmp_path / "test.md"
+        cmd.write_text(
+            "---\n"
+            "description: Use when testing\n"
+            "---\n\n"
+            "# Test\n"
+        )
+        with patch.object(
+            mod,
+            "validate_slash_command",
+            side_effect=mod.subprocess.TimeoutExpired(cmd="markdownlint", timeout=60),
+        ):
+            result = main(["--path", str(cmd)])
+        assert result == 3

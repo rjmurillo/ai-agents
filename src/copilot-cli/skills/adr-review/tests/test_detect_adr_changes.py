@@ -24,6 +24,26 @@ build_parser = _mod.build_parser
 _get_adr_status = _mod._get_adr_status
 _get_dependent_adrs = _mod._get_dependent_adrs
 
+_DOT_AGENTS = "." + "agents"
+_PRIMARY_ADR_DIR = f"{_DOT_AGENTS}/architecture"
+
+
+def test_declared_adr_locations_are_monitored() -> None:
+    assert _mod.ADR_PATTERNS == (
+        f"{_PRIMARY_ADR_DIR}/ADR-*.md",
+        "docs/adr/ADR-*.md",
+        "docs/architecture/ADR-*.md",
+        "docs/decisions/ADR-*.md",
+        "architecture/decisions/ADR-*.md",
+    )
+    assert _mod.ADR_DIRECTORIES == (
+        _PRIMARY_ADR_DIR,
+        "docs/adr",
+        "docs/architecture",
+        "docs/decisions",
+        "architecture/decisions",
+    )
+
 
 @pytest.fixture()
 def git_repo(tmp_path: Path) -> Path:
@@ -51,6 +71,10 @@ def git_repo(tmp_path: Path) -> Path:
         check=True,
     )
     return tmp_path
+
+
+def _primary_adr_dir(root: Path) -> Path:
+    return root / _DOT_AGENTS / "architecture"
 
 
 class TestBuildParser:
@@ -88,7 +112,7 @@ class TestGetADRStatus:
 
 class TestGetDependentADRs:
     def test_finds_dependents(self, tmp_path: Path) -> None:
-        adr_dir = tmp_path / ".agents" / "architecture"
+        adr_dir = _primary_adr_dir(tmp_path)
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-001-base.md").write_text("# Base ADR")
         (adr_dir / "ADR-002-child.md").write_text("Supersedes ADR-001-base")
@@ -97,7 +121,7 @@ class TestGetDependentADRs:
         assert "ADR-002-child.md" in result[0]
 
     def test_no_dependents(self, tmp_path: Path) -> None:
-        adr_dir = tmp_path / ".agents" / "architecture"
+        adr_dir = _primary_adr_dir(tmp_path)
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-001.md").write_text("# Standalone")
         result = _get_dependent_adrs("ADR-999", tmp_path)
@@ -112,7 +136,7 @@ class TestMain:
 
     def test_no_changes(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         # Create ADR directory but no changes since HEAD~1 won't exist on initial commit
-        adr_dir = git_repo / ".agents" / "architecture"
+        adr_dir = _primary_adr_dir(git_repo)
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-001.md").write_text("# Test")
         subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True, check=True)
@@ -128,7 +152,7 @@ class TestMain:
         assert output["HasChanges"] is False
 
     def test_created_adr(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        adr_dir = git_repo / ".agents" / "architecture"
+        adr_dir = _primary_adr_dir(git_repo)
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-001.md").write_text("# New ADR")
         subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True, check=True)
@@ -145,8 +169,30 @@ class TestMain:
         assert len(output["Created"]) == 1
         assert output["RecommendedAction"] == "review"
 
+    def test_created_docs_decisions_adr(
+        self,
+        git_repo: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        adr_dir = git_repo / "docs" / "decisions"
+        adr_dir.mkdir(parents=True)
+        (adr_dir / "ADR-002.md").write_text("# Docs Decisions ADR")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add docs decision adr"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        exit_code = main(["--base-path", str(git_repo), "--since-commit", "HEAD~1"])
+        assert exit_code == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["HasChanges"] is True
+        assert output["Created"] == ["docs/decisions/ADR-002.md"]
+        assert output["RecommendedAction"] == "review"
+
     def test_include_untracked(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        adr_dir = git_repo / ".agents" / "architecture"
+        adr_dir = _primary_adr_dir(git_repo)
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-099.md").write_text("# Untracked")
         exit_code = main([

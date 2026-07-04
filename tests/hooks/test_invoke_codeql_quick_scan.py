@@ -19,6 +19,11 @@ sys.path.insert(0, str(HOOKS_DIR))
 import invoke_codeql_quick_scan
 
 
+@pytest.fixture(autouse=True)
+def _clear_project_dir(monkeypatch):
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+
 class TestGetFilePathFromInput:
     """Tests for _get_file_path_from_input."""
 
@@ -142,6 +147,10 @@ class TestGetLanguageFromFile:
 
 class TestMain:
     """Tests for main() entry point."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_project_dir_env(self, monkeypatch):
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
 
     def test_empty_input(self, monkeypatch):
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
@@ -304,9 +313,15 @@ class TestMain:
                 result = invoke_codeql_quick_scan.main()
         assert result == 0
 
-    def test_invalid_json_input(self, monkeypatch):
+    def test_invalid_json_input(self, monkeypatch, capsys):
         monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
         assert invoke_codeql_quick_scan.main() == 0
+        assert "Non-blocking hook error: JSONDecodeError" in capsys.readouterr().err
+
+    def test_non_object_json_input_logs_error(self, monkeypatch, capsys):
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps([1, 2, 3])))
+        assert invoke_codeql_quick_scan.main() == 0
+        assert "hook input must be a JSON object" in capsys.readouterr().err
 
     def test_always_returns_zero(self, monkeypatch):
         """Non-blocking hook always exits 0."""
@@ -367,7 +382,7 @@ class TestMain:
         ):
             assert invoke_codeql_quick_scan.main() == 0
 
-    def test_unexpected_exception_caught(self, monkeypatch, tmp_path):
+    def test_unexpected_exception_caught(self, monkeypatch, tmp_path, capsys):
         """Unexpected Exception in main body is caught and returns 0."""
         py_file = tmp_path / "test.py"
         py_file.write_text("x = 1")
@@ -381,6 +396,7 @@ class TestMain:
             side_effect=RuntimeError("unexpected"),
         ):
             assert invoke_codeql_quick_scan.main() == 0
+        assert "Non-blocking hook error: RuntimeError: unexpected" in capsys.readouterr().err
 
     def test_scan_invalid_json_output_with_error_message(
         self, monkeypatch, tmp_path, capsys
@@ -455,3 +471,31 @@ class TestModuleAsScript:
         with pytest.raises(SystemExit) as exc_info:
             runpy.run_path(hook_path, run_name="__main__")
         assert exc_info.value.code == 0
+
+
+class TestMainNonDictInput:
+    """Finding 3 (#2806): a non-object top-level payload is reported on stderr
+    and returns 0 instead of raising an AttributeError swallowed by the
+    catch-all; unexpected exceptions are surfaced, not silently swallowed."""
+
+    def test_list_payload_reports_and_returns_zero(self, monkeypatch, capsys):
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps([1, 2, 3])))
+        assert invoke_codeql_quick_scan.main() == 0
+        assert "not an object" in capsys.readouterr().err
+
+    def test_unexpected_exception_reports_on_stderr(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        py_file = tmp_path / "test.py"
+        py_file.write_text("x = 1")
+        input_data = json.dumps({
+            "tool_input": {"file_path": str(py_file)},
+            "cwd": str(tmp_path),
+        })
+        monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
+        with patch.object(
+            invoke_codeql_quick_scan, "_is_codeql_installed",
+            side_effect=RuntimeError("boom"),
+        ):
+            assert invoke_codeql_quick_scan.main() == 0
+        assert "unexpected RuntimeError" in capsys.readouterr().err
