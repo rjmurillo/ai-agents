@@ -29,9 +29,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # API utilities (shared module)
 # ---------------------------------------------------------------------------
+from _anthropic_api import DEFAULT_MODEL
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import load_api_key as _load_api_key
-from _anthropic_api import load_custom_prompts
+from _anthropic_api import load_custom_prompts, verify_model_available
 from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
 
 # ---------------------------------------------------------------------------
@@ -198,14 +199,14 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
 SKILLS = list(PROMPTS.keys())
 
 
-def run_prompt(api_key: str, prompt: str, system_context: str = "", model: str = "claude-sonnet-4-20250514") -> str:
+def run_prompt(api_key: str, prompt: str, system_context: str = "", model: str = DEFAULT_MODEL) -> str:
     """Run a single prompt with optional system context."""
     messages = [{"role": "user", "content": prompt}]
     result: str = _call_api(api_key, messages, system=system_context, model=model)
     return result
 
 
-def score_response(api_key: str, prompt: str, response: str, expected: str, model: str = "claude-sonnet-4-20250514") -> dict[str, Any]:
+def score_response(api_key: str, prompt: str, response: str, expected: str, model: str = DEFAULT_MODEL) -> dict[str, Any]:
     """Use the API to score a response on accuracy, depth, specificity (1-5)."""
     scoring_prompt = f"""Score the following response on three dimensions (1-5 each).
 
@@ -361,7 +362,7 @@ def run_assessment(
     api_key: str,
     skills: list[str],
     prompts: dict[str, list[dict[str, Any]]],
-    model: str = "claude-sonnet-4-20250514",
+    model: str = DEFAULT_MODEL,
     dry_run: bool = False,
     runs: int = 1,
 ) -> dict[str, Any]:
@@ -457,7 +458,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Eval skill knowledge integration quality")
     parser.add_argument("--skill", type=str, help="Eval a single skill instead of all 5")
     parser.add_argument("--prompts-file", type=str, help="Load custom prompts from a JSON file")
-    parser.add_argument("--model", type=str, default="claude-sonnet-4-20250514", help="Model to use for eval")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Model to use for eval")
     parser.add_argument("--dry-run", action="store_true", help="Print prompts without calling the API")
     parser.add_argument("--runs", type=int, default=1,
                         help="Number of runs per scenario for flakiness detection (ADR-057)")
@@ -473,6 +474,12 @@ def main() -> None:
         except RuntimeError as e:
             print(f"ERROR: {e}", file=sys.stderr)
             sys.exit(1)
+
+        try:
+            verify_model_available(api_key, args.model)
+        except RuntimeError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
 
     # Determine which skills to eval
     if args.skill:
