@@ -61,10 +61,15 @@ def _paginated_items(endpoint: str, error_label: str, timeout: int = 60) -> list
         print(f"ERROR: {error_label}: {err}", file=sys.stderr)
         sys.exit(3)
 
+    stdout = result.stdout.strip()
+    if not stdout:
+        print(f"ERROR: {error_label}: empty response from gh", file=sys.stderr)
+        sys.exit(3)
+
     try:
-        pages = json.loads(result.stdout)
+        pages = json.loads(stdout)
     except json.JSONDecodeError:
-        pages = _parse_concatenated_json_arrays(result.stdout, error_label)
+        pages = _parse_concatenated_json_arrays(stdout, error_label)
     if not isinstance(pages, list):
         print(
             f"ERROR: {error_label}: expected a JSON array of pages, "

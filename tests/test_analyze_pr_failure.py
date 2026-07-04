@@ -215,6 +215,13 @@ class TestPaginatedItemsBoundary:
         assert exc_info.value.code == 3
 
     @patch("scripts.analyze_pr_failure._run_gh")
+    def test_empty_stdout_exits_3(self, mock_gh):
+        mock_gh.return_value = _completed(stdout=" \n")
+        with pytest.raises(SystemExit) as exc_info:
+            mod._paginated_items("repos/o/r/issues", "fetch issues")
+        assert exc_info.value.code == 3
+
+    @patch("scripts.analyze_pr_failure._run_gh")
     def test_non_list_json_exits_3(self, mock_gh):
         mock_gh.return_value = _completed(stdout=json.dumps({"oops": True}))
         with pytest.raises(SystemExit) as exc_info:
