@@ -17,7 +17,8 @@ def _run_git(repo: Path, *args: str) -> str:
         cwd=repo,
         capture_output=True,
         check=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     return result.stdout.strip()
@@ -68,7 +69,9 @@ fi
 if [ "$1" = "-m" ] && [ "$2" = "pytest" ]; then
     case "$PYTEST_FAKE_MODE" in
         aborted)
-            printf 'tests/test_security_scan_vulnerabilities.py::test_get_language_shebang_fallback[#!/bin/bash\\n-bash] '
+            printf '%s%s' \
+                'tests/test_security_scan_vulnerabilities.py::' \
+                'test_get_language_shebang_fallback[#!/bin/bash\\n-bash] '
             exit 137
             ;;
         failed)
@@ -89,7 +92,11 @@ exit 0
 
     scratch = tmp_path / "scratch"
     scratch.mkdir()
-    env = os.environ.copy()
+    env = {
+        key.upper(): value
+        for key, value in os.environ.items()
+        if not key.upper().startswith("GIT_")
+    }
     env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
     env["PYTEST_FAKE_MODE"] = pytest_mode
     env["TMPDIR"] = str(scratch)
@@ -108,7 +115,8 @@ def _run_pre_push(
         input=f"refs/heads/feature/pytest-abort {head_sha} "
         f"refs/heads/feature/pytest-abort {base_sha}\n",
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         timeout=60,
     )
