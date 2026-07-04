@@ -69,6 +69,54 @@
       "content": "Commit: 96c6bd74",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and origin/fix/cluster-robust, resolved conflicts, and preserved security timeout handling.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored subprocess timeout constants in PR helper and security scripts.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated targeted pytest, ruff, and mypy for timeout changes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 20e937e9",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed timeout fixes in 16993b8dfe.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 16993b8d",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -76,8 +124,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 6
   },
   "lessons": []
 }
