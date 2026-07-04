@@ -61,7 +61,7 @@ def _state(
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure mode/skip env vars never leak between tests."""
+    """Ensure mode/skip/project/scratch env vars never leak between tests."""
     monkeypatch.delenv("SKIP_LSP_GATE", raising=False)
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(REPO_ROOT))

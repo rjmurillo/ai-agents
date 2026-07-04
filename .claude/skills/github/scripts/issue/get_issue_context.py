@@ -99,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
         write_skill_error(
             f"gh issue view timed out after {GH_TIMEOUT_SECONDS}s",
             3,
-            error_type="ApiError",
+            error_type="Timeout",
             output_format=fmt,
             script_name="get_issue_context.py",
         )

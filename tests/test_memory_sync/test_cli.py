@@ -377,7 +377,7 @@ class TestReadQueueValidation:
         with (
             patch(
                 "scripts.memory_sync.cli.McpClient.is_available",
-                return_value=True,
+                return_value=False,
             ),
             patch(
                 "scripts.memory_sync.cli._find_project_root",

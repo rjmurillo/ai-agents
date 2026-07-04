@@ -61,11 +61,15 @@ def _paginated_items(endpoint: str, error_label: str, timeout: int = 60) -> list
         print(f"ERROR: {error_label}: {err}", file=sys.stderr)
         sys.exit(3)
 
-    try:
-        pages = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        print(f"ERROR: {error_label}: invalid JSON from gh: {exc}", file=sys.stderr)
+    stdout = result.stdout.strip()
+    if not stdout:
+        print(f"ERROR: {error_label}: empty response from gh", file=sys.stderr)
         sys.exit(3)
+
+    try:
+        pages = json.loads(stdout)
+    except json.JSONDecodeError:
+        pages = _parse_concatenated_json_arrays(stdout, error_label)
     if not isinstance(pages, list):
         print(
             f"ERROR: {error_label}: expected a JSON array of pages, "
@@ -80,6 +84,24 @@ def _paginated_items(endpoint: str, error_label: str, timeout: int = 60) -> list
         else:
             items.append(page)
     return items
+
+
+def _parse_concatenated_json_arrays(stdout: str, error_label: str) -> list[object]:
+    decoder = json.JSONDecoder()
+    pages: list[object] = []
+    index = 0
+    text = stdout.strip()
+    try:
+        while index < len(text):
+            page, end = decoder.raw_decode(text, index)
+            pages.append(page)
+            index = end
+            while index < len(text) and text[index].isspace():
+                index += 1
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: {error_label}: invalid JSON from gh: {exc}", file=sys.stderr)
+        sys.exit(3)
+    return pages
 
 
 def _resolve_repo(owner: str, repo: str) -> tuple[str, str]:

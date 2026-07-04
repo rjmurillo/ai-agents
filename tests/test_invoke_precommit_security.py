@@ -24,6 +24,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scripts.security.invoke_precommit_security import (
+    PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
+    SUBPROCESS_TIMEOUT_SECONDS,
     PreCommitResult,
     PreCommitSecurityCheck,
     _powershell_single_quoted_literal,
@@ -58,14 +60,17 @@ class TestEnsurePsscriptanalyzerTimeout:
             return_value=_completed(0, stdout="PSScriptAnalyzer 1.0"),
         ) as run_mock:
             assert check._ensure_psscriptanalyzer() is True
-        assert run_mock.call_args.kwargs["timeout"] == 60
+        assert run_mock.call_args.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS
 
     def test_get_module_timeout_returns_false(
         self, check: PreCommitSecurityCheck
     ) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
-            side_effect=subprocess.TimeoutExpired(cmd=["pwsh"], timeout=60),
+            side_effect=subprocess.TimeoutExpired(
+                cmd=["pwsh"],
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+            ),
         ):
             assert check._ensure_psscriptanalyzer() is False
 
@@ -76,13 +81,21 @@ class TestEnsurePsscriptanalyzerTimeout:
         # call (Install-Module) times out.
         side_effects = [
             _completed(0, stdout="no module here"),
-            subprocess.TimeoutExpired(cmd=["pwsh"], timeout=120),
+            subprocess.TimeoutExpired(
+                cmd=["pwsh"],
+                timeout=PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
+            ),
         ]
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             side_effect=side_effects,
-        ):
+        ) as run_mock:
             assert check._ensure_psscriptanalyzer() is False
+
+        assert (
+            run_mock.call_args_list[1].kwargs["timeout"]
+            == PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS
+        )
 
     def test_pwsh_not_found_returns_false(
         self, check: PreCommitSecurityCheck

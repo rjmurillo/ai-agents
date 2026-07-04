@@ -84,6 +84,24 @@ def test_partial_failure(mock_run, capsys):
 
 
 @patch("subprocess.run")
+def test_mixed_timeout_and_api_failure_reports_api_error(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),
+        _completed(stdout="https://github.com/o/r\n"),
+        subprocess.TimeoutExpired(cmd="gh", timeout=_mod.GH_TIMEOUT_SECONDS),
+        _completed(rc=1, stderr="server error"),
+    ]
+
+    rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
+
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Error"]["Code"] == 3
+    assert output["Error"]["Type"] == "ApiError"
+    assert output["Data"]["failed"] == 2
+
+
+@patch("subprocess.run")
 def test_issue_comment_type(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),

@@ -147,7 +147,10 @@ disable_error_code = ["misc"]
 # scripts.memory_sync modules import this module, so a whole-file mypy
 # run on those files surfaces its errors. Scoped here rather than
 # suppressed in-file so the debt stays visible and tracked separately.
-module = "memory_enhancement.serena_integration"
+module = [
+    "memory_enhancement.serena_integration",
+    "scripts.memory_enhancement.serena_integration",
+]
 disable_error_code = ["arg-type", "return-value"]
 
 [[tool.mypy.overrides]]

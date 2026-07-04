@@ -174,13 +174,11 @@ def _detect_script_name() -> str:
 
     frame = inspect.currentframe()
     if frame and frame.f_back and frame.f_back.f_back:
-        caller_file = frame.f_back.f_back.f_globals.get("__file__")
+        caller_file: object = frame.f_back.f_back.f_globals.get("__file__")
         if isinstance(caller_file, str) and caller_file:
             script_path: str = caller_file
             return os.path.basename(script_path)
     return "unknown"
-
-
 def _status_color(status: str) -> str:
     """Return ANSI color code for the given status."""
     colors = {

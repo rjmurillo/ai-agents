@@ -20,8 +20,10 @@ if TYPE_CHECKING:
 
 HOOK_DIR = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse")
 sys.path.insert(0, HOOK_DIR)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import invoke_security_gate  # noqa: E402
+from scripts.security import invoke_precommit_security  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Unit tests for is_auth_path
@@ -81,6 +83,46 @@ class TestFindSecurityEvidence:
 
     def test_returns_false_when_no_evidence(self, tmp_path):
         assert not invoke_security_gate.find_security_evidence(str(tmp_path))
+
+
+class TestPreCommitSecurityCheck:
+    def _checker(self, tmp_path: Path) -> invoke_precommit_security.PreCommitSecurityCheck:
+        with patch.object(
+            invoke_precommit_security.PreCommitSecurityCheck,
+            "_find_repo_root",
+            return_value=tmp_path,
+        ):
+            return invoke_precommit_security.PreCommitSecurityCheck(skip_codeql=True)
+
+    def test_pwsh_analyzer_run_timeout_fails_file(self, tmp_path: Path) -> None:
+        checker = self._checker(tmp_path)
+        ps_file = tmp_path / "script.ps1"
+        ps_file.write_text("Write-Host 'x'", encoding="utf-8")
+
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            side_effect=invoke_precommit_security.subprocess.TimeoutExpired(
+                cmd=["pwsh"],
+                timeout=invoke_precommit_security.SUBPROCESS_TIMEOUT_SECONDS,
+            ),
+        ):
+            result = checker._run_psscriptanalyzer([ps_file])
+
+        assert result.passed is False
+        assert "PSScriptAnalyzer failed" in (result.error_message or "")
+
+    def test_subprocess_calls_include_timeout(self, tmp_path: Path) -> None:
+        checker = self._checker(tmp_path)
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            return_value=mock_result,
+        ) as run:
+            checker._get_github_context()
+
+        assert run.call_args_list
+        assert all("timeout" in call.kwargs for call in run.call_args_list)
 
 
 # ---------------------------------------------------------------------------

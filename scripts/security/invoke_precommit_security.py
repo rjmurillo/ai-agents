@@ -34,6 +34,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SUBPROCESS_TIMEOUT_SECONDS = 60
+PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS = 300
+CODEQL_API_TIMEOUT_SECONDS = 30
+
 
 def _powershell_single_quoted_literal(value: str) -> str:
     escaped = value.replace("'", "''")
@@ -141,6 +145,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=False,
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if remote_result.returncode != 0:
@@ -163,6 +168,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=False,  # Don't raise, check returncode explicitly
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if branch_result.returncode != 0:
@@ -203,7 +209,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=10,
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
                 check=False,
             )
         except (subprocess.TimeoutExpired, OSError) as e:
@@ -237,7 +243,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=False,
-                timeout=30,
+                timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
             if result.returncode != 0:
@@ -317,6 +323,10 @@ class PreCommitSecurityCheck:
         # Step 1: Get staged PowerShell files
         staged_files = self._get_staged_powershell_files()
 
+        if staged_files is None:
+            logger.error("[FAIL] Could not determine staged files")
+            return 1
+
         if not staged_files:
             logger.info("[PASS] No PowerShell files staged for commit")
             return 0
@@ -388,8 +398,12 @@ class PreCommitSecurityCheck:
         logger.info("[PASS] Pre-commit security check completed")
         return 0
 
-    def _get_staged_powershell_files(self) -> list[Path]:
-        """Get list of staged PowerShell files."""
+    def _get_staged_powershell_files(self) -> list[Path] | None:
+        """Get list of staged PowerShell files.
+
+        Returns:
+            List of staged PowerShell file paths, or None on error.
+        """
         try:
             result = subprocess.run(
                 ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
@@ -397,6 +411,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             files = result.stdout.strip().split("\n") if result.stdout.strip() else []
@@ -406,9 +421,16 @@ class PreCommitSecurityCheck:
 
             return ps_files
 
+        except subprocess.TimeoutExpired as e:
+            logger.error(
+                "[FAIL] Failed to get staged files before timeout after %ss: %s",
+                e.timeout,
+                e.cmd,
+            )
+            return None
         except subprocess.SubprocessError as e:
             logger.error("[FAIL] Failed to get staged files: %s", e)
-            return []
+            return None
 
     def _check_critical_patterns(self, files: list[Path]) -> list[Path]:
         """Check if any staged files match critical security patterns."""
@@ -437,7 +459,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=False,
-                timeout=60,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
             if "PSScriptAnalyzer" in result.stdout:
@@ -456,7 +478,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=False,
-                timeout=120,
+                timeout=PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
             )
 
             return install_result.returncode == 0
@@ -477,6 +499,11 @@ class PreCommitSecurityCheck:
 
         for file_path in files:
             try:
+                analyzer_command = (
+                    "$findings = Invoke-ScriptAnalyzer "
+                    f"-Path '{file_path}' -Severity Error,Warning\n"
+                    "$findings | ConvertTo-Json -Depth 3"
+                )
                 # Run PSScriptAnalyzer with JSON output
                 literal_path = _powershell_single_quoted_literal(str(file_path))
                 analyzer_command = (
@@ -495,7 +522,7 @@ class PreCommitSecurityCheck:
                     encoding="utf-8",
                     errors="replace",
                     check=False,
-                    timeout=60,
+                    timeout=SUBPROCESS_TIMEOUT_SECONDS,
                 )
 
                 if result.returncode != 0 and result.stderr:
@@ -624,6 +651,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             branch = result.stdout.strip().replace("/", "-")
         except subprocess.SubprocessError:
@@ -687,7 +715,8 @@ class PreCommitSecurityCheck:
                 )
             content += "\n"
             content += (
-                "**Agent Action Required**: Review each CodeQL finding above in the context of:\n"
+                "**Agent Action Required**: Review each CodeQL finding above "
+                "in the context of:\n"
             )
             content += "- Business impact and data sensitivity\n"
             content += "- Deployment context (CLI tool vs API service)\n"
@@ -729,16 +758,15 @@ class PreCommitSecurityCheck:
             else "FAIL"
         )
         codeql_summary = (
-            f"{len(self.codeql_alerts)} open alert(s), "
-            f"{codeql_critical} critical/high"
+            f"{codeql_status} ({len(self.codeql_alerts)} open alert(s), "
+            f"{codeql_critical} critical/high)"
         )
-
         content += f"""## Validation Status
 
-- **CodeQL**: {codeql_status} ({codeql_summary})
+- **CodeQL**: {codeql_summary}
 - **PSScriptAnalyzer**: {psscriptanalyzer_status}
-- **Critical File Review**: {"REQUIRED" if critical_files else "NOT REQUIRED"}
-- **Agent Review**: {"SKIPPED" if self.skip_agent_review else "PENDING"}
+- **Critical File Review**: {'REQUIRED' if critical_files else 'NOT REQUIRED'}
+- **Agent Review**: {'SKIPPED' if self.skip_agent_review else 'PENDING'}
 
 ## Next Steps
 
@@ -769,6 +797,7 @@ class PreCommitSecurityCheck:
                 ["git", "add", str(report_path)],
                 check=True,
                 capture_output=True,
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             logger.info("Staged security report: %s", report_path.name)
             return True
