@@ -47,6 +47,7 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
 )
+
 GH_TIMEOUT_SECONDS = 15
 
 from github_core.output import (  # noqa: E402
