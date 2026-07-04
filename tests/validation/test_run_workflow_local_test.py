@@ -541,6 +541,7 @@ def test_exit_4_text_format_omits_secret_name():
 
 def test_cli_returns_4_for_secret_blocked(all_tools, monkeypatch, tmp_path, capsys):
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     rc = w.main(["--files", WF, "--repo-root", str(tmp_path)])
     assert rc == 4
