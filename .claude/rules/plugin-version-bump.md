@@ -1,5 +1,10 @@
 ---
-applyTo: src/copilot-cli/**,src/claude/**,**/.claude-plugin/plugin.json
+paths:
+  - ".claude/**"
+  - "src/copilot-cli/**"
+  - "src/claude/**"
+  - "**/.claude-plugin/plugin.json"
+priority: high
 ---
 
 # Plugin Version Bump and the Parallel-PR Deadlock
