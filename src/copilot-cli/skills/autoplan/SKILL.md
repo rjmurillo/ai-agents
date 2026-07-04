@@ -56,11 +56,13 @@ command, and conventions; carry them into every route. A plan, path, or test
 command that does not match the detected stack is a recon failure. For large
 governed repos (SDK, runtime, framework), detect contribution gates (API
 review, ref-assembly updates, changelog, breaking-change policy) and route
-public-API work through proposal-and-review.
+public-API work through those gates: land an API proposal and maintainer
+review before writing the implementation.
 
 ### Phase 1: Classify
 
-Answer two questions before any tool call.
+Answer two questions before you route. The Phase 0 recon reads come first;
+this step selects the pipeline, it does not forbid those reads.
 
 **Intent family.** Match the request against the routing table below. When two
 families match, prefer the more specific row (a failing CI check on a PR is
