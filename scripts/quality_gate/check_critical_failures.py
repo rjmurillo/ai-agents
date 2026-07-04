@@ -37,15 +37,16 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import importlib
 import os
 import sys
 
 try:
-    from .path_utils import REPOSITORY_ROOT
+    _path_utils = importlib.import_module("scripts.quality_gate.path_utils")
 except ImportError:  # pragma: no cover - script execution path
-    from path_utils import REPOSITORY_ROOT
+    _path_utils = importlib.import_module("path_utils")
 
-_WORKSPACE = REPOSITORY_ROOT
+_WORKSPACE = _path_utils.REPOSITORY_ROOT
 sys.path.insert(0, str(_WORKSPACE))
 
 from scripts.ai_review_common import FAIL_VERDICTS  # noqa: E402

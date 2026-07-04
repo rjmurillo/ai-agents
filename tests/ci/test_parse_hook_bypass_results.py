@@ -23,7 +23,7 @@ finally:
     sys.path[:] = _original_path
 
 
-def _report(indicator_count: int) -> dict:
+def _report(indicator_count: int) -> dict[str, object]:
     """An AuditReport-shaped payload with the requested number of indicators."""
     return {
         "timestamp": "2026-01-01T00:00:00Z",
