@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest bot review comment fixes and session evidence are staged for the next commit."
+        "Evidence": "Plugin manifest re-bump to 0.5.260 is staged for the next commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest validation passed: uv run pytest tests/test_atomic_writes_2812.py tests/hooks/test_auto_approval.py -q (63 passed), uv run ruff check on both files, and session log validation."
+        "Evidence": "Latest validation passed: build_all.py --check after re-bumping both plugin manifests to 0.5.260."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -169,10 +169,14 @@
     {
       "summary": "Fixed two new Copilot review comments after latest bot scan.",
       "evidence": "Updated tests/test_atomic_writes_2812.py section header to match update_reviewer_signal_stats helpers and added the missing mock_stdin Callable annotation in tests/hooks/test_auto_approval.py. Targeted tests passed: 63 passed. Ruff passed on both files."
+    },
+    {
+      "summary": "Re-bumped plugin manifests after main advanced to the same version.",
+      "evidence": "origin/main advanced with plugin manifests at 0.5.259. Updated both PR manifests to 0.5.260 and build_all.py --check passed."
     }
   ],
   "endingCommit": "0e91286c7",
   "nextSteps": [
-    "Commit and push the latest bot review fixes, resolve the two threads, verify zero unresolved threads, and poll until PR 2823 is merged."
+    "Commit and push the 0.5.260 plugin re-bump, update the PR body, verify zero unresolved threads, and poll until PR 2823 is merged."
   ]
 }
