@@ -33,9 +33,11 @@ Ground truth in the current tree:
   `handle it`, `figure this out`, and implicitly on any concrete request that
   names no skill.
 - `.claude/agents/orchestrator.md` (mirrored in `src/claude/orchestrator.md`)
-  is a manager-tier agent (`model: opus`). It classifies complexity (9 task
-  types, 8 domains), routes to specialist agents, manages handoffs, and
-  synthesizes results. `AGENTS.md` names it the ROOT agent for multi-step work.
+  is a manager-tier agent (`model: opus`, `metadata.tier: manager`). It triages
+  each request by complexity tier (Cynefin: clear/complicated/complex/chaotic),
+  scope, urgency, and reversibility, then routes to specialist agents, manages
+  handoffs, and synthesizes findings. Its own description scopes it to
+  "multi-step tasks requiring coordination... end-to-end resolution."
 
 Both classify a request and pick a downstream target. That is the overlap. The
 force driving a decision: an agent reading the catalog cannot derive whether a
@@ -48,8 +50,8 @@ cadence).
 
 ## Decision
 
-Adopt an explicit two-layer boundary and document it in both surfaces plus
-`AGENTS.md`.
+Adopt an explicit two-layer boundary and document it in both routing surfaces:
+the autoplan skill and the orchestrator shared source.
 
 - `autoplan` is the outer front-door router at the skill tier. It classifies
   any request that names no skill and routes it to the single best
@@ -73,10 +75,10 @@ without deleting either surface.
 - **Structure/pattern being changed**: two routers (autoplan skill,
   orchestrator agent) with independent, overlapping classification logic and no
   stated precedence.
-- **When introduced**: orchestrator predates autoplan and is the long-standing
-  ROOT agent in `AGENTS.md`. autoplan is newer (version 0.1.0), inspired by
-  gstack `/autoplan`, and was refined in #2866 ("recon target stack before
-  routing in autoplan").
+- **When introduced**: orchestrator predates autoplan and is the established
+  manager-tier coordinator of the agent system. autoplan is newer
+  (version 0.1.0), inspired by gstack `/autoplan`, and was refined in #2866
+  ("recon target stack before routing in autoplan").
 - **Original author and context**: orchestrator is the canonical multi-agent
   coordinator of the agent system. autoplan was added as a lazy single entry
   point so no one hand-picks from the full skill catalog.
@@ -99,8 +101,9 @@ without deleting either surface.
 - **Is there a better solution now?** Yes: state the layering explicitly so the
   two surfaces compose instead of compete.
 - **What are the risks of change?** Low. The change is documentation plus one
-  explicit handoff clause. No routing code is deleted. Blast radius is the two
-  agent/skill files and the `AGENTS.md` routing section.
+  explicit handoff clause. No routing code is deleted. Blast radius is the
+  autoplan skill and the orchestrator shared source (plus its regenerated
+  platform files).
 
 ## Rationale
 
@@ -116,7 +119,7 @@ the same surface.
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
 | A. Explicit layering: autoplan = front-door router, orchestrator = routed-to multi-agent coordinator (chosen) | Matches actual design; smallest change; keeps both entry ergonomics; removes ambiguity with one handoff clause | Two surfaces still exist, so contributors must learn the boundary; relies on docs being read | Chosen: lowest risk, no capability loss, honest to how the code already behaves |
-| B. Fold autoplan into orchestrator (single router) | One router, zero overlap | orchestrator's blocking session-start gate and opus tier are too heavy for trivial routing; loses implicit cheap entry; large blast radius across `AGENTS.md` and every agent handoff | Rejected: makes the common lightweight path pay the multi-agent tax |
+| B. Fold autoplan into orchestrator (single router) | One router, zero overlap | orchestrator's blocking session-start gate and opus tier are too heavy for trivial routing; loses implicit cheap entry; large blast radius across the shared agent source and every agent handoff | Rejected: makes the common lightweight path pay the multi-agent tax |
 | C. Fold orchestrator into autoplan | One entry point at skill tier | A skill would own agent-tier handoff and synthesis, breaking the manager-tier boundary; loses opus reasoning tier for complex work | Rejected: pushes agent-tier responsibility into a skill |
 | D. Keep both, document nothing | No work | The #2867 ambiguity persists; duplicated classification logic keeps drifting | Rejected: does not solve the reported problem |
 
@@ -152,15 +155,17 @@ responsibilities that do not fit it.
 
 | Component | Dependency Type | Required Update | Risk |
 |-----------|----------------|-----------------|------|
-| `.claude/skills/autoplan/SKILL.md` | Direct | Add a clause: route multi-domain/multi-agent execution to orchestrator; never claim to coordinate specialists itself | Low |
-| `.claude/agents/orchestrator.md` and `src/claude/orchestrator.md` | Direct | Add a clause: orchestrator is a routed-to destination; it does not invoke autoplan | Low |
-| `AGENTS.md` routing section | Direct | State the two-layer boundary and the autoplan to orchestrator handoff | Low |
-| `src/copilot-cli` / `src/vs-code-agents` generated agents | Indirect | Regenerate if orchestrator text changes (`python3 build/generate_agents.py`) | Low |
+| `.claude/skills/autoplan/SKILL.md` | Direct | Add a clause: route multi-domain/multi-agent execution to orchestrator; never claim to coordinate specialists itself. Hand-authored skill, not generated | Low |
+| `templates/agents/orchestrator.shared.md` | Direct | Add a clause: orchestrator is a routed-to destination; it does not invoke autoplan. This shared source regenerates the platform agent files | Low |
+| `.claude/agents/orchestrator.md`, `src/claude/orchestrator.md`, `src/copilot-cli/...`, `src/vs-code-agents/...` | Indirect (generated) | Regenerate from the shared source with `python3 build/generate_agents.py`; do not hand-edit | Low |
+| `docs/agent-catalog.md` | Indirect (generated) | Regenerate if the orchestrator description changes | Low |
 
 ## Implementation Notes
 
-1. Edit the three source docs (autoplan skill, orchestrator agent, `AGENTS.md`)
-   to state the boundary and the one-way handoff.
+1. Edit the two source docs: the autoplan skill
+   (`.claude/skills/autoplan/SKILL.md`, hand-authored) and the orchestrator
+   shared source (`templates/agents/orchestrator.shared.md`). State the boundary
+   and the one-way handoff in each.
 2. Regenerate platform agent files with `python3 build/generate_agents.py` and
    commit the generated output in the same change (generated artifacts ship
    with the source change).
@@ -177,8 +182,10 @@ responsibilities that do not fit it.
 ## References
 
 - `.claude/skills/autoplan/SKILL.md`
-- `.claude/agents/orchestrator.md`, `src/claude/orchestrator.md`
-- `AGENTS.md` (agent catalog and routing)
+- `templates/agents/orchestrator.shared.md` (shared source for the generated
+  orchestrator agent files)
+- `.claude/agents/orchestrator.md`, `src/claude/orchestrator.md` (generated)
+- `docs/agent-catalog.md` (generated agent catalog)
 
 ---
 
