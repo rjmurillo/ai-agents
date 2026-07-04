@@ -117,6 +117,14 @@
       "content": "Commit: f3cbb339ae",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged latest origin/main and rebumped both plugin manifests above main after the plugin race advanced again.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -125,7 +133,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 11
+    "files_changed": 15
   },
   "lessons": []
 }

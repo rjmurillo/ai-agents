@@ -145,10 +145,14 @@
     {
       "timestamp": "2026-07-04T03:25:00Z",
       "entry": "Merged origin/main to clear PR merge conflicts and replayed this PR episode into the causal graph."
+    },
+    {
+      "timestamp": "2026-07-04T03:45:00Z",
+      "entry": "Merged latest origin/main and rebumped both plugin manifests above main after the plugin race advanced again."
     }
   ],
   "endingCommit": "f3cbb339ae",
   "nextSteps": [
-    "Push PR #2853 after the origin/main merge, wait for checks, and verify merge."
+    "Push PR #2853 after rebasing through the latest plugin version race, wait for checks, and verify merge."
   ]
 }
