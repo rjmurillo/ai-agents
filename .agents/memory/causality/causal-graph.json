@@ -10945,6 +10945,249 @@
         "episode-2026-07-04-session-2606"
       ],
       "created": "2026-07-04T06:31:50.970713+00:00"
+    },
+    {
+      "id": "ffb1d8460dc4",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree ai-agents4-pr-2849 and assessed PR #2849 failing checks.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.771557+00:00"
+    },
+    {
+      "id": "92ed456a3be4",
+      "type": "milestone",
+      "label": "milestone: Created session log 2026-07-04-session-2606.json.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.771714+00:00"
+    },
+    {
+      "id": "7dc4f63d069d",
+      "type": "milestone",
+      "label": "milestone: Ran build_all and synced generated Copilot hook artifacts.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.771831+00:00"
+    },
+    {
+      "id": "8f61f4dd08ee",
+      "type": "milestone",
+      "label": "milestone: Fixed PermissionRequest non-object JSON boundary validation and added regression test.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.771944+00:00"
+    },
+    {
+      "id": "3be0e9c6c45f",
+      "type": "milestone",
+      "label": "milestone: Fixed MCP Windows reader timeout by closing fd and added regression test.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772056+00:00"
+    },
+    {
+      "id": "164d013a30cf",
+      "type": "milestone",
+      "label": "milestone: Resolved both outstanding review threads after fixes.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772168+00:00"
+    },
+    {
+      "id": "0fe34f36808a",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests to 0.5.256 and validated plugin version gate.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772280+00:00"
+    },
+    {
+      "id": "4f2b27065f81",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main and origin/fix/cluster-robust, resolved conflicts, and preserved security timeout handling.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772392+00:00"
+    },
+    {
+      "id": "88eb8fefa495",
+      "type": "milestone",
+      "label": "milestone: Restored subprocess timeout constants in PR helper and security scripts.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772532+00:00"
+    },
+    {
+      "id": "b25c346fc822",
+      "type": "milestone",
+      "label": "milestone: Validated targeted pytest, ruff, and mypy for timeout changes.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772705+00:00"
+    },
+    {
+      "id": "78a7001c3aa7",
+      "type": "milestone",
+      "label": "milestone: Committed timeout fixes in 16993b8dfe.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772830+00:00"
+    },
+    {
+      "id": "ef67c2975967",
+      "type": "milestone",
+      "label": "milestone: Pushed timeout and review-thread fixes through db5769d684 and observed PR #2849 still open with main drift.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.772948+00:00"
+    },
+    {
+      "id": "879bf9b6adc2",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into fix/cluster-robust, accepted upstream milestone and memory changes, and bumped both plugin manifests to 0.5.260.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773067+00:00"
+    },
+    {
+      "id": "dd730ebbfd1b",
+      "type": "milestone",
+      "label": "milestone: Fixed set_issue_milestone timeout error typing after merged main introduced fail-closed query handling.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773185+00:00"
+    },
+    {
+      "id": "88b3725a9006",
+      "type": "milestone",
+      "label": "milestone: Fixed CI-only corrupt memory sync queue failure by parsing queued changes before checking Forgetful availability.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773304+00:00"
+    },
+    {
+      "id": "7d01de6ff9f9",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main after checks passed, resolved conflicts, and rebumped both plugin manifests to 0.5.261.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773423+00:00"
+    },
+    {
+      "id": "1064baaeff73",
+      "type": "milestone",
+      "label": "milestone: Fixed merge fallout in atomic-write helpers and paginated PR analysis parsing after latest main sync.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773548+00:00"
+    },
+    {
+      "id": "c0a108694f23",
+      "type": "milestone",
+      "label": "milestone: Rebumped both plugin manifests to 0.5.262 after origin/main reached 0.5.261.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773676+00:00"
+    },
+    {
+      "id": "b7d65034c2b2",
+      "type": "milestone",
+      "label": "milestone: Synced plugin library copy after latest main merge so build staleness and sync checks pass.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773790+00:00"
+    },
+    {
+      "id": "df99ab908cb2",
+      "type": "milestone",
+      "label": "milestone: Isolated LSP read guard tests from inherited CLAUDE_PROJECT_DIR and TMPDIR so they run correctly inside the Copilot context-mode harness.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.773904+00:00"
+    },
+    {
+      "id": "b38c6556fb32",
+      "type": "milestone",
+      "label": "milestone: Validated read guard targeted tests, full tests, plugin lib sync, and generated artifact checks after the isolation fix.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774018+00:00"
+    },
+    {
+      "id": "d55e2ea406a2",
+      "type": "milestone",
+      "label": "milestone: Resolved latest main merge conflicts by preserving main session 2606 and renumbering this PR babysitting log to session 2607.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774132+00:00"
+    },
+    {
+      "id": "1559cf605999",
+      "type": "milestone",
+      "label": "milestone: Bumped both plugin manifests to 0.5.263 after latest origin/main reached 0.5.262.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774247+00:00"
+    },
+    {
+      "id": "16493bea0784",
+      "type": "milestone",
+      "label": "milestone: Fixed unresolved Copilot feedback on LSP gate atomic temp-file uniqueness.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774362+00:00"
+    },
+    {
+      "id": "7e04dd918095",
+      "type": "milestone",
+      "label": "milestone: Fixed unresolved Copilot feedback on security retrospective external-review fetch failure contracts.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774482+00:00"
+    },
+    {
+      "id": "d8a4b2d17912",
+      "type": "milestone",
+      "label": "milestone: Ran full pytest after review-thread fixes with exit code 0.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774598+00:00"
+    },
+    {
+      "id": "061971c7c714",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR 2849 to merge",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-04T07:04:14.774715+00:00"
     }
   ],
   "patterns": [
@@ -10994,7 +11237,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 54,
+      "occurrences": 55,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -11003,7 +11246,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 118,
+      "occurrences": 121,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -11012,7 +11255,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 216,
+      "occurrences": 220,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -11021,7 +11264,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 324,
+      "occurrences": 330,
       "created": "2026-06-02T04:20:23.790649+00:00"
     },
     {
@@ -11030,7 +11273,7 @@
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "success_rate": 1.0,
-      "occurrences": 5,
+      "occurrences": 6,
       "created": "2026-07-04T06:31:50.952133+00:00"
     }
   ],
@@ -11040,7 +11283,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -11048,7 +11291,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -11056,7 +11299,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -11064,7 +11307,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -11072,7 +11315,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -11080,7 +11323,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -11088,7 +11331,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -11096,7 +11339,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -11104,7 +11347,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -11112,7 +11355,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -11120,7 +11363,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -11128,7 +11371,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -11136,7 +11379,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -11144,7 +11387,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -11152,7 +11395,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -11160,7 +11403,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -11168,7 +11411,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -11176,7 +11419,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -11184,7 +11427,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -11192,7 +11435,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -11200,7 +11443,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -11208,7 +11451,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -11216,7 +11459,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -11224,7 +11467,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -11232,7 +11475,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -11240,7 +11483,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -11248,7 +11491,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -11256,7 +11499,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -11264,7 +11507,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -11272,7 +11515,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -11280,7 +11523,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -11288,7 +11531,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -11296,7 +11539,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -11304,7 +11547,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -11312,7 +11555,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -11320,7 +11563,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -11328,7 +11571,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -11336,7 +11579,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -11344,7 +11587,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -11352,7 +11595,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 54,
+      "evidence_count": 55,
       "created": "2026-06-02T04:20:23.796919+00:00"
     },
     {
@@ -11360,7 +11603,7 @@
       "target": "e161750067d4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 10,
+      "evidence_count": 11,
       "created": "2026-07-04T02:21:24.350970+00:00"
     },
     {
@@ -11368,7 +11611,7 @@
       "target": "b895b21a3dc6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 10,
+      "evidence_count": 11,
       "created": "2026-07-04T02:21:24.351162+00:00"
     },
     {
@@ -11376,7 +11619,7 @@
       "target": "890ad3ba78e1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 5,
+      "evidence_count": 6,
       "created": "2026-07-04T06:31:50.951735+00:00"
     },
     {
@@ -11384,7 +11627,7 @@
       "target": "184e28bd3bfa",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 5,
+      "evidence_count": 6,
       "created": "2026-07-04T06:31:50.952110+00:00"
     }
   ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -38,3 +39,23 @@ def test_owner_repo_lookup_includes_timeout(tmp_path: Path) -> None:
         assert retro._get_owner_repo() == "o/r"
 
     assert run.call_args.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS
+
+
+def test_owner_repo_lookup_marks_empty_stdout_as_fetch_failure(tmp_path: Path) -> None:
+    retro = _retrospective(tmp_path)
+
+    with patch("scripts.security.invoke_security_retrospective.subprocess.run") as run:
+        run.return_value = MagicMock(returncode=0, stdout=" \n")
+        assert retro._get_owner_repo() is None
+
+    assert retro.external_review_fetch_failed is True
+
+
+def test_owner_repo_lookup_marks_cli_failure_as_fetch_failure(tmp_path: Path) -> None:
+    retro = _retrospective(tmp_path)
+
+    with patch("scripts.security.invoke_security_retrospective.subprocess.run") as run:
+        run.side_effect = subprocess.CalledProcessError(1, "gh")
+        assert retro._get_owner_repo() is None
+
+    assert retro.external_review_fetch_failed is True

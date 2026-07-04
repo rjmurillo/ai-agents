@@ -90,7 +90,7 @@ class SecurityRetrospective:
         """Execute the security retrospective workflow.
 
         Returns:
-            Exit code: 0 for success, 1 for failure
+            Exit code: 0 for success, 1 for failure, 3 for external fetch failure
         """
         logger.info("Starting security retrospective for PR #%d", self.pr_number)
         logger.info("External review source: %s", self.source.value)
@@ -209,7 +209,8 @@ class SecurityRetrospective:
                     "--paginate",
                 ],
                 capture_output=True,
-                encoding="utf-8", errors="replace",
+                encoding="utf-8",
+                errors="replace",
                 check=False,
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
@@ -280,12 +281,20 @@ class SecurityRetrospective:
             result = subprocess.run(
                 ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
                 capture_output=True,
-                encoding="utf-8", errors="replace",
+                encoding="utf-8",
+                errors="replace",
                 check=True,
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
-            return result.stdout.strip()
-        except subprocess.SubprocessError:
+            owner_repo = result.stdout.strip()
+            if not owner_repo:
+                self.external_review_fetch_failed = True
+                logger.error("[FAIL] GitHub repo lookup returned empty owner/repo")
+                return None
+            return owner_repo
+        except (FileNotFoundError, subprocess.SubprocessError) as e:
+            self.external_review_fetch_failed = True
+            logger.error("[FAIL] GitHub repo lookup failed: %s", e)
             return None
 
     def _identify_false_negatives(
@@ -674,7 +683,7 @@ Examples:
 Exit Codes:
     0: Success (no issues or all operations completed)
     1: Failure (Serena unavailable or critical error)
-    3: External error (GitHub API failure or timeout)
+    3: External error (GitHub API failure, timeout, or empty external review fetch)
         """,
     )
 
