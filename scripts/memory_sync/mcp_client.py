@@ -299,6 +299,10 @@ class McpClient:
         thread.start()
         thread.join(timeout)
         if thread.is_alive():
+            try:
+                os.close(fd)
+            except OSError:
+                pass
             raise McpError(f"Timeout waiting for response (>{total_timeout}s)")
         if "error" in holder:
             raise McpError(f"Failed to read from MCP server: {holder['error']}")

@@ -137,9 +137,10 @@ class TestMcpClientProtocol:
         try:
             with pytest.raises(McpError, match="Timeout waiting for response"):
                 McpClient._read_via_thread(read_fd, 0.2, 0.2)
+            with pytest.raises(OSError):
+                os.fstat(read_fd)
         finally:
             os.close(write_fd)
-            os.close(read_fd)
 
         assert time.monotonic() - start < 1.0
 
