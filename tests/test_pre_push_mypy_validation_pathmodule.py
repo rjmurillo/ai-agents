@@ -101,7 +101,8 @@ def test_checks_wrapper_false_positive_without_mypypath() -> None:
         ["mypy", str(target)],
         cwd=REPO_ROOT,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
     )
     combined = result.stdout + result.stderr
@@ -132,7 +133,8 @@ def test_checks_wrappers_clean_with_mypypath_per_file() -> None:
             ["mypy", str(target)],
             cwd=REPO_ROOT,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             env={**os.environ, **env},
         )
@@ -160,7 +162,8 @@ def test_batching_importer_with_imported_module_collides() -> None:
         ],
         cwd=REPO_ROOT,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         env={**os.environ, **env},
     )
