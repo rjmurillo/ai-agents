@@ -133,6 +133,14 @@
       "content": "Merged origin/main into fix/cluster-robust, accepted upstream milestone and memory changes, and bumped both plugin manifests to 0.5.260.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed set_issue_milestone timeout error typing after merged main introduced fail-closed query handling.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

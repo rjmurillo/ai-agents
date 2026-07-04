@@ -165,9 +165,13 @@
     {
       "time": "2026-07-04T05:05Z",
       "entry": "Merged origin/main into fix/cluster-robust, accepted upstream milestone and memory changes, and bumped both plugin manifests to 0.5.260."
+    },
+    {
+      "time": "2026-07-04T05:16Z",
+      "entry": "Fixed set_issue_milestone timeout error typing after merged main introduced fail-closed query handling."
     }
   ],
-  "endingCommit": "pending-merge-main",
+  "endingCommit": "pending-timeout-type-fix",
   "nextSteps": [
     "Commit merge from origin/main, push fix/cluster-robust, watch required checks, rebump plugin manifests on version races, and merge PR #2849 after required checks pass."
   ]

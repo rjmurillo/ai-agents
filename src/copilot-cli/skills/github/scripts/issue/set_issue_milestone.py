@@ -83,6 +83,10 @@ class _MilestoneQueryError(RuntimeError):
     """
 
 
+class _MilestoneTimeoutError(_MilestoneQueryError):
+    """A gh milestone query timed out."""
+
+
 def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
     """Get the current milestone title for an issue, or None if unset.
 
@@ -99,7 +103,7 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
             check=False,
         )
     except subprocess.TimeoutExpired as err:
-        raise _MilestoneQueryError(
+        raise _MilestoneTimeoutError(
             f"Timed out querying current milestone for issue #{issue}"
         ) from err
     if result.returncode != 0:
@@ -129,7 +133,7 @@ def _get_milestone_titles(owner: str, repo: str) -> list[str]:
             check=False,
         )
     except subprocess.TimeoutExpired as err:
-        raise _MilestoneQueryError(
+        raise _MilestoneTimeoutError(
             f"Timed out listing milestones for {owner}/{repo}"
         ) from err
     if result.returncode != 0:
@@ -211,6 +215,15 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         current_milestone = _get_current_milestone(owner, repo, args.issue)
+    except _MilestoneTimeoutError as err:
+        _emit_error(
+            str(err),
+            3,
+            fmt,
+            "Timeout",
+            {"issue": args.issue, "milestone": None, "action": "failed"},
+        )
+        raise SystemExit(3) from err
     except _MilestoneQueryError as err:
         _emit_error(
             str(err),
@@ -257,7 +270,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"Clear milestone timed out after {GH_TIMEOUT_SECONDS}s",
                 3,
                 fmt,
-                "ApiError",
+                "Timeout",
                 output | {"action": "failed"},
             )
             raise SystemExit(3) from err
@@ -306,6 +319,15 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         milestone_titles = _get_milestone_titles(owner, repo)
+    except _MilestoneTimeoutError as err:
+        _emit_error(
+            str(err),
+            3,
+            fmt,
+            "Timeout",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(3) from err
     except _MilestoneQueryError as err:
         _emit_error(
             str(err),
@@ -343,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
             f"Set milestone timed out after {GH_TIMEOUT_SECONDS}s",
             3,
             fmt,
-            "ApiError",
+            "Timeout",
             output | {"milestone": args.milestone, "action": "failed"},
         )
         raise SystemExit(3) from err
