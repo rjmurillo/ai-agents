@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# mypy: disable-error-code=no-any-return
 """Tests for invoke_auto_retrospective.py (Stop hook)."""
 
 import json
@@ -15,6 +16,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
 
 import invoke_auto_retrospective
+
 from scripts.security.invoke_security_retrospective import (
     ExternalReviewSource,
     SecurityRetrospective,
@@ -822,7 +824,7 @@ class TestSecurityRetrospectiveFetchFailures(unittest.TestCase):
                 ),
             ),
         ):
-            self.assertEqual(retrospective.run(), 1)
+            self.assertEqual(retrospective.run(), 3)
 
 
 if __name__ == "__main__":

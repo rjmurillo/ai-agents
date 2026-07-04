@@ -479,6 +479,24 @@ class TestUpdateSerenaMemory:
         assert result is False
         assert memory_file.read_text(encoding="utf-8") == original
 
+    def test_inserts_after_overview_with_body_text(self, tmp_path: Path) -> None:
+        memory_file = tmp_path / "memory.md"
+        memory_file.write_text(
+            "# Memory\n\n"
+            "## Overview\n\n"
+            "Memory for tracking reviewer signal quality statistics.\n\n"
+            "## Other Section\n\n"
+            "Details here.\n",
+            encoding="utf-8",
+        )
+
+        result = update_serena_memory({}, 0, 30, str(memory_file))
+
+        content = memory_file.read_text(encoding="utf-8")
+        assert result is True
+        assert "## Per-Reviewer Performance (Cumulative)" in content
+        assert content.index("## Per-Reviewer Performance") < content.index("## Other Section")
+
     def test_high_signal_gets_bold(self, memory_file: Path) -> None:
         stats = {
             "star_reviewer": SignalStats(

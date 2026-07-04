@@ -111,7 +111,7 @@ class SecurityRetrospective:
         external_findings = self._fetch_external_review_comments()
         if not external_findings:
             if self.external_review_fetch_failed:
-                return 1
+                return 3
             logger.info(
                 "No external review found for PR #%d. This is expected for PRs "
                 "without bot/human security review.",
@@ -247,7 +247,7 @@ class SecurityRetrospective:
             self.external_review_fetch_failed = True
             logger.error("[FAIL] Failed to parse GitHub API response: %s", e)
             return []
-        except subprocess.SubprocessError as e:
+        except (FileNotFoundError, subprocess.SubprocessError) as e:
             self.external_review_fetch_failed = True
             logger.error("[FAIL] GitHub API call failed: %s", e)
             return []
@@ -674,6 +674,7 @@ Examples:
 Exit Codes:
     0: Success (no issues or all operations completed)
     1: Failure (Serena unavailable or critical error)
+    3: External error (GitHub API failure or timeout)
         """,
     )
 

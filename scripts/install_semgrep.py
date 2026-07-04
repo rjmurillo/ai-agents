@@ -13,6 +13,7 @@ Exit Codes:
     0: Success (already installed or installation succeeded)
     1: Installation failed
     2: Unsupported platform or missing dependencies
+    3: External error (subprocess timeout)
 
 Per ADR-042: Python-first for new scripts.
 """

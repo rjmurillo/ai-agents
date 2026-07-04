@@ -453,7 +453,7 @@ def update_serena_memory(
     else:
         # Insert after Overview section if Per-Reviewer section doesn't exist
         content, replacements = re.subn(
-            r"(## Overview.*?)(\n## )",
+            r"(?s)(## Overview.*?)(\n## )",
             rf"\1\n\n{new_table}\n\2",
             content,
         )

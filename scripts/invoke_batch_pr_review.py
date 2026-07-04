@@ -6,6 +6,7 @@ Creates, monitors, and cleans up git worktrees for parallel PR review processing
 EXIT CODES:
   0  - Success: Worktree operation completed
   1  - Error: Operation failed
+  3  - External error: subprocess timed out
 
 See: ADR-035 Exit Code Standardization
 """
