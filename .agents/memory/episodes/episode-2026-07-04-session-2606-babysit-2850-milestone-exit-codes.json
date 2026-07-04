@@ -53,6 +53,14 @@
       "content": "Commit: f1f33e3f3",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped both plugin manifests to 0.5.258 and verified targeted pytest plus scoped ruff.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -61,7 +69,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 2
+    "files_changed": 12
   },
   "lessons": []
 }

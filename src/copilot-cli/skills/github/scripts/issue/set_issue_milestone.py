@@ -281,27 +281,6 @@ def main(argv: list[str] | None = None) -> int:
         })
         return 0
 
-    try:
-        milestone_titles = _get_milestone_titles(owner, repo)
-    except _MilestoneQueryError as err:
-        _emit_error(
-            str(err),
-            3,
-            fmt,
-            "ApiError",
-            output | {"milestone": args.milestone, "action": "failed"},
-        )
-        raise SystemExit(3) from err
-    if args.milestone not in milestone_titles:
-        _emit_error(
-            f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
-            2,
-            fmt,
-            "NotFound",
-            output | {"milestone": args.milestone, "action": "failed"},
-        )
-        raise SystemExit(2)
-
     if current_milestone == args.milestone:
         output["milestone"] = args.milestone
         output["action"] = "no_change"
@@ -324,6 +303,27 @@ def main(argv: list[str] | None = None) -> int:
             output | {"milestone": args.milestone, "action": "has_milestone"},
         )
         raise SystemExit(1)
+
+    try:
+        milestone_titles = _get_milestone_titles(owner, repo)
+    except _MilestoneQueryError as err:
+        _emit_error(
+            str(err),
+            3,
+            fmt,
+            "ApiError",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(3) from err
+    if args.milestone not in milestone_titles:
+        _emit_error(
+            f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
+            2,
+            fmt,
+            "NotFound",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(2)
 
     try:
         result = subprocess.run(

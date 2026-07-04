@@ -132,7 +132,7 @@
     },
     {
       "time": "2026-07-04T03:10:00-05:00",
-      "entry": "Bumped both plugin manifests to 0.5.256 and verified targeted pytest plus scoped ruff."
+      "entry": "Bumped both plugin manifests to 0.5.258 and verified targeted pytest plus scoped ruff."
     }
   ],
   "endingCommit": "f1f33e3f3",
