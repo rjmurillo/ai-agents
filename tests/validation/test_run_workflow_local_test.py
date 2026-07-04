@@ -7,6 +7,7 @@ external commands (actionlint, gh act, docker) are mocked; no Docker required.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -364,6 +365,14 @@ def test_act_secret_file_keys_parses_dotenv(tmp_path):
     assert w._act_secret_file_keys(tmp_path) == {"BOT_PAT", "OTHER"}
 
 
+def test_act_secret_file_keys_ignores_empty_values(tmp_path):
+    (tmp_path / ".secrets").write_text(
+        "BOT_PAT=\nOTHER =   \nQUOTED=\"\"\nSINGLE=''\nPRESENT = token\n",
+        encoding="utf-8",
+    )
+    assert w._act_secret_file_keys(tmp_path) == {"PRESENT"}
+
+
 def test_act_secret_file_keys_missing_file_is_empty(tmp_path):
     assert w._act_secret_file_keys(tmp_path) == set()
 
@@ -372,6 +381,27 @@ def test_missing_secrets_respects_available(tmp_path):
     path = _write_wf_secrets(tmp_path, WF, "PRESENT", "ABSENT")
     assert w._missing_secrets(path, {"PRESENT"}) == ["ABSENT"]
     assert w._missing_secrets(path, {"PRESENT", "ABSENT"}) == []
+
+
+def test_empty_env_secret_is_absent(monkeypatch, tmp_path):
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setenv("BOT_PAT_2841", "   ")
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 4
+    assert r.secret_skipped is True
+    assert "1 locally absent secret(s)" in r.note
+
+
+def test_quoted_empty_env_secret_is_absent(monkeypatch, tmp_path):
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setenv("BOT_PAT_2841", '""')
+    _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 4
+    assert r.secret_skipped is True
 
 
 def test_all_workflows_secret_blocked_is_exit_4(monkeypatch, tmp_path):
@@ -384,6 +414,7 @@ def test_all_workflows_secret_blocked_is_exit_4(monkeypatch, tmp_path):
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 4
+    assert r.secret_skipped is True
     assert "BOT_PAT_2841" not in r.note
     assert "1 locally absent secret(s)" in r.note
     assert [s.stage for s in r.stages] == ["actionlint"]
@@ -504,6 +535,7 @@ def test_mixed_runs_only_runnable_and_notes_skip(all_tools, monkeypatch, tmp_pat
     monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
     r = w.run_local_test([blocked, clean], tmp_path)
     assert r.exit_code == 0
+    assert r.secret_skipped is True
     assert seen["lint"] == [blocked, clean]
     assert seen["act"] == [clean]
     assert "BOT_PAT_2841" not in r.note
@@ -527,6 +559,21 @@ def test_mixed_skip_note_visible_in_text_format(all_tools, monkeypatch, tmp_path
     assert "OK" in text
     assert "skipped (secrets absent locally)" in text
     assert "blocked.yml" in text
+
+
+def test_format_json_exposes_secret_skipped(all_tools, monkeypatch, tmp_path):
+    monkeypatch.delenv("BOT_PAT_2841", raising=False)
+    clean = ".github/workflows/clean.yml"
+    blocked = ".github/workflows/blocked.yml"
+    _write_wf_secrets(tmp_path, clean)
+    _write_wf_secrets(tmp_path, blocked, "BOT_PAT_2841")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
+    r = w.run_local_test([blocked, clean], tmp_path)
+    payload = json.loads(w._format_json(r))
+    assert payload["secret_skipped"] is True
+    assert payload["exit_code"] == 0
 
 
 def test_exit_4_text_format_omits_secret_name():

@@ -88,11 +88,12 @@ class TestDispatcherArtifacts:
         assert proc.returncode == 0, proc.stderr.decode()[:600]
 
     def test_pretooluse_denies_blocked_tool(self):
-        # A direct push trips branch and PR guards; the dispatcher must
-        # deny (#2295 fail-closed preserved end-to-end through consolidation).
+        # An unresolvable cwd trips branch protection fail-closed; the dispatcher
+        # must deny (#2295 preserved end-to-end through consolidation).
         proc = _run_entry(
             _GATING,
             {
+                "cwd": str(_REPO / "missing-dispatcher-test-repo"),
                 "tool_name": "Bash",
                 "tool_input": {
                     "command": "git push origin fix/workflow-local-test-secrets-2841"

@@ -144,6 +144,7 @@ class Report:
     stages: list[StageResult] = field(default_factory=list)
     bypassed: bool = False
     degraded: bool = False
+    secret_skipped: bool = False
     note: str = ""
 
 
@@ -331,6 +332,16 @@ _ACT_SECRET_FILE = ".secrets"
 _ACT_BUILTIN_SECRETS = {"GITHUB_TOKEN"}
 
 
+def _has_secret_value(value: str) -> bool:
+    """Return true when a local secret value can supply act."""
+    stripped = value.strip()
+    if not stripped:
+        return False
+    if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in {"'", '"'}:
+        return bool(stripped[1:-1].strip())
+    return True
+
+
 def _act_secret_file_keys(repo_root: Path) -> set[str]:
     """Secret names defined in the act default secret file (repo-root .secrets).
 
@@ -347,8 +358,9 @@ def _act_secret_file_keys(repo_root: Path) -> set[str]:
         stripped = line.strip()
         if not stripped or stripped.startswith("#") or "=" not in stripped:
             continue
-        key = stripped.split("=", 1)[0].strip()
-        if key:
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        if key and _has_secret_value(value):
             keys.add(key.upper())
     return keys
 
@@ -613,7 +625,9 @@ def run_local_test(
     # as a distinct, audible skip (exit 4, "auth" per ADR-035: authentication
     # material is absent). A secret is available when it is in the process
     # environment or the act default secret file (repo-root .secrets).
-    available = {name.upper() for name in os.environ} | _act_secret_file_keys(repo_root)
+    available = {
+        name.upper() for name, value in os.environ.items() if _has_secret_value(value)
+    } | _act_secret_file_keys(repo_root)
     available |= _ACT_BUILTIN_SECRETS
     runnable: list[str] = []
     secret_blocked: list[tuple[str, int]] = []
@@ -656,6 +670,7 @@ def run_local_test(
         # act run, audibly, instead of blocking on a manual bypass.
         detail = _secret_gap_detail(secret_blocked)
         report.exit_code = 4
+        report.secret_skipped = True
         report.note = (
             "unrunnable-locally: changed workflow(s) reference secrets absent "
             f"from this environment ({detail}). actionlint passed; skipped the "
@@ -715,6 +730,7 @@ def run_local_test(
     # so the developer sees which files CI will still exercise with real secrets.
     if secret_blocked:
         detail = _secret_gap_detail(secret_blocked)
+        report.secret_skipped = True
         skip_note = (
             f"skipped (secrets absent locally): {detail}. CI runs these with "
             "the real secrets."
@@ -767,6 +783,7 @@ def _format_json(report: Report) -> str:
             "exit_code": report.exit_code,
             "bypassed": report.bypassed,
             "degraded": report.degraded,
+            "secret_skipped": report.secret_skipped,
             "note": report.note,
             "stages": [
                 {"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages

@@ -105,6 +105,21 @@ def test_hook_state_dir_is_gitignored() -> None:
     assert ".agents/.hook-state/" in gitignore
 
 
+def test_workflow_local_mixed_secret_skip_uses_json_signal() -> None:
+    text = _pre_push_text()
+    workflow_section = text[
+        text.index("# 8. Workflow local-run gate") : text.index(
+            "# 9.", text.index("# 8. Workflow local-run gate")
+        )
+    ]
+
+    assert "--format json --files" in workflow_section
+    assert '.get("secret_skipped")' in workflow_section
+    assert "WF_SECRET_PARSE_RC" in workflow_section
+    assert "returned malformed JSON" in workflow_section
+    assert 'grep -q "skipped (secrets absent locally)"' not in workflow_section
+
+
 if __name__ == "__main__":
     import pytest
 
