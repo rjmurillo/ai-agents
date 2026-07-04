@@ -8189,6 +8189,60 @@
       "created": "2026-06-29T14:03:09.228701+00:00"
     },
     {
+      "id": "0b88e884ceb8",
+      "type": "milestone",
+      "label": "milestone: mirror-obligation cognition (#2789)",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.578982+00:00"
+    },
+    {
+      "id": "e3cbdc30cbd3",
+      "type": "test",
+      "label": "test: Implemented mirror-obligation cognition (epic #2789): implementer pre-code inverse step (#2790), TESTING-RIGOR flip-stale-tests clause (#2791), critic drift checks (#2792). Verification: uv run pytest tests/build_scripts/ -> 741 passed; detect_agent_drift rc=0 (mirrors agree); build_all --check rc=0; pre_pr --quick all validations passed; 0 em/en dashes.",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579021+00:00"
+    },
+    {
+      "id": "4d9b3da0adde",
+      "type": "commit",
+      "label": "commit: Commit: 1347a02e9aae10a782558369f1b8023ccfc7fb9f",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579051+00:00"
+    },
+    {
+      "id": "bf38d25e5e38",
+      "type": "test",
+      "label": "test: Added ADR-077 and focused ADR-057 scenarios. ADR review consensus: 6 ACCEPT, 0 BLOCK. Implementer eval gate PASS; critic eval gate PASS.",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579081+00:00"
+    },
+    {
+      "id": "ddbdc98fa5f0",
+      "type": "milestone",
+      "label": "milestone: ADR-077 and ADR-057 evidence for PR #2793",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579110+00:00"
+    },
+    {
+      "id": "9808741d2d48",
+      "type": "outcome",
+      "label": "Outcome: success - implement mirror-obligation cognition in implementer critic TESTING-RIGOR per epic 2789",
+      "episodes": [
+        "episode-2026-06-29-session-2603-implement-mirror-obligation-cognition-implementer-critic"
+      ],
+      "created": "2026-06-29T15:51:57.579140+00:00"
+    },
+    {
       "id": "d8a0be3f94cb",
       "type": "test",
       "label": "test: Built scripts/eval/eval_run_rollup.py + _run_rollup_core.py. Verified: uv run pytest tests/eval/test_eval_run_rollup.py -> 28 passed; ruff + mypy clean; ran against 26 logs/1536 runs ($13.01, 47 drift flags).",

@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-07-03-session-2604-pr-autofix-triage",
+  "session": "2026-07-03-session-2604-pr-autofix-triage",
+  "timestamp": "2026-07-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "pr-autofix triage of open PRs: resolve DIRTY conflict on PR #2793 (version-parity + causal-graph union), re-run transient AI-review infra failures on Renovate PRs",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2342e77f",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
