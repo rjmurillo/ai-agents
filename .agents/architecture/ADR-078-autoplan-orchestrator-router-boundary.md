@@ -6,7 +6,7 @@ decision-makers: []
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-078: Autoplan and Orchestrator Router Boundary
