@@ -24,8 +24,10 @@ Why a separate check (issue #2837 is the instance, #2838 the systemic gap):
       SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
       python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 1
 
-  This mirrors the form other skills already ship (``github/SKILL.md``,
-  ``pr-comment-responder/SKILL.md``, ``push-pr/SKILL.md``).
+  This mirrors the form other skills already ship
+  (``.claude/skills/github/SKILL.md``,
+  ``.claude/skills/pr-comment-responder/SKILL.md``,
+  ``.claude/commands/push-pr.md``).
 
 What it counts:
   Executable invocations of a bare ``.claude/skills/...`` script inside a
