@@ -1,6 +1,6 @@
 ---
 description: Use when performing local roadmap review before pushing PR changes. Assesses strategic alignment, feature scope, and user value.
-argument-hint: [BASE_BRANCH]
+argument-hint: '[BASE_BRANCH]'
 allowed-tools:
   - Bash(git:*)
   - Read

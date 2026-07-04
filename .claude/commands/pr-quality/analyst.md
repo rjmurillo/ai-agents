@@ -1,6 +1,6 @@
 ---
 description: Use when performing local analyst review before pushing PR changes. Assesses code quality, impact analysis, and maintainability.
-argument-hint: [BASE_BRANCH]
+argument-hint: '[BASE_BRANCH]'
 allowed-tools:
   - Bash(git:*)
   - Read

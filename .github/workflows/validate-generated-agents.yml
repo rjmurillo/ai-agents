@@ -64,6 +64,7 @@ jobs:
               - '.claude/rules/**'
               - '.github/agents/**'
               - '.github/instructions/**'
+              - '.github/prompts/**'
               - '.github/workflows/validate-generated-agents.yml'
 
       - name: Determine if validation should run
@@ -191,6 +192,7 @@ jobs:
           echo "Validating Copilot agent frontmatter..."
           python3 -m pip install 'PyYAML==6.0.3'
           python3 scripts/validation/validate_copilot_agent_frontmatter.py
+          python3 scripts/validation/validate_argument_hint.py
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'

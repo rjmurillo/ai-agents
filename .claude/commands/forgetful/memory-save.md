@@ -1,6 +1,6 @@
 ---
 description: "DEPRECATED: Use Serena write_memory instead. Save current context as atomic memory in Forgetful."
-argument-hint: [optional guidance for what to save]
+argument-hint: '[optional guidance for what to save]'
 allowed-tools:
   - mcp__forgetful__*
 ---
