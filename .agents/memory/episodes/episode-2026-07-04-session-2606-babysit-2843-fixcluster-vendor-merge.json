@@ -4,7 +4,18 @@
   "timestamp": "2026-07-04T00:00:00+00:00",
   "outcome": "success",
   "task": "Babysit PR #2843 fix/cluster-vendor to merge",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "recovery",
+      "context": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "chosen": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "rationale": "Reset to origin/fix/cluster-vendor after sibling timeout commits, set both plugin manifests to 0.5.257, then preserved generated mirrors.",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -77,6 +88,30 @@
       "content": "Commit: e12e3214821b0fe4544f0f896b117e01914a57c6",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated timeout fixes before final push attempt.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7a3598e1e250feff924999d8cdcfacc2cfa16e31",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -85,7 +120,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 2,
-    "files_changed": 5
+    "files_changed": 6
   },
   "lessons": []
 }

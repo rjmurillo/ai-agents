@@ -84,15 +84,17 @@ def test_get_issue_context_timeout_exits_3(mock_run) -> None:
 
 
 @patch("subprocess.run")
-def test_current_milestone_timeout_returns_none(mock_run) -> None:
+def test_current_milestone_timeout_raises(mock_run) -> None:
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
-    assert _milestone._get_current_milestone("o", "r", 1) is None
+    with pytest.raises(subprocess.TimeoutExpired):
+        _milestone._get_current_milestone("o", "r", 1)
 
 
 @patch("subprocess.run")
-def test_milestone_titles_timeout_returns_empty(mock_run) -> None:
+def test_milestone_titles_timeout_raises(mock_run) -> None:
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
-    assert _milestone._get_milestone_titles("o", "r") == []
+    with pytest.raises(subprocess.TimeoutExpired):
+        _milestone._get_milestone_titles("o", "r")
 
 
 @patch("subprocess.run")

@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits through e12e32148 staged and committed before push."
+        "Evidence": "Commits through 7a3598e1e2; final timeout mirror commit pending at log update time."
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,10 +145,18 @@
     {
       "summary": "Committed plugin version bump.",
       "evidence": "Both plugin manifests set to 0.5.256, one patch above origin/main version 0.5.255."
+    },
+    {
+      "summary": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
+      "evidence": "Reset to origin/fix/cluster-vendor after sibling timeout commits, set both plugin manifests to 0.5.257, then preserved generated mirrors."
+    },
+    {
+      "summary": "Validated timeout fixes before final push attempt.",
+      "evidence": "uv run pytest tests/test_timeout_hardening_2811.py tests/test_set_issue_milestone.py tests/test_pr_autofix_worktree_identity.py -q passed 40 tests; uv run ruff check on changed timeout files passed."
     }
   ],
-  "endingCommit": "e12e3214821b0fe4544f0f896b117e01914a57c6",
+  "endingCommit": "7a3598e1e250feff924999d8cdcfacc2cfa16e31",
   "nextSteps": [
-    "Push fix/cluster-vendor, monitor checks, rebump plugin manifests if main wins the version race before merge."
+    "Commit remaining timeout mirror/test changes and push; monitor PR #2843 checks until merged or version race requires another bump."
   ]
 }

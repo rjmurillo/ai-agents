@@ -150,7 +150,13 @@ def _emit(output: dict[str, object], fmt: str) -> None:
     )
 
 
-def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict[str, object]) -> None:
+def _emit_error(
+    message: str,
+    code: int,
+    fmt: str,
+    error_type: str,
+    output: dict[str, object],
+) -> None:
     write_skill_error(
         message,
         code,
