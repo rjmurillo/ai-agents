@@ -139,6 +139,18 @@ class TestRunSemgrepFailClosed:
         assert "[truncated]" in findings[0].message
         assert "x" * 600 not in findings[0].message
 
+    def test_execution_error_returncode_does_not_scan_past_prefix(
+        self, scanner: SemgrepScanner
+    ) -> None:
+        stderr = (" " * 600) + "boom"
+        with patch(
+            "scripts.security.run_semgrep.subprocess.run",
+            return_value=_completed(2, stderr=stderr),
+        ):
+            findings = scanner._run_semgrep([Path("/repo/a.py")])
+        assert "[output begins with whitespace; truncated]" in findings[0].message
+        assert "boom" not in findings[0].message
+
     def test_generic_subprocess_error_returns_scan_failure(
         self, scanner: SemgrepScanner
     ) -> None:

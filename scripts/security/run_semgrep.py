@@ -84,13 +84,20 @@ def _scan_failure_finding(message: str) -> SemgrepFinding:
 
 def _semgrep_output_snippet(value: str, *, fallback: str) -> str:
     """Return a bounded one-line diagnostic from semgrep output."""
-    text = value.strip()
-    if not text:
+    if not value:
         return fallback
+
+    prefix = value[:SEMGREP_OUTPUT_SNIPPET_CHARS]
+    text = prefix.strip()
+    if not text:
+        if len(value) <= SEMGREP_OUTPUT_SNIPPET_CHARS:
+            return fallback
+        return "[output begins with whitespace; truncated]"
+
     text = text.replace("\r", "\\r").replace("\n", "\\n")
-    if len(text) <= SEMGREP_OUTPUT_SNIPPET_CHARS:
+    if len(value) <= SEMGREP_OUTPUT_SNIPPET_CHARS:
         return text
-    return f"{text[:SEMGREP_OUTPUT_SNIPPET_CHARS]}... [truncated]"
+    return f"{text}... [truncated]"
 
 
 def _semgrep_failure_context(stdout: str, stderr: str) -> str:
