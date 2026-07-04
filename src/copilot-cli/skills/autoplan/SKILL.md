@@ -42,9 +42,28 @@ re-classifying from scratch.
 
 ## Process
 
+### Phase 0: Recon the target
+
+Before you classify, establish the target repository's stack. Do not assume the
+stack of the repo this skill ships from (Python-first). The target may be C#,
+TypeScript, Go, Rust, or anything else.
+
+Read the target's own signals: `CONTRIBUTING*`, `AGENTS.md`/`CLAUDE.md`,
+`README*`, build manifests (`*.csproj`/`*.sln`, `pyproject.toml`,
+`package.json`, `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`,
+`build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`), and the
+`src/`, `lib/`, `test/`/`tests/` layout. Derive language, build command, test
+command, and conventions; carry them into every route. A plan, path, or test
+command that does not match the detected stack is a recon failure. For large
+governed repos (SDK, runtime, framework), detect contribution gates (API
+review, ref-assembly updates, changelog, breaking-change policy) and route
+public-API work through those gates: land an API proposal and maintainer
+review before writing the implementation.
+
 ### Phase 1: Classify
 
-Answer two questions before any tool call.
+Answer two questions before you route. The Phase 0 recon reads come first;
+this step selects the pipeline, it does not forbid those reads.
 
 **Intent family.** Match the request against the routing table below. When two
 families match, prefer the more specific row (a failing CI check on a PR is
