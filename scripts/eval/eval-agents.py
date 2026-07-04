@@ -46,9 +46,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # API utilities (shared module)
 # ---------------------------------------------------------------------------
+from _anthropic_api import DEFAULT_MODEL
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import load_api_key as _load_api_key
-from _anthropic_api import load_custom_prompts
+from _anthropic_api import load_custom_prompts, verify_model_available
 from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
 
 # ---------------------------------------------------------------------------
@@ -556,7 +557,7 @@ PROMPTS: dict[str, list[dict[str, Any]]] = {
 _AGENT_MAX_TOKENS = 2048
 
 
-def _call_api_for_agents(api_key: str, messages: list[dict[str, str]], system: str = "", model: str = "claude-sonnet-4-20250514") -> str:
+def _call_api_for_agents(api_key: str, messages: list[dict[str, str]], system: str = "", model: str = DEFAULT_MODEL) -> str:
     """Call the Anthropic API with agent-specific max_tokens."""
     result: str = _call_api(api_key, messages, system=system, model=model, max_tokens=_AGENT_MAX_TOKENS)
     return result
@@ -595,7 +596,7 @@ def score_agent_response(
     expected: str,
     agent_name: str,
     complexity: str = "complicated",
-    model: str = "claude-sonnet-4-20250514",
+    model: str = DEFAULT_MODEL,
 ) -> dict[str, Any]:
     """Score an agent response on 4 dimensions: role, actionability, quality, appropriateness."""
     behavior_guidance = COMPLEXITY_BEHAVIOR.get(complexity, COMPLEXITY_BEHAVIOR["complicated"])
@@ -736,7 +737,7 @@ def run_assessment(
     api_key: str,
     agents: list[str],
     prompts: dict[str, list[dict[str, Any]]],
-    model: str = "claude-sonnet-4-20250514",
+    model: str = DEFAULT_MODEL,
     dry_run: bool = False,
     runs: int = 1,
 ) -> dict[str, Any]:
@@ -848,7 +849,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Assess agent definition quality")
     parser.add_argument("--agent", type=str, help="Assess a single agent instead of all")
     parser.add_argument("--prompts-file", type=str, help="Load custom prompts from JSON")
-    parser.add_argument("--model", type=str, default="claude-sonnet-4-20250514",
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
                         help="Model to use for assessment")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print prompts without calling the API")
@@ -865,6 +866,12 @@ def main() -> None:
         except RuntimeError as e:
             print(f"ERROR: {e}", file=sys.stderr)
             sys.exit(1)
+
+        try:
+            verify_model_available(api_key, args.model)
+        except RuntimeError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
 
     # Determine which agents to assess
     if args.agent:

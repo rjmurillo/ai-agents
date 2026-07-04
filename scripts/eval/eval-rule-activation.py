@@ -49,8 +49,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+from _anthropic_api import DEFAULT_MODEL
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import verify_model_available
 from _eval_common import EST_TOKENS_PER_CALL
 
 # ---------------------------------------------------------------------------
@@ -58,7 +60,6 @@ from _eval_common import EST_TOKENS_PER_CALL
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
 RATE_LIMIT_SLEEP_SEC = 1.0
 MECHANISMS = ("baseline", "description", "full")
 
@@ -593,6 +594,12 @@ def main() -> int:
         except RuntimeError as e:
             print(f"ERROR: {e}", file=sys.stderr)
             return 4
+
+        try:
+            verify_model_available(api_key, args.model)
+        except RuntimeError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            return 2
 
     all_results: dict[str, Any] = {"rules": {}}
     state = _RunState()
