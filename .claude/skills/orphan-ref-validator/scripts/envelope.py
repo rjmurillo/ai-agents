@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
+
+FindingPayload = dict[str, str | int | bool]
 
 VERSION = "1.0.0"
 
@@ -53,8 +55,8 @@ class Finding:
         """
         return f"{self.target_file}:{self.line}:{self.kind}:{self.referenced_entity}"
 
-    def to_dict(self) -> dict:
-        d = {
+    def to_dict(self) -> FindingPayload:
+        d: FindingPayload = {
             "kind": self.kind,
             "severity": self.severity,
             "target_file": self.target_file,
@@ -121,7 +123,7 @@ def render_error_envelope(
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
     if output == "human":
@@ -148,7 +150,7 @@ def render_envelope(result: ScanResult, output: str) -> str:
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
     if output == "human":

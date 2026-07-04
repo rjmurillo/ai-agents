@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-07-04-session-1",
+  "session": "2026-07-04-session-1",
+  "timestamp": "2026-07-04T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Babysit PR 2853 to merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created dedicated worktree for PR #2853 branch fix/retire-count-claim-2842.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified zero unresolved review threads for PR #2853.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased branch onto origin/main and set both plugin manifests to 0.5.256.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated PR body to include Fixes #2842 and satisfy template sections without dash bytes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a431df67c",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed orphan-ref-validator type errors that blocked pre-push mypy.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ffec1840c",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 55a536382",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

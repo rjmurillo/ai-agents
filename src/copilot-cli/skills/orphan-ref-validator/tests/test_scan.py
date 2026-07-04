@@ -28,6 +28,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -829,7 +830,7 @@ class TestBaselineSuppression:
     the verdict is PASS/WARN, while a new finding not in the baseline still
     drives CRITICAL_FAIL."""
 
-    def _orphan(self, fake_repo: Path) -> Finding:
+    def _orphan(self, fake_repo: Path) -> Any:
         target = fake_repo / "docs" / "stale.md"
         write(target, "Use the `gamma-skill` for things.\n")
         result = scan([target], fake_repo)
