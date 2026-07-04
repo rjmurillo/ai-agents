@@ -1,0 +1,70 @@
+{
+  "id": "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter",
+  "session": "2026-07-03-session-2604-pr-2829-autoplan-babysitter",
+  "timestamp": "2026-07-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Babysit PR #2829 toward merge by fixing mechanical validation failures while leaving the orchestrator-retirement design thread unresolved.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "design",
+      "context": "Left the orchestrator-retirement review thread unresolved because it is a user-owned design decision.",
+      "chosen": "Left the orchestrator-retirement review thread unresolved because it is a user-owned design decision.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created a dedicated worktree at ../pr-2829 because this runtime forbids /tmp writes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inspected PR #2829 state, failing Validate PR output, and failing Validate Spec Coverage output.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added REQ-019 for the already-built /autoplan router skill so spec coverage has a mechanical artifact.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated stale /auto references in session artifacts to /autoplan and confirmed plugin manifest parity at 0.5.256.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Left the orchestrator-retirement review thread unresolved because it is a user-owned design decision.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
