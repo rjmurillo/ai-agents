@@ -6,6 +6,7 @@ Creates, monitors, and cleans up git worktrees for parallel PR review processing
 EXIT CODES:
   0  - Success: Worktree operation completed
   1  - Error: Operation failed
+  3  - External error: subprocess timed out
 
 See: ADR-035 Exit Code Standardization
 """
@@ -22,22 +23,46 @@ from pathlib import Path
 from scripts.github_core.repo import get_repo_root
 from scripts.github_core.worktree_identity import reset_worktree_identity
 
-
-def run_git(*args: str, cwd: str | Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+SUBPROCESS_TIMEOUT_SECONDS = 60
 
 
-def run_gh(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["gh", *args],
-        capture_output=True,
-        text=True,
-    )
+def run_git(
+    *args: str, cwd: str | Path | None = None, timeout: int = SUBPROCESS_TIMEOUT_SECONDS
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            encoding="utf-8", errors="replace",
+            cwd=cwd,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=['git', *args],
+            returncode=124,
+            stdout="",
+            stderr=f"git command timed out after {timeout}s",
+        )
+
+
+def run_gh(
+    *args: str, timeout: int = SUBPROCESS_TIMEOUT_SECONDS
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["gh", *args],
+            capture_output=True,
+            encoding="utf-8", errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=['gh', *args],
+            returncode=124,
+            stdout="",
+            stderr=f"gh command timed out after {timeout}s",
+        )
 
 
 def get_pr_branch(pr_number: int) -> str | None:
@@ -232,27 +257,31 @@ def main(argv: list[str] | None = None) -> int:
 
     op = args.operation
 
-    if op in ("setup", "all"):
-        pr_list = ", ".join(str(p) for p in args.pr_numbers)
-        print(f"\n=== Setting up worktrees for PRs: {pr_list} ===")
-        for pr in args.pr_numbers:
-            create_worktree(pr, args.worktree_root, operator=args.operator_identity)
+    try:
+        if op in ("setup", "all"):
+            pr_list = ", ".join(str(p) for p in args.pr_numbers)
+            print(f"\n=== Setting up worktrees for PRs: {pr_list} ===")
+            for pr in args.pr_numbers:
+                create_worktree(pr, args.worktree_root, operator=args.operator_identity)
 
-    if op in ("status", "all"):
-        print("\n=== Worktree Status ===")
-        statuses = [get_worktree_status(pr, args.worktree_root) for pr in args.pr_numbers]
-        print_status_table(statuses)
+        if op in ("status", "all"):
+            print("\n=== Worktree Status ===")
+            statuses = [get_worktree_status(pr, args.worktree_root) for pr in args.pr_numbers]
+            print_status_table(statuses)
 
-    if op == "cleanup":
-        print("\n=== Cleaning up worktrees ===")
-        for pr in args.pr_numbers:
-            push_worktree_changes(pr, args.worktree_root)
-        for pr in args.pr_numbers:
-            remove_worktree(pr, args.worktree_root, force=args.force)
-        print("\n=== Remaining worktrees ===")
-        result = run_git("worktree", "list")
-        if result.stdout:
-            print(result.stdout)
+        if op == "cleanup":
+            print("\n=== Cleaning up worktrees ===")
+            for pr in args.pr_numbers:
+                push_worktree_changes(pr, args.worktree_root)
+            for pr in args.pr_numbers:
+                remove_worktree(pr, args.worktree_root, force=args.force)
+            print("\n=== Remaining worktrees ===")
+            result = run_git("worktree", "list")
+            if result.stdout:
+                print(result.stdout)
+    except subprocess.TimeoutExpired as e:
+        print(f"ERROR: subprocess timed out after {e.timeout}s: {e.cmd}", file=sys.stderr)
+        return 3
 
     if op == "all":
         print("\n=== Ready for parallel PR review ===")

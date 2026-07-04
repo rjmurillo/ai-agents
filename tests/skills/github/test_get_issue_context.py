@@ -1,6 +1,7 @@
 """Tests for get_issue_context.py."""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -56,11 +57,12 @@ class TestGetIssueContext:
             patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=make_completed_process(
                 stdout=json.dumps(issue_data)
-            )),
+            )) as run,
         ):
             rc = mod.main(["--issue", "42"])
 
         assert rc == 0
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
         output = json.loads(capsys.readouterr().out)
         assert output["Success"] is True
         assert output["Data"]["number"] == 42
@@ -125,6 +127,27 @@ class TestGetIssueContext:
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "999"])
         assert exc.value.code == 2
+
+    def test_timeout_exits_3_with_timeout_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd="gh",
+                    timeout=mod.GH_TIMEOUT_SECONDS,
+                ),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "42", "--output-format", "json"])
+
+        assert exc.value.code == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"
 
     def test_empty_labels_and_assignees(self, _import_module, capsys):
         mod = _import_module

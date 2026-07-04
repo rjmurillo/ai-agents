@@ -7,6 +7,7 @@ repo string parsing, issue body building, and the main CLI entry point.
 from __future__ import annotations
 
 import json
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -144,6 +145,34 @@ class TestBuildIssueBody:
         assert "https://github.com/owner/repo/pull/42#discussion_r123" in body
         assert "Deferred to follow-up: fix the bug" in body
         assert "Homework Scanner" in body
+
+
+class TestCreateIssuesTimeout:
+    def _item(self) -> HomeworkItem:
+        return HomeworkItem(
+            pr_number=42,
+            comment_id=123,
+            author="reviewer",
+            body_excerpt="Deferred to follow-up",
+            matched_pattern="deferred",
+            comment_url="https://github.com/o/r/pull/42#discussion_r123",
+            source_type="review_comment",
+        )
+
+    def test_create_issue_call_includes_timeout(self) -> None:
+        with patch("scripts.homework_scanner.subprocess.run") as run:
+            run.return_value = MagicMock(returncode=0, stdout="https://github.com/o/r/issues/1")
+            create_issues([self._item()], "o", "r", dry_run=False)
+
+        assert run.call_args.kwargs["timeout"] == 60
+
+    def test_create_issue_timeout_records_error_and_continues(self) -> None:
+        with patch("scripts.homework_scanner.subprocess.run") as run:
+            run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=60)
+            created = create_issues([self._item()], "o", "r", dry_run=False)
+
+        assert len(created) == 1
+        assert "timed out" in created[0]["error"]
 
 
 # --- Scan PR tests ---

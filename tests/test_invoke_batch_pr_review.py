@@ -2,19 +2,34 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from scripts.invoke_batch_pr_review import (
+    SUBPROCESS_TIMEOUT_SECONDS,
     WorktreeStatus,
     get_pr_branch,
     get_worktree_status,
     main,
     print_status_table,
+    run_gh,
+    run_git,
 )
 
 
 class TestGetPrBranch:
+    @patch("scripts.invoke_batch_pr_review.subprocess.run")
+    def test_run_wrappers_pass_timeout(self, mock_run: MagicMock) -> None:
+        run_git("status")
+        run_gh("pr", "list")
+
+        assert mock_run.call_count == 2
+        assert all(
+            call.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS
+            for call in mock_run.call_args_list
+        )
+
     @patch("scripts.invoke_batch_pr_review.run_gh")
     def test_returns_branch_name(self, mock_gh: MagicMock) -> None:
         mock_gh.return_value = MagicMock(
@@ -70,3 +85,13 @@ class TestMain:
             "--worktree-root", "/tmp",
         ])
         assert result == 0
+
+    @patch("scripts.invoke_batch_pr_review.get_worktree_status")
+    def test_returns_3_on_subprocess_timeout(self, mock_status: MagicMock) -> None:
+        mock_status.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=60)
+        result = main([
+            "--pr-numbers", "1",
+            "--operation", "status",
+            "--worktree-root", "/tmp",
+        ])
+        assert result == 3

@@ -86,6 +86,16 @@ record_skip() {
     echo_info "SKIP: $1"
 }
 
+pytest_output_has_session_summary() {
+    # A killed pytest process can leave the stream ending on the last test name.
+    # Treat that as an aborted run, not as proof the last streamed test failed.
+    grep -Eq '(^=+ (short test summary info|.*(passed|failed|error|errors|skipped|xfailed|xpassed|warnings).*) =+$)' "$1"
+}
+
+pytest_exit_was_signal() {
+    [ "$1" -ge 128 ] && [ "$1" -le 255 ]
+}
+
 # Temp file cleanup on exit (handles Ctrl+C, early exit, normal exit)
 TEMP_FILES=()
 # Auto-retro suppression sentinel (Issue #2327). Set once REPO_ROOT is known.
@@ -796,17 +806,73 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
         if [ ${#WF_FILES[@]} -gt 0 ]; then
             WF_LOCAL_OUTPUT=$(mktemp)
             TEMP_FILES+=("$WF_LOCAL_OUTPUT")
-            "${PYTHON_CMD[@]}" "$WF_LOCAL_SCRIPT" --files "${WF_FILES[@]}" \
+            "${PYTHON_CMD[@]}" "$WF_LOCAL_SCRIPT" --format json --files "${WF_FILES[@]}" \
                 > "$WF_LOCAL_OUTPUT" 2>&1
             WF_LOCAL_RC=$?
             if [ $WF_LOCAL_RC -eq 0 ]; then
-                record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
+                WF_SECRET_SUMMARY=$("${PYTHON_CMD[@]}" - "$WF_LOCAL_OUTPUT" 2>/dev/null <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    payload = json.load(handle)
+value = payload.get("secret_skipped")
+if not isinstance(value, bool):
+    raise SystemExit(2)
+note = payload.get("note")
+if value and not isinstance(note, str):
+    raise SystemExit(2)
+print("true" if value else "false")
+if value and note:
+    print(note)
+PY
+)
+                WF_SECRET_PARSE_RC=$?
+                WF_SECRET_SKIPPED=$(printf '%s\n' "$WF_SECRET_SUMMARY" | sed -n '1p')
+                WF_SECRET_NOTE=$(printf '%s\n' "$WF_SECRET_SUMMARY" | sed '1d')
+                if [ $WF_SECRET_PARSE_RC -ne 0 ]; then
+                    cat "$WF_LOCAL_OUTPUT"
+                    record_fail "Workflow local run returned malformed JSON"
+                    echo_info "  Fix scripts/validation/run_workflow_local_test.py output before pushing."
+                elif [ "$WF_SECRET_SKIPPED" = "true" ]; then
+                    if [ -n "$WF_SECRET_NOTE" ]; then
+                        echo_info "  $WF_SECRET_NOTE"
+                    fi
+                    record_warn "Workflow local run: some workflows skipped (secrets absent locally); CI runs them with real secrets"
+                else
+                    record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
+                fi
             elif [ $WF_LOCAL_RC -eq 3 ]; then
                 cat "$WF_LOCAL_OUTPUT"
                 record_fail "Workflow local run: required tool unavailable"
                 echo_info "  Install actionlint, the gh act extension"
                 echo_info "  (gh extension install nektos/gh-act), and Docker, or set"
                 echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
+            elif [ $WF_LOCAL_RC -eq 4 ]; then
+                WF_SECRET_SUMMARY=$("${PYTHON_CMD[@]}" - "$WF_LOCAL_OUTPUT" 2>/dev/null <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    payload = json.load(handle)
+if payload.get("secret_skipped") is not True:
+    raise SystemExit(2)
+note = payload.get("note")
+if not isinstance(note, str):
+    raise SystemExit(2)
+print(note)
+PY
+)
+                if [ $? -eq 0 ] && [ -n "$WF_SECRET_SUMMARY" ]; then
+                    echo_info "  $WF_SECRET_SUMMARY"
+                else
+                    cat "$WF_LOCAL_OUTPUT"
+                fi
+                record_warn "Workflow local run skipped: changed workflow needs locally-absent secrets"
+                echo_info "  The changed workflow references secrets not present locally,"
+                echo_info "  so gh act cannot run it. CI runs it with the real secrets."
+                echo_info "  Provide them via a repo-root .secrets file or the environment"
+                echo_info "  to run it locally; no bypass flag is needed."
             else
                 cat "$WF_LOCAL_OUTPUT"
                 record_fail "Workflow local run failed (exit $WF_LOCAL_RC)"
@@ -1197,11 +1263,23 @@ fi
                     rm -f "$TEST_OUTPUT"
                     record_pass "Python tests (pytest)"
                 else
+                    PYTEST_RC=$?
                     echo_info "  Test output (last 30 lines):"
                     tail -30 "$TEST_OUTPUT"
+                    if pytest_output_has_session_summary "$TEST_OUTPUT"; then
+                        record_fail "Python tests failed"
+                        echo_info "  Fix failing tests before pushing."
+                    else
+                        if pytest_exit_was_signal "$PYTEST_RC"; then
+                            PYTEST_SIGNAL=$((PYTEST_RC - 128))
+                            record_fail "Python tests aborted before pytest summary (exit $PYTEST_RC, signal $PYTEST_SIGNAL)"
+                        else
+                            record_fail "Python tests aborted before pytest summary (exit $PYTEST_RC)"
+                        fi
+                        echo_info "  Pytest did not print a session summary; the last streamed test may be innocent."
+                        echo_info "  Retry once. If it repeats, inspect resource kills or leaked threads."
+                    fi
                     rm -f "$TEST_OUTPUT"
-                    record_fail "Python tests failed"
-                    echo_info "  Fix failing tests before pushing."
                 fi
             else
                 record_skip "Python tests (tests/ directory not found)"

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+# mypy: disable-error-code=no-any-return
 """Tests for invoke_auto_retrospective.py (Stop hook)."""
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -14,6 +16,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
 
 import invoke_auto_retrospective
+
+from scripts.security.invoke_security_retrospective import (
+    ExternalReviewSource,
+    SecurityRetrospective,
+)
 
 
 class TestAutoRetrospective(unittest.TestCase):
@@ -790,6 +797,34 @@ class TestAutoRetrospectiveAudit(unittest.TestCase):
                 record = json.loads(line)  # must parse
                 self.assertEqual(record["status"], "skipped")
                 self.assertEqual(record["skip_reason"], f"run {i}")
+
+
+class TestSecurityRetrospectiveFetchFailures(unittest.TestCase):
+    """Boundary tests for security retrospective comment fetch errors."""
+
+    def test_run_fails_when_external_comments_cannot_be_fetched(self):
+        with patch.object(SecurityRetrospective, "_find_repo_root", return_value=Path.cwd()):
+            retrospective = SecurityRetrospective(
+                pr_number=123,
+                source=ExternalReviewSource.GEMINI,
+                dry_run=True,
+                non_interactive=True,
+            )
+
+        with (
+            patch.object(retrospective, "_load_security_reports", return_value=[]),
+            patch.object(retrospective, "_get_owner_repo", return_value="owner/repo"),
+            patch(
+                "scripts.security.invoke_security_retrospective.subprocess.run",
+                return_value=subprocess.CompletedProcess(
+                    args=[],
+                    returncode=1,
+                    stdout="",
+                    stderr="API failed",
+                ),
+            ),
+        ):
+            self.assertEqual(retrospective.run(), 3)
 
 
 if __name__ == "__main__":

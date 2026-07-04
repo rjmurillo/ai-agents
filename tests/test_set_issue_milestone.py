@@ -78,7 +78,7 @@ def test_has_different_milestone_no_force(mock_run):
 
     with pytest.raises(SystemExit) as exc_info:
         main(["--issue", "1", "--milestone", "v1.0.0"])
-    assert exc_info.value.code == 5
+    assert exc_info.value.code == 1
 
 
 @patch("subprocess.run")

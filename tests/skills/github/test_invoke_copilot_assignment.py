@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -31,6 +32,29 @@ def _import_module():
 
 
 class TestHelpers:
+    def test_assign_copilot_includes_timeout(self, _import_module):
+        mod = _import_module
+        with patch("subprocess.run", return_value=make_completed_process()) as run:
+            assert mod._assign_copilot("o", "r", 1) is True
+        assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
+
+    def test_assign_copilot_timeout_exits_3(self, _import_module, capsys):
+        mod = _import_module
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(
+                cmd="gh",
+                timeout=mod.GH_TIMEOUT_SECONDS,
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod._assign_copilot("o", "r", 1, "json")
+
+        assert exc.value.code == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"
+
     def test_get_maintainer_guidance_bullets(self, _import_module):
         mod = _import_module
         comments = [{
@@ -186,3 +210,38 @@ class TestInvokeCopilotAssignment:
         with pytest.raises(SystemExit) as exc:
             mod.main(["--help"])
         assert exc.value.code == 0
+
+    def test_issue_fetch_timeout_exits_3(self, _import_module, capsys):
+        mod = _import_module
+        config = {
+            "trusted_sources": {"maintainers": ["rjmurillo"], "ai_agents": []},
+            "extraction_patterns": {
+                "coderabbit": {
+                    "username": "coderabbitai[bot]",
+                    "implementation_plan": "## Implementation",
+                    "related_issues": "Similar Issues",
+                    "related_prs": "Related PRs",
+                },
+                "ai_triage": {"marker": "<!-- AI-ISSUE-TRIAGE -->"},
+            },
+            "synthesis": {"marker": "<!-- COPILOT-CONTEXT-SYNTHESIS -->"},
+        }
+        with (
+            patch("invoke_copilot_assignment.assert_gh_authenticated"),
+            patch("invoke_copilot_assignment.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("invoke_copilot_assignment._load_synthesis_config", return_value=config),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd="gh",
+                    timeout=mod.GH_TIMEOUT_SECONDS,
+                ),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue-number", "1", "--output-format", "json"])
+
+        assert exc.value.code == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "Timeout"

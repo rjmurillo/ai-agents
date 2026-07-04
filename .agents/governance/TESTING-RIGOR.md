@@ -11,6 +11,8 @@
 
 **Every new function MUST have positive AND negative tests.** Happy path alone is insufficient. Don't ship "the change works" with only success-case tests; bots and reviewers will catch what tests missed (whitespace, type validation, error paths, conditional branches).
 
+**Mirror obligation**: a contract change MUST grep for tests asserting the old contract and flip them in the same diff. Tests must mirror the changed obligation, not only the new happy path.
+
 Coverage measurement makes the gap visible: in PR #1756, the original 20 unit tests gave 24% block coverage. After negative + edge + branch tests, coverage rose to 100%, and the additional tests caught real defects (whitespace handling on verdict matching, conditional OTHER-hint emission, scenario type validation) that the bots had flagged.
 
 ---
@@ -51,6 +53,24 @@ Run the stack's coverage tool, gated to the project target. Use the right one fo
 100% block coverage on changed files. Exclude only language-equivalent unreachable defensive branches (Python `# pragma: no cover`, Go `default:` panic guards, etc.) with written justification.
 
 Coverage targets per `AGENTS.md > ## Standards`: 100% security-critical, 80% business logic, 60% docs/glue.
+
+---
+
+## Contract Changes: Flip the Stale Tests
+
+When a change alters an observable contract (a return value, an exception type, a public signature, an error message, a side effect, output ordering, or an external call), the tests that assert the OLD contract become wrong. They are now part of the change. Find them and flip them in the same diff:
+
+1. Grep the suite for the old behavior: the old value, exception type, message string, public method name, output literal, side-effect assertion, or fixture field.
+2. Update each stale assertion to the new contract, and say in the commit body why the assertion changed.
+3. A green suite that still asserts the old contract is a false pass. It proves the change did not land, not that it is correct.
+
+Never delete a failing test to make the suite green. A test failing on the old contract is information; flip it, do not remove it.
+
+Skip this step for pure internal refactors where no caller-visible behavior changes. If the grep returns nothing, name the search terms in the commit body so reviewers can check the old-contract search.
+
+Security-sensitive contract flips (authentication, authorization, cryptography, error disclosure, or secret handling) require security review before merge.
+
+**Why:** Issue #2791 records this as the testing-rigor child of epic #2789. The failure shape is a false green suite: the implementation changes a contract while tests still encode the old one. ADR-077 records the trade-offs, prior art, and 90-day review checkpoint.
 
 ---
 

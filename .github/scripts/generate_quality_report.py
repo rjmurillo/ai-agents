@@ -113,10 +113,14 @@ def _build_action_required_section(
     pr_author: str,
     final_verdict: str,
     verdicts: dict[str, str],
+    categories: dict[str, str],
 ) -> str:
     """Build an action-required section that @mentions the PR author.
 
     Only emits content when actionable verdicts (CRITICAL_FAIL, FAIL, etc.) exist.
+    Agents whose failure category is INFRASTRUCTURE never ran (Copilot CLI
+    unavailable), so they are excluded: listing them as having flagged issues is
+    the alarm-fatigue symptom of issue #2818.
     """
     if not pr_author:
         return ""
@@ -125,6 +129,7 @@ def _build_action_required_section(
         _AGENT_DISPLAY_NAMES[agent]
         for agent in _AGENTS
         if verdicts.get(agent, "") in FAIL_VERDICTS
+        and categories.get(agent, "") != "INFRASTRUCTURE"
     ]
     if not actionable_agents:
         return ""
@@ -146,7 +151,19 @@ def _build_action_required_section(
     return "\n".join(lines)
 
 
-def _build_findings_sections() -> str:
+def _empty_findings_message(agent: str, categories: dict[str, str]) -> str:
+    """Message for an agent whose findings file exists but is empty.
+
+    An INFRASTRUCTURE category means the agent never ran (Copilot CLI
+    unavailable), so an empty file is expected and reported as such rather than
+    as a missing-findings warning (issue #2818).
+    """
+    if categories.get(agent, "") == "INFRASTRUCTURE":
+        return "\u2139\ufe0f Agent did not run: Copilot CLI unavailable"
+    return "\u26a0\ufe0f No findings available (empty file)"
+
+
+def _build_findings_sections(categories: dict[str, str]) -> str:
     """Read findings files for each agent and build collapsible sections."""
     sections = ""
     for agent in _AGENTS:
@@ -165,7 +182,7 @@ def _build_findings_sections() -> str:
                 else:
                     sections += (
                         f"\n<details>\n<summary>{title}</summary>"
-                        "\n\n\u26a0\ufe0f No findings available (empty file)\n\n</details>\n"
+                        f"\n\n{_empty_findings_message(agent, categories)}\n\n</details>\n"
                     )
             except OSError as exc:
                 print(f"::error::Failed to read findings file for {agent}: {exc}")
@@ -222,6 +239,22 @@ def main(argv: list[str] | None = None) -> int:
         f"> [!{alert_type}]",
         f"> {final_emoji} **Final Verdict: {final_verdict}**",
         "",
+    ]
+
+    # Issue #2821 option c: when the security axis hit an infrastructure
+    # failure, the review never ran; say so in a distinct alert instead of
+    # letting the generic WARN read as a passed security review.
+    if categories.get("security") == "INFRASTRUCTURE":
+        lines += [
+            "> [!CAUTION]",
+            "> **Security review did not run.** The security axis hit an"
+            " infrastructure failure, so this verdict does not certify a"
+            " security review. Re-run the gate or review security manually"
+            " before merge. Refs #2821.",
+            "",
+        ]
+
+    lines += [
         "<details>",
         "<summary>Walkthrough</summary>",
         "",
@@ -266,8 +299,10 @@ def main(argv: list[str] | None = None) -> int:
     lines.append("")
 
     report = "\n".join(lines)
-    report += _build_action_required_section(pr_author, final_verdict, verdicts)
-    report += _build_findings_sections()
+    report += _build_action_required_section(
+        pr_author, final_verdict, verdicts, categories
+    )
+    report += _build_findings_sections(categories)
 
     footer_lines = [
         "",

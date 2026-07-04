@@ -47,9 +47,13 @@ jobs:
           filters: |
             skills:
               - '.claude/skills/**/*.py'
+              - '.claude/skills/**/SKILL.md'
+              - 'src/copilot-cli/skills/**/SKILL.md'
               - '.claude/lib/paths.py'
               - 'scripts/validation/check_vendor_portability.py'
               - 'scripts/validation/vendor_portability_baseline.txt'
+              - 'scripts/validation/check_skill_md_exec_portability.py'
+              - 'scripts/validation/skill_md_exec_portability_baseline.json'
               - '.github/workflows/validate-vendor-portability.yml'
 
   validate-portability:
@@ -68,25 +72,38 @@ jobs:
       - name: Check for new vendor-portability offenders
         run: python3 scripts/validation/check_vendor_portability.py
 
+      - name: Check for new bare-exec skill-path offenders (issue #2838)
+        run: python3 scripts/validation/check_skill_md_exec_portability.py
+
       - name: Show remediation on failure
         if: failure()
         run: |
           echo ""
           echo "=== Vendor Portability Validation Failed ==="
           echo ""
-          echo "A skill script under .claude/skills/ hard-codes an upstream-only"
-          echo "path (.agents/ or .claude/lib/) without routing through the"
-          echo "portability helper."
+          echo "One of two ratchets failed:"
           echo ""
-          echo "To fix, use .claude/lib/paths.py:"
-          echo "  - resolve_artifact_root() for write paths"
-          echo "  - resolve_skill_resource() for read paths"
+          echo "1. A skill SCRIPT under .claude/skills/ hard-codes an"
+          echo "   upstream-only path (.agents/ or .claude/lib/) without"
+          echo "   routing through the portability helper."
+          echo "   Fix via .claude/lib/paths.py:"
+          echo "     - resolve_artifact_root() for write paths"
+          echo "     - resolve_skill_resource() for read paths"
+          echo "   Baseline: scripts/validation/vendor_portability_baseline.txt"
+          echo "   Update:   python3 scripts/validation/check_vendor_portability.py --update-baseline"
           echo ""
-          echo "If the offender is intentional and cannot be made portable, add"
-          echo "it to scripts/validation/vendor_portability_baseline.txt or run:"
-          echo "  python3 scripts/validation/check_vendor_portability.py --update-baseline"
+          echo "2. A SKILL.md invokes a bare '.claude/skills/...' script"
+          echo "   (issue #2838). That path does not exist in a vendored"
+          echo "   plugin install. Resolve the root through a plugin-root env"
+          echo "   var with a source fallback:"
+          echo '     SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."'
+          echo '     python3 "$SCRIPTS_DIR/script.py"'
+          echo "   Or declare an intentional dependency with the marker"
+          echo "     <!-- vendor-portability-exec: <reason> -->"
+          echo "   Baseline: scripts/validation/skill_md_exec_portability_baseline.json"
+          echo "   Update:   python3 scripts/validation/check_skill_md_exec_portability.py --update-baseline"
           echo ""
-          echo "See issue #2050 for context."
+          echo "See issues #2050 and #2838 for context."
 
   skip-validation:
     name: Skip Validation (No Skill Changes)

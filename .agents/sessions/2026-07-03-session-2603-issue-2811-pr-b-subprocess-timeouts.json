@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2603,
+    "date": "2026-07-03",
+    "branch": "claude/subprocess-timeouts-2811-b",
+    "startingCommit": "f13f73f",
+    "objective": "Issue #2811 PR-B: subprocess timeouts for the remaining gh/git/npx/pip call sites (reactions, item milestone, copilot assignment, merge-resolver wrapper plus dash-ref guard, worktree identity, batch/install/gate wrappers, installers, security retrospective, homework scanner, slash-command lint). Hook sites deferred (pre-existing bootstrap type debt, same precedent as #2812)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "LSP-first read/grep guards and topical-memory hooks enforced file access, confirming the Serena enforcement layer active."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial-instructions contract in effect; per-turn re-assertion hook firing."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected by the SessionStart context loader (read-only dashboard)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located new_session_log.py, sync_plugin_lib.py, build_all.py, validate_session_json.py via ls/find."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the #2811 triage fix_plan and every target call site (sed context reads) before each patch."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and .claude/rules/* injected each turn; python.md, release-it.md, universal.md reviewed."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse topical-memory hooks surfaced github-pr1873, error-recovery-obligations, prompting scope-discipline observations."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/subprocess-timeouts-2811-b"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/subprocess-timeouts-2811-b"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f13f73f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items populated with honest evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014); git status confirms."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new cross-session decision beyond the deferral precedent already recorded in the #2812 decision memory; the PR body documents the deferred hook sites."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran markdownlint-cli2 convention check; zero lintable markdown changed (all edits are Python; log is JSON)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed on branch claude/subprocess-timeouts-2811-b before push (atomic commits, five files or fewer each)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran `uv run pytest` tests/skills/github tests/skills/merge-resolver: 428 passed; tests/test_timeout_hardening_2811b.py: 6 passed; mypy clean across the 12 changed source files; sync_plugin_lib and build_all mirrors regenerated; suppression scan clean."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task tracker: PR-B in progress to shipped; deferred hook sites noted for follow-up."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked; mechanical hardening slice of an in-flight epic."
+      }
+    }
+  },
+  "workLog": [
+    "Added gh timeouts with defined degradation to add_comment_reaction (per-item failure), set_item_milestone (exit 3), invoke_copilot_assignment (warn/exit 3); typed the files' pre-existing bare-dict annotations to dict[str, Any] (annotation-only, no cascade).",
+    "merge-resolver _run_git: 60s timeout returning a synthetic exit-124 result so returncode-checking callers handle hangs; resolve_conflicts_runner rejects dash-leading refs (git refs cannot start with a dash; the triage plan's checkout -- suggestion was wrong because -- switches checkout to pathspec mode).",
+    "Wrapper timeouts with synthetic-124 pattern: invoke_batch_pr_review run_git/run_gh, install_git_hooks _run_git, invoke_session_start_gate run_git; worktree_identity git config timeout=10 (check-aware, loud expiry) synced to both lib mirrors.",
+    "install_semgrep pip install timeout=300 (existing SubprocessError except covers expiry); invoke_security_retrospective gh --paginate timeout=120 plus two var annotations; homework_scanner per-create timeout=60 with error entry; validate_slash_command npx timeout=120 with non-blocking skip note.",
+    "Deferred: three hook sites (observation_sync, adr_review_guard, session_initialization_enforcer) whose files carry the pre-existing bootstrap assignment/no-any-return mypy debt; same deferral precedent as the #2812 hook sites. Also deferred: homework_scanner search-before-create idempotency (resumability improvement beyond the timeout scope).",
+    "Verification: uv run pytest tests/skills/github tests/skills/merge-resolver 428 passed; tests/test_timeout_hardening_2811b.py 6 passed; mypy no issues in 12 source files."
+  ],
+  "endingCommit": "05a16e6",
+  "nextSteps": [
+    "Open draft PR-B referencing #2811; note deferred hook sites and homework idempotency.",
+    "PR-C candidate: the three deferred hook sites once the hook-bootstrap type debt is settled."
+  ]
+}

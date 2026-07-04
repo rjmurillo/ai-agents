@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2603,
+    "date": "2026-07-02",
+    "branch": "claude/subprocess-timeouts-2811",
+    "startingCommit": "49afc89",
+    "objective": "Issue #2811 (PR-A): add subprocess timeouts to github-skill issue scripts (set_issue_labels, get_issue_context, set_issue_milestone) with copilot twins and regression tests. Remaining #2811 sites tracked for follow-up."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "LSP-first read/grep guards enforced file access this session, confirming the Serena/LSP enforcement layer active for this project."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial-instructions contract in effect; LSP guards fired on skill scripts."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected by the SessionStart context loader (read-only dashboard)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located new_session_log.py, build_all.py, generate_skills.py, validate_plugin_version_bump.py via find/ls."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the #2811 triage fix_plan and each target script before editing."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and .claude/rules/* injected each turn; python.md, release-it.md, universal.md reviewed."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse self-improving memory hooks surfaced github-pr1873, ci-infrastructure observations."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/subprocess-timeouts-2811"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/subprocess-timeouts-2811"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "49afc89"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items populated with honest evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched; git status shows no change to the read-only handoff dashboard (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reused the existing decision memory on scoped mypy handling; no new cross-session decision this increment."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran markdownlint-cli2; zero lintable markdown files changed in this diff (source is Python, log is JSON)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed on branch claude/subprocess-timeouts-2811 before push (atomic commits under five files each)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran `uv run pytest` tests/test_timeout_hardening_2811.py: 7 passed; mypy clean on the three changed source scripts; build_all regenerated twins with no drift."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task tracker reflects PR-A shipped with remaining #2811 sites tracked as follow-up."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked; scoped increment of an in-flight multi-PR effort."
+      }
+    }
+  },
+  "workLog": [
+    "Added subprocess timeout + TimeoutExpired handling to set_issue_labels, get_issue_context, and set_issue_milestone gh calls.",
+    "Fixed pre-existing type debt on touched files (comprehension narrowing; dict signatures).",
+    "Regenerated copilot-cli skill twins via build_all.py; added tests/test_timeout_hardening_2811.py (7 tests).",
+    "Verification: uv run pytest tests/test_timeout_hardening_2811.py => 7 passed; mypy => no issues."
+  ],
+  "endingCommit": "7ca5c13",
+  "nextSteps": [
+    "Follow-up PR: remaining #2811 sites (add_comment_reaction, set_item_milestone, invoke_copilot_assignment, resolve_pr_conflicts separator, worktree_identity, batch/install wrappers, three hooks, validate_slash_command)."
+  ]
+}
