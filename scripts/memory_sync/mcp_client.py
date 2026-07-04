@@ -12,10 +12,10 @@ import collections
 import json
 import logging
 import os
-import select
+import queue
 import subprocess
-import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,10 @@ _logger = logging.getLogger(__name__)
 FORGETFUL_DB_PATH = Path.home() / ".local" / "share" / "forgetful" / "forgetful.db"
 DEFAULT_TIMEOUT = 10.0
 MCP_COMMAND = ["uvx", "forgetful-ai"]
+
+# Sentinel enqueued by the stdout reader thread when the subprocess closes its
+# stdout (EOF) or the read fails. Distinguishes a real close from a read timeout.
+_STDOUT_EOF = object()
 
 
 class McpError(Exception):
@@ -55,6 +59,15 @@ class McpClient:
             target=self._drain_stderr, daemon=True
         )
         self._stderr_thread.start()
+        # Blocking os.read runs on a daemon thread that feeds this queue, so the
+        # reader is decoupled from the deadline check. This gives every platform
+        # (including Windows, where select on a pipe fd is unavailable) a real
+        # read timeout via queue.Queue.get(timeout=...).
+        self._read_queue: queue.Queue[Any] = queue.Queue()
+        self._stdout_thread = threading.Thread(
+            target=self._drain_stdout, daemon=True
+        )
+        self._stdout_thread.start()
 
     @classmethod
     def create(
@@ -195,21 +208,20 @@ class McpClient:
     def _read_response(self, expected_id: int) -> dict[str, Any]:
         """Read a JSON-RPC response matching the expected ID.
 
-        Uses os.read on the raw file descriptor with select for timeouts.
-        This avoids the buffered I/O + select incompatibility where
-        BufferedReader consumes data from the fd into its internal buffer,
-        making subsequent select calls miss available data.
+        Bytes arrive from a daemon reader thread via ``self._read_queue`` (the
+        thread does the blocking ``os.read`` on the raw fd, avoiding the buffered
+        I/O incompatibility where a BufferedReader pulls data into its internal
+        buffer). A single overall deadline of ``self._timeout`` seconds bounds
+        the entire wait for this response, so streaming notifications or a stream
+        of id-mismatched responses cannot loop forever.
         """
-        stdout = self._process.stdout
-        if stdout is None:
-            raise McpError("Process stdout is not available")
-        fd = stdout.fileno()
+        deadline = time.monotonic() + self._timeout
 
         buf = b""
         while True:
             header_end = buf.find(b"\r\n\r\n")
             while header_end == -1:
-                buf += self._read_bytes(fd)
+                buf += self._read_bytes(deadline - time.monotonic())
                 header_end = buf.find(b"\r\n\r\n")
 
             header = buf[:header_end + 4].decode("utf-8")
@@ -217,7 +229,7 @@ class McpClient:
             body_start = header_end + 4
 
             while len(buf) - body_start < content_length:
-                buf += self._read_bytes(fd)
+                buf += self._read_bytes(deadline - time.monotonic())
 
             body = buf[body_start:body_start + content_length]
             buf = buf[body_start + content_length:]
@@ -238,21 +250,52 @@ class McpClient:
 
             return response
 
-    def _read_bytes(self, fd: int) -> bytes:
-        """Read available bytes from fd with timeout."""
-        if sys.platform != "win32":
-            ready, _, _ = select.select([fd], [], [], self._timeout)
-            if not ready:
-                raise McpError(
-                    f"Timeout waiting for response (>{self._timeout}s)"
-                )
-        chunk = os.read(fd, 4096)
-        if not chunk:
+    def _read_bytes(self, remaining: float) -> bytes:
+        """Return the next chunk from the reader thread within ``remaining`` seconds.
+
+        Raises McpError if the overall deadline has passed (``remaining`` <= 0),
+        if no chunk arrives before ``remaining`` elapses, or if the subprocess
+        closed its stdout (EOF sentinel).
+        """
+        if remaining <= 0:
+            raise McpError(f"Timeout waiting for response (>{self._timeout}s)")
+        try:
+            chunk = self._read_queue.get(timeout=remaining)
+        except queue.Empty:
+            raise McpError(
+                f"Timeout waiting for response (>{self._timeout}s)"
+            ) from None
+        if not isinstance(chunk, bytes):
+            # The _STDOUT_EOF sentinel (or any non-bytes marker) means the
+            # reader thread saw stdout close or fail.
             stderr_tail = list(self._stderr_lines)[-10:]
             if stderr_tail:
                 _logger.debug("MCP server stderr: %s", "\n".join(stderr_tail))
             raise McpError("MCP server closed stdout unexpectedly")
         return chunk
+
+    def _drain_stdout(self) -> None:
+        """Read stdout on a background thread, feeding chunks to the read queue.
+
+        Runs blocking ``os.read`` on the raw fd so the deadline logic in
+        ``_read_response`` never blocks on the pipe. On EOF or read error, an
+        ``_STDOUT_EOF`` sentinel is enqueued so a waiting reader unblocks.
+        """
+        stdout = self._process.stdout
+        if stdout is None:
+            self._read_queue.put(_STDOUT_EOF)
+            return
+        try:
+            fd = stdout.fileno()
+            while True:
+                chunk = os.read(fd, 4096)
+                if not chunk:
+                    break
+                self._read_queue.put(chunk)
+        except (OSError, ValueError):
+            pass
+        finally:
+            self._read_queue.put(_STDOUT_EOF)
 
     @staticmethod
     def _parse_content_length(header: str) -> int:

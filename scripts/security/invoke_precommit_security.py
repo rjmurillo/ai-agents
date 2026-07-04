@@ -16,6 +16,7 @@ Per ADR-042: Python-first for new scripts.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
 import subprocess
@@ -222,6 +223,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=30,
             )
 
             if result.returncode != 0:
@@ -237,8 +239,6 @@ class PreCommitSecurityCheck:
             if not result.stdout.strip() or result.stdout.strip() == "[]":
                 logger.info("No open CodeQL alerts for branch: %s", branch)
                 return []
-
-            import json
 
             alerts_data = json.loads(result.stdout)
             alerts = [
@@ -356,7 +356,11 @@ class PreCommitSecurityCheck:
 
             # Step 6: Stage the security report
             if not self.dry_run:
-                self._stage_security_report(report_path)
+                if not self._stage_security_report(report_path):
+                    logger.error(
+                        "[FAIL] Failed to stage security report; commit blocked"
+                    )
+                    return 1
 
         # Step 7: Verify security report exists
         if not self._verify_security_report(report_path):
@@ -421,6 +425,7 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=60,
             )
 
             if "PSScriptAnalyzer" in result.stdout:
@@ -438,10 +443,17 @@ class PreCommitSecurityCheck:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=120,
             )
 
             return install_result.returncode == 0
 
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "PSScriptAnalyzer availability check timed out; "
+                "treating as unavailable"
+            )
+            return False
         except FileNotFoundError:
             logger.error("[FAIL] PowerShell (pwsh) not found in PATH")
             return False
@@ -481,8 +493,6 @@ class PreCommitSecurityCheck:
                     continue
 
                 # Parse JSON output
-                import json
-
                 try:
                     analyzer_findings = json.loads(result.stdout)
 

@@ -129,8 +129,8 @@ class SecurityRetrospective:
             len(self.false_negatives),
         )
 
-        # Step 4: Store in memory systems
-        forgetful_success = self._store_in_forgetful()
+        # Step 4: Store in memory systems (Forgetful is best-effort, Serena blocks)
+        self._store_in_forgetful()
         serena_success = self._store_in_serena()
 
         # Serena is BLOCKING per plan requirements
@@ -165,7 +165,7 @@ class SecurityRetrospective:
 
     def _load_security_reports(self) -> list[dict[str, Any]]:
         """Load security reports from .agents/security/SR-*.md files."""
-        reports = []
+        reports: list[dict[str, object]] = []
         security_dir = self.repo_root / ".agents" / "security"
 
         if not security_dir.exists():
@@ -204,8 +204,9 @@ class SecurityRetrospective:
                     "--paginate",
                 ],
                 capture_output=True,
-                text=True,
+                encoding="utf-8", errors="replace",
                 check=False,
+                timeout=120,
             )
 
             if result.returncode != 0:
@@ -271,7 +272,7 @@ class SecurityRetrospective:
             result = subprocess.run(
                 ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8", errors="replace",
                 check=True,
             )
             return result.stdout.strip()
@@ -285,7 +286,7 @@ class SecurityRetrospective:
     ) -> None:
         """Compare agent findings with external review to identify misses."""
         # Extract CWE IDs from security reports
-        agent_cwes = set()
+        agent_cwes: set[str] = set()
         for report in security_reports:
             content = report.get("content", "")
             # Simple CWE extraction pattern

@@ -26,7 +26,7 @@ import subprocess
 import sys
 
 
-def _get_file_path_from_input(hook_input: dict) -> str | None:
+def _get_file_path_from_input(hook_input: dict[str, object]) -> str | None:
     """Extract file_path from hook input."""
     tool_input = hook_input.get("tool_input", {})
     if isinstance(tool_input, dict):
@@ -35,7 +35,7 @@ def _get_file_path_from_input(hook_input: dict) -> str | None:
     return None
 
 
-def _get_project_directory(hook_input: dict) -> str:
+def _get_project_directory(hook_input: dict[str, object]) -> str:
     """Resolve project directory from env or hook input."""
     env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if env_dir:
@@ -98,6 +98,14 @@ def main() -> int:
             return 0
 
         hook_input = json.loads(input_json)
+        if not isinstance(hook_input, dict):
+            # A bare JSON string/list would raise AttributeError on the .get()
+            # calls below and be swallowed by the catch-all; surface it instead.
+            print(
+                "CodeQL Quick Scan skipped (input JSON is not an object)",
+                file=sys.stderr,
+            )
+            return 0
         file_path = _get_file_path_from_input(hook_input)
 
         if file_path is None or not _should_scan_file(file_path):
@@ -181,8 +189,14 @@ def main() -> int:
         pass
     except (OSError, PermissionError):
         pass
-    except Exception:
-        pass
+    except Exception as exc:
+        # Non-blocking hook: still return 0, but do not silently swallow an
+        # unexpected error. Surface the type and message so a broken scan is
+        # observable instead of vanishing.
+        print(
+            f"CodeQL Quick Scan skipped (unexpected {type(exc).__name__}: {exc})",
+            file=sys.stderr,
+        )
 
     return 0
 

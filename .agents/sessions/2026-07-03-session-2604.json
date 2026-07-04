@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2604,
+    "date": "2026-07-03",
+    "branch": "claude/pre-commit-restage-2832",
+    "startingCommit": "f13f73f",
+    "objective": "Fix issue 2832: pre-commit ruff autofix re-stage gap that trips the pre-push staleness gate"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP absent from this remote harness; fallback per AGENTS.md: read .serena/memories/git/pre-commit-hook-design.md and git-hooks-observations.md via topical-memory hook context"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fallback path per AGENTS.md Serena Init: .serena/memories consulted through PreToolUse topical-memory injection for .githooks/pre-commit edits"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded read-only by SessionStart context loader; branch handoffs consulted for the parent issue-triage session"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/session-init/scripts/new_session_log_json.py for this log; github skill scripts inventoried in parent session 2603"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory reviewed in parent triage session this same working day; constraints unchanged since"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and universal.md rules loaded in session context; ADR-042 Python-first honored (edited existing bash hook, new code is Python test)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git/pre-commit-hook-design.md, git/git-hooks-observations.md, validation/validation-test-first.md surfaced via topical-memory hooks before hook and test edits"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/pre-commit-restage-2832"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/pre-commit-restage-2832"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short clean after discarding auto-retro artifacts; branch created from origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f13f73f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence in this log"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014); PR body carries the branch handoff context"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Durable cross-session record: corrected root cause (pre-commit re-stage gap, verify-success-only branch) posted as issue #2832 comment and encoded in tests/test_pre_commit_ruff_restage_2832.py docstring"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Zero markdown files changed on this branch; lint scoped to changed files per AGENTS.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commit: .githooks/pre-commit, tests/test_pre_commit_ruff_restage_2832.py, this session log (3 files, under the 5-file ceiling)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_pre_commit_ruff_restage_2832.py: 4 passed in 0.17s; bash -n .githooks/pre-commit syntax OK; full pre-push suite runs at push time"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task #15 tracks this fix; task list current"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred: parent triage session 2599/2603 retro covers this follow-up branch"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-03T15:35:00Z",
+      "action": "Root-caused #2832: .githooks/pre-commit runs ruff check --fix on staged .py files but re-stages fixed files only in the verify-success branch; with pre-existing #2194 advisory findings the verify stays red, fixes stay unstaged, the commit records unfixed content, and the pre-push build_all --check staleness gate fails (observed twice: push11, push15 in session 2603)"
+    },
+    {
+      "timestamp": "2026-07-03T15:40:00Z",
+      "action": "Fix: hoisted the re-stage loop into the AUTOFIX block so mutated files are staged regardless of remaining advisory findings; verify branch now only reports"
+    },
+    {
+      "timestamp": "2026-07-03T15:45:00Z",
+      "action": "Added tests/test_pre_commit_ruff_restage_2832.py: 3 behavioral tests (advisory-findings-remain regression, verify-pass parity, AUTOFIX=0 negative) via bash fragment with stub ruff in a throwaway git repo, plus 1 structural test pinning re-stage ordering inside the real hook. uv run pytest: 4 passed"
+    }
+  ],
+  "endingCommit": "c380db3",
+  "nextSteps": [
+    "Owner review and merge of PR #2835"
+  ]
+}

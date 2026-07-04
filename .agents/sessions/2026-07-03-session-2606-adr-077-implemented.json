@@ -128,11 +128,15 @@
   {
    "summary": "Bumped both plugin manifests after main advanced",
    "evidence": "origin/main plugin version was 0.5.255; both plugin manifests now use 0.5.256."
+  },
+  {
+   "summary": "Resolved merge conflict with origin/main",
+   "evidence": "Both plugin manifests kept origin/main plus one version at 0.5.256 after merging main."
   }
  ],
- "endingCommit": "5252a1624",
+ "endingCommit": "63dda8fcf",
  "nextSteps": [
-  "Push the plugin version bump.",
+  "Push the merge resolution.",
   "Observe auto-merge state until the pull request merges."
  ]
 }

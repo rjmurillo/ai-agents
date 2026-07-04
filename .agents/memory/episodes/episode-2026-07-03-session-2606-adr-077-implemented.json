@@ -53,6 +53,22 @@
       "content": "Commit: 5252a1624",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved merge conflict with origin/main",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 63dda8fcf",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -61,7 +77,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 7
+    "files_changed": 93
   },
   "lessons": []
 }
