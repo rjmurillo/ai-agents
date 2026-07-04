@@ -377,11 +377,11 @@ def _missing_secrets(path: Path, available: set[str]) -> list[str]:
     )
 
 
-def _secret_gap_detail(secret_blocked: Sequence[tuple[str, list[str]]]) -> str:
+def _secret_gap_detail(secret_blocked: Sequence[tuple[str, int]]) -> str:
     """Return an operator-safe summary without logging secret names."""
     return "; ".join(
-        f"{rel} needs {len(missing)} locally absent secret(s)"
-        for rel, missing in secret_blocked
+        f"{rel} needs {missing_count} locally absent secret(s)"
+        for rel, missing_count in secret_blocked
     )
 
 
@@ -616,11 +616,11 @@ def run_local_test(
     available = {name.upper() for name in os.environ} | _act_secret_file_keys(repo_root)
     available |= _ACT_BUILTIN_SECRETS
     runnable: list[str] = []
-    secret_blocked: list[tuple[str, list[str]]] = []
+    secret_blocked: list[tuple[str, int]] = []
     for rel in files:
         missing = _missing_secrets(repo_root / rel, available)
         if missing:
-            secret_blocked.append((rel, missing))
+            secret_blocked.append((rel, len(missing)))
         else:
             runnable.append(rel)
 
