@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code changes committed through 9a58e35ff8; session log update committed last."
+        "Evidence": "Code changes committed through 192d0537; install-parity sibling fixes staged for the next commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-07-04-session-2606.json passed after ADR review-thread fixes."
+        "Evidence": "build_all --check, plugin-version-bump, and install-parity with the staged sibling set passed after install-copy fixes."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -169,10 +169,14 @@
     {
       "time": "2026-07-04T03:31:00Z",
       "entry": "Committed ADR review-thread fixes in 9a58e35ff8 after validating byte-level dash counts, targeted ADR tests, and plugin-version-bump."
+    },
+    {
+      "time": "2026-07-04T03:40:00Z",
+      "entry": "Fixed Validate Generated Files install-parity failure by adding the critic and implementer prompt changes to .claude and .github install siblings."
     }
   ],
-  "endingCommit": "9a58e35ff8",
+  "endingCommit": "192d0537",
   "nextSteps": [
-    "Commit this session log update, push fix/cluster-prompts, resolve the five review threads, watch checks, and merge PR 2844 once GitHub reports it ready."
+    "Commit install-parity fixes, push fix/cluster-prompts, watch checks, and merge PR 2844 once GitHub reports it ready."
   ]
 }
