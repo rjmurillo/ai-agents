@@ -29,5 +29,5 @@
 
 ## Failure Patterns
 
-- _UNFILLED. Run the retrospective agent to populate this section.
-  Check .agents/governance/FAILURE-MODES.md._
+- _UNFILLED. Run the retrospective agent to populate this section._
+  Check .agents/governance/FAILURE-MODES.md.
