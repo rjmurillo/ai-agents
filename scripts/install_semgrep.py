@@ -45,7 +45,7 @@ class SemgrepInstaller:
             result = subprocess.run(
                 ["semgrep", "--version"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8", errors="replace",
                 check=False,
             )
             if result.returncode == 0:
@@ -64,8 +64,9 @@ class SemgrepInstaller:
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", "semgrep"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8", errors="replace",
                 check=False,
+                timeout=300,
             )
 
             if result.returncode == 0:

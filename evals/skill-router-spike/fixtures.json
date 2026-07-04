@@ -102,6 +102,18 @@
     "correct": "adr-review"
   },
   {
+    "id": "adr-03-paraphrase",
+    "query": "We should document those design choices for future us to revisit when models and harnesses change.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-04-review-path",
+    "query": "I created a decision record under docs/decisions. Review it before we keep going.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-review"
+  },
+  {
     "id": "bvb-01-library-exists",
     "query": "Is there an existing library for this? Should I build it or use something that already exists?",
     "candidates": ["buy-vs-build-framework", "programming-advisor"],

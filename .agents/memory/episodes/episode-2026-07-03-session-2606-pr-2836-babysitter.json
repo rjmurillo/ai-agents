@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-03-session-2606-pr-2836-babysitter",
+  "session": "2026-07-03-session-2606-pr-2836-babysitter",
+  "timestamp": "2026-07-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR #2836 to merged state by verifying checks, resolving merge drift, and preserving the security-axis annotation behavior.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Assessed PR #2836 state and enabled auto-merge after checks were green.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved stale merge drift against origin/main.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the conflict resolution.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/test_generate_quality_report.py -x: 23 passed; byte check found zero conflict markers and zero prohibited dash bytes in tests/test_generate_quality_report.py.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d5c4d63a1",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

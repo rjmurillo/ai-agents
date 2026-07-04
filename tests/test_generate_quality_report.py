@@ -29,6 +29,7 @@ build_parser = _mod.build_parser
 _AGENTS = _mod._AGENTS
 _AGENT_DISPLAY_NAMES = _mod._AGENT_DISPLAY_NAMES
 _build_action_required_section = _mod._build_action_required_section
+_build_findings_sections = _mod._build_findings_sections
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -270,19 +271,27 @@ class TestMain:
 
 class TestBuildActionRequiredSection:
     def test_returns_empty_when_no_author(self):
-        result = _build_action_required_section("", "FAIL", {"security": "FAIL"})
+        result = _build_action_required_section(
+            "", "FAIL", {"security": "FAIL"}, {"security": "CODE_QUALITY"}
+        )
         assert result == ""
 
     def test_returns_empty_when_no_failures(self):
         result = _build_action_required_section(
-            "user", "PASS", {a: "PASS" for a in _AGENTS}
+            "user",
+            "PASS",
+            {a: "PASS" for a in _AGENTS},
+            {a: "N/A" for a in _AGENTS},
         )
         assert result == ""
 
     def test_mentions_author_on_critical_fail(self):
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "CRITICAL_FAIL"
-        result = _build_action_required_section("bot-user", "CRITICAL_FAIL", verdicts)
+        categories = {a: "CODE_QUALITY" for a in _AGENTS}
+        result = _build_action_required_section(
+            "bot-user", "CRITICAL_FAIL", verdicts, categories
+        )
         assert "@bot-user" in result
         assert "**Security** review flagged issues" in result
 
@@ -290,10 +299,35 @@ class TestBuildActionRequiredSection:
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "FAIL"
         verdicts["qa"] = "NEEDS_REVIEW"
-        result = _build_action_required_section("author", "FAIL", verdicts)
+        categories = {a: "CODE_QUALITY" for a in _AGENTS}
+        result = _build_action_required_section("author", "FAIL", verdicts, categories)
         assert "**Security**" in result
         assert "**QA**" in result
         assert "**Analyst**" not in result
+
+    def test_excludes_infrastructure_failed_agent(self):
+        # An agent that never ran (Copilot CLI unavailable) is downgraded to a
+        # NEEDS_REVIEW verdict with category INFRASTRUCTURE. It must not appear
+        # in Action Required (issue #2818).
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "NEEDS_REVIEW"
+        categories = {a: "N/A" for a in _AGENTS}
+        categories["security"] = "INFRASTRUCTURE"
+        result = _build_action_required_section(
+            "author", "WARN", verdicts, categories
+        )
+        assert result == ""
+
+    def test_lists_real_failure_but_not_infra_failure(self):
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["qa"] = "FAIL"
+        verdicts["security"] = "NEEDS_REVIEW"
+        categories = {a: "N/A" for a in _AGENTS}
+        categories["qa"] = "CODE_QUALITY"
+        categories["security"] = "INFRASTRUCTURE"
+        result = _build_action_required_section("author", "FAIL", verdicts, categories)
+        assert "**QA** review flagged issues" in result
+        assert "**Security**" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -345,3 +379,33 @@ class TestSecurityNotice:
             categories={"qa": "INFRASTRUCTURE"},
         )
         assert "Security review did not run." not in content
+
+
+class TestBuildFindingsSections:
+    def test_infra_empty_file_shows_did_not_run(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        findings_dir = Path("ai-review-results")
+        findings_dir.mkdir(parents=True, exist_ok=True)
+        (findings_dir / "security-findings.txt").write_text("")
+        categories = {a: "N/A" for a in _AGENTS}
+        categories["security"] = "INFRASTRUCTURE"
+        result = _build_findings_sections(categories)
+        assert "did not run: Copilot CLI unavailable" in result
+        assert "No findings available (empty file)" not in result
+
+    def test_non_infra_empty_file_shows_no_findings(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        findings_dir = Path("ai-review-results")
+        findings_dir.mkdir(parents=True, exist_ok=True)
+        (findings_dir / "security-findings.txt").write_text("")
+        categories = {a: "N/A" for a in _AGENTS}
+        result = _build_findings_sections(categories)
+        assert "No findings available (empty file)" in result
+        assert "did not run" not in result
+
+    def test_missing_file_shows_not_found(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        Path("ai-review-results").mkdir(parents=True, exist_ok=True)
+        categories = {a: "N/A" for a in _AGENTS}
+        result = _build_findings_sections(categories)
+        assert "Findings file not found" in result
