@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All sessionStart and sessionEnd MUST items populated with evidence in this file."
+        "Evidence": "All sessionStart and sessionEnd MUST items contain concrete evidence in this file."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merge conflict resolution committed as c789a519f; session log will be committed before push."
+        "Evidence": "Prior branch updates committed as c789a519f, 434b73acf, 2a49234e6, and 0e91286c7; latest main merge is staged with this session log."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run python scripts/validate_session_json.py .agents/sessions/2026-07-04-session-2606-babysit-2823-merge.json passed."
+        "Evidence": "Session log validation passed before latest merge; latest merge validation: build_all.py --check returned 0 and mypy scripts/github_core/output.py returned 0."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -129,10 +129,18 @@
     {
       "summary": "Logged session memory for the merge blocker and resolution.",
       "evidence": "Wrote Serena memory session/pr-2823-babysitting-2026-07-04."
+    },
+    {
+      "summary": "Merged latest origin/main after PR 2823 remained dirty.",
+      "evidence": "origin/main advanced to a2615ec1c. The merge conflicted only in .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json; both resolved to 0.5.257, above main 0.5.256."
+    },
+    {
+      "summary": "Validated latest merge resolution before commit.",
+      "evidence": "No unmerged paths after staging plugin manifests. build_all.py --check returned 0. mypy scripts/github_core/output.py returned 0."
     }
   ],
-  "endingCommit": "c789a519f",
+  "endingCommit": "0e91286c7",
   "nextSteps": [
-    "Push branch claude/python-hardening-2812-2813 and poll PR 2823 until merged."
+    "Commit the staged latest-main merge, push branch claude/python-hardening-2812-2813, and poll PR 2823 until merged."
   ]
 }
