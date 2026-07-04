@@ -74,6 +74,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         data = json.loads(input_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        print(f"ERROR: cannot read input {input_path}: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    except UnicodeDecodeError as exc:
+        print(f"ERROR: malformed UTF-8 in {input_path}: {exc}", file=sys.stderr)
+        return EXIT_MALFORMED
     except json.JSONDecodeError as exc:
         print(f"ERROR: malformed JSON in {input_path}: {exc}", file=sys.stderr)
         return EXIT_MALFORMED

@@ -15,9 +15,12 @@ from pathlib import Path
 
 # Add scripts/ci to path for import.
 _SCRIPTS_CI = Path(__file__).resolve().parent.parent.parent / "scripts" / "ci"
-sys.path.insert(0, str(_SCRIPTS_CI))
-
-from parse_hook_bypass_results import main  # noqa: E402
+_original_path = sys.path.copy()
+try:
+    sys.path.insert(0, str(_SCRIPTS_CI))
+    from parse_hook_bypass_results import main  # noqa: E402
+finally:
+    sys.path[:] = _original_path
 
 
 def _report(indicator_count: int) -> dict:
@@ -65,6 +68,38 @@ def test_malformed_json_fails_loud(tmp_path: Path) -> None:
     code = main(["--input", str(src), "--count-out", str(out)])
     assert code == 1
     assert not out.exists()
+
+
+def test_unreadable_input_is_usage_error(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    src = tmp_path / "audit.json"
+    src.write_text(json.dumps(_report(1)), encoding="utf-8")
+    out = tmp_path / "count.txt"
+
+    def unreadable(*_args: object, **_kwargs: object) -> str:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+    code = main(["--input", str(src), "--count-out", str(out)])
+
+    assert code == 2
+    assert not out.exists()
+    assert "cannot read input" in capsys.readouterr().err
+
+
+def test_undecodable_input_is_malformed_error(
+    tmp_path: Path, capsys
+) -> None:
+    src = tmp_path / "audit.json"
+    src.write_bytes(b"\xff")
+    out = tmp_path / "count.txt"
+
+    code = main(["--input", str(src), "--count-out", str(out)])
+
+    assert code == 1
+    assert not out.exists()
+    assert "malformed UTF-8" in capsys.readouterr().err
 
 
 def test_missing_indicators_key_fails_loud(tmp_path: Path) -> None:
