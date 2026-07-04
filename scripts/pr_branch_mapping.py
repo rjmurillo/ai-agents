@@ -22,6 +22,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -33,9 +34,17 @@ MEMORY_RELATIVE_PATH = f".serena/memories/{MEMORY_FILENAME}"
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
-    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    with tempfile.NamedTemporaryFile(
+        "w",
+        delete=False,
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        encoding="utf-8",
+    ) as tmp:
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
     try:
-        tmp_path.write_text(content, encoding="utf-8")
         os.replace(tmp_path, path)
     finally:
         try:

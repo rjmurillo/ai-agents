@@ -45,6 +45,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -57,9 +58,17 @@ SCHEMA_VERSION = 1
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
-    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    with tempfile.NamedTemporaryFile(
+        "w",
+        delete=False,
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        encoding="utf-8",
+    ) as tmp:
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
     try:
-        tmp_path.write_text(content, encoding="utf-8")
         os.replace(tmp_path, path)
     finally:
         try:

@@ -157,11 +157,12 @@ class TestSaveMapping:
         with patch.object(pr_branch_mapping.os, "replace", recording_replace):
             save_mapping(tmp_path, mapping)
 
-        assert calls == [
-            (memory_path.with_name(
-                f".{memory_path.name}.{pr_branch_mapping.os.getpid()}.tmp"
-            ), memory_path)
-        ]
+        assert len(calls) == 1
+        temp_path, replaced_path = calls[0]
+        assert replaced_path == memory_path
+        assert temp_path.parent == memory_path.parent
+        assert temp_path.name.startswith(f".{memory_path.name}.")
+        assert temp_path.name.endswith(".tmp")
         assert memory_path.exists()
 
 
@@ -208,7 +209,7 @@ class TestAddMapping:
     def test_removes_other_pr_with_same_branch(
         self, empty_mapping: PRBranchMapping
     ) -> None:
-        """Ensure branch uniqueness: adding a new PR with an existing branch removes the old mapping."""
+        """Ensure adding a duplicate branch removes the old mapping."""
         add_mapping(empty_mapping, pr_number=100, branch_name="feat/shared")
         add_mapping(empty_mapping, pr_number=200, branch_name="feat/shared")
 

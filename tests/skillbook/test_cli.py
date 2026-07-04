@@ -48,9 +48,12 @@ def test_save_skillbook_file_uses_atomic_replace(
 
     skillbook_module.save_skillbook_file(target, {"policies": []})
 
-    assert calls == [
-        (target.with_name(f".{target.name}.{skillbook_module.os.getpid()}.tmp"), target)
-    ]
+    assert len(calls) == 1
+    temp_path, replaced_path = calls[0]
+    assert replaced_path == target
+    assert temp_path.parent == target.parent
+    assert temp_path.name.startswith(f".{target.name}.")
+    assert temp_path.name.endswith(".tmp")
     assert _load_policies(tmp_path) == []
 
 
