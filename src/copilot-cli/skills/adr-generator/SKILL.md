@@ -20,11 +20,11 @@ Create well-structured Architectural Decision Records that document technical de
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| `create an ADR` | Full ADR generation workflow |
-| `generate ADR` | Full ADR generation workflow |
+| `write an ADR` | Full ADR generation workflow |
 | `write an architecture decision record` | Full ADR generation workflow |
-| `new ADR for` | Targeted ADR for a specific decision |
-| `document these design choices` | Full ADR generation workflow (paraphrase) |
+| `create an ADR` | Full ADR generation workflow |
+| `generate ADR for` | Full ADR generation workflow |
+| `document these design choices` | Capture rationale for durable architecture or design decisions |
 
 ---
 
@@ -32,11 +32,14 @@ Create well-structured Architectural Decision Records that document technical de
 
 ```text
 # These all work:
+write an ADR for the event model
+write an architecture decision record for database selection
 create an ADR for database selection
 new ADR for authentication strategy
 document this architecture decision about event sourcing
 generate ADR for switching from REST to gRPC
 document these design choices for future us to revisit as models change
+record why we chose this instruction-file structure for future maintainers
 ```
 
 ---
@@ -46,6 +49,7 @@ document these design choices for future us to revisit as models change
 | Situation | Use This Skill? |
 |-----------|----------------|
 | New architectural decision needs documenting | Yes |
+| Durable design choices or rationale need capturing for future readers | Yes |
 | Changing an existing system or pattern | Yes (includes Prior Art Investigation) |
 | Reviewing or validating an existing ADR | No, use `adr-review` skill |
 | Minor implementation detail, not architectural | No |
@@ -85,7 +89,7 @@ Explore the codebase to find where ADRs live. Do not assume a fixed location.
 3. **Check for ADR tooling config**: Look for `.adr-dir` files (used by `adr-tools`) or ADR references in README, CONTRIBUTING, or project documentation
 4. **If user specifies a location**: Use that, regardless of what exists elsewhere
 
-Note: `.agents/architecture/` and `docs/architecture/` are monitored by `adr-review` for auto-triggered review. ADRs written to `docs/decisions/`, `docs/adr/`, or `architecture/decisions/` are NOT auto-monitored; after saving to any of these, explicitly recommend the user invoke `adr-review` manually. This keeps this skill's discovered path list aligned with `adr-review`'s real auto-trigger coverage.
+Note: `.agents/architecture/`, `docs/adr/`, `docs/architecture/`, `docs/decisions/`, and `architecture/decisions/` are monitored by `adr-review` for auto-triggered review when the platform honors file triggers. Invoke `adr-review` manually if automatic review does not fire.
 
 #### Step 2: Detect template from existing ADRs
 

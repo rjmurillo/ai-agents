@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2603,
+    "date": "2026-07-03",
+    "branch": "fix/cluster-prompts",
+    "startingCommit": "f13f73ff",
+    "objective": "Implement surgical prompt and skill doc fixes for issues 2790 2791 2792 2796 2805"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP loaded through tool search; serena initial_instructions executed successfully."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned Serena Instructions Manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md lines 1-80 read; file preserved read-only."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Globbed orphan-ref-validator, adr-generator, adr-review, implementer, and critic sources before editing."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md lines 1-25 read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and .agents/governance/PROJECT-CONSTRAINTS.md lines 1-100 read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory plus relevant hook-injected observations loaded."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/cluster-prompts"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/cluster-prompts"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Initial git status was clean on fix/cluster-prompts at f13f73ff."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f13f73ff"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required session start and end checklist items are marked complete with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only; git status shows no HANDOFF.md modification."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-write_memory sessions/2026-07-03-prompt-skill-doc-fixes succeeded."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix --no-globs on changed markdown exited 0 with 0 errors."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue commits created: 74b29530, 64e84067, 69430031, e4034fb4, d6ad3800. Session log committed in 32c2683b."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-07-03-session-2603-implement-surgical-prompt-skill-doc.json exits 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No PROJECT-PLAN task checkboxes were in scope for these issue-specific prompt edits."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Skipped: surgical documentation-only edits, no significant session retrospective needed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "issue": 2790,
+      "action": "Added mirror-obligation clause to implementer canonical and template sources; regenerated generated agent twins; committed 74b29530."
+    },
+    {
+      "issue": 2791,
+      "action": "Added TESTING-RIGOR contract-change mirror obligation requiring old-contract tests to be flipped in the same diff; committed 64e84067."
+    },
+    {
+      "issue": 2792,
+      "action": "Added critic mirror-obligation drift check; regenerated generated agent twins; committed 69430031."
+    },
+    {
+      "issue": 2805,
+      "action": "Broadened adr-generator and adr-review triggers to durable architecture/design decision intent and ADR-like paths; regenerated Copilot skill twins; committed e4034fb4."
+    },
+    {
+      "issue": 2796,
+      "action": "Ran orphan-ref-validator with --include-skill-descriptions; removed dead companion validator citation to missing build/scripts/validate_marketplace_counts.py; left manifest_counts.py intentional example; committed d6ad3800."
+    },
+    {
+      "validation": "python3 build/generate_agents.py and python3 build/scripts/generate_skills.py rerun after commits; git status showed only this session log changed."
+    },
+    {
+      "validation": "orphan-ref-validator still reports historical out-of-scope script_path debt, but no longer reports .claude/skills/orphan-ref-validator/SKILL.md:335."
+    }
+  ],
+  "endingCommit": "32c2683b",
+  "nextSteps": []
+}
