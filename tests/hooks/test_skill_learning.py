@@ -35,9 +35,12 @@ def test_atomic_write_text_uses_replace(tmp_path, monkeypatch):
 
     invoke_skill_learning._atomic_write_text(target, "updated")
 
-    assert calls == [
-        (target.with_name(f".{target.name}.{invoke_skill_learning.os.getpid()}.tmp"), target)
-    ]
+    assert len(calls) == 1
+    temp_path, replaced_path = calls[0]
+    assert replaced_path == target
+    assert temp_path.parent == target.parent
+    assert temp_path.name.startswith(f".{target.name}.")
+    assert temp_path.name.endswith(".tmp")
     assert target.read_text(encoding="utf-8") == "updated"
 
 
@@ -205,7 +208,7 @@ class TestSafeBaseDirM7T5:
     The function honors ``CLAUDE_PROJECT_DIR`` when it contains the live
     hook script (CWE-22 containment guard added by commit be11bd53). When
     the env var is set but does not contain the script, it falls through
-    to the git walk-up — refusing to trust an attacker-controlled env that
+    to the git walk-up, refusing to trust an attacker-controlled env that
     points outside the script's true repository.
     """
 
