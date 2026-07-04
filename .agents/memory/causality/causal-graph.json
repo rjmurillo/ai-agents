@@ -8,7 +8,8 @@
       "success_rate": 1.0,
       "frequency": 1,
       "id": "n001",
-      "type": "decision"
+      "type": "decision",
+      "created": null
     },
     {
       "id": "b1cc1534da48",
@@ -8394,6 +8395,141 @@
         "episode-2026-07-03-session-2605"
       ],
       "created": "2026-07-03T16:17:16.373493+00:00"
+    },
+    {
+      "id": "cacd29950384",
+      "type": "decision",
+      "label": "design: Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.349825+00:00"
+    },
+    {
+      "id": "98920abcfeba",
+      "type": "milestone",
+      "label": "milestone: Root-cause the Renovate/PR-wide ai-review block to the retired claude-opus-4.5 default model",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.349962+00:00"
+    },
+    {
+      "id": "b647453210a0",
+      "type": "milestone",
+      "label": "milestone: Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350056+00:00"
+    },
+    {
+      "id": "9e0e28724b34",
+      "type": "milestone",
+      "label": "milestone: Bump .github/agents copilot agent model claude-opus-4.5 -> claude-opus-4.6 across 18 files",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350146+00:00"
+    },
+    {
+      "id": "de3a96b598f3",
+      "type": "milestone",
+      "label": "milestone: Resolve pre-existing em-dashes in touched agent files to satisfy the dash-prohibition guard",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350235+00:00"
+    },
+    {
+      "id": "ee276df62c5b",
+      "type": "commit",
+      "label": "commit: Commit: 52c76a8c",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350323+00:00"
+    },
+    {
+      "id": "7b6e7a57e377",
+      "type": "outcome",
+      "label": "Outcome: success - unblock Renovate and all open PRs: retired claude-opus-4.5 default hard-fails ai-review; default to auto and reclassify retired-model errors as infra (Refs #2818)",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350413+00:00"
+    },
+    {
+      "id": "dfbd932789d7",
+      "type": "decision",
+      "label": "Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350838+00:00"
+    },
+    {
+      "id": "e161750067d4",
+      "type": "milestone",
+      "label": "Root-cause the Renovate/PR-wide ai-review block to the retired claude-opus-4.5 default model",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.350957+00:00"
+    },
+    {
+      "id": "b895b21a3dc6",
+      "type": "milestone",
+      "label": "Fix ai-review default model to auto and reclassify retired-model errors as infrastructure failure",
+      "episodes": [
+        "episode-2026-07-03-session-2605-fix-ai-review-model-auto"
+      ],
+      "created": "2026-07-04T02:21:24.351152+00:00"
+    },
+    {
+      "id": "9db0d42c6bb5",
+      "type": "milestone",
+      "label": "milestone: Assessed PR #2843 state.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351397+00:00"
+    },
+    {
+      "id": "7ec1ecd21f9f",
+      "type": "milestone",
+      "label": "milestone: Created dedicated worktree outside shared root.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351518+00:00"
+    },
+    {
+      "id": "fcd9d3c18620",
+      "type": "milestone",
+      "label": "milestone: Ran generated artifact build.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351611+00:00"
+    },
+    {
+      "id": "2fdec6067b1f",
+      "type": "milestone",
+      "label": "milestone: Updated Serena memory for session protocol.",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351702+00:00"
+    },
+    {
+      "id": "3422dfd1bf14",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR #2843 fix/cluster-vendor to merge",
+      "episodes": [
+        "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge"
+      ],
+      "created": "2026-07-04T02:21:24.351793+00:00"
     }
   ],
   "patterns": [
@@ -8452,7 +8588,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 88,
+      "occurrences": 89,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -8794,6 +8930,22 @@
       "weight": 0.6,
       "evidence_count": 44,
       "created": "2026-06-02T04:20:23.796919+00:00"
+    },
+    {
+      "source": "dfbd932789d7",
+      "target": "e161750067d4",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "created": "2026-07-04T02:21:24.350970+00:00"
+    },
+    {
+      "source": "dfbd932789d7",
+      "target": "b895b21a3dc6",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "created": "2026-07-04T02:21:24.351162+00:00"
     }
   ]
 }

@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge",
+  "session": "2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge",
+  "timestamp": "2026-07-04T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Babysit PR #2843 fix/cluster-vendor to merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Assessed PR #2843 state.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created dedicated worktree outside shared root.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran generated artifact build.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated Serena memory for session protocol.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
