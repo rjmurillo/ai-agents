@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-03-session-2606-pr-2830-merge-conflicts",
+  "session": "2026-07-03-session-2606-pr-2830-merge-conflicts",
+  "timestamp": "2026-07-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR #2830 to merge by resolving origin/main conflicts in the security gate timeout changes.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Assessed PR #2830 state.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved origin/main merge conflicts.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated semgrep tests after main conflict.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated changed security paths.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c3b3909d97",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

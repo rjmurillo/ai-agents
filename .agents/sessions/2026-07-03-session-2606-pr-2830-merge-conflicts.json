@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merge resolution, semgrep test update, and this session log prepared for commit."
+        "Evidence": "Commits pushed: 79b81c09c, fbef362b0, 1b2162a88, c3b3909d97."
       },
       "validationPassed": {
         "level": "MUST",
@@ -101,6 +101,7 @@
       "evidence": "Targeted pytest for memory sync and security gate tests passed 38 tests. Scoped ruff passed. Full pytest proceeded to ruff, showing tests passed before full ruff reported unrelated existing lint errors."
     }
   ],
+  "endingCommit": "c3b3909d97",
   "nextSteps": [
     "Push merge resolution to PR #2830 and wait for GitHub checks.",
     "Keep auto-merge enabled and poll until PR #2830 reports MERGED."

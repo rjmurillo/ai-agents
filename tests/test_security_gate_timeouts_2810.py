@@ -22,6 +22,13 @@ from scripts.security.invoke_precommit_security import PreCommitSecurityCheck
 from scripts.security.run_semgrep import SemgrepScanError, SemgrepScanner
 
 
+def _detached_mcp_client(timeout: float) -> McpClient:
+    process = MagicMock(stdout=None, stderr=None)
+    client = McpClient(process=process, timeout=timeout)
+    client._stdout_thread.join(timeout=1.0)
+    return client
+
+
 def test_ensure_psscriptanalyzer_timeout_returns_false() -> None:
     # Construct before patching so the ctor's git repo-root lookup is real.
     check = PreCommitSecurityCheck(skip_codeql=True)
@@ -100,7 +107,7 @@ def test_mcp_stdout_read_timeout_raises() -> None:
 
 
 def test_mcp_overall_deadline_raises() -> None:
-    client = McpClient(process=MagicMock(stdout=None, stderr=None), timeout=0.05)
+    client = _detached_mcp_client(timeout=0.05)
     body = b'{"jsonrpc":"2.0","method":"notify"}'
     frame = f"Content-Length: {len(body)}\r\n\r\n".encode() + body
 
