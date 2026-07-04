@@ -39,6 +39,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+SEMGREP_OUTPUT_SNIPPET_CHARS = 500
+
 
 class SemgrepScanError(Exception):
     """Raised when the semgrep scan cannot complete (e.g. timeout).
@@ -77,6 +79,26 @@ def _scan_failure_finding(message: str) -> SemgrepFinding:
         message=message,
         cwe=[],
         owasp=[],
+    )
+
+
+def _semgrep_output_snippet(value: str, *, fallback: str) -> str:
+    """Return a bounded one-line diagnostic from semgrep output."""
+    text = value.strip()
+    if not text:
+        return fallback
+    text = text.replace("\r", "\\r").replace("\n", "\\n")
+    if len(text) <= SEMGREP_OUTPUT_SNIPPET_CHARS:
+        return text
+    return f"{text[:SEMGREP_OUTPUT_SNIPPET_CHARS]}... [truncated]"
+
+
+def _semgrep_failure_context(stdout: str, stderr: str) -> str:
+    return (
+        "stderr="
+        f"{_semgrep_output_snippet(stderr, fallback='no stderr')}; "
+        "stdout="
+        f"{_semgrep_output_snippet(stdout, fallback='no stdout')}"
     )
 
 
@@ -214,11 +236,11 @@ class SemgrepScanner:
             )
 
             if result.returncode not in (0, 1):
-                logger.error("Semgrep execution error: %s", result.stderr)
+                context = _semgrep_failure_context(result.stdout, result.stderr)
+                logger.error("Semgrep execution error: %s", context)
                 return [
                     _scan_failure_finding(
-                        f"Semgrep exited {result.returncode}: "
-                        f"{result.stderr.strip() or 'no stderr'}"
+                        f"Semgrep exited {result.returncode}: {context}"
                     )
                 ]
 
@@ -226,7 +248,16 @@ class SemgrepScanner:
                 logger.error("Semgrep produced no JSON output")
                 return [_scan_failure_finding("Semgrep produced no JSON output")]
 
-            data = json.loads(result.stdout)
+            try:
+                data = json.loads(result.stdout)
+            except json.JSONDecodeError as e:
+                context = _semgrep_failure_context(result.stdout, result.stderr)
+                logger.error("Semgrep JSON parse failed: %s; %s", e, context)
+                return [
+                    _scan_failure_finding(
+                        f"Semgrep JSON parse failed: {e}; {context}"
+                    )
+                ]
             findings = []
 
             for finding in data.get("results", []):
@@ -263,9 +294,10 @@ class SemgrepScanner:
             raise SemgrepScanError(
                 f"Semgrep timed out after {self.SCAN_TIMEOUT_SECONDS}s"
             ) from e
-        except (subprocess.SubprocessError, json.JSONDecodeError) as e:
+        except subprocess.SubprocessError as e:
             logger.error("Semgrep scan failed: %s", e)
-            return [_scan_failure_finding(f"Semgrep scan failed: {e}")]
+            message = _semgrep_output_snippet(str(e), fallback=type(e).__name__)
+            return [_scan_failure_finding(f"Semgrep scan failed: {message}")]
 
     def run(self) -> int:
         """Execute the semgrep scan workflow."""

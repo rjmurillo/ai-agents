@@ -1,9 +1,9 @@
 """Tests for the semgrep scanner timeout and fail-closed behavior (issue #2810).
 
-Scope: the subprocess timeout added to ``SemgrepScanner._run_semgrep`` and the
-fail-closed mapping to exit code 3 in ``run()``. A wedged semgrep process must
-not hang the pre-push hook forever, and a timeout must NOT be reported as a
-clean "no findings" pass. Any semgrep execution failure is a blocking finding.
+Scope: the subprocess timeout added to ``SemgrepScanner._run_semgrep`` and
+fail-closed error mapping. A wedged semgrep process must not hang the pre-push
+hook forever. A timeout exits 3, while other semgrep execution failures return a
+blocking finding that makes ``run()`` exit 1.
 
 External boundary (the semgrep subprocess) is mocked; no real semgrep runs.
 """
@@ -124,7 +124,20 @@ class TestRunSemgrepFailClosed:
         assert len(findings) == 1
         assert findings[0].check_id == "semgrep-scan-failure"
         assert findings[0].severity == "ERROR"
-        assert "Semgrep exited 2: boom" in findings[0].message
+        assert "Semgrep exited 2: stderr=boom; stdout=no stdout" in findings[0].message
+
+    def test_execution_error_returncode_truncates_stderr(
+        self, scanner: SemgrepScanner
+    ) -> None:
+        stderr = "x" * 600
+        with patch(
+            "scripts.security.run_semgrep.subprocess.run",
+            return_value=_completed(2, stderr=stderr),
+        ):
+            findings = scanner._run_semgrep([Path("/repo/a.py")])
+        assert len(findings[0].message) < len(stderr)
+        assert "[truncated]" in findings[0].message
+        assert "x" * 600 not in findings[0].message
 
     def test_generic_subprocess_error_returns_scan_failure(
         self, scanner: SemgrepScanner
@@ -142,10 +155,12 @@ class TestRunSemgrepFailClosed:
     def test_invalid_json_returns_scan_failure(self, scanner: SemgrepScanner) -> None:
         with patch(
             "scripts.security.run_semgrep.subprocess.run",
-            return_value=_completed(0, stdout="not json"),
+            return_value=_completed(0, stdout="not json", stderr="semgrep warning"),
         ):
             findings = scanner._run_semgrep([Path("/repo/a.py")])
         assert len(findings) == 1
         assert findings[0].check_id == "semgrep-scan-failure"
         assert findings[0].severity == "ERROR"
-        assert "Semgrep scan failed" in findings[0].message
+        assert "Semgrep JSON parse failed" in findings[0].message
+        assert "stderr=semgrep warning" in findings[0].message
+        assert "stdout=not json" in findings[0].message
