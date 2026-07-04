@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Plugin bump to 0.5.259 and remaining thread fixes are staged for the next commit."
+        "Evidence": "Latest origin/main merge and session evidence are staged for the merge commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest validation passed: full uv run pytest tests/ -x completed with exit code 0; targeted atomic/memory/analyzer tests passed: 86 passed."
+        "Evidence": "Latest validation passed: build_all.py --check, 86 targeted tests, and session log validation after merging origin/main 9c88990b77."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -161,10 +161,14 @@
     {
       "summary": "Verified and fixed the remaining current Copilot review threads.",
       "evidence": "Removed import-time sys.path mutation from tests/test_atomic_writes_2812.py and prepared PR description update from 0.5.255 to 0.5.259. Full pytest passed with exit code 0."
+    },
+    {
+      "summary": "Merged latest origin/main after PR 2823 became dirty again.",
+      "evidence": "origin/main advanced to 9c88990b77. Resolved plugin manifest conflicts by keeping 0.5.259, above main 0.5.258. Validated build_all.py --check, 86 targeted tests, and session log validation."
     }
   ],
   "endingCommit": "0e91286c7",
   "nextSteps": [
-    "Commit and push remaining thread fixes, update PR body, resolve the two threads, keep auto-merge enabled, and poll until PR 2823 is merged."
+    "Commit and push the latest origin/main merge, verify zero unresolved threads, keep auto-merge enabled, and poll until PR 2823 is merged."
   ]
 }

@@ -20,13 +20,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
 
+FindingPayload = dict[str, str | int | bool]
+
 VERSION = "1.0.0"
 
 Severity = Literal["critical", "warn"]
 Kind = Literal[
     "skill_name",
     "script_path",
-    "count_claim",
     "scan_truncated",
 ]
 Verdict = Literal["PASS", "WARN", "CRITICAL_FAIL"]
@@ -54,8 +55,8 @@ class Finding:
         """
         return f"{self.target_file}:{self.line}:{self.kind}:{self.referenced_entity}"
 
-    def to_dict(self) -> dict:
-        d = {
+    def to_dict(self) -> FindingPayload:
+        d: FindingPayload = {
             "kind": self.kind,
             "severity": self.severity,
             "target_file": self.target_file,
@@ -122,7 +123,7 @@ def render_error_envelope(
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
+            "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
         },
     }
     if output == "human":
@@ -149,7 +150,7 @@ def render_envelope(result: ScanResult, output: str) -> str:
         "Metadata": {
             "Script": "scan.py",
             "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
+            "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
         },
     }
     if output == "human":
