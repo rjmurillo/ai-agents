@@ -51,7 +51,7 @@ def validate_hook_anchoring(repo_root: Path) -> bool:
         detail = stdout.rstrip() or stderr.rstrip()
         if detail:
             print(detail)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_copilot_agent_frontmatter(repo_root: Path) -> bool:
@@ -80,7 +80,7 @@ def validate_copilot_agent_frontmatter(repo_root: Path) -> bool:
         detail = stdout.rstrip() or stderr.rstrip()
         if detail:
             print(detail)
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_install_parity(repo_root: Path) -> bool:
@@ -101,9 +101,9 @@ def validate_install_parity(repo_root: Path) -> bool:
     falls back to its own @{push} default (which is not reliably set in CI
     or fresh local checkouts) and never validates against an unknown base.
     """
-    return _run_build_script_gate(
+    return bool(_run_build_script_gate(
         repo_root, "validate_install_parity.py", "install-parity"
-    )
+    ))
 
 
 def validate_plugin_version_bump(repo_root: Path) -> bool:
@@ -119,9 +119,9 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
     absent (a silent skip would defeat the gate) and when the branch base ref
     cannot be resolved (so the validator never diffs against an unknown base).
     """
-    return _run_build_script_gate(
+    return bool(_run_build_script_gate(
         repo_root, "validate_plugin_version_bump.py", "plugin version-bump"
-    )
+    ))
 
 
 def validate_git_hooks_installed(repo_root: Path) -> bool:
@@ -233,10 +233,10 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     Contract: pass when no workflow changed or all run stages pass. A stage
     failure (exit 1) blocks. A configuration error (exit 2: a path that escapes
     the repo root, or a missing repo root) also blocks, because the inputs are
-    wrong and a clean run cannot be trusted. A missing local tool (exit 3) does
-    NOT block here, because the pre-push gate is the authoritative enforcer;
-    pre_pr only warns so a contributor without actionlint installed is not
-    stopped pre-PR.
+    wrong and a clean run cannot be trusted. Missing local tools (exit 3) and
+    missing local auth material (exit 4) do NOT block here, because the pre-push
+    gate is the authoritative enforcer; pre_pr only warns so a contributor
+    without local workflow dependencies is not stopped pre-PR.
 
     Change detection uses :func:`_resolve_default_base_ref` to choose a default
     branch ref for the diff. The branch's own upstream is deliberately not used:
@@ -292,4 +292,10 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
             "hook enforces the full gate (actionlint + gh act)."
         )
         return True
-    return exit_code == 0
+    if exit_code == 4:
+        print(
+            "[WARN] workflow local-run auth material unavailable locally; "
+            "actionlint passed and CI runs with repository secrets."
+        )
+        return True
+    return bool(exit_code == 0)
