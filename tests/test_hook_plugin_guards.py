@@ -304,6 +304,9 @@ class TestSyncPluginLib:
             'x = __import__("scripts.hook_utilities.bootstrap")',
             'import importlib\ny = importlib.import_module("scripts.pkg")',
             'z = __import__("scripts")',
+            'import importlib\ny = importlib.import_module(name="scripts.pkg")',
+            'w = __import__(name="scripts")',
+            'from importlib import import_module\nq = import_module("scripts.pkg")',
         ],
     )
     def test_sync_file_rejects_scripts_import(

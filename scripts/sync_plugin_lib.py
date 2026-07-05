@@ -307,7 +307,9 @@ def _imports_scripts_package(tree: ast.Module) -> bool:
     as s``, comma lists ``import os, scripts``, alias-then-comma ``import os as
     o, scripts``, backslash-continued lists, and ``from scripts[.pkg] import``.
     Dynamic imports with a literal string argument are also caught:
-    ``__import__("scripts...")`` and ``importlib.import_module("scripts...")``.
+    ``__import__("scripts...")`` and ``importlib.import_module("scripts...")``,
+    including the ``name=`` keyword form and a bare ``import_module("scripts")``
+    binding from ``from importlib import import_module``.
     A module whose name merely starts with ``scripts`` (``scripts_helper``) is a
     different top-level package and is not matched. Relative imports
     (``from . import x``, ``level > 0``) never reference the ``scripts`` package.
@@ -320,13 +322,28 @@ def _imports_scripts_package(tree: ast.Module) -> bool:
     def _is_scripts(name: str | None) -> bool:
         return bool(name) and (name == "scripts" or name.startswith("scripts."))
 
-    def _is_dynamic_import_call(node: ast.Call) -> bool:
+    def _dynamic_import_target(node: ast.Call) -> str | None:
+        """Return the literal module string of a dynamic import call, else None."""
         target = node.func
-        if isinstance(target, ast.Name):
-            return target.id == "__import__"
-        if isinstance(target, ast.Attribute):
-            return target.attr in {"import_module", "__import__"}
-        return False
+        is_dynamic = (
+            isinstance(target, ast.Name)
+            and target.id in {"__import__", "import_module"}
+        ) or (
+            isinstance(target, ast.Attribute)
+            and target.attr in {"import_module", "__import__"}
+        )
+        if not is_dynamic:
+            return None
+        if node.args:
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                return first.value
+        for keyword in node.keywords:
+            if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+                value = keyword.value.value
+                if isinstance(value, str):
+                    return value
+        return None
 
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
@@ -335,13 +352,9 @@ def _imports_scripts_package(tree: ast.Module) -> bool:
         elif isinstance(node, ast.Import):
             if any(_is_scripts(alias.name) for alias in node.names):
                 return True
-        elif isinstance(node, ast.Call) and node.args and _is_dynamic_import_call(
-            node
-        ):
-            first = node.args[0]
-            if isinstance(first, ast.Constant) and isinstance(first.value, str):
-                if _is_scripts(first.value):
-                    return True
+        elif isinstance(node, ast.Call):
+            if _is_scripts(_dynamic_import_target(node)):
+                return True
     return False
 
 
