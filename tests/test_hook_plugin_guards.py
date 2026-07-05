@@ -301,6 +301,9 @@ class TestSyncPluginLib:
             "import os, scripts",
             "import os as o, scripts",
             "import os, \\\n    scripts",
+            'x = __import__("scripts.hook_utilities.bootstrap")',
+            'import importlib\ny = importlib.import_module("scripts.pkg")',
+            'z = __import__("scripts")',
         ],
     )
     def test_sync_file_rejects_scripts_import(
@@ -332,6 +335,8 @@ class TestSyncPluginLib:
             "import scripts_helper",
             "from scripts_util import thing",
             "import scriptsfoo",
+            'x = __import__("scripts_helper")',
+            'import importlib\ny = importlib.import_module("other.pkg")',
         ],
     )
     def test_sync_file_allows_lookalike_module(
