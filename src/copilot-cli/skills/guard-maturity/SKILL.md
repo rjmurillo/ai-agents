@@ -1,7 +1,7 @@
 ---
 name: guard-maturity
 version: 1.0.0
-model: haiku
+model: claude-haiku-4-5
 description: Classify push guards by Hook Maturity Model tier. Aggregates EVENT lines emitted by push_guard_base.py and assigns each guard a tier (Budding, Growing, Mature, Proficient, Inert, Harmful) based on age, intercept count, and fitness derived from block rate. Use to decide when to promote a new guard, when to prune dead weight, and when to remove a harmful one. Triggers `guard maturity report`, `classify push guards`, `hook maturity tiers`.
 license: MIT
 ---

@@ -4,7 +4,7 @@ argument-hint: '[BASE_BRANCH]'
 allowed-tools:
   - Bash(git:*)
   - Skill
-model: haiku
+model: claude-haiku-4-5
 ---
 
 # PR Quality Gate - All Agents
