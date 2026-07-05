@@ -324,3 +324,101 @@ def test_main_no_files_returns_two(tmp_path: Path) -> None:
     (tmp_path / "templates" / "platforms").mkdir(parents=True)
     rc = vts.main(["--root", str(tmp_path)])
     assert rc == 2
+
+
+# issue #2892: keepInternalGlobsFor validation ------------------------------
+
+_KEEP_VALID = """\
+schemaVersion: "1.0"
+provider: "copilot-cli"
+artifacts:
+  rules:
+    sourceDir: ".claude/rules"
+    outputDirs:
+      - ".github/instructions"
+      - "src/copilot-cli/instructions"
+    keepInternalGlobsFor:
+      - ".github/instructions"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+    frontmatterRemap:
+      paths: applyTo
+"""
+
+_KEEP_NOT_IN_OUTPUTDIRS = """\
+schemaVersion: "1.0"
+provider: "copilot-cli"
+artifacts:
+  rules:
+    sourceDir: ".claude/rules"
+    outputDirs:
+      - ".github/instructions"
+    keepInternalGlobsFor:
+      - "src/copilot-cli/instructions"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+    frontmatterRemap:
+      paths: applyTo
+"""
+
+_KEEP_NOT_A_LIST = """\
+schemaVersion: "1.0"
+provider: "copilot-cli"
+artifacts:
+  rules:
+    sourceDir: ".claude/rules"
+    outputDirs:
+      - ".github/instructions"
+    keepInternalGlobsFor: ".github/instructions"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+    frontmatterRemap:
+      paths: applyTo
+"""
+
+
+_KEEP_TRAILING_SLASH = """\
+schemaVersion: "1.0"
+provider: "copilot-cli"
+artifacts:
+  rules:
+    sourceDir: ".claude/rules"
+    outputDirs:
+      - ".github/instructions/"
+    keepInternalGlobsFor:
+      - ".github/instructions"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+    frontmatterRemap:
+      paths: applyTo
+"""
+
+
+def test_keep_internal_globs_for_valid(tmp_path: Path) -> None:
+    target = _write(tmp_path, _KEEP_VALID)
+    errors, _ = vts.validate_file(target)
+    assert errors == [], f"unexpected errors: {errors}"
+
+
+def test_keep_internal_globs_for_not_in_outputdirs_rejected(tmp_path: Path) -> None:
+    target = _write(tmp_path, _KEEP_NOT_IN_OUTPUTDIRS)
+    errors, _ = vts.validate_file(target)
+    assert any("not one of the declared output dirs" in e for e in errors), errors
+
+
+def test_keep_internal_globs_for_non_list_rejected(tmp_path: Path) -> None:
+    target = _write(tmp_path, _KEEP_NOT_A_LIST)
+    errors, _ = vts.validate_file(target)
+    assert any("must be a list" in e for e in errors), errors
+
+
+def test_keep_internal_globs_for_trailing_slash_tolerated(tmp_path: Path) -> None:
+    """A trailing-slash difference between the two keys must not false-reject.
+
+    Regression for #2892 review finding: schema and generator both canonicalize
+    output-dir paths, so `.github/instructions/` and `.github/instructions`
+    are treated as the same declared dir.
+    """
+    target = _write(tmp_path, _KEEP_TRAILING_SLASH)
+    errors, _ = vts.validate_file(target)
+    assert errors == [], f"unexpected errors: {errors}"

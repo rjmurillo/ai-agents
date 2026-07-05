@@ -146,7 +146,24 @@ def _resolve_paths(
     return repo_root / source_dir, resolved_outputs
 
 
-def _read_output_dirs(stanza: dict) -> list[str]:
+def _canonical_output_dir(repo_root: Path, value: str) -> str:
+    """Canonical repo-relative form used to compare output dirs.
+
+    The driver computes each `destination` as
+    `str((repo_root / cfg).relative_to(repo_root))`, which normalizes away
+    trailing slashes and `.` segments. `keepInternalGlobsFor` entries must be
+    canonicalized through the SAME pipeline, otherwise a schema-valid config
+    like `.github/instructions/` (trailing slash) silently fails the
+    `destination in keep_internal_dirs` check and the internal-glob strip runs
+    anyway (issue #2892: the exact silent-failure class this fix removes).
+    """
+    try:
+        return (repo_root / value).relative_to(repo_root).as_posix()
+    except ValueError:
+        return value
+
+
+def _read_output_dirs(stanza: dict[str, object]) -> list[str]:
     """Parse `outputDir` (string) or `outputDirs` (list) from the rules stanza.
 
     Backward-compatible: existing configs and tests use `outputDir`. New
@@ -258,6 +275,8 @@ def _remap_frontmatter(
     frontmatter: dict[str, str | None],
     remap: dict[str, str],
     drop: set[str],
+    *,
+    keep_internal: bool = False,
 ) -> dict[str, str | None]:
     """Apply ``frontmatterRemap`` and ``frontmatterDrop`` rules; ensure
     the output declares ``applyTo`` (synthesizing universal scope when
@@ -272,6 +291,16 @@ def _remap_frontmatter(
     every glob in the source is internal, the universal scope is
     synthesized so the rule still applies somewhere in the vendor tree
     rather than being dropped entirely.
+
+    ``keep_internal`` (issue #2892): when True, the internal-glob filter is
+    skipped so ``.claude/**`` and siblings survive verbatim. This is set for
+    output destinations that coexist with the internal dirs in the same repo
+    (the in-repo ``.github/instructions`` tree), where the in-repo Copilot
+    agent edits ``.claude/`` sources and needs those rules to auto-load.
+    Distributed destinations (the plugin ``src/copilot-cli/instructions``
+    tree, installed where ``.claude/`` does not exist) keep filtering so they
+    do not carry dead references. The serialized-list flatten still runs in
+    both modes so a source ``paths:`` block always emits a comma string.
     """
     had_scope = _has_path_scope(frontmatter)
     result: dict[str, str | None] = {}
@@ -289,24 +318,22 @@ def _remap_frontmatter(
             # string, so flatten the array to that shape before the
             # internal-glob filter (which splits on ",") and before emit.
             value = _flatten_serialized_scope_list(value)
-            value, dropped = _filter_internal_globs(value)
-            for entry in dropped:
-                # Visible warning per dropped entry so plugin authors
-                # see what was filtered (and why) without grepping the
-                # generator source.
-                print(
-                    f"  WARNING: dropped internal-only glob from applyTo: {entry!r}",
-                    file=sys.stderr,
-                )
+            if not keep_internal:
+                value, dropped = _filter_internal_globs(value)
+                for entry in dropped:
+                    # Visible warning per dropped entry so plugin authors
+                    # see what was filtered (and why) without grepping the
+                    # generator source.
+                    print(
+                        f"  WARNING: dropped internal-only glob from applyTo: {entry!r}",
+                        file=sys.stderr,
+                    )
         result[new_key] = value
     # If the post-filter applyTo is empty but the source had a scope,
     # the source was entirely internal-only globs. Synthesize universal
     # scope so the rule still ships rather than landing with applyTo: "".
-    if (
-        had_scope
-        and isinstance(result.get("applyTo"), str)
-        and not result["applyTo"].strip()
-    ):
+    applyto_value = result.get("applyTo")
+    if had_scope and isinstance(applyto_value, str) and not applyto_value.strip():
         result["applyTo"] = _UNIVERSAL_SCOPE
     if not had_scope and "applyTo" not in result:
         # Universal-scope default for unscoped rules. Insert at the top
@@ -361,6 +388,7 @@ def _process_rule(
     remap: dict[str, str],
     drop: set[str],
     what_if: bool,
+    keep_internal: bool = False,
 ) -> tuple[str, str, str]:
     """Process one rule. Round 3: every rule emits.
 
@@ -384,7 +412,9 @@ def _process_rule(
 
     target_name = f"{name}{output_suffix}"
     target = output_dir / target_name
-    transformed = _remap_frontmatter(source_fm, remap, drop)
+    transformed = _remap_frontmatter(
+        source_fm, remap, drop, keep_internal=keep_internal
+    )
     written = _write_instruction(target, transformed, body, what_if=what_if)
     if not written:
         return ("sentinel-skipped", name, "NO-REGEN")
@@ -459,6 +489,38 @@ def generate_rules(
         return 2, result
     drop: set[str] = {str(item) for item in raw_drop}
 
+    # issue #2892: destinations that coexist with the internal dirs
+    # (`.agents/`, `.claude/`, `.serena/`) in the same repository. For these
+    # the internal-glob filter is skipped so `.claude/**`-scoped rules keep
+    # their scope and the in-repo Copilot agent auto-loads them. Any output
+    # dir NOT listed here keeps filtering (distributed plugin trees installed
+    # where the internal dirs do not exist).
+    # Use `.get(key, [])` (not `... or []`) so a wrong-typed value such as
+    # `0`/`false`/`""` reaches the list-check below and returns rc=2, instead
+    # of being silently coerced to "not set" (the silent-misconfig class #2892
+    # eliminates). Absent key defaults to an empty keep-list (backward-compat).
+    raw_keep = stanza.get("keepInternalGlobsFor", [])
+    if not isinstance(raw_keep, list):
+        print(
+            "Error: `artifacts.rules.keepInternalGlobsFor` must be a list",
+            file=sys.stderr,
+        )
+        return 2, result
+    # Type-strict like `_read_output_dirs`: a non-string entry would be
+    # coerced by `str(item)` to `"None"`/`"42"` and silently match nothing,
+    # re-introducing the class of silent failure #2892 fixes.
+    for idx, item in enumerate(raw_keep):
+        if not isinstance(item, str):
+            print(
+                f"Error: `artifacts.rules.keepInternalGlobsFor[{idx}]` must be "
+                f"a string (got {type(item).__name__})",
+                file=sys.stderr,
+            )
+            return 2, result
+    keep_internal_dirs: set[str] = {
+        _canonical_output_dir(repo_root, item) for item in raw_keep
+    }
+
     try:
         source_dir, output_dirs = _resolve_paths(
             repo_root, source_dir_str, output_dir_strs
@@ -497,6 +559,18 @@ def generate_rules(
         # Process once per output target. The audit records each
         # write separately so callers can see all destinations.
         for output_dir in output_dirs:
+            try:
+                destination = str(output_dir.relative_to(repo_root))
+            except ValueError:
+                destination = str(output_dir)
+            # Compare on a POSIX-normalized key so the match is stable on
+            # Windows (where `str(Path)` uses backslashes but config paths and
+            # `keep_internal_dirs` use forward slashes). #2892 review finding.
+            try:
+                destination_key = output_dir.relative_to(repo_root).as_posix()
+            except ValueError:
+                destination_key = output_dir.as_posix()
+            keep_internal = destination_key in keep_internal_dirs
             action, name_out, reason = _process_rule(
                 src,
                 output_dir,
@@ -505,11 +579,8 @@ def generate_rules(
                 remap=remap,
                 drop=drop,
                 what_if=what_if,
+                keep_internal=keep_internal,
             )
-            try:
-                destination = str(output_dir.relative_to(repo_root))
-            except ValueError:
-                destination = str(output_dir)
             result.entries.append(
                 RuleAuditEntry(
                     name=name_out,
