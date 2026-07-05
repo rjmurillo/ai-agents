@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from yaml_loader import (
     ConfigError,
@@ -73,6 +73,7 @@ RULES_KEYS = {
     "outputSuffix",
     "frontmatterRemap",
     "frontmatterDrop",
+    "keepInternalGlobsFor",
 }
 HOOKS_KEYS = {
     "settingsSource",
@@ -111,7 +112,8 @@ AUDIT_POLICY_KEYS = {"pathBlocklist", "output"}
 
 def _validate_path_value(field: str, value: object) -> list[str]:
     """Backwards-compat wrapper around yaml_loader.validate_relative_path."""
-    return validate_relative_path(field, value)
+    errors: list[str] = validate_relative_path(field, value)
+    return errors
 
 
 # --- Structural complexity ------------------------------------------------
@@ -179,6 +181,43 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
                 f"`artifacts.{name}`: `outputDir` and `outputDirs` are "
                 f"mutually exclusive"
             )
+    # keepInternalGlobsFor (issue #2892): output dirs that coexist with the
+    # internal dirs and keep `.claude/**`-style scope. Each entry must be a
+    # relative path AND must appear in outputDirs, else it silently matches
+    # nothing and the intended in-repo scope is never preserved.
+    if name == "rules" and "keepInternalGlobsFor" in stanza:
+        keep = stanza.get("keepInternalGlobsFor")
+        if not isinstance(keep, list):
+            errors.append(
+                f"`artifacts.{name}.keepInternalGlobsFor`: must be a list of paths"
+            )
+        else:
+            declared = set()
+            raw_dirs = stanza.get("outputDirs")
+            if isinstance(raw_dirs, list):
+                declared = {d for d in raw_dirs if isinstance(d, str)}
+            single = stanza.get("outputDir")
+            if isinstance(single, str):
+                declared.add(single)
+            # Compare on a canonical form so a trailing slash or `.` segment
+            # difference between outputDirs and keepInternalGlobsFor does not
+            # false-reject a config that the generator would treat as a match
+            # (issue #2892).
+            declared_norm = {PurePosixPath(d).as_posix() for d in declared}
+            for idx, item in enumerate(keep):
+                errors.extend(
+                    _validate_path_value(
+                        f"artifacts.{name}.keepInternalGlobsFor[{idx}]", item
+                    )
+                )
+                if (
+                    isinstance(item, str)
+                    and PurePosixPath(item).as_posix() not in declared_norm
+                ):
+                    errors.append(
+                        f"`artifacts.{name}.keepInternalGlobsFor[{idx}]`: "
+                        f"{item!r} is not one of the declared output dirs"
+                    )
     return errors
 
 

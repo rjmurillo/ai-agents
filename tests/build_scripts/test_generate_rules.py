@@ -514,9 +514,17 @@ def test_main_missing_config_returns_2(tmp_path: Path) -> None:
 # Multi-output (outputDirs) --------------------------------------------------
 
 
-def _write_multi_output_config(tmp_path: Path, outputs: list[str]) -> Path:
+def _write_multi_output_config(
+    tmp_path: Path,
+    outputs: list[str],
+    keep_internal_for: list[str] | None = None,
+) -> Path:
     cfg = tmp_path / "platform.yaml"
     outputs_yaml = "\n".join(f'      - "{o}"' for o in outputs)
+    keep_yaml = ""
+    if keep_internal_for is not None:
+        keep_items = "\n".join(f'      - "{k}"' for k in keep_internal_for)
+        keep_yaml = f"    keepInternalGlobsFor:\n{keep_items}\n"
     cfg.write_text(
         f"""\
 schemaVersion: "1.0"
@@ -526,7 +534,7 @@ artifacts:
     sourceDir: "rules_src"
     outputDirs:
 {outputs_yaml}
-    sourceSuffix: ".md"
+{keep_yaml}    sourceSuffix: ".md"
     outputSuffix: ".instructions.md"
     frontmatterRemap:
       paths: applyTo
@@ -688,3 +696,181 @@ def test_outputDirs_prunes_orphans_in_every_target(tmp_path: Path) -> None:
         assert not (tmp_path / sub / "stale.instructions.md").exists(), (
             f"orphan not pruned in {sub}"
         )
+
+
+# issue #2892: keepInternalGlobsFor per-destination internal-scope retention --
+
+
+def test_keep_internal_globs_for_preserves_scope_in_listed_dir(tmp_path: Path) -> None:
+    """A dir in keepInternalGlobsFor keeps `.claude/**`; others still strip it.
+
+    Why it matters: the in-repo `.github/instructions` tree coexists with
+    `.claude/`, so the in-repo Copilot agent needs `.claude/**`-scoped rules
+    to auto-load. The distributed `src/copilot-cli/instructions` tree does
+    not carry `.claude/` and must keep filtering to avoid dead references.
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "pvb",
+        frontmatter='paths: ".claude/**,src/copilot-cli/**,docs/**"\n',
+        body="body\n",
+    )
+    cfg = _write_multi_output_config(
+        tmp_path, ["keep_dir", "strip_dir"], keep_internal_for=["keep_dir"]
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+
+    kept = (tmp_path / "keep_dir" / "pvb.instructions.md").read_text(encoding="utf-8")
+    kept_fm = kept.split("---")[1]
+    assert ".claude/**" in kept_fm  # internal scope retained
+    assert "docs/**" in kept_fm  # non-internal preserved
+
+    stripped = (tmp_path / "strip_dir" / "pvb.instructions.md").read_text(
+        encoding="utf-8"
+    )
+    stripped_fm = stripped.split("---")[1]
+    assert ".claude/**" not in stripped_fm  # internal scope filtered
+    assert "docs/**" in stripped_fm  # non-internal preserved
+
+
+def test_keep_internal_absent_still_strips_all_dirs(tmp_path: Path) -> None:
+    """Without keepInternalGlobsFor, every target strips internal globs.
+
+    Regression guard: the new flag must default off so existing distributed
+    behavior is unchanged when the config omits it.
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "pvb",
+        frontmatter='paths: ".claude/**,docs/**"\n',
+        body="body\n",
+    )
+    cfg = _write_multi_output_config(tmp_path, ["out_a", "out_b"])
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    for sub in ("out_a", "out_b"):
+        fm = (tmp_path / sub / "pvb.instructions.md").read_text(
+            encoding="utf-8"
+        ).split("---")[1]
+        assert ".claude/**" not in fm
+        assert "docs/**" in fm
+
+
+def test_remap_frontmatter_keep_internal_true_skips_filter() -> None:
+    """Unit: keep_internal=True keeps internal globs; False drops them."""
+    fm = {"paths": ".claude/**,docs/**"}
+    kept = generate_rules._remap_frontmatter(
+        fm, {"paths": "applyTo"}, set(), keep_internal=True
+    )
+    assert kept["applyTo"] == ".claude/**,docs/**"
+    stripped = generate_rules._remap_frontmatter(
+        fm, {"paths": "applyTo"}, set(), keep_internal=False
+    )
+    assert stripped["applyTo"] == "docs/**"
+
+
+def test_keep_internal_all_internal_still_retained(tmp_path: Path) -> None:
+    """When every glob is internal and the dir is kept, scope is retained
+    verbatim rather than collapsed to universal `**`."""
+    _write_rule(
+        tmp_path / "rules_src",
+        "allint",
+        frontmatter='paths: ".claude/rules/**,.agents/x/**"\n',
+        body="body\n",
+    )
+    cfg = _write_multi_output_config(
+        tmp_path, ["keep_dir"], keep_internal_for=["keep_dir"]
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    fm = (tmp_path / "keep_dir" / "allint.instructions.md").read_text(
+        encoding="utf-8"
+    ).split("---")[1]
+    assert ".claude/rules/**" in fm
+    assert ".agents/x/**" in fm
+    assert "applyTo: '**'" not in fm
+
+
+def test_keep_internal_trailing_slash_still_matches(tmp_path: Path) -> None:
+    """A trailing slash in outputDirs/keepInternalGlobsFor must still match.
+
+    Regression for #2892 review finding: `destination` is normalized via
+    `Path.relative_to` (strips the trailing slash), so the raw config string
+    must be canonicalized the same way. Otherwise `.github/instructions/`
+    passes schema yet silently disables the fix and internal globs get
+    stripped anyway.
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "pvb",
+        frontmatter='paths: ".claude/**,docs/**"\n',
+        body="body\n",
+    )
+    cfg = _write_multi_output_config(
+        tmp_path, ["keep_dir/"], keep_internal_for=["keep_dir/"]
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    fm = (tmp_path / "keep_dir" / "pvb.instructions.md").read_text(
+        encoding="utf-8"
+    ).split("---")[1]
+    assert ".claude/**" in fm  # internal scope retained despite trailing slash
+    assert "docs/**" in fm
+
+
+def test_canonical_output_dir_normalizes_trailing_slash(tmp_path: Path) -> None:
+    """Unit: keep-dir canonicalization matches the driver's destination form."""
+    assert (
+        generate_rules._canonical_output_dir(tmp_path, ".github/instructions/")
+        == ".github/instructions"
+    )
+    assert (
+        generate_rules._canonical_output_dir(tmp_path, ".github/instructions")
+        == ".github/instructions"
+    )
+
+
+def test_canonical_output_dir_returns_posix_form(tmp_path: Path) -> None:
+    """Unit: canonical form is always forward-slash (POSIX) so the driver's
+    `destination_key` comparison matches on Windows too (#2892 review finding).
+    """
+    result = generate_rules._canonical_output_dir(tmp_path, "a/b/c")
+    assert "\\" not in result
+    assert result == "a/b/c"
+
+
+def test_keep_internal_non_string_entry_rejected(tmp_path: Path) -> None:
+    """A non-string keepInternalGlobsFor entry is a config error (rc 2).
+
+    Matches `_read_output_dirs` type-strictness: `str(item)` would coerce
+    `42`/`null` to `"42"`/`"None"` and silently match nothing, re-introducing
+    the #2892 silent-failure class. The generator can run standalone (without
+    the schema validator), so it must reject non-strings itself.
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "pvb",
+        frontmatter='paths: ".claude/**"\n',
+        body="body\n",
+    )
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    outputDirs:
+      - "out_dir"
+    keepInternalGlobsFor:
+      - 42
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+    frontmatterRemap:
+      paths: applyTo
+"""
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2

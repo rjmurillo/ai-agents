@@ -30,6 +30,14 @@ artifacts:
     outputDirs:
       - ".github/instructions"
       - "src/copilot-cli/instructions"
+    # issue #2892: `.github/instructions` lives in this repo alongside
+    # `.claude/`, so keep `.claude/**`-scoped globs here; the in-repo Copilot
+    # agent edits `.claude/` sources and must auto-load those rules. The
+    # distributed `src/copilot-cli/instructions` tree (installed where
+    # `.claude/` does not exist) is intentionally omitted, so it keeps
+    # filtering internal-only globs to avoid dead references.
+    keepInternalGlobsFor:
+      - ".github/instructions"
     sourceSuffix: ".md"
     outputSuffix: ".instructions.md"
     frontmatterRemap:

@@ -1,5 +1,5 @@
 ---
-applyTo: scripts/validation/**,build/scripts/**,.github/prompts/**
+applyTo: .claude/hooks/**,scripts/validation/**,build/scripts/**,.claude/skills/**,.claude/review-axes/**,.github/prompts/**
 ---
 
 # Canonical Source Mirror Rule
