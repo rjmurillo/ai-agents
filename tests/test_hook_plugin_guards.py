@@ -250,6 +250,67 @@ class TestSyncPluginLib:
         result = sync_mod.main(["--check"])
         assert result == 1
 
+    def test_sync_file_creates_missing_dest(self, tmp_path: Path) -> None:
+        """sync_file byte-copies the source when the destination is absent."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_text('"""Self-contained module."""\nX = 1\n', encoding="utf-8")
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            changes, had_errors = sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+            )
+
+        assert had_errors is False, changes
+        dst = tmp_path / ".claude" / "lib" / "mod.py"
+        # Byte-identical copy: no canonical-note rewrite for top-level files.
+        assert dst.read_text(encoding="utf-8") == src.read_text(encoding="utf-8")
+
+    def test_sync_file_check_detects_drift(self, tmp_path: Path) -> None:
+        """A drifted top-level lib file makes main(--check) return 1."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_text('"""Canonical."""\nX = 1\n', encoding="utf-8")
+        dst = tmp_path / ".claude" / "lib" / "mod.py"
+        dst.parent.mkdir(parents=True)
+        dst.write_text('"""Stale."""\nX = 2\n', encoding="utf-8")
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            mp.setattr(sync_mod, "SYNC_PAIRS", [])
+            mp.setattr(
+                sync_mod,
+                "SYNC_FILE_PAIRS",
+                [("scripts/pkg/mod.py", ".claude/lib/mod.py")],
+            )
+            assert sync_mod.main(["--check"]) == 1
+
+    def test_sync_file_rejects_scripts_import(self, tmp_path: Path) -> None:
+        """A source importing a scripts.* package is rejected (cannot byte-copy)."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_text(
+            '"""Not self-contained."""\nfrom scripts.pkg.other import thing\n',
+            encoding="utf-8",
+        )
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            changes, had_errors = sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+            )
+
+        assert had_errors is True
+        assert any("scripts.*" in c or "scripts." in c for c in changes), changes
+        assert not (tmp_path / ".claude" / "lib" / "mod.py").exists()
+
 
 def _parse_events(stderr_text: str) -> list[dict[str, Any]]:
     return [

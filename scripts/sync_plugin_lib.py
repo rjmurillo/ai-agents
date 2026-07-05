@@ -29,6 +29,18 @@ SYNC_PAIRS: list[tuple[str, str]] = [
     ("scripts/ai_review_common", ".claude/lib/ai_review_common"),
 ]
 
+# Individual file copies: (source file, destination file). Unlike SYNC_PAIRS
+# (whole-package dir syncs with relative-import rewriting), these are
+# byte-for-byte copies of a single module that lives at the top level of
+# `.claude/lib/` so `from bootstrap import ...` resolves when `.claude/lib` is
+# on sys.path. The source MUST be import-self-contained (no `from scripts.`
+# imports) because a top-level module cannot use the package-relative rewrite.
+# Registering the pair here replaces the previously hand-maintained duplicate
+# (Issue #2816 finding 2) so `--check` enforces parity in CI.
+SYNC_FILE_PAIRS: list[tuple[str, str]] = [
+    ("scripts/hook_utilities/bootstrap.py", ".claude/lib/bootstrap.py"),
+]
+
 IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"from scripts\.github_core\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.hook_utilities\.(\w+) import"), r"from .\1 import"),
@@ -261,6 +273,86 @@ def sync_pair(
     return changes, had_errors
 
 
+def _validate_sync_file_paths(
+    src_rel: str,
+    dst_rel: str,
+) -> tuple[Path, Path, list[str]]:
+    """Validate and resolve a single source/destination file pair.
+
+    Returns (src_path, dst_path, errors). Non-empty errors means abort.
+    """
+    src_path = (REPO_ROOT / src_rel).resolve()
+    dst_path = (REPO_ROOT / dst_rel).resolve()
+    repo_root_resolved = REPO_ROOT.resolve()
+    errors: list[str] = []
+
+    try:
+        src_path.relative_to(repo_root_resolved)
+    except ValueError:
+        errors.append(f"[ERROR] Source path escapes repo root: {src_rel}")
+    try:
+        dst_path.relative_to(repo_root_resolved)
+    except ValueError:
+        errors.append(f"[ERROR] Destination path escapes repo root: {dst_rel}")
+
+    return src_path, dst_path, errors
+
+
+def sync_file(
+    src_rel: str,
+    dst_rel: str,
+    *,
+    check_only: bool,
+) -> tuple[list[str], bool]:
+    """Byte-copy a single source module to a top-level lib destination.
+
+    Returns a tuple of (change descriptions, had_errors). No import rewriting is
+    performed: the destination lives at the top level of ``.claude/lib`` (not a
+    package), so package-relative imports would not resolve. The source must be
+    import-self-contained; a ``from scripts.`` import is rejected because a
+    byte copy cannot rewrite it.
+    """
+    src_path, dst_path, errors = _validate_sync_file_paths(src_rel, dst_rel)
+    if errors:
+        return errors, True
+
+    if not src_path.is_file():
+        return [f"[WARNING] Source file missing: {src_rel}"], False
+
+    try:
+        expected = src_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return [f"[ERROR] Cannot read {src_rel}: {exc}"], True
+
+    if re.search(r"^\s*(from|import)\s+scripts\.", expected, re.MULTILINE):
+        return [
+            f"[ERROR] {src_rel} imports a scripts.* package and cannot be "
+            "byte-copied to a top-level lib file. Make it self-contained or "
+            "register it as a package via SYNC_PAIRS.",
+        ], True
+
+    if dst_path.exists():
+        try:
+            current = dst_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            return [f"[ERROR] Cannot read {dst_rel}: {exc}"], True
+        if current == expected:
+            return [], False
+        action = "updated"
+    else:
+        action = "created"
+
+    changes = [f"  {action}: {dst_rel}"]
+    if not check_only:
+        try:
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            dst_path.write_text(expected, encoding="utf-8")
+        except OSError as exc:
+            return [f"  [ERROR] Cannot write {dst_rel}: {exc}"], True
+
+    return changes, False
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns 0 on success, 1 if --check finds drift."""
     parser = argparse.ArgumentParser(
@@ -282,6 +374,14 @@ def main(argv: list[str] | None = None) -> int:
         if pair_changes:
             all_changes.append(f"{src_rel} -> {dst_rel}:")
             all_changes.extend(pair_changes)
+
+    for src_rel, dst_rel in SYNC_FILE_PAIRS:
+        file_changes, had_errors = sync_file(src_rel, dst_rel, check_only=args.check)
+        if had_errors:
+            any_errors = True
+        if file_changes:
+            all_changes.append(f"{src_rel} -> {dst_rel}:")
+            all_changes.extend(file_changes)
 
     if not all_changes:
         print("All plugin lib copies are in sync.")
