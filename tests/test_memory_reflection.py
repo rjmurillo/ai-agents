@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -153,7 +154,10 @@ class TestApplyConfidenceDecay:
     def test_recent_memory_not_flagged(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        _write_memory(mem_dir, "recent", "# Recent (2026-04-06)\n\nContent\n")
+        # Use a date relative to now so the fixture never rots into the
+        # decay window as wall-clock time advances (see #2886).
+        recent_date = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+        _write_memory(mem_dir, "recent", f"# Recent ({recent_date})\n\nContent\n")
         decayed = apply_confidence_decay(mem_dir, tmp_path, max_age_days=90)
         assert decayed == []
 
