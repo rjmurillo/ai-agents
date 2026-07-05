@@ -290,14 +290,27 @@ class TestSyncPluginLib:
             )
             assert sync_mod.main(["--check"]) == 1
 
-    def test_sync_file_rejects_scripts_import(self, tmp_path: Path) -> None:
-        """A source importing a scripts.* package is rejected (cannot byte-copy)."""
+    @pytest.mark.parametrize(
+        "import_line",
+        [
+            "from scripts.pkg.other import thing",
+            "import scripts.pkg.other",
+            "from scripts import other",
+            "import scripts",
+            "import scripts as s",
+            "import os, scripts",
+        ],
+    )
+    def test_sync_file_rejects_scripts_import(
+        self, tmp_path: Path, import_line: str
+    ) -> None:
+        """Any scripts-package import is rejected (a byte copy cannot rewrite it)."""
         import scripts.sync_plugin_lib as sync_mod
 
         src = tmp_path / "scripts" / "pkg" / "mod.py"
         src.parent.mkdir(parents=True)
         src.write_text(
-            '"""Not self-contained."""\nfrom scripts.pkg.other import thing\n',
+            f'"""Not self-contained."""\n{import_line}\n',
             encoding="utf-8",
         )
 
@@ -308,8 +321,56 @@ class TestSyncPluginLib:
             )
 
         assert had_errors is True
-        assert any("scripts.*" in c or "scripts." in c for c in changes), changes
+        assert any("scripts package" in c for c in changes), changes
         assert not (tmp_path / ".claude" / "lib" / "mod.py").exists()
+
+    @pytest.mark.parametrize(
+        "import_line",
+        [
+            "import scripts_helper",
+            "from scripts_util import thing",
+            "import scriptsfoo",
+        ],
+    )
+    def test_sync_file_allows_lookalike_module(
+        self, tmp_path: Path, import_line: str
+    ) -> None:
+        """Modules whose name merely starts with 'scripts' are not the scripts pkg."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_text(
+            f'"""Self-contained."""\n{import_line}\n',
+            encoding="utf-8",
+        )
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            changes, had_errors = sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+            )
+
+        assert had_errors is False, changes
+        assert (tmp_path / ".claude" / "lib" / "mod.py").read_text(
+            encoding="utf-8"
+        ) == src.read_text(encoding="utf-8")
+
+    def test_sync_file_missing_source_fails_closed(self, tmp_path: Path) -> None:
+        """A registered source that does not exist is an error, not a silent pass."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            changes, had_errors = sync_mod.sync_file(
+                "scripts/pkg/missing.py",
+                ".claude/lib/missing.py",
+                check_only=True,
+            )
+
+        assert had_errors is True
+        assert any("Registered source file missing" in c for c in changes), changes
+        assert not (tmp_path / ".claude" / "lib" / "missing.py").exists()
 
 
 def _parse_events(stderr_text: str) -> list[dict[str, Any]]:

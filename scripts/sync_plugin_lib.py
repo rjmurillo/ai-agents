@@ -33,7 +33,7 @@ SYNC_PAIRS: list[tuple[str, str]] = [
 # (whole-package dir syncs with relative-import rewriting), these are
 # byte-for-byte copies of a single module that lives at the top level of
 # `.claude/lib/` so `from bootstrap import ...` resolves when `.claude/lib` is
-# on sys.path. The source MUST be import-self-contained (no `from scripts.`
+# on sys.path. The source MUST be import-self-contained (no `scripts` package
 # imports) because a top-level module cannot use the package-relative rewrite.
 # Registering the pair here replaces the previously hand-maintained duplicate
 # (Issue #2816 finding 2) so `--check` enforces parity in CI.
@@ -309,7 +309,7 @@ def sync_file(
     Returns a tuple of (change descriptions, had_errors). No import rewriting is
     performed: the destination lives at the top level of ``.claude/lib`` (not a
     package), so package-relative imports would not resolve. The source must be
-    import-self-contained; a ``from scripts.`` import is rejected because a
+    import-self-contained; a ``scripts`` package import is rejected because a
     byte copy cannot rewrite it.
     """
     src_path, dst_path, errors = _validate_sync_file_paths(src_rel, dst_rel)
@@ -317,16 +317,29 @@ def sync_file(
         return errors, True
 
     if not src_path.is_file():
-        return [f"[WARNING] Source file missing: {src_rel}"], False
+        # A registered pair names a canonical source that MUST exist. Unlike a
+        # missing package directory in sync_pair (which can be a legitimately
+        # absent optional package), a missing single-file source means the
+        # registry is stale or the canonical file was deleted. Fail closed so
+        # --check surfaces it instead of exiting 0.
+        return [f"[ERROR] Registered source file missing: {src_rel}"], True
 
     try:
         expected = src_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         return [f"[ERROR] Cannot read {src_rel}: {exc}"], True
 
-    if re.search(r"^\s*(from|import)\s+scripts\.", expected, re.MULTILINE):
+    # Reject ANY scripts-package import. Covers ``from scripts[...] import``,
+    # bare ``import scripts``, dotted ``import scripts.pkg``, aliased
+    # ``import scripts as s``, and comma lists ``import os, scripts``. The
+    # trailing \b stops after the ``scripts`` token so unrelated modules like
+    # ``scripts_helper`` are not matched. A byte copy cannot rewrite these and
+    # ``scripts`` is not importable from a top-level lib file.
+    if re.search(r"^\s*from\s+scripts\b", expected, re.MULTILINE) or re.search(
+        r"^\s*import\s+([\w.]+\s*,\s*)*scripts\b", expected, re.MULTILINE
+    ):
         return [
-            f"[ERROR] {src_rel} imports a scripts.* package and cannot be "
+            f"[ERROR] {src_rel} imports the scripts package and cannot be "
             "byte-copied to a top-level lib file. Make it self-contained or "
             "register it as a package via SYNC_PAIRS.",
         ], True
