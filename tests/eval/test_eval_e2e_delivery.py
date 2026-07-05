@@ -20,8 +20,8 @@ FIXTURES = EVAL_DIR / "examples" / "e2e-delivery-fixtures.json"
 
 
 def _load(filename: str, module_name: str):
-    path_added = str(EVAL_DIR) not in sys.path
-    if path_added:
+    original_path = sys.path.copy()
+    if str(EVAL_DIR) not in sys.path:
         sys.path.insert(0, str(EVAL_DIR))
     try:
         spec = importlib.util.spec_from_file_location(module_name, EVAL_DIR / filename)
@@ -31,8 +31,7 @@ def _load(filename: str, module_name: str):
         spec.loader.exec_module(mod)
         return mod
     finally:
-        if path_added and str(EVAL_DIR) in sys.path:
-            sys.path.remove(str(EVAL_DIR))
+        sys.path[:] = original_path
 
 
 core = _load("_e2e_delivery_core.py", "_e2e_delivery_core")
@@ -87,6 +86,39 @@ def test_ambiguous_flag_must_be_bool():
     fx = _valid_fixture()
     fx["hidden_criteria"]["ambiguous_stop_expected"] = "yes"
     with pytest.raises(core.FixtureError, match="must be bool"):
+        core.validate_fixture(fx)
+
+
+def test_non_string_id_raises():
+    fx = _valid_fixture()
+    fx["id"] = 7
+    with pytest.raises(core.FixtureError, match="id must be a string"):
+        core.validate_fixture(fx)
+
+
+def test_non_string_prompt_raises():
+    with pytest.raises(core.FixtureError, match="prompt must be a string"):
+        core.validate_fixture(_valid_fixture(prompt=123))
+
+
+def test_non_string_behavior_raises():
+    fx = _valid_fixture()
+    fx["hidden_criteria"]["behavior"] = None
+    with pytest.raises(core.FixtureError, match="behavior must be a string"):
+        core.validate_fixture(fx)
+
+
+def test_required_tests_must_be_list_of_strings():
+    fx = _valid_fixture()
+    fx["hidden_criteria"]["required_tests"] = "t"
+    with pytest.raises(core.FixtureError, match="required_tests must be a list"):
+        core.validate_fixture(fx)
+
+
+def test_required_gates_rejects_non_string_element():
+    fx = _valid_fixture()
+    fx["hidden_criteria"]["required_gates"] = ["ok", 5]
+    with pytest.raises(core.FixtureError, match="required_gates must be a list"):
         core.validate_fixture(fx)
 
 
@@ -200,6 +232,43 @@ def test_parse_garbage_returns_parse_error():
     out = core.parse_judge_response("no json here at all")
     assert out["verdict"] == core.PARSE_ERROR
     assert out["total"] is None
+
+
+def test_parse_first_object_wins_over_trailing_braces():
+    # A greedy {.*} match would span into the trailing brace/prose and fail
+    # json.loads; raw_decode stops at the first complete object.
+    raw = (
+        json.dumps(
+            {
+                "scope": 3,
+                "completeness": 3,
+                "process_gates": 2,
+                "decomposition": 2,
+                "correct_stop": 1,
+                "rationale": "ok",
+            }
+        )
+        + "\n\nnote: some stray } brace and {half object"
+    )
+    out = core.parse_judge_response(raw)
+    assert out["verdict"] == "SCORED"
+    assert out["total"] == 11
+    assert out["rationale"] == "ok"
+
+
+def test_parse_non_string_rationale_coerced_to_empty():
+    raw = json.dumps(
+        {
+            "scope": 1,
+            "completeness": 1,
+            "process_gates": 1,
+            "decomposition": 1,
+            "correct_stop": 1,
+            "rationale": {"nested": "object"},
+        }
+    )
+    out = core.parse_judge_response(raw)
+    assert out["rationale"] == ""
 
 
 def test_max_score_constant():

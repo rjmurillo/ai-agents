@@ -3,8 +3,8 @@
 
 Feeds each agent a deliberately vague germ, captures the plan it emits, and
 has an LLM judge score that plan against hidden acceptance criteria derived
-from a real merged PR. This measures whether an agent can carry an under-
-specified ask toward done, not just whether it picks the right lane (the
+from a real merged PR. This measures whether an agent can carry an
+under-specified ask toward done, not just whether it picks the right lane (the
 routing eval already showed both agents tie at the routing ceiling).
 
 This is harness shape 2 from the issue (cheaper, weaker proxy). It scores
@@ -79,7 +79,8 @@ def _load_prompt(rel_path: str, ref: str | None) -> str:
             out = subprocess.run(
                 ["git", "show", f"{ref}:{rel_path}"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
                 timeout=30,
                 cwd=_REPO_ROOT,

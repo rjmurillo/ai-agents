@@ -1,9 +1,9 @@
 """Pure core for the end-to-end delivery eval (issue #2859).
 
-The routing eval (`eval-prompt-change.py`) only scores a single classify-
-and-route decision. On 13 routing fixtures orchestrator and autoplan both
-scored 100 percent: it proves they pick the lane, not that either can carry
-an under-specified ask to a correct change with tests, docs, and gates.
+The routing eval (`eval-prompt-change.py`) only scores a single
+classify-and-route decision. On 13 routing fixtures orchestrator and autoplan
+both scored 100 percent: it proves they pick the lane, not that either can
+carry an under-specified ask to a correct change with tests, docs, and gates.
 
 This module is the *plan-rubric proxy* (harness shape 2 in the issue). It
 feeds each agent a deliberately vague germ, captures the plan the agent
@@ -74,6 +74,12 @@ def validate_fixture(fixture: dict[str, Any]) -> None:
             f"fixture {fixture.get('id', '<no id>')!r} missing keys: "
             f"{sorted(missing)}"
         )
+    if not isinstance(fixture["id"], str):
+        raise FixtureError(
+            f"fixture id must be a string, got {type(fixture['id']).__name__}"
+        )
+    if not isinstance(fixture["prompt"], str):
+        raise FixtureError(f"fixture {fixture['id']!r} prompt must be a string")
     kind = fixture["kind"]
     if kind not in _VALID_KINDS:
         raise FixtureError(
@@ -91,6 +97,14 @@ def validate_fixture(fixture: dict[str, Any]) -> None:
             f"fixture {fixture['id']!r} hidden_criteria missing: "
             f"{sorted(missing_c)}"
         )
+    if not isinstance(criteria["behavior"], str):
+        raise FixtureError(f"fixture {fixture['id']!r} behavior must be a string")
+    for key in ("required_tests", "required_docs", "required_gates"):
+        val = criteria[key]
+        if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
+            raise FixtureError(
+                f"fixture {fixture['id']!r} {key} must be a list of strings"
+            )
     if not isinstance(criteria["ambiguous_stop_expected"], bool):
         raise FixtureError(
             f"fixture {fixture['id']!r} ambiguous_stop_expected must be bool"
@@ -210,20 +224,29 @@ def build_judge_user_message(fixture: dict[str, Any], plan: str) -> str:
 
 
 def _extract_json(raw: str) -> dict[str, Any] | None:
-    """Best-effort extraction of a single JSON object from model text."""
+    """Best-effort extraction of a single JSON object from model text.
+
+    Scans for the first ``{`` that begins a decodable object using
+    ``raw_decode`` rather than a greedy ``{.*}`` match, so trailing braces,
+    prose after the object, or a second object do not over-capture and force
+    an avoidable parse error that would drop the run from the means.
+    """
     text = raw.strip()
     if "```" in text:
         fenced = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
         if fenced:
             text = fenced.group(1).strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
-        return None
-    try:
-        parsed = json.loads(match.group())
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+    decoder = json.JSONDecoder()
+    for idx, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(text[idx:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            return obj
+    return None
 
 
 def parse_judge_response(raw: str) -> dict[str, Any]:
@@ -246,11 +269,12 @@ def parse_judge_response(raw: str) -> dict[str, Any]:
             value = 0
         axes[name] = max(0, min(max_pts, value))
     total = sum(axes.values())
+    rationale = parsed.get("rationale", "")
     return {
         "verdict": "SCORED",
         "axes": axes,
         "total": total,
-        "rationale": str(parsed.get("rationale", "")),
+        "rationale": rationale if isinstance(rationale, str) else "",
         "raw": raw,
     }
 
