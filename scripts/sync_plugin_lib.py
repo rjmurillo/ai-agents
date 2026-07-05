@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import sys
 from pathlib import Path
@@ -27,6 +28,18 @@ SYNC_PAIRS: list[tuple[str, str]] = [
     ("scripts/hook_utilities", ".claude/lib/hook_utilities"),
     ("scripts/github_core", ".claude/lib/github_core"),
     ("scripts/ai_review_common", ".claude/lib/ai_review_common"),
+]
+
+# Individual file copies: (source file, destination file). Unlike SYNC_PAIRS
+# (whole-package dir syncs with relative-import rewriting), these are
+# byte-for-byte copies of a single module that lives at the top level of
+# `.claude/lib/` so `from bootstrap import ...` resolves when `.claude/lib` is
+# on sys.path. The source MUST be import-self-contained (no `scripts` package
+# imports) because a top-level module cannot use the package-relative rewrite.
+# Registering the pair here replaces the previously hand-maintained duplicate
+# (Issue #2816 finding 2) so `--check` enforces parity in CI.
+SYNC_FILE_PAIRS: list[tuple[str, str]] = [
+    ("scripts/hook_utilities/bootstrap.py", ".claude/lib/bootstrap.py"),
 ]
 
 IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
@@ -261,6 +274,164 @@ def sync_pair(
     return changes, had_errors
 
 
+def _validate_sync_file_paths(
+    src_rel: str,
+    dst_rel: str,
+) -> tuple[Path, Path, list[str]]:
+    """Validate and resolve a single source/destination file pair.
+
+    Returns (src_path, dst_path, errors). Non-empty errors means abort.
+    """
+    src_path = (REPO_ROOT / src_rel).resolve()
+    dst_path = (REPO_ROOT / dst_rel).resolve()
+    repo_root_resolved = REPO_ROOT.resolve()
+    errors: list[str] = []
+
+    try:
+        src_path.relative_to(repo_root_resolved)
+    except ValueError:
+        errors.append(f"[ERROR] Source path escapes repo root: {src_rel}")
+    try:
+        dst_path.relative_to(repo_root_resolved)
+    except ValueError:
+        errors.append(f"[ERROR] Destination path escapes repo root: {dst_rel}")
+
+    return src_path, dst_path, errors
+
+
+def _imports_scripts_package(tree: ast.Module) -> bool:
+    """Return True if the module imports the top-level ``scripts`` package.
+
+    Uses the AST rather than a regex so every import form is covered: bare
+    ``import scripts``, dotted ``import scripts.pkg``, aliased ``import scripts
+    as s``, comma lists ``import os, scripts``, alias-then-comma ``import os as
+    o, scripts``, backslash-continued lists, and ``from scripts[.pkg] import``.
+    Dynamic imports with a literal string argument are also caught:
+    ``__import__("scripts...")`` and ``importlib.import_module("scripts...")``,
+    including the ``name=`` keyword form and a bare ``import_module("scripts")``
+    binding from ``from importlib import import_module``.
+    A module whose name merely starts with ``scripts`` (``scripts_helper``) is a
+    different top-level package and is not matched. Relative imports
+    (``from . import x``, ``level > 0``) never reference the ``scripts`` package.
+
+    Limitation: a dynamic import whose module name is computed at runtime (not a
+    string literal) cannot be detected statically. Registered sources are small
+    self-contained modules where that pattern does not occur.
+    """
+
+    def _is_scripts(name: str | None) -> bool:
+        return bool(name) and (name == "scripts" or name.startswith("scripts."))
+
+    def _dynamic_import_target(node: ast.Call) -> str | None:
+        """Return the literal module string of a dynamic import call, else None."""
+        target = node.func
+        is_dynamic = (
+            isinstance(target, ast.Name)
+            and target.id in {"__import__", "import_module"}
+        ) or (
+            isinstance(target, ast.Attribute)
+            and target.attr in {"import_module", "__import__"}
+        )
+        if not is_dynamic:
+            return None
+        if node.args:
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                return first.value
+        for keyword in node.keywords:
+            if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+                value = keyword.value.value
+                if isinstance(value, str):
+                    return value
+        return None
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.level == 0 and _is_scripts(node.module):
+                return True
+        elif isinstance(node, ast.Import):
+            if any(_is_scripts(alias.name) for alias in node.names):
+                return True
+        elif isinstance(node, ast.Call):
+            if _is_scripts(_dynamic_import_target(node)):
+                return True
+    return False
+
+
+def sync_file(
+    src_rel: str,
+    dst_rel: str,
+    *,
+    check_only: bool,
+) -> tuple[list[str], bool]:
+    """Byte-copy a single source module to a top-level lib destination.
+
+    Returns a tuple of (change descriptions, had_errors). No import rewriting is
+    performed: the destination lives at the top level of ``.claude/lib`` (not a
+    package), so package-relative imports would not resolve. The source must be
+    import-self-contained; a ``scripts`` package import is rejected because a
+    byte copy cannot rewrite it.
+
+    The copy and drift comparison operate on raw bytes so newline style is
+    preserved and CRLF/LF differences are treated as drift, not silently
+    normalized away.
+    """
+    src_path, dst_path, errors = _validate_sync_file_paths(src_rel, dst_rel)
+    if errors:
+        return errors, True
+
+    if not src_path.is_file():
+        # A registered pair names a canonical source that MUST exist. Unlike a
+        # missing package directory in sync_pair (which can be a legitimately
+        # absent optional package), a missing single-file source means the
+        # registry is stale or the canonical file was deleted. Fail closed so
+        # --check surfaces it instead of exiting 0.
+        return [f"[ERROR] Registered source file missing: {src_rel}"], True
+
+    try:
+        expected_bytes = src_path.read_bytes()
+    except OSError as exc:
+        return [f"[ERROR] Cannot read {src_rel}: {exc}"], True
+
+    try:
+        source_text = expected_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return [f"[ERROR] Cannot decode {src_rel} as utf-8: {exc}"], True
+
+    try:
+        tree = ast.parse(source_text, filename=src_rel)
+    except SyntaxError as exc:
+        return [f"[ERROR] Cannot parse {src_rel}: {exc}"], True
+
+    if _imports_scripts_package(tree):
+        return [
+            f"[ERROR] {src_rel} imports the scripts package and cannot be "
+            "byte-copied to a top-level lib file. Make it self-contained or "
+            "register it as a package via SYNC_PAIRS.",
+        ], True
+
+    if dst_path.exists():
+        try:
+            current_bytes = dst_path.read_bytes()
+        except OSError as exc:
+            return [f"[ERROR] Cannot read {dst_rel}: {exc}"], True
+        if current_bytes == expected_bytes:
+            return [], False
+        action = "updated"
+    else:
+        action = "created"
+
+    changes = [f"  {action}: {dst_rel}"]
+    if not check_only:
+        try:
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            dst_path.write_bytes(expected_bytes)
+        except OSError as exc:
+            return [f"  [ERROR] Cannot write {dst_rel}: {exc}"], True
+
+    return changes, False
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns 0 on success, 1 if --check finds drift."""
     parser = argparse.ArgumentParser(
@@ -282,6 +453,14 @@ def main(argv: list[str] | None = None) -> int:
         if pair_changes:
             all_changes.append(f"{src_rel} -> {dst_rel}:")
             all_changes.extend(pair_changes)
+
+    for src_rel, dst_rel in SYNC_FILE_PAIRS:
+        file_changes, had_errors = sync_file(src_rel, dst_rel, check_only=args.check)
+        if had_errors:
+            any_errors = True
+        if file_changes:
+            all_changes.append(f"{src_rel} -> {dst_rel}:")
+            all_changes.extend(file_changes)
 
     if not all_changes:
         print("All plugin lib copies are in sync.")

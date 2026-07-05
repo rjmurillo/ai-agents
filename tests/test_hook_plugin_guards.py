@@ -250,6 +250,171 @@ class TestSyncPluginLib:
         result = sync_mod.main(["--check"])
         assert result == 1
 
+    def test_sync_file_creates_missing_dest(self, tmp_path: Path) -> None:
+        """sync_file byte-copies the source when the destination is absent."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_text('"""Self-contained module."""\nX = 1\n', encoding="utf-8")
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            changes, had_errors = sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+            )
+
+        assert had_errors is False, changes
+        dst = tmp_path / ".claude" / "lib" / "mod.py"
+        # Byte-identical copy: no canonical-note rewrite for top-level files.
+        assert dst.read_text(encoding="utf-8") == src.read_text(encoding="utf-8")
+
+    def test_sync_file_check_detects_drift(self, tmp_path: Path) -> None:
+        """A drifted top-level lib file makes main(--check) return 1."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_text('"""Canonical."""\nX = 1\n', encoding="utf-8")
+        dst = tmp_path / ".claude" / "lib" / "mod.py"
+        dst.parent.mkdir(parents=True)
+        dst.write_text('"""Stale."""\nX = 2\n', encoding="utf-8")
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            mp.setattr(sync_mod, "SYNC_PAIRS", [])
+            mp.setattr(
+                sync_mod,
+                "SYNC_FILE_PAIRS",
+                [("scripts/pkg/mod.py", ".claude/lib/mod.py")],
+            )
+            assert sync_mod.main(["--check"]) == 1
+
+    @pytest.mark.parametrize(
+        "import_line",
+        [
+            "from scripts.pkg.other import thing",
+            "import scripts.pkg.other",
+            "from scripts import other",
+            "import scripts",
+            "import scripts as s",
+            "import os, scripts",
+            "import os as o, scripts",
+            "import os, \\\n    scripts",
+            'x = __import__("scripts.hook_utilities.bootstrap")',
+            'import importlib\ny = importlib.import_module("scripts.pkg")',
+            'z = __import__("scripts")',
+            'import importlib\ny = importlib.import_module(name="scripts.pkg")',
+            'w = __import__(name="scripts")',
+            'from importlib import import_module\nq = import_module("scripts.pkg")',
+        ],
+    )
+    def test_sync_file_rejects_scripts_import(
+        self, tmp_path: Path, import_line: str
+    ) -> None:
+        """Any scripts-package import is rejected (a byte copy cannot rewrite it)."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_text(
+            f'"""Not self-contained."""\n{import_line}\n',
+            encoding="utf-8",
+        )
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            changes, had_errors = sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+            )
+
+        assert had_errors is True
+        assert any("scripts package" in c for c in changes), changes
+        assert not (tmp_path / ".claude" / "lib" / "mod.py").exists()
+
+    @pytest.mark.parametrize(
+        "import_line",
+        [
+            "import scripts_helper",
+            "from scripts_util import thing",
+            "import scriptsfoo",
+            'x = __import__("scripts_helper")',
+            'import importlib\ny = importlib.import_module("other.pkg")',
+        ],
+    )
+    def test_sync_file_allows_lookalike_module(
+        self, tmp_path: Path, import_line: str
+    ) -> None:
+        """Modules whose name merely starts with 'scripts' are not the scripts pkg."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_text(
+            f'"""Self-contained."""\n{import_line}\n',
+            encoding="utf-8",
+        )
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            changes, had_errors = sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+            )
+
+        assert had_errors is False, changes
+        assert (tmp_path / ".claude" / "lib" / "mod.py").read_text(
+            encoding="utf-8"
+        ) == src.read_text(encoding="utf-8")
+
+    def test_sync_file_missing_source_fails_closed(self, tmp_path: Path) -> None:
+        """A registered source that does not exist is an error, not a silent pass."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            changes, had_errors = sync_mod.sync_file(
+                "scripts/pkg/missing.py",
+                ".claude/lib/missing.py",
+                check_only=True,
+            )
+
+        assert had_errors is True
+        assert any("Registered source file missing" in c for c in changes), changes
+        assert not (tmp_path / ".claude" / "lib" / "missing.py").exists()
+
+    def test_sync_file_preserves_bytes_and_detects_newline_drift(
+        self, tmp_path: Path
+    ) -> None:
+        """Copy preserves exact bytes; CRLF-vs-LF is drift, not silent normalization."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_bytes(b'"""Canonical."""\r\nX = 1\r\n')
+        dst = tmp_path / ".claude" / "lib" / "mod.py"
+        dst.parent.mkdir(parents=True)
+        # Same text under universal newlines, but different bytes (LF vs CRLF).
+        dst.write_bytes(b'"""Canonical."""\nX = 1\n')
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            # --check must flag the byte drift even though text decodes equal.
+            check_changes, check_errors = sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=True,
+            )
+            assert check_errors is False, check_changes
+            assert check_changes, "CRLF/LF byte drift should be detected"
+            assert dst.read_bytes() == b'"""Canonical."""\nX = 1\n', (
+                "check_only must not mutate the destination"
+            )
+
+            # Real sync writes the source bytes verbatim (CRLF preserved).
+            sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+            )
+
+        assert dst.read_bytes() == b'"""Canonical."""\r\nX = 1\r\n'
+
 
 def _parse_events(stderr_text: str) -> list[dict[str, Any]]:
     return [
