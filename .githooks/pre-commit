@@ -1247,14 +1247,14 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
         # staged session log. CI's Session Protocol Validation still checks
         # the branch independently. Precedent: #1319 established that merge
         # commits skip upstream-file validation. Related: #2883.
-        IS_MERGE_COMMIT=0
-        if git rev-parse -q --verify MERGE_HEAD > /dev/null 2>&1; then
-            IS_MERGE_COMMIT=1
-        fi
+        # Reuse the worktree-safe IS_MERGE computed earlier in this hook (via
+        # `git rev-parse --git-path MERGE_HEAD`, #2376); do not re-detect.
 
-        # Require a staged session log (JSON format)
-        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1)
-        if [ -z "$STAGED_SESSION_LOG" ] && [ "$IS_MERGE_COMMIT" = "0" ]; then
+        # Require a staged session log (JSON format).
+        # `|| true` guards against set -e (#2258) if the pipeline is refactored
+        # or pipefail is introduced; grep exits nonzero when there is no match.
+        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1 || true)
+        if [ -z "$STAGED_SESSION_LOG" ] && [ "$IS_MERGE" = "0" ]; then
             # Activation prompt: 5-word cloud to trigger correct behavior
             echo_error "BLOCKED: Create session log NOW"
             echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.json"
