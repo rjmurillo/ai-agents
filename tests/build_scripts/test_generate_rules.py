@@ -874,3 +874,38 @@ artifacts:
     )
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 2
+
+
+def test_keep_internal_falsy_non_list_rejected(tmp_path: Path) -> None:
+    """A falsy non-list value (0/false/"") is a config error (rc 2).
+
+    Guards the `stanza.get(key, [])` read: an earlier `... or []` would have
+    coerced `0`/`false`/`""` to `[]` *before* the list-check, silently treating
+    the misconfig as "not set" and filtering anyway. That is the exact
+    silent-misconfig class #2892 eliminates, so it must return rc 2.
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "pvb",
+        frontmatter='paths: ".claude/**"\n',
+        body="body\n",
+    )
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    outputDirs:
+      - "out_dir"
+    keepInternalGlobsFor: 0
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+    frontmatterRemap:
+      paths: applyTo
+"""
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2

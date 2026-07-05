@@ -495,7 +495,11 @@ def generate_rules(
     # their scope and the in-repo Copilot agent auto-loads them. Any output
     # dir NOT listed here keeps filtering (distributed plugin trees installed
     # where the internal dirs do not exist).
-    raw_keep = stanza.get("keepInternalGlobsFor") or []
+    # Use `.get(key, [])` (not `... or []`) so a wrong-typed value such as
+    # `0`/`false`/`""` reaches the list-check below and returns rc=2, instead
+    # of being silently coerced to "not set" (the silent-misconfig class #2892
+    # eliminates). Absent key defaults to an empty keep-list (backward-compat).
+    raw_keep = stanza.get("keepInternalGlobsFor", [])
     if not isinstance(raw_keep, list):
         print(
             "Error: `artifacts.rules.keepInternalGlobsFor` must be a list",
