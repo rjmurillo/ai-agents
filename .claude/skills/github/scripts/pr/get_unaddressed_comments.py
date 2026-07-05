@@ -48,6 +48,7 @@ from github_core.api import (  # noqa: E402
     gh_api_paginated,
     resolve_repo_params,
 )
+from github_core.comment_classification import classify_domain  # noqa: E402
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
@@ -75,31 +76,6 @@ _CLARIFICATION_PATTERN = re.compile(
 _FIX_DESCRIBED_PATTERN = re.compile(
     r"will\s+fix|fixing|updated|changed|modified|addressed"
     r"|implemented|added|removed",
-    re.IGNORECASE,
-)
-
-# Domain classification
-_SECURITY_PATTERN = re.compile(
-    r"cwe-\d+|vulnerability|vulnerabilities|injection|xss|sql|csrf"
-    r"|\bauth(?:entication|orization|enticat|orized)?\b"
-    r"|secrets?|credentials?|toctou|symlink|traversal|sanitiz"
-    r"|\bescap(?:e|ing)\b",
-    re.IGNORECASE,
-)
-_BUG_PATTERN = re.compile(
-    r"throws?\s+error|error\s+(?:occurs?|occurred|happens?|when|while)"
-    r"|\bcrash(?:es|ed|ing)?\b|\bexception(?:s)?\b|\bfail(?:ed|s|ure|ing)\b"
-    r"|null\s+(?:pointer|reference|ref)\b|undefined\s+(?:behavior|reference|variable)\b"
-    r"|race\s+condition|deadlock|memory\s+leak",
-    re.IGNORECASE,
-)
-_STYLE_PATTERN = re.compile(
-    r"formatting|naming|indentation|whitespace|convention|code\s*style"
-    r"|stylistic|readability|cleanup|refactor|refactoring",
-    re.IGNORECASE,
-)
-_SUMMARY_PATTERN = re.compile(
-    r"(?m)^\s*#{1,3}\s*(?:summary|overview|changes|walkthrough)",
     re.IGNORECASE,
 )
 
@@ -146,21 +122,6 @@ def comment_needs_action(lifecycle_state: str, sub_state: str | None) -> bool:
     if lifecycle_state == "IN_DISCUSSION":
         return sub_state not in ("WONT_FIX", "FIX_COMMITTED")
     return True
-
-
-def classify_domain(body: str) -> str:
-    """Classify a comment into a domain based on keyword matching."""
-    if not body or not body.strip():
-        return "general"
-    if _SECURITY_PATTERN.search(body):
-        return "security"
-    if _BUG_PATTERN.search(body):
-        return "bug"
-    if _STYLE_PATTERN.search(body):
-        return "style"
-    if _SUMMARY_PATTERN.search(body):
-        return "summary"
-    return "general"
 
 
 # ---------------------------------------------------------------------------
