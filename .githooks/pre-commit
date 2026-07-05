@@ -1240,14 +1240,28 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
         echo_error "Session Protocol validation blocked: script not found at $SESSION_VALIDATE_SCRIPT"
         EXIT_STATUS=1
     else
+        # Merge commits are mechanical: conflict resolution routinely touches
+        # shared .agents/ state (e.g. .agents/retrospective/INDEX.md,
+        # .agents/memory/causality/causal-graph.json) but a merge is NOT an
+        # agent work session, so it must not be forced to carry a fresh
+        # staged session log. CI's Session Protocol Validation still checks
+        # the branch independently. Precedent: #1319 established that merge
+        # commits skip upstream-file validation. Related: #2883.
+        IS_MERGE_COMMIT=0
+        if git rev-parse -q --verify MERGE_HEAD > /dev/null 2>&1; then
+            IS_MERGE_COMMIT=1
+        fi
+
         # Require a staged session log (JSON format)
         STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1)
-        if [ -z "$STAGED_SESSION_LOG" ]; then
+        if [ -z "$STAGED_SESSION_LOG" ] && [ "$IS_MERGE_COMMIT" = "0" ]; then
             # Activation prompt: 5-word cloud to trigger correct behavior
             echo_error "BLOCKED: Create session log NOW"
             echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.json"
             echo_info "  Protocol: JSON session log required for all agent sessions"
             EXIT_STATUS=1
+        elif [ -z "$STAGED_SESSION_LOG" ]; then
+            echo_info "Merge commit detected (MERGE_HEAD present); session-log staged requirement skipped. CI validates session protocol independently. Related: #2883."
         fi
 
         # Only run validation if session log is present
