@@ -4,19 +4,19 @@ This module provides setup_hook_lib_path() which locates the plugin's lib
 directory and adds it to sys.path. Designed to be called with __file__ to
 bootstrap hook imports.
 
-Usage in hook files (replaces the ~20-line inline bootstrap with 4 lines):
-
-    import os, sys
-    from pathlib import Path
-    _p = Path(__file__).resolve().parent
-    while _p.parent != _p and not (_p / ".claude-plugin" / "plugin.json").is_file(): _p = _p.parent
-    sys.path.insert(0, str(_p / "lib"))
-    from bootstrap import setup_hook_lib_path; setup_hook_lib_path(__file__, fail_exit_code=2)
-
-    from hook_utilities import get_project_directory  # noqa: E402
+DO NOT use this helper to replace the inline bootstrap in `.claude/hooks/`
+hooks or in skill scripts governed by ADR-047. Those files MUST keep the
+inline `os.environ.get("CLAUDE_PLUGIN_ROOT")` + `os.path.isdir(_lib_dir)`
+literals: `tests/test_plugin_path_resolution.py` grep-asserts them, and the
+only exemption it grants is delegation to `_bootstrap.ensure_plugin_paths`
+(the generated-tree helper, ADR-068), NOT this function. Migrating those
+hooks here removes the literals and fails the ADR-047 test.
+`scripts/migrations/req003_inline_plugin_root_bootstrap.py` exists precisely
+to revert such a migration. See ADR-047 (Path Resolution) for the sanctioned
+inline pattern and issue #2898 for the history.
 
 The setup_hook_lib_path function handles:
-- Checking CLAUDE_PLUGIN_ROOT environment variable  
+- Checking CLAUDE_PLUGIN_ROOT environment variable
 - Walking up directory tree to find .claude-plugin/plugin.json marker
 - Adding the lib directory to sys.path
 - Exiting with specified code if lib not found
