@@ -178,19 +178,31 @@ def _rule_members(name: str) -> tuple[str, ...]:
     )
 
 
-# Hand-maintained install copies. When ONLY these paths move in a diff
-# (no template anchor, no vendored ``src/`` copy), the change is a
-# catch-up resync that brings the install side back in line with an
+# Hand-maintained shared-agent copies. When ONLY these paths move in a
+# diff (no template anchor, no generated ``src/`` copy), the change is a
+# catch-up resync that brings a hand-maintained copy back in line with an
 # already-current canonical. Block-on-asymmetry would prevent the very
 # fix the validator's existence motivates; allow the resync.
-_SHARED_AGENT_INSTALL_PREFIXES: tuple[str, ...] = (
+#
+# Membership rule: a copy belongs here iff it is hand-maintained, i.e. NOT
+# emitted by ``build/generate_agents.py``. The generator writes only
+# ``src/copilot-cli/agents`` and ``src/vs-code-agents`` (see
+# ``templates/platforms/*.yaml`` ``outputDir``), so those two stay strict.
+# ``.claude/agents``, ``.github/agents``, and ``src/claude`` have no
+# generator and are hand-maintained, so all three are catch-up targets
+# (Issue #2882: ``src/claude`` was previously misclassified as a strict
+# vendored copy, blocking hand-maintained backfills such as #2878).
+_SHARED_AGENT_HAND_MAINTAINED_PREFIXES: tuple[str, ...] = (
     ".claude/agents/",
     ".github/agents/",
+    "src/claude/",
 )
 
 
-def _shared_agent_is_install(member: str) -> bool:
-    return any(member.startswith(p) for p in _SHARED_AGENT_INSTALL_PREFIXES)
+def _shared_agent_is_hand_maintained(member: str) -> bool:
+    return any(
+        member.startswith(p) for p in _SHARED_AGENT_HAND_MAINTAINED_PREFIXES
+    )
 
 
 # --- Path normalization -------------------------------------------------
@@ -366,15 +378,16 @@ def find_violations(
         if kind == "RULE":
             continue
 
-        # Asymmetric rule: when the diff touches ONLY install members of a
-        # SHARED_AGENT group (.claude/agents/ and .github/agents/), treat
-        # the diff as a catch-up resync and allow it. The install copies
-        # are being brought back in line with an already-current canonical
-        # and the three vendored ``src/*`` copies. Without this carve-out
-        # the validator blocks the very fix it exists to motivate. RULE
-        # groups have no install-only role and are always strict.
+        # Asymmetric rule: when the diff touches ONLY hand-maintained members
+        # of a SHARED_AGENT group (.claude/agents/, .github/agents/, and
+        # src/claude/ -- the copies with no generator), treat the diff as a
+        # catch-up resync and allow it. Those copies are being brought back in
+        # line with an already-current canonical and the two generated
+        # ``src/*`` copies (src/copilot-cli, src/vs-code). Without this
+        # carve-out the validator blocks the very fix it exists to motivate.
+        # RULE groups have no hand-maintained-only role and are always strict.
         if kind == "SHARED_AGENT" and all(
-            _shared_agent_is_install(m) for m in members_touched
+            _shared_agent_is_hand_maintained(m) for m in members_touched
         ):
             continue
         violations.append(
@@ -505,6 +518,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: repo root not found: {repo_root}", file=sys.stderr)
         return 2
 
+    touched: list[str]
     if args.files is not None:
         touched = list(args.files)
     else:
@@ -518,7 +532,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             bases = [args.base]
 
-        touched: list[str] = []
+        touched = []
         errors: list[str] = []
         success = False
         for base in bases:

@@ -201,9 +201,9 @@ def test_pure_install_resync_is_allowed_github_only(fake_repo: Path) -> None:
 
 
 def test_install_plus_canonical_partial_is_still_drift(fake_repo: Path) -> None:
-    """Carve-out applies only when touched set is ENTIRELY install members.
+    """Carve-out applies only when touched set is ENTIRELY hand-maintained.
 
-    The moment canonical (template) or a vendored copy enters the diff,
+    The moment canonical (template) or a generated copy enters the diff,
     every sibling must be present.
     """
     touched = [
@@ -217,10 +217,43 @@ def test_install_plus_canonical_partial_is_still_drift(fake_repo: Path) -> None:
     assert "src/claude/alpha.md" in v.missing
 
 
-def test_install_plus_src_partial_is_still_drift(fake_repo: Path) -> None:
-    """src/ is vendored, not install; carve-out does not apply."""
+def test_pure_handmaintained_resync_includes_src_claude(fake_repo: Path) -> None:
+    """src/claude is hand-maintained (no generator), so a resync touching only
+    hand-maintained copies (.claude, .github, src/claude) is allowed (#2882)."""
+    touched = [
+        ".claude/agents/alpha.md",
+        ".github/agents/alpha.agent.md",
+        "src/claude/alpha.md",
+    ]
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
+
+
+def test_src_claude_solo_resync_is_allowed(fake_repo: Path) -> None:
+    """Partial resync (only the hand-maintained src/claude copy) is allowed."""
+    touched = ["src/claude/alpha.md"]
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
+
+
+def test_handmaintained_plus_generated_src_is_still_drift(fake_repo: Path) -> None:
+    """Generated src copies (src/copilot-cli, src/vs-code) are NOT hand-maintained;
+    the moment one enters the diff, every sibling must be present."""
     touched = [
         "src/claude/alpha.md",
+        "src/copilot-cli/agents/alpha.agent.md",
+    ]
+    violations = vip.find_violations(touched, repo_root=fake_repo)
+    assert len(violations) == 1
+    v = violations[0]
+    assert "templates/agents/alpha.shared.md" in v.missing
+    assert ".claude/agents/alpha.md" in v.missing
+    assert ".github/agents/alpha.agent.md" in v.missing
+    assert "src/vs-code-agents/alpha.agent.md" in v.missing
+
+
+def test_install_plus_generated_src_partial_is_still_drift(fake_repo: Path) -> None:
+    """A generated src copy is strict; carve-out does not apply."""
+    touched = [
+        "src/vs-code-agents/alpha.agent.md",
         ".claude/agents/alpha.md",
     ]
     violations = vip.find_violations(touched, repo_root=fake_repo)
