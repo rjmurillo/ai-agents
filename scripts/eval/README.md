@@ -42,7 +42,49 @@ python3 scripts/eval/eval-skill-overlap.py \
 | `eval-rule-activation.py` | `.claude/rules/*.md` activation across baseline / description / full mechanisms. | Complementary |
 | `analyze-pr-churn.py` | Deterministic commit-churn classification across a PR cohort (degenerate vs control) to evaluate instruction/rule changes against historical PRs. No LLM; core in `_pr_churn.py`. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
+| `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
+
+## End-to-End Delivery Eval
+
+The routing eval (`eval-prompt-change.py`) scores a single classify-and-route
+decision; orchestrator and autoplan both hit the routing ceiling there, which
+proves lane-picking, not delivery. `eval-e2e-delivery.py` measures whether an
+agent can carry an under-specified ask toward done.
+
+This is harness shape 2 from issue #2859 (the cheaper plan-rubric proxy). It
+feeds each agent a deliberately vague germ, captures the plan the agent emits,
+and has an LLM judge score that plan against hidden acceptance criteria on
+five axes (max 11): `scope`, `completeness`, `process_gates`, `decomposition`,
+`correct_stop`.
+
+```bash
+# Validate fixtures + resolve agent prompts; no API calls:
+python3 scripts/eval/eval-e2e-delivery.py \
+    --fixtures scripts/eval/examples/e2e-delivery-fixtures.json --dry-run
+
+# Live run, 3 runs per cell (flakiness protocol), write a report:
+python3 scripts/eval/eval-e2e-delivery.py \
+    --fixtures scripts/eval/examples/e2e-delivery-fixtures.json \
+    --runs 3 --output artifacts/e2e-delivery.json
+```
+
+Ground-truth discipline: for the `feature`/`bug` fixtures the hidden criteria
+are derived from a real merged PR (see each fixture's `provenance`), so they
+are independent of the agent prompts under test. `ambiguous` and
+`multi-domain` fixtures are synthetic process probes (stop-and-ask, or
+coordinated decomposition) and labeled as such.
+
+Honest limits (printed in every report as `caveat`):
+
+- Plan quality is a proxy for delivery. A high score does not prove the code
+  compiles or passes tests; that needs the trace-based shape (#2859 shape 1).
+- The fixtures and criteria are single-author curated, so absolute scores are
+  directional. Trust relative deltas that clear the run-to-run noise band.
+- Same-family judge (the default model judges its own family's output).
+
+`--agents` selects which agents to compare (default `orchestrator,autoplan`);
+`--ref` loads an agent prompt from a git ref if it is not on the working tree.
 
 ## Reviewer-Asymmetry Eval
 

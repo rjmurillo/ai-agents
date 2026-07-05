@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "_comment": "End-to-end delivery eval fixtures (issue #2859). Each germ is a deliberately vague, under-specified prompt. hidden_criteria are NOT shown to the agent. For F1-F4 the criteria are ground-truthed to a real merged PR (independent of the agent prompts under test); provenance carries the PR url. Ambiguity and coordination probes are synthetic: their ground truth is a process expectation (stop-and-ask, or multi-domain decomposition), not a single external PR, and are labeled as such. This is a starter set; add more PR-grounded fixtures as real issues land.",
+  "fixtures": [
+    {
+      "id": "F1-wrapped-setup",
+      "kind": "feature",
+      "provenance": "merged-pr:https://github.com/rjmurillo/moq.analyzers/pull/1086",
+      "prompt": "My Moq setups keep getting flagged for not specifying a return value, but they DO return a value: the return comes from a little helper extension method that calls Returns internally. Stop the false positive.",
+      "hidden_criteria": {
+        "behavior": "The MethodSetupShouldSpecifyReturnValue (Moq1203) analyzer must stop flagging a setup when the return value is supplied through an extension method that internally calls Returns, instead of only recognizing a direct .Returns/.ReturnsAsync call.",
+        "required_tests": ["positive: direct Returns still flags when missing", "negative: setup whose return is supplied via a wrapping extension method is NOT flagged", "edge: multiple wrapper families (IReturns/ICallback/ISetup) are recognized"],
+        "required_docs": [],
+        "required_gates": ["dotnet build", "dotnet test (analyzer + known-symbols tests)"],
+        "ambiguous_stop_expected": false
+      }
+    },
+    {
+      "id": "F2-simple-lambda",
+      "kind": "feature",
+      "provenance": "merged-pr:https://github.com/rjmurillo/moq.analyzers/pull/1042",
+      "prompt": "The callback-signature analyzer chokes on single-parameter lambdas written without parentheses, like x => x.Foo(). It only understands the (x) => form. Make it understand both.",
+      "hidden_criteria": {
+        "behavior": "CallbackSignatureShouldMatchMockedMethod analysis and its code fix must handle SimpleLambdaExpressionSyntax (single unparenthesized parameter) in addition to ParenthesizedLambdaExpressionSyntax when validating callback signatures.",
+        "required_tests": ["positive: simple lambda with matching signature passes", "negative: simple lambda with mismatched signature is flagged", "edge: code fix rewrites the simple-lambda form correctly"],
+        "required_docs": [],
+        "required_gates": ["dotnet build", "dotnet test (analyzer + code-fix tests)"],
+        "ambiguous_stop_expected": false
+      }
+    },
+    {
+      "id": "F3-null-guard",
+      "kind": "bug",
+      "provenance": "merged-pr:https://github.com/rjmurillo/moq.analyzers/pull/1027",
+      "prompt": "The DefaultIfNotSingle helper silently returns default when I hand it a null sequence. The BCL throws for a null source. It should behave the same.",
+      "hidden_criteria": {
+        "behavior": "DefaultIfNotSingle (and its parameterless overload that delegates to it) must throw ArgumentNullException when the source is null, matching BCL LINQ behavior, instead of returning default.",
+        "required_tests": ["positive: non-null source still returns the expected single/default value", "negative: null source throws ArgumentNullException with the source parameter name"],
+        "required_docs": [],
+        "required_gates": ["dotnet build", "dotnet test (EnumerableExtensions tests)"],
+        "ambiguous_stop_expected": false
+      }
+    },
+    {
+      "id": "F4-codefix-null-guard",
+      "kind": "bug",
+      "provenance": "merged-pr:https://github.com/rjmurillo/moq.analyzers/pull/1004",
+      "prompt": "The callback code fix sometimes blows up. I think it tries to register even when the symbols it needs are not there yet. Make it not crash.",
+      "hidden_criteria": {
+        "behavior": "The CallbackSignatureShouldMatchMockedMethod code-fix provider must guard its registration so it does not throw (NullReferenceException) when its prerequisite symbols are null; it should simply not offer the fix in that case.",
+        "required_tests": ["positive: fix is still offered and applies when prerequisites are present", "negative: no throw and no fix offered when a prerequisite symbol is null"],
+        "required_docs": [],
+        "required_gates": ["dotnet build", "dotnet test (code-fix tests)"],
+        "ambiguous_stop_expected": false
+      }
+    },
+    {
+      "id": "A1-vague-retry",
+      "kind": "ambiguous",
+      "provenance": "synthetic:ambiguity-probe",
+      "prompt": "Make the retry logic better.",
+      "hidden_criteria": {
+        "behavior": "The request is under-specified: it names no component, no repository, and no definition of 'better' (attempt count? backoff strategy? which failures are retryable? latency budget?). A correct response STOPS and asks a clarifying question instead of guessing a target and a definition of success.",
+        "required_tests": [],
+        "required_docs": [],
+        "required_gates": [],
+        "ambiguous_stop_expected": true
+      }
+    },
+    {
+      "id": "A2-vague-faster",
+      "kind": "ambiguous",
+      "provenance": "synthetic:ambiguity-probe",
+      "prompt": "It feels slow lately. Can you speed it up?",
+      "hidden_criteria": {
+        "behavior": "The request identifies no subsystem, no metric, no baseline, and no target. A correct response STOPS and asks what 'it' is, what 'slow' means quantitatively, and against what baseline, rather than fabricating a profiling target and optimizing blindly.",
+        "required_tests": [],
+        "required_docs": [],
+        "required_gates": [],
+        "ambiguous_stop_expected": true
+      }
+    },
+    {
+      "id": "M1-multi-domain-migration",
+      "kind": "multi-domain",
+      "provenance": "synthetic:coordination-probe",
+      "prompt": "We want to move our two backend services off the old config format onto the new one. It touches how they build and how they deploy, and security will want to look at it.",
+      "hidden_criteria": {
+        "behavior": "A single coherent migration that updates BOTH services to the new config format, updates the build for each, updates the deployment/CI path, and routes the change through a security review gate before ship. The plan must treat this as coordinated multi-domain work, not a single blob.",
+        "required_tests": ["per-service: config parses and services start on the new format", "regression: deploy path succeeds end to end for each service"],
+        "required_docs": ["migration note or spec describing the format change and rollout order"],
+        "required_gates": ["build (both services)", "CI/deploy pipeline", "security sign-off"],
+        "ambiguous_stop_expected": false
+      }
+    }
+  ]
+}
