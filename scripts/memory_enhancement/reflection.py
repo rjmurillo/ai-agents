@@ -11,7 +11,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .confidence import update_confidence_scores_with_memories
-from .serena_integration import load_memories, save_memory
+from .serena_integration import (
+    MemoryWithCitations,
+    load_memories,
+    save_memory,
+)
 
 _SKILL_CONFIDENCE_THRESHOLD = 0.8
 _SKILL_MIN_LINKS = 2
@@ -20,7 +24,7 @@ _CONFIDENCE_EPSILON = 0.01
 
 def reinforce_memories(
     memories_dir: Path, repo_root: Path
-) -> tuple[dict[str, float], list]:
+) -> tuple[dict[str, float], list[MemoryWithCitations]]:
     """Recalculate and persist confidence scores for all memories.
 
     Loads all memories, computes updated confidence scores, and
