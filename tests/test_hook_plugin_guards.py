@@ -299,6 +299,8 @@ class TestSyncPluginLib:
             "import scripts",
             "import scripts as s",
             "import os, scripts",
+            "import os as o, scripts",
+            "import os, \\\n    scripts",
         ],
     )
     def test_sync_file_rejects_scripts_import(
@@ -371,6 +373,39 @@ class TestSyncPluginLib:
         assert had_errors is True
         assert any("Registered source file missing" in c for c in changes), changes
         assert not (tmp_path / ".claude" / "lib" / "missing.py").exists()
+
+    def test_sync_file_preserves_bytes_and_detects_newline_drift(
+        self, tmp_path: Path
+    ) -> None:
+        """Copy preserves exact bytes; CRLF-vs-LF is drift, not silent normalization."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        src = tmp_path / "scripts" / "pkg" / "mod.py"
+        src.parent.mkdir(parents=True)
+        src.write_bytes(b'"""Canonical."""\r\nX = 1\r\n')
+        dst = tmp_path / ".claude" / "lib" / "mod.py"
+        dst.parent.mkdir(parents=True)
+        # Same text under universal newlines, but different bytes (LF vs CRLF).
+        dst.write_bytes(b'"""Canonical."""\nX = 1\n')
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
+            # --check must flag the byte drift even though text decodes equal.
+            check_changes, check_errors = sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=True,
+            )
+            assert check_errors is False, check_changes
+            assert check_changes, "CRLF/LF byte drift should be detected"
+            assert dst.read_bytes() == b'"""Canonical."""\nX = 1\n', (
+                "check_only must not mutate the destination"
+            )
+
+            # Real sync writes the source bytes verbatim (CRLF preserved).
+            sync_mod.sync_file(
+                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+            )
+
+        assert dst.read_bytes() == b'"""Canonical."""\r\nX = 1\r\n'
 
 
 def _parse_events(stderr_text: str) -> list[dict[str, Any]]:

@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import sys
 from pathlib import Path
@@ -298,6 +299,31 @@ def _validate_sync_file_paths(
     return src_path, dst_path, errors
 
 
+def _imports_scripts_package(tree: ast.Module) -> bool:
+    """Return True if the module imports the top-level ``scripts`` package.
+
+    Uses the AST rather than a regex so every import form is covered: bare
+    ``import scripts``, dotted ``import scripts.pkg``, aliased ``import scripts
+    as s``, comma lists ``import os, scripts``, alias-then-comma ``import os as
+    o, scripts``, backslash-continued lists, and ``from scripts[.pkg] import``.
+    A module whose name merely starts with ``scripts`` (``scripts_helper``) is a
+    different top-level package and is not matched. Relative imports
+    (``from . import x``, ``level > 0``) never reference the ``scripts`` package.
+    """
+
+    def _is_scripts(name: str | None) -> bool:
+        return bool(name) and (name == "scripts" or name.startswith("scripts."))
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.level == 0 and _is_scripts(node.module):
+                return True
+        elif isinstance(node, ast.Import):
+            if any(_is_scripts(alias.name) for alias in node.names):
+                return True
+    return False
+
+
 def sync_file(
     src_rel: str,
     dst_rel: str,
@@ -311,6 +337,10 @@ def sync_file(
     package), so package-relative imports would not resolve. The source must be
     import-self-contained; a ``scripts`` package import is rejected because a
     byte copy cannot rewrite it.
+
+    The copy and drift comparison operate on raw bytes so newline style is
+    preserved and CRLF/LF differences are treated as drift, not silently
+    normalized away.
     """
     src_path, dst_path, errors = _validate_sync_file_paths(src_rel, dst_rel)
     if errors:
@@ -325,19 +355,21 @@ def sync_file(
         return [f"[ERROR] Registered source file missing: {src_rel}"], True
 
     try:
-        expected = src_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
+        expected_bytes = src_path.read_bytes()
+    except OSError as exc:
         return [f"[ERROR] Cannot read {src_rel}: {exc}"], True
 
-    # Reject ANY scripts-package import. Covers ``from scripts[...] import``,
-    # bare ``import scripts``, dotted ``import scripts.pkg``, aliased
-    # ``import scripts as s``, and comma lists ``import os, scripts``. The
-    # trailing \b stops after the ``scripts`` token so unrelated modules like
-    # ``scripts_helper`` are not matched. A byte copy cannot rewrite these and
-    # ``scripts`` is not importable from a top-level lib file.
-    if re.search(r"^\s*from\s+scripts\b", expected, re.MULTILINE) or re.search(
-        r"^\s*import\s+([\w.]+\s*,\s*)*scripts\b", expected, re.MULTILINE
-    ):
+    try:
+        source_text = expected_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return [f"[ERROR] Cannot decode {src_rel} as utf-8: {exc}"], True
+
+    try:
+        tree = ast.parse(source_text, filename=src_rel)
+    except SyntaxError as exc:
+        return [f"[ERROR] Cannot parse {src_rel}: {exc}"], True
+
+    if _imports_scripts_package(tree):
         return [
             f"[ERROR] {src_rel} imports the scripts package and cannot be "
             "byte-copied to a top-level lib file. Make it self-contained or "
@@ -346,10 +378,10 @@ def sync_file(
 
     if dst_path.exists():
         try:
-            current = dst_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
+            current_bytes = dst_path.read_bytes()
+        except OSError as exc:
             return [f"[ERROR] Cannot read {dst_rel}: {exc}"], True
-        if current == expected:
+        if current_bytes == expected_bytes:
             return [], False
         action = "updated"
     else:
@@ -359,7 +391,7 @@ def sync_file(
     if not check_only:
         try:
             dst_path.parent.mkdir(parents=True, exist_ok=True)
-            dst_path.write_text(expected, encoding="utf-8")
+            dst_path.write_bytes(expected_bytes)
         except OSError as exc:
             return [f"  [ERROR] Cannot write {dst_rel}: {exc}"], True
 
