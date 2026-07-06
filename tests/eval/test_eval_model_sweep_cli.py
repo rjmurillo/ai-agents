@@ -349,6 +349,30 @@ def test_runner_unreadable_report_raises_external_child_error(tmp_path, monkeypa
     assert excinfo.value.returncode == sweep.EXIT_EXTERNAL
 
 
+def test_runner_honors_explicit_empty_env(tmp_path, monkeypatch):
+    runner = sweep.SubprocessModelEvalRunner(
+        agent="security", fixtures=tmp_path, n_runs=1, provider=None, env={}
+    )
+    captured = {}
+
+    class _Completed:
+        returncode = sweep.EXIT_OK
+        stderr = ""
+
+    def _fake_run(argv, **kwargs):
+        captured["env"] = kwargs.get("env")
+        return _Completed()
+
+    monkeypatch.setattr(sweep.subprocess, "run", _fake_run)
+    monkeypatch.setattr(
+        sweep, "child_report_path", lambda agent, run_id: tmp_path / "missing.json"
+    )
+    with pytest.raises(sweep.ChildRunError):
+        runner.run("claude-sonnet-4")
+    # An explicit empty env must NOT be replaced by the parent environment.
+    assert captured["env"] == {}
+
+
 def test_default_output_path_is_unique_within_same_second():
     a = sweep._default_output_path("security")
     b = sweep._default_output_path("security")

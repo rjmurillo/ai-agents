@@ -271,7 +271,7 @@ class SubprocessModelEvalRunner:
             argv,
             capture_output=True,
             text=True,
-            env=self._env or os.environ.copy(),
+            env=self._env if self._env is not None else os.environ.copy(),
             check=False,
         )
         if completed.returncode != EXIT_OK:
