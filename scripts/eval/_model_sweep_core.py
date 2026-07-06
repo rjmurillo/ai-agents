@@ -27,6 +27,7 @@ Verdict semantics for Issue #2840:
 
 from __future__ import annotations
 
+import hashlib
 import random
 import statistics
 from dataclasses import dataclass
@@ -41,6 +42,11 @@ from _report_aggregator import (
 SCHEMA_VERSION = "1"
 DEFAULT_MIN_EFFECT = 0.05
 DEFAULT_SEED = 42
+
+# A paired bootstrap over fewer than two shared fixtures is degenerate: every
+# resample draws the same fixture(s), so the CI collapses onto the point delta
+# and stops being evidence. Below this floor we never KEEP a pin.
+MIN_SHARED_FIXTURES = 2
 
 DECISION_KEEP = "KEEP_PIN"
 DECISION_DROP = "DROP_PIN"
@@ -121,9 +127,9 @@ def common_fixture_ids(results: list[ModelResult]) -> list[str]:
     cross-model delta, and the bootstrap CI on the same fixtures even when
     individual models excluded different flaky fixtures.
     """
-    sets = [set(r.per_fixture_agent_rates) for r in results if r.per_fixture_agent_rates]
-    if not sets:
+    if not results:
         return []
+    sets = [set(r.per_fixture_agent_rates) for r in results]
     return sorted(set.intersection(*sets))
 
 
@@ -148,14 +154,19 @@ def paired_bootstrap_ci(
     *,
     iterations: int = BOOTSTRAP_ITERATIONS,
     rng: random.Random | None = None,
+    lower_percentile: float = CI_LOWER_PERCENTILE,
+    upper_percentile: float = CI_UPPER_PERCENTILE,
 ) -> tuple[float, float]:
-    """95% paired bootstrap CI on the per-fixture mean-rate delta (winner - default).
+    """Paired bootstrap CI on the per-fixture mean-rate delta (winner - default).
 
     Resamples *ids* (the common stable fixture set) with replacement; for each
     resample takes the mean of per-fixture ``winner - default`` differences;
-    returns the [2.5, 97.5] percentiles of the resampled deltas. Mirrors
-    ``_report_aggregator.pairwise_bootstrap_ci`` (fixture-id resampling, same
-    percentiles), computed on the same fixtures and metric as the point delta.
+    returns the [``lower_percentile``, ``upper_percentile``] percentiles of the
+    resampled deltas. Mirrors ``_report_aggregator.pairwise_bootstrap_ci``
+    (fixture-id resampling), computed on the same fixtures and metric as the
+    point delta. The percentiles default to the two-sided 95% interval but are
+    widened by ``decide`` for a family-wise (Bonferroni) correction when more
+    than one candidate is swept.
     """
     if not ids:
         return (0.0, 0.0)
@@ -169,8 +180,8 @@ def paired_bootstrap_ci(
         delta = sum(w_means[f] - d_means[f] for f in sample) / n
         deltas.append(delta)
     return (
-        _percentile(deltas, CI_LOWER_PERCENTILE),
-        _percentile(deltas, CI_UPPER_PERCENTILE),
+        _percentile(deltas, lower_percentile),
+        _percentile(deltas, upper_percentile),
     )
 
 
@@ -197,6 +208,20 @@ def rank(results: list[ModelResult], ids: list[str]) -> list[ModelResult]:
     return sorted(results, key=lambda r: (-mean_recall_on(r, ids), r.model_id))
 
 
+def _candidate_rng(seed: int, default_model: str, candidate_id: str) -> random.Random:
+    """Independent, deterministic RNG keyed by (seed, default, candidate).
+
+    Each candidate's bootstrap stream is derived from its own id, not from a
+    single RNG advanced in candidate order. This makes the verdict independent
+    of the order candidates appear in (e.g. the ``--models`` argument order),
+    while staying fully reproducible for a given seed.
+    """
+    digest = hashlib.sha256(
+        f"{seed}:{default_model}:{candidate_id}".encode()
+    ).digest()
+    return random.Random(int.from_bytes(digest[:8], "big"))
+
+
 def _evaluate_candidate(
     candidate: ModelResult,
     default: ModelResult,
@@ -204,14 +229,23 @@ def _evaluate_candidate(
     *,
     min_effect: float,
     rng: random.Random,
+    lower_percentile: float,
 ) -> tuple[float, tuple[float, float], bool]:
-    """Return (delta, ci95, qualifies) for one candidate vs the default.
+    """Return (delta, ci, qualifies) for one candidate vs the default.
 
     ``qualifies`` iff the candidate leads by at least ``min_effect`` mean
-    recall AND the paired bootstrap CI on the delta excludes 0.
+    recall AND the (family-wise-adjusted) paired bootstrap CI on the delta
+    excludes 0.
     """
     delta = mean_recall_on(candidate, ids) - mean_recall_on(default, ids)
-    ci_low, ci_high = paired_bootstrap_ci(candidate, default, ids, rng=rng)
+    ci_low, ci_high = paired_bootstrap_ci(
+        candidate,
+        default,
+        ids,
+        rng=rng,
+        lower_percentile=lower_percentile,
+        upper_percentile=100.0 - lower_percentile,
+    )
     qualifies = delta >= min_effect and ci_low > 0.0
     return delta, (ci_low, ci_high), qualifies
 
@@ -221,7 +255,7 @@ def decide(
     *,
     default_model: str,
     min_effect: float = DEFAULT_MIN_EFFECT,
-    rng: random.Random | None = None,
+    seed: int = DEFAULT_SEED,
 ) -> SweepDecision:
     """Decide KEEP_PIN vs DROP_PIN for a set of candidate model results.
 
@@ -231,6 +265,12 @@ def decide(
     strongest such qualifier wins the pin. Otherwise DROP_PIN (a higher
     point-estimate but noisy candidate cannot force a KEEP, and it cannot
     suppress a solid lower-ranked candidate either).
+
+    The verdict is independent of candidate order: each candidate's bootstrap
+    stream is seeded from its own id (not a single RNG advanced in order). When
+    more than one candidate is swept the per-candidate CIs are Bonferroni-
+    widened so the family-wise false-KEEP rate stays near 5% instead of
+    compounding with the number of candidates.
     """
     if not results:
         raise SweepDecisionError("no model results to decide on")
@@ -248,13 +288,40 @@ def decide(
             "no fixtures are shared and stable across all swept models; cannot "
             "compare (check per-model flaky exclusions and the --fixtures set)"
         )
-    rng = rng or random.Random(DEFAULT_SEED)
     default_recall = mean_recall_on(default, ids)
+    candidates = [r for r in results if r.model_id != default_model]
+
+    if len(ids) < MIN_SHARED_FIXTURES:
+        return SweepDecision(
+            winner_model=default_model,
+            default_model=default_model,
+            winner_recall=default_recall,
+            default_recall=default_recall,
+            recall_delta=0.0,
+            ci95=(0.0, 0.0),
+            cohens_d=0.0,
+            decision=DECISION_DROP,
+            reason=(
+                f"only {len(ids)} shared stable fixture(s) across all swept "
+                f"models, below the {MIN_SHARED_FIXTURES}-fixture floor for a "
+                f"meaningful bootstrap CI; cannot justify a pin, inherit the "
+                f"harness default (widen the shared --fixtures set to decide)"
+            ),
+        )
+
+    # Bonferroni: split the family-wise 5% two-sided alpha across candidates so
+    # sweeping many models does not inflate the false-KEEP rate.
+    lower_percentile = CI_LOWER_PERCENTILE / max(len(candidates), 1)
 
     evaluated: list[tuple[ModelResult, float, tuple[float, float], bool]] = []
-    for cand in (r for r in results if r.model_id != default_model):
+    for cand in candidates:
         delta, ci, qualifies = _evaluate_candidate(
-            cand, default, ids, min_effect=min_effect, rng=rng
+            cand,
+            default,
+            ids,
+            min_effect=min_effect,
+            rng=_candidate_rng(seed, default_model, cand.model_id),
+            lower_percentile=lower_percentile,
         )
         evaluated.append((cand, delta, ci, qualifies))
 
@@ -276,7 +343,7 @@ def decide(
             reason=(
                 f"candidate {cand.model_id!r} beats default {default_model!r} by "
                 f"mean-recall delta={delta:.4f} (>= min_effect={min_effect:.4f}) "
-                f"over {len(ids)} shared fixtures; 95% CI [{ci[0]:.4f}, "
+                f"over {len(ids)} shared fixtures; family-wise CI [{ci[0]:.4f}, "
                 f"{ci[1]:.4f}] excludes 0; keep this pin and cite the artifact"
             ),
         )
@@ -287,7 +354,7 @@ def decide(
         if ci[0] <= 0.0:
             reason = (
                 f"best candidate {cand.model_id!r} leads by mean-recall "
-                f"delta={delta:.4f} but 95% CI [{ci[0]:.4f}, {ci[1]:.4f}] "
+                f"delta={delta:.4f} but family-wise CI [{ci[0]:.4f}, {ci[1]:.4f}] "
                 f"includes 0 (within noise); drop the pin and inherit the default"
             )
         else:

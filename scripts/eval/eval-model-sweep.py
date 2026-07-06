@@ -32,7 +32,6 @@ import argparse
 import datetime as _dt
 import json
 import os
-import random
 import re
 import subprocess  # noqa: S404 - invokes a sibling eval script with a fixed, validated argv
 import sys
@@ -371,7 +370,7 @@ def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> in
             results,
             default_model=args.default_model,
             min_effect=args.min_effect,
-            rng=random.Random(args.seed),
+            seed=args.seed,
         )
     except SweepDecisionError as exc:
         print(f"error: {exc}", file=sys.stderr)

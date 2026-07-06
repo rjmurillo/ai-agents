@@ -7,7 +7,6 @@ the artifact shape, and the SweepDecisionError guards.
 
 from __future__ import annotations
 
-import random
 import sys
 from pathlib import Path
 
@@ -86,7 +85,7 @@ def test_decide_picks_qualifying_second_candidate_over_noisy_top():
         [default, noisy_top, solid],
         default_model="default",
         min_effect=0.05,
-        rng=random.Random(7),
+        seed=7,
     )
     assert decision.decision == core.DECISION_KEEP
     assert decision.winner_model == "solid"
@@ -136,7 +135,7 @@ def test_decide_keeps_pin_on_large_consistent_lead():
     decision = core.decide(
         [default, candidate],
         default_model="default",
-        rng=random.Random(1),
+        seed=1,
     )
     assert decision.decision == core.DECISION_KEEP
     assert decision.winner_model == "candidate"
@@ -159,7 +158,7 @@ def test_decide_drops_pin_when_lead_below_min_effect():
         [default, candidate],
         default_model="default",
         min_effect=0.05,
-        rng=random.Random(1),
+        seed=1,
     )
     # 0.02 lead is real (CI excludes 0) but below min_effect -> drop.
     assert decision.decision == core.DECISION_DROP
@@ -184,7 +183,7 @@ def test_decide_drops_pin_when_ci_includes_zero():
         [default, candidate],
         default_model="default",
         min_effect=0.0,
-        rng=random.Random(3),
+        seed=3,
     )
     assert decision.decision == core.DECISION_DROP
     assert decision.ci95[0] <= 0.0 <= decision.ci95[1]
@@ -217,13 +216,17 @@ def test_cohens_d_nonzero_when_diffs_vary():
 
 
 def test_build_report_shape():
-    default = _result("default", {"f1": [0.5]}, recall=0.5, tokens_in=10, tokens_out=20)
+    default = _result(
+        "default", {"f1": [0.5], "f2": [0.5]}, recall=0.5, tokens_in=10, tokens_out=20
+    )
     candidate = _result(
-        "candidate", {"f1": [0.9]}, recall=0.9, cost_usd=0.1234567, error_count=1
+        "candidate",
+        {"f1": [0.9], "f2": [0.9]},
+        recall=0.9,
+        cost_usd=0.1234567,
+        error_count=1,
     )
-    decision = core.decide(
-        [default, candidate], default_model="default", rng=random.Random(1)
-    )
+    decision = core.decide([default, candidate], default_model="default", seed=1)
     report = core.build_report(
         agent="security",
         fixtures_sha="abc123",
@@ -238,7 +241,71 @@ def test_build_report_shape():
     assert report["default_model"] == "default"
     assert report["winner"] == decision.winner_model
     assert report["decision"] == decision.decision
+    assert report["n_shared_fixtures"] == 2
     assert [m["model_id"] for m in report["models"]] == ["candidate", "default"]
+    assert report["models"][0]["mean_recall"] == 0.9
+    assert report["models"][0]["agent_recall"] == 0.9
     assert report["models"][1]["tokens_in"] == 10
     assert report["models"][0]["error_count"] == 1
     assert len(report["ci95"]) == 2
+
+
+def test_common_fixture_ids_empty_model_yields_no_shared():
+    # R3 F2: a model with no stable fixtures collapses the intersection instead
+    # of being silently dropped from it (which previously KeyError'd downstream).
+    a = _result("a", {"f1": [1.0]}, recall=1.0)
+    b = _result("b", {}, recall=0.0)
+    assert core.common_fixture_ids([a, b]) == []
+
+
+def test_decide_empty_fixture_model_raises():
+    # R3 F2 regression: an empty-fixture candidate must hit the no-shared config
+    # error, not crash in mean_recall_on with a KeyError.
+    default = _result("default", {"f1": [0.5], "f2": [0.5]}, recall=0.5)
+    empty = _result("empty", {}, recall=0.0)
+    try:
+        core.decide([default, empty], default_model="default")
+    except core.SweepDecisionError as exc:
+        assert "shared" in str(exc)
+        return
+    raise AssertionError("expected SweepDecisionError when a model has no fixtures")
+
+
+def test_decide_single_shared_fixture_drops():
+    # R3 F3 regression: one shared fixture makes the bootstrap CI degenerate
+    # ([delta, delta]); never KEEP a pin on that. Floor forces DROP.
+    default = _result("default", {"f1": [0.1]}, recall=0.1)
+    candidate = _result("candidate", {"f1": [0.9]}, recall=0.9)
+    decision = core.decide([default, candidate], default_model="default", seed=1)
+    assert decision.decision == core.DECISION_DROP
+    assert decision.winner_model == "default"
+    assert "floor" in decision.reason
+
+
+def test_decide_is_order_independent():
+    # R3 F1 regression: per-candidate seeding makes the verdict (and each CI)
+    # invariant to candidate order, so --models ordering cannot flip it.
+    default = _result("default", {f"f{i}": [0.30] for i in range(8)})
+    noisy = _result("noisy", {f"f{i}": ([1.0] if i < 2 else [0.30]) for i in range(8)})
+    solid = _result("solid", {f"f{i}": [0.42] for i in range(8)})
+    d1 = core.decide([default, noisy, solid], default_model="default", seed=11)
+    d2 = core.decide([default, solid, noisy], default_model="default", seed=11)
+    d3 = core.decide([solid, default, noisy], default_model="default", seed=11)
+    assert d1.decision == d2.decision == d3.decision
+    assert d1.winner_model == d2.winner_model == d3.winner_model
+    assert d1.ci95 == d2.ci95 == d3.ci95
+
+
+def test_paired_bootstrap_ci_bonferroni_widens_lower_bound():
+    # R3 F4: the Bonferroni knob (smaller lower percentile) must widen the CI,
+    # i.e. push the lower bound down, so sweeping more candidates raises the bar.
+    w = _result("w", {f"f{i}": ([1.0] if i < 6 else [0.0]) for i in range(8)})
+    d = _result("d", {f"f{i}": [0.3] for i in range(8)})
+    ids = core.common_fixture_ids([w, d])
+    wide = core.paired_bootstrap_ci(
+        w, d, ids, lower_percentile=2.5 / 3, upper_percentile=100 - 2.5 / 3
+    )
+    narrow = core.paired_bootstrap_ci(
+        w, d, ids, lower_percentile=2.5, upper_percentile=97.5
+    )
+    assert wide[0] <= narrow[0]

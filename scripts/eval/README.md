@@ -239,6 +239,14 @@ computed on the shared stable subset) lives in the pure, unit-tested
 `_model_sweep_core.py`. The orchestrator injects a runner (`ModelEvalRunner`), so
 the KEEP/DROP decision is testable without API spend.
 
+Two guards keep the verdict honest. Each candidate's bootstrap stream is seeded
+from its own model id, so the outcome is independent of `--models` order. When
+more than one candidate is swept, the per-candidate CIs are Bonferroni-widened
+(the two-sided 5% alpha is split across candidates), so sweeping many models does
+not inflate the false-KEEP rate. A sweep with fewer than two shared stable
+fixtures is undecidable (the bootstrap CI collapses onto the point delta) and
+always DROPs; widen the shared `--fixtures` set to decide.
+
 **Prerequisite (freshness gate):** every swept model must have a pricing rate in
 `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` (`_eval_common.py`). The base evaluator
 hard-fails on an unpriced model (#2858), so the sweep pre-checks pricing and
