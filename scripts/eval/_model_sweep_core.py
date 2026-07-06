@@ -94,11 +94,6 @@ class SweepDecision:
     reason: str
 
 
-def _shared_fixture_ids(a: ModelResult, b: ModelResult) -> list[str]:
-    """Sorted intersection of fixture ids present for both models."""
-    return sorted(set(a.fixture_means) & set(b.fixture_means))
-
-
 def check_comparable(results: list[ModelResult]) -> None:
     """Reject a sweep whose models ran on different fixture sets.
 
@@ -117,22 +112,51 @@ def check_comparable(results: list[ModelResult]) -> None:
         )
 
 
+def common_fixture_ids(results: list[ModelResult]) -> list[str]:
+    """Sorted intersection of fixture ids present (and stable) for every model.
+
+    ``per_fixture_agent_rates`` is already flaky-excluded upstream, so the
+    intersection is the set of fixtures that are stable across ALL swept
+    models. Comparing on this common set keeps every model's recall, the
+    cross-model delta, and the bootstrap CI on the same fixtures even when
+    individual models excluded different flaky fixtures.
+    """
+    sets = [set(r.per_fixture_agent_rates) for r in results if r.per_fixture_agent_rates]
+    if not sets:
+        return []
+    return sorted(set.intersection(*sets))
+
+
+def mean_recall_on(result: ModelResult, ids: list[str]) -> float:
+    """Unweighted mean per-fixture pass rate over *ids* (the sweep metric).
+
+    This is the single estimand used for BOTH the point delta and the
+    bootstrap CI, so the KEEP/DROP gate never mixes metrics. It weights each
+    fixture equally (unlike the report's assertion-weighted ``agent_recall``,
+    which is retained only as an informational per-model field).
+    """
+    if not ids:
+        return 0.0
+    means = result.fixture_means
+    return sum(means[f] for f in ids) / len(ids)
+
+
 def paired_bootstrap_ci(
     winner: ModelResult,
     default: ModelResult,
+    ids: list[str],
     *,
     iterations: int = BOOTSTRAP_ITERATIONS,
     rng: random.Random | None = None,
 ) -> tuple[float, float]:
     """95% paired bootstrap CI on the per-fixture mean-rate delta (winner - default).
 
-    Resamples the shared fixture ids with replacement; for each resample takes
-    the mean of per-fixture ``winner - default`` differences; returns the
-    [2.5, 97.5] percentiles of the resampled deltas. Mirrors
+    Resamples *ids* (the common stable fixture set) with replacement; for each
+    resample takes the mean of per-fixture ``winner - default`` differences;
+    returns the [2.5, 97.5] percentiles of the resampled deltas. Mirrors
     ``_report_aggregator.pairwise_bootstrap_ci`` (fixture-id resampling, same
-    percentiles) but compares two *models* rather than two prompt variants.
+    percentiles), computed on the same fixtures and metric as the point delta.
     """
-    ids = _shared_fixture_ids(winner, default)
     if not ids:
         return (0.0, 0.0)
     rng = rng or random.Random(DEFAULT_SEED)
@@ -150,14 +174,13 @@ def paired_bootstrap_ci(
     )
 
 
-def cohens_d(winner: ModelResult, default: ModelResult) -> float:
-    """Paired Cohen's d_z on shared per-fixture mean rates (secondary metric).
+def cohens_d(winner: ModelResult, default: ModelResult, ids: list[str]) -> float:
+    """Paired Cohen's d_z on the *ids* per-fixture mean rates (secondary metric).
 
     d_z = mean(diff) / stdev(diff). Returns 0.0 when fewer than two shared
     fixtures or when the paired differences have zero spread (the CI, not
     d_z, is the gate, so a degenerate d_z cannot change a verdict).
     """
-    ids = _shared_fixture_ids(winner, default)
     if len(ids) < 2:
         return 0.0
     w_means = winner.fixture_means
@@ -169,23 +192,28 @@ def cohens_d(winner: ModelResult, default: ModelResult) -> float:
     return statistics.fmean(diffs) / spread
 
 
-def rank(results: list[ModelResult]) -> list[ModelResult]:
-    """Rank by agent_recall descending; break ties by model_id ascending."""
-    return sorted(results, key=lambda r: (-r.agent_recall, r.model_id))
+def rank(results: list[ModelResult], ids: list[str]) -> list[ModelResult]:
+    """Rank by mean recall on *ids* descending; break ties by model_id ascending."""
+    return sorted(results, key=lambda r: (-mean_recall_on(r, ids), r.model_id))
 
 
-def _select_winner(results: list[ModelResult], default_model: str) -> ModelResult:
-    """Highest recall; on a tie at the top, prefer the default, else lexical.
+def _evaluate_candidate(
+    candidate: ModelResult,
+    default: ModelResult,
+    ids: list[str],
+    *,
+    min_effect: float,
+    rng: random.Random,
+) -> tuple[float, tuple[float, float], bool]:
+    """Return (delta, ci95, qualifies) for one candidate vs the default.
 
-    Preferring the incumbent default on a tie is the conservative choice: a
-    pin must *beat* the default, not merely match it, to be justified.
+    ``qualifies`` iff the candidate leads by at least ``min_effect`` mean
+    recall AND the paired bootstrap CI on the delta excludes 0.
     """
-    top_recall = max(r.agent_recall for r in results)
-    tied = [r for r in results if r.agent_recall == top_recall]
-    for r in tied:
-        if r.model_id == default_model:
-            return r
-    return min(tied, key=lambda r: r.model_id)
+    delta = mean_recall_on(candidate, ids) - mean_recall_on(default, ids)
+    ci_low, ci_high = paired_bootstrap_ci(candidate, default, ids, rng=rng)
+    qualifies = delta >= min_effect and ci_low > 0.0
+    return delta, (ci_low, ci_high), qualifies
 
 
 def decide(
@@ -197,9 +225,12 @@ def decide(
 ) -> SweepDecision:
     """Decide KEEP_PIN vs DROP_PIN for a set of candidate model results.
 
-    KEEP_PIN iff a non-default candidate leads by at least ``min_effect`` AND
-    the paired bootstrap CI on the recall delta excludes zero. Otherwise
-    DROP_PIN (default wins/ties, or the lead is within noise).
+    Every non-default candidate is evaluated against the default on the common
+    stable fixture set. KEEP_PIN iff at least one candidate leads by
+    ``min_effect`` mean recall AND its paired bootstrap CI excludes 0; the
+    strongest such qualifier wins the pin. Otherwise DROP_PIN (a higher
+    point-estimate but noisy candidate cannot force a KEEP, and it cannot
+    suppress a solid lower-ranked candidate either).
     """
     if not results:
         raise SweepDecisionError("no model results to decide on")
@@ -211,62 +242,86 @@ def decide(
             f"{sorted(by_id)}; include it as a candidate to anchor the comparison"
         )
     default = by_id[default_model]
-    winner = _select_winner(results, default_model)
+    ids = common_fixture_ids(results)
+    if not ids:
+        raise SweepDecisionError(
+            "no fixtures are shared and stable across all swept models; cannot "
+            "compare (check per-model flaky exclusions and the --fixtures set)"
+        )
+    rng = rng or random.Random(DEFAULT_SEED)
+    default_recall = mean_recall_on(default, ids)
 
-    if winner.model_id == default_model:
+    evaluated: list[tuple[ModelResult, float, tuple[float, float], bool]] = []
+    for cand in (r for r in results if r.model_id != default_model):
+        delta, ci, qualifies = _evaluate_candidate(
+            cand, default, ids, min_effect=min_effect, rng=rng
+        )
+        evaluated.append((cand, delta, ci, qualifies))
+
+    qualifiers = [e for e in evaluated if e[3]]
+    if qualifiers:
+        cand, delta, ci, _ = sorted(
+            qualifiers,
+            key=lambda e: (-e[1], -mean_recall_on(e[0], ids), e[0].model_id),
+        )[0]
         return SweepDecision(
-            winner_model=default_model,
+            winner_model=cand.model_id,
             default_model=default_model,
-            winner_recall=default.agent_recall,
-            default_recall=default.agent_recall,
-            recall_delta=0.0,
-            ci95=(0.0, 0.0),
-            cohens_d=0.0,
-            decision=DECISION_DROP,
+            winner_recall=mean_recall_on(cand, ids),
+            default_recall=default_recall,
+            recall_delta=delta,
+            ci95=ci,
+            cohens_d=cohens_d(cand, default, ids),
+            decision=DECISION_KEEP,
             reason=(
-                f"harness default {default_model!r} ranks first "
-                f"(recall={default.agent_recall:.4f}); no candidate beats it, "
-                f"so no model pin is justified"
+                f"candidate {cand.model_id!r} beats default {default_model!r} by "
+                f"mean-recall delta={delta:.4f} (>= min_effect={min_effect:.4f}) "
+                f"over {len(ids)} shared fixtures; 95% CI [{ci[0]:.4f}, "
+                f"{ci[1]:.4f}] excludes 0; keep this pin and cite the artifact"
             ),
         )
 
-    delta = winner.agent_recall - default.agent_recall
-    ci_low, ci_high = paired_bootstrap_ci(winner, default, rng=rng)
-    d = cohens_d(winner, default)
-    significant = ci_low > 0.0
-    material = delta >= min_effect
-    keep = significant and material
-
-    if keep:
-        reason = (
-            f"candidate {winner.model_id!r} beats default {default_model!r} by "
-            f"recall_delta={delta:.4f} (>= min_effect={min_effect:.4f}); "
-            f"95% CI [{ci_low:.4f}, {ci_high:.4f}] excludes 0; keep this pin "
-            f"and cite the sweep artifact"
-        )
-    elif not significant:
-        reason = (
-            f"candidate {winner.model_id!r} leads by recall_delta={delta:.4f} "
-            f"but 95% CI [{ci_low:.4f}, {ci_high:.4f}] includes 0 (within noise); "
-            f"drop the pin and inherit the harness default"
-        )
-    else:
-        reason = (
-            f"candidate {winner.model_id!r} leads by recall_delta={delta:.4f} "
-            f"below min_effect={min_effect:.4f}; not material enough to justify "
-            f"a pin; drop it and inherit the harness default"
+    positive = [e for e in evaluated if e[1] > 0.0]
+    if positive:
+        cand, delta, ci, _ = sorted(positive, key=lambda e: (-e[1], e[0].model_id))[0]
+        if ci[0] <= 0.0:
+            reason = (
+                f"best candidate {cand.model_id!r} leads by mean-recall "
+                f"delta={delta:.4f} but 95% CI [{ci[0]:.4f}, {ci[1]:.4f}] "
+                f"includes 0 (within noise); drop the pin and inherit the default"
+            )
+        else:
+            reason = (
+                f"best candidate {cand.model_id!r} leads by mean-recall "
+                f"delta={delta:.4f} below min_effect={min_effect:.4f}; not "
+                f"material enough to justify a pin; drop it and inherit the default"
+            )
+        return SweepDecision(
+            winner_model=default_model,
+            default_model=default_model,
+            winner_recall=default_recall,
+            default_recall=default_recall,
+            recall_delta=delta,
+            ci95=ci,
+            cohens_d=cohens_d(cand, default, ids),
+            decision=DECISION_DROP,
+            reason=reason,
         )
 
     return SweepDecision(
-        winner_model=winner.model_id,
+        winner_model=default_model,
         default_model=default_model,
-        winner_recall=winner.agent_recall,
-        default_recall=default.agent_recall,
-        recall_delta=delta,
-        ci95=(ci_low, ci_high),
-        cohens_d=d,
-        decision=DECISION_KEEP if keep else DECISION_DROP,
-        reason=reason,
+        winner_recall=default_recall,
+        default_recall=default_recall,
+        recall_delta=0.0,
+        ci95=(0.0, 0.0),
+        cohens_d=0.0,
+        decision=DECISION_DROP,
+        reason=(
+            f"harness default {default_model!r} ranks first over {len(ids)} "
+            f"shared fixtures (mean recall={default_recall:.4f}); no candidate "
+            f"beats it, so no model pin is justified"
+        ),
     )
 
 
@@ -286,6 +341,7 @@ def build_report(
     strips DROP_PIN pins. Field names are stable; ``schema_version`` gates
     future shape changes.
     """
+    ids = common_fixture_ids(results)
     return {
         "schema_version": SCHEMA_VERSION,
         "agent": agent,
@@ -293,9 +349,11 @@ def build_report(
         "default_model": decision.default_model,
         "min_effect": min_effect,
         "seed": seed,
+        "n_shared_fixtures": len(ids),
         "models": [
             {
                 "model_id": r.model_id,
+                "mean_recall": round(mean_recall_on(r, ids), 6),
                 "agent_recall": round(r.agent_recall, 6),
                 "n_fixtures": len(r.per_fixture_agent_rates),
                 "tokens_in": r.tokens_in,
@@ -303,7 +361,7 @@ def build_report(
                 "cost_usd": round(r.cost_usd, 4),
                 "error_count": r.error_count,
             }
-            for r in rank(results)
+            for r in rank(results, ids)
         ],
         "winner": decision.winner_model,
         "recall_delta": round(decision.recall_delta, 6),

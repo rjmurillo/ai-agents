@@ -211,25 +211,33 @@ across models and emits a scored verdict (Issue #2840, acceptance criterion 2).
 ```bash
 scripts/eval/eval-model-sweep.py \
   --agent security \
-  --fixtures tests/evals/skills/security \
+  --fixtures evals/security-spike/fixtures \
   --models claude-sonnet-4-6,claude-opus-4-6 \
   --n-runs 3
 ```
 
 The default model (`claude-sonnet-4-6`) is always added as the comparison anchor.
-The verdict:
+The metric is the **unweighted mean per-fixture pass rate** over the fixtures that
+are stable (non-flaky) for *every* swept model (the shared stable subset). The
+same metric drives both the point delta and the CI, so the gate never mixes
+estimands. Every non-default candidate is scored against the default; a noisy
+top-point-estimate model cannot force a KEEP, nor suppress a solid runner-up. The
+verdict:
 
-- **KEEP_PIN**: a non-default candidate leads the default by at least
-  `--min-effect` (default 0.05) recall AND the paired bootstrap 95% CI on the
-  recall delta excludes 0. Keep the pin and cite the sweep artifact.
-- **DROP_PIN**: the default ranks first, the lead is within noise (CI includes
-  0), or the lead is below `--min-effect`. Drop the pin; inherit `auto`.
+- **KEEP_PIN**: some candidate leads the default by at least `--min-effect`
+  (default 0.05) mean recall AND the paired bootstrap 95% CI on the delta
+  excludes 0. Keep that pin and cite the sweep artifact. The strongest such
+  qualifier wins.
+- **DROP_PIN**: no candidate qualifies (the default ranks first, every lead is
+  within noise, or below `--min-effect`). Drop the pin; inherit `auto`.
 
-Cohen's d_z is reported as a secondary descriptor only; it never gates the
-verdict. The comparison math (paired fixture-id bootstrap, same percentiles as
-the agent-vs-baseline CI) lives in the pure, unit-tested `_model_sweep_core.py`.
-The orchestrator injects a runner (`ModelEvalRunner`), so the KEEP/DROP decision
-is testable without API spend.
+The report also carries each model's assertion-weighted `agent_recall` from its
+single-model report as an informational field, but that value never gates the
+verdict. Cohen's d_z is reported as a secondary descriptor only. The comparison
+math (paired fixture-id bootstrap, same percentiles as the agent-vs-baseline CI,
+computed on the shared stable subset) lives in the pure, unit-tested
+`_model_sweep_core.py`. The orchestrator injects a runner (`ModelEvalRunner`), so
+the KEEP/DROP decision is testable without API spend.
 
 **Prerequisite (freshness gate):** every swept model must have a pricing rate in
 `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` (`_eval_common.py`). The base evaluator

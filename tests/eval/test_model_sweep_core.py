@@ -61,25 +61,36 @@ def test_fixture_means_empty_runs_score_zero():
 
 
 def test_rank_orders_by_recall_then_id():
-    a = _result("b-model", {}, recall=0.9)
-    b = _result("a-model", {}, recall=0.9)
-    c = _result("c-model", {}, recall=0.5)
-    ranked = core.rank([c, a, b])
+    a = _result("b-model", {"f": [0.9]}, recall=0.9)
+    b = _result("a-model", {"f": [0.9]}, recall=0.9)
+    c = _result("c-model", {"f": [0.5]}, recall=0.5)
+    ids = core.common_fixture_ids([a, b, c])
+    ranked = core.rank([c, a, b], ids)
     assert [r.model_id for r in ranked] == ["a-model", "b-model", "c-model"]
 
 
-def test_select_winner_tie_prefers_default():
-    default = _result("default", {}, recall=0.8)
-    other = _result("aaa", {}, recall=0.8)
-    winner = core._select_winner([other, default], "default")
-    assert winner.model_id == "default"
-
-
-def test_select_winner_tie_without_default_is_lexical():
-    x = _result("zzz", {}, recall=0.8)
-    y = _result("aaa", {}, recall=0.8)
-    winner = core._select_winner([x, y], "default")
-    assert winner.model_id == "aaa"
+def test_decide_picks_qualifying_second_candidate_over_noisy_top():
+    # R2-1 regression: the top point-estimate model is noisy (its lead is
+    # concentrated in a minority of fixtures, so the paired CI straddles 0)
+    # and does NOT qualify. A lower-point-estimate candidate that beats the
+    # default consistently DOES qualify and must not be suppressed.
+    default = _result("default", {f"f{i}": [0.30] for i in range(8)})
+    # Noisy top: mean 0.475 (highest) but the lead lives in only 2 fixtures.
+    noisy_top = _result(
+        "noisy-top",
+        {f"f{i}": ([1.0] if i < 2 else [0.30]) for i in range(8)},
+    )
+    # Solid: mean 0.42 (lower) but beats default on EVERY fixture -> CI > 0.
+    solid = _result("solid", {f"f{i}": [0.42] for i in range(8)})
+    decision = core.decide(
+        [default, noisy_top, solid],
+        default_model="default",
+        min_effect=0.05,
+        rng=random.Random(7),
+    )
+    assert decision.decision == core.DECISION_KEEP
+    assert decision.winner_model == "solid"
+    assert decision.ci95[0] > 0.0
 
 
 def test_decide_empty_results_raises():
@@ -182,26 +193,27 @@ def test_decide_drops_pin_when_ci_includes_zero():
 def test_paired_bootstrap_ci_no_shared_fixtures_is_zero():
     w = _result("w", {"a": [1.0]}, recall=1.0)
     d = _result("d", {"b": [0.0]}, recall=0.0)
-    assert core.paired_bootstrap_ci(w, d) == (0.0, 0.0)
+    ids = core.common_fixture_ids([w, d])
+    assert core.paired_bootstrap_ci(w, d, ids) == (0.0, 0.0)
 
 
 def test_cohens_d_fewer_than_two_fixtures_is_zero():
     w = _result("w", {"a": [1.0]}, recall=1.0)
     d = _result("d", {"a": [0.0]}, recall=0.0)
-    assert core.cohens_d(w, d) == 0.0
+    assert core.cohens_d(w, d, ["a"]) == 0.0
 
 
 def test_cohens_d_zero_variance_is_zero():
     # Constant per-fixture difference -> stdev(diffs) == 0 -> guarded to 0.0.
     w = _result("w", {"a": [0.6], "b": [0.6]}, recall=0.6)
     d = _result("d", {"a": [0.5], "b": [0.5]}, recall=0.5)
-    assert core.cohens_d(w, d) == 0.0
+    assert core.cohens_d(w, d, ["a", "b"]) == 0.0
 
 
 def test_cohens_d_nonzero_when_diffs_vary():
     w = _result("w", {"a": [0.9], "b": [0.6]}, recall=0.75)
     d = _result("d", {"a": [0.1], "b": [0.5]}, recall=0.30)
-    assert core.cohens_d(w, d) > 0.0
+    assert core.cohens_d(w, d, ["a", "b"]) > 0.0
 
 
 def test_build_report_shape():
