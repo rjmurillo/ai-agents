@@ -45,6 +45,7 @@ class _FakeRunner:
 
 
 def _result(model_id, rate, **kw):
+    kw.setdefault("fixture_set_sha", "fakesha")
     return core.ModelResult(
         model_id=model_id,
         agent_recall=rate,
@@ -172,7 +173,29 @@ def test_parse_report_extracts_agent_rates():
     assert result.error_count == 2
 
 
-def test_child_report_path_shape():
+def test_parse_report_excludes_flaky_fixtures():
+    report = {
+        "agent_recall": 1.0,
+        "per_fixture_pass_rates": {
+            "stable": {"agent": [1.0]},
+            "flaky": {"agent": [0.0, 1.0]},
+        },
+        "flaky_fixtures_excluded": ["flaky"],
+        "fixture_set_sha": "sha1",
+    }
+    result = sweep.parse_report(report, model_id="m1")
+    assert set(result.per_fixture_agent_rates) == {"stable"}
+    assert result.fixture_set_sha == "sha1"
+
+
+def test_make_run_id_preserves_suffix_for_long_model_id():
+    long_id = "z" * 64
+    a = sweep.make_run_id(long_id, unique="aaaaaaaa")
+    b = sweep.make_run_id(long_id, unique="bbbbbbbb")
+    assert a != b
+    assert a.endswith("-aaaaaaaa")
+    assert b.endswith("-bbbbbbbb")
+    assert len(a) <= 64 and len(b) <= 64
     path = sweep.child_report_path("security", "sweep-x-1")
     assert path.name == "report.json"
     assert path.parent.name == "sweep-x-1"
@@ -250,8 +273,6 @@ def test_run_sweep_child_failure_is_external_error(capsys):
     priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
 
     class _Boom:
-        last_fixture_sha = ""
-
         def run(self, model_id):
             raise sweep.ChildRunError(model_id, 3, "boom")
 
@@ -259,6 +280,41 @@ def test_run_sweep_child_failure_is_external_error(capsys):
     rc = sweep.run_sweep(args, runner=_Boom())
     assert rc == sweep.EXIT_EXTERNAL
     assert "boom" in capsys.readouterr().err
+
+
+def test_run_sweep_child_config_failure_maps_to_config(capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+
+    class _ConfigBoom:
+        def run(self, model_id):
+            raise sweep.ChildRunError(model_id, sweep.EXIT_CONFIG, "bad fixtures")
+
+    args = _args(models=priced, default_model=priced)
+    rc = sweep.run_sweep(args, runner=_ConfigBoom())
+    assert rc == sweep.EXIT_CONFIG
+
+
+def test_run_sweep_rejects_zero_n_runs(capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+    args = _args(models=priced, default_model=priced, n_runs=0)
+    rc = sweep.run_sweep(args, runner=None)
+    assert rc == sweep.EXIT_CONFIG
+    assert "--n-runs must be >= 1" in capsys.readouterr().err
+
+
+def test_run_sweep_mismatched_fixture_sha_is_config_error(capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)
+    if len(priced) < 2:
+        return
+    default_id, candidate_id = priced[0], priced[1]
+    results = {
+        default_id: _result(default_id, 0.5, fixture_set_sha="shaA"),
+        candidate_id: _result(candidate_id, 0.9, fixture_set_sha="shaB"),
+    }
+    args = _args(models=f"{default_id},{candidate_id}", default_model=default_id)
+    rc = sweep.run_sweep(args, runner=_FakeRunner(results))
+    assert rc == sweep.EXIT_CONFIG
+    assert "different fixture sets" in capsys.readouterr().err
 
 
 # --- drift guard ----------------------------------------------------------

@@ -68,6 +68,7 @@ class ModelResult:
     tokens_out: int = 0
     cost_usd: float = 0.0
     error_count: int = 0
+    fixture_set_sha: str = ""
 
     @property
     def fixture_means(self) -> dict[str, float]:
@@ -96,6 +97,24 @@ class SweepDecision:
 def _shared_fixture_ids(a: ModelResult, b: ModelResult) -> list[str]:
     """Sorted intersection of fixture ids present for both models."""
     return sorted(set(a.fixture_means) & set(b.fixture_means))
+
+
+def check_comparable(results: list[ModelResult]) -> None:
+    """Reject a sweep whose models ran on different fixture sets.
+
+    Every model must evaluate the SAME input fixtures for the cross-model
+    delta and CI to mean anything. The base evaluator records the input set
+    as ``fixture_set_sha``; if two models carry different (non-empty) shas the
+    sweep pointed them at different fixtures and the comparison is invalid.
+    Empty shas (e.g. injected test doubles) are ignored.
+    """
+    shas = {r.fixture_set_sha for r in results if r.fixture_set_sha}
+    if len(shas) > 1:
+        raise SweepDecisionError(
+            "models were evaluated on different fixture sets "
+            f"(fixture_set_sha values {sorted(shas)}); sweep all models over "
+            "the same --fixtures so the comparison is valid"
+        )
 
 
 def paired_bootstrap_ci(
@@ -184,6 +203,7 @@ def decide(
     """
     if not results:
         raise SweepDecisionError("no model results to decide on")
+    check_comparable(results)
     by_id = {r.model_id: r for r in results}
     if default_model not in by_id:
         raise SweepDecisionError(

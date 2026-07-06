@@ -124,9 +124,18 @@ def _sanitize_for_run_id(model_id: str) -> str:
 
 
 def make_run_id(model_id: str, *, unique: str | None = None) -> str:
-    """Build a path-safe, per-model run id: ``sweep-<model>-<8hex>``."""
+    """Build a path-safe, per-model run id: ``sweep-<model>-<8hex>``.
+
+    The unique suffix is preserved even for long model ids: the sanitized
+    model slug is truncated to fit the 64-char run-id budget so two long ids
+    can never collapse to the same run id (which would collide report dirs).
+    """
     suffix = unique or uuid.uuid4().hex[:8]
-    run_id = f"sweep-{_sanitize_for_run_id(model_id)}-{suffix}"[:64]
+    prefix = "sweep-"
+    # 64 total, minus prefix, minus the "-" joiner, minus the suffix.
+    slug_budget = 64 - len(prefix) - 1 - len(suffix)
+    slug = _sanitize_for_run_id(model_id)[:slug_budget]
+    run_id = f"{prefix}{slug}-{suffix}"
     if not _RUN_ID_RE.match(run_id):
         raise ValueError(f"generated run id is not path-safe: {run_id!r}")
     return run_id
@@ -172,11 +181,19 @@ def child_report_path(agent: str, run_id: str) -> Path:
 
 
 def parse_report(report: dict, *, model_id: str) -> ModelResult:
-    """Extract a ``ModelResult`` (agent variant) from a report.json dict."""
+    """Extract a ``ModelResult`` (agent variant) from a report.json dict.
+
+    Fixtures the base evaluator excluded for flakiness are dropped here too:
+    the report's headline ``agent_recall`` is computed on the STABLE subset
+    (flaky fixtures excluded), so the per-fixture rates feeding the paired CI
+    must exclude the same fixtures or the CI and the point delta would span
+    different fixture sets.
+    """
+    excluded = set(report.get("flaky_fixtures_excluded") or [])
     per_fixture = report.get("per_fixture_pass_rates") or {}
     rates: dict[str, list[float]] = {}
     for fixture_id, variants in per_fixture.items():
-        if not isinstance(variants, dict):
+        if fixture_id in excluded or not isinstance(variants, dict):
             continue
         agent_rates = variants.get("agent")
         if agent_rates is None:
@@ -190,6 +207,7 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
         tokens_out=int(report.get("total_tokens_out", 0)),
         cost_usd=float(report.get("cost_estimate_usd", 0.0)),
         error_count=int(report.get("error_count", 0)),
+        fixture_set_sha=str(report.get("fixture_set_sha", "")),
     )
 
 
@@ -197,8 +215,8 @@ class SubprocessModelEvalRunner:
     """Default runner: evaluate one model by shelling out to the base script.
 
     Reuses the fully-tested live path (retry, idempotency, persistence,
-    scoring, aggregation). Returns the parsed ``ModelResult`` plus the report's
-    ``fixture_set_sha`` (so the sweep artifact records which fixtures ran).
+    scoring, aggregation) and parses the resulting ``report.json`` into a
+    ``ModelResult`` (which carries the report's ``fixture_set_sha``).
     """
 
     def __init__(
@@ -215,7 +233,6 @@ class SubprocessModelEvalRunner:
         self._n_runs = n_runs
         self._provider = provider
         self._env = env
-        self.last_fixture_sha: str = ""
 
     def run(self, model_id: str) -> ModelResult:
         run_id = make_run_id(model_id)
@@ -238,7 +255,6 @@ class SubprocessModelEvalRunner:
             raise ChildRunError(model_id, completed.returncode, completed.stderr)
         report_path = child_report_path(self._agent, run_id)
         report = json.loads(report_path.read_text(encoding="utf-8"))
-        self.last_fixture_sha = str(report.get("fixture_set_sha", ""))
         return parse_report(report, model_id=model_id)
 
 
@@ -325,6 +341,12 @@ def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> in
         )
         return EXIT_CONFIG
 
+    if args.n_runs < 1:
+        print(
+            f"error: --n-runs must be >= 1 (got {args.n_runs})", file=sys.stderr
+        )
+        return EXIT_CONFIG
+
     if not args.fixtures.exists():
         print(f"error: fixtures path not found: {args.fixtures}", file=sys.stderr)
         return EXIT_CONFIG
@@ -340,7 +362,9 @@ def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> in
             results.append(runner.run(model_id))
         except ChildRunError as exc:
             print(f"error: {exc}", file=sys.stderr)
-            return EXIT_EXTERNAL
+            # A child config failure is a config error for the sweep too;
+            # only non-config child failures are "external" to the sweep.
+            return EXIT_CONFIG if exc.returncode == EXIT_CONFIG else EXIT_EXTERNAL
 
     try:
         decision = decide(
@@ -355,7 +379,7 @@ def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> in
 
     report = build_report(
         agent=args.agent,
-        fixtures_sha=runner.last_fixture_sha,
+        fixtures_sha=results[0].fixture_set_sha,
         results=results,
         decision=decision,
         min_effect=args.min_effect,

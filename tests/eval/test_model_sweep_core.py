@@ -32,6 +32,29 @@ def _result(model_id, rates, *, recall=None, **kw):
     )
 
 
+def test_check_comparable_passes_matching_sha():
+    a = _result("a", {"f": [1.0]}, recall=1.0, fixture_set_sha="s")
+    b = _result("b", {"f": [0.5]}, recall=0.5, fixture_set_sha="s")
+    core.check_comparable([a, b])  # no raise
+
+
+def test_check_comparable_ignores_empty_sha():
+    a = _result("a", {"f": [1.0]}, recall=1.0)
+    b = _result("b", {"f": [0.5]}, recall=0.5)
+    core.check_comparable([a, b])  # empty shas ignored -> no raise
+
+
+def test_check_comparable_rejects_divergent_sha():
+    a = _result("a", {"f": [1.0]}, recall=1.0, fixture_set_sha="s1")
+    b = _result("b", {"f": [0.5]}, recall=0.5, fixture_set_sha="s2")
+    try:
+        core.check_comparable([a, b])
+    except core.SweepDecisionError as exc:
+        assert "different fixture sets" in str(exc)
+        return
+    raise AssertionError("expected SweepDecisionError for divergent fixture shas")
+
+
 def test_fixture_means_empty_runs_score_zero():
     r = _result("m", {"f1": [1.0, 0.0], "f2": []}, recall=0.5)
     assert r.fixture_means == {"f1": 0.5, "f2": 0.0}
