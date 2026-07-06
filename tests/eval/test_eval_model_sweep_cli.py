@@ -294,6 +294,18 @@ def test_run_sweep_child_config_failure_maps_to_config(capsys):
     assert rc == sweep.EXIT_CONFIG
 
 
+def test_run_sweep_child_auth_failure_maps_to_auth(capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+
+    class _AuthBoom:
+        def run(self, model_id):
+            raise sweep.ChildRunError(model_id, sweep.EXIT_AUTH, "bad api key")
+
+    args = _args(models=priced, default_model=priced)
+    rc = sweep.run_sweep(args, runner=_AuthBoom())
+    assert rc == sweep.EXIT_AUTH
+
+
 def test_run_sweep_rejects_zero_n_runs(capsys):
     priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
     args = _args(models=priced, default_model=priced, n_runs=0)

@@ -51,6 +51,7 @@ from _model_sweep_core import (
 EXIT_OK = 0
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
+EXIT_AUTH = 4
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = Path(__file__).resolve().parent
@@ -361,9 +362,14 @@ def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> in
             results.append(runner.run(model_id))
         except ChildRunError as exc:
             print(f"error: {exc}", file=sys.stderr)
-            # A child config failure is a config error for the sweep too;
-            # only non-config child failures are "external" to the sweep.
-            return EXIT_CONFIG if exc.returncode == EXIT_CONFIG else EXIT_EXTERNAL
+            # Preserve the child's exit-code class per the repo contract
+            # (2=config, 4=auth); any other child failure is "external"
+            # (3) to the sweep.
+            if exc.returncode == EXIT_CONFIG:
+                return EXIT_CONFIG
+            if exc.returncode == EXIT_AUTH:
+                return EXIT_AUTH
+            return EXIT_EXTERNAL
 
     try:
         decision = decide(
