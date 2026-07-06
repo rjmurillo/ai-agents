@@ -14,6 +14,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
 SWEEP_SCRIPT = EVAL_DIR / "eval-model-sweep.py"
@@ -304,6 +306,32 @@ def test_run_sweep_child_auth_failure_maps_to_auth(capsys):
     args = _args(models=priced, default_model=priced)
     rc = sweep.run_sweep(args, runner=_AuthBoom())
     assert rc == sweep.EXIT_AUTH
+
+
+def test_runner_unreadable_report_raises_external_child_error(tmp_path, monkeypatch):
+    runner = sweep.SubprocessModelEvalRunner(
+        agent="security", fixtures=tmp_path, n_runs=1, provider=None, env={}
+    )
+
+    class _Completed:
+        returncode = sweep.EXIT_OK
+        stderr = ""
+
+    monkeypatch.setattr(sweep.subprocess, "run", lambda *a, **k: _Completed())
+    # Point at a report path that does not exist -> read_text raises OSError.
+    monkeypatch.setattr(
+        sweep, "child_report_path", lambda agent, run_id: tmp_path / "missing.json"
+    )
+    with pytest.raises(sweep.ChildRunError) as excinfo:
+        runner.run("claude-sonnet-4")
+    assert excinfo.value.returncode == sweep.EXIT_EXTERNAL
+
+
+def test_default_output_path_is_unique_within_same_second():
+    a = sweep._default_output_path("security")
+    b = sweep._default_output_path("security")
+    assert a != b
+    assert a.name.startswith("sweep-") and a.name.endswith(".json")
 
 
 def test_run_sweep_rejects_zero_n_runs(capsys):

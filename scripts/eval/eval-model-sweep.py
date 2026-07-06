@@ -254,8 +254,18 @@ class SubprocessModelEvalRunner:
         if completed.returncode != EXIT_OK:
             raise ChildRunError(model_id, completed.returncode, completed.stderr)
         report_path = child_report_path(self._agent, run_id)
-        report = json.loads(report_path.read_text(encoding="utf-8"))
-        return parse_report(report, model_id=model_id)
+        # The child exited 0 but its report artifact is an external dependency:
+        # a missing or malformed file is an EXTERNAL failure, not an unhandled
+        # crash. Surface it as ChildRunError so run_sweep maps it per contract.
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            return parse_report(report, model_id=model_id)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise ChildRunError(
+                model_id,
+                EXIT_EXTERNAL,
+                f"child exited 0 but report at {report_path} is unreadable: {exc}",
+            ) from exc
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -314,10 +324,13 @@ def _plan_lines(agent: str, fixtures: Path, models: list[str], n_runs: int) -> l
 
 def _default_output_path(agent: str) -> Path:
     stamp = _dt.datetime.now(tz=_dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    # Add a short random suffix so repeated sweeps of the same agent within
+    # the same second do not silently overwrite each other's evidence.
+    suffix = uuid.uuid4().hex[:8]
     return (
         REPO_ROOT
         / REPORTS_DIR_TEMPLATE.format(agent=agent)
-        / f"sweep-{stamp}.json"
+        / f"sweep-{stamp}-{suffix}.json"
     )
 
 
