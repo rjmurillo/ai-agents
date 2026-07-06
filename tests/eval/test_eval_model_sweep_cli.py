@@ -293,6 +293,33 @@ def test_run_sweep_keep_pin_end_to_end(tmp_path, capsys):
     assert artifact["fixtures_sha"] == "fakesha"
 
 
+def test_run_sweep_artifact_write_failure_maps_to_external(tmp_path, capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)
+    if len(priced) < 2:
+        return
+    default_id, candidate_id = priced[0], priced[1]
+    results = {
+        default_id: _result(default_id, 0.10),
+        candidate_id: _result(candidate_id, 0.90, cost_usd=0.2, error_count=0),
+    }
+    # Use a regular file as a directory component so mkdir(parents=True) raises
+    # NotADirectoryError (an OSError) on a valid, non-decision path.
+    blocker = tmp_path / "blocker"
+    blocker.write_text("x", encoding="utf-8")
+    output = blocker / "sub" / "sweep.json"
+    args = _args(
+        models=f"{default_id},{candidate_id}",
+        default_model=default_id,
+        output=output,
+    )
+    rc = sweep.run_sweep(args, runner=_FakeRunner(results))
+    captured = capsys.readouterr()
+    assert rc == sweep.EXIT_EXTERNAL
+    # The verdict is still emitted to stdout before the write is attempted.
+    assert core.DECISION_KEEP in captured.out
+    assert "could not write artifact" in captured.err
+
+
 def test_run_sweep_child_failure_is_external_error(capsys):
     priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
 

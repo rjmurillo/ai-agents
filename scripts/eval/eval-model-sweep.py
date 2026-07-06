@@ -427,10 +427,18 @@ def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> in
         seed=args.seed,
     )
     output = args.output or _default_output_path(args.agent)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
-
+    # Emit the verdict before persisting so an artifact-write failure does not
+    # also cost the operator the KEEP/DROP result.
     print(f"{decision.decision}: {decision.reason}")
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
+        )
+    except OSError as exc:
+        print(f"error: could not write artifact to {output}: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
+
     print(f"artifact: {output}")
     return EXIT_OK
 
