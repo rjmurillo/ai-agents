@@ -1,0 +1,386 @@
+#!/usr/bin/env python3
+"""Eval model-sweep runner (Issue #2840, acceptance criterion 2).
+
+Sweep one agent's fixtures across several candidate models, score each with
+the existing single-model evaluator, and report a scored winner with effect
+size so a ``model:`` pin can be kept ONLY with evidence (else dropped to the
+harness default).
+
+This is a thin orchestrator. It does NOT re-implement the run loop, scoring,
+persistence, or statistics: each candidate model is evaluated by shelling out
+to the fully-tested ``eval-agent-vs-baseline.py`` (agent variant), then the
+resulting ``report.json`` is compared across models by ``_model_sweep_core``.
+The runner is injected (``ModelEvalRunner``) so the orchestration and the
+KEEP_PIN/DROP_PIN decision are unit-testable without any API spend.
+
+Prerequisite: every swept model must have a pricing rate in
+``MODEL_PRICING_RATES_USD_PER_1K_TOKENS`` (``_eval_common.py``); the base
+evaluator hard-fails on an unpriced model (Issue #2858). The sweep pre-checks
+this and prints an actionable error naming the unpriced models. It does NOT
+invent pricing.
+
+Exit codes (AGENTS.md): 0 ok, 2 config, 3 external (a child run failed).
+
+Usage:
+    eval-model-sweep.py --agent security --fixtures tests/evals/skills/security \\
+        --models claude-sonnet-4-6,claude-opus-4-6 --n-runs 3
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as _dt
+import json
+import os
+import random
+import re
+import subprocess  # noqa: S404 - invokes a sibling eval script with a fixed, validated argv
+import sys
+import uuid
+from pathlib import Path
+
+from _eval_common import MODEL_PRICING_RATES_USD_PER_1K_TOKENS
+from _model_sweep_core import (
+    DEFAULT_MIN_EFFECT,
+    DEFAULT_SEED,
+    ModelResult,
+    SweepDecisionError,
+    build_report,
+    decide,
+)
+
+EXIT_OK = 0
+EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+EVAL_DIR = Path(__file__).resolve().parent
+BASE_EVAL_SCRIPT = EVAL_DIR / "eval-agent-vs-baseline.py"
+
+# Mirrors eval-agent-vs-baseline.DEFAULT_MODEL. The base script's filename has
+# hyphens (not importable as a module), so the value is duplicated here and a
+# drift guard test asserts the two stay equal.
+DEFAULT_MODEL = "claude-sonnet-4-6"
+REPORTS_DIR_TEMPLATE = "evals/{agent}-spike/reports"
+
+_AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
+_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+class ChildRunError(Exception):
+    """Raised when the base evaluator exits non-zero for a model."""
+
+    def __init__(self, model_id: str, returncode: int, stderr: str) -> None:
+        super().__init__(
+            f"eval-agent-vs-baseline failed for model {model_id!r} "
+            f"(exit {returncode}): {stderr.strip()[:400]}"
+        )
+        self.model_id = model_id
+        self.returncode = returncode
+
+
+def _agent_name_arg(value: str) -> str:
+    if not _AGENT_NAME_RE.match(value):
+        raise argparse.ArgumentTypeError(
+            f"--agent must match {_AGENT_NAME_RE.pattern} (got {value!r})"
+        )
+    return value
+
+
+def parse_models_arg(raw: str, *, default_model: str) -> list[str]:
+    """Parse ``--models`` into a validated, de-duplicated, order-preserving list.
+
+    The default model is always included (appended if absent) because the
+    comparison needs it as the anchor. Each id is path-safe (it becomes part of
+    a run-id joined under REPO_ROOT) and non-empty.
+    """
+    ids: list[str] = []
+    for token in raw.split(","):
+        model = token.strip()
+        if not model:
+            continue
+        if not _MODEL_ID_RE.match(model):
+            raise argparse.ArgumentTypeError(
+                f"model id must match {_MODEL_ID_RE.pattern} (got {model!r})"
+            )
+        if model not in ids:
+            ids.append(model)
+    if not ids:
+        raise argparse.ArgumentTypeError("--models must list at least one model id")
+    if default_model not in ids:
+        ids.append(default_model)
+    return ids
+
+
+def validate_models_priced(models: list[str]) -> list[str]:
+    """Return the subset of *models* lacking a pricing rate (empty == all ok)."""
+    return [m for m in models if m not in MODEL_PRICING_RATES_USD_PER_1K_TOKENS]
+
+
+def _sanitize_for_run_id(model_id: str) -> str:
+    """Map a model id to the run-id charset ([A-Za-z0-9_-]) deterministically."""
+    return re.sub(r"[^A-Za-z0-9_-]", "-", model_id)
+
+
+def make_run_id(model_id: str, *, unique: str | None = None) -> str:
+    """Build a path-safe, per-model run id: ``sweep-<model>-<8hex>``."""
+    suffix = unique or uuid.uuid4().hex[:8]
+    run_id = f"sweep-{_sanitize_for_run_id(model_id)}-{suffix}"[:64]
+    if not _RUN_ID_RE.match(run_id):
+        raise ValueError(f"generated run id is not path-safe: {run_id!r}")
+    return run_id
+
+
+def build_child_argv(
+    *,
+    agent: str,
+    fixtures: Path,
+    model_id: str,
+    n_runs: int,
+    run_id: str,
+    provider: str | None,
+) -> list[str]:
+    """Argv for one base-evaluator invocation (agent variant, one model)."""
+    argv = [
+        sys.executable,
+        str(BASE_EVAL_SCRIPT),
+        "--agent",
+        agent,
+        "--fixtures",
+        str(fixtures),
+        "--model",
+        model_id,
+        "--n-runs",
+        str(n_runs),
+        "--run-id",
+        run_id,
+    ]
+    if provider:
+        argv += ["--provider", provider]
+    return argv
+
+
+def child_report_path(agent: str, run_id: str) -> Path:
+    """Path to the report.json the base evaluator writes for a run."""
+    return (
+        REPO_ROOT
+        / REPORTS_DIR_TEMPLATE.format(agent=agent)
+        / run_id
+        / "report.json"
+    )
+
+
+def parse_report(report: dict, *, model_id: str) -> ModelResult:
+    """Extract a ``ModelResult`` (agent variant) from a report.json dict."""
+    per_fixture = report.get("per_fixture_pass_rates") or {}
+    rates: dict[str, list[float]] = {}
+    for fixture_id, variants in per_fixture.items():
+        if not isinstance(variants, dict):
+            continue
+        agent_rates = variants.get("agent")
+        if agent_rates is None:
+            continue
+        rates[fixture_id] = [float(r) for r in agent_rates]
+    return ModelResult(
+        model_id=model_id,
+        agent_recall=float(report.get("agent_recall", 0.0)),
+        per_fixture_agent_rates=rates,
+        tokens_in=int(report.get("total_tokens_in", 0)),
+        tokens_out=int(report.get("total_tokens_out", 0)),
+        cost_usd=float(report.get("cost_estimate_usd", 0.0)),
+        error_count=int(report.get("error_count", 0)),
+    )
+
+
+class SubprocessModelEvalRunner:
+    """Default runner: evaluate one model by shelling out to the base script.
+
+    Reuses the fully-tested live path (retry, idempotency, persistence,
+    scoring, aggregation). Returns the parsed ``ModelResult`` plus the report's
+    ``fixture_set_sha`` (so the sweep artifact records which fixtures ran).
+    """
+
+    def __init__(
+        self,
+        *,
+        agent: str,
+        fixtures: Path,
+        n_runs: int,
+        provider: str | None,
+        env: dict[str, str] | None = None,
+    ) -> None:
+        self._agent = agent
+        self._fixtures = fixtures
+        self._n_runs = n_runs
+        self._provider = provider
+        self._env = env
+        self.last_fixture_sha: str = ""
+
+    def run(self, model_id: str) -> ModelResult:
+        run_id = make_run_id(model_id)
+        argv = build_child_argv(
+            agent=self._agent,
+            fixtures=self._fixtures,
+            model_id=model_id,
+            n_runs=self._n_runs,
+            run_id=run_id,
+            provider=self._provider,
+        )
+        completed = subprocess.run(  # noqa: S603 - argv is fixed + validated, shell=False
+            argv,
+            capture_output=True,
+            text=True,
+            env=self._env or os.environ.copy(),
+            check=False,
+        )
+        if completed.returncode != EXIT_OK:
+            raise ChildRunError(model_id, completed.returncode, completed.stderr)
+        report_path = child_report_path(self._agent, run_id)
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.last_fixture_sha = str(report.get("fixture_set_sha", ""))
+        return parse_report(report, model_id=model_id)
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="eval-model-sweep",
+        description=(
+            "Sweep an agent's fixtures across candidate models; report a "
+            "scored winner with effect size (KEEP_PIN / DROP_PIN)."
+        ),
+    )
+    parser.add_argument("--agent", required=True, type=_agent_name_arg)
+    parser.add_argument("--fixtures", required=True, type=Path)
+    parser.add_argument(
+        "--models",
+        required=True,
+        help=(
+            "comma-separated candidate model ids; the default model is added "
+            "automatically as the comparison anchor"
+        ),
+    )
+    parser.add_argument("--default-model", default=DEFAULT_MODEL)
+    parser.add_argument("--n-runs", type=int, default=3)
+    parser.add_argument(
+        "--min-effect",
+        type=float,
+        default=DEFAULT_MIN_EFFECT,
+        help=(
+            "minimum recall lead over the default to justify a pin "
+            f"(default {DEFAULT_MIN_EFFECT})"
+        ),
+    )
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--provider", default=None)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="path for the JSON sweep artifact (default: under the reports dir)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="validate inputs and print the per-model plan; no API calls",
+    )
+    return parser
+
+
+def _plan_lines(agent: str, fixtures: Path, models: list[str], n_runs: int) -> list[str]:
+    lines = [
+        f"sweep plan: agent={agent} fixtures={fixtures} n_runs={n_runs}",
+        f"models ({len(models)}):",
+    ]
+    lines += [f"  - {m}" for m in models]
+    return lines
+
+
+def _default_output_path(agent: str) -> Path:
+    stamp = _dt.datetime.now(tz=_dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    return (
+        REPO_ROOT
+        / REPORTS_DIR_TEMPLATE.format(agent=agent)
+        / f"sweep-{stamp}.json"
+    )
+
+
+def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> int:
+    """Live path: evaluate each model via *runner*, decide, write artifact."""
+    try:
+        models = parse_models_arg(args.models, default_model=args.default_model)
+    except argparse.ArgumentTypeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+
+    unpriced = validate_models_priced(models)
+    if unpriced:
+        print(
+            "error: no pricing rate for model(s): "
+            + ", ".join(sorted(unpriced))
+            + ". Add them to MODEL_PRICING_RATES_USD_PER_1K_TOKENS in "
+            "scripts/eval/_eval_common.py (with a verified rate) before "
+            "sweeping; the base evaluator refuses unpriced models (#2858).",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+
+    if not args.fixtures.exists():
+        print(f"error: fixtures path not found: {args.fixtures}", file=sys.stderr)
+        return EXIT_CONFIG
+
+    if args.dry_run:
+        for line in _plan_lines(args.agent, args.fixtures, models, args.n_runs):
+            print(line)
+        return EXIT_OK
+
+    results: list[ModelResult] = []
+    for model_id in models:
+        try:
+            results.append(runner.run(model_id))
+        except ChildRunError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_EXTERNAL
+
+    try:
+        decision = decide(
+            results,
+            default_model=args.default_model,
+            min_effect=args.min_effect,
+            rng=random.Random(args.seed),
+        )
+    except SweepDecisionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+
+    report = build_report(
+        agent=args.agent,
+        fixtures_sha=runner.last_fixture_sha,
+        results=results,
+        decision=decision,
+        min_effect=args.min_effect,
+        seed=args.seed,
+    )
+    output = args.output or _default_output_path(args.agent)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+
+    print(f"{decision.decision}: {decision.reason}")
+    print(f"artifact: {output}")
+    return EXIT_OK
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_arg_parser()
+    args = parser.parse_args(argv)
+    runner = SubprocessModelEvalRunner(
+        agent=args.agent,
+        fixtures=args.fixtures,
+        n_runs=args.n_runs,
+        provider=args.provider,
+    )
+    return run_sweep(args, runner)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

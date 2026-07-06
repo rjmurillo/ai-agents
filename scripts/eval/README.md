@@ -43,6 +43,7 @@ python3 scripts/eval/eval-skill-overlap.py \
 | `analyze-pr-churn.py` | Deterministic commit-churn classification across a PR cohort (degenerate vs control) to evaluate instruction/rule changes against historical PRs. No LLM; core in `_pr_churn.py`. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
+| `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 
 ## End-to-End Delivery Eval
@@ -198,6 +199,49 @@ Note on the Issue #1932 Phase 1 pairs: `doc-coverage`, `doc-sync`, and
 the example file targets the surviving overlapping pairs only
 (`memory-enhancement`/`curating-memories`,
 `curating-memories`/`exploring-knowledge-graph`).
+
+## Model Sweep Eval
+
+`eval-model-sweep.py` answers a question the pin registry (#2891) cannot: does a
+`model:` pin actually beat the harness default, or is it cargo-cult config? For
+one agent it runs the existing single-model evaluator (`eval-agent-vs-baseline.py`,
+agent variant) once per candidate model, then compares the per-fixture pass rates
+across models and emits a scored verdict (Issue #2840, acceptance criterion 2).
+
+```bash
+scripts/eval/eval-model-sweep.py \
+  --agent security \
+  --fixtures tests/evals/skills/security \
+  --models claude-sonnet-4-6,claude-opus-4-6 \
+  --n-runs 3
+```
+
+The default model (`claude-sonnet-4-6`) is always added as the comparison anchor.
+The verdict:
+
+- **KEEP_PIN**: a non-default candidate leads the default by at least
+  `--min-effect` (default 0.05) recall AND the paired bootstrap 95% CI on the
+  recall delta excludes 0. Keep the pin and cite the sweep artifact.
+- **DROP_PIN**: the default ranks first, the lead is within noise (CI includes
+  0), or the lead is below `--min-effect`. Drop the pin; inherit `auto`.
+
+Cohen's d_z is reported as a secondary descriptor only; it never gates the
+verdict. The comparison math (paired fixture-id bootstrap, same percentiles as
+the agent-vs-baseline CI) lives in the pure, unit-tested `_model_sweep_core.py`.
+The orchestrator injects a runner (`ModelEvalRunner`), so the KEEP/DROP decision
+is testable without API spend.
+
+**Prerequisite (freshness gate):** every swept model must have a pricing rate in
+`MODEL_PRICING_RATES_USD_PER_1K_TOKENS` (`_eval_common.py`). The base evaluator
+hard-fails on an unpriced model (#2858), so the sweep pre-checks pricing and
+exits `2` with an actionable message naming the unpriced models. It does **not**
+invent pricing. Today only two `claude-sonnet` ids are priced, so a real
+opus/haiku sweep needs a verified pricing entry added first. `--dry-run`
+validates inputs and prints the per-model plan with no API calls.
+
+Output is a JSON artifact (`--output`, default under
+`evals/{agent}-spike/reports/`) with `schema_version`, per-model recall/tokens/
+cost, the winner, `recall_delta`, `ci95`, `cohens_d`, and the `decision`/`reason`.
 
 ## Scenario File Format
 
