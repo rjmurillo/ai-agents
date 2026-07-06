@@ -43,6 +43,7 @@ python3 scripts/eval/eval-skill-overlap.py \
 | `analyze-pr-churn.py` | Deterministic commit-churn classification across a PR cohort (degenerate vs control) to evaluate instruction/rule changes against historical PRs. No LLM; core in `_pr_churn.py`. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
+| `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 
 ## End-to-End Delivery Eval
@@ -198,6 +199,66 @@ Note on the Issue #1932 Phase 1 pairs: `doc-coverage`, `doc-sync`, and
 the example file targets the surviving overlapping pairs only
 (`memory-enhancement`/`curating-memories`,
 `curating-memories`/`exploring-knowledge-graph`).
+
+## Model Sweep Eval
+
+`eval-model-sweep.py` answers a question the pin registry (#2891) cannot: does a
+`model:` pin actually beat the harness default, or is it cargo-cult config? For
+one agent it runs the existing single-model evaluator (`eval-agent-vs-baseline.py`,
+agent variant) once per candidate model, then compares the per-fixture pass rates
+across models and emits a scored verdict (Issue #2840, acceptance criterion 2).
+
+```bash
+scripts/eval/eval-model-sweep.py \
+  --agent security \
+  --fixtures evals/security-spike/fixtures \
+  --models claude-sonnet-4-6,claude-opus-4-6 \
+  --n-runs 3
+```
+
+The default model (`claude-sonnet-4-6`) is always added as the comparison anchor.
+The metric is the **unweighted mean per-fixture pass rate** over the fixtures that
+are stable (non-flaky) for *every* swept model (the shared stable subset). The
+same metric drives both the point delta and the CI, so the gate never mixes
+estimands. Every non-default candidate is scored against the default; a noisy
+top-point-estimate model cannot force a KEEP, nor suppress a solid runner-up. The
+verdict:
+
+- **KEEP_PIN**: some candidate leads the default by at least `--min-effect`
+  (default 0.05) mean recall AND the paired bootstrap 95% CI on the delta
+  excludes 0. Keep that pin and cite the sweep artifact. The strongest such
+  qualifier wins.
+- **DROP_PIN**: no candidate qualifies (the default ranks first, every lead is
+  within noise, or below `--min-effect`). Drop the pin; inherit `auto`.
+
+The report also carries each model's assertion-weighted `agent_recall` from its
+single-model report as an informational field, but that value never gates the
+verdict. Cohen's d_z is reported as a secondary descriptor only. The comparison
+math (paired fixture-id bootstrap, same percentiles as the agent-vs-baseline CI,
+computed on the shared stable subset) lives in the pure, unit-tested
+`_model_sweep_core.py`. The orchestrator injects a runner (`ModelEvalRunner`), so
+the KEEP/DROP decision is testable without API spend.
+
+Two guards keep the verdict honest. Each candidate's bootstrap stream is seeded
+from its own model id, so the outcome is independent of `--models` order. When
+more than one candidate is swept, the per-candidate CIs are Bonferroni-widened
+(the two-sided 5% alpha is split across candidates), so sweeping many models does
+not inflate the false-KEEP rate. A sweep with fewer than two shared stable
+fixtures is undecidable (the bootstrap CI collapses onto the point delta) and
+always DROPs; widen the shared `--fixtures` set to decide.
+
+**Prerequisite (freshness gate):** every swept model must have a pricing rate in
+`MODEL_PRICING_RATES_USD_PER_1K_TOKENS` (`_eval_common.py`). The base evaluator
+hard-fails on an unpriced model (#2858), so the sweep pre-checks pricing and
+exits `2` with an actionable message naming the unpriced models. It does **not**
+invent pricing. Today only two `claude-sonnet` ids are priced, so a real
+opus/haiku sweep needs a verified pricing entry added first. `--dry-run`
+validates inputs and prints the per-model plan with no API calls.
+
+Output is a JSON artifact (`--output`, default under
+`evals/{agent}-spike/reports/`) with `schemaVersion`, per-model recall/tokens/
+cost, the winner, `recall_delta`, `ci95`, `cohens_d`, `best_candidate_*`, and
+the `decision`/`reason`.
 
 ## Scenario File Format
 
