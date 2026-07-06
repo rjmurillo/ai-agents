@@ -68,6 +68,10 @@ BASE_EVAL_SCRIPT = EVAL_DIR / "eval-agent-vs-baseline.py"
 DEFAULT_MODEL = "claude-sonnet-4-6"
 REPORTS_DIR_TEMPLATE = "evals/{agent}-spike/reports"
 
+# The child evaluator makes live LLM API calls; a stalled provider must not hang
+# the sweep forever. Bound each child run with a wall-clock timeout (seconds).
+DEFAULT_CHILD_TIMEOUT_S = 1800
+
 _AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -284,12 +288,14 @@ class SubprocessModelEvalRunner:
         fixtures: Path,
         n_runs: int,
         provider: str | None,
+        child_timeout: float = DEFAULT_CHILD_TIMEOUT_S,
         env: dict[str, str] | None = None,
     ) -> None:
         self._agent = agent
         self._fixtures = fixtures
         self._n_runs = n_runs
         self._provider = provider
+        self._child_timeout = child_timeout
         self._env = env
 
     def run(self, model_id: str) -> ModelResult:
@@ -302,14 +308,25 @@ class SubprocessModelEvalRunner:
             run_id=run_id,
             provider=self._provider,
         )
-        completed = subprocess.run(  # noqa: S603 - argv is fixed + validated, shell=False
-            argv,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            env=self._env if self._env is not None else os.environ.copy(),
-            check=False,
-        )
+        try:
+            completed = subprocess.run(  # noqa: S603 - argv is fixed + validated, shell=False
+                argv,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                env=self._env if self._env is not None else os.environ.copy(),
+                check=False,
+                timeout=self._child_timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            # A hung child (e.g. stalled provider) is an EXTERNAL failure, not a
+            # crash of the sweep itself. Surface it so run_sweep maps it to
+            # EXIT_EXTERNAL instead of blocking indefinitely.
+            raise ChildRunError(
+                model_id,
+                EXIT_EXTERNAL,
+                f"child timed out after {self._child_timeout:g}s",
+            ) from exc
         if completed.returncode != EXIT_OK:
             raise ChildRunError(model_id, completed.returncode, completed.stderr)
         report_path = child_report_path(self._agent, run_id)
@@ -358,6 +375,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--provider", default=None)
+    parser.add_argument(
+        "--child-timeout",
+        type=float,
+        default=DEFAULT_CHILD_TIMEOUT_S,
+        help=(
+            "per-model wall-clock timeout in seconds for the base evaluator "
+            f"child process (default {DEFAULT_CHILD_TIMEOUT_S}); a timed-out "
+            "child fails the sweep as EXTERNAL rather than hanging"
+        ),
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -416,6 +443,13 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner) -> int:
     if args.n_runs < 1:
         print(
             f"error: --n-runs must be >= 1 (got {args.n_runs})", file=sys.stderr
+        )
+        return EXIT_CONFIG
+
+    if args.child_timeout <= 0:
+        print(
+            f"error: --child-timeout must be > 0 (got {args.child_timeout:g})",
+            file=sys.stderr,
         )
         return EXIT_CONFIG
 
@@ -487,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
         fixtures=args.fixtures,
         n_runs=args.n_runs,
         provider=args.provider,
+        child_timeout=args.child_timeout,
     )
     return run_sweep(args, runner)
 

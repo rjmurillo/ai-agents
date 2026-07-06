@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -76,6 +77,7 @@ def _args(**overrides):
         provider=None,
         output=None,
         dry_run=False,
+        child_timeout=sweep.DEFAULT_CHILD_TIMEOUT_S,
     )
     base.update(overrides)
     return type("Args", (), base)()
@@ -463,6 +465,49 @@ def test_runner_honors_explicit_empty_env(tmp_path, monkeypatch):
         runner.run("claude-sonnet-4")
     # An explicit empty env must NOT be replaced by the parent environment.
     assert captured["env"] == {}
+
+
+def test_runner_timeout_maps_to_external_child_error(tmp_path, monkeypatch):
+    runner = sweep.SubprocessModelEvalRunner(
+        agent="security",
+        fixtures=tmp_path,
+        n_runs=1,
+        provider=None,
+        child_timeout=0.01,
+        env={},
+    )
+
+    def _raise_timeout(argv, **kwargs):
+        # The runner must forward its configured timeout to subprocess.run.
+        assert kwargs.get("timeout") == 0.01
+        raise subprocess.TimeoutExpired(cmd=argv, timeout=kwargs.get("timeout"))
+
+    monkeypatch.setattr(sweep.subprocess, "run", _raise_timeout)
+    with pytest.raises(sweep.ChildRunError) as excinfo:
+        runner.run("claude-sonnet-4")
+    assert excinfo.value.returncode == sweep.EXIT_EXTERNAL
+    assert "timed out" in str(excinfo.value)
+
+
+def test_run_sweep_rejects_nonpositive_child_timeout(capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+
+    class _NeverRuns:
+        def run(self, model_id):  # pragma: no cover - must not be reached
+            raise AssertionError("runner invoked despite bad timeout")
+
+    args = _args(models=priced, default_model=priced, child_timeout=0)
+    rc = sweep.run_sweep(args, runner=_NeverRuns())
+    assert rc == sweep.EXIT_CONFIG
+    assert "child-timeout" in capsys.readouterr().err
+
+
+def test_arg_parser_child_timeout_defaults(monkeypatch):
+    parser = sweep._build_arg_parser()
+    args = parser.parse_args(
+        ["--agent", "security", "--fixtures", str(EVAL_DIR), "--models", "x"]
+    )
+    assert args.child_timeout == sweep.DEFAULT_CHILD_TIMEOUT_S
 
 
 def test_default_output_path_is_unique_within_same_second():
