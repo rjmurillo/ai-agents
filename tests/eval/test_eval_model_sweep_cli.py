@@ -489,14 +489,19 @@ def test_runner_timeout_maps_to_external_child_error(tmp_path, monkeypatch):
     assert "timed out" in str(excinfo.value)
 
 
-def test_run_sweep_rejects_nonpositive_child_timeout(capsys):
+@pytest.mark.parametrize(
+    "bad_timeout", [0, -1, -0.5, float("nan"), float("inf"), float("-inf")]
+)
+def test_run_sweep_rejects_nonpositive_or_nonfinite_child_timeout(
+    bad_timeout, capsys
+):
     priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
 
     class _NeverRuns:
         def run(self, model_id):  # pragma: no cover - must not be reached
             raise AssertionError("runner invoked despite bad timeout")
 
-    args = _args(models=priced, default_model=priced, child_timeout=0)
+    args = _args(models=priced, default_model=priced, child_timeout=bad_timeout)
     rc = sweep.run_sweep(args, runner=_NeverRuns())
     assert rc == sweep.EXIT_CONFIG
     assert "child-timeout" in capsys.readouterr().err

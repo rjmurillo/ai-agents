@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import math
 import os
 import re
 import subprocess  # noqa: S404 - invokes a sibling eval script with a fixed, validated argv
@@ -446,9 +447,10 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner) -> int:
         )
         return EXIT_CONFIG
 
-    if args.child_timeout <= 0:
+    if not math.isfinite(args.child_timeout) or args.child_timeout <= 0:
         print(
-            f"error: --child-timeout must be > 0 (got {args.child_timeout:g})",
+            "error: --child-timeout must be a finite value > 0 "
+            f"(got {args.child_timeout:g})",
             file=sys.stderr,
         )
         return EXIT_CONFIG
