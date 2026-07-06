@@ -256,8 +256,9 @@ opus/haiku sweep needs a verified pricing entry added first. `--dry-run`
 validates inputs and prints the per-model plan with no API calls.
 
 Output is a JSON artifact (`--output`, default under
-`evals/{agent}-spike/reports/`) with `schema_version`, per-model recall/tokens/
-cost, the winner, `recall_delta`, `ci95`, `cohens_d`, and the `decision`/`reason`.
+`evals/{agent}-spike/reports/`) with `schemaVersion`, per-model recall/tokens/
+cost, the winner, `recall_delta`, `ci95`, `cohens_d`, `best_candidate_*`, and
+the `decision`/`reason`.
 
 ## Scenario File Format
 

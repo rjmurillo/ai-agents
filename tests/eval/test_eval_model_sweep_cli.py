@@ -200,6 +200,18 @@ def test_parse_report_extracts_agent_rates():
             "per_fixture_pass_rates": {},
             "flaky_fixtures_excluded": "f1",  # string, not a list of ids
         },
+        {
+            "fixture_set_sha": "s",
+            "agent_recall": 0.5,
+            "per_fixture_pass_rates": {},
+            "flaky_fixtures_excluded": ["f1", 7],  # non-string element
+        },
+        {
+            "fixture_set_sha": "s",
+            "agent_recall": 0.5,
+            "per_fixture_pass_rates": {},
+            "flaky_fixtures_excluded": [["nested"]],  # unhashable element
+        },
     ],
 )
 def test_parse_report_rejects_schema_invalid(bad_report):
@@ -304,6 +316,16 @@ def test_run_sweep_dry_run_lists_plan_and_exits_ok(capsys):
     assert rc == sweep.EXIT_OK
     assert "sweep plan" in out
     assert priced[0] in out
+
+
+def test_run_sweep_live_path_without_runner_is_config_error(capsys, tmp_path):
+    # All inputs valid + not dry-run => the live loop is reached; a missing
+    # runner must fail cleanly (EXIT_CONFIG), not AttributeError on None.run().
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+    args = _args(models=priced, default_model=priced, fixtures=tmp_path)
+    rc = sweep.run_sweep(args, runner=None)
+    assert rc == sweep.EXIT_CONFIG
+    assert "without a runner" in capsys.readouterr().err
 
 
 def test_run_sweep_unpriced_model_is_config_error(capsys):

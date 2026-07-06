@@ -235,6 +235,14 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
     if excluded_raw is None:
         excluded: set = set()
     elif isinstance(excluded_raw, list):
+        # Elements come from an external report artifact and are used as set
+        # membership keys against string fixture ids; a non-string (or an
+        # unhashable dict/list) would either never match or crash set().
+        if not all(isinstance(x, str) for x in excluded_raw):
+            raise ValueError(
+                f"report for {model_id} flaky_fixtures_excluded "
+                "must be a list of strings"
+            )
         excluded = set(excluded_raw)
     else:
         raise ValueError(
@@ -410,7 +418,7 @@ def _plan_lines(agent: str, fixtures: Path, models: list[str], n_runs: int) -> l
 
 
 def _default_output_path(agent: str) -> Path:
-    stamp = _dt.datetime.now(tz=_dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    stamp = _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     # Add a short random suffix so repeated sweeps of the same agent within
     # the same second do not silently overwrite each other's evidence.
     suffix = uuid.uuid4().hex[:8]
@@ -421,8 +429,13 @@ def _default_output_path(agent: str) -> Path:
     )
 
 
-def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner) -> int:
-    """Live path: evaluate each model via *runner*, decide, write artifact."""
+def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner | None = None) -> int:
+    """Live path: evaluate each model via *runner*, decide, write artifact.
+
+    ``runner`` is optional so callers can exercise the input-validation and
+    ``--dry-run`` branches (which never touch it) without constructing one;
+    the live loop below rejects a missing runner explicitly.
+    """
     try:
         models = parse_models_arg(args.models, default_model=args.default_model)
     except argparse.ArgumentTypeError as exc:
@@ -463,6 +476,13 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner) -> int:
         for line in _plan_lines(args.agent, args.fixtures, models, args.n_runs):
             print(line)
         return EXIT_OK
+
+    if runner is None:
+        print(
+            "error: run_sweep reached live execution without a runner",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
 
     results: list[ModelResult] = []
     for model_id in models:
