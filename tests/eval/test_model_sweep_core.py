@@ -178,18 +178,14 @@ def test_decide_drops_pin_when_lead_below_min_effect():
 
 
 def test_decide_drops_pin_when_ci_includes_zero():
-    # Candidate wins on point recall but the per-fixture signal is noisy:
-    # it beats default on half the fixtures and loses on the other half, so
-    # the paired CI straddles 0 even though the headline recall is higher.
-    default = _result(
-        "default",
-        {"a": [0.0], "b": [1.0], "c": [0.0], "d": [1.0]},
-        recall=0.50,
-    )
+    # Candidate leads on mean recall but the lead is concentrated in a minority
+    # of fixtures, so the paired bootstrap CI straddles 0. This enters the
+    # positive-but-noisy DROP branch: the default wins (top-level effect zeroed)
+    # while the challenger's real lead is preserved in best_candidate_*.
+    default = _result("default", {f"f{i}": [0.30] for i in range(8)})
     candidate = _result(
         "candidate",
-        {"a": [1.0], "b": [0.0], "c": [1.0], "d": [0.0]},
-        recall=0.60,
+        {f"f{i}": ([1.0] if i < 2 else [0.30]) for i in range(8)},
     )
     decision = core.decide(
         [default, candidate],
@@ -198,7 +194,15 @@ def test_decide_drops_pin_when_ci_includes_zero():
         seed=3,
     )
     assert decision.decision == core.DECISION_DROP
-    assert decision.ci95[0] <= 0.0 <= decision.ci95[1]
+    assert "within noise" in decision.reason
+    assert decision.winner_model == "default"
+    # Winner (default) drives the top-level effect stats -> all zero.
+    assert decision.recall_delta == 0.0
+    assert decision.ci95 == (0.0, 0.0)
+    # The challenger genuinely led on mean recall, but its CI straddles 0.
+    assert decision.best_candidate_model == "candidate"
+    assert decision.best_candidate_delta > 0.0
+    assert decision.best_candidate_ci95[0] <= 0.0 <= decision.best_candidate_ci95[1]
 
 
 def test_paired_bootstrap_ci_no_shared_fixtures_is_zero():
