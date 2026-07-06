@@ -155,6 +155,7 @@ def test_build_child_argv_omits_provider_when_absent():
 def test_parse_report_extracts_agent_rates():
     report = {
         "agent_recall": 0.75,
+        "fixture_set_sha": "sha-abc",
         "per_fixture_pass_rates": {
             "f1": {"agent": [1.0, 0.5], "baseline": [0.0]},
             "f2": {"agent": [0.5]},
@@ -173,6 +174,27 @@ def test_parse_report_extracts_agent_rates():
     assert result.tokens_out == 200
     assert result.cost_usd == 0.05
     assert result.error_count == 2
+
+
+@pytest.mark.parametrize(
+    "bad_report",
+    [
+        {},  # empty object: missing every required field
+        [],  # not a JSON object
+        {"agent_recall": 0.5, "per_fixture_pass_rates": {}},  # no sha
+        {"agent_recall": 0.5, "fixture_set_sha": "", "per_fixture_pass_rates": {}},
+        {"fixture_set_sha": "s", "per_fixture_pass_rates": {}},  # no recall
+        {"fixture_set_sha": "s", "agent_recall": 0.5},  # no per_fixture
+        {
+            "fixture_set_sha": "s",
+            "agent_recall": 0.5,
+            "per_fixture_pass_rates": [],  # wrong type
+        },
+    ],
+)
+def test_parse_report_rejects_schema_invalid(bad_report):
+    with pytest.raises((KeyError, ValueError)):
+        sweep.parse_report(bad_report, model_id="m1")
 
 
 def test_parse_report_excludes_flaky_fixtures():

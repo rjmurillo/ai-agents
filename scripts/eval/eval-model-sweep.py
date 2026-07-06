@@ -188,9 +188,32 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
     (flaky fixtures excluded), so the per-fixture rates feeding the paired CI
     must exclude the same fixtures or the CI and the point delta would span
     different fixture sets.
+
+    A child that exits 0 but writes a schema-invalid report (e.g. ``{}`` or a
+    non-object) is an EXTERNAL failure, not a valid empty result. The consumed
+    identity fields (``fixture_set_sha``, ``agent_recall``,
+    ``per_fixture_pass_rates``) are therefore required; a missing/mistyped one
+    raises so the runner maps it to ``EXIT_EXTERNAL`` instead of silently
+    producing a degenerate ``ModelResult``.
     """
+    if not isinstance(report, dict):
+        raise ValueError(f"report for {model_id} is not a JSON object")
+    for field in ("fixture_set_sha", "agent_recall", "per_fixture_pass_rates"):
+        if field not in report:
+            raise KeyError(
+                f"report for {model_id} missing required field: {field}"
+            )
+    fixture_set_sha = report["fixture_set_sha"]
+    if not isinstance(fixture_set_sha, str) or not fixture_set_sha:
+        raise ValueError(
+            f"report for {model_id} has empty/invalid fixture_set_sha"
+        )
+    per_fixture = report["per_fixture_pass_rates"]
+    if not isinstance(per_fixture, dict):
+        raise ValueError(
+            f"report for {model_id} per_fixture_pass_rates is not an object"
+        )
     excluded = set(report.get("flaky_fixtures_excluded") or [])
-    per_fixture = report.get("per_fixture_pass_rates") or {}
     rates: dict[str, list[float]] = {}
     for fixture_id, variants in per_fixture.items():
         if fixture_id in excluded or not isinstance(variants, dict):
@@ -201,13 +224,13 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
         rates[fixture_id] = [float(r) for r in agent_rates]
     return ModelResult(
         model_id=model_id,
-        agent_recall=float(report.get("agent_recall", 0.0)),
+        agent_recall=float(report["agent_recall"]),
         per_fixture_agent_rates=rates,
         tokens_in=int(report.get("total_tokens_in", 0)),
         tokens_out=int(report.get("total_tokens_out", 0)),
         cost_usd=float(report.get("cost_estimate_usd", 0.0)),
         error_count=int(report.get("error_count", 0)),
-        fixture_set_sha=str(report.get("fixture_set_sha", "")),
+        fixture_set_sha=str(fixture_set_sha),
     )
 
 
