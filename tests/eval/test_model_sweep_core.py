@@ -10,12 +10,23 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
-if str(EVAL_DIR) not in sys.path:
-    sys.path.insert(0, str(EVAL_DIR))
 
-import _model_sweep_core as core  # noqa: E402
+# _model_sweep_core imports sibling modules via plain `from X import Y`, so
+# EVAL_DIR must be on sys.path while it loads. Scope the mutation to the load
+# and remove it afterward so we do not change import resolution for other
+# test modules.
+_path_added = str(EVAL_DIR) not in sys.path
+if _path_added:
+    sys.path.insert(0, str(EVAL_DIR))
+try:
+    import _model_sweep_core as core  # noqa: E402
+finally:
+    if _path_added and str(EVAL_DIR) in sys.path:
+        sys.path.remove(str(EVAL_DIR))
 
 
 def _result(model_id, rates, *, recall=None, **kw):
@@ -46,12 +57,8 @@ def test_check_comparable_ignores_empty_sha():
 def test_check_comparable_rejects_divergent_sha():
     a = _result("a", {"f": [1.0]}, recall=1.0, fixture_set_sha="s1")
     b = _result("b", {"f": [0.5]}, recall=0.5, fixture_set_sha="s2")
-    try:
+    with pytest.raises(core.SweepDecisionError, match="different fixture sets"):
         core.check_comparable([a, b])
-    except core.SweepDecisionError as exc:
-        assert "different fixture sets" in str(exc)
-        return
-    raise AssertionError("expected SweepDecisionError for divergent fixture shas")
 
 
 def test_fixture_means_empty_runs_score_zero():
@@ -93,21 +100,14 @@ def test_decide_picks_qualifying_second_candidate_over_noisy_top():
 
 
 def test_decide_empty_results_raises():
-    try:
+    with pytest.raises(core.SweepDecisionError):
         core.decide([], default_model="default")
-    except core.SweepDecisionError:
-        return
-    raise AssertionError("expected SweepDecisionError for empty results")
 
 
 def test_decide_default_absent_raises():
     r = _result("other", {"f1": [1.0]}, recall=1.0)
-    try:
+    with pytest.raises(core.SweepDecisionError, match="default model"):
         core.decide([r], default_model="default")
-    except core.SweepDecisionError as exc:
-        assert "default model" in str(exc)
-        return
-    raise AssertionError("expected SweepDecisionError when default is absent")
 
 
 def test_decide_default_wins_drops_pin():
@@ -141,6 +141,9 @@ def test_decide_keeps_pin_on_large_consistent_lead():
     assert decision.winner_model == "candidate"
     assert decision.ci95[0] > 0.0
     assert decision.recall_delta >= 0.05
+    # On KEEP the winner IS the best candidate, so the two describe the same model.
+    assert decision.best_candidate_model == "candidate"
+    assert decision.best_candidate_delta == decision.recall_delta
 
 
 def test_decide_drops_pin_when_lead_below_min_effect():
@@ -163,6 +166,15 @@ def test_decide_drops_pin_when_lead_below_min_effect():
     # 0.02 lead is real (CI excludes 0) but below min_effect -> drop.
     assert decision.decision == core.DECISION_DROP
     assert "below min_effect" in decision.reason
+    # DROP means the default wins, so the top-level effect stats describe the
+    # winner (default) and MUST be zeroed; the leading candidate's real lead is
+    # preserved separately so the artifact stays consistent (Issue #2840).
+    assert decision.winner_model == "default"
+    assert decision.recall_delta == 0.0
+    assert decision.ci95 == (0.0, 0.0)
+    assert decision.cohens_d == 0.0
+    assert decision.best_candidate_model == "candidate"
+    assert decision.best_candidate_delta > 0.0
 
 
 def test_decide_drops_pin_when_ci_includes_zero():
@@ -235,7 +247,7 @@ def test_build_report_shape():
         min_effect=0.05,
         seed=42,
     )
-    assert report["schema_version"] == core.SCHEMA_VERSION
+    assert report["schemaVersion"] == core.SCHEMA_VERSION
     assert report["agent"] == "security"
     assert report["fixtures_sha"] == "abc123"
     assert report["default_model"] == "default"
@@ -248,6 +260,8 @@ def test_build_report_shape():
     assert report["models"][1]["tokens_in"] == 10
     assert report["models"][0]["error_count"] == 1
     assert len(report["ci95"]) == 2
+    assert report["best_candidate_model"] == decision.best_candidate_model
+    assert len(report["best_candidate_ci95"]) == 2
 
 
 def test_common_fixture_ids_empty_model_yields_no_shared():
@@ -263,12 +277,8 @@ def test_decide_empty_fixture_model_raises():
     # error, not crash in mean_recall_on with a KeyError.
     default = _result("default", {"f1": [0.5], "f2": [0.5]}, recall=0.5)
     empty = _result("empty", {}, recall=0.0)
-    try:
+    with pytest.raises(core.SweepDecisionError, match="shared"):
         core.decide([default, empty], default_model="default")
-    except core.SweepDecisionError as exc:
-        assert "shared" in str(exc)
-        return
-    raise AssertionError("expected SweepDecisionError when a model has no fixtures")
 
 
 def test_decide_single_shared_fixture_drops():

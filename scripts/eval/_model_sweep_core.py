@@ -36,8 +36,27 @@ from _report_aggregator import (
     BOOTSTRAP_ITERATIONS,
     CI_LOWER_PERCENTILE,
     CI_UPPER_PERCENTILE,
-    _percentile,
 )
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    """Linear-interpolation percentile (local copy; no numpy).
+
+    Duplicated from ``_report_aggregator`` deliberately: importing that
+    module's private ``_percentile`` coupled the sweep to an internal helper
+    that could change without a contract. The math is a stable, standard
+    definition, so an independent copy is safer than the private dependency.
+    """
+    if not values:
+        return 0.0
+    s = sorted(values)
+    if len(s) == 1:
+        return s[0]
+    rank = (pct / 100.0) * (len(s) - 1)
+    lower = int(rank)
+    upper = min(lower + 1, len(s) - 1)
+    frac = rank - lower
+    return s[lower] + frac * (s[upper] - s[lower])
 
 SCHEMA_VERSION = "1"
 DEFAULT_MIN_EFFECT = 0.05
@@ -98,6 +117,15 @@ class SweepDecision:
     cohens_d: float
     decision: str
     reason: str
+    # The top-level recall_delta/ci95/cohens_d always describe winner_model vs
+    # the default (so a DROP_PIN with the default winning reports 0/[0,0]/0).
+    # The leading candidate's stats, when the default wins, live in the
+    # best_candidate_* fields so the artifact stays machine-readable without
+    # conflating "winner" with "best challenger".
+    best_candidate_model: str | None = None
+    best_candidate_delta: float = 0.0
+    best_candidate_ci95: tuple[float, float] = (0.0, 0.0)
+    best_candidate_cohens_d: float = 0.0
 
 
 def check_comparable(results: list[ModelResult]) -> None:
@@ -346,6 +374,10 @@ def decide(
                 f"over {len(ids)} shared fixtures; family-wise CI [{ci[0]:.4f}, "
                 f"{ci[1]:.4f}] excludes 0; keep this pin and cite the artifact"
             ),
+            best_candidate_model=cand.model_id,
+            best_candidate_delta=delta,
+            best_candidate_ci95=ci,
+            best_candidate_cohens_d=cohens_d(cand, default, ids),
         )
 
     positive = [e for e in evaluated if e[1] > 0.0]
@@ -368,11 +400,15 @@ def decide(
             default_model=default_model,
             winner_recall=default_recall,
             default_recall=default_recall,
-            recall_delta=delta,
-            ci95=ci,
-            cohens_d=cohens_d(cand, default, ids),
+            recall_delta=0.0,
+            ci95=(0.0, 0.0),
+            cohens_d=0.0,
             decision=DECISION_DROP,
             reason=reason,
+            best_candidate_model=cand.model_id,
+            best_candidate_delta=delta,
+            best_candidate_ci95=ci,
+            best_candidate_cohens_d=cohens_d(cand, default, ids),
         )
 
     return SweepDecision(
@@ -405,12 +441,13 @@ def build_report(
 
     Downstream consumers (Issue #2840): the CI governance check that fails a
     ``model:`` pin lacking a linked sweep artifact, and the pin-migration that
-    strips DROP_PIN pins. Field names are stable; ``schema_version`` gates
-    future shape changes.
+    strips DROP_PIN pins. Field names are stable; ``schemaVersion`` gates
+    future shape changes (name matches the harness report convention in
+    ``_report_writer.py``).
     """
     ids = common_fixture_ids(results)
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schemaVersion": SCHEMA_VERSION,
         "agent": agent,
         "fixtures_sha": fixtures_sha,
         "default_model": decision.default_model,
@@ -434,6 +471,13 @@ def build_report(
         "recall_delta": round(decision.recall_delta, 6),
         "ci95": [round(decision.ci95[0], 6), round(decision.ci95[1], 6)],
         "cohens_d": round(decision.cohens_d, 6),
+        "best_candidate_model": decision.best_candidate_model,
+        "best_candidate_delta": round(decision.best_candidate_delta, 6),
+        "best_candidate_ci95": [
+            round(decision.best_candidate_ci95[0], 6),
+            round(decision.best_candidate_ci95[1], 6),
+        ],
+        "best_candidate_cohens_d": round(decision.best_candidate_cohens_d, 6),
         "decision": decision.decision,
         "reason": decision.reason,
     }
