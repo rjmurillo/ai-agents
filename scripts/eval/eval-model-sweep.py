@@ -10,8 +10,9 @@ This is a thin orchestrator. It does NOT re-implement the run loop, scoring,
 persistence, or statistics: each candidate model is evaluated by shelling out
 to the fully-tested ``eval-agent-vs-baseline.py`` (agent variant), then the
 resulting ``report.json`` is compared across models by ``_model_sweep_core``.
-The runner is injected (``ModelEvalRunner``) so the orchestration and the
-KEEP_PIN/DROP_PIN decision are unit-testable without any API spend.
+The runner is injected (``ModelEvalRunner``, a structural Protocol) so the
+orchestration and the KEEP_PIN/DROP_PIN decision are unit-testable without
+any API spend; the live implementation is ``SubprocessModelEvalRunner``.
 
 Prerequisite: every swept model must have a pricing rate in
 ``MODEL_PRICING_RATES_USD_PER_1K_TOKENS`` (``_eval_common.py``); the base
@@ -19,7 +20,9 @@ evaluator hard-fails on an unpriced model (Issue #2858). The sweep pre-checks
 this and prints an actionable error naming the unpriced models. It does NOT
 invent pricing.
 
-Exit codes (AGENTS.md): 0 ok, 2 config, 3 external (a child run failed).
+Exit codes (AGENTS.md): 0 ok, 1 logic, 2 config, 3 external, 4 auth. A child
+run's exit-code class (1/2/4) is preserved; any other child failure surfaces
+as 3 (external) to the sweep.
 
 Usage:
     eval-model-sweep.py --agent security --fixtures tests/evals/skills/security \\
@@ -37,6 +40,7 @@ import subprocess  # noqa: S404 - invokes a sibling eval script with a fixed, va
 import sys
 import uuid
 from pathlib import Path
+from typing import Protocol
 
 from _eval_common import MODEL_PRICING_RATES_USD_PER_1K_TOKENS
 from _model_sweep_core import (
@@ -49,6 +53,7 @@ from _model_sweep_core import (
 )
 
 EXIT_OK = 0
+EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 EXIT_AUTH = 4
@@ -108,6 +113,11 @@ def parse_models_arg(raw: str, *, default_model: str) -> list[str]:
             ids.append(model)
     if not ids:
         raise argparse.ArgumentTypeError("--models must list at least one model id")
+    if not _MODEL_ID_RE.match(default_model):
+        raise argparse.ArgumentTypeError(
+            f"--default-model must match {_MODEL_ID_RE.pattern} "
+            f"(got {default_model!r})"
+        )
     if default_model not in ids:
         ids.append(default_model)
     return ids
@@ -213,7 +223,18 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
         raise ValueError(
             f"report for {model_id} per_fixture_pass_rates is not an object"
         )
-    excluded = set(report.get("flaky_fixtures_excluded") or [])
+    excluded_raw = report.get("flaky_fixtures_excluded")
+    # Must be a list of fixture ids. A bare string would make set() iterate
+    # characters (silently excluding fixtures whose id is a single char),
+    # so reject anything that is not a list before building the set.
+    if excluded_raw is None:
+        excluded: set = set()
+    elif isinstance(excluded_raw, list):
+        excluded = set(excluded_raw)
+    else:
+        raise ValueError(
+            f"report for {model_id} flaky_fixtures_excluded is not a list"
+        )
     rates: dict[str, list[float]] = {}
     for fixture_id, variants in per_fixture.items():
         if fixture_id in excluded or not isinstance(variants, dict):
@@ -232,6 +253,20 @@ def parse_report(report: dict, *, model_id: str) -> ModelResult:
         error_count=int(report.get("error_count", 0)),
         fixture_set_sha=str(fixture_set_sha),
     )
+
+
+class ModelEvalRunner(Protocol):
+    """Structural type for the per-model evaluation step (dependency injection).
+
+    ``run_sweep`` depends on this Protocol, not the concrete
+    ``SubprocessModelEvalRunner``, so tests inject a fake runner with no API
+    spend while the live path stays the only subprocess caller. A conforming
+    runner evaluates one model id and returns its ``ModelResult`` or raises
+    ``ChildRunError`` (carrying the child exit-code class).
+    """
+
+    def run(self, model_id: str) -> ModelResult:
+        ...
 
 
 class SubprocessModelEvalRunner:
@@ -270,7 +305,8 @@ class SubprocessModelEvalRunner:
         completed = subprocess.run(  # noqa: S603 - argv is fixed + validated, shell=False
             argv,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             env=self._env if self._env is not None else os.environ.copy(),
             check=False,
         )
@@ -357,7 +393,7 @@ def _default_output_path(agent: str) -> Path:
     )
 
 
-def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> int:
+def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner) -> int:
     """Live path: evaluate each model via *runner*, decide, write artifact."""
     try:
         models = parse_models_arg(args.models, default_model=args.default_model)
@@ -399,12 +435,10 @@ def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> in
         except ChildRunError as exc:
             print(f"error: {exc}", file=sys.stderr)
             # Preserve the child's exit-code class per the repo contract
-            # (2=config, 4=auth); any other child failure is "external"
-            # (3) to the sweep.
-            if exc.returncode == EXIT_CONFIG:
-                return EXIT_CONFIG
-            if exc.returncode == EXIT_AUTH:
-                return EXIT_AUTH
+            # (1=logic, 2=config, 4=auth); any other child failure is
+            # "external" (3) to the sweep.
+            if exc.returncode in (EXIT_LOGIC, EXIT_CONFIG, EXIT_AUTH):
+                return exc.returncode
             return EXIT_EXTERNAL
 
     try:
@@ -420,7 +454,9 @@ def run_sweep(args: argparse.Namespace, runner: SubprocessModelEvalRunner) -> in
 
     report = build_report(
         agent=args.agent,
-        fixtures_sha=results[0].fixture_set_sha,
+        fixtures_sha=next(
+            (r.fixture_set_sha for r in results if r.fixture_set_sha), ""
+        ),
         results=results,
         decision=decision,
         min_effect=args.min_effect,

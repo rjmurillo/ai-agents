@@ -21,14 +21,22 @@ EVAL_DIR = REPO_ROOT / "scripts" / "eval"
 SWEEP_SCRIPT = EVAL_DIR / "eval-model-sweep.py"
 BASE_SCRIPT = EVAL_DIR / "eval-agent-vs-baseline.py"
 
-if str(EVAL_DIR) not in sys.path:
+# eval-model-sweep.py imports sibling modules via plain `from X import Y`, so
+# EVAL_DIR must be on sys.path while it loads. Scope the mutation to the load
+# and remove it afterward so we do not change import resolution for other
+# test modules.
+_path_added = str(EVAL_DIR) not in sys.path
+if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
-
-# The script filename has hyphens, so import it by path.
-_spec = importlib.util.spec_from_file_location("eval_model_sweep", SWEEP_SCRIPT)
-assert _spec and _spec.loader
-sweep = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(sweep)
+try:
+    # The script filename has hyphens, so import it by path.
+    _spec = importlib.util.spec_from_file_location("eval_model_sweep", SWEEP_SCRIPT)
+    assert _spec and _spec.loader
+    sweep = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(sweep)
+finally:
+    if _path_added and str(EVAL_DIR) in sys.path:
+        sys.path.remove(str(EVAL_DIR))
 
 core = sys.modules["_model_sweep_core"]
 
@@ -95,21 +103,15 @@ def test_parse_models_keeps_default_position_if_present():
 def test_parse_models_rejects_bad_id():
     import argparse
 
-    try:
+    with pytest.raises(argparse.ArgumentTypeError):
         sweep.parse_models_arg("bad id!", default_model="d")
-    except argparse.ArgumentTypeError:
-        return
-    raise AssertionError("expected ArgumentTypeError for invalid model id")
 
 
 def test_parse_models_rejects_empty():
     import argparse
 
-    try:
+    with pytest.raises(argparse.ArgumentTypeError):
         sweep.parse_models_arg("  , ", default_model="d")
-    except argparse.ArgumentTypeError:
-        return
-    raise AssertionError("expected ArgumentTypeError for empty --models")
 
 
 def test_validate_models_priced_flags_unpriced():
@@ -190,11 +192,74 @@ def test_parse_report_extracts_agent_rates():
             "agent_recall": 0.5,
             "per_fixture_pass_rates": [],  # wrong type
         },
+        {
+            "fixture_set_sha": "s",
+            "agent_recall": 0.5,
+            "per_fixture_pass_rates": {},
+            "flaky_fixtures_excluded": "f1",  # string, not a list of ids
+        },
     ],
 )
 def test_parse_report_rejects_schema_invalid(bad_report):
     with pytest.raises((KeyError, ValueError)):
         sweep.parse_report(bad_report, model_id="m1")
+
+
+def test_parse_report_accepts_list_flaky_exclusions():
+    report = {
+        "agent_recall": 1.0,
+        "fixture_set_sha": "sha-abc",
+        "per_fixture_pass_rates": {
+            "f1": {"agent": [1.0]},
+            "f2": {"agent": [0.5]},
+        },
+        "flaky_fixtures_excluded": ["f2"],
+    }
+    result = sweep.parse_report(report, model_id="m1")
+    assert result.per_fixture_agent_rates == {"f1": [1.0]}
+
+
+def test_parse_models_rejects_bad_default_model():
+    import argparse
+
+    with pytest.raises(argparse.ArgumentTypeError, match="default-model"):
+        sweep.parse_models_arg("claude-opus-4-6", default_model="bad id!")
+
+
+def test_run_sweep_preserves_child_logic_exit(capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+
+    class _LogicBoom:
+        def run(self, model_id):
+            raise sweep.ChildRunError(model_id, sweep.EXIT_LOGIC, "empty run")
+
+    args = _args(models=priced, default_model=priced)
+    rc = sweep.run_sweep(args, runner=_LogicBoom())
+    assert rc == sweep.EXIT_LOGIC
+
+
+def test_run_sweep_preserves_child_auth_exit(capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+
+    class _AuthBoom:
+        def run(self, model_id):
+            raise sweep.ChildRunError(model_id, sweep.EXIT_AUTH, "401")
+
+    args = _args(models=priced, default_model=priced)
+    rc = sweep.run_sweep(args, runner=_AuthBoom())
+    assert rc == sweep.EXIT_AUTH
+
+
+def test_run_sweep_unknown_child_exit_maps_to_external(capsys):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+
+    class _WeirdBoom:
+        def run(self, model_id):
+            raise sweep.ChildRunError(model_id, 99, "who knows")
+
+    args = _args(models=priced, default_model=priced)
+    rc = sweep.run_sweep(args, runner=_WeirdBoom())
+    assert rc == sweep.EXIT_EXTERNAL
 
 
 def test_parse_report_excludes_flaky_fixtures():
@@ -268,9 +333,9 @@ def test_run_sweep_keep_pin_end_to_end(tmp_path, capsys):
     # priced id if available, else fabricate results keyed on the same set.
     candidate_id = priced[1] if len(priced) > 1 else None
     if candidate_id is None:
-        # Only one priced model exists; skip the two-model live assertion but
-        # still exercise the default-wins path below.
-        return
+        pytest.skip(
+            "needs >=2 priced models to exercise the two-model KEEP path"
+        )
     results = {
         default_id: _result(default_id, 0.10),
         candidate_id: _result(candidate_id, 0.90, cost_usd=0.2, error_count=0),
@@ -287,7 +352,7 @@ def test_run_sweep_keep_pin_end_to_end(tmp_path, capsys):
     assert rc == sweep.EXIT_OK
     assert runner.calls == [default_id, candidate_id]
     assert core.DECISION_KEEP in out
-    artifact = json.loads(output.read_text())
+    artifact = json.loads(output.read_text(encoding="utf-8"))
     assert artifact["winner"] == candidate_id
     assert artifact["decision"] == core.DECISION_KEEP
     assert artifact["fixtures_sha"] == "fakesha"
@@ -296,7 +361,7 @@ def test_run_sweep_keep_pin_end_to_end(tmp_path, capsys):
 def test_run_sweep_artifact_write_failure_maps_to_external(tmp_path, capsys):
     priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)
     if len(priced) < 2:
-        return
+        pytest.skip("needs >=2 priced models to reach the artifact-write step")
     default_id, candidate_id = priced[0], priced[1]
     results = {
         default_id: _result(default_id, 0.10),
@@ -418,7 +483,7 @@ def test_run_sweep_rejects_zero_n_runs(capsys):
 def test_run_sweep_mismatched_fixture_sha_is_config_error(capsys):
     priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)
     if len(priced) < 2:
-        return
+        pytest.skip("needs >=2 priced models to build a mismatched-sha pair")
     default_id, candidate_id = priced[0], priced[1]
     results = {
         default_id: _result(default_id, 0.5, fixture_set_sha="shaA"),
