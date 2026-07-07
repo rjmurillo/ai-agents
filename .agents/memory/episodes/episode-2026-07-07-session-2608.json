@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-07-07-session-2608",
+  "session": "2026-07-07-session-2608",
+  "timestamp": "2026-07-07T00:00:00+00:00",
+  "outcome": "success",
+  "task": "ADR-079: record owner decision to keep PR-time monotonic plugin version bump, reject merge-time automation; run adr-review; repair corrupted main-repo working tree blocking agent tooling",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "routing",
+      "context": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
+      "chosen": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnose why all 6 adr-review agents failed to load",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "error",
+      "content": "Diagnose why all 6 adr-review agents failed to load     Root cause: a git pull with rebase.autostash stashed a broken/huge working tree (5379 staged files), fast-forwarded, then the autostash pop left unresolved conflict markers across 67 files including every .github/agents/*.agent.md. Agents load these from disk, so all 6 failed with 'malformed frontmatter'.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run mandatory 6-agent adr-review on ADR-079 and ground-truth every finding",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Apply source-grounded fixes to ADR-079",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6720c1da61",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 6,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 70
+  },
+  "lessons": []
+}

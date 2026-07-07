@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2608,
+    "date": "2026-07-07",
+    "branch": "fix/2855-merge-time-version-bump-adr",
+    "startingCommit": "8c3f5af9",
+    "objective": "ADR-079: record owner decision to keep PR-time monotonic plugin version bump, reject merge-time automation; run adr-review; repair corrupted main-repo working tree blocking agent tooling"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Copilot CLI harness exposes no serena/* MCP tools. Proceeded per AGENTS.md fallback guidance; project context loaded via harness auto-injection and direct reads of .serena/memories/*."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena initial_instructions is a Serena-MCP call, absent on Copilot CLI. Equivalent guidance auto-injected each turn via AGENTS.md, CRITICAL-CONTEXT.md, and per-directory AGENTS.md custom instructions."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read this session (lines 1-117); confirmed read-only reference, not modified."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read directly this session per SESSION-PROTOCOL.md:195 fallback (Serena MCP unavailable)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CRITICAL-CONTEXT.md, and PROJECT-CONSTRAINTS content auto-injected as custom instructions and reviewed."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repo and user memories surfaced via preToolUse memory hook each turn; plugin-versioning and ADR-workflow facts reviewed and applied."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-07-07-session-2608.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current = fix/2855-merge-time-version-bump-adr (worktree /tmp/wt-2855)."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feature branch fix/2855-merge-time-version-bump-adr, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected in both main repo and worktree; 36 stray staged files identified and excluded via git commit -o."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree HEAD 8c3f5af9 at session start."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Session End MUST items addressed and evidenced in this log."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified this session (read-only reference honored)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Durable learning recorded via Copilot store_memory (Copilot CLI persistence equivalent): plugin freshness is version-string inequality; two independent plugin version lines. Session episode also auto-extracted to .agents/memory/episodes/episode-2026-07-07-session-2608.json."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 ran on the changed ADR; .agents/** is excluded by .markdownlint-cli2.yaml (line 118), so 0 files linted, 0 errors."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-079 + this session log committed together via git commit -o (scoped paths), excluding 36 stray staged files in the worktree."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py --pre-commit passes for this log; JSON schema valid; ADR contains 0 conflict markers."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Diagnose why all 6 adr-review agents failed to load",
+      "outcome": "Root cause: a git pull with rebase.autostash stashed a broken/huge working tree (5379 staged files), fast-forwarded, then the autostash pop left unresolved conflict markers across 67 files including every .github/agents/*.agent.md. Agents load these from disk, so all 6 failed with 'malformed frontmatter'."
+    },
+    {
+      "task": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
+      "outcome": "Restored 64 tracked conflict-marker files to HEAD (f0831c08) via git checkout HEAD -- <paths>; filtered out 3 files untracked-at-HEAD that would abort the batch. Left index/autostash/3-untracked untouched (non-destructive; shared environment). Verified all 6 adr-review agent files + SKILL.md are marker-free."
+    },
+    {
+      "task": "Run mandatory 6-agent adr-review on ADR-079 and ground-truth every finding",
+      "outcome": "All 6 agents returned ACCEPT-WITH-FIXES, zero dissent; 4 independently converged on the same top defect (ADR wrongly claimed all 3 manifests lockstep). Ground-truthed against source: parity gate covers only .claude + src/copilot-cli (build/scripts/check_plugin_manifest_parity.py:26-29); src/claude/claude-agents versions independently. Verified issue-vs-PR kinds via gh api (#2543 issue, #2873 PR, #1942 PR, #2114 PR)."
+    },
+    {
+      "task": "Apply source-grounded fixes to ADR-079",
+      "outcome": "12 edits: corrected the one-scheme/two-independent-version-lines model (project-toolkit parity-pair + claude-agents standalone), O(K) same-line collision cost, Copilot update check is string inequality (!=) not SemVer ordering with strictly-greater as sole downgrade guard, relabeled issue vs PR references, added adr-review-completion acceptance precondition, matched verbatim app.js bundle spacing."
+    }
+  ],
+  "endingCommit": "6720c1da61",
+  "nextSteps": [
+    "Commit ADR-079 + this session log only (avoid 36 stray staged files in the worktree); push branch fix/2855-merge-time-version-bump-adr.",
+    "Update PR #2895 body to reflect the final decision (PR-time monotonic bump in the PR; reject post-merge automation); post decision-summary comment on issue #2855.",
+    "Store durable memory: Copilot CLI plugin freshness = version-string inequality (!=), not SemVer ordering; two independent plugin version lines in this repo.",
+    "Continue autopilot on remaining open issues #2814, #2816, #2840, #2859."
+  ]
+}
