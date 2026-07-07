@@ -24,6 +24,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -74,7 +75,7 @@ def _resolve_case_sensitive(root: Path, relative: str) -> bool:
     return current.is_file()
 
 
-def _iter_hook_script_paths(hooks_data: dict) -> list[str]:
+def _iter_hook_script_paths(hooks_data: dict[str, Any]) -> list[str]:
     """Yield every distinct /hooks/<rel>.py script path across bash and powershell."""
     paths: list[str] = []
     for entries in hooks_data.get("hooks", {}).values():
@@ -374,7 +375,7 @@ class TestDirectShadowCleanup:
     """
 
     @staticmethod
-    def _write_config(copilot_home: Path, plugins: list[dict]) -> Path:
+    def _write_config(copilot_home: Path, plugins: list[dict[str, Any]]) -> Path:
         copilot_home.mkdir(parents=True, exist_ok=True)
         config_path = copilot_home / "config.json"
         config_path.write_text(

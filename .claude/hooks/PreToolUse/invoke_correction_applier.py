@@ -32,7 +32,7 @@ from pathlib import Path
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+    _lib_dir: str | None = str(Path(_plugin_root).resolve() / "lib")
 else:
     _cur = Path(__file__).resolve().parent
     _lib_dir = None
@@ -44,7 +44,11 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} "
+        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     # Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)
     sys.exit(0)
 if _lib_dir not in sys.path:
@@ -111,8 +115,11 @@ def parse_command(stdin_data: str) -> str | None:
         try:
             tool_input = json.loads(tool_input)
         except (json.JSONDecodeError, TypeError):
-            return tool_input
-    return tool_input.get("command") if isinstance(tool_input, dict) else None
+            return tool_input if isinstance(tool_input, str) else None
+    if isinstance(tool_input, dict):
+        command = tool_input.get("command")
+        return command if isinstance(command, str) else None
+    return None
 
 
 def extract_high_corrections(content: str) -> list[str]:
