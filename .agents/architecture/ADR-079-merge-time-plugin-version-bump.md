@@ -1,7 +1,7 @@
 ---
 id: ADR-079
 status: proposed
-date: 2026-07-05
+date: 2026-07-07
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -9,17 +9,19 @@ explainer: null
 implemented: false
 ---
 
-# ADR-079: Merge-Time Plugin Version Bump
+# ADR-079: Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation)
 
 ## Status
 
-Proposed. Requested by issue #2855 (labels `bug`, `agent-qa`, `area-workflows`, `area-infrastructure`, `area-skills`, `priority:P1`, `technical-debt`). The issue surfaces a structural throughput collapse: parallel plugin-source PRs deadlock on the monotonic version-bump gate. The maintainer's grounded evaluation (issue #2855, 2026-07-05) named the precondition directly: the three candidate fixes "all change the release/cache-keying contract that `plugin.json` version participates in. That is an owner design call and warrants an ADR." This ADR is that precondition. It records the release-process contract and recommends a direction. It ships no code.
+Proposed. Requested by issue #2855 (labels `bug`, `agent-qa`, `area-workflows`, `area-infrastructure`, `area-skills`, `priority:P1`, `technical-debt`). The issue surfaces a real throughput cost: parallel plugin-source PRs serialize on the monotonic version-bump gate.
 
-Recommend invoking the `adr-review` skill (6-agent debate) before acceptance.
+The first draft of this ADR recommended moving the bump to merge time via a post-merge auto-bump bot. Owner review (2026-07-07) rejected that direction on first principles and selected the opposite: keep the bump in the PR, accept the serialization, and add no automation. The decisive objection: any post-merge stamp leaves `main` carrying changed content under an unchanged version until the follow-up commit lands, which is a torn state that violates the repo rule that release-participating artifacts ship with the change that necessitates them.
+
+This revision records that decision and the cross-harness evidence behind it. The recommendation changed materially from the reviewed draft, so re-run the `adr-review` skill before acceptance.
 
 ## Date
 
-2026-07-05
+2026-07-07
 
 ## Context
 
@@ -31,153 +33,126 @@ Three plugins are published from source directories, each carrying a `.claude-pl
 
 Two CI gates govern these versions:
 
-1. **Version-bump gate** (`build/scripts/validate_plugin_version_bump.py`, enforced by `.github/workflows/validate-plugin-version-bump.yml`). When any content file under a packaged plugin's source directory changes in the diff, that plugin's `version` MUST be strictly greater than the version at the base ref. The validator's own docstring states the reason: "Installed plugin caches key off that version: when the version does not change, existing installs never re-sync, so deletions and edits inside the source dir silently fail to reach consumers." This is the silent-staleness bug the gate exists to prevent (issue #1942).
+1. **Version-bump gate** (`build/scripts/validate_plugin_version_bump.py`, enforced by `.github/workflows/validate-plugin-version-bump.yml`). When any content file under a packaged plugin's source directory changes in the diff, that plugin's `version` MUST be strictly greater than the version at the base ref. The validator's docstring states the reason: "Installed plugin caches key off that version: when the version does not change, existing installs never re-sync, so deletions and edits inside the source dir silently fail to reach consumers." This is the silent-staleness bug the gate prevents (issue #1942).
 
-2. **Manifest-parity gate** (`build/scripts/check_plugin_manifest_parity.py`). The `.claude` and `src/copilot-cli` manifests MUST carry identical versions. They currently sit lockstep at `0.6.3`.
+2. **Manifest-parity gate** (`build/scripts/check_plugin_manifest_parity.py`). The `.claude` and `src/copilot-cli` manifests MUST carry identical versions.
 
-The bump is monotonic and evaluated at PR-CI time against the base ref. With K open PRs that each touch plugin source, at most one can hold version `N+1` at a time. When any sibling merges, `main` advances to `N+1`, and every other open PR now equals base and fails the gate. Each must rebase onto `main` and re-bump. Effective merge throughput for plugin-source changes collapses to one PR at a time, with a forced rebase-and-regenerate step between each merge.
+The bump is monotonic and evaluated at PR-CI time against the base ref. Each of the two version lines (see Decision) serializes independently. Within one line, K open PRs can each hold `N+1` in their own branch, but only one can merge at `N+1`; when it does, `main` advances and every other open PR on that line now equals base and fails the gate. Each must rebase onto `main` and re-bump, up to once per sibling that merges ahead (O(K) worst case). A `project-toolkit` PR and a `claude-agents` PR never contend with each other; only same-line PRs collide.
 
-The same PRs usually also fail `Validate Generated Files` (`validate-generated-agents.yml`) and `Agent Drift Detection` (`agent-drift-detection.yml`), because a source edit requires regenerating the copilot mirrors, and the regeneration is likewise pinned to a moving base.
+### How the plugin hosts key freshness (verified)
 
-Two mitigations already exist and are insufficient:
+The freshness requirement is a host constraint, not a repo preference. Both hosts consume these manifests as raw source at the repo's HEAD; there is no build or publish step between the repo and the host, so nothing can stamp the version ephemerally at build time.
 
-- **Tactical conflict auto-resolution** (issue #2543). The merge-resolver auto-resolves a version-only `plugin.json` conflict to one patch above the higher side. This reduces conflict thrash but only after a git conflict already exists during rebase. It does not remove the gate serialization.
-- **Auto-loaded recovery recipe** (issue #2873, `.github/instructions/plugin-version-bump.instructions.md`). An `applyTo`-scoped instruction file teaches the next agent the `max(open-PR versions)+1` plus immediate-auto-merge recovery. This stops repeated ~15-minute rediscovery but still requires manual, serialized, per-PR bumping.
+- **Claude Code.** If `version` is omitted, resolution falls back to the git commit SHA, so every commit is a new version and installs stay fresh automatically. Version-resolution order (code.claude.com plugin-marketplaces docs): `plugin.json` `version`, then marketplace entry `version`, then the commit SHA.
+- **GitHub Copilot CLI (v1.0.69-0, verified in the shipped `app.js` bundle).** The plugin parse defaults an omitted version to the constant string `"unknown"` (`version: s.version||"unknown"`); there is no SHA fallback. The update check compares the version string for **inequality** (`previousVersion!==newVersion`) and prints "already at latest" when the strings are equal. A second inequality check (`l.version!==a[c]?.version`) drives the skill-reload/cache-clear path, so an unchanged version also skips re-sync. Neither path does SemVer ordering, and neither reads the source ref for the version.
 
-Three forces drive a decision now:
+Two facts follow, and they bound every option below:
 
-1. **The collision is structural, not incidental.** As long as the version is hand-set inside the PR and checked against a moving base, K parallel plugin-source PRs cannot all pass the gate. Fleet-scale parallelism makes this the common case, not the edge case.
+1. **A changing in-tree `version` is mandatory for Copilot CLI.** Omitting it pins every install at `"unknown"` and updates are never detected. The version must be a real, changing value checked into the manifest the host reads. There is no way to make Copilot derive freshness from git; it reads only the manifest content.
+2. **The host requires inequality, not monotonicity.** Copilot detects an update whenever the string differs. Monotonic increase is a human-legibility choice (people expect version numbers to go up), not a host requirement. This repo keeps monotonic on that basis.
 
-2. **There is no free bounded relaxation.** Relaxing the PR-time check to `>=` reopens the exact silent-staleness bug (#1942) the gate prevents: a content change under an unchanged version never reaches installed caches. The re-sync guarantee genuinely requires a distinct version per content-changing merge. That is a **merge-time invariant**. The current gate approximates it with a **PR-time** check that cannot know what `main` will be at merge time. The mismatch between where the invariant must hold (merge) and where it is checked (PR) is the root cause.
+### The core tension
 
-   The freshness key is `plugin.json` `version` because that is the field the **external** plugin host (the Claude Code / marketplace install-and-cache layer) keys its cache on. This repo publishes the manifest but does not own the consumer's cache-keying protocol. So switching to a content-addressable key (hash of the packaged source) is not a change this repo can make unilaterally; it would require the consumer to accept a non-SemVer freshness key. That option is recorded and rejected in Alternatives (option 4) on that basis.
-
-3. **The tactical fixes have run their course.** #2543 and #2873 address symptoms. The remaining fix changes where and when the version is set, which binds every future plugin-source PR and every release consumer. That is an architecture decision.
+The invariant that must hold is: **a distinct, greater version per content-changing merge.** The current gate approximates it with a PR-time check that cannot know what `main` will be at merge time. That mismatch is the source of the serialization. The draft ADR tried to close the mismatch by moving the write to merge time. Owner review found that cure worse than the disease, because the write itself cannot be removed (both hosts read the raw checked-in value) and moving it after the merge tears `main`.
 
 ## Decision
 
-Move the plugin version bump from PR-authoring time to merge time.
+Keep the plugin version bump where it is: hand-set in the PR, shipped in the same commit as the content change, enforced by the existing PR-time strictly-greater gate. Reject the post-merge auto-bump bot and every other automation that removes the bump from the PR. Accept the parallel-PR rebump cost as the price of simplicity.
 
-1. **PRs stop hand-editing `version`.** Contributors and fleet agents no longer bump `plugin.json` `version` in a plugin-source PR.
+1. **One versioning scheme, two independent version lines.** Every manifest uses the same monotonic-SemVer scheme, but the values are not globally shared. `.claude` and `src/copilot-cli` are the same plugin (`project-toolkit`) emitted per harness; the parity gate (`check_plugin_manifest_parity.py`) holds their two versions identical. `src/claude` is a distinct plugin (`claude-agents`) that carries its own independent monotonic line and is not in the parity gate. Within each line, the version is hand-set in the PR. No per-host bifurcation of the *scheme* (for example, omit-for-Claude and stamp-for-Copilot): Copilot needs a real, changing value, so every line supplies one. A split scheme is more surface for no benefit.
 
-2. **The PR-time version-bump gate relaxes to advisory.** `validate-plugin-version-bump.yml` no longer requires a strictly-greater version. Operationally, "advisory" means: the check still runs and still emits a status, but the status is **non-required** (it cannot block merge), and it warns only on a *downward* version edit (a lowered version is always a mistake). Fleet agents read the non-required status as informational. The strict monotonic guarantee is enforced at merge instead.
+2. **The bump ships in the PR.** The version change lands in the same commit as the content change. `main` is never in a state where content changed but the version did not. This preserves the repo rule that generated and release-participating artifacts ship with the change that necessitates them, never in a follow-up sync commit.
 
-3. **A post-merge workflow computes the bump.** A `push`-to-`main` workflow, scoped to commits that touched a packaged plugin's source directory, bumps the affected manifests, regenerates the copilot mirrors, keeps `.claude` and `src/copilot-cli` in parity, and commits the result back to `main` as a dedicated bot commit. Three properties bind the workflow:
+3. **The existing PR-time gate stays blocking and monotonic.** `validate_plugin_version_bump.py` continues to require a strictly-greater version when packaged plugin content changes. Monotonic because humans expect version numbers to increase, and because a strictly-greater value is a trivially correct way to guarantee the inequality the Copilot host needs. Strictly-greater is also the only guard against a *downgrade*: because Copilot's check is string inequality, a decreased version still differs and would push to installs as an "update," so the gate, not the host, is what blocks a rollback from reaching consumers. The gate enforces strictly-greater regardless of host semantics, so a lower-or-equal version fails even though the host itself would accept any inequality.
 
-   - **Deterministic, idempotent bump rule.** The workflow reads `main` HEAD fresh and sets each affected manifest to `max(current_main_version, any_version_present_in_the_merged_commit) + patch`. Re-running it on an already-bumped commit produces no new commit (idempotent), so a redundant trigger is a no-op rather than a double bump.
-   - **Serialized execution.** The workflow declares `concurrency: { group: plugin-version-bump, cancel-in-progress: false }` (queue, do not cancel), per ADR-026. Two plugin-source merges landing seconds apart run one-after-another; the second reads the first's committed version as its base, so no two runs race to the same `N+1`.
-   - **Scoped, least-privilege actor.** The bot commits with a GitHub App installation token whose permissions are the minimum needed (contents: write on this repo), not a repo-scoped classic PAT. Before pushing, the workflow asserts `git diff --name-only` against an allow-list (packaged `plugin.json` manifests and generated mirror paths only) and aborts if any out-of-list path is staged. The recursion guard is an **author filter**: the workflow skips when the triggering commit's author is the bot identity. It MUST NOT use `[skip ci]`, which would suppress unrelated required checks (CodeQL, markdown lint) on the bot commit.
+4. **Cross-PR collision is accepted, not engineered away.** Two PRs on the same version line, off the same base, both bump to `N+1`; when one merges, the other equals base and must rebase and re-bump, up to once per sibling that merges ahead (O(K) worst case for K concurrent same-line PRs). This serializes same-line plugin-source merges. It is tolerable because plugin-source PRs are believed to be a small fraction of traffic (unmeasured assumption; revisit if that rate rises), the result is correct at merge, and each collision costs one rebase, often auto-resolved. Two mitigations bound the pain and stay in place: the merge-resolver rule that resolves a version-only `plugin.json` conflict to one patch above the higher side (issue #2543), re-checked by the same PR-time gate before merge; and an auto-loaded recovery-recipe instruction file that teaches the `max(open-PR versions) + 1` plus immediate-auto-merge move (PR #2873, a mitigation for #2855).
 
-4. **The merge-time invariant is preserved by construction.** Every merge that changes plugin content produces exactly one bump. Distinct version per content-changing merge is guaranteed, so the silent-staleness guarantee (#1942) still holds. Cross-PR collision is eliminated because no PR carries a version.
-
-This ADR records the contract and the recommended direction. Implementation ships under a follow-up PR after `adr-review` consensus and owner acceptance. The branch-protection carve-out that lets the bot commit to protected `main` is a repository-admin action and is out of scope for the implementing PR.
+This ADR ships no code. It keeps the current gates and mitigations and records why the automation alternatives were rejected.
 
 ## Prior Art Investigation (Required when changing existing systems)
 
 ### What Currently Exists
 
-- **Structure/pattern being changed**: the PR-time monotonic version-bump gate (`validate_plugin_version_bump.py`) plus the manifest-parity gate (`check_plugin_manifest_parity.py`), backed by `validate-plugin-version-bump.yml`.
-- **When introduced**: the version gate traces to the silent-staleness fix (issue #1942); the tactical conflict resolver to issue #2543; the recovery-recipe instruction file to issue #2873.
-- **Original author and context**: repo-owner-driven release-engineering guards to keep installed plugin caches fresh.
+- **Structure/pattern**: the PR-time monotonic version-bump gate (`validate_plugin_version_bump.py`) plus the manifest-parity gate (`check_plugin_manifest_parity.py`), backed by `validate-plugin-version-bump.yml`.
+- **When introduced**: the version gate traces to the silent-staleness failure (PR #1942, hand-caught in PR #2114); the tactical conflict resolver to issue #2543; the recovery-recipe instruction file to PR #2873.
+- **Original context**: repo-owner-driven release-engineering guards to keep installed plugin caches fresh.
 
 ### Historical Rationale
 
-- **Why was it built this way?** Installed plugin caches key off `version`. A content change under an unchanged version never re-syncs to consumers (#1942). A strictly-greater bump on every content change prevents that.
-- **What alternatives were considered?** #2543 explicitly deferred the structural fix: "stop bumping in PRs and auto-bump on main ... needs an ADR-level decision."
-- **What constraints drove the design?** PR-time CI is the cheapest enforcement point and requires no self-committing workflow or branch-protection exception.
+- **Why built this way?** Installed plugin caches key off `version`. A content change under an unchanged version never re-syncs to consumers (#1942). A strictly-greater bump on every content change prevents that.
+- **Constraints**: PR-time CI is the cheapest enforcement point and needs no self-committing workflow or branch-protection exception.
 
-### Why Change Now
+### Why Not Automate
 
-- **Has the original problem changed?** The freshness requirement is unchanged. What changed is scale: fleet-scale parallel plugin-source PRs are now routine, so the PR-time approximation deadlocks constantly.
-- **Is there a better solution now?** Yes. Enforcing the invariant at merge time (where it actually must hold) removes the collision without weakening freshness.
-- **What are the risks of change?** A self-committing-to-`main` workflow is a new trusted actor and needs a branch-protection carve-out. A broken generator or bump step would block `main`. Recursion must be prevented (the bump commit must not re-trigger the bump workflow).
+- **The scale pain is real** but bounded: plugin-source PRs are infrequent, and each collision costs one rebase, often auto-resolved by #2543.
+- **Every automation costs more than the pain it removes.** Post-merge stamping tears `main`; a merge queue adds infrastructure and still serializes; git-height and content-hash still write a value and either tear `main` or collide; relaxing the gate reopens #1942. Detail in Alternatives.
+- **The write cannot be removed.** Both hosts read the raw checked-in value from HEAD; there is no build boundary to stamp ephemerally. So the only real choices are where the write happens (PR vs post-merge) and how the value is produced (hand vs derived). PR-time hand-bump is the only one of those that is correct at merge with zero new trust surface.
 
 ## Rationale
 
 ### Alternatives Considered
 
-| Alternative | Pros | Cons | Why Not Chosen |
-|-------------|------|------|----------------|
-| **1. Post-merge auto-bump workflow (recommended)** | Zero cross-PR collision; distinct version per merge by construction; regeneration moves to merge time, so `Validate Generated Files` and `Agent Drift` churn also disappears; least infra; no merge-queue dependency | Self-committing workflow to protected `main`; needs a branch-protection carve-out for the bot; recursion guard required; a broken bump/generate step blocks `main` | Chosen. Directly targets the root cause (invariant enforced where it must hold) with the least new infrastructure. |
-| **2. GitHub merge queue with a bump step** | Keeps `main` always-green; serializes plugin-source merges; queue re-bumps and regenerates the trailing entry before landing; no self-committing-to-`main` workflow | Heavier infrastructure; merge-queue configuration and dependency; still serializes plugin-source merges (throughput bounded by queue) | Not chosen as primary. Higher operational cost; keeps serialization. Recorded as the fallback if the self-commit model is rejected. |
-| **3. Pre-PR fleet re-bump + rebase rule (status quo mitigation)** | No new infra; already partially in place via #2873 and #2543 | Still manual and serialized; throughput still collapses to one PR at a time; forces rebase-and-regenerate between every merge | Not chosen. This is the current painful state the issue asks to fix, not a fix. |
-| **4. Content-addressable freshness key (hash instead of `version`)** | Eliminates the problem class entirely: no monotonic counter, so parallel PRs never contend; no self-committing bot; staleness impossible by construction | Requires the **consumer** (Claude Code / marketplace install-and-cache layer) to accept a non-SemVer freshness key; this repo publishes the manifest but does not own the consumer's cache-keying protocol, so the change is not unilaterally available | Not chosen. Out of this repo's control. The freshness key is SemVer `version` because the external host keys its cache on that field (see Context, force 2). Recorded because it is the correct fix *if* the consumer protocol were ours to change; it is not. |
-| **0. Do nothing** | No work | The P1 throughput collapse persists; blocks batches of useful fix PRs (issues #2841, #2842, #2845, #2847 were cited as blocked) | Not chosen. The issue is a live P1 with confirmed recurrence. |
+| Alternative | Why chosen / rejected |
+|-------------|-----------------------|
+| **PR-time monotonic bump in the PR + tactical mitigations (CHOSEN)** | Correct at merge; `main` never torn; zero new infrastructure; zero new trust surface; one legible monotonic scheme for both hosts. Cost is the accepted rebump on concurrent plugin-source PRs, bounded by #2543 and #2873. |
+| **Post-merge auto-bump bot** | Rejected. Between the content merge and the bot's bump commit, `main` carries changed content under an unchanged version: a torn state that violates the "artifacts ship with the change" rule. Adds a new trusted actor committing to protected `main`, a branch-protection carve-out, a recursion guard, and a serialized queue as the correctness mechanism. High complexity that may or may not hold, to remove a rare, cheap rebase. |
+| **GitHub merge queue with a bump step** | Rejected. Heavier infrastructure and a merge-queue dependency; still serializes plugin-source merges; does not remove the bump. |
+| **Derived version from git height (NBGV-style)** | Rejected. Still commits a value to the manifest the host reads, so the write is not eliminated. Computed at PR time it collides identically to the hand-counter; computed post-merge it tears `main` like the bot. NBGV's zero-write property comes from stamping at build time and never checking in; there is no build boundary here (hosts read raw HEAD), so that escape is unavailable. |
+| **Content-addressable freshness key (hash of packaged source)** | Rejected on legibility. A per-plugin content hash would actually cut the version-only collisions, since a hash of that plugin's own tree does not change when a sibling touches different content. But it drops the monotonic ordering humans expect from a version, for no host benefit, since Copilot needs only inequality, which monotonic SemVer already provides. A checked-in hash of the merged tree also reintroduces the write-timing problem (tears `main` post-merge, or is stale at PR-time). Legibility is the decisive reason to decline. |
+| **Relax the PR-time gate to `>=`** | Rejected. Reopens the silent-staleness bug (#1942): a content change under an unchanged version never reaches Copilot installs, whose update check is `!=` (equal means no update). |
+| **Do nothing, remove the mitigations** | Rejected. The rediscovery cost (#2873) and conflict thrash (#2543) return. The mitigations are cheap and stay. |
 
 ### Trade-offs
 
-Option 1 trades a small, bounded increase in release-pipeline trust surface (one bot that commits version bumps to `main`) for the removal of an unbounded, fleet-scaling coordination cost. The trust surface is auditable and enforced: the bot commit only edits `plugin.json` versions and generated mirrors, constrained to those paths by a pre-push allow-list assertion in the workflow (Decision item 3), not by convention alone, and the bot uses a least-privilege GitHub App token rather than a repo-scoped PAT. The coordination cost, by contrast, grows with fleet size and has no bounded relaxation (force 2 in Context).
+The chosen option trades a bounded coordination cost (rebump on concurrent plugin-source PRs) for zero new infrastructure and zero new trust surface. The trade is favorable: plugin-source PRs are a small fraction of traffic, the per-instance cost is one rebase (often auto-resolved by #2543), and every automation that removes the cost adds a torn-`main` window or a self-committing bot that is strictly more dangerous than the problem it solves.
 
 ## Consequences
 
 ### Positive
 
-- Parallel plugin-source PRs never collide on version. Merge throughput no longer collapses to one-at-a-time.
-- The silent-staleness guarantee (#1942) is preserved: exactly one bump per content-changing merge.
-- Regeneration of copilot mirrors moves to merge time, so the coupled `Validate Generated Files` and `Agent Drift Detection` failures on parallel PRs also disappear.
-- The recovery-recipe instruction file (#2873) and the tactical conflict resolver (#2543) become unnecessary for version conflicts.
+- `main` is never torn: version and content always change together, satisfying the "artifacts ship with the change" rule.
+- No new trusted actor, no bot committing to protected `main`, no branch-protection carve-out, no recursion guard, no post-merge queue.
+- One monotonic SemVer scheme across all manifests; the two `project-toolkit` emissions are held equal by the parity gate while `claude-agents` versions on its own line; human-legible; parity gate unchanged.
+- Correct for both hosts: monotonic SemVer gives Copilot CLI the inequality it needs and Claude Code a real version.
+- Simplest possible mechanism. Nothing new to build, test, or operate.
 
 ### Negative
 
-- A workflow that commits to protected `main` is a new trusted actor and requires a branch-protection carve-out (repo-admin action, out of scope for the implementing PR).
-- A broken bump or regenerate step blocks `main` until fixed, converting a per-PR failure into a trunk failure. See Failure Recovery below.
-- Recursion risk: the bump commit must not re-trigger the bump workflow. Bound to an author filter on the bot identity (not `[skip ci]`, which would suppress unrelated required checks).
-- A transient merge-to-bump window exists: between a content-changing merge landing on `main` and the bot's bump commit, `main` HEAD carries changed content under an unchanged version. This is safe for the stated use case because installed caches key off **released** versions, not `main` HEAD. Any future consumer that installs directly from `main` HEAD would observe stale-cache behavior in that window (seconds to a few minutes, bounded by the serialized workflow runtime).
-- Local installs and any consumer that inspects the PR-branch version will no longer see a bumped version until after merge.
-
-### Failure Recovery
-
-The post-merge model moves the failure surface from per-PR (fail-closed, recoverable by the PR author) to trunk (fail-open on the freshness invariant if the bump silently fails). Three controls bound this:
-
-- **Reconciliation detector.** A scheduled workflow re-checks `main` for any content-changing commit whose plugin manifest was not bumped, and opens an issue (or alerts) if it finds one. This restores the detective signal that the advisory PR gate gives up.
-- **Rollback trigger.** If the post-merge bump workflow fails N consecutive times (default N=2), the reconciliation detector re-enables the PR-time gate as blocking (via a repository variable the two workflows share), reverting to the known-good fail-closed behavior until the bump workflow is fixed.
-- **Idempotent re-run.** Because the bump rule is `max(...) + patch` and idempotent (Decision item 3), a maintainer can safely re-run the workflow on the failed commit without producing a double bump.
+- Parallel same-line plugin-source PRs still serialize: only one merges at `N+1`, the rest rebase and re-bump (O(K) worst case). Accepted. Bounded by issue #2543 (auto-resolve) and PR #2873 (recovery recipe).
+- Contributors and fleet agents must remember to bump. The auto-loaded instruction (#2873) and the gate's failure message keep this a pit of success rather than tribal knowledge.
 
 ### Neutral
 
-- The manifest-parity gate (`check_plugin_manifest_parity.py`) stays; the post-merge workflow keeps `.claude` and `src/copilot-cli` in parity when it bumps.
-- The version scheme (SemVer 2.0.0 core, strictly-greater precedence) is unchanged; only the actor and timing of the bump change.
+- The manifest-parity gate stays. The version scheme (SemVer core, strictly-greater precedence) is unchanged. The only outcome of this ADR is the decision to keep the current mechanism and reject automation.
 
 ## Impact on Dependent Components
 
-| Component | Dependency Type | Required Update | Risk |
-|-----------|----------------|-----------------|------|
-| `.github/workflows/validate-plugin-version-bump.yml` | Direct | Relax from blocking to advisory (warn on content change, do not require a bump) | Medium |
-| `build/scripts/validate_plugin_version_bump.py` | Direct | Add an advisory mode or gate its blocking behavior behind the new post-merge model | Medium |
-| New post-merge bump workflow | New | Add a `push`-to-`main`, plugin-path-scoped workflow that bumps affected manifests, regenerates mirrors, keeps parity, and commits back with a recursion guard | High |
-| `.github/workflows/validate-generated-agents.yml`, `.github/workflows/agent-drift-detection.yml` | Indirect | Mirror regeneration moves to merge time; PR-time drift checks become advisory for plugin-source PRs | Medium |
-| `.github/instructions/plugin-version-bump.instructions.md` (#2873) | Indirect | Retire or rewrite once PRs no longer hand-bump | Low |
-| Tactical merge-resolver auto-bump (#2543) | Indirect | Version-conflict path becomes dead code once PRs carry no version | Low |
-| Repository branch protection | Direct | Admin carve-out so the bump bot can commit to protected `main` | High |
-| Bump bot credential (GitHub App) | New | Provision a GitHub App installation token scoped to `contents: write`; no repo-scoped classic PAT | High |
+| Component | Required Update | Risk |
+|-----------|-----------------|------|
+| `.github/workflows/validate-plugin-version-bump.yml` | None. Stays blocking and monotonic. | None |
+| `build/scripts/validate_plugin_version_bump.py` | None. | None |
+| `build/scripts/check_plugin_manifest_parity.py` | None. Parity stays. | None |
+| `.github/instructions/plugin-version-bump.instructions.md` (#2873) | Keep. It is the accepted coping mechanism, not a stopgap. Optionally sharpen the `max(open-PR versions) + 1` wording and add the one-line reason (Copilot's update check is `!=`, so a distinct version is mandatory). | Low |
+| Tactical merge-resolver auto-bump (#2543) | Keep. | Low |
+| Repository branch protection | None. No bot writes to `main`. | None |
 
 ## Implementation Notes
 
-Suggested sequence for the follow-up implementing PR (not part of this ADR):
+No code implementation. Optional documentation follow-ups:
 
-1. Add the post-merge bump workflow behind a feature branch. Path-filter to packaged plugin source dirs. Declare `concurrency: { group: plugin-version-bump, cancel-in-progress: false }` (ADR-026). Add the author-filter recursion guard (skip when the triggering commit author is the bot identity).
-2. Add tests for the bump/regenerate module (ADR-006 principle: logic in a tested module, workflow orchestrates only; language is Python per ADR-042). Tests MUST cover the idempotent `max(...) + patch` rule and the pre-push path allow-list assertion.
-3. Relax the PR-time gate to advisory in the same PR so the two do not fight (non-required status; warn on downward version edits).
-4. Add the reconciliation detector and the N-consecutive-failure rollback trigger (Failure Recovery).
-5. Separately (owner-admin), provision a GitHub App installation token (`contents: write`), grant the bump bot write to protected `main`, and rely on the workflow's pre-push allow-list assertion to constrain the commit to `plugin.json` and generated mirror paths. Note: GitHub branch protection cannot path-scope a bypass actor's write; the path constraint is enforced in the workflow, not by branch protection. Prefer a repository ruleset with a path-restricted bypass if that feature is available at implementation time.
+1. Add the cross-harness facts from this ADR's Context to the #2873 instruction file so the next agent does not re-derive Copilot vs Claude version semantics.
+2. Ensure the version-bump gate's failure message points at the #2873 recovery recipe.
 
 ## Acceptance Criteria
 
-The implementing PR is done when:
-
-1. K parallel plugin-source PRs (K >= 2) merge in any order with no manual version edit and no cross-PR version collision.
-2. No commit on `main` carries a plugin-source content change without a corresponding version bump landing within T minutes (reconciliation detector confirms zero unbumped content commits).
-3. The bump workflow is idempotent: re-running it on an already-bumped commit produces no new commit.
-4. Two plugin-source merges landing within the workflow runtime produce two distinct, monotonically increasing versions (no race, no duplicate).
-5. The bot commit changes only allow-listed paths; a workflow bug that stages any other path aborts before push.
-6. `.claude` and `src/copilot-cli` remain at identical versions after every bump (manifest-parity gate stays green).
+This ADR is accepted when (a) the mandatory `adr-review` debate has completed with its findings resolved, and (b) the owner confirms the decision to keep PR-time bumping and reject automation. No code lands. Issue #2855 closes as "decided: keep PR-time monotonic bump in the PR; automation (post-merge bot, merge queue, git-height, content-hash) rejected; mitigations #2543 and #2873 retained," linking this ADR.
 
 ## Related Decisions
 
-- ADR-006 (thin workflows, testable modules): the new bump logic MUST live in a tested module, not inline YAML. Per ADR-042 (Python migration strategy), that module is Python.
-- ADR-026 (PR automation concurrency and safety controls): the post-merge workflow MUST adopt its concurrency-group pattern so rapid successive merges serialize rather than race.
+- ADR-006 (thin workflows, testable modules): unchanged; no new workflow logic is added.
+- ADR-026 (PR automation concurrency and safety controls): referenced only to note the rejected post-merge design would have depended on it.
 - ADR-072 (JTBD plugin architecture): defines the packaged-plugin model whose versions this ADR governs.
-- Issue #2543 (tactical merge-resolver auto-bump), issue #2873 (auto-loaded recovery recipe), issue #1942 (silent-staleness bug the version gate prevents).
+- Issue #2543 (tactical merge-resolver auto-bump); PR #2873 (auto-loaded recovery recipe, a mitigation for #2855); PR #1942 (the silent-staleness failure the version gate prevents, hand-caught in PR #2114).
 
 ## References
 
@@ -186,4 +161,5 @@ The implementing PR is done when:
 - `build/scripts/check_plugin_manifest_parity.py` (manifest parity).
 - `.github/workflows/validate-plugin-version-bump.yml`, `.github/workflows/validate-generated-agents.yml`, `.github/workflows/agent-drift-detection.yml`.
 - `.github/instructions/plugin-version-bump.instructions.md`.
+- Cross-harness evidence: GitHub Copilot CLI bundle `app.js` v1.0.69-0 (plugin parse `version: s.version||"unknown"`; update check `previousVersion!==newVersion`); Claude Code plugin-marketplaces docs (version-resolution order, commit-SHA fallback).
 - SemVer 2.0.0 (https://semver.org/#spec-item-11).
