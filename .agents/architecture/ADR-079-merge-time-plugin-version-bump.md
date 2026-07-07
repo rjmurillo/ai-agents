@@ -166,7 +166,7 @@ Suggested sequence for the follow-up implementing PR (not part of this ADR):
 The implementing PR is done when:
 
 1. K parallel plugin-source PRs (K >= 2) merge in any order with no manual version edit and no cross-PR version collision.
-2. No commit on `main` carries a plugin-source content change without a corresponding version bump landing within T minutes (reconciliation detector confirms zero unbumped content commits).
+2. No commit on `main` carries a plugin-source content change without a corresponding version bump landing within 15 minutes, verified by one scheduled reconciliation-detector run confirming zero unbumped content commits.
 3. The bump workflow is idempotent: re-running it on an already-bumped commit produces no new commit.
 4. Two plugin-source merges landing within the workflow runtime produce two distinct, monotonically increasing versions (no race, no duplicate).
 5. The bot commit changes only allow-listed paths; a workflow bug that stages any other path aborts before push.
