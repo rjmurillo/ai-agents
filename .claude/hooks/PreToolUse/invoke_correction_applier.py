@@ -22,6 +22,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 # Bootstrap: find lib directory via env var or manifest walk-up.
@@ -79,6 +80,24 @@ _HEADING_RE = re.compile(r"^##\s+")
 MAX_CORRECTIONS = 3
 # Minimum keyword length to avoid false positives
 MIN_KEYWORD_LENGTH = 4
+# Scan bounds (issue: advisory PreToolUse hook must never wedge the session).
+# This hook runs on EVERY Bash command with a tight host timeout (3s in
+# .claude/settings.json). A host timeout kills the process (SIGKILL), which
+# the try/except in main() cannot catch, so the "advisory, never blocks"
+# contract silently becomes fail-CLOSED and denies every command once the
+# memory corpus grows past the budget. These caps keep the scan best-effort
+# and bounded so wall-clock stays well under the host timeout regardless of
+# how large .serena/memories/ becomes.
+_SCAN_DEADLINE_SECONDS = 1.5
+_MAX_FILES_SCANNED = 500
+_MAX_TOTAL_BYTES = 5_000_000
+# Total wall-clock budget for the whole hook body, anchored at main() start and
+# kept under the 3s host timeout (.claude/settings.json). skip_if_consumer_repo()
+# may spend up to its git subprocess timeout before the scan runs, so anchoring
+# the scan deadline here (not at scan start) makes a slow git shrink the scan
+# window instead of pushing total wall-clock past the host timeout and tripping
+# a SIGKILL-into-"hook errored" deny.
+_HOOK_WALL_BUDGET_SECONDS = 2.5
 
 
 def parse_command(stdin_data: str) -> str | None:
@@ -156,8 +175,18 @@ def find_matching_corrections(
     return matches
 
 
-def scan_memories(project_root: str) -> list[tuple[str, str]]:
+def scan_memories(project_root: str, deadline: float | None = None) -> list[tuple[str, str]]:
     """Scan .serena/memories/ for HIGH confidence corrections.
+
+    Best-effort and bounded: stops after ``_SCAN_DEADLINE_SECONDS`` wall clock,
+    ``_MAX_FILES_SCANNED`` files, or ``_MAX_TOTAL_BYTES`` read, whichever comes
+    first. This is advisory context, so surfacing a subset is acceptable; the
+    hard requirement is that the scan cannot exceed the host hook timeout and
+    wedge every Bash command (fail-closed-on-timeout regression).
+
+    Files are visited in sorted order for determinism. ``deadline`` is an
+    absolute ``time.monotonic()`` value; when omitted it is derived from
+    ``_SCAN_DEADLINE_SECONDS``.
 
     Returns list of (source_file, correction_text) tuples.
     """
@@ -165,13 +194,24 @@ def scan_memories(project_root: str) -> list[tuple[str, str]]:
     if not memories_dir.is_dir():
         return []
 
-    all_corrections: list[tuple[str, str]] = []
+    if deadline is None:
+        deadline = time.monotonic() + _SCAN_DEADLINE_SECONDS
 
-    for md_file in memories_dir.rglob("*.md"):
+    all_corrections: list[tuple[str, str]] = []
+    files_scanned = 0
+    total_bytes = 0
+
+    for md_file in sorted(memories_dir.rglob("*.md")):
+        if files_scanned >= _MAX_FILES_SCANNED or total_bytes >= _MAX_TOTAL_BYTES:
+            break
+        if time.monotonic() >= deadline:
+            break
         try:
             content = md_file.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        files_scanned += 1
+        total_bytes += len(content)
         corrections = extract_high_corrections(content)
         for c in corrections:
             all_corrections.append((md_file.name, c))
@@ -182,6 +222,7 @@ def scan_memories(project_root: str) -> list[tuple[str, str]]:
 def main() -> int:
     """Main entry point. Always returns 0 (advisory, never blocks)."""
     hook_name = "correction-applier"
+    deadline = time.monotonic() + _HOOK_WALL_BUDGET_SECONDS
     try:
         if skip_if_consumer_repo(hook_name):
             return 0
@@ -202,7 +243,7 @@ def main() -> int:
             return 0
 
         project_root = get_project_directory()
-        all_corrections = scan_memories(project_root)
+        all_corrections = scan_memories(project_root, deadline=deadline)
         if not all_corrections:
             return 0
 
