@@ -8413,7 +8413,8 @@
       "episodes": [
         "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813",
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts",
-        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening"
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening",
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
       ],
       "created": "2026-07-02T15:29:52.544813+00:00"
     },
@@ -11188,6 +11189,366 @@
         "episode-2026-07-04-session-2607"
       ],
       "created": "2026-07-04T07:04:14.774715+00:00"
+    },
+    {
+      "id": "b8b82df65fc4",
+      "type": "milestone",
+      "label": "milestone: Six parallel read-only audit agents (Python correctness scripts/ and .claude/, injection/path/secrets, governance integrity, orphan/duplication, subprocess/CI robustness). Findings: 0 Critical, 13 High, 37 Medium, 22 Low after cross-model reconciliation.",
+      "episodes": [
+        "episode-2026-07-02-session-1"
+      ],
+      "created": "2026-07-07T16:33:28.554179+00:00"
+    },
+    {
+      "id": "45757afa0562",
+      "type": "milestone",
+      "label": "milestone: Opened issues #2806-#2816 grouped by defect shape; posted verified cross-model additions as comments on #2811-#2816.",
+      "episodes": [
+        "episode-2026-07-02-session-1"
+      ],
+      "created": "2026-07-07T16:33:28.554454+00:00"
+    },
+    {
+      "id": "8bec2ab08e6f",
+      "type": "milestone",
+      "label": "milestone: Report artifact: .agents/audits/2026-07-02-safety-audit.md. No code changed; report-only per audit brief.",
+      "episodes": [
+        "episode-2026-07-02-session-1"
+      ],
+      "created": "2026-07-07T16:33:28.554777+00:00"
+    },
+    {
+      "id": "29f298ad1c5e",
+      "type": "milestone",
+      "label": "milestone: PR #2817 opened (draft). CI feedback handled: markdown session log removed (JSON-only), PR description rewritten to match diff. Filed #2818 for AI-review infra-failure red-check noise. Auto-retro committed. Remediation workflow for #2806-#2816 launched.",
+      "episodes": [
+        "episode-2026-07-02-session-1"
+      ],
+      "created": "2026-07-07T16:33:28.555011+00:00"
+    },
+    {
+      "id": "10e48f4d35ca",
+      "type": "commit",
+      "label": "commit: Commit: 294906cd98",
+      "episodes": [
+        "episode-2026-07-02-session-1"
+      ],
+      "created": "2026-07-07T16:33:28.555246+00:00"
+    },
+    {
+      "id": "3b0f054baa5a",
+      "type": "outcome",
+      "label": "Outcome: success - Read-only architecture and safety audit; findings report, issues #2806-#2816, cross-model reconciliation",
+      "episodes": [
+        "episode-2026-07-02-session-1"
+      ],
+      "created": "2026-07-07T16:33:28.555518+00:00"
+    },
+    {
+      "id": "04fe107bfec8",
+      "type": "milestone",
+      "label": "milestone: Fetched gstack autoplan SKILL.md.tmpl as the reference shape; surveyed internal prior art (steering-matcher, orchestrator, CLAUDE.md static table) and found no existing intent router.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
+      ],
+      "created": "2026-07-07T16:33:28.563844+00:00"
+    },
+    {
+      "id": "f2980dfb7f9d",
+      "type": "milestone",
+      "label": "milestone: Authored .claude/skills/autoplan/SKILL.md: Phase 0 intent+size classification, 16-row routing table with orchestrator fallback, Mechanical/Taste/Sovereignty decision classes mapped to the AGENTS.md Ask First list, final gate, escape hatches.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
+      ],
+      "created": "2026-07-07T16:33:28.564090+00:00"
+    },
+    {
+      "id": "02c6bdbab32c",
+      "type": "milestone",
+      "label": "milestone: Removed a self-set drift trap: hardcoded skill count in the description (orphan-ref-validator flags stale counts).",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
+      ],
+      "created": "2026-07-07T16:33:28.564318+00:00"
+    },
+    {
+      "id": "2c1eca925c91",
+      "type": "milestone",
+      "label": "milestone: Generated src/copilot-cli/skills/autoplan twin via build_all.py; bumped project-toolkit claude and copilot manifests to 0.5.256.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
+      ],
+      "created": "2026-07-07T16:33:28.564557+00:00"
+    },
+    {
+      "id": "4ea9d5564339",
+      "type": "milestone",
+      "label": "milestone: Filed issue #2828 with the design and buy-vs-build Quick-tier verdict.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
+      ],
+      "created": "2026-07-07T16:33:28.564784+00:00"
+    },
+    {
+      "id": "62a5b6804753",
+      "type": "milestone",
+      "label": "milestone: Verification: validate_skill_format.py --path .claude/skills/autoplan PASSED; dash byte-check clean.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
+      ],
+      "created": "2026-07-07T16:33:28.565016+00:00"
+    },
+    {
+      "id": "6f7f336bd823",
+      "type": "commit",
+      "label": "commit: Commit: dca57fa",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
+      ],
+      "created": "2026-07-07T16:33:28.565413+00:00"
+    },
+    {
+      "id": "8c293e33a9cb",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #2828: add the /autoplan router skill (one lazy entry point that classifies requests and routes across the skill catalog with defaults), adapted from gstack autoplan. Skill + copilot twin + plugin bumps.",
+      "episodes": [
+        "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
+      ],
+      "created": "2026-07-07T16:33:28.565955+00:00"
+    },
+    {
+      "id": "f453b43f6449",
+      "type": "decision",
+      "label": "design: Left the orchestrator-retirement review thread unresolved because it is a user-owned design decision.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.566525+00:00"
+    },
+    {
+      "id": "26ccd3c9aec6",
+      "type": "milestone",
+      "label": "milestone: Created a dedicated worktree at ../pr-2829 because this runtime forbids /tmp writes.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.566768+00:00"
+    },
+    {
+      "id": "96d3e1cf5868",
+      "type": "milestone",
+      "label": "milestone: Inspected PR #2829 state, failing Validate PR output, and failing Validate Spec Coverage output.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.566996+00:00"
+    },
+    {
+      "id": "a26a1d5a9867",
+      "type": "milestone",
+      "label": "milestone: Added REQ-019 for the already-built /autoplan router skill so spec coverage has a mechanical artifact.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.567227+00:00"
+    },
+    {
+      "id": "953837f9d68d",
+      "type": "milestone",
+      "label": "milestone: Updated stale /auto references in session artifacts to /autoplan and confirmed plugin manifest parity at 0.5.256.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.567457+00:00"
+    },
+    {
+      "id": "6b844b1bde0e",
+      "type": "milestone",
+      "label": "milestone: Left the orchestrator-retirement review thread unresolved because it is a user-owned design decision.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.567716+00:00"
+    },
+    {
+      "id": "73c2fed1ef6e",
+      "type": "outcome",
+      "label": "Outcome: success - Babysit PR #2829 toward merge by fixing mechanical validation failures while leaving the orchestrator-retirement design thread unresolved.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.567951+00:00"
+    },
+    {
+      "id": "560bc2de11f8",
+      "type": "decision",
+      "label": "Left the orchestrator-retirement review thread unresolved because it is a user-owned design decision.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.568903+00:00"
+    },
+    {
+      "id": "7192bf3b64ff",
+      "type": "milestone",
+      "label": "Added REQ-019 for the already-built /autoplan router skill so spec coverage has a mechanical artifact.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.569158+00:00"
+    },
+    {
+      "id": "6614f3995388",
+      "type": "milestone",
+      "label": "Left the orchestrator-retirement review thread unresolved because it is a user-owned design decision.",
+      "episodes": [
+        "episode-2026-07-03-session-2604-pr-2829-autoplan-babysitter"
+      ],
+      "created": "2026-07-07T16:33:28.569648+00:00"
+    },
+    {
+      "id": "acd5d337aa6e",
+      "type": "milestone",
+      "label": "milestone: Pushed review-thread fixes through 28b540839f after adding commit-limit-bypass for this repair PR.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.665955+00:00"
+    },
+    {
+      "id": "2906f1cda871",
+      "type": "milestone",
+      "label": "milestone: Fixed unresolved Copilot feedback on analyze_pr_failure empty gh output handling and validated targeted tests.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.666212+00:00"
+    },
+    {
+      "id": "57652a64fcb3",
+      "type": "milestone",
+      "label": "milestone: Fixed active Copilot feedback on secure atomic writes, mypy suppression debt, and retrospective placeholder formatting.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.666490+00:00"
+    },
+    {
+      "id": "7fe8e6138352",
+      "type": "milestone",
+      "label": "milestone: Fixed follow-up Copilot feedback on SessionStart and SessionEnd hook atomic temp-file uniqueness.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.666723+00:00"
+    },
+    {
+      "id": "5d456d40e145",
+      "type": "milestone",
+      "label": "milestone: Fixed follow-up Copilot feedback on mixed reaction failure error typing.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.666962+00:00"
+    },
+    {
+      "id": "0361b4a76cdc",
+      "type": "milestone",
+      "label": "milestone: Committed follow-up fixes: memory hook reentrant writes, skill hook reentrant writes, and reaction API error typing.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.667193+00:00"
+    },
+    {
+      "id": "5f791beb7699",
+      "type": "milestone",
+      "label": "milestone: Validated 69 targeted tests, scoped ruff with inherited E501 excluded, sync_plugin_lib check, build_all check, and session JSON validation.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.667427+00:00"
+    },
+    {
+      "id": "6ea81bd8e74d",
+      "type": "commit",
+      "label": "commit: Commit: 803054e5c4",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.667671+00:00"
+    },
+    {
+      "id": "25fdb1fda58b",
+      "type": "milestone",
+      "label": "milestone: Fixed new Copilot feedback by giving PSScriptAnalyzer installation a longer bounded timeout and adding regression coverage.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.667911+00:00"
+    },
+    {
+      "id": "42182e1b863f",
+      "type": "milestone",
+      "label": "milestone: Validated PSScriptAnalyzer timeout change with targeted pytest, ruff, and prohibited dash byte check.",
+      "episodes": [
+        "episode-2026-07-04-session-2607"
+      ],
+      "created": "2026-07-07T16:33:28.668130+00:00"
+    },
+    {
+      "id": "6aaf13170964",
+      "type": "milestone",
+      "label": "milestone: Swept PR 2907 unresolved review threads: three Copilot threads on debate-001 governance memory.",
+      "episodes": [
+        "episode-2026-07-07-session-2"
+      ],
+      "created": "2026-07-07T16:33:28.669066+00:00"
+    },
+    {
+      "id": "21499d1047e6",
+      "type": "milestone",
+      "label": "milestone: Verified arXiv:2510.21513 resolves to Wisdom and Delusion of LLM Ensembles for Code Generation and Repair before linking.",
+      "episodes": [
+        "episode-2026-07-07-session-2"
+      ],
+      "created": "2026-07-07T16:33:28.669309+00:00"
+    },
+    {
+      "id": "1e97d0e9d806",
+      "type": "milestone",
+      "label": "milestone: Added high-stakes provisional caveat to Success Criteria, made the arXiv reference a clickable link, and replaced D&C with Disagree-and-Commit while softening often means to can mean.",
+      "episodes": [
+        "episode-2026-07-07-session-2"
+      ],
+      "created": "2026-07-07T16:33:28.669571+00:00"
+    },
+    {
+      "id": "98a3d426d656",
+      "type": "milestone",
+      "label": "milestone: Created this session log to satisfy the session-protocol pre-commit gate for .agents and .serena changes.",
+      "episodes": [
+        "episode-2026-07-07-session-2"
+      ],
+      "created": "2026-07-07T16:33:28.669812+00:00"
+    },
+    {
+      "id": "4c22173e2a87",
+      "type": "commit",
+      "label": "commit: Commit: 140545b428",
+      "episodes": [
+        "episode-2026-07-07-session-2"
+      ],
+      "created": "2026-07-07T16:33:28.670063+00:00"
+    },
+    {
+      "id": "4a60b5cc6d18",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve Copilot review threads on PR 2907 (correlated-premise audit) and drive to merge",
+      "episodes": [
+        "episode-2026-07-07-session-2"
+      ],
+      "created": "2026-07-07T16:33:28.670302+00:00"
     }
   ],
   "patterns": [
@@ -11237,7 +11598,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 55,
+      "occurrences": 56,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -11246,7 +11607,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 121,
+      "occurrences": 125,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -11255,7 +11616,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 220,
+      "occurrences": 224,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -11264,7 +11625,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 330,
+      "occurrences": 336,
       "created": "2026-06-02T04:20:23.790649+00:00"
     },
     {
@@ -11273,7 +11634,7 @@
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "success_rate": 1.0,
-      "occurrences": 6,
+      "occurrences": 7,
       "created": "2026-07-04T06:31:50.952133+00:00"
     }
   ],
@@ -11283,7 +11644,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -11291,7 +11652,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -11299,7 +11660,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -11307,7 +11668,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -11315,7 +11676,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -11323,7 +11684,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -11331,7 +11692,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -11339,7 +11700,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -11347,7 +11708,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -11355,7 +11716,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -11363,7 +11724,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -11371,7 +11732,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -11379,7 +11740,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -11387,7 +11748,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -11395,7 +11756,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -11403,7 +11764,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -11411,7 +11772,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -11419,7 +11780,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -11427,7 +11788,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -11435,7 +11796,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -11443,7 +11804,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -11451,7 +11812,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -11459,7 +11820,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -11467,7 +11828,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -11475,7 +11836,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -11483,7 +11844,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -11491,7 +11852,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -11499,7 +11860,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -11507,7 +11868,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -11515,7 +11876,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -11523,7 +11884,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -11531,7 +11892,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -11539,7 +11900,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -11547,7 +11908,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -11555,7 +11916,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -11563,7 +11924,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -11571,7 +11932,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -11579,7 +11940,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -11587,7 +11948,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -11595,7 +11956,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 55,
+      "evidence_count": 56,
       "created": "2026-06-02T04:20:23.796919+00:00"
     },
     {
@@ -11603,7 +11964,7 @@
       "target": "e161750067d4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-07-04T02:21:24.350970+00:00"
     },
     {
@@ -11611,7 +11972,7 @@
       "target": "b895b21a3dc6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-07-04T02:21:24.351162+00:00"
     },
     {
@@ -11619,7 +11980,7 @@
       "target": "890ad3ba78e1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 6,
+      "evidence_count": 7,
       "created": "2026-07-04T06:31:50.951735+00:00"
     },
     {
@@ -11627,8 +11988,24 @@
       "target": "184e28bd3bfa",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 6,
+      "evidence_count": 7,
       "created": "2026-07-04T06:31:50.952110+00:00"
+    },
+    {
+      "source": "560bc2de11f8",
+      "target": "7192bf3b64ff",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "created": "2026-07-07T16:33:28.569184+00:00"
+    },
+    {
+      "source": "560bc2de11f8",
+      "target": "6614f3995388",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "created": "2026-07-07T16:33:28.569673+00:00"
     }
   ]
 }
