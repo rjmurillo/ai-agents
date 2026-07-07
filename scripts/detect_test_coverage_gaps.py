@@ -49,11 +49,15 @@ def load_ignore_patterns(ignore_file: str) -> list[str]:
 
 
 def get_staged_ps1_files(repo_root: Path) -> list[str]:
-    result = subprocess.run(
-        ["git", "-C", str(repo_root), "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        return []
     if result.returncode != 0:
         return []
     files = [

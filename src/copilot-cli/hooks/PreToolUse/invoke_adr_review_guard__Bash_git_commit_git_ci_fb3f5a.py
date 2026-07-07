@@ -386,11 +386,16 @@ def _original_main(stdin_bytes):
 
         Raises on git errors to maintain fail-closed posture for security.
         """
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            capture_output=True,
-            text=True,
-        )
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except subprocess.TimeoutExpired as exc:
+            msg = "git diff --cached timed out after 5s"
+            raise RuntimeError(msg) from exc
         if result.returncode != 0:
             stderr = result.stderr.strip()
             msg = f"git diff --cached failed with exit code {result.returncode}: {stderr}"

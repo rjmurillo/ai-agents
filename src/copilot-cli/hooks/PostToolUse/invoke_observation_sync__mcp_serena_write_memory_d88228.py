@@ -331,12 +331,16 @@ def _original_main(stdin_bytes):
                 return None
             return env_dir
         # Fixed argv, no user data. Safe.
-        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+        except subprocess.TimeoutExpired:
+            return os.getcwd()
         if result.returncode == 0:
             return result.stdout.strip()
         return os.getcwd()

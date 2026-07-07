@@ -68,10 +68,11 @@ def get_current_branch() -> str | None:
             capture_output=True,
             text=True,
             check=False,
+            timeout=5,
         )
         if result.returncode == 0:
             return result.stdout.strip()
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         pass
     return None
 
