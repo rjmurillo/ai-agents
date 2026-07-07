@@ -47,6 +47,17 @@ Round N:
 - All agents either Accept or Disagree-and-Commit
 - Dissent documented in debate log
 - ADR updated with all P0 resolutions
+- For high-stakes ADRs, a fast unanimous Accept is provisional until the Correlated-Premise Audit round (below) completes
+
+## Correlated-Premise Audit (guard against fast unanimous convergence)
+
+**Statement**: Before accepting fast unanimous convergence on a high-stakes ADR, verify the ADR's load-bearing factual claims against primary sources. Fast unanimity is not automatically a strong signal. It can be correlated failure.
+
+**Why**: The 4-phase protocol defends well against groupthink in reasoning. The independent-thinker role challenges assumptions and framing, and Disagree-and-Commit preserves dissent. But every agent reviews the same ADR text. When the ADR itself carries a factual error, all agents inherit it. Independent-thinker challenges the reasoning while accepting the false premise, because the error is in the shared input, not in anyone's logic. This is the ensemble "popularity trap" from Wisdom and Delusion of LLM Ensembles for Code Generation and Repair ([arXiv:2510.21513](https://arxiv.org/abs/2510.21513)): majority-vote consensus can lock a panel onto a shared error that the best single model would have caught.
+
+**Worked incident (ADR-045, Session 1181, 2026-02-07)**: The ADR stated "no validated external demand" and "single-maintainer project" when it actually targeted about 400 users for organizational distribution. High-Level-Advisor voted Divest-and-Contain on ROI grounds. No agent caught it, because the error was a shared false fact, not bad reasoning. Correcting the context flipped the vote to Accept. See `adr-review-observations.md`.
+
+**Protocol addition**: When Phase 4 reaches unanimous Accept in Round 1 (or Round 2) on an ADR that is high-stakes (irreversible, cross-cutting, or resource-committing), do NOT treat that as convergence. Add one Round: assign one agent (default: independent-thinker, or a fresh reviewer) to verify each load-bearing factual claim in the ADR against a primary source (the spec, the benchmark, the usage data, the actual user count). Only then accept. Signal to watch: a Disagree-and-Commit rejection on ROI or scope grounds can mean the ADR context is wrong, not that the agent disagrees. Investigate the fact base before re-arguing (see observations, Session 1181).
 
 **Anti-Pattern**:
 
