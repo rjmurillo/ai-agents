@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-07-session-2609",
+  "session": "2026-07-07-session-2609",
+  "timestamp": "2026-07-07T00:00:00+00:00",
+  "outcome": "success",
+  "task": "RCA and structural fix for PreToolUse bash-hook wedge (git subprocess timeout exceeded host hook timeout -> SIGKILL -> every bash command hard-denied); then resume open-issue backlog.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed bash-hook wedge cleared after Copilot restart reloaded .claude/settings.json hooks.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regression test caught my own error: git timeout 2s not strictly < tightest host timeout; topical-memory-injection hook is 2s, a guard-caller.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Lowered git remote lookup timeout 2s -> 1s across all three synced guards.py copies; corrected comment to cite the real 2s binding constraint.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated: 62 guard tests pass; isolated invoke_skill_learning timeout is flaky under full-suite load, passes in 3s alone, unrelated to git-timeout change.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped .claude and src/copilot-cli plugin.json 0.6.4 -> 0.6.5 in lockstep for packaged-lib + hook-source change.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}

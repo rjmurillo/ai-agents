@@ -1,0 +1,143 @@
+{
+ "schemaVersion": "1.0",
+ "session": {
+  "number": 2609,
+  "date": "2026-07-07",
+  "branch": "fix/pretooluse-bash-hook-wedge",
+  "startingCommit": "e632550a3c",
+  "objective": "RCA and structural fix for PreToolUse bash-hook wedge (git subprocess timeout exceeded host hook timeout -> SIGKILL -> every bash command hard-denied); then resume open-issue backlog."
+ },
+ "protocolCompliance": {
+  "sessionStart": {
+   "serenaActivated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "serena-initial_instructions loaded this session; serena-* MCP tools live on this local Copilot CLI."
+   },
+   "serenaInstructions": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Serena Instructions Manual read via serena-initial_instructions."
+   },
+   "handoffRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Prior HANDOFF context carried in autopilot session summary and checkpoints."
+   },
+   "sessionLogCreated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "This file."
+   },
+   "skillScriptsListed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "github skill pr scripts used for PR/issue ops; llm-council skill for prior ADR-079 deliberation."
+   },
+   "usageMandatoryRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "gh used via github skill scripts where a skill exists; raw gh only for read-only issue listing."
+   },
+   "constraintsRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Dash prohibition, atomic-commit, plugin-version-bump, generated-artifact discipline applied."
+   },
+   "memoriesLoaded": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Repository and user memories surfaced in prompt; plugin-versioning, hook-bootstrap, and timeout-hardening memories applied."
+   },
+   "branchVerified": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "fix/pretooluse-bash-hook-wedge created from up-to-date origin/main."
+   },
+   "notOnMain": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "On fix/pretooluse-bash-hook-wedge, not main."
+   },
+   "gitStatusVerified": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "git status checked before staging; serena/project.yml auto-churn discarded."
+   },
+   "startingCommitNoted": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "e632550a3c"
+   }
+  },
+  "sessionEnd": {
+   "checklistComplete": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "All sessionStart and sessionEnd MUST fields completed with evidence."
+   },
+   "handoffPreserved": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": ".agents/HANDOFF.md not modified this session."
+   },
+   "serenaMemoryUpdated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Added .serena/memories/root-cause-pretooluse-bash-hook-wedge.md (RootCause-Hooks-001)."
+   },
+   "markdownLintRun": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Pre-commit runs markdownlint on staged markdown; RCA memory passes."
+   },
+   "changesCommitted": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Committed guards.py timeout fix, correction_applier scan budget, regression test, e2e shadow-cleanup, plugin bump, RCA memory."
+   },
+   "validationPassed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "pytest tests/test_hook_plugin_guards.py PASS (63/63 incl. new invariant test); byte-level dash count zero."
+   },
+   "tasksUpdated": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "Autopilot 47-issue backlog tracked in session DB; hook-wedge side quest closed first."
+   },
+   "retrospectiveInvoked": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "Auto-retro generated for 2026-07-07; RCA memory captures the structural lesson."
+   }
+  }
+ },
+ "workLog": [
+  {
+   "time": "2026-07-07T21:50:00Z",
+   "entry": "Confirmed bash-hook wedge cleared after Copilot restart reloaded .claude/settings.json hooks."
+  },
+  {
+   "time": "2026-07-07T21:55:00Z",
+   "entry": "Regression test caught my own error: git timeout 2s not strictly < tightest host timeout; topical-memory-injection hook is 2s, a guard-caller."
+  },
+  {
+   "time": "2026-07-07T22:00:00Z",
+   "entry": "Lowered git remote lookup timeout 2s -> 1s across all three synced guards.py copies; corrected comment to cite the real 2s binding constraint."
+  },
+  {
+   "time": "2026-07-07T22:05:00Z",
+   "entry": "Validated: 62 guard tests pass; isolated invoke_skill_learning timeout is flaky under full-suite load, passes in 3s alone, unrelated to git-timeout change."
+  },
+  {
+   "time": "2026-07-07T22:10:00Z",
+   "entry": "Bumped .claude and src/copilot-cli plugin.json 0.6.4 -> 0.6.5 in lockstep for packaged-lib + hook-source change."
+  }
+ ],
+ "endingCommit": "",
+ "nextSteps": [
+  "Push fix/pretooluse-bash-hook-wedge, open PR referencing the wedge-class issue, drive to merge.",
+  "Resume open-issue backlog: 2814, 2840, 2855, 2902, 2903, 2909, 2910-2946."
+ ]
+}

@@ -130,6 +130,55 @@ class TestRemoteRepoName:
         assert captured_kwargs["errors"] == "replace"
         assert captured_kwargs["check"] is True
 
+    def test_origin_lookup_timeout_under_host_budget(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The per-tool-call git lookup must finish inside the tightest host timeout.
+
+        ``skip_if_consumer_repo`` calls ``_remote_repo_name`` on every tool use,
+        and several PreToolUse Bash hooks invoke it (correction-applier,
+        routing-gates, lsp-bash-grep-guard). If this git subprocess timeout is
+        >= a host hook's timeout, a slow or hung git lets the host SIGKILL the
+        whole hook before the caller can fail open, which Copilot surfaces as a
+        hard "hook errored" deny of every command (repo-settings Bash-hook
+        wedge). Guard the invariant so a future edit cannot reintroduce it:
+        git timeout must be strictly under the tightest configured host timeout.
+        """
+        settings_path = REPO_ROOT / ".claude" / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        host_timeouts: list[int] = []
+        for group in settings.get("hooks", {}).get("PreToolUse", []):
+            if not isinstance(group, dict):
+                continue
+            for entry in group.get("hooks", []):
+                if isinstance(entry, dict) and isinstance(entry.get("timeout"), int):
+                    host_timeouts.append(entry["timeout"])
+        assert host_timeouts, "expected explicit PreToolUse hook timeouts in settings.json"
+        tightest_host_timeout = min(host_timeouts)
+
+        captured_kwargs: dict[str, object] = {}
+
+        def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            captured_kwargs.update(kwargs)
+            return subprocess.CompletedProcess(
+                ["git", "-C", "/repo", "remote", "get-url", "origin"],
+                0,
+                stdout="ai-agents\n",
+                stderr="",
+            )
+
+        monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
+        monkeypatch.setattr(guards.subprocess, "run", fake_run)
+
+        assert guards._remote_repo_name("/repo") == "ai-agents"
+        git_timeout = captured_kwargs.get("timeout")
+        assert isinstance(git_timeout, (int, float)), "git lookup must pass a timeout"
+        assert git_timeout < tightest_host_timeout, (
+            f"git lookup timeout {git_timeout}s must be < tightest host hook "
+            f"timeout {tightest_host_timeout}s so a slow git degrades to None "
+            "instead of the host SIGKILLing the hook into a 'hook errored' deny"
+        )
+
     def test_git_missing_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(guards.shutil, "which", lambda _name: None)
         assert guards._remote_repo_name("/repo") is None
