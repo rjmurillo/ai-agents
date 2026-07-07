@@ -229,6 +229,25 @@ class TestCreateIssuesDedupe:
         assert any("create" in c for c in calls)
         assert created[0]["url"] == "https://github.com/o/r/issues/9"
 
+    def test_search_oserror_proceeds_to_create(self) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, *args, **kwargs):
+            calls.append(cmd)
+            if "list" in cmd:
+                raise FileNotFoundError("gh not found")
+            return MagicMock(
+                returncode=0,
+                stdout="https://github.com/o/r/issues/11",
+                stderr="",
+            )
+
+        with patch("scripts.homework_scanner.subprocess.run", side_effect=fake_run):
+            created = create_issues([self._item()], "o", "r", dry_run=False)
+
+        assert any("create" in c for c in calls)
+        assert created[0]["url"] == "https://github.com/o/r/issues/11"
+
     def test_near_miss_title_still_creates(self) -> None:
         def fake_run(cmd, *args, **kwargs):
             if "list" in cmd:

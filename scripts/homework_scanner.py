@@ -222,7 +222,7 @@ def find_existing_issue(title: str, owner: str, repo: str) -> int | None:
             shell=False,
             timeout=60,
         )
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, OSError):
         return None
     if result.returncode != 0:
         return None

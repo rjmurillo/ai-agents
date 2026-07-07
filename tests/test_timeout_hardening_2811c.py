@@ -8,6 +8,7 @@ hang the agent session. See issue #2943.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,14 +43,20 @@ def _ok_result(stdout: str = "") -> MagicMock:
 
 
 def test_observation_sync_passes_timeout() -> None:
-    with patch.object(_obs.subprocess, "run", return_value=_ok_result("/repo")) as run:
+    with (
+        patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}),
+        patch.object(_obs.subprocess, "run", return_value=_ok_result("/repo")) as run,
+    ):
         _obs._get_repo_root()
     assert run.call_args.kwargs.get("timeout") == 5
 
 
 def test_observation_sync_timeout_degrades_to_cwd() -> None:
     timeout = subprocess.TimeoutExpired(cmd="git", timeout=5)
-    with patch.object(_obs.subprocess, "run", side_effect=timeout):
+    with (
+        patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}),
+        patch.object(_obs.subprocess, "run", side_effect=timeout),
+    ):
         result = _obs._get_repo_root()
     assert result == _obs.os.getcwd()
 
