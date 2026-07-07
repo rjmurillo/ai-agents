@@ -33,7 +33,7 @@ Three plugins are published from source directories, each carrying a `.claude-pl
 
 Two CI gates govern these versions:
 
-1. **Version-bump gate** (`build/scripts/validate_plugin_version_bump.py`, enforced by `.github/workflows/validate-plugin-version-bump.yml`). When any content file under a packaged plugin's source directory changes in the diff, that plugin's `version` MUST be strictly greater than the version at the base ref. The validator's docstring states the reason: "Installed plugin caches key off that version: when the version does not change, existing installs never re-sync, so deletions and edits inside the source dir silently fail to reach consumers." This is the silent-staleness bug the gate prevents (issue #1942).
+1. **Version-bump gate** (`build/scripts/validate_plugin_version_bump.py`, enforced by `.github/workflows/validate-plugin-version-bump.yml`). When any content file under a packaged plugin's source directory changes in the diff, that plugin's `version` MUST be strictly greater than the version at the base ref. The validator's docstring states the reason: "Installed plugin caches key off that version: when the version does not change, existing installs never re-sync, so deletions and edits inside the source dir silently fail to reach consumers." This is the silent-staleness bug the gate prevents (PR #1942).
 
 2. **Manifest-parity gate** (`build/scripts/check_plugin_manifest_parity.py`). The `.claude` and `src/copilot-cli` manifests MUST carry identical versions.
 

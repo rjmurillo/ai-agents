@@ -116,7 +116,7 @@
       "outcome": "12 edits: corrected the one-scheme/two-independent-version-lines model (project-toolkit parity-pair + claude-agents standalone), O(K) same-line collision cost, Copilot update check is string inequality (!=) not SemVer ordering with strictly-greater as sole downgrade guard, relabeled issue vs PR references, added adr-review-completion acceptance precondition, matched verbatim app.js bundle spacing."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "6720c1da61",
   "nextSteps": [
     "Commit ADR-079 + this session log only (avoid 36 stray staged files in the worktree); push branch fix/2855-merge-time-version-bump-adr.",
     "Update PR #2895 body to reflect the final decision (PR-time monotonic bump in the PR; reject post-merge automation); post decision-summary comment on issue #2855.",
