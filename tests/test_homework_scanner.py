@@ -175,6 +175,82 @@ class TestCreateIssuesTimeout:
         assert "timed out" in created[0]["error"]
 
 
+class TestCreateIssuesDedupe:
+    """Search-before-create idempotency (issue #2944, deferred #2811 item 10)."""
+
+    def _item(self) -> HomeworkItem:
+        return HomeworkItem(
+            pr_number=42,
+            comment_id=123,
+            author="reviewer",
+            body_excerpt="Deferred to follow-up",
+            matched_pattern="deferred",
+            comment_url="https://github.com/o/r/pull/42#discussion_r123",
+            source_type="review_comment",
+        )
+
+    def _expected_title(self) -> str:
+        return "Homework: Deferred to follow-up"
+
+    def test_existing_issue_skips_create(self) -> None:
+        title = self._expected_title()
+
+        def fake_run(cmd, *args, **kwargs):
+            if "list" in cmd:
+                return MagicMock(
+                    returncode=0,
+                    stdout=json.dumps([{"number": 7, "title": title}]),
+                    stderr="",
+                )
+            raise AssertionError("gh issue create must not be called for a dupe")
+
+        with patch("scripts.homework_scanner.subprocess.run", side_effect=fake_run):
+            created = create_issues([self._item()], "o", "r", dry_run=False)
+
+        assert len(created) == 1
+        assert created[0]["skipped"] == "existing issue #7"
+
+    def test_search_timeout_proceeds_to_create(self) -> None:
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, *args, **kwargs):
+            calls.append(cmd)
+            if "list" in cmd:
+                raise subprocess.TimeoutExpired(cmd="gh", timeout=60)
+            return MagicMock(
+                returncode=0,
+                stdout="https://github.com/o/r/issues/9",
+                stderr="",
+            )
+
+        with patch("scripts.homework_scanner.subprocess.run", side_effect=fake_run):
+            created = create_issues([self._item()], "o", "r", dry_run=False)
+
+        assert any("create" in c for c in calls)
+        assert created[0]["url"] == "https://github.com/o/r/issues/9"
+
+    def test_near_miss_title_still_creates(self) -> None:
+        def fake_run(cmd, *args, **kwargs):
+            if "list" in cmd:
+                return MagicMock(
+                    returncode=0,
+                    stdout=json.dumps(
+                        [{"number": 5, "title": "Homework: Deferred to follow-up LATER"}]
+                    ),
+                    stderr="",
+                )
+            return MagicMock(
+                returncode=0,
+                stdout="https://github.com/o/r/issues/10",
+                stderr="",
+            )
+
+        with patch("scripts.homework_scanner.subprocess.run", side_effect=fake_run):
+            created = create_issues([self._item()], "o", "r", dry_run=False)
+
+        assert created[0]["url"] == "https://github.com/o/r/issues/10"
+
+
 # --- Scan PR tests ---
 
 
