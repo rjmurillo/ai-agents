@@ -1,0 +1,139 @@
+{
+ "schemaVersion": "1.0",
+ "session": {
+  "number": 2613,
+  "date": "2026-07-08",
+  "branch": "fix/2855-adr-079-reject-merge-time",
+  "startingCommit": "611762ad",
+  "objective": "Resolve owner-flagged issue #2855: flip ADR-079 to accepted after the owner rejected merge-time automation and chose PR-time monotonic bump; record the adr-review Round 3 re-review of the current direction."
+ },
+ "protocolCompliance": {
+  "sessionStart": {
+   "serenaActivated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "serena-* MCP tools live on this local Copilot CLI; project index and memories surfaced in prompt."
+   },
+   "serenaInstructions": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Serena instructions carried from the autopilot session; memory index read for ADR-079 context."
+   },
+   "handoffRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Prior HANDOFF and checkpoint context carried in the autopilot session summary."
+   },
+   "sessionLogCreated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "This file."
+   },
+   "skillScriptsListed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "adr-review skill active; github skill pr scripts used for issue and thread operations."
+   },
+   "usageMandatoryRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "github skill scripts used for PR thread reply/resolve; raw gh only for read-only issue listing."
+   },
+   "constraintsRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Dash prohibition, atomic-commit, ADR-073 status-enum, and adr-review acceptance-gate discipline applied."
+   },
+   "memoriesLoaded": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Plugin-versioning and session-log memories surfaced in prompt and applied to this change."
+   },
+   "branchVerified": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "fix/2855-adr-079-reject-merge-time created fresh from origin/main 611762ad."
+   },
+   "notOnMain": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "On fix/2855-adr-079-reject-merge-time, not main."
+   },
+   "gitStatusVerified": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "git status checked; only ADR-079, its debate log, and this session log staged."
+   },
+   "startingCommitNoted": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "611762ad"
+   }
+  },
+  "sessionEnd": {
+   "checklistComplete": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "All sessionStart and sessionEnd MUST fields carry evidence."
+   },
+   "handoffPreserved": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": ".agents/HANDOFF.md not modified this session."
+   },
+   "serenaMemoryUpdated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "ADR-079 acceptance and the PR-time-retention decision are recorded in the ADR and debate log; no new memory needed beyond existing plugin-versioning memory."
+   },
+   "markdownLintRun": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Pre-commit runs markdownlint on staged markdown; ADR and debate log pass; byte-level dash count zero on both."
+   },
+   "changesCommitted": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "ADR-079 status flip to accepted, debate log Round 3, and this session log staged together in one atomic commit."
+   },
+   "validationPassed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "adr-review detector exit 0; ADR-073 status enum accepted with debate-log evidence present; dash count zero."
+   },
+   "tasksUpdated": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "Autopilot backlog tracked in session DB; #2855 resolved by this ADR acceptance."
+   },
+   "retrospectiveInvoked": {
+    "level": "SHOULD",
+    "Complete": false,
+    "Evidence": "Single-issue docs change; retrospective batched at end of the autopilot backlog run."
+   }
+  }
+ },
+ "workLog": [
+  {
+   "time": "2026-07-08T05:10:00Z",
+   "entry": "Landed PR #2951 review-fix commit fb7279bc; resolved all 5 Copilot threads; armed squash auto-merge."
+  },
+  {
+   "time": "2026-07-08T05:15:00Z",
+   "entry": "Read ADR-079 on current main: content already records the owner rejection of merge-time and the PR-time-retention decision (via #2908), only frontmatter status was stale at proposed."
+  },
+  {
+   "time": "2026-07-08T05:18:00Z",
+   "entry": "Ran adr-review Round 3 against the current PR-time-retention decision (6 lenses); 6/6 Accept, one P2 filename-slug note documented and accepted."
+  },
+  {
+   "time": "2026-07-08T05:19:00Z",
+   "entry": "Flipped ADR-079 status proposed -> accepted, implemented -> true; updated Status prose; appended Round 3 to the debate log."
+  }
+ ],
+ "endingCommit": "",
+ "nextSteps": [
+  "Open PR for the ADR-079 acceptance, drive to merge, then close #2855 as decided.",
+  "Resume backlog: 2814 (ADR-006 inline logic), 2840 (model pins, blocked on 2902 pricing), and the 2910-2953 follow-up chores."
+ ]
+}
