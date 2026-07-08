@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1293,9 +1294,9 @@ class TestPrintResults:
         like "critical" or "INFO" must raise at construction time, not
         silently slip past the CRITICAL gate at validate_pr_description."""
         with pytest.raises(ValueError, match="must be one of"):
-            Issue("INFO", "Note", "f.py", "msg")  # type: ignore[arg-type]
+            Issue(cast(Any, "INFO"), "Note", "f.py", "msg")
         with pytest.raises(ValueError, match="must be one of"):
-            Issue("critical", "Note", "f.py", "msg")  # type: ignore[arg-type]  # case matters
+            Issue(cast(Any, "critical"), "Note", "f.py", "msg")  # case matters
 
 
 # ---------------------------------------------------------------------------
