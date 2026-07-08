@@ -1,8 +1,8 @@
 # AGENTS
 
-## Serena Init
+## Serena Init (BLOCKING)
 
-1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback `.serena/memories/<name>.md`|Post-compaction: re-run
+1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`|Post-compaction: re-run both
 
 ## Retrieval
 
