@@ -16,7 +16,7 @@ class TestLoadMarketplaceConfig:
     def test_returns_plugins_from_valid_config(self, tmp_path: Path) -> None:
         marketplace_dir = tmp_path / ".claude-plugin"
         marketplace_dir.mkdir()
-        plugins = [{"name": "tool", "path": ".claude"}]
+        plugins = [{"name": "tool", "source": ".claude"}]
         (marketplace_dir / "marketplace.json").write_text(
             json.dumps({"plugins": plugins}),
             encoding="utf-8",
