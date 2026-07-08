@@ -61,6 +61,19 @@ def test_observation_sync_timeout_degrades_to_cwd() -> None:
     assert result == _obs.os.getcwd()
 
 
+def test_observation_sync_missing_git_degrades_to_cwd() -> None:
+    # git binary absent: subprocess.run raises FileNotFoundError (an OSError).
+    # The helper must degrade to cwd, not surface the OSError to the hook.
+    with (
+        patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}),
+        patch.object(
+            _obs.subprocess, "run", side_effect=FileNotFoundError("git")
+        ),
+    ):
+        result = _obs._get_repo_root()
+    assert result == _obs.os.getcwd()
+
+
 # --- adr_review_guard.get_staged_adr_changes ------------------------------
 
 

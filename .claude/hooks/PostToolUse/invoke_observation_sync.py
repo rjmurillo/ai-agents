@@ -103,7 +103,10 @@ def _get_repo_root() -> str | None:
             check=False,
             timeout=5,
         )
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, OSError):
+        # TimeoutExpired: git hung. OSError (incl. FileNotFoundError): git
+        # missing or not executable. Either way, degrade to cwd like a
+        # non-zero exit rather than surfacing as a hook error.
         return os.getcwd()
     if result.returncode == 0:
         return result.stdout.strip()
