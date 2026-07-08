@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review-thread fixes were committed through e1bff2f6. Follow-up changes for gh diff stdout warnings and episode commit metrics are staged for the next commit."
+        "Evidence": "Review-thread fixes were committed through b71df3d1: UTF-8 decoding, pagination truncation, mode-selection coverage, delimiter collision handling, gh diff stdout preservation, and memory evidence correction."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff passed on scripts/ci/build_ai_review_context.py and tests/test_build_ai_review_context.py. pytest passed tests/test_build_ai_review_context.py with 12 tests after follow-up coverage. validate_session_json.py passed for this session log. changed-file em and en dash byte counts were zero."
+        "Evidence": "uv run pytest tests/test_build_ai_review_context.py -x passed with 12 tests. uv run ruff check scripts/ci/build_ai_review_context.py tests/test_build_ai_review_context.py passed. uv run python scripts/validate_session_json.py .agents/sessions/2026-07-08-session-2814-adr006ci.json passed with one branch-name warning. Changed-file em and en dash byte counts were zero."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -143,7 +143,7 @@
       "entry": "Addressed follow-up review findings: nonzero gh pr diff stdout is preserved, heredoc delimiter collision is tested, and episode commit metrics are corrected."
     }
   ],
-  "endingCommit": "5e18dcf0",
+  "endingCommit": "b71df3d1c1919e73807510314667482ff8f1604d",
   "nextSteps": [
     "Push agent/adr006ci and resolve PR #2969 review threads."
   ]
