@@ -285,7 +285,8 @@ def _remove_direct_shadow(source_dir: Path) -> None:
             return False
         if entry.get("name") != PLUGIN_NAME or entry.get("marketplace"):
             return False
-        src_path = (entry.get("source") or {}).get("path")
+        source = entry.get("source")
+        src_path = source.get("path") if isinstance(source, dict) else None
         if not src_path:
             return False
         candidate = Path(src_path)
@@ -294,7 +295,7 @@ def _remove_direct_shadow(source_dir: Path) -> None:
         except (OSError, RuntimeError):
             candidate_resolved = candidate
         return (
-            str(candidate) == str(source_dir)
+            candidate.as_posix() == source_dir.as_posix()
             or candidate_resolved == source_resolved
             or source_parent in candidate_resolved.parents
         )

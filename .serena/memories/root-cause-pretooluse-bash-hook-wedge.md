@@ -67,11 +67,16 @@ instead of pushing total wall-clock past the host timeout.
   in `.claude/settings.json`). Failure still degrades to
   None -> identity "unknown" -> pyproject `[project].name` corroboration keeps project identity
   correct. No generator run needed (straight lib sync; all three copies edited identically).
-- `.claude/hooks/PreToolUse/invoke_correction_applier.py`: bounded the `.serena/memories` scan
+- `.claude/hooks/PreToolUse/invoke_correction_applier.py` (+ generated Copilot mirror
+  `src/copilot-cli/hooks/PreToolUse/invoke_correction_applier__Bash_f620ca.py`, regenerated via
+  `build/scripts/generate_hooks.py`): bounded the `.serena/memories` scan
   (`_MAX_FILES_SCANNED`, `_MAX_TOTAL_BYTES`, wall-clock deadline) AND anchored a
   `_HOOK_WALL_BUDGET_SECONDS = 2.5` deadline at `main()` entry, passed into `scan_memories`, so
-  git-time + scan-time together stay under the correction-applier host timeout (3s). Single copy
-  (no generated mirror).
+  git-time + scan-time together stay under the correction-applier host timeout (3s). The directory
+  walk itself is now bounded during lazy `rglob` iteration (see `_collect_memory_files`): the prior
+  `sorted(rglob(...))` materialized and ordered the entire tree before any cap applied, which on an
+  800+ file corpus could blow the host timeout this hook exists to prevent. `scan_memories` also
+  clamps a caller-supplied hook-wide deadline to its own `_SCAN_DEADLINE_SECONDS` budget.
 - `tests/test_hook_plugin_guards.py::test_origin_lookup_timeout_under_host_budget`: regression
   guard. Reads `.claude/settings.json`, takes the minimum explicit PreToolUse hook timeout, and
   asserts the git lookup timeout is strictly less than it. Catches both a future git-timeout
