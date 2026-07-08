@@ -83,7 +83,7 @@ def get_pr_body(pr_number: str, repository: str) -> str:
     )
     if result.returncode != 0:
         return ""
-    return result.stdout.strip()
+    return result.stdout.rstrip("\n")
 
 
 def get_actual_pr_number(pr_number: str, repository: str) -> str:
@@ -97,9 +97,11 @@ def get_actual_pr_number(pr_number: str, repository: str) -> str:
 
 def get_pr_name_only(pr_number: str, repository: str) -> str:
     result = run_gh(["pr", "diff", pr_number, "--repo", repository, "--name-only"])
+    if result.stdout:
+        return result.stdout.strip()
     if result.returncode != 0:
         return ""
-    return result.stdout.strip()
+    return ""
 
 
 def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool, bool]:
@@ -301,7 +303,11 @@ def build_context_from_environment() -> ReviewContext:
     issue_number = os.environ.get("ISSUE_NUMBER", "")
     context_path = os.environ.get("CONTEXT_PATH", "")
     repository = os.environ.get("GITHUB_REPOSITORY", "")
-    max_diff_lines = int(os.environ.get("MAX_DIFF_LINES", "1000") or "1000")
+    raw_max_diff_lines = os.environ.get("MAX_DIFF_LINES", "1000") or "1000"
+    try:
+        max_diff_lines = int(raw_max_diff_lines)
+    except ValueError as exc:
+        raise ConfigError(f"MAX_DIFF_LINES must be an integer: {raw_max_diff_lines}") from exc
 
     if context_type == "pr-diff":
         if not pr_number:
@@ -346,7 +352,10 @@ def write_outputs(review_context: ReviewContext) -> None:
     output_path = Path(github_output)
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     pr_number = os.environ.get("PR_NUMBER") or run_id
-    workspace = Path(os.environ.get("RUNNER_TEMP", ".")).resolve()
+    runner_temp = os.environ.get("RUNNER_TEMP")
+    if not runner_temp:
+        raise ConfigError("RUNNER_TEMP is required")
+    workspace = Path(runner_temp).resolve()
     workspace.mkdir(parents=True, exist_ok=True)
     context_file = workspace / f"ai-review-context-pr{pr_number}.txt"
     context_file.write_text(review_context.text, encoding="utf-8")

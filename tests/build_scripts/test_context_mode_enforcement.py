@@ -222,7 +222,8 @@ def test_spec_file_context_marks_diff_failure_summary() -> None:
 def test_spec_file_context_without_pr_marks_partial() -> None:
     """A spec-file review without a PR diff lacks implementation evidence."""
     source = _spec_file_context_source()
-    assert '"partial"' in source
+    no_pr_branch = source.split("if not pr_number:", 1)[1].split("diff = run_gh", 1)[0]
+    assert '"partial"' in no_pr_branch
     assert "[No PR diff provided]" in source
 
 

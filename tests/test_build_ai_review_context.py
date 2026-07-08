@@ -108,6 +108,24 @@ def test_large_pr_raises_when_all_fallbacks_fail(monkeypatch: pytest.MonkeyPatch
     assert exc.value.code == 1
 
 
+def test_get_pr_name_only_uses_stdout_from_nonzero_diff(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A nonzero gh name-only call still uses stdout when GitHub emitted filenames."""
+
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda arguments, timeout=_mod.GH_TIMEOUT_SECONDS: CommandResult(
+            "src/a.py\nsrc/b.py\n",
+            "warning",
+            1,
+        ),
+    )
+
+    assert _mod.get_pr_name_only("7", "owner/repo") == "src/a.py\nsrc/b.py"
+
+
 def test_paginated_file_list_marks_later_api_failure_as_truncated(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -347,6 +365,46 @@ def test_build_spec_context_reports_unavailable_when_diff_and_file_list_fail(
     assert "## Implementation Changes\n[Diff unavailable]" in context.text
 
 
+def test_pr_context_preserves_whitespace_body(monkeypatch: pytest.MonkeyPatch):
+    """Whitespace PR bodies are preserved when gh returns them."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[-1] == ".title":
+            return CommandResult("Title\n", "", 0)
+        if arguments[-1] == ".number":
+            return CommandResult("7\n", "", 0)
+        if arguments[-1] == ".body":
+            return CommandResult("   \n", "", 0)
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("diff --git a/file b/file\n+change\n", "", 0)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert "## PR Description\n   \n\n## Changes" in context.text
+
+
+def test_invalid_max_diff_lines_returns_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Invalid action input maps to the repository config exit code."""
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setenv("CONTEXT_TYPE", "pr-diff")
+    monkeypatch.setenv("PR_NUMBER", "7")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("MAX_DIFF_LINES", "not-a-number")
+
+    assert _mod.main() == 2
+    assert "MAX_DIFF_LINES must be an integer" in capsys.readouterr().err
+
+
 def test_write_outputs_uses_runner_temp(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """GitHub outputs include the context file and multiline payload."""
 
@@ -382,6 +440,25 @@ def test_main_returns_config_error_when_github_output_missing(
 
     assert _mod.main() == 2
     assert "::error::GITHUB_OUTPUT is required" in capsys.readouterr().err
+
+
+def test_main_returns_config_error_when_runner_temp_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Missing RUNNER_TEMP does not write the context file into the repository."""
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.delenv("RUNNER_TEMP", raising=False)
+    monkeypatch.setattr(
+        _mod,
+        "build_context_from_environment",
+        lambda: ReviewContext("hello", "full"),
+    )
+
+    assert _mod.main() == 2
+    assert "::error::RUNNER_TEMP is required" in capsys.readouterr().err
 
 
 def test_main_reports_output_io_separately_from_gh_launch(
