@@ -45,6 +45,14 @@
       "content": "Commit: 5f25b005",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR #2856 review: bumped ADR-079 frontmatter date to the 2026-07-08 accept date (ADR-073 last-updated semantics) and set episode metrics.commits to 1 to match the single recorded commit event.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
