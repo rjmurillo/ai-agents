@@ -37,6 +37,7 @@ Knowledge -> passive context (@imports, every turn, outside training, <8KB). Act
 |PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
+|Routing (ADR-078): vague/no named skill -> autoplan routes to skill/command/agent|Concrete multi-step work -> orchestrator coordinates specialists
 |New capability (Context/module/scanner/validator/pipeline): buy-vs-build Quick tier BEFORE spec-generator + baseline; >13wk no baseline = prune. Skip: bug, doc, refactor, approved extension
 
 ### ADR Review
