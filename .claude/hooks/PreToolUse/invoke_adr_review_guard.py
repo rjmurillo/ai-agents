@@ -46,7 +46,10 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -60,6 +63,9 @@ from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 _ADR_PATTERN = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 _CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$", re.IGNORECASE)
+_FRONTMATTER_DELIM = "---"
+_NON_DECISION_FRONTMATTER_KEYS = frozenset({"implemented"})
+_FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 
 _REVIEW_PATTERNS = [
     re.compile(r"/adr-review"),
@@ -145,6 +151,107 @@ def _is_gated_file(path: str) -> bool:
     return bool(_ADR_PATTERN.search(path) or _CANONICAL_SOURCE_PATTERN.search(path))
 
 
+def _is_adr_file(path: str) -> bool:
+    """Return True if the path is an ADR file."""
+    return bool(_ADR_PATTERN.search(path))
+
+
+def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
+    """Parse YAML frontmatter, returning None for malformed input."""
+    try:
+        import yaml
+
+        loaded = yaml.safe_load(frontmatter)
+    except ImportError:
+        return None
+    except yaml.YAMLError:
+        return None
+    if loaded is None:
+        return {}
+    if not isinstance(loaded, dict):
+        return None
+    return loaded
+
+
+def _has_duplicate_top_level_keys(frontmatter: str) -> bool:
+    """Return True when a top-level frontmatter key appears more than once."""
+    seen: set[str] = set()
+    for line in frontmatter.splitlines():
+        if line and (line[0] == " " or line[0] == "\t"):
+            continue
+        match = _FRONTMATTER_FIELD_RE.match(line)
+        if match:
+            key = match.group(1)
+            if key in seen:
+                return True
+            seen.add(key)
+    return False
+
+
+def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str) -> bool:
+    """Return True when all changed frontmatter keys are non-decision metadata."""
+    if _has_duplicate_top_level_keys(old_frontmatter) or _has_duplicate_top_level_keys(
+        new_frontmatter
+    ):
+        return False
+
+    old_fields = _parse_frontmatter(old_frontmatter)
+    new_fields = _parse_frontmatter(new_frontmatter)
+    if old_fields is None or new_fields is None:
+        return False
+
+    changed_keys = {
+        key
+        for key in old_fields.keys() | new_fields.keys()
+        if old_fields.get(key) != new_fields.get(key)
+    }
+    return bool(changed_keys) and changed_keys <= _NON_DECISION_FRONTMATTER_KEYS
+
+
+def _split_frontmatter(content: str) -> tuple[str, str]:
+    """Split content into frontmatter and body."""
+    lines = content.splitlines(keepends=True)
+    if not lines or lines[0].strip() != _FRONTMATTER_DELIM:
+        return "", content
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == _FRONTMATTER_DELIM:
+            return "".join(lines[1:idx]), "".join(lines[idx + 1 :])
+    return "", content
+
+
+def _git_show_object(revision: str, path: str) -> str | None:
+    """Return file content from a git revision or index object."""
+    result = subprocess.run(
+        ["git", "show", f"{revision}:{path}"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _is_frontmatter_only_metadata_change(path: str) -> bool:
+    """Return True when a staged ADR change only flips non-decision metadata.
+
+    Status and supersession fields are ADR lifecycle governance state. They stay
+    gated unless adr-review evidence exists.
+    """
+    old_content = _git_show_object("HEAD", path)
+    new_content = _git_show_object(":0", path)
+    if old_content is None or new_content is None:
+        return False
+
+    old_frontmatter, old_body = _split_frontmatter(old_content)
+    new_frontmatter, new_body = _split_frontmatter(new_content)
+    if not old_frontmatter or not new_frontmatter:
+        return False
+    if old_body != new_body:
+        return False
+    return _only_non_decision_fields_changed(old_frontmatter, new_frontmatter)
+
+
 def get_staged_adr_changes() -> list[str]:
     """Get staged files that match ADR or canonical source patterns.
 
@@ -168,7 +275,15 @@ def get_staged_adr_changes() -> list[str]:
     if not result.stdout.strip():
         return []
 
-    return [f for f in result.stdout.strip().splitlines() if _is_gated_file(f)]
+    staged_changes: list[str] = []
+    for path in result.stdout.strip().splitlines():
+        if not _is_gated_file(path):
+            continue
+        if _is_adr_file(path) and _is_frontmatter_only_metadata_change(path):
+            continue
+        staged_changes.append(path)
+    return staged_changes
+
 
 
 def check_adr_review_evidence(
