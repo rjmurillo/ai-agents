@@ -35,6 +35,16 @@ python3 scripts/assess.py --target src/services/ --format html --output quality-
 
 ---
 
+## Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `scripts/assess.py` | Scores target code across the five quality axes. | `python3 scripts/assess.py --target <path> --format markdown` |
+
+Use `--changed-only` for diff-scoped checks and `--format json` for automation.
+
+---
+
 ## The 5 Code Qualities
 
 | Quality | Question | Score 10 | Score 1-3 |
@@ -283,7 +293,7 @@ Output:
 **Impact**: Hard to test, tightly coupled to database layer
 
 **Remediation**: Use dependency injection
-- See: [Dependency Injection](references/patterns/dependency-injection.md)
+- See: [Refactoring Patterns](references/refactoring-patterns.md)
 - Related ADR: ADR-023 (Dependency Management)
 ```
 
@@ -372,15 +382,11 @@ python3 scripts/assess.py --target src/services/auth.py
 <details>
 <summary><strong>Deep Dive: Scoring References</strong></summary>
 
-For detailed scoring methodology and examples:
+For detailed methodology and examples:
 
-- [Cohesion Scoring](references/cohesion-scoring.md)
-- [Coupling Scoring](references/coupling-scoring.md)
-- [Encapsulation Scoring](references/encapsulation-scoring.md)
-- [Testability Scoring](references/testability-scoring.md)
-- [Non-Redundancy Scoring](references/nonredundancy-scoring.md)
 - [Calibration Examples](references/calibration-examples.md)
 - [Refactoring Patterns](references/refactoring-patterns.md)
+- [Dotnet Performance Patterns](references/dotnet-performance-patterns.md)
 
 </details>
 

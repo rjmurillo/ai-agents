@@ -76,11 +76,15 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff? This check is host-agnostic: the scan is regex over the diff and applies identically to GitHub and ADO repos.
 3. **Reviewed on this SHA** - The shipped code must carry SHA-bound `/review` proof (Issue #1938). The proof shape depends on `mode`:
    - **`mode=owner` (marker commit required; behavior unchanged).** First confirm `git status --porcelain` is empty. If any file is staged or modified, this check FAILS: commit the change, re-run `/review`, then re-run `/ship`. `/push-pr` must only push the existing marker commit; it must not create a new commit after this check passes. Then run the review-skill validator:
-     - If `CLAUDE_SKILL_DIR` is set: `python3 "$CLAUDE_SKILL_DIR/../review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`
-     - If `COPILOT_PLUGIN_ROOT` is set: `python3 "$COPILOT_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`
-     - If `CLAUDE_PLUGIN_ROOT` is set: `python3 "$CLAUDE_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`
-     - Source checkout fallback: `python3 .claude/skills/review/scripts/validate_review_marker.py --ref HEAD --repo-root "$(pwd)"`
-     - Vendored plugin fallback: `python3 skills/review/scripts/validate_review_marker.py --ref HEAD --repo-root "$(pwd)"`
+     - Resolve the validator through the skill dir when available, otherwise through the portable plugin-root form:
+       ```bash
+       if [ -n "${CLAUDE_SKILL_DIR:-}" ]; then
+         REVIEW_MARKER_SCRIPT="$CLAUDE_SKILL_DIR/../review/scripts/validate_review_marker.py"
+       else
+         REVIEW_MARKER_SCRIPT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/review/scripts/validate_review_marker.py"
+       fi
+       python3 "$REVIEW_MARKER_SCRIPT" --ref HEAD --repo-root "$(pwd)"
+       ```
 
      The validator exits `0` only when HEAD is a `/review` marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip (its parent). Exit `1` means no marker, a stale marker, or new code landed after review; exit `2` is a config error. On any non-zero exit, this check FAILS: run `/review` on this branch (it writes the marker on a PASS verdict), then re-run `/ship`. This replaces the old "has /review been run somewhere?" check with proof it passed on the exact code being shipped. Because `/review` is the strict superset of CI (Child 1 #1934), a passing marker covers golden-principles, taste-lints, and code-quality too; there is no separate standards check.
    - **`mode=contributor` (advisory; no marker commit).** Writing the empty `Reviewed-By` marker commit onto a shared branch is PROHIBITED here: it pollutes the owner's PR. Do NOT run the marker validator and do NOT commit a marker. Instead, run the `/review` axes and accept a non-commit attestation as the proof: a `/review` run logged in the ship report (the axes run plus verdict on the current HEAD SHA), or that same result posted as a PR comment. This check is advisory in contributor mode: a clean `/review` result records the attestation; it never blocks and never mutates the branch.
