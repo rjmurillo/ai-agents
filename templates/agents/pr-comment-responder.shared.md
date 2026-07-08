@@ -1397,7 +1397,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037). Memory 
 
 ```text
 # Use Serena memory tools to search for PR review context
-mcp__serena__read_memory(memory_name="pr-comment-responder-skills")
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
 # Or search Forgetful for semantic matches
 mcp__forgetful__execute_forgetful_tool("query_memory", {"query": "PR review patterns bot behaviors reviewer preferences"})
 ```
