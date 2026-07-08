@@ -193,6 +193,51 @@ def build_issue_body(item: HomeworkItem, owner: str, repo: str) -> str:
     )
 
 
+def find_existing_issue(title: str, owner: str, repo: str) -> int | None:
+    """Return the number of an open-or-closed homework issue whose title matches
+    exactly, else None. Fails open (returns None) on timeout or gh error so a
+    lookup failure never blocks issue creation.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "list",
+                "--repo",
+                f"{owner}/{repo}",
+                "--label",
+                "homework",
+                "--state",
+                "all",
+                "--search",
+                title,
+                "--json",
+                "number,title",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            shell=False,
+            timeout=60,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        rows = json.loads(result.stdout or "[]")
+    except (json.JSONDecodeError, ValueError):
+        return None
+    for row in rows:
+        if isinstance(row, dict) and row.get("title") == title:
+            number = row.get("number")
+            if isinstance(number, int):
+                return number
+    return None
+
+
 def create_issues(
     items: list[HomeworkItem], owner: str, repo: str, *, dry_run: bool = False
 ) -> list[dict[str, Any]]:
@@ -218,6 +263,13 @@ def create_issues(
                     "labels": ["homework", "enhancement"],
                     "dry_run": True,
                 }
+            )
+            continue
+
+        existing = find_existing_issue(title, owner, repo)
+        if existing is not None:
+            created.append(
+                {"title": title, "skipped": f"existing issue #{existing}"}
             )
             continue
 

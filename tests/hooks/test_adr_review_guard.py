@@ -316,13 +316,13 @@ class TestGetStagedADRChangesSubprocessErrors:
             with pytest.raises(FileNotFoundError, match="git not found"):
                 invoke_adr_review_guard.get_staged_adr_changes()
 
-    def test_timeout_expired_bubbles_up(self):
-        """TimeoutExpired propagates to caller."""
+    def test_timeout_expired_converts_to_runtime_error(self):
+        """TimeoutExpired is converted to a fail-closed RuntimeError (issue #2943)."""
         with patch(
             "subprocess.run",
-            side_effect=subprocess.TimeoutExpired(cmd="git", timeout=30),
+            side_effect=subprocess.TimeoutExpired(cmd="git", timeout=5),
         ):
-            with pytest.raises(subprocess.TimeoutExpired):
+            with pytest.raises(RuntimeError, match="timed out"):
                 invoke_adr_review_guard.get_staged_adr_changes()
 
 

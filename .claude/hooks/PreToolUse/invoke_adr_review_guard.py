@@ -33,11 +33,11 @@ from pathlib import Path
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None = None
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _cur = Path(__file__).resolve().parent
-    _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
             _lib_dir = str(_cur / "lib")
@@ -150,11 +150,16 @@ def get_staged_adr_changes() -> list[str]:
 
     Raises on git errors to maintain fail-closed posture for security.
     """
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except subprocess.TimeoutExpired as exc:
+        msg = "git diff --cached timed out after 5s"
+        raise RuntimeError(msg) from exc
     if result.returncode != 0:
         stderr = result.stderr.strip()
         msg = f"git diff --cached failed with exit code {result.returncode}: {stderr}"
@@ -258,7 +263,7 @@ def _read_git_commit_command() -> str | None:
         return None
     if not is_git_commit_command(command):
         return None
-    return command
+    return str(command)
 
 
 def _staged_adr_changes_or_block() -> tuple[list[str] | None, int | None]:

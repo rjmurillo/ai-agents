@@ -38,11 +38,11 @@ if not _SECURITY_LOG.handlers:
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None = None
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _cur = Path(__file__).resolve().parent
-    _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
             _lib_dir = str(_cur / "lib")
@@ -95,12 +95,19 @@ def _get_repo_root() -> str | None:
             return None
         return env_dir
     # Fixed argv, no user data. Safe.
-    result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        # TimeoutExpired: git hung. OSError (incl. FileNotFoundError): git
+        # missing or not executable. Either way, degrade to cwd like a
+        # non-zero exit rather than surfacing as a hook error.
+        return os.getcwd()
     if result.returncode == 0:
         return result.stdout.strip()
     return os.getcwd()

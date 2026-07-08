@@ -33,11 +33,11 @@ from pathlib import Path
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None = None
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _cur = Path(__file__).resolve().parent
-    _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
             _lib_dir = str(_cur / "lib")
@@ -68,10 +68,11 @@ def get_current_branch() -> str | None:
             capture_output=True,
             text=True,
             check=False,
+            timeout=5,
         )
         if result.returncode == 0:
             return result.stdout.strip()
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         pass
     return None
 
@@ -89,7 +90,7 @@ def get_session_status(project_dir: str) -> str:
     session_log = get_today_session_log(sessions_dir)
     if session_log is None:
         return "none (run /session-init)"
-    return session_log.name
+    return str(session_log.name)
 
 
 def main() -> int:
