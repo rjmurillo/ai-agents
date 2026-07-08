@@ -27,6 +27,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 _WORKSPACE = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -195,20 +196,23 @@ def _build_session_data(
     session_number: int,
     objective: str,
     current_date: str,
-) -> dict:
+) -> dict[str, Any]:
     """Build the session JSON data structure via the shared builder."""
-    return build_session_log(
-        branch=git_info["branch"],
-        commit=git_info["commit"],
-        session_number=session_number,
-        objective=objective,
-        current_date=current_date,
+    return cast(
+        dict[str, Any],
+        build_session_log(
+            branch=git_info["branch"],
+            commit=git_info["commit"],
+            session_number=session_number,
+            objective=objective,
+            current_date=current_date,
+        ),
     )
 
 
 def _write_session_file(
     sessions_dir: str,
-    session_data: dict,
+    session_data: dict[str, Any],
     current_date: str,
     objective: str,
 ) -> tuple[str, int]:
