@@ -148,7 +148,7 @@ RECOMMENDATION: [PROCEED | DEFER | REQUEST_EVIDENCE | NEEDS_RESEARCH | DECLINE]
 
 ## Tools
 
-Read, Grep, Glob, Bash (for `gh issue`/`gh api` via github skill). Memory via `mcp__serena__read_memory` when available.
+Use the configured tool surface only: read, edit, search, the GitHub issue and pull request read APIs, repository file reads, commit listing, cloud MCP tools, and Serena memory tools when available.
 
 **Use repository and GitHub issue context only.** Do not use general web browsing or web search. The canonical prompt constrains the reviewer to the issue body and repo contents, while allowing GitHub API access through the approved tools listed above when available. This agent enforces the same constraint so behavior matches in both contexts (Claude Code and CI via `ai-issue-triage.yml`). When data beyond repo contents and approved GitHub tooling is needed, state `UNKNOWN - requires manual research by maintainer`.
 
