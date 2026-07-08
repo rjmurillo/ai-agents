@@ -81,7 +81,7 @@ def test_large_pr_uses_file_list_summary(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         _mod,
         "get_paginated_file_list",
-        lambda pr_number, repository: ("src/a.py\nsrc/b.py", False),
+        lambda pr_number, repository: ("src/a.py\nsrc/b.py", False, False),
     )
 
     context = _mod.build_large_pr_context("7", "owner/repo")
@@ -98,7 +98,7 @@ def test_large_pr_raises_when_all_fallbacks_fail(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(
         _mod,
         "get_paginated_file_list",
-        lambda pr_number, repository: ("", False),
+        lambda pr_number, repository: ("", False, True),
     )
     monkeypatch.setattr(_mod, "get_pr_name_only", lambda pr_number, repository: "")
 
@@ -127,11 +127,91 @@ def test_paginated_file_list_marks_later_api_failure_as_truncated(
 
     monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
 
-    file_list, truncated = _mod.get_paginated_file_list("7", "owner/repo")
+    file_list, truncated, api_failed = _mod.get_paginated_file_list("7", "owner/repo")
 
     assert truncated is True
+    assert api_failed is True
     assert file_list == first_page
     assert len(calls) == 2
+
+
+def test_large_pr_warns_api_failure_without_max_page_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Partial API results name the fetch failure instead of the max-page limit."""
+
+    monkeypatch.setattr(
+        _mod,
+        "get_paginated_file_list",
+        lambda pr_number, repository: ("src/a.py\nsrc/b.py", True, True),
+    )
+
+    context = _mod.build_large_pr_context("7", "owner/repo")
+
+    output = capsys.readouterr().out
+    assert context.mode == "summary"
+    assert "GitHub API pagination failed" in output
+    assert "truncated at 500 files" not in output
+
+
+def test_build_issue_context_fetches_issue_details(monkeypatch: pytest.MonkeyPatch):
+    """Issue context uses gh issue data as review input."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        assert arguments[:3] == ["issue", "view", "2814"]
+        return CommandResult("Title: ADR-006\n\nBody:\nExtract YAML logic\n\nLabels: ci", "", 0)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_issue_context("2814")
+
+    assert context.mode == "full"
+    assert "Title: ADR-006" in context.text
+    assert "Labels: ci" in context.text
+
+
+def test_build_issue_context_without_issue_number_skips_gh(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Missing issue input returns local context without hitting GitHub."""
+
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda arguments, timeout=_mod.GH_TIMEOUT_SECONDS: pytest.fail(
+            f"unexpected gh call: {arguments}"
+        ),
+    )
+
+    context = _mod.build_issue_context("")
+
+    assert context.mode == "full"
+    assert context.text == "No issue number provided"
+
+
+def test_build_session_log_context_reads_file(tmp_path: Path):
+    """Session-log context reads the requested file with UTF-8 decoding."""
+
+    session_path = tmp_path / "session.json"
+    session_path.write_text('{"endingCommit":"abc"}', encoding="utf-8")
+
+    context = _mod.build_session_log_context(str(session_path))
+
+    assert context.mode == "full"
+    assert context.text == '{"endingCommit":"abc"}'
+
+
+def test_build_session_log_context_reports_missing(tmp_path: Path):
+    """Missing session logs produce an explicit review context."""
+
+    missing_path = tmp_path / "missing.json"
+
+    context = _mod.build_session_log_context(str(missing_path))
+
+    assert context.mode == "full"
+    assert context.text == f"Session log file not found: {missing_path}"
 
 
 def test_build_spec_context_without_pr_uses_spec_only(
@@ -285,6 +365,44 @@ def test_write_outputs_uses_runner_temp(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert f"context_file={context_file}" in output
     assert "context_infra_failure=true" in output
     assert "context_built<<EOF_CONTEXT_BUILT\nhello\nworld\nEOF_CONTEXT_BUILT" in output
+
+
+def test_main_returns_config_error_when_github_output_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Missing GITHUB_OUTPUT maps to the repository config exit code."""
+
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    monkeypatch.setattr(
+        _mod,
+        "build_context_from_environment",
+        lambda: ReviewContext("hello", "full"),
+    )
+
+    assert _mod.main() == 2
+    assert "::error::GITHUB_OUTPUT is required" in capsys.readouterr().err
+
+
+def test_main_reports_output_io_separately_from_gh_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Output write failures are not reported as gh launch failures."""
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "missing" / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setattr(
+        _mod,
+        "build_context_from_environment",
+        lambda: ReviewContext("hello", "full"),
+    )
+
+    assert _mod.main() == 2
+    stderr = capsys.readouterr().err
+    assert "Failed to read or write context files" in stderr
+    assert "Failed to run gh" not in stderr
 
 
 def test_append_multiline_output_uses_collision_free_delimiter(tmp_path: Path):

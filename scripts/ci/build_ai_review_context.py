@@ -33,16 +33,27 @@ class ReviewContext:
     infrastructure_failure: bool = False
 
 
+class ConfigError(RuntimeError):
+    """Configuration prevents context output generation."""
+
+
+class GhLaunchError(RuntimeError):
+    """The gh process could not be launched."""
+
+
 def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandResult:
-    result = subprocess.run(
-        ["gh", *arguments],
-        capture_output=True,
-        check=False,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", *arguments],
+            capture_output=True,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    except OSError as exc:
+        raise GhLaunchError(f"Failed to run gh: {exc}") from exc
     return CommandResult(result.stdout, result.stderr, result.returncode)
 
 
@@ -91,9 +102,10 @@ def get_pr_name_only(pr_number: str, repository: str) -> str:
     return result.stdout.strip()
 
 
-def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool]:
+def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool, bool]:
     files: list[str] = []
     truncated = False
+    api_failed = False
     for page in range(1, MAX_FILE_PAGES + 1):
         result = run_gh(
             [
@@ -105,6 +117,7 @@ def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool]
         )
         if result.returncode != 0:
             truncated = bool(files)
+            api_failed = True
             break
 
         page_files = [line for line in result.stdout.splitlines() if line.strip()]
@@ -117,20 +130,26 @@ def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool]
     else:
         truncated = True
 
-    return "\n".join(files), truncated
+    return "\n".join(files), truncated, api_failed
 
 
 def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
-    file_list, truncated = get_paginated_file_list(pr_number, repository)
+    file_list, truncated, api_failed = get_paginated_file_list(pr_number, repository)
     if file_list:
         total_files = count_lines(file_list)
         print(f"Retrieved {total_files} changed files via API pagination")
         if truncated:
-            print(
-                "::warning::File list truncated at "
-                f"{MAX_FILE_PAGES * FILES_PER_PAGE} files. "
-                "PR may have more changes not shown in review context."
-            )
+            if api_failed:
+                print(
+                    "::warning::File list incomplete after GitHub API pagination failed. "
+                    f"Retrieved {total_files} files; PR may have more changes not shown."
+                )
+            else:
+                print(
+                    "::warning::File list truncated at "
+                    f"{MAX_FILE_PAGES * FILES_PER_PAGE} files. "
+                    "PR may have more changes not shown in review context."
+                )
         context = (
             "[Large PR - >300 files (GitHub diff limit exceeded), showing file list only]"
             "\n\nChanged files:\n"
@@ -322,7 +341,7 @@ def append_multiline_output(output_path: Path, key: str, value: str) -> None:
 def write_outputs(review_context: ReviewContext) -> None:
     github_output = os.environ.get("GITHUB_OUTPUT")
     if not github_output:
-        raise SystemExit("GITHUB_OUTPUT is required")
+        raise ConfigError("GITHUB_OUTPUT is required")
 
     output_path = Path(github_output)
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
@@ -346,9 +365,15 @@ def main() -> int:
     except subprocess.TimeoutExpired as exc:
         print(f"::error::gh command timed out after {exc.timeout} seconds", file=sys.stderr)
         return 3
-    except OSError as exc:
-        print(f"::error::Failed to run gh: {exc}", file=sys.stderr)
+    except GhLaunchError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
         return 3
+    except ConfigError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print(f"::error::Failed to read or write context files: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 
