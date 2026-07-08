@@ -122,3 +122,10 @@ def test_coverage_gaps_timeout_returns_empty(tmp_path: Path) -> None:
     timeout = subprocess.TimeoutExpired(cmd="git", timeout=10)
     with patch.object(_cov.subprocess, "run", side_effect=timeout):
         assert _cov.get_staged_ps1_files(tmp_path) == []
+
+
+def test_coverage_gaps_missing_git_returns_empty(tmp_path: Path) -> None:
+    # A missing or non-executable git raises FileNotFoundError (an OSError
+    # subclass); it must degrade to "no files", not crash the scanner.
+    with patch.object(_cov.subprocess, "run", side_effect=FileNotFoundError("git")):
+        assert _cov.get_staged_ps1_files(tmp_path) == []
