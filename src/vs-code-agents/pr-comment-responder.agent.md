@@ -320,7 +320,7 @@ fi
 echo "Unresolved API threads: $UNRESOLVED_API"
 ```
 
-**Evidence required**: Counts match before proceeding.
+**Evidence required**: The comment map exists, pending artifact entries are 0, and the unresolved API thread count is recorded before proceeding.
 
 ### Gate 5: Final Verification
 
