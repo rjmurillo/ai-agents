@@ -178,6 +178,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: write
 
     steps:
       - name: Harden Runner
@@ -216,24 +217,25 @@ jobs:
             --ignore-vuln CVE-2026-6357
 
       # Issue #2808: `|| true` masked both bandit crashes and genuine findings,
-      # turning this step green regardless (bandit even errored on the missing
-      # SARIF formatter and nobody noticed). Gate on high severity AND high
+      # turning this step green regardless. Gate on high severity AND high
       # confidence so real high-risk findings fail CI, scoped off test-only
-      # false positives. JSON output keeps the artifact self-contained; the
-      # code-scanning SARIF surfacing needs the bandit-sarif-formatter dep and
-      # is deferred to a focused follow-up PR (lockfile change, over this PR's
-      # file budget).
+      # false positives. SARIF output feeds GitHub code scanning.
       - name: Run Bandit
-        run: |
-          mkdir -p artifacts
-          bandit -r .claude/ scripts/ -x '*/tests/*,*/test/*' -f json -o artifacts/bandit-results.json --severity-level high --confidence-level high
+        run: bandit -r .claude/ scripts/ -x '*/tests/*,*/test/*' -f sarif -o bandit.sarif --severity-level high --confidence-level high
+
+      - name: Upload Bandit SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
 
       - name: Upload Bandit results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: bandit-results
-          path: artifacts/bandit-results.json
+          path: bandit.sarif
           retention-days: 7
 
   # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.
