@@ -131,7 +131,7 @@
    "entry": "Flipped ADR-079 status proposed -> accepted, implemented -> true; updated Status prose; appended Round 3 to the debate log."
   }
  ],
- "endingCommit": "",
+ "endingCommit": "5f25b005",
  "nextSteps": [
   "Open PR for the ADR-079 acceptance, drive to merge, then close #2855 as decided.",
   "Resume backlog: 2814 (ADR-006 inline logic), 2840 (model pins, blocked on 2902 pricing), and the 2910-2953 follow-up chores."
