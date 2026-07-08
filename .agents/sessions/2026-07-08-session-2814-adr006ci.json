@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review-thread fixes are staged after 5a682cbe: issue context partial-mode handling, pr-diff PR_NUMBER validation, unknown CONTEXT_TYPE config failure, external gh failure exit-code mapping, and causal graph pattern dedupe."
+        "Evidence": "Review-thread fixes are committed through e1174450: issue context partial-mode handling, pr-diff PR_NUMBER validation, unknown CONTEXT_TYPE config failure, external gh failure exit-code mapping, and causal graph pattern dedupe."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 128 tests. Edited-file em and en dash byte counts were zero. Causal graph pattern duplicate check reported zero duplicates."
+        "Evidence": "uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 128 tests. validate_session_json.py passed with one branch-name warning. Edited-file em and en dash byte counts were zero. Causal graph pattern duplicate check reported zero duplicates."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -175,7 +175,7 @@
       "entry": "Addressed post-push active review findings: issue context now reports partial mode for missing or failed issue lookups, pr-diff requires PR_NUMBER, unknown CONTEXT_TYPE fails closed with config exit code 2, gh infrastructure failures map to exit code 3, and causal graph pattern rows are deduped by pattern identity."
     }
   ],
-  "endingCommit": "511eebde18b8539ec1abb6c82413d9f3df895364",
+  "endingCommit": "e11744506505b9ace330adfa8550c53dba3dc627",
   "nextSteps": [
     "Push agent/adr006ci and resolve PR #2969 review threads."
   ]
