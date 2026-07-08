@@ -319,15 +319,18 @@ def compute_session_health(sessions_dir: Path, limit: int = 50) -> list[Componen
     failed_sessions = 0
     eligible_orchestrations = 0
     skipped_context_retrieval = 0
+    skipped_logs = 0
 
     for log_path in log_files:
         try:
             content = log_path.read_text(encoding="utf-8")
             session = json.loads(content)
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            skipped_logs += 1
             continue
 
         if not isinstance(session, dict):
+            skipped_logs += 1
             continue
 
         total_sessions += 1
@@ -349,6 +352,9 @@ def compute_session_health(sessions_dir: Path, limit: int = 50) -> list[Componen
     if total_sessions > 0:
         failure_rate = failed_sessions / total_sessions
         failure_threshold = DEFAULT_THRESHOLDS["session_failure_rate"]
+        detail = f"{failed_sessions}/{total_sessions} sessions failed"
+        if skipped_logs:
+            detail += f" ({skipped_logs} unreadable logs skipped)"
         components.append(
             ComponentHealth(
                 name="session_failure_rate",
@@ -356,8 +362,14 @@ def compute_session_health(sessions_dir: Path, limit: int = 50) -> list[Componen
                 value=failure_rate,
                 threshold_warning=failure_threshold.warning,
                 threshold_error=failure_threshold.error,
-                detail=f"{failed_sessions}/{total_sessions} sessions failed",
+                detail=detail,
             )
+        )
+
+    if skipped_logs:
+        print(
+            f"WARNING: Skipped {skipped_logs} unreadable session log(s).",
+            file=sys.stderr,
         )
 
     # Context-retrieval skip rate
