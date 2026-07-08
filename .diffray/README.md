@@ -31,7 +31,7 @@ Diffray provides intelligent, context-aware code review using AI agents. This co
 
 Rules directly enforce architectural decisions:
 
-- **ADR-005**: No bash/Python scripts (PowerShell only)
+- **ADR-042**: Python-first internal automation, with PowerShell grandfathered
 - **ADR-006**: Thin workflows, testable modules
 - **ADR-014**: HANDOFF.md is read-only
 
@@ -47,11 +47,11 @@ Rules directly enforce architectural decisions:
 
 ### 3. Quality Gates
 
-- PowerShell best practices (CmdletBinding, validation)
+- Python-first script policy, plus PowerShell best practices for grandfathered scripts
 - Skill usage enforcement (no raw gh commands)
 - Atomic commits and proper git history
 - Test-first development patterns
-- Pester coverage for modules
+- pytest/Pester coverage where applicable
 - Git hook discipline (never --no-verify)
 
 ### 4. Template Protection
@@ -102,11 +102,11 @@ Excluded paths:
 
 ## Rule Categories
 
-### PowerShell Patterns (5 rules)
+### Script and PowerShell Patterns (5 rules)
 
 | Rule ID | Importance | Focus |
 |---------|------------|-------|
-| `ps_no_bash_python_scripts` | 9 | ADR-005 enforcement |
+| `script_python_first_new_scripts` | 9 | ADR-042 enforcement |
 | `ps_cmdletbinding_required` | 7 | Parameter handling |
 | `ps_error_handling_required` | 8 | Try-catch in external calls |
 | `ps_avoid_write_host_in_modules` | 6 | Testability |
@@ -209,13 +209,13 @@ yamllint .diffray/config.yaml .diffray/rules/*.yaml
 
 ### Common Validation Scenarios
 
-**Test bash script detection**:
+**Test script policy detection**:
 
 ```bash
-# Should trigger ps_no_bash_python_scripts
-git checkout -b test-bash-detection
-echo '#!/bin/bash' > test.sh
-git add test.sh && git commit -m "test: bash detection"
+# Should trigger script_python_first_new_scripts
+git checkout -b test-script-policy
+printf '[CmdletBinding()]\nparam()\n' > build.ps1
+git add build.ps1 && git commit -m "test: script policy detection"
 ```
 
 **Test workflow logic detection**:

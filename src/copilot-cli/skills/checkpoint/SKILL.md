@@ -61,7 +61,7 @@ the JSON.
     `session.branch` equals the current branch. Normalize `session.branch` by
     trimming whitespace and removing one matching pair of surrounding backticks.
     That file is the active session log.
-   - If `the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)` is empty after trimming, derive the label from the active
+   - If `$ARGUMENTS` is empty after trimming, derive the label from the active
     session log's `session.objective`. If no active session log exists, derive
     it from the current branch. If that is empty, use `checkpoint`.
 
