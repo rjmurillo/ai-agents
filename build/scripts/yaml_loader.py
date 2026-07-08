@@ -3,7 +3,6 @@
 
 Centralizes YAML reading + safety checks shared by:
 - validate_templates_schema.py (REQ-003-002)
-- retired marketplace counter configs (REQ-003-004)
 - future config-driven build scripts (M3+)
 
 Enforces ADR-006 Amendment 2026-04-28 conditions:
@@ -13,7 +12,7 @@ Enforces ADR-006 Amendment 2026-04-28 conditions:
 - relative-path enforcement (REQ-003-009)
 
 Public API:
-    load_platform_config(path, supported_major=1) -> dict
+    load_platform_config(path, supported_major=1) -> dict[str, object]
     validate_relative_path(field, value) -> list[str]
     ConfigError (raised on missing/parse/version errors)
 """

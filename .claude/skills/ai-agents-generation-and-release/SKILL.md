@@ -195,4 +195,4 @@ Verified 2026-07-03 against the working tree. Volatile facts and how to re-check
 | 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `ls .agents/retrospective/ \| grep drift` |
 | ADR-036 Accepted, ADR-072 Proposed | .agents/architecture/ADR-036-*.md, ADR-072-*.md | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 
-Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or when the retired marketplace count validator lands, update Phase 1/4 tables and re-run every re-verify command above.
+Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or if a marketplace count validator is reintroduced to replace the retired one, update Phase 1/4 tables and re-run every re-verify command above.

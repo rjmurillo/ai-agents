@@ -35,7 +35,22 @@ Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready),
 ```bash
 # One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
 git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main"
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+resolve_pr_scripts_dir() {
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    ".claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
+      printf '%s\n' "$root/skills/github/scripts/pr"
+      return 0
+    fi
+  done
+  printf '%s\n' ".claude/skills/github/scripts/pr"
+}
+SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
 # Per PR, immediately before any per-tier action:
 LIVE=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
@@ -111,7 +126,22 @@ Quote every variable expansion. The shell does not treat `:` specially in a refs
 ## Scripts
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+resolve_pr_scripts_dir() {
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    ".claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
+      printf '%s\n' "$root/skills/github/scripts/pr"
+      return 0
+    fi
+  done
+  printf '%s\n' ".claude/skills/github/scripts/pr"
+}
+SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
 # Check merge readiness
 python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr}
@@ -162,7 +192,22 @@ When invoking from autofix code:
 
 ```bash
 PR_NUMBER="123"
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+resolve_pr_scripts_dir() {
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    ".claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
+      printf '%s\n' "$root/skills/github/scripts/pr"
+      return 0
+    fi
+  done
+  printf '%s\n' ".claude/skills/github/scripts/pr"
+}
+SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request "$PR_NUMBER" | jq -e '.merged == true'
 ```
 
@@ -171,7 +216,22 @@ encoded "100 = merged"):
 
 ```bash
 PR_NUMBER="123"
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+resolve_pr_scripts_dir() {
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    ".claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
+      printf '%s\n' "$root/skills/github/scripts/pr"
+      return 0
+    fi
+  done
+  printf '%s\n' ".claude/skills/github/scripts/pr"
+}
+SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 python3 "$SCRIPTS_DIR/test_pr_merged.py" --pull-request "$PR_NUMBER" --exit-100-on-merged
 ```
 
@@ -183,7 +243,22 @@ for backward compatibility.
 Run after all threads resolved and CI passes:
 
 ```bash
-SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+resolve_pr_scripts_dir() {
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    ".claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
+      printf '%s\n' "$root/skills/github/scripts/pr"
+      return 0
+    fi
+  done
+  printf '%s\n' ".claude/skills/github/scripts/pr"
+}
+SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 CONFIG_PATH="${PR_REVIEW_CONFIG_PATH:-.claude/commands/pr-review-config.yaml}"
 python3 "$SCRIPTS_DIR/run_completion_gate.py" \
   --config "$CONFIG_PATH" \

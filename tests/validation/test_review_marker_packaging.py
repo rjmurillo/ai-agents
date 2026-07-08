@@ -8,7 +8,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_SCRIPT = REPO_ROOT / "scripts" / "validation" / "validate_review_marker.py"
 SKILL_SCRIPT = REPO_ROOT / ".claude" / "skills" / "review" / "scripts" / "validate_review_marker.py"
 COPILOT_SCRIPT = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "validate_review_marker.py"
+    REPO_ROOT / "src" / "copilot-cli" / "skills" / "review"
+    / "scripts" / "validate_review_marker.py"
 )
 SHIP_COMMAND = REPO_ROOT / ".claude" / "commands" / "ship.md"
 COPILOT_SHIP_SKILL = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SKILL.md"
@@ -26,8 +27,13 @@ def test_ship_docs_use_review_skill_validator_paths() -> None:
     for path in (SHIP_COMMAND, COPILOT_SHIP_SKILL):
         text = path.read_text(encoding="utf-8")
         assert "review/scripts/validate_review_marker.py" in text
-        assert "$COPILOT_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" in text
-        assert "$CLAUDE_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" in text
+        # Canonical portable resolution: COPILOT_PLUGIN_ROOT primary,
+        # CLAUDE_PLUGIN_ROOT fallback, .claude source-checkout default, in one
+        # expression. Replaces the old per-variable branch lines (issue #2922).
+        assert (
+            "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+            "/skills/review/scripts/validate_review_marker.py" in text
+        )
         assert '--repo-root "$(pwd)"' in text
         assert "git status --porcelain" in text
         assert "must not create a new commit after this check passes" in text

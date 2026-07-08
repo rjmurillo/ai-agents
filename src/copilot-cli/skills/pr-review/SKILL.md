@@ -84,8 +84,41 @@ Replying does NOT resolve threads. Use `add_thread_reply_resolve` or separate `r
 The completion gate is dispatchable: each criterion in `completion_criteria` runs an external verification command, and the command's stdout JSON is the source of truth for the verdict. Run the dispatcher exactly once per PR:
 
 ```bash
-uv run python .claude/skills/github/scripts/pr/run_completion_gate.py \
-    --config .claude/commands/pr-review-config.yaml \
+resolve_pr_scripts_dir() {
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    ".claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -d "$root/skills/github/scripts/pr" ]; then
+      printf '%s\n' "$root/skills/github/scripts/pr"
+      return 0
+    fi
+  done
+  # Default remains ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr.
+  printf '%s\n' ".claude/skills/github/scripts/pr"
+}
+resolve_pr_review_config() {
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    ".claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -f "$root/commands/pr-review-config.yaml" ]; then
+      printf '%s\n' "$root/commands/pr-review-config.yaml"
+      return 0
+    fi
+  done
+  printf '%s\n' ".claude/commands/pr-review-config.yaml"
+}
+SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
+PR_REVIEW_CONFIG="$(resolve_pr_review_config)"
+uv run python "$SCRIPTS_DIR/run_completion_gate.py" \
+    --config "$PR_REVIEW_CONFIG" \
     --pull-request {pr} \
     --json
 ```

@@ -61,6 +61,10 @@ class TestExtractSkillScriptRefs:
         text = ".claude/skills/x/scripts/missing.py <!-- orphan-ref-ignore -->"
         assert list(extract_skill_script_refs(text)) == []
 
+    def test_example_placeholder_skips_line(self):
+        text = "Example: python3 .claude/skills/x/scripts/missing.py"
+        assert list(extract_skill_script_refs(text)) == []
+
     def test_non_skill_path_not_matched(self):
         # build/scripts paths are the existing SCRIPT_REF_RE's job, not this one.
         assert list(extract_skill_script_refs("`build/scripts/foo.py`")) == []
@@ -125,6 +129,28 @@ class TestSkillRelativeResolution:
         assert _script_ref_resolves("scripts/nope.py", rel, tmp_path) is False
         text = "See `scripts/nope.py`."
         findings, checked = _check_script_refs(text, rel, tmp_path)
+        assert checked == 1
+        assert len(findings) == 1
+        assert findings[0].referenced_entity == "scripts/nope.py"
+
+    def test_example_placeholder_script_ref_not_flagged(self, tmp_path):
+        text = "Example: `scripts/nope.py`"
+        findings, checked = _check_script_refs(text, "doc.md", tmp_path)
+        assert checked == 0
+        assert findings == []
+
+    def test_intentional_absence_example_script_ref_not_flagged(self, tmp_path):
+        text = (
+            "Use line-scope for one-off references, for example, "
+            "the script `scripts/validation/manifest_counts.py` was not created."
+        )
+        findings, checked = _check_script_refs(text, "doc.md", tmp_path)
+        assert checked == 0
+        assert findings == []
+
+    def test_non_example_missing_script_ref_still_flagged(self, tmp_path):
+        text = "Run `scripts/nope.py` in CI."
+        findings, checked = _check_script_refs(text, "doc.md", tmp_path)
         assert checked == 1
         assert len(findings) == 1
         assert findings[0].referenced_entity == "scripts/nope.py"

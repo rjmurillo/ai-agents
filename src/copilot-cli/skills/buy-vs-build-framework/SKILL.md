@@ -107,7 +107,7 @@ Default: BUILD                          Default: BUY
 - [ ] Stakeholder consensus (or disagreement documented)
 - [ ] Strategic importance score assigned
 
-**See:** [references/core-vs-context.md](references/core-vs-context.md) for detailed framework
+**Use:** the classification prompts in this phase for the Core vs Context framework.
 
 ### Phase 2: Analyze (TCO + Capacity)
 
@@ -144,7 +144,7 @@ python3 scripts/calculate_tco.py \
 - [ ] Sensitivity analysis identifies top 3 cost drivers
 - [ ] Team capacity assessment documented
 
-**See:** [references/tco-methodology.md](references/tco-methodology.md) for calculation details
+**Use:** the TCO categories and sensitivity checks in this phase for calculation details.
 
 ### Phase 3: Evaluate (Decision Matrix)
 
@@ -176,7 +176,7 @@ python3 scripts/score_decision.py \
 - [ ] Pre-mortem completed for leading option
 - [ ] If tie (<10% gap), document tie-breaker rationale
 
-**See:** [templates/decision-matrix.md](templates/decision-matrix.md) for scoring worksheet
+**Use:** the scoring table in this phase as the decision worksheet.
 
 ### Phase 4: Decide (Final Decision + ADR)
 
@@ -428,8 +428,5 @@ python3 scripts/check_reassessment_triggers.py \
 
 Deep-dive documentation in `references/` directory:
 
-- `core-vs-context.md` - Core vs Context framework from Wardley Mapping
-- `tco-methodology.md` - TCO calculation best practices
-- `partnership-models.md` - Partnership structures (co-dev, revenue share, alliance)
-- `vendor-evaluation.md` - Vendor assessment framework
-- `reassessment-playbook.md` - How to re-evaluate when assumptions change
+- `references/PHASE1_ANALYSIS.md` - Core vs Context classification worksheet
+- `references/SKILL_SPEC.xml` - Full skill specification and template inventory
