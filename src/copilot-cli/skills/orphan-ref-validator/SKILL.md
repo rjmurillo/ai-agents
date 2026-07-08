@@ -114,6 +114,7 @@ VERDICT: CRITICAL_FAIL
 
 - Apply `SKILL_REF_RE` and `SCRIPT_REF_RE` line by line.
 - Filter known-kebab tokens (model IDs, frontmatter fields, Action names, bot ids, git hooks, vocabulary terms).
+- Skip script refs on example-placeholder lines, such as `Example:` and `e.g.` snippets.
 - Honor the ignore directives described below.
 
 ### Ignore directives
@@ -124,6 +125,8 @@ VERDICT: CRITICAL_FAIL
 | `<!-- orphan-ref-ignore -->` | Single line | Anywhere on the same line as a backticked reference | Skip every reference on that line. |
 
 Place file-scope directives below the YAML frontmatter (if any) and well within the first 50-line window. Adding a directive at line 51 or later silently fails because the scanner only reads `text.splitlines()[:50]`.
+
+Script references on example-placeholder lines are ignored automatically. This covers lines that start with `Example:`, `e.g.`, or `For example`, plus prose examples that document an intentionally absent helper.
 
 Use file-scope on M1-deletion specs and proposed-entity catalogs whose every reference is intentional history. Use line-scope for one-off references that document an absence (for example, "the script `scripts/validation/manifest_counts.py` was not created").
 

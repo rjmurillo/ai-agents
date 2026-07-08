@@ -191,10 +191,16 @@ fallback**, then invoke via the variable. Re-declare the variable at the top of
 each fenced `bash` block that uses it, so every snippet is runnable on its own:
 
 ```bash
-# CORRECT: resolves in every harness; falls back to .claude for source checkouts.
+# CORRECT: uses a harness plugin root when one is exported, otherwise source checkout.
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
 python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request 1
 ```
+
+This form is sufficient when the host exports `COPILOT_PLUGIN_ROOT` or
+`CLAUDE_PLUGIN_ROOT`, or when the command runs from the source checkout. If a
+skill must run in a Copilot CLI install where neither variable is exported,
+add a fallback that probes the installed plugin roots before the command runs.
+The `/pr-autofix` skill uses that pattern for its PR helper scripts.
 
 For skills that only target Claude Code, the shorter
 `SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/..."` form is acceptable.

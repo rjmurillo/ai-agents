@@ -8,7 +8,7 @@ honors the line-scope `<!-- orphan-ref-ignore -->` directive.
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from collections.abc import Iterable
 
 SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
 # Single-token (no-hyphen) backticked skill names. SKILL_REF_RE requires at
@@ -45,11 +45,21 @@ SKILL_SCRIPT_REF_RE = re.compile(
 
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
+EXAMPLE_PLACEHOLDER_RE = re.compile(
+    r"(^\s*(?:[-*]\s*)?(?:example:|e\.g\.|for example\b))"
+    r"|((?:for example\b).*(?:was not created|does not exist|not present))",
+    re.IGNORECASE,
+)
 
 
 def line_has_ignore_directive(line: str) -> bool:
     """True when the line carries an `<!-- orphan-ref-ignore -->` directive."""
     return bool(IGNORE_DIRECTIVE_RE.search(line))
+
+
+def line_has_example_placeholder(line: str) -> bool:
+    """True when a line is an example placeholder, not a real reference."""
+    return bool(EXAMPLE_PLACEHOLDER_RE.search(line))
 
 
 def extract_skill_refs(text: str) -> Iterable[tuple[int, str]]:
@@ -78,7 +88,7 @@ def extract_single_word_skill_refs(text: str) -> Iterable[tuple[int, str]]:
 
 def extract_script_refs(text: str) -> Iterable[tuple[int, str]]:
     for lineno, line in enumerate(text.splitlines(), start=1):
-        if line_has_ignore_directive(line):
+        if line_has_ignore_directive(line) or line_has_example_placeholder(line):
             continue
         for match in SCRIPT_REF_RE.finditer(line):
             yield lineno, match.group(1)
@@ -89,7 +99,7 @@ def extract_skill_script_refs(text: str) -> Iterable[tuple[int, str]]:
     the copilot mirror), backticked or bare. De-duplicated per line so a path
     that appears backticked and inline is reported once."""
     for lineno, line in enumerate(text.splitlines(), start=1):
-        if line_has_ignore_directive(line):
+        if line_has_ignore_directive(line) or line_has_example_placeholder(line):
             continue
         seen: set[str] = set()
         for match in SKILL_SCRIPT_REF_RE.finditer(line):
