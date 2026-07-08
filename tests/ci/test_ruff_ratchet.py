@@ -21,10 +21,12 @@ class RunRecorder:
         capture_output: bool,
         text: bool,
         cwd: Path | None = None,
+        encoding: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         assert check is False
         assert capture_output is True
         assert text is True
+        assert encoding == "utf-8"
         self.commands.append(command)
         return self.results.pop(0)
 
@@ -48,6 +50,22 @@ def test_passes_without_changed_python_files(
     assert exit_code == ruff_ratchet.EXIT_OK
     assert files == []
     assert len(recorder.commands) == 1
+    assert "--diff-filter=ACMR" in recorder.commands[0]
+
+
+def test_changed_python_files_includes_renamed_python_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    changed_file = tmp_path / "scripts" / "renamed.py"
+    changed_file.parent.mkdir()
+    changed_file.write_text("print('ok')\n", encoding="utf-8")
+    recorder = RunRecorder([completed(0, "scripts/renamed.py\n")])
+    monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
+
+    status, files = ruff_ratchet.changed_python_files("origin/main", tmp_path)
+
+    assert status == ruff_ratchet.EXIT_OK
+    assert files == ["scripts/renamed.py"]
 
 
 def test_passes_when_changed_python_files_are_clean(

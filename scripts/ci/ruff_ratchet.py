@@ -34,12 +34,13 @@ def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]
             str(repo_root),
             "diff",
             "--name-only",
-            "--diff-filter=ACM",
+            "--diff-filter=ACMR",
             f"{base_ref}...HEAD",
         ],
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if result.returncode != 0:
         print(result.stderr.strip(), file=sys.stderr)
@@ -64,6 +65,7 @@ def run_ruff(files: Sequence[str], repo_root: Path) -> int:
         capture_output=True,
         cwd=repo_root,
         text=True,
+        encoding="utf-8",
     )
     if result.stdout:
         print(result.stdout, end="")
