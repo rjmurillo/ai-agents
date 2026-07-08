@@ -11,11 +11,11 @@ def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
     Relative paths must resolve inside the current working directory. Absolute
     paths are allowed because operating-system permissions decide access.
     """
-    del context
     path_str = str(path)
     if ".." in path_str:
         raise PermissionError(
-            f"Path traversal attempt detected: '{path}' contains prohibited '..' sequence."
+            f"Path traversal attempt detected in {context}: "
+            f"'{path}' contains prohibited '..' sequence."
         )
 
     resolved = path.resolve()
@@ -24,7 +24,8 @@ def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
             resolved.relative_to(Path.cwd().resolve())
         except ValueError as exc:
             raise PermissionError(
-                f"Path traversal attempt detected: '{path}' resolves outside the working directory."
+                f"Path traversal attempt detected in {context}: "
+                f"'{path}' resolves outside the working directory."
             ) from exc
 
     return resolved
