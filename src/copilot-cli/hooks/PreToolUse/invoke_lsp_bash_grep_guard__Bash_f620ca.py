@@ -298,6 +298,7 @@ def _original_main(stdin_bytes):
     import re
     import sys
     from pathlib import Path
+    from typing import TypedDict
 
     # Bootstrap: find lib directory via env var or manifest walk-up.
     # CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
@@ -305,11 +306,11 @@ def _original_main(stdin_bytes):
     # lib/ is the plugin's lib dir. Layout-independent: works in source
     # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    _lib_dir: str | None = None
     if _plugin_root:
         _lib_dir = str(Path(_plugin_root).resolve() / "lib")
     else:
         _cur = Path(__file__).resolve().parent
-        _lib_dir = None
         while True:
             if (_cur / ".claude-plugin" / "plugin.json").is_file():
                 _lib_dir = str(_cur / "lib")
@@ -345,6 +346,13 @@ def _original_main(stdin_bytes):
         is_git_grep,
         is_grep_search,
     )
+
+
+    class _CommandDecision(TypedDict):
+        """A gated grep decision: the code symbols and the navigable target."""
+
+        symbols: list[str]
+        target: str
 
     # File-like tokens in a grep command: a dotted path segment ending in a known
     # extension. Used to find a candidate navigable target without a shell parse.
@@ -546,7 +554,7 @@ def _original_main(stdin_bytes):
         return None
 
 
-    def evaluate_command(command: str, project_dir: str) -> dict | None:
+    def evaluate_command(command: str, project_dir: str) -> _CommandDecision | None:
         """Decide whether a bash command is a gated grep symbol search.
 
         Returns a decision dict ``{"symbols": [...], "target": str}`` when the
