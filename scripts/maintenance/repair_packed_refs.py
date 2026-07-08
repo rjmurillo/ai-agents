@@ -212,7 +212,11 @@ def _write_repaired_packed_refs(packed_refs_path: Path, repaired: bytes) -> None
 
     if temporary_path is None:
         raise RuntimeError("temporary packed-refs path was not created")
-    os.replace(temporary_path, packed_refs_path)
+    try:
+        os.replace(temporary_path, packed_refs_path)
+    except OSError:
+        temporary_path.unlink(missing_ok=True)
+        raise
 
 
 if __name__ == "__main__":
