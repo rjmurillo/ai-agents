@@ -55,7 +55,7 @@ def load_cache(cache_path: Path) -> dict[str, Any]:
         return {}
 
 
-def save_cache(cache_path: Path, cache: dict[str, dict]) -> None:
+def save_cache(cache_path: Path, cache: dict[str, Any]) -> None:
     """Save token count cache to JSON."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(cache, indent=2))
@@ -146,7 +146,7 @@ def count_directory(
     if not directory.exists():
         raise FileNotFoundError(f"Directory not found: {directory}")
 
-    results = {}
+    results: dict[str, int] = {}
     failed = 0
     for file_path in sorted(directory.glob(pattern)):
         if file_path.is_file():

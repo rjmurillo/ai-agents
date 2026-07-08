@@ -44,7 +44,7 @@ class Threat:
     impact: str
     risk: str
     status: str = "Planned"
-    mitigations: list = field(default_factory=list)
+    mitigations: list[str] = field(default_factory=list)
 
 
 RISK_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
@@ -135,7 +135,7 @@ def parse_threat_matrix(content: str) -> list[Threat]:
     Returns:
         List of Threat objects
     """
-    threats = []
+    threats: list[Threat] = []
 
     # Find threat matrix table
     table_pattern = r'\| ID \| Element \| STRIDE \| Threat \|.*?\n((?:\|.*\n)*)'
@@ -178,7 +178,7 @@ def categorize_by_risk(threats: list[Threat]) -> dict[str, list[Threat]]:
     Returns:
         Dictionary mapping risk level to threats
     """
-    categories = {"Critical": [], "High": [], "Medium": [], "Low": []}
+    categories: dict[str, list[Threat]] = {"Critical": [], "High": [], "Medium": [], "Low": []}
 
     for threat in threats:
         risk = threat.risk
