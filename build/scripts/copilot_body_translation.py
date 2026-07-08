@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 _PLUGIN_MANIFEST_RELATIVE = Path(".claude-plugin") / "plugin.json"
@@ -45,8 +46,10 @@ _DEFAULT_PLUGIN_NAME = "project-toolkit"
 # skill/persona name; trailing args are ignored for the mapping.
 _SKILL_CALL_RE = re.compile(r"Skill\(\s*skill\s*=\s*['\"]([^'\"]+)['\"]")
 _TASK_CALL_RE = re.compile(r"Task\(\s*subagent_type\s*=\s*['\"]([^'\"]+)['\"]")
-_INCLUDE_LINE_RE = re.compile(r"^@([A-Za-z0-9_.\-/]+)\s*$", re.MULTILINE)
+_INCLUDE_LINE_RE = re.compile(r"^@([A-Za-z0-9_.\-/]+\.md)\s*$", re.MULTILINE)
 _ARGUMENTS_TOKEN = "$ARGUMENTS"
+_FENCED_CODE_BLOCK_RE = re.compile(r"(```.*?```)", re.DOTALL)
+_INLINE_CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
 
 _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 
@@ -73,6 +76,16 @@ def resolve_plugin_name(skills_output_dir: Path) -> str:
     return name if isinstance(name, str) and name else _DEFAULT_PLUGIN_NAME
 
 
+def _translate_outside_fenced_code(
+    body: str,
+    translate_segment: Callable[[str], str],
+) -> str:
+    parts = _FENCED_CODE_BLOCK_RE.split(body)
+    for index in range(0, len(parts), 2):
+        parts[index] = translate_segment(parts[index])
+    return "".join(parts)
+
+
 def _translate_includes(body: str) -> str:
     """Replace Claude ``@file`` standalone include lines with a Copilot note."""
 
@@ -83,7 +96,25 @@ def _translate_includes(body: str) -> str:
             "plugin instructions tree; no include directive needed. -->"
         )
 
-    return _INCLUDE_LINE_RE.sub(_replace, body)
+    return _translate_outside_fenced_code(
+        body,
+        lambda segment: _INCLUDE_LINE_RE.sub(_replace, segment),
+    )
+
+
+def _replace_arguments_outside_inline_code(line: str, replacement: str) -> str:
+    parts = _INLINE_CODE_SPAN_RE.split(line)
+    for index, part in enumerate(parts):
+        if not _INLINE_CODE_SPAN_RE.fullmatch(part):
+            parts[index] = part.replace(_ARGUMENTS_TOKEN, replacement)
+    return "".join(parts)
+
+
+def _replace_arguments_in_segment(segment: str, replacement: str) -> str:
+    lines = segment.splitlines(keepends=True)
+    return "".join(
+        _replace_arguments_outside_inline_code(line, replacement) for line in lines
+    )
 
 
 def _translate_arguments(body: str) -> str:
@@ -94,7 +125,10 @@ def _translate_arguments(body: str) -> str:
         "the problem statement from the conversation (under Copilot CLI the "
         "skill tool takes no argument vector, so state it in your message)"
     )
-    return body.replace(_ARGUMENTS_TOKEN, replacement)
+    return _translate_outside_fenced_code(
+        body,
+        lambda segment: _replace_arguments_in_segment(segment, replacement),
+    )
 
 
 def _build_invocation_appendix(body: str, plugin_name: str) -> str:
