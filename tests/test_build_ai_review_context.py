@@ -255,4 +255,20 @@ def test_write_outputs_uses_runner_temp(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert "context_mode=summary" in output
     assert f"context_file={context_file}" in output
     assert "context_infra_failure=true" in output
-    assert "context_built<<EOF_CONTEXT\nhello\nworld\nEOF_CONTEXT" in output
+    assert "context_built<<EOF_CONTEXT_BUILT\nhello\nworld\nEOF_CONTEXT_BUILT" in output
+
+
+def test_append_multiline_output_uses_collision_free_delimiter(tmp_path: Path):
+    """GitHub output delimiters cannot be injected through PR-controlled text."""
+
+    output_path = tmp_path / "github-output.txt"
+
+    _mod.append_multiline_output(
+        output_path,
+        "context_built",
+        "safe line\nEOF_CONTEXT_BUILT\ncontext_mode=full",
+    )
+
+    output = output_path.read_text(encoding="utf-8")
+    assert "context_built<<EOF_CONTEXT_BUILT_1" in output
+    assert output.endswith("\nEOF_CONTEXT_BUILT_1\n")

@@ -40,6 +40,7 @@ def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandRe
         check=False,
         text=True,
         encoding="utf-8",
+        errors="replace",
         timeout=timeout,
     )
     return CommandResult(result.stdout, result.stderr, result.returncode)
@@ -301,9 +302,21 @@ def append_output(output_path: Path, key: str, value: str) -> None:
         output.write(f"{key}={value}\n")
 
 
+def choose_multiline_delimiter(key: str, value: str) -> str:
+    payload_lines = set(value.splitlines())
+    base = f"EOF_{key.upper()}"
+    delimiter = base
+    suffix = 0
+    while delimiter in payload_lines:
+        suffix += 1
+        delimiter = f"{base}_{suffix}"
+    return delimiter
+
+
 def append_multiline_output(output_path: Path, key: str, value: str) -> None:
+    delimiter = choose_multiline_delimiter(key, value)
     with output_path.open("a", encoding="utf-8") as output:
-        output.write(f"{key}<<EOF_CONTEXT\n{value}\nEOF_CONTEXT\n")
+        output.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
 def write_outputs(review_context: ReviewContext) -> None:
