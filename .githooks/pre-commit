@@ -57,24 +57,44 @@ echo_action() {
 }
 
 run_packed_refs_repair() {
-    local hook_dir
-    hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-    local repair_script="$hook_dir/../scripts/maintenance/repair_packed_refs.py"
-    local python_bin=""
+    local repo_root
+    repo_root=$(pwd -P)
+    while [ "$repo_root" != "/" ] && [ ! -f "$repo_root/scripts/maintenance/repair_packed_refs.py" ]; do
+        repo_root=$(dirname "$repo_root")
+    done
+    local repair_script="$repo_root/scripts/maintenance/repair_packed_refs.py"
+    local python_cmd=()
 
     if [ ! -f "$repair_script" ]; then
         return 0
     fi
-    if command -v python3 > /dev/null 2>&1; then
-        python_bin="python3"
-    elif command -v python > /dev/null 2>&1; then
-        python_bin="python"
+    if [ -f "$repo_root/uv.lock" ]; then
+        if ! command -v uv > /dev/null 2>&1; then
+            echo_error "Python environment: uv is required for this checkout"
+            echo_info "  Install uv so pre-commit can repair packed-refs from uv.lock instead of system Python."
+            exit 2
+        fi
+        if ! (cd "$repo_root" && uv run --frozen python -c 'import sys' > /dev/null 2>&1); then
+            echo_error "Python environment: uv run --frozen python failed"
+            echo_info "  Refusing system Python fallback in a uv-managed checkout; fix uv.lock."
+            exit 2
+        fi
+        python_cmd=(uv run --frozen python)
+    elif command -v python3 > /dev/null 2>&1 &&
+        python3 -c 'import sys; exit(0 if sys.version_info >= (3, 10) else 1)' > /dev/null 2>&1; then
+        python_cmd=(python3)
+    elif command -v python > /dev/null 2>&1 &&
+        python -c 'import sys; exit(0 if sys.version_info >= (3, 10) else 1)' > /dev/null 2>&1; then
+        python_cmd=(python)
+    elif command -v py > /dev/null 2>&1 &&
+        py -3 -c 'import sys; exit(0 if sys.version_info >= (3, 10) else 1)' > /dev/null 2>&1; then
+        python_cmd=(py -3)
     else
-        echo_error "Python is required to repair git packed-refs before commit validation"
+        echo_error "Python 3.10+ is required to repair git packed-refs before commit validation"
         exit 2
     fi
 
-    "$python_bin" "$repair_script" || {
+    (cd "$repo_root" && "${python_cmd[@]}" "$repair_script") || {
         echo_error "Failed to repair git packed-refs"
         exit 1
     }

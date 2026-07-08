@@ -15,10 +15,10 @@ Read first.
 
 ## Gates
 
-**Start**: Init Serena|Read HANDOFF.md + latest issue handoff + resume verify|Session log|Search memories|Verify git
+**Start**: Init Serena|Read HANDOFF+latest issue handoff|Resume check|Log|Search mem|Verify git
 **Mid**: `git rev-list --count HEAD ^origin/main` <=20, warn >15 (ADR-008)
 **Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
-**End**: Complete log|Preserve HANDOFF.md|Issue handoff if open|Update Serena|Lint|Commit|Validate
+**End**: Complete log|Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
 
 ## Boundaries
 
@@ -54,4 +54,4 @@ Tests (BLOCKING): pos+neg+edge|branches|mock I/O|CLI exits. See `.agents/governa
 
 ## Stack
 
-Python 3.14 dev; floor: pyproject|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+
+Py 3.14 dev; floor: pyproject|UV|PS 7.5+|Node LTS|Pester 5.7+|pytest 8+|gh 2.60+
