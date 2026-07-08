@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import stat
 from pathlib import Path
 
 import pytest
@@ -115,6 +116,20 @@ def test_restores_backup_when_verification_fails(tmp_path: Path) -> None:
 
     assert packed_refs.read_bytes() == original
     assert (worktree / ".git" / "packed-refs.before-repair").read_bytes() == original
+
+
+def test_repair_preserves_packed_refs_permissions(tmp_path: Path) -> None:
+    """Repair keeps the original packed-refs file mode."""
+    worktree = _create_normal_worktree(tmp_path)
+    packed_refs = worktree / ".git" / "packed-refs"
+    original_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP
+    packed_refs.write_bytes(PACKED_REFS_HEADER + b"\n" + REF_LINE)
+    packed_refs.chmod(original_mode)
+
+    result = repair_packed_refs(worktree, verifier=lambda _worktree: None)
+
+    assert result.status == "repaired"
+    assert stat.S_IMODE(packed_refs.stat().st_mode) == original_mode
 
 
 def _create_normal_worktree(parent: Path) -> Path:

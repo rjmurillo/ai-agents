@@ -59,22 +59,25 @@ echo_action() {
 run_packed_refs_repair() {
     local hook_dir
     hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+    local repo_root="$hook_dir/.."
     local repair_script="$hook_dir/../scripts/maintenance/repair_packed_refs.py"
-    local python_bin=""
+    local python_cmd=()
 
     if [ ! -f "$repair_script" ]; then
         return 0
     fi
-    if command -v python3 > /dev/null 2>&1; then
-        python_bin="python3"
+    if command -v uv > /dev/null 2>&1 && (cd "$repo_root" && uv run python -c 'import sys' > /dev/null 2>&1); then
+        python_cmd=(uv run python)
+    elif command -v python3 > /dev/null 2>&1; then
+        python_cmd=(python3)
     elif command -v python > /dev/null 2>&1; then
-        python_bin="python"
+        python_cmd=(python)
     else
         echo_error "Python is required to repair git packed-refs before commit validation"
         exit 2
     fi
 
-    "$python_bin" "$repair_script" || {
+    (cd "$repo_root" && "${python_cmd[@]}" "$repair_script") || {
         echo_error "Failed to repair git packed-refs"
         exit 1
     }
