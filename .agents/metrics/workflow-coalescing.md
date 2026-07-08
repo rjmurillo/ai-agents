@@ -51,7 +51,7 @@ The following AI-powered workflows are monitored for coalescing behavior:
 
 This report is generated automatically using:
 
-- **Script**: `.github/scripts/Measure-WorkflowCoalescing.ps1`
+- **Script**: `.github/scripts/measure_workflow_coalescing.py`
 - **Workflow**: `.github/workflows/workflow-coalescing-metrics.yml`
 - **Schedule**: Weekly on Monday 9 AM UTC
 - **Data Source**: GitHub Actions API (`/repos/{owner}/{repo}/actions/runs`)
@@ -60,13 +60,13 @@ This report is generated automatically using:
 
 ```bash
 # Analyze last 30 days
-pwsh .github/scripts/Measure-WorkflowCoalescing.ps1
+python3 .github/scripts/measure_workflow_coalescing.py
 
 # Analyze last 90 days with JSON output
-pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Since 90 -Output Json
+python3 .github/scripts/measure_workflow_coalescing.py --since 90 --output json
 
 # Analyze specific workflows
-pwsh .github/scripts/Measure-WorkflowCoalescing.ps1 -Workflows @('ai-pr-quality-gate', 'ai-spec-validation')
+python3 .github/scripts/measure_workflow_coalescing.py --workflows ai-pr-quality-gate --workflows ai-spec-validation
 ```
 
 ## Understanding the Metrics

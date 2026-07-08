@@ -112,7 +112,7 @@ Serena memories (`.serena/memories/`) will be updated organically in future sess
 After rename, run:
 
 ```bash
-pwsh build/Generate-Agents.ps1 -Validate
+python3 build/generate_agents.py --validate
 ```
 
 All generated files must match committed files.

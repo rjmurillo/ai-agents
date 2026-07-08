@@ -213,14 +213,12 @@ named divergence section (`.agents/governance/FAILURE-MODES.md`, failure mode
 `STRICT_CANONICAL_CHECK=1`). Cost of ignoring it: PR #1887 took 7 fix commits
 on confident-incorrectness claims.
 
-Fix stale docs on contact. Worked example, live as of 2026-07-03:
-`CONTRIBUTING.md` line 155 still instructs `pwsh build/Generate-Agents.ps1`,
-but zero `.ps1` build scripts exist (ADR-042 Python migration); the same file
-already documents the real command `python3 build/generate_agents.py` at line
-488, and `templates/README.md` line 115 carries the same dead command. When
-you touch a stale doc: fix the lines on your path, quote the canonical source
-per FM-9, and flag (do not silently expand into) the rest. Behavioral claims
-in docs are verified with `doc-accuracy`.
+Fix stale docs on contact. Worked example from before PR #2871:
+`CONTRIBUTING.md` line 155 said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871
+repointed it to `python3 build/generate_agents.py`. Zero `.ps1` build scripts
+exist (ADR-042 Python migration). When you touch a stale doc: fix the lines on
+your path, quote the canonical source per FM-9, and flag (do not silently expand
+into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
 
 ## Anti-Patterns
 
@@ -269,7 +267,7 @@ relying on them:
 | Handoff tiers, HANDOFF.md 5K cap | `.agents/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "5K hard cap" .agents/sessions/handoffs/README.md` |
 | FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:284-307` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
 | PR #908 lint scope story | `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
-| CONTRIBUTING.md staleness (pwsh) | `CONTRIBUTING.md:155,488`; `templates/README.md:115` | `grep -n "Generate-Agents.ps1" CONTRIBUTING.md` |
+| CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md:155` to `python3 build/generate_agents.py` | `grep -n "Generate-Agents.ps1" CONTRIBUTING.md` |
 | Serena canonical, Forgetful supplementary | `.agents/architecture/ADR-007-memory-first-architecture.md:83-102` | `grep -n "Canonical" .agents/architecture/ADR-007-memory-first-architecture.md` |
 
 Maintenance: when a validator, template path, or protocol phase changes, update

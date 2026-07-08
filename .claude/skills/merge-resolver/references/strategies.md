@@ -198,7 +198,7 @@ grep -r -- "architect" templates/agents/*.shared.md
 # Edit templates/agents/architect.shared.md to combine changes
 
 # Regenerate all platform files
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 
 git add src/claude/*.md src/copilot-cli/*.md src/vs-code-agents/*.md
 ```

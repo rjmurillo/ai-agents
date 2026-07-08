@@ -11711,6 +11711,123 @@
         "episode-2026-07-07-session-2608"
       ],
       "created": "2026-07-07T18:50:46.157563+00:00"
+    },
+    {
+      "id": "08852eb01c8f",
+      "type": "commit",
+      "label": "commit: Commit: 6720c1da61",
+      "episodes": [
+        "episode-2026-07-07-session-2608"
+      ],
+      "created": "2026-07-08T00:09:03.719235+00:00"
+    },
+    {
+      "id": "f6a3cc2c8fb6",
+      "type": "milestone",
+      "label": "milestone: Verified zero tracked ps1 and psm1 files and mapped known Python replacement CLIs.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.719954+00:00"
+    },
+    {
+      "id": "89fbc84d61f7",
+      "type": "milestone",
+      "label": "milestone: Repointed live docs, templates, skills, agent copies, and generated mirrors away from removed PowerShell commands.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720016+00:00"
+    },
+    {
+      "id": "6ba9688f5830",
+      "type": "milestone",
+      "label": "milestone: Added stale_script_refs.py and pytest coverage for existing refs, missing refs, skipped historical roots, and allowlist behavior.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720073+00:00"
+    },
+    {
+      "id": "955d36c9a444",
+      "type": "milestone",
+      "label": "milestone: Validation passed for stale_script_refs pytest, guard, ruff, and mypy; live pwsh ps1 grep returned zero hits.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720130+00:00"
+    },
+    {
+      "id": "7cd09d8d0b80",
+      "type": "milestone",
+      "label": "milestone: Created session log after pre-commit blocked the first commit attempt.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720187+00:00"
+    },
+    {
+      "id": "e8b49c40dc66",
+      "type": "commit",
+      "label": "commit: Commit: 397b7eec",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720244+00:00"
+    },
+    {
+      "id": "eb94f5e1cbed",
+      "type": "milestone",
+      "label": "milestone: Pre-commit required the session log to be staged with .agents doc commits; split doc commits to keep atomic file counts.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720303+00:00"
+    },
+    {
+      "id": "f40788b3266c",
+      "type": "milestone",
+      "label": "milestone: Committed traceability governance references to Python traceability CLIs.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720359+00:00"
+    },
+    {
+      "id": "4c6873279653",
+      "type": "milestone",
+      "label": "milestone: Committed spec schema references to current Python validation CLIs.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720415+00:00"
+    },
+    {
+      "id": "21d324837fc5",
+      "type": "milestone",
+      "label": "milestone: Committed session prompt traceability references to Python graph CLI.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720476+00:00"
+    },
+    {
+      "id": "c4692042ba07",
+      "type": "milestone",
+      "label": "milestone: Committed first architecture ADR PowerShell reference replacements.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720532+00:00"
+    },
+    {
+      "id": "4516d24aa8b0",
+      "type": "outcome",
+      "label": "Outcome: success - Close issues 2914, 2915, and 2916 by repointing live PowerShell script references and adding a stale-script guard",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T00:09:03.720589+00:00"
     }
   ],
   "patterns": [
@@ -11760,7 +11877,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 57,
+      "occurrences": 58,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -11769,7 +11886,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 129,
+      "occurrences": 133,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -11778,7 +11895,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 228,
+      "occurrences": 232,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -11787,7 +11904,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 342,
+      "occurrences": 348,
       "created": "2026-06-02T04:20:23.790649+00:00"
     },
     {
@@ -11796,7 +11913,7 @@
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "success_rate": 1.0,
-      "occurrences": 8,
+      "occurrences": 9,
       "created": "2026-07-04T06:31:50.952133+00:00"
     },
     {
@@ -11805,7 +11922,7 @@
       "trigger": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
       "action": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
       "success_rate": 1.0,
-      "occurrences": 1,
+      "occurrences": 2,
       "created": "2026-07-07T18:50:46.157605+00:00"
     }
   ],
@@ -11815,7 +11932,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -11823,7 +11940,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -11831,7 +11948,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -11839,7 +11956,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -11847,7 +11964,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -11855,7 +11972,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -11863,7 +11980,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -11871,7 +11988,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -11879,7 +11996,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -11887,7 +12004,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -11895,7 +12012,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -11903,7 +12020,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -11911,7 +12028,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -11919,7 +12036,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -11927,7 +12044,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -11935,7 +12052,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -11943,7 +12060,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -11951,7 +12068,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -11959,7 +12076,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -11967,7 +12084,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -11975,7 +12092,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -11983,7 +12100,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -11991,7 +12108,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -11999,7 +12116,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -12007,7 +12124,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -12015,7 +12132,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -12023,7 +12140,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -12031,7 +12148,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -12039,7 +12156,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -12047,7 +12164,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -12055,7 +12172,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -12063,7 +12180,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -12071,7 +12188,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -12079,7 +12196,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -12087,7 +12204,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -12095,7 +12212,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -12103,7 +12220,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -12111,7 +12228,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -12119,7 +12236,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -12127,7 +12244,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 57,
+      "evidence_count": 58,
       "created": "2026-06-02T04:20:23.796919+00:00"
     },
     {
@@ -12135,7 +12252,7 @@
       "target": "e161750067d4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 13,
+      "evidence_count": 14,
       "created": "2026-07-04T02:21:24.350970+00:00"
     },
     {
@@ -12143,7 +12260,7 @@
       "target": "b895b21a3dc6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 13,
+      "evidence_count": 14,
       "created": "2026-07-04T02:21:24.351162+00:00"
     },
     {
@@ -12151,7 +12268,7 @@
       "target": "890ad3ba78e1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 8,
+      "evidence_count": 9,
       "created": "2026-07-04T06:31:50.951735+00:00"
     },
     {
@@ -12159,7 +12276,7 @@
       "target": "184e28bd3bfa",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 8,
+      "evidence_count": 9,
       "created": "2026-07-04T06:31:50.952110+00:00"
     },
     {
@@ -12167,7 +12284,7 @@
       "target": "7192bf3b64ff",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 2,
+      "evidence_count": 3,
       "created": "2026-07-07T16:33:28.569184+00:00"
     },
     {
@@ -12175,7 +12292,7 @@
       "target": "6614f3995388",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 2,
+      "evidence_count": 3,
       "created": "2026-07-07T16:33:28.569673+00:00"
     },
     {
@@ -12183,7 +12300,7 @@
       "target": "95d6479ace93",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 1,
+      "evidence_count": 2,
       "created": "2026-07-07T18:50:46.156629+00:00"
     },
     {
@@ -12191,7 +12308,7 @@
       "target": "088df8c10fd4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 1,
+      "evidence_count": 2,
       "created": "2026-07-07T18:50:46.157167+00:00"
     },
     {
@@ -12199,7 +12316,7 @@
       "target": "61d9f5929955",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 1,
+      "evidence_count": 2,
       "created": "2026-07-07T18:50:46.157581+00:00"
     }
   ]

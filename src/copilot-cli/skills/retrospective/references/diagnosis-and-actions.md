@@ -27,8 +27,8 @@ When the session involves specification artifacts (requirements, designs, tasks)
 
 **Run validation:**
 
-```powershell
-pwsh scripts/Validate-Traceability.ps1 
+```bash
+python3 scripts/traceability/show_traceability_graph.py --show-orphans
 ```
 
 **Metrics to capture:**

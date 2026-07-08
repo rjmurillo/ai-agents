@@ -186,16 +186,16 @@ graph TD
 
 ### Pre-Commit Hook
 
-```powershell
+```bash
 # .githooks/validate-traceability
-scripts/Validate-Traceability.ps1 -SpecsPath ".agents/specs"
+python3 scripts/validation/traceability.py --specs-path .agents/specs --strict
 ```
 
 ### CI Pipeline
 
 ```yaml
 - name: Validate Traceability
-  run: pwsh scripts/Validate-Traceability.ps1 -Strict
+  run: python3 scripts/validation/traceability.py --strict --ci
 ```
 
 ### Critic Agent

@@ -55,14 +55,14 @@ python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.
 
 ### PR and Code Quality
 
-#### Validate-PRDescription.ps1
+#### pr_description.py
 
 Validates PR description matches actual code changes (prevents Analyst CRITICAL_FAIL).
 
 **Usage**:
 
-```powershell
-.\scripts\Validate-PRDescription.ps1 -PRNumber 226 -CI
+```bash
+python3 scripts/validation/pr_description.py --pr-number 226 --ci
 ```
 
 **Called By**: CI workflow (`.github/workflows/pr-validation.yml`)
@@ -78,44 +78,44 @@ Detects raw `gh` command usage when GitHub skills exist (WARNING, non-blocking).
 python3 scripts/detect_skill_violation.py
 ```
 
-**Called By**: Pre-commit hook (via New-PR.ps1)
+**Called By**: Pre-commit hook (via new_pr.py)
 
-#### Detect-TestCoverageGaps.ps1
+#### detect_test_coverage_gaps.py
 
-Detects PowerShell files without corresponding test files (WARNING, non-blocking).
+Detects script files without corresponding test files (WARNING, non-blocking).
 
 **Usage**:
 
-```powershell
+```bash
 # Check staged files
-.\scripts\Detect-TestCoverageGaps.ps1 -StagedOnly
+uv run --frozen python -m scripts.detect_test_coverage_gaps --staged-only
 
 # Check with ignore file
-.\scripts\Detect-TestCoverageGaps.ps1 -IgnoreFile ".testignore"
+uv run --frozen python -m scripts.detect_test_coverage_gaps --ignore-file ".testignore"
 ```
 
 **Called By**: Pre-commit hook
 
 ### PR Creation
 
-#### New-ValidatedPR.ps1
+#### new_validated_pr.py
 
 Creates a PR with all guardrails enforced.
 
 **Usage**:
 
-```powershell
+```bash
 # Normal PR (runs validations)
-.\scripts\New-ValidatedPR.ps1 -Title "feat: Add feature" -Body "Description"
+uv run --frozen python -m scripts.new_validated_pr --title "feat: Add feature" --body "Description"
 
 # Draft PR
-.\scripts\New-ValidatedPR.ps1 -Title "WIP: Feature" -Draft
+uv run --frozen python -m scripts.new_validated_pr --title "WIP: Feature" --draft
 
 # Force mode (creates audit trail)
-.\scripts\New-ValidatedPR.ps1 -Title "hotfix" -Force
+uv run --frozen python -m scripts.new_validated_pr --title "hotfix" --skip-validation --audit-reason "hotfix"
 
 # Interactive mode
-.\scripts\New-ValidatedPR.ps1 -Web
+uv run --frozen python -m scripts.new_validated_pr --web
 ```
 
 #### validate_workflows.py
@@ -157,32 +157,32 @@ See [docs/WORKFLOW-VALIDATION.md](../docs/WORKFLOW-VALIDATION.md) for complete d
 
 ### Other Validation Scripts
 
-- `Validate-Consistency.ps1` - Cross-document consistency
-- `Sync-McpConfig.ps1` - MCP configuration sync
+- `scripts/validation/consistency.py` - Cross-document consistency
+- `sync_mcp_config.py` - MCP configuration sync
 - `check_skill_exists.py` - Skill availability check
-- `Invoke-BatchPRReview.ps1` - Batch PR review automation
+- `invoke_batch_pr_review.py` - Batch PR review automation
 
-#### Sync-McpConfig.ps1
+#### sync_mcp_config.py
 
 Syncs MCP configuration from Claude Code's `.mcp.json` to Factory Droid and VS Code formats.
 
 **Usage**:
 
-```powershell
+```bash
 # Sync to VS Code (default behavior)
-.\scripts\Sync-McpConfig.ps1
+.\scripts\sync_mcp_config.py
 
 # Sync to Factory Droid
-.\scripts\Sync-McpConfig.ps1 -Target factory
+.\scripts\sync_mcp_config.py -Target factory
 
 # Sync to both Factory and VS Code
-.\scripts\Sync-McpConfig.ps1 -SyncAll
+.\scripts\sync_mcp_config.py -SyncAll
 
 # Check what would change without making changes
-.\scripts\Sync-McpConfig.ps1 -WhatIf
+.\scripts\sync_mcp_config.py -WhatIf
 
 # Return boolean indicating whether sync occurred
-$synced = .\scripts\Sync-McpConfig.ps1 -PassThru
+$synced = .\scripts\sync_mcp_config.py -PassThru
 if ($synced) { Write-Host "Configuration was synced" }
 ```
 
@@ -211,7 +211,7 @@ See [docs/technical-guardrails.md](../docs/technical-guardrails.md) for complete
 
 Requires [Pester](https://pester.dev/) 5.x:
 
-```powershell
+```bash
 # Install Pester
 Install-Module -Name Pester -Force -Scope CurrentUser
 

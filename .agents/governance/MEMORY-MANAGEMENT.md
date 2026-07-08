@@ -14,7 +14,7 @@ This document describes the unified memory management workflow across three memo
 |--------|---------|-------|-------------|---------------|
 | **Serena** | Project-specific context, code symbols | Single project | `.serena/memories/` (git) | Manual (filesystem) |
 | **Forgetful** | Cross-project semantic memory | All projects | PostgreSQL + HNSW | `execute_forgetful_tool` |
-| **Claude-Mem** | Session observations, prompts | Claude Code sessions | SQLite | `pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1` |
+| **Claude-Mem** | Session observations, prompts | Claude Code sessions | SQLite | `python3 .claude-mem/scripts/export_claude_mem_memories.py` |
 
 ---
 
@@ -27,7 +27,7 @@ This document describes the unified memory management workflow across three memo
 - **Cross-session context**: Information needed by next session on this project
 - **Integration points**: Where to find specific functionality in codebase
 
-**Example**: "The GitHub skills are located in `.claude/skills/github/scripts/` and use PowerShell modules in `.claude/skills/modules/`"
+**Example**: "The GitHub skills are located in `.claude/skills/github/scripts/` and use Python modules in `.claude/skills/modules/`"
 
 ### Use Forgetful When
 
@@ -98,9 +98,9 @@ mcp__serena__write_memory(
 
 ```markdown
 ### Phase 0.5: Export Session Memories (RECOMMENDED)
-1. Export Claude-Mem observations using PowerShell wrapper:
-   pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 \
-     -Query "session NNN" -SessionNumber NNN -Topic "topic"
+1. Export Claude-Mem observations using Python CLI:
+   python3 .claude-mem/scripts/export_claude_mem_memories.py \
+     "session NNN" --session-number NNN --topic "topic"
 
 2. Security review runs automatically (mandatory gate)
 3. Commit export to git if review passes
@@ -118,27 +118,27 @@ mcp__serena__write_memory(
 
 ### Export Commands
 
-**By session number** (using PowerShell wrapper):
+**By session number** (using Python CLI):
 
-```powershell
-pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 `
-  -Query "session 229" -SessionNumber 229 -Topic "frustrations"
+```bash
+python3 .claude-mem/scripts/export_claude_mem_memories.py \
+  "session 229" --session-number 229 --topic "frustrations"
 # Output: .claude-mem/memories/2026-01-03-session-229-frustrations.json
 ```
 
-**By topic/theme** (using PowerShell wrapper):
+**By topic/theme** (using Python CLI):
 
-```powershell
-pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 `
-  -Query "frustration pattern" -Topic "frustrations"
+```bash
+python3 .claude-mem/scripts/export_claude_mem_memories.py \
+  "frustration pattern" --topic "frustrations"
 # Output: .claude-mem/memories/2026-01-03-frustrations.json
 ```
 
 **All observations** (filtered by plugin):
 
-```powershell
-pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 `
-  -Query "" -Topic "all-memories"
+```bash
+python3 .claude-mem/scripts/export_claude_mem_memories.py \
+  "" --topic "all-memories"
 # NOTE: Empty query exports observations matching plugin filters (project, date, session)
 # Output: .claude-mem/memories/2026-01-03-all-memories.json
 ```
@@ -146,7 +146,7 @@ pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 `
 **Direct plugin call** (advanced users only):
 
 ```bash
-# Bypass PowerShell wrapper for project/date filtering
+# Bypass Python CLI for project/date filtering
 npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts \
   "" output.json --project=ai-agents
 ```
@@ -160,11 +160,11 @@ npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts \
   .claude-mem/memories/shared-learnings.json
 ```
 
-**Bulk import** (using PowerShell wrapper):
+**Bulk import** (using Python CLI):
 
-```powershell
+```bash
 # Auto-imports all .json files from .claude-mem/memories/
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+python3 .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
 **Manual bulk import** (advanced users):
@@ -179,14 +179,14 @@ done
 
 **CRITICAL**: Security review is MANDATORY and runs automatically during export.
 
-```powershell
+```bash
 # Export script automatically runs security review
-pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "..." -Topic "..."
+python3 .claude-mem/scripts/export_claude_mem_memories.py "..." --topic "..."
 # Security review runs automatically after export
 # Export blocked if sensitive data detected
 
 # Manual security review (if needed)
-pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile .claude-mem/memories/[file].json
+python3 scripts/review_memory_export_security.py .claude-mem/memories/[file].json
 ```
 
 ### Naming Conventions
@@ -303,16 +303,16 @@ Serena memories use Markdown with sections:
 
 1. **Pull latest**: `git pull origin main`
 2. **Check exports**: Review `.claude-mem/memories/` for new files
-3. **Auto-import**: `pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1`
+3. **Auto-import**: `python3 .claude-mem/scripts/import_claude_mem_memories.py`
 4. **Verify**: Search for imported memories in Claude-Mem
 
 ### Onboarding New Team Members
 
 **Step 1**: Bulk export current knowledge
 
-```powershell
-# Export all project-related memories using PowerShell wrapper
-pwsh .claude-mem/scripts/Export-ClaudeMemMemories.ps1 -Query "" -Topic "onboarding"
+```bash
+# Export all project-related memories using Python CLI
+python3 .claude-mem/scripts/export_claude_mem_memories.py "" --topic "onboarding"
 # Output: .claude-mem/memories/YYYY-MM-DD-onboarding.json
 
 # Security review runs automatically
@@ -330,13 +330,13 @@ npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/export-memories.ts \
 
 **Step 2**: New team member imports
 
-```powershell
+```bash
 # Clone repo
 git clone https://github.com/user/ai-agents.git
 cd ai-agents
 
-# Auto-import all memories using PowerShell wrapper
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+# Auto-import all memories using Python CLI
+python3 .claude-mem/scripts/import_claude_mem_memories.py
 
 # Verify import
 # Use Claude-Mem search tools or check database directly
@@ -399,7 +399,7 @@ npx tsx scripts/search-memories.ts "[expected topic]"
 
 ```bash
 # Test Forgetful health
-pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
+python3 -m scripts.memory.memory_health
 
 # Check localhost:8020/mcp
 curl http://localhost:8020/mcp

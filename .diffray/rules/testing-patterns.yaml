@@ -21,20 +21,20 @@ rules:
     examples:
       bad: |
         # File structure:
-        scripts/lib/Common.psm1          # Module
+        scripts/lib/common.py           # Module
         # No tests!
       good: |
         # File structure:
-        scripts/lib/Common.psm1          # Module
-        scripts/tests/Common.Tests.ps1   # Tests
+        scripts/lib/common.py           # Module
+        tests/test_common.py             # Tests
         
         # Or co-located:
-        scripts/lib/Common.psm1
-        scripts/lib/Common.Tests.ps1
+        scripts/lib/common.py
+        scripts/lib/test_common.py
 
     tags:
       - testing
-      - powershell
+      - python
       - quality
 
     why_important: |

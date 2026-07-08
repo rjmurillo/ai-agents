@@ -18,7 +18,7 @@ rules:
       - "Check if file is in generated output directories"
       - "Verify corresponding template exists in templates/agents/"
       - "Suggest editing template instead: templates/agents/[name].shared.md"
-      - "Remind to run: pwsh build/Generate-Agents.ps1"
+      - "Remind to run: python3 build/generate_agents.py"
       - "Reference CONTRIBUTING.md for agent modification process"
 
     examples:
@@ -26,7 +26,7 @@ rules:
         # Editing src/vs-code-agents/analyst.agent.md directly
       good: |
         # Edit templates/agents/analyst.shared.md
-        # Then run: pwsh build/Generate-Agents.ps1
+        # Then run: python3 build/generate_agents.py
 
     tags:
       - architecture

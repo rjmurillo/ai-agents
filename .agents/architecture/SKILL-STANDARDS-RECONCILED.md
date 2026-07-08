@@ -756,8 +756,8 @@ Create protocol-compliant session logs.
 
 ## Quick Start
 
-```powershell
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+```bash
+python3 .claude/skills/session-init/scripts/new_session_log.py
 ```
 
 ## References

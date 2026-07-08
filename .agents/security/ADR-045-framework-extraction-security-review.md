@@ -581,7 +581,7 @@ git checkout -b test-plugin-update
 vim .claude/settings.json
 
 # Test session lifecycle
-pwsh scripts/Test-SessionLifecycle.ps1
+uv run pytest tests/skills/session-end/ tests/test_log_session_end_skip.py
 
 # If tests pass, merge to main
 git checkout main && git merge test-plugin-update

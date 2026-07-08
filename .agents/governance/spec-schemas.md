@@ -433,17 +433,14 @@ source: GH-720       # GitHub issue that originated this spec
 
 ## Validation Script Interface
 
-The `Validate-SpecSchemas.ps1` script (Phase 2) will validate:
+Current spec checks validate ID uniqueness and PR/spec contradictions:
 
-```powershell
-# Validate single file
-Validate-SpecSchemas.ps1 -Path ".agents/specs/requirements/REQ-001-session-persistence.md"
+```bash
+# Validate spec ID uniqueness across the repo
+python3 scripts/validation/check_spec_id_uniqueness.py
 
-# Validate all specs
-Validate-SpecSchemas.ps1 -All
-
-# Validate traceability
-Validate-SpecSchemas.ps1 -Traceability
+# Validate PR and spec contradiction signals
+python3 scripts/validation/spec_contradiction.py --advisory
 
 # Output
 # ✓ REQ-001: Valid

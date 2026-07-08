@@ -337,10 +337,9 @@ foreach ($dir in $directories) {
 
 **Usage**:
 
-1. Place script in repository root as `fix-fences.ps1`
-2. Run: `pwsh ./fix-fences.ps1` (PowerShell 7+) or `powershell ./fix-fences.ps1` (Windows PowerShell)
-3. Verify changes with: `git diff`
-4. Commit fixes
+1. Run the current Python fence fixer: `uv run python .claude/skills/fix-markdown-fences/fix_fences.py <path>`
+2. Verify changes with: `git diff`
+3. Commit fixes
 
 **Key Algorithm**:
 

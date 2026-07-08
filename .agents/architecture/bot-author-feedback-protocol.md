@@ -26,10 +26,10 @@ gh workflow run pr-maintenance.yml
 
 ```bash
 # Process up to 20 PRs (default)
-pwsh scripts/Invoke-PRMaintenance.ps1
+uv run --frozen python -m scripts.invoke_pr_maintenance
 
 # Process specific number
-pwsh scripts/Invoke-PRMaintenance.ps1 -MaxPRs 5
+uv run --frozen python -m scripts.invoke_pr_maintenance --max-prs 5
 ```
 
 **Agent Invocation** (responding to review comments):
@@ -50,7 +50,7 @@ Use this to determine which invocation method:
 flowchart TD
     A[What is your goal?] --> B{Goal Type}
     B -->|Routine maintenance| C["Scheduled: hourly GitHub Actions"]
-    B -->|Check PR status now| D["Manual: pwsh Invoke-PRMaintenance.ps1"]
+    B -->|Check PR status now| D["Manual: uv run --frozen python -m scripts.invoke_pr_maintenance"]
     B -->|Address CHANGES_REQUESTED| E["Agent: pr-review skill"]
     B -->|Trigger from CI/CD| F["gh workflow run pr-maintenance.yml"]
 
@@ -335,7 +335,7 @@ When the protocol says "process comments", the agent must:
 
 **Solution**: `Get-UnaddressedComments` checks BOTH acknowledgment AND thread resolution:
 
-```powershell
+```bash
 # OLD: Only detected NEW state
 $unacked = Get-UnacknowledgedComments  # eyes = 0
 
@@ -610,7 +610,7 @@ grep 'PR #123' .agents/logs/pr-maintenance.log
 
 ## Anti-Patterns
 
-```powershell
+```bash
 # WRONG: Add eyes to all comments
 foreach ($comment in $allComments) { Add-Reaction -eyes }
 # RIGHT: Only add eyes when bot will take action on that comment

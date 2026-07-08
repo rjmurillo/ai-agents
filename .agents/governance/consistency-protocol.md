@@ -197,20 +197,20 @@ related:
 
 ### Validation Script
 
-Location: `scripts/Validate-Consistency.ps1`
+Location: `scripts/validation/consistency.py`
 
 Capabilities:
 
-```powershell
+```bash
 # Validate a specific feature's artifacts
-.\validate-consistency.ps1 -Feature "user-authentication"
+python3 scripts/validation/consistency.py --feature "user-authentication"
 
 # Validate all artifacts
-.\validate-consistency.ps1 -All
+python3 scripts/validation/consistency.py --all
 
 # Output formats
-.\validate-consistency.ps1 -Feature "auth" -Format "markdown"
-.\validate-consistency.ps1 -Feature "auth" -Format "json"
+python3 scripts/validation/consistency.py --feature "auth" --format markdown
+python3 scripts/validation/consistency.py --feature "auth" --format json
 ```
 
 ### CI Integration
@@ -219,7 +219,7 @@ Consistency validation can be integrated into CI:
 
 ```yaml
 - name: Validate Consistency
-  run: pwsh scripts/Validate-Consistency.ps1 -All -CI
+  run: python3 scripts/validation/consistency.py --all --ci
 ```
 
 ---

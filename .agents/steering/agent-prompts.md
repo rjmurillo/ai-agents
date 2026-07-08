@@ -238,7 +238,7 @@ Every agent retrieves relevant context before starting work.
 
 **Before work (retrieve context):**
 
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[relevant topic]"
+python3 .claude/skills/memory/scripts/search_memory.py "[relevant topic]"
 ```
 
 ### Store at Milestones

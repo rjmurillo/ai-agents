@@ -424,7 +424,7 @@ git push
 
 **Resolution**:
 
-1. Run `pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[log].md"`
+1. Run `python3 scripts/validate_session_json.py .agents/sessions/[log].json`
 2. Address each validation error (QA report, evidence, etc.)
 3. For documentation-only changes, ensure no code file patterns detected
 4. If false positive, document justification and use `--no-verify` with explanation

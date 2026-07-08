@@ -15,12 +15,12 @@ Verify all prerequisites are met before beginning rollout:
   - [ ] Claude Code skill (`.claude/skills/codeql-scan/`)
   - [ ] PostToolUse hook (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`)
 
-- [ ] **All Pester Tests Passing**: Unit and integration tests verified
-  - [ ] `tests/Install-CodeQL.Tests.ps1` passing
-  - [ ] `tests/Invoke-CodeQLScan.Tests.ps1` passing
-  - [ ] `tests/CodeQL-Integration.Tests.ps1` passing
-  - [ ] `tests/Test-CodeQLRollout.Tests.ps1` passing
-  - [ ] Run: `pwsh ./build/scripts/Invoke-PesterTests.ps1`
+- [ ] **All Tests Passing**: Unit and integration tests verified
+  - [ ] `tests/test_install_codeql.py` passing
+  - [ ] `tests/test_invoke_codeql_scan_py.py` passing
+  - [ ] `tests/test_install_codeql_integration.py` passing
+  - [ ] `tests/test_test_codeql_rollout.py` passing
+  - [ ] Run: `uv run pytest tests/`
 
 - [ ] **Documentation Reviewed**: All documentation complete and accurate
   - [ ] User guide: `docs/codeql-integration.md`
@@ -41,7 +41,7 @@ Verify all prerequisites are met before beginning rollout:
 ### Step 1: Run Automated Validation
 
 ```bash
-pwsh .codeql/scripts/Test-CodeQLRollout.ps1
+python3 .codeql/scripts/test_codeql_rollout.py
 ```
 
 **Expected Result**: All checks pass (45/45)
@@ -96,7 +96,7 @@ pwsh .codeql/scripts/Test-CodeQLRollout.ps1
 ### Step 2: Verify CLI Installation
 
 ```bash
-pwsh .codeql/scripts/Install-CodeQL.ps1 -AddToPath
+python3 .codeql/scripts/install_codeql.py --add-to-path
 .codeql/cli/codeql version
 ```
 
@@ -115,7 +115,7 @@ CodeQL command-line toolchain release 2.23.9.
 Run a full repository scan on a sample repository:
 
 ```bash
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
+python3 .codeql/scripts/invoke_codeql_scan.py
 ```
 
 **Expected Results**:
@@ -129,8 +129,8 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
 
 **If Failures**:
 
-- Check diagnostics: `pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1`
-- Validate configuration: `pwsh .codeql/scripts/Test-CodeQLConfig.ps1`
+- Check diagnostics: `python3 .codeql/scripts/get_codeql_diagnostics.py`
+- Validate configuration: `python3 .codeql/scripts/test_codeql_config.py`
 - Review logs: `.codeql/logs/`
 
 ### Step 4: Test Quick Scan with Caching
@@ -138,7 +138,7 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
 Run a second scan to verify caching works:
 
 ```bash
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache
+python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
 ```
 
 **Expected Results**:
