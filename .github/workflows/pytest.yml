@@ -91,6 +91,8 @@ jobs:
 
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         if: steps.should-run.outputs.skip != 'true'
+        with:
+          fetch-depth: 0
 
       - name: Setup code environment
         if: steps.should-run.outputs.skip != 'true'
@@ -115,19 +117,13 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: python scripts/validation/validate_python_syntax.py
 
-      # Issue #2194: ruff is configured in pyproject.toml ([tool.ruff]) but no CI
-      # workflow ran it. The repository has a pre-existing backlog of 2026 ruff
-      # findings (measured 2026-06-01 with ruff>=0.15.14), so this step is
-      # report-only (continue-on-error: true). It annotates the PR diff with
-      # findings via --output-format=github without blocking merges. Flip to a
-      # blocking gate (drop continue-on-error) once the backlog reaches zero.
-      # See pyproject.toml for the lint config; the invocation matches the
-      # baseline command `ruff check .`. ruff is installed via the
-      # setup-code-env action (uv pip install --system -e ".[dev]").
-      - name: Run ruff (report-only)
+      # Issue #2939: keep repo-wide ruff debt from blocking unrelated PRs while
+      # failing new violations in changed Python files.
+      - name: Run ruff ratchet (changed Python files)
         if: steps.should-run.outputs.skip != 'true'
-        continue-on-error: true
-        run: ruff check . --output-format=github
+        env:
+          RUFF_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
+        run: python scripts/ci/ruff_ratchet.py
 
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'
@@ -177,7 +173,9 @@ jobs:
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
+      security-events: write
 
     steps:
       - name: Harden Runner
@@ -216,24 +214,34 @@ jobs:
             --ignore-vuln CVE-2026-6357
 
       # Issue #2808: `|| true` masked both bandit crashes and genuine findings,
-      # turning this step green regardless (bandit even errored on the missing
-      # SARIF formatter and nobody noticed). Gate on high severity AND high
+      # turning this step green regardless. Gate on high severity AND high
       # confidence so real high-risk findings fail CI, scoped off test-only
-      # false positives. JSON output keeps the artifact self-contained; the
-      # code-scanning SARIF surfacing needs the bandit-sarif-formatter dep and
-      # is deferred to a focused follow-up PR (lockfile change, over this PR's
-      # file budget).
+      # false positives. SARIF output feeds GitHub code scanning.
       - name: Run Bandit
         run: |
-          mkdir -p artifacts
-          bandit -r .claude/ scripts/ -x '*/tests/*,*/test/*' -f json -o artifacts/bandit-results.json --severity-level high --confidence-level high
+          bandit -r .claude/ scripts/ \
+            -x '*/tests/*,*/test/*' \
+            -f sarif \
+            -o bandit.sarif \
+            --severity-level high \
+            --confidence-level high
+
+      - name: Upload Bandit SARIF
+        if: >-
+          always() &&
+          (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a  # v4
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
 
       - name: Upload Bandit results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         if: always()
         with:
           name: bandit-results
-          path: artifacts/bandit-results.json
+          path: bandit.sarif
           retention-days: 7
 
   # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.

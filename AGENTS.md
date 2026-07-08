@@ -21,10 +21,10 @@
 ## Boundaries
 
 **BLOCKING verify**: unrun gen'd artifact -> runtime test|security thread -> code fix or owner|skip validation -> `pre_pr.py`
-**Always**: Python (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|Bump `plugin.json` on plugin-source change
+**Always**: Python (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|Bump plugin manifest
 **Ask First**: Architecture|New ADRs|Breaking|Security
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
-**Never**: Commit secrets|Update HANDOFF.md|Use bash|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in tree|Resolve security threads without vuln fix|Ship unrun gen'd artifact
+**Never**: Commit secrets|Edit HANDOFF.md|Use bash|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact
 
 ## Context
 
@@ -34,9 +34,9 @@ Knowledge -> passive context (@imports, every turn, outside training, <8KB). Act
 
 |PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
-|CI feedback: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
-|ADR-078: no matching skill -> autoplan; multi-step/cross-cutting -> orchestrator; no orchestrator -> autoplan loop
-|New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip bug/doc/refactor/approved extension
+|CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
+|ADR-078: no skill -> autoplan; multi-step/cross-cutting -> orchestrator; no return loop
+|New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-capability-extension
 
 ### ADR Review
 
