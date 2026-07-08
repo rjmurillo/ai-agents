@@ -1,0 +1,67 @@
+{
+  "id": "episode-2026-07-08-session-2613",
+  "session": "2026-07-08-session-2613",
+  "timestamp": "2026-07-08T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Resolve owner-flagged issue #2855: flip ADR-079 to accepted after the owner rejected merge-time automation and chose PR-time monotonic bump; record the adr-review Round 3 re-review of the current direction.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Landed PR #2951 review-fix commit fb7279bc; resolved all 5 Copilot threads; armed squash auto-merge.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read ADR-079 on current main: content already records the owner rejection of merge-time and the PR-time-retention decision (via #2908), only frontmatter status was stale at proposed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adr-review Round 3 against the current PR-time-retention decision (6 lenses); 6/6 Accept, one P2 filename-slug note documented and accepted.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Flipped ADR-079 status proposed -> accepted, implemented -> true; updated Status prose; appended Round 3 to the debate log.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5f25b005",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR #2856 review: bumped ADR-079 frontmatter date to the 2026-07-08 accept date (ADR-073 last-updated semantics) and reconciled the episode commit metric with the recorded commit events.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 4
+  },
+  "lessons": []
+}

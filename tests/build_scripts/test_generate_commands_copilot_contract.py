@@ -21,6 +21,7 @@ fails when the translation is wrong (a raw body still carries the tokens).
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -31,6 +32,8 @@ sys.path.insert(0, str(REPO_ROOT / "build"))
 import copilot_body_translation  # noqa: E402
 
 _COPILOT_SKILLS = REPO_ROOT / "src" / "copilot-cli" / "skills"
+_FENCED_CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
+_INLINE_CODE_SPAN_RE = re.compile(r"`+[^`\n]*`+")
 
 _CLAUDE_BODY = (
     "@CLAUDE.md\n"
@@ -55,6 +58,34 @@ def test_arguments_token_removed(tmp_path: Path) -> None:
     assert "$ARGUMENTS" in _CLAUDE_BODY
 
 
+def test_arguments_token_preserved_inside_inline_code_span(tmp_path: Path) -> None:
+    """Literal authoring docs keep `$ARGUMENTS` inside inline code spans."""
+    body = "- Simple commands: use `$ARGUMENTS`\n"
+
+    out = copilot_body_translation.translate_body(body, tmp_path)
+
+    assert out == body
+
+
+def test_arguments_token_preserved_inside_fenced_code_block(tmp_path: Path) -> None:
+    """Literal slash-command examples keep `$ARGUMENTS` inside fenced code."""
+    body = "```text\nUse $ARGUMENTS here.\n```\n"
+
+    out = copilot_body_translation.translate_body(body, tmp_path)
+
+    assert out == body
+
+
+def test_arguments_token_translated_in_prose(tmp_path: Path) -> None:
+    """Invocation contracts still translate prose `$ARGUMENTS` references."""
+    body = "Spec: $ARGUMENTS\n"
+
+    out = copilot_body_translation.translate_body(body, tmp_path)
+
+    assert "$ARGUMENTS" not in out
+    assert "the problem statement from the conversation" in out
+
+
 def test_include_line_replaced_with_note(tmp_path: Path) -> None:
     """`@CLAUDE.md` standalone include becomes a Copilot note, not literal text."""
     out = copilot_body_translation.translate_body(_CLAUDE_BODY, tmp_path)
@@ -63,6 +94,25 @@ def test_include_line_replaced_with_note(tmp_path: Path) -> None:
     assert "load via the plugin instructions tree" in out
     # Negative control: the raw body starts with the literal include.
     assert _CLAUDE_BODY.startswith("@CLAUDE.md")
+
+
+def test_standalone_decorator_line_is_preserved(tmp_path: Path) -> None:
+    """Standalone Python decorator lines are not Claude include directives."""
+    body = "```python\n@dataclass\nclass Config:\n    pass\n```\n"
+
+    out = copilot_body_translation.translate_body(body, tmp_path)
+
+    assert out == body
+
+
+def test_markdown_include_line_still_replaced(tmp_path: Path) -> None:
+    """Markdown include directives remain the only translated @ lines."""
+    body = "@CLAUDE.md\n"
+
+    out = copilot_body_translation.translate_body(body, tmp_path)
+
+    assert "@CLAUDE.md" not in out
+    assert "load via the plugin instructions tree" in out
 
 
 def test_skill_call_mapped_in_appendix(tmp_path: Path) -> None:
@@ -224,9 +274,19 @@ def _committed_bodies() -> list[tuple[str, str]]:
     ]
 
 
-def test_committed_skills_have_no_arguments_token() -> None:
-    """No shipped Copilot skill body may carry the unresolved `$ARGUMENTS`."""
-    offenders = [name for name, body in _committed_bodies() if "$ARGUMENTS" in body]
+def _contains_untranslated_arguments_token(body: str) -> bool:
+    body_without_fences = _FENCED_CODE_BLOCK_RE.sub("", body)
+    body_without_code_spans = _INLINE_CODE_SPAN_RE.sub("", body_without_fences)
+    return "$ARGUMENTS" in body_without_code_spans
+
+
+def test_committed_skills_have_no_untranslated_arguments_token() -> None:
+    """No shipped Copilot skill body may carry unresolved `$ARGUMENTS` prose."""
+    offenders = [
+        name
+        for name, body in _committed_bodies()
+        if _contains_untranslated_arguments_token(body)
+    ]
     assert not offenders, f"$ARGUMENTS present in: {offenders}"
 
 

@@ -49,7 +49,7 @@ Create production-ready custom slash commands following ai-agents quality standa
 
 1. Command naming (namespace conventions)
 2. Argument design:
-   - Simple commands: use `the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)`
+   - Simple commands: use `$ARGUMENTS`
    - Complex commands: use `$1`, `$2`, `$3` (positional)
 3. Frontmatter schema:
    - `description` (trigger-based per creator-001)
