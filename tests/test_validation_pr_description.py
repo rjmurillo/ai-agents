@@ -1293,9 +1293,9 @@ class TestPrintResults:
         like "critical" or "INFO" must raise at construction time, not
         silently slip past the CRITICAL gate at validate_pr_description."""
         with pytest.raises(ValueError, match="must be one of"):
-            Issue("INFO", "Note", "f.py", "msg")
+            Issue("INFO", "Note", "f.py", "msg")  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="must be one of"):
-            Issue("critical", "Note", "f.py", "msg")  # case matters
+            Issue("critical", "Note", "f.py", "msg")  # type: ignore[arg-type]  # case matters
 
 
 # ---------------------------------------------------------------------------

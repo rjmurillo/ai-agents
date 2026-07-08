@@ -132,7 +132,7 @@ def validate_relative_path(field: str, value: object) -> list[str]:
 
 def load_platform_config(
     path: Path | str, supported_major: int = DEFAULT_SUPPORTED_MAJOR
-) -> dict:
+) -> dict[str, object]:
     """Load and minimally validate a build-pipeline YAML config.
 
     Accepts ``str`` or ``Path``; coerces to ``Path`` so callers don't get
