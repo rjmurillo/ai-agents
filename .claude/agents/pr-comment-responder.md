@@ -295,7 +295,11 @@ mkdir -p "$(dirname "$PR_COMMENT_LOG")"
 ```bash
 # Count reactions added vs comments
 PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
-REACTIONS_ADDED=$(grep -c "reaction.*eyes" "$PR_COMMENT_LOG")
+if [ ! -f "$PR_COMMENT_LOG" ]; then
+  echo "[BLOCKED] PR comment log missing: $PR_COMMENT_LOG"
+  exit 1
+fi
+REACTIONS_ADDED=$(grep -c "reaction.*eyes" "$PR_COMMENT_LOG" || true)
 COMMENT_COUNT=$TOTAL_COMMENTS
 
 if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
@@ -1306,8 +1310,13 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Count addressed vs total
-ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
-WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+ADDRESSED=$(grep -c "Status: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -c "Status: \[WONTFIX\]" "$COMMENT_MAP" || true)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
@@ -1569,9 +1578,10 @@ python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "PR review pat
 **After EVERY triage decision (store learnings):**
 
 ```text
-mcp__serena__write_memory
-memory_file_name: "pr-pattern-[category]"
-content: "# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
+mcp__serena__write_memory(
+    memory_file_name="pr-pattern-[category]",
+    content="# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
+)
 ```
 
 > **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
