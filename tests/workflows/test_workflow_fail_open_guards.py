@@ -9,8 +9,8 @@ Covered:
   - audit-hook-bypass.yml: detection step classifies exit code, fails on >=2,
     and treats missing JSON as a failure (not indicator_count=0).
   - pytest.yml (security job): bandit gates on high severity/confidence with no
-    `|| true`, the job has security-events: write, and a codeql upload-sarif
-    step publishes findings with if: always().
+    `|| true`, the job has actions: read plus security-events: write, and a
+    codeql upload-sarif step publishes findings with if: always().
   - memory-validation.yml: verify step captures the exit code before pipefail
     aborts, and the parse step fails on a missing/empty results file instead of
     posting a green Pass.
@@ -168,6 +168,7 @@ class TestPytestBanditSecurity:
 
     def test_security_job_can_write_code_scanning_events(self) -> None:
         permissions = _job_permissions(self._workflow(), "security")
+        assert permissions.get("actions") == "read"
         assert permissions.get("security-events") == "write"
 
     def test_bandit_sarif_upload_runs_after_bandit_on_trusted_prs(self) -> None:

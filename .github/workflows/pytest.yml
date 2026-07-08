@@ -173,6 +173,7 @@ jobs:
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       security-events: write
 
