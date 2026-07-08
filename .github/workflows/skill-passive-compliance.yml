@@ -49,6 +49,8 @@ jobs:
               - 'AGENTS.md'
             validator:
               - '.claude/skills/context-optimizer/scripts/test_skill_passive_compliance.py'
+              - 'scripts/skill_description_budget.py'
+              - 'tests/test_skill_description_budget.py'
 
       - name: Determine if compliance validation should run
         id: determine
@@ -80,6 +82,9 @@ jobs:
             --path .claude/skills \
             --claude-md-path CLAUDE.md \
             --format table
+
+      - name: Run skill description budget
+        run: python3 scripts/skill_description_budget.py --max-total-chars 40000
 
   skip-compliance:
     name: Skip compliance (no changes)
