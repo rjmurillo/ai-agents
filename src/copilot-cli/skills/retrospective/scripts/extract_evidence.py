@@ -41,6 +41,7 @@ UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
 
 def _resolve_paths_lib_dir() -> Path:
     """Return the lib directory that contains the portability helper."""
+    # ADR-047 keeps this bootstrap inline because imports need sys.path first.
     plugin_root = (
         os.environ.get("COPILOT_PLUGIN_ROOT")
         or os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -52,7 +53,7 @@ def _resolve_paths_lib_dir() -> Path:
     else:
         lib_dir = Path(__file__).resolve().parents[3] / "lib"
 
-    if not lib_dir.is_dir():
+    if not os.path.isdir(lib_dir):
         raise RuntimeError(
             "Expected portability helper lib directory not found: "
             f"{lib_dir}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
