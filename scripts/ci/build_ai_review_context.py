@@ -39,6 +39,7 @@ def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandRe
         capture_output=True,
         check=False,
         text=True,
+        encoding="utf-8",
         timeout=timeout,
     )
     return CommandResult(result.stdout, result.stderr, result.returncode)
@@ -101,8 +102,12 @@ def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool]
                 ".[].filename",
             ]
         )
+        if result.returncode != 0:
+            truncated = bool(files)
+            break
+
         page_files = [line for line in result.stdout.splitlines() if line.strip()]
-        if result.returncode != 0 or not page_files:
+        if not page_files:
             break
 
         files.extend(page_files)
