@@ -31,11 +31,11 @@ from pathlib import Path
 # .claude/hooks/PreToolUse/invoke_correction_applier.py so the hook works in both
 # the deeper src/<provider>/hooks/<event>/ copy).
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None = None
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _cur = Path(__file__).resolve().parent
-    _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
             _lib_dir = str(_cur / "lib")
