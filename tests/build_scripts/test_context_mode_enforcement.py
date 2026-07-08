@@ -30,6 +30,7 @@ CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 TWIN_DIR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "references"
 PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
 AI_REVIEW_CONTEXT_SCRIPT = REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
+AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
 REVIEW_SKILL_PATHS = (
     REPO_ROOT / ".claude" / "skills" / "review" / "SKILL.md",
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "SKILL.md",
@@ -225,6 +226,13 @@ def test_spec_file_context_without_pr_marks_partial() -> None:
     no_pr_branch = source.split("if not pr_number:", 1)[1].split("diff = run_gh", 1)[0]
     assert '"partial"' in no_pr_branch
     assert "[No PR diff provided]" in source
+
+
+def test_ai_review_action_invokes_context_builder_from_workspace() -> None:
+    """The composite action must not depend on caller working-directory."""
+    source = AI_REVIEW_ACTION.read_text(encoding="utf-8")
+    assert 'python3 "$GITHUB_WORKSPACE/scripts/ci/build_ai_review_context.py"' in source
+    assert "run: python3 scripts/ci/build_ai_review_context.py" not in source
 
 
 @pytest.mark.parametrize("path", _shipped_review_surfaces())

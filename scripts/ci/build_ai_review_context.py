@@ -242,16 +242,28 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
     return ReviewContext(text, built.mode, built.infrastructure_failure)
 
 
-def build_issue_context(issue_number: str) -> ReviewContext:
+def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
     if not issue_number:
         return ReviewContext("No issue number provided", "full")
+    if not repository:
+        raise ConfigError("GITHUB_REPOSITORY is required for issue context")
 
     query = (
         '"Title: " + .title + "\n\nBody:\n" + .body '
         '+ "\n\nLabels: " + ([.labels[].name] | join(", "))'
     )
     result = run_gh(
-        ["issue", "view", issue_number, "--json", "title,body,labels", "-q", query]
+        [
+            "issue",
+            "view",
+            issue_number,
+            "--repo",
+            repository,
+            "--json",
+            "title,body,labels",
+            "-q",
+            query,
+        ]
     )
     if result.returncode != 0:
         return ReviewContext("Unable to get issue", "full")
@@ -328,7 +340,7 @@ def build_context_from_environment() -> ReviewContext:
             raise ConfigError("GITHUB_REPOSITORY is required for pr-diff context")
         return build_pr_diff_context(pr_number, repository, max_diff_lines)
     if context_type == "issue":
-        return build_issue_context(issue_number)
+        return build_issue_context(issue_number, repository)
     if context_type == "session-log":
         return build_session_log_context(context_path)
     if context_type == "spec-file":

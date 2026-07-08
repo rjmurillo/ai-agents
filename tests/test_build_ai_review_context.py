@@ -178,12 +178,12 @@ def test_build_issue_context_fetches_issue_details(monkeypatch: pytest.MonkeyPat
 
     def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
         del timeout
-        assert arguments[:3] == ["issue", "view", "2814"]
+        assert arguments[:5] == ["issue", "view", "2814", "--repo", "owner/repo"]
         return CommandResult("Title: ADR-006\n\nBody:\nExtract YAML logic\n\nLabels: ci", "", 0)
 
     monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
 
-    context = _mod.build_issue_context("2814")
+    context = _mod.build_issue_context("2814", "owner/repo")
 
     assert context.mode == "full"
     assert "Title: ADR-006" in context.text
@@ -203,10 +203,17 @@ def test_build_issue_context_without_issue_number_skips_gh(
         ),
     )
 
-    context = _mod.build_issue_context("")
+    context = _mod.build_issue_context("", "")
 
     assert context.mode == "full"
     assert context.text == "No issue number provided"
+
+
+def test_build_issue_context_requires_repository() -> None:
+    """Issue context needs explicit repo routing for gh calls."""
+
+    with pytest.raises(_mod.ConfigError, match="GITHUB_REPOSITORY"):
+        _mod.build_issue_context("2814", "")
 
 
 def test_build_session_log_context_reads_file(tmp_path: Path):

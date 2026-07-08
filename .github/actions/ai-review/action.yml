@@ -388,7 +388,7 @@ runs:
         CONTEXT_PATH: ${{ inputs.context-path }}
         MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
         GITHUB_REPOSITORY: ${{ github.repository }}
-      run: python3 scripts/ci/build_ai_review_context.py
+      run: python3 "$GITHUB_WORKSPACE/scripts/ci/build_ai_review_context.py"
 
     - name: Load prompt template
       id: prompt
