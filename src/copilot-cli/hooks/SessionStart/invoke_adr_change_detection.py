@@ -146,6 +146,12 @@ def main() -> int:
             return 2
 
         detection = json.loads(result.stdout)
+        if not isinstance(detection, dict):
+            print(
+                "ADR detection returned non-object JSON; expected object",
+                file=sys.stderr,
+            )
+            return 2
 
         if not detection.get("HasChanges"):
             return 0  # No output if no changes
@@ -163,6 +169,15 @@ def main() -> int:
         created = detection.get("Created", [])
         modified = detection.get("Modified", [])
         deleted = detection.get("Deleted", [])
+        if not all(
+            isinstance(items, list) and all(isinstance(item, str) for item in items)
+            for items in (created, modified, deleted)
+        ):
+            print(
+                "ADR detection returned invalid change lists; expected string arrays",
+                file=sys.stderr,
+            )
+            return 2
 
         if created:
             lines.append(f"**Created**: {', '.join(created)}")
