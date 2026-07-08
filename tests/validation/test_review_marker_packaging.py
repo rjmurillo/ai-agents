@@ -8,7 +8,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_SCRIPT = REPO_ROOT / "scripts" / "validation" / "validate_review_marker.py"
 SKILL_SCRIPT = REPO_ROOT / ".claude" / "skills" / "review" / "scripts" / "validate_review_marker.py"
 COPILOT_SCRIPT = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "validate_review_marker.py"
+    REPO_ROOT / "src" / "copilot-cli" / "skills" / "review"
+    / "scripts" / "validate_review_marker.py"
 )
 SHIP_COMMAND = REPO_ROOT / ".claude" / "commands" / "ship.md"
 COPILOT_SHIP_SKILL = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SKILL.md"
