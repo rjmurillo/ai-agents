@@ -45,6 +45,14 @@
       "content": "Commit: 58f58a7b",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Invoked adr-review skill on the ADR-034 amendment; recorded 6/6 Accept debate log at .agents/critique/ADR-034-debate-log.md; deferred allowlist DRY convergence to issue #2966.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

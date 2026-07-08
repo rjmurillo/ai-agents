@@ -138,3 +138,70 @@ None. All blocking concerns addressed in Round 1.
 
 *Debate completed: 2025-12-30*
 *Orchestrator: ADR Review Skill*
+
+---
+
+## Amendment Review (2026-07-08): Reconcile Allowlist to 8 Patterns
+
+**PR**: #2958 (issue #2941). **Type**: documentation-accuracy amendment (no new
+decision, no status transition). adr-review invoked per repo constraint "ADR
+edited -> adr-review skill MUST run."
+
+### Scope reviewed
+
+The Amendment (2026-07-08) section plus the updated allowlist code block, the
+narrowed Not Allowed table (`.agents/architecture/ADR-*` with a `REVIEW-*`
+exception; `.agents/critique/` row removed), and the corrected test-case table.
+Names `scripts/modules/investigation_allowlist.py` the single machine-readable
+source of truth. Canonical count 5 -> 8 (three added, one redundant removed).
+
+### Phase 1 findings (Zimmermann checklist)
+
+- architect: amendment dated and per-pattern sourced (#831, #732); Not Allowed
+  table updated in the same change so the two tables no longer contradict. PASS.
+- critic: real gap, not editorial. The ADR claims a single source of truth but
+  only `.github/scripts/validate_investigation_claims.py` imports the module;
+  `test_investigation_eligibility.py` keeps a parallel hardcoded copy and
+  `validate_session_json.py` consumes nothing. The amendment states this
+  honestly rather than overclaiming. P1 (drift risk), deferred.
+- independent-thinker: `^\.agents/architecture/REVIEW-` is anchored to the
+  filename prefix, so ADR-* design files stay Not Allowed; scoping is tighter
+  than the pre-amendment blanket entry, not looser. Removing the redundant
+  `episodes/` pattern is behavior-preserving (`^\.agents/memory/` subsumes it).
+- security: the allowlist only exempts documentation-class paths from a test
+  gate; no auth, secret, or execution surface. Widening to review/critique
+  artifacts adds no attack surface; the REVIEW-/ADR-* split keeps design
+  decisions under QA. PASS.
+- analyst: claims verified against the tree at branch HEAD. Module enumerates
+  the 8 listed patterns; import graph matches the amendment's per-consumer
+  statement; the prior revision's "all consumers import" implication was false
+  and is now corrected. Evidence-backed.
+- high-level-advisor: removes a live ADR-vs-code contradiction in a document
+  that gates a CI check. Ship. DRY convergence is lower priority, correctly
+  deferred.
+
+### Phase 3 resolution
+
+| Priority | Finding | Resolution |
+|----------|---------|------------|
+| P1 | Session-skill parallel allowlist copy can drift from the module | Deferred with tracking issue #2966 (converge + drift test) |
+| P2 | `validate_session_json.py` consumes no allowlist | Documented in amendment; folded into #2966 |
+
+No P0 issues. No Zimmermann anti-patterns triggered.
+
+### Phase 4 vote
+
+architect Accept, critic Accept, independent-thinker Accept, security Accept,
+analyst Accept, high-level-advisor Accept. Consensus 6/6. Rounds: 1.
+
+### Strategic review
+
+Chesterton's Fence PASS (original purpose of the narrowed entries documented);
+Path Dependence PASS (reversible by later amendment); Core vs Context N/A;
+Second-System Effect PASS (reconciliation only, no feature expansion). Strategic
+assessment: APPROVED.
+
+**Verdict**: ACCEPTED. One real gap (DRY convergence) deferred to issue #2966.
+
+*Amendment review completed: 2026-07-08*
+*Orchestrator: ADR Review Skill*
