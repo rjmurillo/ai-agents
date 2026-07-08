@@ -17,7 +17,7 @@ rules:
         - "!.github/actions/**/*.sh"  # External actions may have shell
 
     checklist:
-      - "Flag new .sh, .ps1, or .psm1 script files"
+      - "Flag newly ADDED .sh, .ps1, or .psm1 script files, not edits to existing grandfathered scripts"
       - "Verify this isn't an existing PowerShell script edit or approved exception"
       - "Suggest a Python implementation for new internal automation"
       - "Reference ADR-042 for rationale"
