@@ -101,7 +101,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" \
 **Stale Reasons**:
 
 - `FileDeleted`: Comment references a file that no longer exists in HEAD
-- `LineOutOfRange`: Comment line number exceeds current file length  
+- `LineOutOfRange`: Comment line number exceeds current file length
 - `CodeChanged`: Diff hunk context no longer matches current code
 
 **When to Use**:
@@ -272,23 +272,18 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 **Before any work**: Create session log with protocol compliance checklist.
 
 ```bash
-# Create session log
-SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.json"
-cat > "$SESSION_FILE" << 'EOF'
-# PR Comment Responder Session
+# Create protocol session log with the session-init skill.
+python3 .claude/skills/session-init/scripts/new_session_log.py \
+  --session-number [session_number] \
+  --objective "Respond to PR review comments"
 
-## Protocol Compliance Checklist
-
-- [ ] Gate 0: Session log created
-- [ ] Gate 1: Eyes reactions = comment count
-- [ ] Gate 2: Artifact files created
-- [ ] Gate 3: All tasks tracked in tasks.md
-- [ ] Gate 4: Artifact state matches API state
-- [ ] Gate 5: All threads resolved
-EOF
+# Create the PR comment run log consumed by later gates.
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+mkdir -p "$(dirname "$PR_COMMENT_LOG")"
+: > "$PR_COMMENT_LOG"
 ```
 
-**Evidence required**: Session log file exists with checkboxes.
+**Evidence required**: Protocol session log and PR comment run log both exist.
 
 ### Gate 1: Acknowledgment Verification
 
@@ -296,7 +291,8 @@ EOF
 
 ```bash
 # Count reactions added vs comments
-REACTIONS_ADDED=$(cat .agents/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+REACTIONS_ADDED=$(grep -c "reaction.*eyes" "$PR_COMMENT_LOG")
 COMMENT_COUNT=$TOTAL_COMMENTS
 
 if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
@@ -1183,7 +1179,7 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 
 Follow the pattern: **Action + Location + Reference**
 
-✅ Good:
+[GOOD]:
 
 ```text
 Fixed in abc1234. Updated validation logic to handle null values.
@@ -1193,7 +1189,7 @@ Fixed in abc1234. Updated validation logic to handle null values.
 Refactored in def5678. Extracted method to reduce complexity from 15 to 8.
 ```
 
-❌ Avoid:
+[AVOID]:
 
 ```text
 Done.
@@ -1347,13 +1343,13 @@ fi
 
 **Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
 
-- ✅ No merge conflicts
-- ✅ Branch is compatible with base
+- [PASS] No merge conflicts
+- [PASS] Branch is compatible with base
 
 It does NOT mean:
 
-- ❌ CI checks passing
-- ❌ Required status checks satisfied
+- [FAIL] CI checks passing
+- [FAIL] Required status checks satisfied
 
 **Always verify CI explicitly** using the get_pr_checks.py skill:
 

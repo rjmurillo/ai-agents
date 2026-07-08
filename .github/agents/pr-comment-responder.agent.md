@@ -61,20 +61,24 @@ This agent delegates to orchestrator, which uses these canonical workflow paths:
 
 See `orchestrator.md` for full routing logic. This agent passes context to orchestrator; orchestrator determines the path.
 
-## GitHub Skill (Cross-Platform Note)
+## GitHub Skill
 
-When running in environments with Python support (Python 3), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
+The unified github skill at `.claude/skills/github/` provides tested Python scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
 
-| Operation | Skill Script | Bash Fallback |
-|-----------|--------------|---------------|
-| PR metadata | `get_pr_context.py` | `gh pr view` |
-| Review + Issue comments | `get_pr_review_comments.py --include-issue-comments` | Manual pagination of both endpoints |
-| Reviewer list | `get_pr_reviewers.py` | `gh api ... \| jq` |
-| Reply to comment | `post_pr_comment_reply.py` | `gh api -X POST` |
-| Add reaction (batch) | `gh api repos/{owner}/{repo}/pulls/comments/{id}/reactions -X POST --input -` | Direct REST API call |
-| CI check status | `get_pr_checks.py` | `gh pr checks` (limited) |
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+```
 
-The bash examples below work cross-platform; use Python skill scripts for all operations.
+| Operation | Script |
+|-----------|--------|
+| PR metadata | `python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}` |
+| Review threads | `python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request {number}` |
+| Unaddressed comments | `python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request {number}` |
+| Reply to comment | `python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request {number} --body "..."` |
+| Reply to thread | `python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --thread-id "PRRT_..." --body "..."` |
+| CI check status | `python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request {number}` |
+| Resolve thread | `python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_..."` |
+| PR merge check | `python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request {number}` |
 
 ## Triage Heuristics
 
@@ -183,14 +187,14 @@ For atomic bugs that meet ALL of these criteria, delegate directly to `implement
 **When to bypass orchestrator:**
 
 ```text
-#runSubagent with subagentType=implementer
+/agent implementer
 Fix: [one-sentence description]...
 ```
 
 For Standard/Strategic paths, still use orchestrator:
 
 ```text
-#runSubagent with subagentType=orchestrator
+/agent orchestrator
 Analyze and implement...
 ```
 
@@ -207,7 +211,7 @@ Analyze and implement...
 Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
 
 ```text
-#runSubagent with subagentType=qa
+/agent qa
 Verify fix and assess regression test needs...
 ```
 
@@ -220,23 +224,18 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 **Before any work**: Create session log with protocol compliance checklist.
 
 ```bash
-# Create session log
-SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
-cat > "$SESSION_FILE" << 'EOF'
-# PR Comment Responder Session
+# Create protocol session log with the session-init skill.
+python3 .claude/skills/session-init/scripts/new_session_log.py \
+  --session-number [session_number] \
+  --objective "Respond to PR review comments"
 
-## Protocol Compliance Checklist
-
-- [ ] Gate 0: Session log created
-- [ ] Gate 1: Eyes reactions = comment count
-- [ ] Gate 2: Artifact files created
-- [ ] Gate 3: All tasks tracked in tasks.md
-- [ ] Gate 4: Artifact state matches API state
-- [ ] Gate 5: All threads resolved
-EOF
+# Create the PR comment run log consumed by later gates.
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+mkdir -p "$(dirname "$PR_COMMENT_LOG")"
+: > "$PR_COMMENT_LOG"
 ```
 
-**Evidence required**: Session log file exists with checkboxes.
+**Evidence required**: Protocol session log and PR comment run log both exist.
 
 ### Gate 1: Acknowledgment Verification
 
@@ -244,7 +243,8 @@ EOF
 
 ```bash
 # Count reactions added vs comments
-REACTIONS_ADDED=$(cat .agents/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+REACTIONS_ADDED=$(grep -c "reaction.*eyes" "$PR_COMMENT_LOG")
 COMMENT_COUNT=$TOTAL_COMMENTS
 
 if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
@@ -382,7 +382,6 @@ Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **
 Before fetching new data, check if this is a continuation of a previous session:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 SESSION_DIR=".agents/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
@@ -392,7 +391,8 @@ if [ -d "$SESSION_DIR" ]; then
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
   # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
-  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
+  SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number] | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -452,7 +452,7 @@ fi
 1. **Run retrospective analysis**: Determine why the PR required so many commits
 
    ```text
-   #runSubagent with subagentType=retrospective
+   /agent retrospective
    Analyze PR #[number] to determine why it exceeded commit thresholds.
 
    Focus on:
@@ -509,10 +509,10 @@ for reviewer in ALL_REVIEWERS:
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Using github skill (PREFERRED) - handles pagination automatically
-# IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries, etc.
-python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
+# Captures review threads, issue comments (AI Quality Gate, CodeRabbit summaries, etc.)
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number]
 
 # Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
 ```
@@ -554,7 +554,7 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 
 #### Step 1.4: Extract Comment Details
 
-The `get_pr_review_comments.py` script returns full comment details including:
+The `get_unaddressed_comments.py` script returns full comment details including:
 
 - `id`: Comment ID for reactions and replies
 - `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
@@ -604,22 +604,23 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-# PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
+# PREFERRED: Batch acknowledge all comments
 # Get all comment IDs from the comments retrieved in Phase 1
-comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
-ids=$(echo "$comments" | jq -r '.Comments[].id')
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number])
+IDS=$(echo "$COMMENTS" | jq -r '.Comments[].id')
 
-# Batch acknowledge using gh api directly
-for ID in $ids; do
-  gh api "repos/{owner}/{repo}/pulls/comments/$ID/reactions" \
-    -X POST --input - <<< '{"content":"eyes"}' 2>/dev/null \
-  || gh api "repos/{owner}/{repo}/issues/comments/$ID/reactions" \
-    -X POST --input - <<< '{"content":"eyes"}' 2>/dev/null
+# Batch acknowledge using gh api directly (no Python equivalent for Add-CommentReaction)
+for ID in $IDS; do
+  # Determine comment type and react accordingly
+  gh api "repos/[owner]/[repo]/pulls/comments/$ID/reactions" \
+    -X POST -f content="eyes" 2>/dev/null \
+  || gh api "repos/[owner]/[repo]/issues/comments/$ID/reactions" \
+    -X POST -f content="eyes" 2>/dev/null
 done
 
-# Verify all acknowledged
-echo "Acknowledged comments via reactions"
+TOTAL=$(echo "$IDS" | wc -w)
+echo "Acknowledged $TOTAL comments"
 ```
 
 <details>
@@ -732,7 +733,7 @@ Analyze this PR comment and determine:
 #### Step 3.2: Delegate to Orchestrator
 
 ```text
-#runSubagent with subagentType=orchestrator
+/agent orchestrator
 [Context from Step 3.1]
 
 After analysis, save plan to: `.agents/pr-comments/PR-[number]/[comment_id]-plan.md`
@@ -972,7 +973,7 @@ Implement tasks in priority order. For each task:
 #### Step 6.1: Delegate to Orchestrator
 
 ```text
-#runSubagent with subagentType=orchestrator
+/agent orchestrator
 Implement this PR comment fix:
 
 ## Task
@@ -1035,8 +1036,8 @@ After replying with resolution, mark the thread as resolved. This is required fo
 2. You need a response from the reviewer (human or bot)
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 
 # Or resolve a single thread by ID
@@ -1045,7 +1046,7 @@ python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWR
 
 **Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
 
-**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`-All`) automatically discovers and resolves all unresolved threads.
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`--all`) automatically discovers and resolves all unresolved threads.
 
 #### Step 6.5: Update Task List
 
@@ -1108,8 +1109,8 @@ fi
 **Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Run bulk resolution to ensure all threads are resolved
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 ```
 
@@ -1132,12 +1133,12 @@ If any threads fail to resolve, investigate and retry before claiming completion
 After pushing commits, bots may post new comments. Wait and re-check:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Wait for bot responses (30-60 seconds)
 sleep 45
 
 # Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
-NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number] | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
@@ -1155,48 +1156,46 @@ fi
 
 **Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
 
-- ✅ No merge conflicts
-- ✅ Branch is compatible with base
+- [PASS] No merge conflicts
+- [PASS] Branch is compatible with base
 
 It does NOT mean:
 
-- ❌ CI checks passing
-- ❌ Required status checks satisfied
+- [FAIL] CI checks passing
+- [FAIL] Required status checks satisfied
 
-**Always verify CI explicitly** using the get_pr_checks.py skill:
+**Always verify CI explicitly** using the `get_pr_checks.py` script:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Check ALL CI checks status with wait for completion
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number] --wait --timeout-seconds 300)
-exit_code=$?
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+CHECKS=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number] --wait --timeout-seconds 300)
+EXIT_CODE=$?
 
 # Handle timeout (exit code 7)
-if [ "$exit_code" -eq 7 ]; then
-    echo "[BLOCKED] Timeout waiting for CI checks to complete"
-    pending=$(echo "$checks" | jq -r '.PendingCount')
-    echo "  Pending: $pending check(s) still running"
-    exit 1
+if [ "$EXIT_CODE" -eq 7 ]; then
+  echo "[BLOCKED] Timeout waiting for CI checks to complete"
+  echo "  Pending: $(echo "$CHECKS" | jq '.PendingCount') check(s) still running"
+  exit 1
 fi
 
 # Handle API errors
-error=$(echo "$checks" | jq -r '.Error // empty')
-if [ -n "$error" ]; then
-    echo "[ERROR] Failed to get CI check status: $error"
-    exit 1
+if [ "$(echo "$CHECKS" | jq -r '.Success')" != "true" ]; then
+  echo "[ERROR] Failed to get CI check status: $(echo "$CHECKS" | jq -r '.Error')"
+  exit 1
 fi
 
 # Check for failures
-failed=$(echo "$checks" | jq -r '.FailedCount')
-if [ "$failed" -gt 0 ]; then
-    echo "[BLOCKED] $failed CI check(s) not passing:"
-    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
-    # Do NOT claim completion - return to Phase 6 for fixes
-    exit 1
+FAILED_COUNT=$(echo "$CHECKS" | jq '.FailedCount')
+if [ "$FAILED_COUNT" -gt 0 ]; then
+  echo "[BLOCKED] $FAILED_COUNT CI check(s) not passing:"
+  echo "$CHECKS" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
+  # Do NOT claim completion - return to Phase 6 for fixes
+  exit 1
 fi
 
-passed=$(echo "$checks" | jq -r '.PassedCount')
-echo "[PASS] All CI checks passing ($passed checks)"
+PASSED_COUNT=$(echo "$CHECKS" | jq '.PassedCount')
+echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 ```
 
 **Exit codes**:
@@ -1207,7 +1206,7 @@ echo "[PASS] All CI checks passing ($passed checks)"
 
 **If CI fails**: Parse failure messages, add new tasks to task list, return to Phase 6 for implementation.
 
-**Skill Reference**: get_pr_checks.py (uses GraphQL statusCheckRollup for reliable check status)
+**Skill Reference**: `get_pr_checks.py` (uses GraphQL statusCheckRollup for reliable check status)
 
 #### Phase 8.5: Completion Criteria Checklist
 
@@ -1222,17 +1221,23 @@ echo "[PASS] All CI checks passing ($passed checks)"
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Final verification
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 echo "=== Completion Criteria ==="
 echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
 echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
-all_passing=$(echo "$checks" | jq -r '.AllPassing')
-ci_status=$([ "$all_passing" = "true" ] && echo "PASS" || echo "BLOCKED")
-echo "[ ] CI checks: $ci_status"
+CHECKS=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
+ALL_PASSING=$(echo "$CHECKS" | jq -r '.AllPassing')
+if [ "$ALL_PASSING" = "true" ]; then
+  CI_STATUS="PASS"
+else
+  FAILED=$(echo "$CHECKS" | jq '.FailedCount')
+  PENDING=$(echo "$CHECKS" | jq '.PendingCount')
+  CI_STATUS="$FAILED failures, $PENDING pending"
+fi
+echo "[ ] CI checks: $CI_STATUS"
 
 echo "[ ] Pushed: $(git status -sb | head -1)"
 ```
@@ -1360,26 +1365,26 @@ Use sparingly. Only resolve after actually addressing issues.
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
+Use Memory Router for search and Serena tools for persistence (ADR-037). Memory is critical for PR comment handling, as reviewers have predictable patterns.
 
-**At start (MUST):**
+**At start (MANDATORY, retrieve context):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "PR review patterns bot false positives reviewer preferences"
+# Use Serena memory tools to search for PR review context
+mcp__serena__read_memory(memory_name="pr-comment-responder-skills")
+# Or search Forgetful for semantic matches
+mcp__forgetful__execute_forgetful_tool("query_memory", {"query": "PR review patterns bot behaviors reviewer preferences"})
 ```
 
-**After EVERY triage decision:**
+**After EVERY triage decision (store learnings):**
 
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-PRReview-[PR-Number]",
-    "contents": ["[Triage decision and outcome]"]
-  }]
-}
+```text
+mcp__serena__write_memory
+memory_file_name: "pr-pattern-[category]"
+content: "# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
+
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 | Category | What to Store | Why |
 |----------|---------------|-----|

@@ -32,7 +32,18 @@ jobs:
         id: drift
         run: |
           echo "Running agent drift detection..."
-          python3 build/scripts/detect_agent_drift.py --output-format text --fail-on-install-drift
+          python3 build/scripts/detect_agent_drift.py --output-format text --fail-on-install-drift || EXIT_CODE=$?
+
+          if [ "${EXIT_CODE:-0}" = "1" ]; then
+            echo "drift_detected=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          elif [ "${EXIT_CODE:-0}" = "0" ]; then
+            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
+            exit "${EXIT_CODE:-0}"
+          fi
 
       # K2 (REQ-008-09): record a generator-regression kill-criteria event
       # when template drift is detected. The emitter owns the JSONL schema;
@@ -190,6 +201,12 @@ jobs:
           EOF
 
           gh issue comment "$ISSUE_NUMBER" --body-file comment-body.md
+
+      - name: Fail when drift was detected
+        if: steps.drift.outputs.drift_detected == 'true'
+        run: |
+          echo "::error::agent drift detected"
+          exit 1
 
       - name: Summary
         if: always()
