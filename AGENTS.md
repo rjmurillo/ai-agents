@@ -37,7 +37,8 @@ Knowledge -> passive context (@imports, every turn, outside training, <8KB). Act
 |PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
-|New capability (Context/module/scanner/validator/pipeline): buy-vs-build Quick tier BEFORE spec-generator + baseline; >13wk no baseline = prune. Skip: bug, doc, refactor, approved extension
+|ADR-078: request names no skill -> autoplan is the front door; autoplan hands multi-step/cross-cutting work to orchestrator; orchestrator does not route back to autoplan
+|New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-capability-extension
 
 ### ADR Review
 

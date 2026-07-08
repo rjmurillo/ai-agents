@@ -40,16 +40,12 @@ Planned build extension ships Copilot-compatible copies to `.github/instructions
 
 ## Skill routing
 
-If user request matches available skill, ALWAYS invoke via Skill tool as FIRST action. Do not answer directly, do not use other tools first. Skills have specialized workflows that beat ad-hoc answers.
+Explicit skill invocations still win: when the request names an available skill or uses that skill's slash command, invoke that skill first. Concrete requests that name no skill go through `/autoplan` below.
 
-Key routing rules:
-- Bugs, errors, "why is this broken" → invoke analyze skill
-- PRs, issues, GitHub operations → invoke github skill
-- PR review threads, comment triage → invoke pr-comment-responder skill
+`/autoplan` is the canonical intent router for concrete requests that name no skill, per ADR-078. It routes to skills, lifecycle commands, and agent handoffs (for example orchestrator for multi-step work), not skills alone. Keep the routing table in `.claude/skills/autoplan/SKILL.md`; do not duplicate it here.
+
+Explicit routing rules not owned by autoplan:
 - Weekly retro → invoke reflect skill
-- Save progress, checkpoint → invoke session-end skill
-- Code quality, health check → invoke quality-grades skill
-- New capability proposed (Context, new module/scanner/validator/pipeline component) → invoke buy-vs-build-framework skill (Quick tier minimum) BEFORE /spec generates artifacts. Skip for pure bug fixes, doc-only changes, refactors with no new capability surface, or extensions of an already-approved capability that add no new tool/scanner/validator.
 
 ## Lifecycle commands
 
