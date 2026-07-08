@@ -262,7 +262,7 @@ def build_session_log_context(context_path: str) -> ReviewContext:
     path = Path(context_path)
     if context_path and path.is_file():
         return ReviewContext(read_utf8_file(path, "Session log"), "full")
-    return ReviewContext(f"Session log file not found: {context_path}", "full")
+    return ReviewContext(f"Session log file not found: {context_path}", "partial")
 
 
 def build_spec_context(
@@ -273,7 +273,7 @@ def build_spec_context(
 ) -> ReviewContext:
     path = Path(context_path)
     if not context_path or not path.is_file():
-        return ReviewContext(f"Spec file not found: {context_path}", "full")
+        return ReviewContext(f"Spec file not found: {context_path}", "partial")
 
     spec = read_utf8_file(path, "Spec")
     if not pr_number:

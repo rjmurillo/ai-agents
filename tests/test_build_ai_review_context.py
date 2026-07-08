@@ -228,7 +228,7 @@ def test_build_session_log_context_reports_missing(tmp_path: Path):
 
     context = _mod.build_session_log_context(str(missing_path))
 
-    assert context.mode == "full"
+    assert context.mode == "partial"
     assert context.text == f"Session log file not found: {missing_path}"
 
 
@@ -271,6 +271,17 @@ def test_build_spec_context_without_pr_uses_spec_only(
     assert context.mode == "partial"
     assert "## Specification\nSpec body" in context.text
     assert "## Implementation Changes\n[No PR diff provided]" in context.text
+
+
+def test_build_spec_context_reports_missing_as_partial(tmp_path: Path):
+    """Missing spec files do not claim full review context."""
+
+    missing_path = tmp_path / "missing.md"
+
+    context = _mod.build_spec_context(str(missing_path), "", "owner/repo", 100)
+
+    assert context.mode == "partial"
+    assert context.text == f"Spec file not found: {missing_path}"
 
 
 def test_build_spec_context_truncates_large_diff(
