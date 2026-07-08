@@ -37,7 +37,7 @@ Knowledge -> passive context (@imports, every turn, outside training, <8KB). Act
 |PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
-|ADR-078: no-skill -> autoplan routes|Multi-step -> orchestrator coordinates
+|ADR-078: request names no skill -> autoplan is the front door; autoplan hands multi-step/cross-cutting work to orchestrator; orchestrator does not route back to autoplan
 |New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor
 
 ### ADR Review
