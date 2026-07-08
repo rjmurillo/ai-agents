@@ -28,24 +28,24 @@ The addition of PowerShell call operator `&` to two script invocations in the pr
 
 **Before**:
 ```powershell
-./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[PR Maintenance] Blocked PRs Require Human Action" -Body $body -Labels "automation,needs-triage"
+uv run python .claude/skills/github/scripts/issue/new_issue.py --title "[PR Maintenance] Blocked PRs Require Human Action" --body "$body" --labels "automation,needs-triage"
 ```
 
 **After**:
 ```powershell
-& ./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[PR Maintenance] Blocked PRs Require Human Action" -Body $body -Labels "automation,needs-triage"
+& uv run python .claude/skills/github/scripts/issue/new_issue.py --title "[PR Maintenance] Blocked PRs Require Human Action" --body "$body" --labels "automation,needs-triage"
 ```
 
 ### Line 123 (Notify on failure)
 
 **Before**:
 ```powershell
-./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[ALERT] PR Maintenance Workflow Failed" -Body $body -Labels "automation,priority:P1"
+uv run python .claude/skills/github/scripts/issue/new_issue.py --title "[ALERT] PR Maintenance Workflow Failed" --body "$body" --labels "automation,priority:P1"
 ```
 
 **After**:
 ```powershell
-& ./.claude/skills/github/scripts/issue/New-Issue.ps1 -Title "[ALERT] PR Maintenance Workflow Failed" -Body $body -Labels "automation,priority:P1"
+& uv run python .claude/skills/github/scripts/issue/new_issue.py --title "[ALERT] PR Maintenance Workflow Failed" --body "$body" --labels "automation,priority:P1"
 ```
 
 ## Security Analysis

@@ -7,6 +7,8 @@ related:
 ---
 # TASK-a02: Implement Caching Module
 
+Historical note: these PowerShell-era artifacts were removed during the Python migration; this task record describes the original implementation.
+
 Created `scripts/traceability/TraceabilityCache.psm1` with:
 
 - Cache key generation from file paths

@@ -38,16 +38,16 @@ When making decisions about:
 |------------|--------|--------------|
 | MUST NOT create bash scripts (.sh) | ADR-005, ADR-042 | Pre-commit hook, code review |
 | SHOULD prefer Python (.py) for new scripts | ADR-042 | Code review |
-| MAY use PowerShell (.ps1, .psm1) for existing scripts | ADR-042 | Code review |
+| MUST keep scripts Python-first; no tracked PowerShell scripts remain | ADR-042 | Code review, `git ls-files` |
 
 **References**:
 
 - [ADR-005-powershell-only-scripting.md](../architecture/ADR-005-powershell-only-scripting.md) (superseded for new development)
 - [ADR-042-python-migration-strategy.md](../architecture/ADR-042-python-migration-strategy.md) (current)
 
-**Rationale Summary**: ADR-042 establishes Python-first development due to 70-second PowerShell startup times, CodeQL support, and AI/ML ecosystem alignment. Existing PowerShell scripts are grandfathered; new scripts should use Python.
+**Rationale Summary**: ADR-042 establishes Python-first development due to 70-second PowerShell startup times, CodeQL support, and AI/ML ecosystem alignment. The repository no longer tracks PowerShell scripts; new scripts should use Python.
 
-**Exceptions**: Bash scripts are still prohibited. PowerShell may be used for existing script maintenance.
+**Exceptions**: Bash scripts are still prohibited. PowerShell may appear only in historical rationale or external examples.
 
 ---
 
@@ -79,25 +79,25 @@ When making decisions about:
 |------------|--------|--------------|
 | MUST NOT put business logic in workflow YAML | ADR-006 | Code review |
 | SHOULD keep workflows under 100 lines (orchestration only) | ADR-006 | Lint check |
-| MUST put complex logic in .psm1 modules | ADR-006 | Code review |
-| MUST have Pester tests for modules (80%+ coverage) | ADR-006 | CI coverage check |
+| MUST put complex logic in Python modules | ADR-006, ADR-042 | Code review |
+| MUST have pytest tests for modules (80%+ coverage) | ADR-006 | CI coverage check |
 | MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
 | MUST run `gh act` locally before pushing workflow changes | AGENTS.md | `gh act` output in transcript |
 **Reference**: [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md)
 
-**Rationale Summary**: GitHub Actions workflows cannot be tested locally. The feedback loop (edit -> push -> wait -> check) is slow. Extracting logic to modules enables fast local testing with Pester.
+**Rationale Summary**: GitHub Actions workflows cannot be tested locally. The feedback loop (edit -> push -> wait -> check) is slow. Extracting logic to modules enables fast local testing with pytest.
 
 **Pattern**:
 
 - Workflow YAML: Orchestration only (calls, parameters, artifacts)
-- PowerShell Module (.psm1): All business logic
-- Pester Tests (.Tests.ps1): Fast local feedback
+- Python modules: All business logic
+- pytest tests: Fast local feedback
 
 **New AI-Powered Workflow Checklist**:
 
 When creating a new AI-powered workflow with concurrency control:
 
-1. Add workflow name to monitoring list in `.github/scripts/Measure-WorkflowCoalescing.ps1` (line 47, `$Workflows` parameter default)
+1. Add workflow name to monitoring list in `.github/scripts/measure_workflow_coalescing.py` (`DEFAULT_WORKFLOWS`)
 2. Document workflow in `.github/AGENTS.md`
 3. Ensure concurrency group follows naming pattern: `{prefix}-${{ github.event.pull_request.number }}`
 
@@ -231,7 +231,7 @@ Use this checklist during session start:
 
 - [ ] Read this document (PROJECT-CONSTRAINTS.md)
 - [ ] For GitHub operations: Verify skill exists before writing code
-- [ ] For new scripts: Verify Python or PowerShell (no .sh files per ADR-042)
+- [ ] For new scripts: Verify Python (no .sh files per ADR-042)
 - [ ] For workflow changes: Verify logic in modules, not YAML; actions are SHA-pinned, not version tags
 - [ ] For workflow changes: Run `gh act` locally before pushing (MUST)
 - [ ] For agent/skill/prompt frontmatter: Verify block-style arrays (not inline `['tool1', 'tool2']`)

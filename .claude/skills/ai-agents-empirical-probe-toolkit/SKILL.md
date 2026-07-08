@@ -118,7 +118,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 3. For vendor docs: remember they were wrong by omission twice here (#2205 env vars, #2290 payload casing). If the behavior is load-bearing, escalate to Recipe 1.
 4. When you find stale docs, fix on contact or flag with path:line; do not silently work around them.
 
-**Worked example (the dead pwsh commands)**: `CONTRIBUTING.md:155` still instructs `pwsh build/Generate-Agents.ps1`, but zero `.ps1` files exist in the repo outside `.venv` (ADR-042 Python migration; verify: `find . -name '*.ps1' -not -path './.venv/*'`). The real commands are `python3 build/generate_agents.py` and `python3 build/scripts/build_all.py`. Anyone transcribing CONTRIBUTING.md ships a dead runbook. This skill library was itself written under this recipe: every command above was executed before being written down.
+**Worked example (the dead pwsh commands)**: `CONTRIBUTING.md:155` said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871 repointed it to `python3 build/generate_agents.py`; zero `.ps1` files exist in the repo outside `.venv` (ADR-042 Python migration; verify: `find . -name '*.ps1' -not -path './.venv/*'`). The real commands are `python3 build/generate_agents.py` and `python3 build/scripts/build_all.py`. Anyone who transcribed the old CONTRIBUTING.md shipped a dead runbook. This skill library was itself written under this recipe: every command above was executed before being written down.
 
 **Worked example (the imagined contract)**: PR #1887's M4 guard was designed against an imagined contract instead of the canonical `scripts/validate_session_json.py` regex; aligning it took 7 fix commits (`.claude/rules/canonical-source-mirror.md`, citing the #1887 retro).
 

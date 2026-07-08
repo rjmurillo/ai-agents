@@ -129,7 +129,7 @@ Implement a **three-tier distributed handoff architecture** that eliminates cent
 
 ```bash
 # Token budget check
-pwsh scripts/Validate-TokenBudget.ps1
+python3 scripts/validation/token_budget.py --ci
 
 # Pre-commit enforcement test
 echo "test" >> .agents/HANDOFF.md

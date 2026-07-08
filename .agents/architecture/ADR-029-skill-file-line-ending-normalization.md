@@ -93,8 +93,8 @@ This directive ensures:
 
 The script includes a `-Lf` flag to explicitly generate LF line endings:
 
-```powershell
-pwsh build/scripts/Generate-Skills.ps1 -Lf
+```bash
+python3 build/scripts/build_all.py
 ```
 
 This ensures consistency even before git normalization.

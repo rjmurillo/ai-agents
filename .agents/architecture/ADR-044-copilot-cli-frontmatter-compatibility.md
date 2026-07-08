@@ -135,7 +135,7 @@ Implementation compliance confirmed by testing on 2026-02-01:
 
 1. **Version verification**: CI installs `@github/copilot@0.0.397` and `copilot --no-auto-update --version` outputs `0.0.397`. Warning emitted if binary auto-updated.
 2. **Local validation**: 9 agents tested (analyst, explainer, security, architect, critic, devops, qa, roadmap, skillbook). All produce exit code 0 with zero validation warnings on 0.0.397 with `--log-level all`.
-3. **Build system verification**: `pwsh build/Generate-Agents.ps1` generates `model: claude-opus-4.5` for Copilot CLI and `model: Claude Opus 4.5 (copilot)` for VS Code.
+3. **Build system verification**: `python3 build/generate_agents.py` generates `model: claude-opus-4.5` for Copilot CLI and `model: Claude Opus 4.5 (copilot)` for VS Code.
 4. **Model behavior**: Frontmatter `model` field is accepted but does not control runtime model selection. CI uses `--model` CLI flag (default: `claude-opus-4.5`).
 5. **Regression confirmation**: Same agents fail on 0.0.400 with `agent uses unsupported fields: argument-hint`, confirming the regression.
 

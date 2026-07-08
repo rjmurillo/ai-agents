@@ -28,9 +28,9 @@ CodeQL is a semantic code analysis engine that helps identify security vulnerabi
 
 ### One-Command Setup
 
-```powershell
+```bash
 # Install CodeQL CLI and configure all integrations
-pwsh .codeql/scripts/Install-CodeQLIntegration.ps1
+python3 .codeql/scripts/install_codeql_integration.py
 ```
 
 This installs:
@@ -43,12 +43,12 @@ This installs:
 
 ### Quick Scan
 
-```powershell
+```bash
 # Full repository scan
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
+python3 .codeql/scripts/invoke_codeql_scan.py
 
 # Quick scan with caching
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache
+python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
 ```
 
 ---
@@ -65,17 +65,17 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache
 
 #### 1. Install CodeQL CLI
 
-```powershell
+```bash
 # Download and install CodeQL CLI
-pwsh .codeql/scripts/Install-CodeQL.ps1
+python3 .codeql/scripts/install_codeql.py
 
 # Add to PATH (optional, for command-line access)
-pwsh .codeql/scripts/Install-CodeQL.ps1 -AddToPath
+python3 .codeql/scripts/install_codeql.py --add-to-path
 ```
 
 **Verification**:
 
-```powershell
+```bash
 # Check CLI version
 .codeql/cli/codeql version
 ```
@@ -88,9 +88,9 @@ CodeQL command-line toolchain release 2.23.9.
 
 #### 2. Configure Integration
 
-```powershell
+```bash
 # Install all integration components
-pwsh .codeql/scripts/Install-CodeQLIntegration.ps1
+python3 .codeql/scripts/install_codeql_integration.py
 ```
 
 This configures:
@@ -103,9 +103,9 @@ This configures:
 
 #### 3. Verify Configuration
 
-```powershell
+```bash
 # Validate configuration files
-pwsh .codeql/scripts/Test-CodeQLConfig.ps1
+python3 .codeql/scripts/test_codeql_config.py
 ```
 
 **Expected output**:
@@ -125,8 +125,8 @@ pwsh .codeql/scripts/Test-CodeQLConfig.ps1
 
 Scans all supported languages with complete query packs:
 
-```powershell
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py
 ```
 
 **Output**: SARIF results at `.codeql/results/codeql-results.sarif`
@@ -137,8 +137,8 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
 
 Uses cached databases for faster feedback:
 
-```powershell
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
 ```
 
 **Cache invalidation triggers**:
@@ -151,24 +151,24 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache
 
 Scan only specific language:
 
-```powershell
+```bash
 # Python only
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "python"
+python3 .codeql/scripts/invoke_codeql_scan.py --languages python
 
 # GitHub Actions only
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "actions"
+python3 .codeql/scripts/invoke_codeql_scan.py --languages actions
 ```
 
 ### Configuration Validation
 
 Verify configuration before scanning:
 
-```powershell
+```bash
 # Validate configuration
-pwsh .codeql/scripts/Test-CodeQLConfig.ps1
+python3 .codeql/scripts/test_codeql_config.py
 
 # Verbose diagnostics
-pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1
+python3 .codeql/scripts/get_codeql_diagnostics.py
 ```
 
 ### Claude Code Skill
@@ -383,9 +383,9 @@ CodeQL CLI not found at .codeql/cli/codeql
 
 **Solution**:
 
-```powershell
+```bash
 # Install CodeQL CLI
-pwsh .codeql/scripts/Install-CodeQL.ps1
+python3 .codeql/scripts/install_codeql.py
 
 # Verify installation
 .codeql/cli/codeql version
@@ -401,9 +401,9 @@ pwsh .codeql/scripts/Install-CodeQL.ps1
 
 **Solution**:
 
-```powershell
+```bash
 # Validate YAML syntax
-pwsh .codeql/scripts/Test-CodeQLConfig.ps1
+python3 .codeql/scripts/test_codeql_config.py
 
 # Check for common issues:
 # - Incorrect indentation
@@ -421,15 +421,15 @@ Scan exceeded timeout of 300 seconds
 
 **Solutions**:
 
-```powershell
+```bash
 # Option 1: Scan specific language
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "python"
+python3 .codeql/scripts/invoke_codeql_scan.py --languages python
 
 # Option 2: Increase timeout (in workflow YAML)
 timeout-minutes: 10
 
 # Option 3: Use quick scan for faster feedback
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache
+python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
 ```
 
 ### Cache Invalidation Issues
@@ -438,9 +438,9 @@ pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache
 
 **Solutions**:
 
-```powershell
+```bash
 # Force database rebuild
-pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Force
+python3 .codeql/scripts/invoke_codeql_scan.py
 
 # Clear cache manually
 Remove-Item -Recurse -Force .codeql/db
@@ -479,9 +479,9 @@ Failed to create CodeQL database
 
 **Solutions**:
 
-```powershell
+```bash
 # Run diagnostics
-pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1
+python3 .codeql/scripts/get_codeql_diagnostics.py
 
 # Check for:
 # - Unsupported language
@@ -640,7 +640,7 @@ paths-ignore:
 
 For issues or questions:
 
-1. **Diagnostics**: Run `pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1`
-2. **Validation**: Run `pwsh .codeql/scripts/Test-CodeQLConfig.ps1`
+1. **Diagnostics**: Run `python3 .codeql/scripts/get_codeql_diagnostics.py`
+2. **Validation**: Run `python3 .codeql/scripts/test_codeql_config.py`
 3. **Documentation**: See [CodeQL documentation](https://codeql.github.com/docs/)
 4. **Repository Issues**: [GitHub Issues](https://github.com/rjmurillo/ai-agents/issues)

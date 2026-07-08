@@ -58,16 +58,16 @@ When drift is detected, it means Claude agents have diverged from the shared tem
 
 ```powershell
 # Run drift detection locally
-pwsh build/scripts/Detect-AgentDrift.ps1
+python3 build/scripts/detect_agent_drift.py
 
 # See detailed JSON output
-pwsh build/scripts/Detect-AgentDrift.ps1 -OutputFormat JSON
+python3 build/scripts/detect_agent_drift.py --output-format json
 
 # Get markdown report
-pwsh build/scripts/Detect-AgentDrift.ps1 -OutputFormat Markdown
+python3 build/scripts/detect_agent_drift.py --output-format markdown
 
 # Adjust similarity threshold (default 80%)
-pwsh build/scripts/Detect-AgentDrift.ps1 -SimilarityThreshold 90
+python3 build/scripts/detect_agent_drift.py --similarity-threshold 90
 ```
 
 ### Resolution Checklist
@@ -75,5 +75,5 @@ pwsh build/scripts/Detect-AgentDrift.ps1 -SimilarityThreshold 90
 - [ ] Identified root cause of drift
 - [ ] Decided on resolution approach
 - [ ] Made necessary updates
-- [ ] Verified with `pwsh build/scripts/Detect-AgentDrift.ps1`
+- [ ] Verified with `python3 build/scripts/detect_agent_drift.py`
 - [ ] Closed this issue

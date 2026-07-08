@@ -1,7 +1,7 @@
 # Toolset Definitions for Agent Generation
 #
 # Named groups of tools that can be referenced in shared agent templates
-# using the $toolset:name syntax. The build system (Generate-Agents.ps1)
+# using the $toolset:name syntax. The build system (build/generate_agents.py)
 # expands these references into individual tools when generating
 # platform-specific agent files.
 #

@@ -101,6 +101,8 @@ from checks_tooling import (  # noqa: E402, F401
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from stale_script_refs import validate_stale_script_refs  # noqa: E402, F401
+from validate_argument_hint import validate_argument_hint  # noqa: E402, F401
 
 # Frontmatter parsing and DESIGN-REVIEW validation live in sibling modules
 # (issue #2223). Re-exported here so ``_parse_yaml_frontmatter`` and
@@ -115,7 +117,6 @@ from validate_design_review import (  # noqa: E402, F401
 from validate_no_orphaned_build_deferrals import (  # noqa: E402, F401
     validate_no_orphaned_build_deferrals,
 )
-from validate_argument_hint import validate_argument_hint  # noqa: E402, F401
 from validate_python_syntax import validate_python_syntax  # noqa: E402, F401
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402, F401
 
@@ -327,6 +328,15 @@ def main(argv: list[str] | None = None) -> int:
         "Build Command Exit Gates",
         state,
         lambda: validate_build_gates(repo_root),
+    )
+
+    # 3.71 Stale script refs (Issue #2916). Fails when live docs command a
+    # removed script, the PowerShell-to-Python migration regression behind
+    # issues #2914 and #2915.
+    run_validation(
+        "Stale Script References",
+        state,
+        lambda: validate_stale_script_refs(repo_root),
     )
 
     # 3.72 Orphaned build_all --check deferrals (Issue #2770). Fails when a

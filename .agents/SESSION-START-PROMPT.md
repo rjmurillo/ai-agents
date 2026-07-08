@@ -37,15 +37,15 @@ Read the contents of the `.agents` directory before starting work:
 
 ## Build Commands
 
-```powershell
+```bash
 # Validate markdown
 npx markdownlint-cli2 --fix "**/*.md"
 
 # Format code (if any)
 dotnet format
 
-# Run any validation scripts
-./scripts/Validate-Traceability.ps1 -WhatIf  # Once created
+# Validate traceability inputs
+python3 scripts/traceability/show_traceability_graph.py --dry-run --show-orphans
 ```
 
 ## Agent Invocation Pattern

@@ -24,11 +24,11 @@ The synchronization strategy introduces minimal new security risk. The design co
 
 **Analysis**:
 
-The pre-commit hook (`Sync-MemoryToForgetful.ps1`) operates on `.serena/memories/` file changes:
+The pre-commit hook (`scripts/memory_sync/freshness.py`) operates on `.serena/memories/` file changes:
 
-```powershell
+```bash
 # Lines 324-329: Hook trigger
-Sync-MemoryToForgetful.ps1 -Path {file} -Operation {CreateOrUpdate|Delete}
+python3 scripts/memory_sync/freshness.py
 ```
 
 **Attack Vectors Evaluated**:
@@ -43,7 +43,7 @@ Sync-MemoryToForgetful.ps1 -Path {file} -Operation {CreateOrUpdate|Delete}
 **Evidence**:
 
 From line 359:
-```powershell
+```bash
 $content = Get-Content -Path $Path -Raw  # Read as string, no execution
 $newHash = Get-ContentHash -Content $content -Algorithm SHA256
 ```
@@ -62,7 +62,7 @@ No `Invoke-Expression`, `Invoke-Command`, or shell execution. Content treated as
 
 Lines 360-367 use SHA-256 for content hashing:
 
-```powershell
+```bash
 $newHash = Get-ContentHash -Content $content -Algorithm SHA256
 
 # Line 366: Skip if unchanged
@@ -162,7 +162,7 @@ Attacker with local machine access could:
 
 Lines 378-386 implement soft delete:
 
-```powershell
+```bash
 # For deletes
 if ($Operation -eq 'Delete') {
     $existing = Find-ForgetfulMemoryByTitle -Title $memoryName
@@ -211,7 +211,7 @@ if ($Operation -eq 'Delete') {
 
 **Recommendation**: Document data retention policy. Add hard delete command for sensitive data if needed:
 
-```powershell
+```bash
 # For future consideration (not blocking)
 Remove-ForgetfulMemory -Id $id -HardDelete -Reason "Contains PII"
 ```
@@ -347,7 +347,7 @@ Security assessment of documented risks:
 
 Recommended test cases for synchronization security:
 
-```powershell
+```bash
 Describe "Sync Security" {
     Context "Content Handling" {
         It "Escapes special characters in memory content" {
@@ -513,7 +513,7 @@ Before merging synchronization code:
 
 **Implementation**:
 
-```powershell
+```bash
 # Add to Sync-MemoryToForgetful.ps1
 $logEntry = @{
     Timestamp = Get-Date -Format 'o'
@@ -552,7 +552,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check memory freshness
-        run: pwsh scripts/Test-MemoryFreshness.ps1
+        run: uv run pytest tests/test_memory_sync/test_freshness.py
       - name: Alert if drift > 5%
         run: |
           if ($env:DRIFT_RATE -gt 5) {
@@ -572,7 +572,7 @@ jobs:
 
 **Implementation**:
 
-```powershell
+```bash
 function Remove-ForgetfulMemory {
     param(
         [string]$Id,

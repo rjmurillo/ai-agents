@@ -133,16 +133,16 @@ See PR #795 for implementation history including:
 
 ```bash
 # Verify Factory generation
-pwsh .\scripts\Sync-McpConfig.ps1 -SourcePath .\.mcp.json -Target factory
+uv run --frozen python -m scripts.sync_mcp_config --source .mcp.json --target factory
 
 # Verify VS Code generation (default behavior)
-pwsh .\scripts\Sync-McpConfig.ps1
+uv run --frozen python -m scripts.sync_mcp_config
 
 # Verify batch generation
-pwsh .\scripts\Sync-McpConfig.ps1 -SyncAll
+uv run --frozen python -m scripts.sync_mcp_config --sync-all
 
 # Verify test coverage
-pwsh .\build\scripts\Invoke-PesterTests.ps1 -TestPath "scripts/tests/Sync-McpConfig.Tests.ps1"
+uv run pytest tests/
 # Expected: 58/58 tests passing
 ```
 

@@ -119,18 +119,18 @@ graph LR
 
 ### Basic Usage
 
-```powershell
+```bash
 # Standard validation
-pwsh scripts/Validate-Traceability.ps1
+python3 scripts/validation/traceability.py --ci
 
 # Strict mode (fail on warnings)
-pwsh scripts/Validate-Traceability.ps1 -Strict
+python3 scripts/validation/traceability.py --strict --ci
 
 # Generate markdown report
-pwsh scripts/Validate-Traceability.ps1 -Format markdown > report.md
+python3 scripts/validation/traceability.py --format markdown > report.md
 
 # JSON output for automation
-pwsh scripts/Validate-Traceability.ps1 -Format json
+python3 scripts/validation/traceability.py --format json
 ```
 
 ### Exit Codes
@@ -139,7 +139,7 @@ pwsh scripts/Validate-Traceability.ps1 -Format json
 |------|---------|-------------|
 | 0 | No errors or warnings | Pass |
 | 1 | Errors found | Fail |
-| 2 | Warnings only | Pass (unless `-Strict`) |
+| 2 | Warnings only | Pass (unless `--strict`) |
 
 ## Enforcement Points
 
@@ -176,7 +176,7 @@ Add to CI for stricter enforcement:
 
 ```yaml
 - name: Validate Traceability
-  run: pwsh scripts/Validate-Traceability.ps1 -Strict
+  run: python3 scripts/validation/traceability.py --strict --ci
 ```
 
 ## Common Violations and Fixes
@@ -285,8 +285,8 @@ related:
 
 Generate a traceability report:
 
-```powershell
-pwsh scripts/Validate-Traceability.ps1 -Format markdown > .agents/reports/traceability-$(Get-Date -Format 'yyyy-MM-dd').md
+```bash
+python3 scripts/validation/traceability.py --format markdown > .agents/reports/traceability-$(date +%F).md
 ```
 
 ## Integration with Workflows
@@ -333,7 +333,7 @@ Ensure you're in the repository root:
 
 ```bash
 cd /path/to/ai-agents
-pwsh scripts/Validate-Traceability.ps1
+python3 scripts/validation/traceability.py --ci
 ```
 
 ### "PowerShell not available"

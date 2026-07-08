@@ -712,8 +712,8 @@ updated: YYYY-MM-DD
 Run traceability validation before commits:
 
 ```bash
-# When validation script is available (Phase 2)
-./scripts/Validate-Traceability.ps1
+# Show traceability graph with orphaned specs
+python3 scripts/traceability/show_traceability_graph.py --show-orphans
 
 # Manual verification
 grep -r "related:" .agents/specs/ | wc -l

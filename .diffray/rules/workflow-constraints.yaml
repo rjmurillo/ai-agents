@@ -91,7 +91,7 @@ rules:
             done
       good: |
         - name: Complex validation
-          run: pwsh .github/scripts/Validate-Changes.ps1
+          run: python3 scripts/validation/pre_pr.py --quick
         
         # .github/scripts/Validate-Changes.ps1 (with Pester tests)
         $files = git diff --name-only HEAD~1

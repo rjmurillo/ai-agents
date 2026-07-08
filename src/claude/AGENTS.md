@@ -248,7 +248,7 @@ mcp__serena__find_symbol
 VS Code/Copilot use path notation:
 
 ```text
-Search-Memory.ps1  # Memory Router (ADR-037)
+search_memory.py  # Memory Router (ADR-037)
 serena/write_memory
 cognitionai/deepwiki/ask_question
 serena/find_symbol

@@ -51,15 +51,15 @@ Export Forgetful database to JSON format.
 
 **Usage:**
 
-```powershell
+```bash
 # Export with session number and topic
-pwsh scripts/forgetful/Export-ForgetfulMemories.ps1 -SessionNumber 905 -Topic "architecture"
+python3 scripts/forgetful/export_forgetful_memories.py --session-number 905 --topic "architecture"
 
 # Export to custom file
-pwsh scripts/forgetful/Export-ForgetfulMemories.ps1 -OutputFile .forgetful/exports/backup.json
+python3 scripts/forgetful/export_forgetful_memories.py --output-file .forgetful/exports/backup.json
 
 # Export specific tables only
-pwsh scripts/forgetful/Export-ForgetfulMemories.ps1 -Topic "memories-only" -IncludeTables "memories"
+python3 scripts/forgetful/export_forgetful_memories.py --topic "memories-only" --include-tables "memories"
 ```
 
 **Parameters:**
@@ -86,21 +86,21 @@ Import Forgetful database from JSON format with merge support.
 
 **Usage:**
 
-```powershell
+```bash
 # Import all files from exports directory (default: merge/upsert)
-pwsh scripts/forgetful/Import-ForgetfulMemories.ps1
+python3 scripts/forgetful/import_forgetful_memories.py
 
 # Import with merge mode (updates existing records)
-pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -MergeMode Replace
+python3 scripts/forgetful/import_forgetful_memories.py --merge-mode replace
 
 # Import new records only (skip duplicates)
-pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -MergeMode Skip
+python3 scripts/forgetful/import_forgetful_memories.py --merge-mode skip
 
 # Import specific files
-pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -InputFiles @('.forgetful/exports/backup.json')
+python3 scripts/forgetful/import_forgetful_memories.py --input-files .forgetful/exports/backup.json
 
 # Skip confirmation prompt
-pwsh scripts/forgetful/Import-ForgetfulMemories.ps1 -Force
+python3 scripts/forgetful/import_forgetful_memories.py --force
 ```
 
 **Parameters:**
@@ -133,19 +133,19 @@ Safe to run multiple times. Default mode (`Replace`) uses `INSERT OR REPLACE` fo
 
 ### Session Start
 
-```powershell
+```bash
 # Import all shared memories (idempotent)
-pwsh scripts/forgetful/Import-ForgetfulMemories.ps1
+python3 scripts/forgetful/import_forgetful_memories.py
 ```
 
 ### Session End
 
-```powershell
+```bash
 # Export by session number and topic
-pwsh scripts/forgetful/Export-ForgetfulMemories.ps1 -SessionNumber 905 -Topic "patterns"
+python3 scripts/forgetful/export_forgetful_memories.py --session-number 905 --topic "patterns"
 
 # Security review (REQUIRED)
-pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile .forgetful/exports/2026-01-13-session-905-patterns.json
+python3 scripts/review_memory_export_security.py .forgetful/exports/2026-01-13-session-905-patterns.json
 
 # Commit if clean
 git add .forgetful/exports/2026-01-13-session-905-patterns.json
@@ -184,8 +184,8 @@ Exported tables:
 
 **Script:**
 
-```powershell
-pwsh scripts/Review-MemoryExportSecurity.ps1 -ExportFile [file].json
+```bash
+python3 scripts/review_memory_export_security.py [file].json
 ```
 
 **Scans for:**

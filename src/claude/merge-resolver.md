@@ -39,7 +39,7 @@ You have direct access to:
 - **github skill**: `.claude/skills/github/` for PR metadata
 - **merge-resolver skill**: `.claude/skills/merge-resolver/` for auto-resolution script
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -257,8 +257,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before resolution (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "merge conflict resolution patterns"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py "merge conflict resolution patterns"
 ```
 
 **After resolution (store learnings):**

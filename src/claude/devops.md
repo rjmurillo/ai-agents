@@ -390,7 +390,7 @@ Set-StrictMode -Version Latest
 
 try {
     # Run your script
-    ./your-script.ps1
+    ./your-script.py
 
     if ($LASTEXITCODE -ne 0) {
         throw "Script exited with code $LASTEXITCODE"

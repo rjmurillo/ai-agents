@@ -59,12 +59,12 @@ Save findings to: .agents/retrospective/YYYY-MM-DD-session-NN.md
 
 Run BEFORE final commit:
 
-```powershell
+```bash
 # Fix markdown formatting
 npx markdownlint-cli2 --fix "**/*.md"
 
 # Validate traceability (if Phase 2+ complete)
-./scripts/Validate-Traceability.ps1
+python3 scripts/traceability/show_traceability_graph.py --show-orphans
 
 # Check for broken internal links
 # (manual review of related: fields in YAML front matter)
@@ -76,7 +76,7 @@ npx markdownlint-cli2 --fix "**/*.md"
 
 ## 5. Git Operations
 
-```powershell
+```bash
 # Stage all documentation
 git add .agents/
 

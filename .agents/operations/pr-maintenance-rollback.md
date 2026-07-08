@@ -234,9 +234,9 @@ After any rollback:
    gh pr list --state all --limit 10
    ```
 
-4. Run manual dry-run to validate fixes:
+4. Run a limited real maintenance pass to validate fixes:
    ```bash
-   pwsh scripts/Invoke-PRMaintenance.ps1 -DryRun -MaxPRs 5
+   uv run --frozen python -m scripts.invoke_pr_maintenance --max-prs 5
    ```
 
 ## Escalation

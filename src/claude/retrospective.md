@@ -490,8 +490,8 @@ When the session involves specification artifacts (requirements, designs, tasks)
 
 **Run validation:**
 
-```powershell
-pwsh scripts/Validate-Traceability.ps1 
+```bash
+python3 scripts/traceability/show_traceability_graph.py --show-orphans 
 ```
 
 **Metrics to capture:**
@@ -1005,7 +1005,7 @@ For each learning batch (recommend 3-5 learnings per batch):
 
 ### Validation
 
-[PASS] `pwsh scripts/Validate-MemoryIndex.ps1`
+[PASS] `python3 scripts/validation/memory_index.py --ci`
 ````
 
 #### Step 3: Recursive Evaluation
@@ -1047,7 +1047,7 @@ Stop recursive extraction when ALL criteria are met:
 - [ ] All learnings either persisted or rejected as duplicates
 - [ ] Meta-learning evaluation yields no insights
 - [ ] Extracted learnings count documented in session log
-- [ ] Validation script passes: `pwsh scripts/Validate-MemoryIndex.ps1`
+- [ ] Validation script passes: `python3 scripts/validation/memory_index.py --ci`
 
 **Infinite Loop Prevention:**
 
@@ -1082,7 +1082,7 @@ Use this prompt when delegating to skillbook:
    - If too vague <70%: REJECT with refinement guidance
 4. Update relevant domain indexes (skills-{domain}-index.md)
 5. Assign skill IDs following convention: Skill-{Category}-{NNN}
-6. Run validation: `pwsh scripts/Validate-MemoryIndex.ps1`
+6. Run validation: `python3 scripts/validation/memory_index.py --ci`
 7. Return skill IDs, file paths, and validation status
 
 **Termination**: Process this batch, then I will evaluate for additional learnings
@@ -1131,7 +1131,7 @@ After Phase 5 completes, document in retrospective artifact:
 
 ### Validation
 
-[PASS] `pwsh scripts/Validate-MemoryIndex.ps1`
+[PASS] `python3 scripts/validation/memory_index.py --ci`
 ````
 
 ### Quality Gates
@@ -1206,11 +1206,11 @@ Process Delta items to capture actionable improvements. Delta items represent ch
 
 Use the GitHub skill to create issues for high-priority items:
 
-```powershell
-pwsh .claude/skills/github/scripts/issue/New-Issue.ps1 `
-    -Title "[Retrospective] Delta item description" `
-    -Body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" `
-    -Labels "enhancement,source:retrospective,priority:{PRIORITY}"
+```bash
+uv run python .claude/skills/github/scripts/issue/new_issue.py \
+    --title "[Retrospective] Delta item description" \
+    --body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" \
+    --labels "enhancement,source:retrospective,priority:{PRIORITY}"
 ```
 
 **P2/P3 Backlog Memory Storage:**

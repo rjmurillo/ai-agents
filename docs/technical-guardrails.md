@@ -106,12 +106,12 @@ python3 scripts/validate_memory_tier.py --path /path/to/memories
 
 #### PR Description Validation (BLOCKING in CI)
 
-**Script**: `scripts/Validate-PRDescription.ps1`
+**Script**: `scripts/validation/pr_description.py`
 
 **Usage**:
 
-```powershell
-.\scripts\Validate-PRDescription.ps1 -PRNumber 226 -CI
+```bash
+python3 scripts/validation/pr_description.py --pr-number 226 --ci
 ```
 
 **Validates**:
@@ -127,24 +127,18 @@ python3 scripts/validate_memory_tier.py --path /path/to/memories
 
 **Prevents**: Analyst CRITICAL_FAIL verdicts (seen in PR #199)
 
-#### Validated PR Creation Wrapper
+#### GitHub Skill PR Creation
 
-**Script**: `scripts/New-ValidatedPR.ps1`
+**Script directory**: `.claude/skills/github/scripts/pr/`
 
 **Usage**:
 
-```powershell
-# Normal PR creation (runs all validations)
-.\scripts\New-ValidatedPR.ps1 -Title "feat: Add feature" -Body "Description"
+```bash
+# Normal PR creation through the github skill
+uv run python .claude/skills/github/scripts/pr/new_pr.py --title "feat: Add feature" --body "Description"
 
 # Draft PR
-.\scripts\New-ValidatedPR.ps1 -Title "WIP: Feature" -Draft
-
-# Force mode (bypasses validation, creates audit trail)
-.\scripts\New-ValidatedPR.ps1 -Title "hotfix" -Force
-
-# Interactive web mode (no validation)
-.\scripts\New-ValidatedPR.ps1 -Web
+uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" --body "Description" --draft
 ```
 
 **Validations Run**:
@@ -220,8 +214,8 @@ If hooks fail:
 
 **Recommended**: Use validated PR wrapper
 
-```powershell
-.\scripts\New-ValidatedPR.ps1 -Title "feat: Add feature" -Body "Full description"
+```bash
+uv run --frozen python -m scripts.new_validated_pr --title "feat: Add feature" --body "Full description"
 ```
 
 **Alternative**: Use `gh pr create` directly (CI validates after creation)
@@ -276,14 +270,14 @@ If violation detected:
 
 ## Testing
 
-All scripts have corresponding test files in `scripts/tests/`:
+Script tests live under `tests/`:
 
-```powershell
-# Run all script tests
-Invoke-Pester -Path scripts/tests/ -Output Detailed
+```bash
+# Run all tests
+uv run pytest tests/ -x
 
-# Run specific test
-Invoke-Pester -Path scripts/tests/Detect-SkillViolation.Tests.ps1 -Output Detailed
+# Run a targeted test selection
+uv run pytest tests/ -k stale_script_ref -q
 ```
 
 **Test Coverage**:

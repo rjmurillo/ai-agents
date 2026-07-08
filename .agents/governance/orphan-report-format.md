@@ -18,8 +18,8 @@ This document defines the standard format for orphan detection reports generated
 
 Generate a report using:
 
-```powershell
-pwsh scripts/Validate-Traceability.ps1 -Format markdown > orphan-report.md
+```bash
+python3 scripts/traceability/show_traceability_graph.py --show-orphans --format text > orphan-report.md
 ```
 
 ## Report Structure
@@ -109,7 +109,7 @@ Informational findings about status consistency:
 
 1. **Create the missing spec** if it should exist:
 
-   ```powershell
+   ```bash
    # Create missing design
    Copy-Item .agents/specs/design/DESIGN-001-template.md .agents/specs/design/DESIGN-999-new.md
    ```
@@ -163,7 +163,7 @@ Either:
 
 ```yaml
 - name: Validate Traceability
-  run: pwsh scripts/Validate-Traceability.ps1 -Strict
+  run: python3 scripts/traceability/resolve_orphaned_specs.py --action list
   # Use -Strict in CI to catch orphans early
 ```
 

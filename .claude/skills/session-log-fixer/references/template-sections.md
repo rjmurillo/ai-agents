@@ -82,8 +82,8 @@ Valid evidence values to use:
 
 Available GitHub skills:
 
-- Add-CommentReaction.ps1
-- Get-IssueContext.ps1
+- add_comment_reaction.py
+- get_issue_context.py
 - get_pr_context.py
 - get_pr_checks.py
 - get_pr_review_threads.py
@@ -95,9 +95,9 @@ Available GitHub skills:
 - resolve_pr_review_thread.py
 - get_pr_review_comments.py
 - get_pr_reviewers.py
-- Post-IssueComment.ps1
-- Set-IssueLabels.ps1
-- Set-IssueMilestone.ps1
+- post_issue_comment.py
+- set_issue_labels.py
+- set_issue_milestone.py
 ```
 
 ---
