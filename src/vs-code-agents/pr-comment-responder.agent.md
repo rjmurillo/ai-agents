@@ -1069,7 +1069,8 @@ After replying with resolution, mark the thread as resolved. This is required fo
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Resolve only bot-authored or explicitly approved threads.
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWRls5m7ln8"
+THREAD_ID="PRRT_current_pr_thread_id"
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
 ```
 
 **Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
@@ -1145,7 +1146,8 @@ fi
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Resolve bot-authored or explicitly approved threads by ID.
-for THREAD_ID in "PRRT_kwDOQoWRls5m7ln8" "PRRT_kwDOQoWRls5m7ln9"; do
+THREAD_IDS=("PRRT_current_pr_thread_id_1" "PRRT_current_pr_thread_id_2")
+for THREAD_ID in "${THREAD_IDS[@]}"; do
   python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
 done
 ```
