@@ -47,7 +47,7 @@ class TestThreshold:
     def test_frozen(self) -> None:
         t = Threshold(warning=0.1, error=0.25)
         with pytest.raises(AttributeError):
-            t.warning = 0.5  # type: ignore[misc]
+            t.warning = 0.5
 
     def test_defaults(self) -> None:
         t = Threshold(warning=0.1, error=0.25)
