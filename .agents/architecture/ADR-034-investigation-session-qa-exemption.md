@@ -88,9 +88,14 @@ $investigationAllowlist = @(
 ```
 
 The canonical machine-readable source of this list is
-`scripts/modules/investigation_allowlist.py` (`get_investigation_allowlist()`),
-which all consumers import. The 8 patterns above mirror that function exactly.
-See the Amendment section below for the rationale behind the last three.
+`scripts/modules/investigation_allowlist.py` (`get_investigation_allowlist()`).
+`.github/scripts/validate_investigation_claims.py` imports it directly. Not
+every check consumes it yet: `scripts/validate_session_json.py` does not read
+the allowlist at all, and the session skill pre-check
+(`.claude/skills/session/scripts/test_investigation_eligibility.py`) still
+carries a parallel hardcoded pattern list that must be kept in sync by hand.
+The 8 patterns above mirror the module exactly. See the Amendment section
+below for the rationale behind the last three.
 
 **Allowlist Owner**: Architect agent (reviews additions via ADR amendment)
 
@@ -215,9 +220,11 @@ the same change: the `.agents/critique/` row is removed, and `.agents/architectu
 is scoped to `ADR-*` with an explicit `REVIEW-*` exception.
 
 The Validation Logic PowerShell block below is illustrative pseudocode from the
-original decision; the authoritative list is the Python module, which all consumers
-(`validate_session_json.py`, the session skill, `validate_investigation_claims.py`)
-import.
+original decision; the authoritative list is the Python module. Today only
+`.github/scripts/validate_investigation_claims.py` imports it. The session skill
+pre-check keeps a parallel hardcoded copy, and `validate_session_json.py` does
+not consume the allowlist; converging those onto the module is tracked as
+follow-up cleanup, not part of this amendment.
 
 **Allowlist Owner** remains the architect agent. Future additions require an ADR
 amendment like this one.

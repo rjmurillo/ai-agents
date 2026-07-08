@@ -127,7 +127,7 @@
    "entry": "Verified ADR code block matches module exactly (8 patterns); ran pytest -k investigation (50 passed)."
   }
  ],
- "endingCommit": "",
+ "endingCommit": "58f58a7b",
  "nextSteps": [
   "Open PR for #2941 with adversarial GPT-5.5 review.",
   "Continue autopilot backlog: eval pricing #2902, docs/ci/workspace agent clusters, plugin-source serialized issues."
