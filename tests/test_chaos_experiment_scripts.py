@@ -51,7 +51,7 @@ from validate_experiment import (
 )
 
 
-def _import_generate_experiment_with_env(env: dict[str, str]) -> subprocess.CompletedProcess:
+def _import_generate_experiment_with_env(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     script = SKILL_SCRIPTS_PATH / "generate_experiment.py"
     code = "\n".join(
         [

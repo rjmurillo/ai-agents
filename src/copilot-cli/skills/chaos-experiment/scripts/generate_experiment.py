@@ -58,8 +58,8 @@ class Result:
 
     success: bool
     message: str
-    data: dict | None = None
-    errors: list | None = None
+    data: dict[str, object] | None = None
+    errors: list[str] | None = None
 
 
 def generate_experiment_id(name: str) -> str:

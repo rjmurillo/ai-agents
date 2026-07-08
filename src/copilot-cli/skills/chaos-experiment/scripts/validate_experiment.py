@@ -46,8 +46,8 @@ class ValidationResult:
 
     success: bool
     message: str
-    errors: list = field(default_factory=list)
-    warnings: list = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
     score: int = 0  # 0-100
 
 
@@ -90,7 +90,10 @@ def load_document(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def check_section_presence(content: str, sections: list) -> tuple[list, list]:
+def check_section_presence(
+    content: str,
+    sections: list[tuple[str, str]],
+) -> tuple[list[str], list[str]]:
     """Check which sections are present and which are missing."""
     present = []
     missing = []
@@ -104,7 +107,7 @@ def check_section_presence(content: str, sections: list) -> tuple[list, list]:
     return present, missing
 
 
-def check_incomplete_markers(content: str) -> list:
+def check_incomplete_markers(content: str) -> list[str]:
     """Find incomplete content markers."""
     issues = []
 
@@ -120,7 +123,7 @@ def check_incomplete_markers(content: str) -> list:
     return issues
 
 
-def check_hypothesis_quality(content: str) -> tuple[bool, list]:
+def check_hypothesis_quality(content: str) -> tuple[bool, list[str]]:
     """Check if hypothesis follows the proper format."""
     warnings = []
 
@@ -153,7 +156,7 @@ def check_hypothesis_quality(content: str) -> tuple[bool, list]:
     return is_complete, warnings
 
 
-def check_rollback_procedure(content: str) -> tuple[bool, list]:
+def check_rollback_procedure(content: str) -> tuple[bool, list[str]]:
     """Check if rollback procedure is documented."""
     warnings = []
 
@@ -181,7 +184,7 @@ def check_rollback_procedure(content: str) -> tuple[bool, list]:
     return len(warnings) == 0, warnings
 
 
-def check_metrics_defined(content: str) -> tuple[bool, list]:
+def check_metrics_defined(content: str) -> tuple[bool, list[str]]:
     """Check if baseline metrics are defined."""
     warnings = []
 
