@@ -225,6 +225,8 @@ def _git_show_object(revision: str, path: str) -> str | None:
         ["git", "show", f"{revision}:{path}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=5,
     )
     if result.returncode != 0:
@@ -262,6 +264,8 @@ def get_staged_adr_changes() -> list[str]:
             ["git", "diff", "--cached", "--name-only"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
         )
     except subprocess.TimeoutExpired as exc:

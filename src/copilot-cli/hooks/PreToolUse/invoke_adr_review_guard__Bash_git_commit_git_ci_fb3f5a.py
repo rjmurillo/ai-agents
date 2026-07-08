@@ -461,6 +461,8 @@ def _original_main(stdin_bytes):
             ["git", "show", f"{revision}:{path}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
         )
         if result.returncode != 0:
@@ -498,6 +500,8 @@ def _original_main(stdin_bytes):
                 ["git", "diff", "--cached", "--name-only"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=5,
             )
         except subprocess.TimeoutExpired as exc:
