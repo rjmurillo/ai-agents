@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import stat
 import subprocess
 import sys
@@ -13,6 +14,21 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts import install_git_hooks as igh  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_git_global_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ignore developer and leaked global/system git config.
+
+    install_git_hooks reads core.hooksPath via git config --get, which merges
+    local, global, and system scopes. Pointing the global and system config at
+    os.devnull keeps these tests hermetic: a real ~/.gitconfig hooksPath, or one
+    leaked by an earlier test in the same process, cannot make an unconfigured
+    temp repo look configured. Without this, test_check_fails_when_unconfigured
+    is order-dependent and fails in the full suite while passing in isolation.
+    """
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", os.devnull)
 
 
 def _make_hook(path: Path, *, executable: bool = True) -> None:
