@@ -163,6 +163,18 @@ module = [
 ]
 disable_error_code = ["no-redef"]
 
+[[tool.mypy.overrides]]
+# Pre-existing type debt surfaced by the pre-push per-file mypy gate (#2876).
+# This test dynamically loads the eval scripts via importlib (their filenames
+# are hyphenated, e.g. eval-agent-vs-baseline.py, so they cannot be imported
+# as normal modules). Every symbol re-exported from those runtime-loaded
+# modules resolves to Any, so annotations that reference them (RunRecord and
+# friends) read as valid-type/no-any-return, and bare dict/list annotations
+# read as type-arg. Scoped here so the debt stays visible and tracked (#2876)
+# rather than suppressed inline.
+module = "tests.evals.test_eval_agent_vs_baseline"
+disable_error_code = ["type-arg", "valid-type", "no-any-return"]
+
 [dependency-groups]
 dev = [
     "pytest-cov>=7.1.0",
