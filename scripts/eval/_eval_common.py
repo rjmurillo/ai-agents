@@ -22,9 +22,16 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     # Legacy id retained for historical run cost lookups only; it is a dead
     # id (HTTP 404) and MUST NOT be used as a default (issue #2858).
     "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
+    # Verified rates from platform.claude.com/docs/en/about-claude/pricing
+    # (retrieved 2026-07-08). Rates are per-1K tokens = base MTok rate / 1000.
+    # Sonnet 4.6: $3/$15 per MTok. Opus 4.6 and 4.8: $5/$25 per MTok. Haiku
+    # 4.5: $1/$5 per MTok. These are the live pins enumerated in issue #2840.
     "claude-sonnet-4-6": {"input": 0.003, "output": 0.015},
+    "claude-opus-4-6": {"input": 0.005, "output": 0.025},
+    "claude-opus-4-8": {"input": 0.005, "output": 0.025},
+    "claude-haiku-4-5": {"input": 0.001, "output": 0.005},
 }
-PRICING_RATE_AS_OF = "2026-05-03"
+PRICING_RATE_AS_OF = "2026-07-08"
 
 
 def aggregate_multi_run_scores(

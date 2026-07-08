@@ -24,7 +24,7 @@ rules:
         ADR-042-use_oauth.md           # Underscores instead of hyphens
         adr-042-use-oauth.md           # Lowercase prefix
       good: |
-        ADR-005-use-oauth-for-auth.md  # Correct format
+        ADR-007-use-oauth-for-auth.md  # Correct format
         ADR-042-powershell-only.md     # Correct format
 
     tags:
