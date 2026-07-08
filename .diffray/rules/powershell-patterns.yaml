@@ -1,47 +1,50 @@
 rules:
-  - id: ps_no_bash_python_scripts
+  - id: script_python_first_new_scripts
     agent: quality
-    title: "No bash or Python scripts allowed (ADR-005)"
+    title: "New scripts should be Python-first (ADR-042)"
     description: |
-      This project uses PowerShell exclusively per ADR-005.
-      All scripting must be done in .ps1 or .psm1 files for consistency,
-      testability with Pester, and cross-platform compatibility.
+      ADR-042 supersedes ADR-005 for new development.
+      New internal automation scripts should be Python. PowerShell scripts are
+      grandfathered and may be edited or migrated over time.
     importance: 9
 
     match:
       file_glob:
         - "**/*.sh"
-        - "**/*.py"
+        - "**/*.ps1"
+        - "**/*.psm1"
         - "!.githooks/**"      # Git hooks are pre-existing exception
         - "!.github/actions/**/*.sh"  # External actions may have shell
 
     checklist:
-      - "Flag any new .sh or .py file creation"
-      - "Verify this isn't a legitimate exception (git hook, external action)"
-      - "Suggest PowerShell equivalent implementation"
-      - "Reference ADR-005 for rationale"
+      - "Flag newly ADDED .sh, .ps1, or .psm1 script files, not edits to existing grandfathered scripts"
+      - "Verify this isn't an existing PowerShell script edit or approved exception"
+      - "Suggest a Python implementation for new internal automation"
+      - "Reference ADR-042 for rationale"
 
     examples:
       bad: |
-        #!/bin/bash
-        # build.sh
-        docker build -t myapp .
-      good: |
         # build.ps1
         [CmdletBinding()]
         param()
         docker build -t myapp .
+      good: |
+        # build.py
+        import subprocess
+
+        subprocess.run(["docker", "build", "-t", "myapp", "."], check=True)
 
     tags:
       - architecture
+      - python
       - powershell
       - compliance
 
     why_important: |
-      Single language reduces context switching, enables unified testing
-      with Pester, and ensures all scripts work cross-platform.
+      Python is the primary language for new internal automation, while
+      existing PowerShell remains supported during the migration.
 
-    link: .agents/architecture/ADR-005-powershell-only-scripting.md
+    link: .agents/architecture/ADR-042-python-migration-strategy.md
 
 
   - id: ps_cmdletbinding_required
