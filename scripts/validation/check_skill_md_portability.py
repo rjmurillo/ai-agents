@@ -57,6 +57,23 @@ import re
 import sys
 from pathlib import Path
 
+from scripts.validation.portability_common import (
+    build_portability_parser,
+    write_baseline,
+)
+from scripts.validation.portability_common import (
+    diff_against_baseline as _diff_against_baseline,
+)
+from scripts.validation.portability_common import (
+    load_baseline as _load_baseline,
+)
+from scripts.validation.portability_common import (
+    resolve_baseline_path as _common_resolve_baseline_path,
+)
+from scripts.validation.portability_common import (
+    resolve_root as _common_resolve_root,
+)
+
 # Upstream-only runtime path prefixes. Companion to check_skill_portability.py
 # which covers script files; this validator covers .md files. The .claude/skills/
 # pattern is excluded here: in prose a bare reference to a sibling skill by
@@ -86,15 +103,6 @@ _FENCE_OPEN_PATTERN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 _DEFAULT_BASELINE_NAME = "skill_md_portability_baseline.json"
 
 MARKDOWN_SUFFIX = ".md"
-
-
-def _repo_root(start: Path) -> Path:
-    """Walk up from ``start`` to the repo root (the dir containing .claude/skills)."""
-    base = start if start.is_dir() else start.parent
-    for ancestor in (base, *base.parents):
-        if (ancestor / ".claude" / "skills").is_dir():
-            return ancestor
-    return base
 
 
 def has_portability_marker(text: str) -> bool:
@@ -195,25 +203,13 @@ def scan_skill_markdown(skills_dir: Path) -> dict[str, int]:
     return counts
 
 
-def _load_baseline(path: Path) -> dict[str, int]:
-    if not path.is_file():
-        raise FileNotFoundError(f"Baseline file not found: {path}")
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError("Baseline must be a JSON object")
-    files = data["files"] if "files" in data else data
-    if not isinstance(files, dict):
-        raise ValueError("Baseline 'files' must be a JSON object")
-
-    baseline: dict[str, int] = {}
-    for key, value in files.items():
-        if value is None:
-            raise ValueError(f"Baseline count for {key!r} is null")
-        try:
-            baseline[str(key)] = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
-    return baseline
+def _markdown_regression_message(rel: str, count: int, allowed: int) -> str:
+    return (
+        f"{rel}: {count} upstream-path refs in prose (baseline {allowed}). "
+        "Resolve via plugin/skill root or consumer cwd, or declare the "
+        "dependency with an HTML comment marker "
+        "'<!-- vendor-portability: ... -->' (issue #2050)."
+    )
 
 
 def diff_against_baseline(
@@ -225,92 +221,37 @@ def diff_against_baseline(
     references that is absent from the baseline. An improvement is a file whose
     count dropped (including to zero / removed).
     """
-    regressions: list[str] = []
-    for rel, n in sorted(current.items()):
-        allowed = baseline.get(rel, 0)
-        if n > allowed:
-            regressions.append(
-                f"{rel}: {n} upstream-path refs in prose (baseline {allowed}). "
-                "Resolve via plugin/skill root or consumer cwd, or declare the "
-                "dependency with an HTML comment marker "
-                "'<!-- vendor-portability: ... -->' (issue #2050)."
-            )
-    improvements: list[str] = []
-    for rel, allowed in sorted(baseline.items()):
-        n = current.get(rel, 0)
-        if n < allowed:
-            improvements.append(f"{rel}: {n} refs (baseline {allowed})")
-    return regressions, improvements
+    return _diff_against_baseline(current, baseline, _markdown_regression_message)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--repo-root",
-        type=Path,
-        default=None,
-        help="Repository root (default: walk up for .claude/skills).",
-    )
-    parser.add_argument(
-        "--baseline",
-        type=Path,
-        default=None,
-        help=f"Baseline JSON (default: scripts/validation/{_DEFAULT_BASELINE_NAME}).",
-    )
-    parser.add_argument(
-        "--update-baseline",
-        action="store_true",
-        help="Rewrite the baseline to the current state and exit 0.",
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=("human", "json"),
-        default="human",
-    )
-    return parser
+    return build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
 
 
 def _resolve_root(repo_root: Path | None) -> Path:
-    if repo_root:
-        return repo_root.resolve()
-    return _repo_root(Path(__file__).resolve())
+    return _common_resolve_root(repo_root, Path(__file__).resolve(), require_repo_marker=False)
 
 
 def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path:
-    if baseline is None:
-        return root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
-    resolved = (
-        baseline.expanduser().resolve()
-        if baseline.is_absolute()
-        else (root / baseline).expanduser().resolve()
+    return _common_resolve_baseline_path(
+        root, baseline, _DEFAULT_BASELINE_NAME, reject_outside_root=True
     )
-    if not resolved.is_relative_to(root.resolve()):
-        return Path("")
-    return resolved
 
 
 def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:
-    total = sum(current.values())
-    baseline_path.write_text(
-        json.dumps(
-            {
-                "_comment": (
-                    "Vendor-portability ratchet baseline for skill Markdown "
-                    "(issue #2050). Counts of upstream-only path references per "
-                    ".md file (fenced code stripped; inline paths counted; files with a "
-                    "'<!-- vendor-portability: ... -->' marker excluded). "
-                    "Generated by check_skill_md_portability.py --update-baseline. "
-                    "Lower is better; review count increases before committing."
-                ),
-                "files": dict(sorted(current.items())),
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    return write_baseline(
+        baseline_path,
+        current,
+        (
+            "Vendor-portability ratchet baseline for skill Markdown "
+            "(issue #2050). Counts of upstream-only path references per "
+            ".md file (fenced code stripped; inline paths counted; files with a "
+            "'<!-- vendor-portability: ... -->' marker excluded). "
+            "Generated by check_skill_md_portability.py --update-baseline. "
+            "Lower is better; review count increases before committing."
+        ),
+        "refs",
     )
-    print(f"Baseline written: {len(current)} files, {total} refs.")
-    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
