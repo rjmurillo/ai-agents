@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Changes prepared for one atomic commit on agent/adr006ci after final validation. Commit SHA is reported in the task response."
+        "Evidence": "Implementation commit 7e665bd5 and test commit 5b9a9deb were created on agent/adr006ci."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff passed on the new script and tests; pytest passed 21 targeted tests; validate_workflows.py passed for ai-review action; pre_pr.py passed; changed-file em and en dash byte counts were zero. actionlint was attempted on the composite action and reported expected workflow-shape errors because actionlint treats action.yml as a workflow."
+        "Evidence": "ruff passed on scripts/ci/build_ai_review_context.py and tests/test_build_ai_review_context.py. pytest passed tests/test_build_ai_review_context.py with 10 tests. changed-file em and en dash byte counts were zero."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -139,8 +139,8 @@
       "entry": "Final validation passed: validate_session_json.py, pre_pr.py, and changed-file em and en dash byte counts all passed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "5b9a9debbbf59af4234447501dd0115f0d7cbdad",
   "nextSteps": [
-    "Commit, push, open the PR with Refs #2814 and issue #2967, then arm squash auto-merge."
+    "Push agent/adr006ci and resolve PR #2969 review threads."
   ]
 }
