@@ -59,10 +59,9 @@ echo_phase() {
 }
 
 run_packed_refs_repair() {
-    local hook_dir
-    hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-    local repo_root="$hook_dir/.."
-    local repair_script="$hook_dir/../scripts/maintenance/repair_packed_refs.py"
+    local repo_root
+    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)
+    local repair_script="$repo_root/scripts/maintenance/repair_packed_refs.py"
     local python_cmd=()
 
     if [ ! -f "$repair_script" ]; then
