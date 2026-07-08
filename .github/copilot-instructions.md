@@ -100,9 +100,9 @@ These recur across PRs and are not covered by AGENTS.md.
 
 ### PR description gate
 
-The "Validate PR" check (`scripts/validation/pr_description.py --ci`) blocks merge on:
+The "PR Validation" workflow's description gate (`scripts/validation/pr_description.py --ci`, shown in branch protection as `PR Validation / Validate PR`) blocks merge on:
 
-- A file-looking path (one with a known extension) that appears in inline code, bold, a list item, or a Markdown link and is not in the diff: CRITICAL "file mentioned but not in diff". The validator extracts paths only from those Markdown shapes, not from arbitrary prose, so a path mentioned in a plain sentence does not trip it, but an inline-backtick mention (`` `app.js` ``) does. Silence a real mention the way the validator recognizes: prefix with a citation cue (`` see `path` ``), use a fenced code block, a GitHub admonition (`> [!NOTE]`), or a contextual H2 (`## References`, `## Related Files`, `## See Also`, `## Notes`, `## Background`).
+- A file-looking path (one with a known extension) that appears in inline code, bold, a list item, or a Markdown link and is not in the diff: CRITICAL "file mentioned but not in diff". The validator extracts paths only from those Markdown shapes, not from arbitrary prose, so a path mentioned in a plain sentence does not trip it, but an inline-backtick mention (`` `app.js` ``) does. Silence a real mention the way the validator recognizes: prefix with a citation cue (`` see `path` ``), use a fenced code block, a GitHub admonition (`> [!NOTE]`), or a contextual H2 (`## References`, `## Related Files`, `## See Also`, `## Notes`, `## Background`, and other proof or reference headings such as `## Evidence`, `## Out of Scope`, `## Prior Art`; see `_CONTEXTUAL_SECTION_NAMES` and `_REFERENCE_SECTION_PREFIXES` in the validator for the full set).
 - Any em-dash (U+2014) or en-dash (U+2013) in the body: CRITICAL. Byte-verify both: `python3 -c "import sys;d=open(sys.argv[1],'rb').read();print(sum(d.count(c.encode()) for c in ('\u2014','\u2013')))" body.md`.
 
 Editing the body re-triggers the gate (`pull_request: edited`); no new commit needed. Verify bot-flagged claims at byte level before editing; false positives happen.
