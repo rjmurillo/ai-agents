@@ -688,6 +688,7 @@ React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster
 ```bash
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
 
 # PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
 # Get all comment IDs from the comments retrieved in Phase 1
@@ -698,11 +699,17 @@ issue_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Issu
 total_ids=$(echo "$comments" | jq '.Comments | length')
 
 if [ -n "$review_ids" ]; then
-  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type review --reaction "eyes" --comment-id $review_ids
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type review --reaction "eyes" --comment-id $review_ids || exit 1
+  for id in $review_ids; do
+    printf 'reaction eyes review %s\n' "$id" >> "$PR_COMMENT_LOG"
+  done
 fi
 
 if [ -n "$issue_ids" ]; then
-  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type issue --reaction "eyes" --comment-id $issue_ids
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type issue --reaction "eyes" --comment-id $issue_ids || exit 1
+  for id in $issue_ids; do
+    printf 'reaction eyes issue %s\n' "$id" >> "$PR_COMMENT_LOG"
+  done
 fi
 
 # Verify all acknowledged
