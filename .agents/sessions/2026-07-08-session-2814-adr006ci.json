@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commit 7e665bd5, test commit 5b9a9deb, and session evidence commit 5e18dcf0 were created on agent/adr006ci."
+        "Evidence": "Review-thread fixes were committed through e1bff2f6. Follow-up changes for gh diff stdout warnings and episode commit metrics are staged for the next commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff passed on scripts/ci/build_ai_review_context.py and tests/test_build_ai_review_context.py. pytest passed tests/test_build_ai_review_context.py with 10 tests. changed-file em and en dash byte counts were zero."
+        "Evidence": "ruff passed on scripts/ci/build_ai_review_context.py and tests/test_build_ai_review_context.py. pytest passed tests/test_build_ai_review_context.py with 12 tests after follow-up coverage. validate_session_json.py passed for this session log. changed-file em and en dash byte counts were zero."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -137,6 +137,10 @@
     {
       "time": "2026-07-08T08:50:00Z",
       "entry": "Final validation passed: validate_session_json.py, pre_pr.py, and changed-file em and en dash byte counts all passed."
+    },
+    {
+      "time": "2026-07-08T11:45:00Z",
+      "entry": "Addressed follow-up review findings: nonzero gh pr diff stdout is preserved, heredoc delimiter collision is tested, and episode commit metrics are corrected."
     }
   ],
   "endingCommit": "5e18dcf0",

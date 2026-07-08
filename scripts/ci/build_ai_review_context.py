@@ -250,7 +250,7 @@ def build_spec_context(
         )
 
     diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
-    if diff.returncode == 0 and diff.stdout:
+    if diff.stdout:
         line_count = count_lines(diff.stdout)
         diff_text = diff.stdout
         mode = "full"

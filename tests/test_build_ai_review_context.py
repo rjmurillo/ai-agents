@@ -213,6 +213,35 @@ def test_build_spec_context_falls_back_to_file_list_when_diff_unavailable(
     assert "scripts/ci/build_ai_review_context.py" in context.text
 
 
+def test_build_spec_context_uses_stdout_from_nonzero_diff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """A nonzero gh diff still uses stdout when GitHub emitted a usable diff."""
+
+    spec_path = tmp_path / "spec.md"
+    spec_path.write_text("Spec body", encoding="utf-8")
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda arguments, timeout=_mod.GH_TIMEOUT_SECONDS: CommandResult(
+            "diff --git a/spec.md b/spec.md\n+change\n",
+            "warning",
+            1,
+        ),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "get_pr_name_only",
+        lambda pr_number, repository: pytest.fail("name-only fallback should not run"),
+    )
+
+    context = _mod.build_spec_context(str(spec_path), "7", "owner/repo", 100)
+
+    assert context.mode == "full"
+    assert "diff --git a/spec.md b/spec.md" in context.text
+
+
 def test_build_spec_context_reports_unavailable_when_diff_and_file_list_fail(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

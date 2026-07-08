@@ -69,6 +69,14 @@
       "content": "Commit: 5e18dcf0",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed follow-up review findings: nonzero gh pr diff stdout is preserved, heredoc delimiter collision is tested, and episode commit metrics are corrected.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -76,7 +84,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 5
   },
   "lessons": []
