@@ -346,8 +346,12 @@ grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || ex
 
 ```bash
 # Count unresolved comments in the comment map
-PENDING=$(grep -c "Status: \[ACKNOWLEDGED\]\|Status: pending" \
-  .agents/pr-comments/PR-[number]/comments.md || true)
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+PENDING=$(grep -Ec "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP")
 
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
@@ -372,7 +376,12 @@ echo "Unresolved API threads: $UNRESOLVED_API"
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Artifact state
-PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+PENDING=$(grep -Ec "Status: pending|Status: \[ACKNOWLEDGED\]" "$COMMENT_MAP")
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -1305,7 +1314,7 @@ echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  grep -EB5 "Status: \[ACKNOWLEDGED\]|Status: pending" .agents/pr-comments/PR-[number]/comments.md
   # Return to Phase 3 for unaddressed comments
 fi
 ```
@@ -1320,15 +1329,17 @@ fi
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Resolve bot-authored or explicitly approved threads by ID.
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWRls5m7ln8"
+for THREAD_ID in "PRRT_kwDOQoWRls5m7ln8" "PRRT_kwDOQoWRls5m7ln9"; do
+  python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
+done
 ```
 
-The script will:
+The loop must:
 
-1. Query all review threads on the PR
-2. Identify any unresolved threads
-3. Resolve each one via GraphQL API
-4. Report summary: `N resolved, M failed`
+1. Use only bot-authored or explicitly approved thread IDs.
+2. Resolve one explicit thread ID per command invocation.
+3. Re-query all review threads after the loop.
+4. Confirm no eligible unresolved thread remains.
 
 **Exit codes**:
 
