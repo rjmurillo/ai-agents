@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review-thread fixes were committed through b71df3d1: UTF-8 decoding, pagination truncation, mode-selection coverage, delimiter collision handling, gh diff stdout preservation, and memory evidence correction."
+        "Evidence": "Review-thread fixes were committed through 9e65a0a0: UTF-8 decoding, pagination truncation, accurate API-failure warning, mode-selection coverage, issue and session-log coverage, delimiter collision handling, gh diff stdout preservation, config exit-code mapping, and output I/O error classification."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/test_build_ai_review_context.py -x passed with 12 tests. uv run ruff check scripts/ci/build_ai_review_context.py tests/test_build_ai_review_context.py passed. uv run python scripts/validate_session_json.py .agents/sessions/2026-07-08-session-2814-adr006ci.json passed with one branch-name warning. Changed-file em and en dash byte counts were zero."
+        "Evidence": "uv run pytest tests/test_build_ai_review_context.py -x passed with 19 tests. uv run ruff check scripts/ci/build_ai_review_context.py tests/test_build_ai_review_context.py passed. uv run python scripts/validate_session_json.py .agents/sessions/2026-07-08-session-2814-adr006ci.json passed with one branch-name warning. Changed-file em and en dash byte counts were zero."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -141,9 +141,13 @@
     {
       "time": "2026-07-08T11:45:00Z",
       "entry": "Addressed follow-up review findings: nonzero gh pr diff stdout is preserved, heredoc delimiter collision is tested, and episode commit metrics are corrected."
+    },
+    {
+      "time": "2026-07-08T12:15:00Z",
+      "entry": "Addressed new follow-up review findings: API-failure warnings, config exit-code mapping, output I/O error classification, and missing issue/session-log context tests."
     }
   ],
-  "endingCommit": "b71df3d1c1919e73807510314667482ff8f1604d",
+  "endingCommit": "9e65a0a09811e0a51b4bf39f3d7530e2d25d3f0c",
   "nextSteps": [
     "Push agent/adr006ci and resolve PR #2969 review threads."
   ]
