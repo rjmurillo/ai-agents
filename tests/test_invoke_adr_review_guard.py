@@ -82,6 +82,123 @@ class TestGetStagedADRChanges:
             ".agents/SESSION-PROTOCOL.md",
         ]
 
+    @patch("invoke_adr_review_guard.subprocess.run")
+    def test_allows_frontmatter_only_metadata_change(
+        self,
+        mock_run: MagicMock,
+    ) -> None:
+        old_content = """---
+status: accepted
+implemented: false
+---
+# Decision
+Keep the boundary stable.
+"""
+        new_content = old_content.replace("implemented: false", "implemented: true")
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout=".agents/architecture/ADR-073.md\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout=old_content, stderr=""),
+            MagicMock(returncode=0, stdout=new_content, stderr=""),
+        ]
+
+        result = get_staged_adr_changes()
+
+        assert result == []
+
+    @patch("invoke_adr_review_guard.subprocess.run")
+    def test_keeps_content_change_gated_when_metadata_changes(
+        self,
+        mock_run: MagicMock,
+    ) -> None:
+        old_content = """---
+status: accepted
+implemented: false
+---
+# Decision
+Keep the boundary stable.
+"""
+        new_content = """---
+status: accepted
+implemented: true
+---
+# Decision
+Change the boundary.
+"""
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout=".agents/architecture/ADR-073.md\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout=old_content, stderr=""),
+            MagicMock(returncode=0, stdout=new_content, stderr=""),
+        ]
+
+        result = get_staged_adr_changes()
+
+        assert result == [".agents/architecture/ADR-073.md"]
+
+    @patch("invoke_adr_review_guard.subprocess.run")
+    def test_keeps_status_transition_gated_without_review(
+        self,
+        mock_run: MagicMock,
+    ) -> None:
+        old_content = """---
+status: proposed
+implemented: false
+---
+# Decision
+Keep the boundary stable.
+"""
+        new_content = old_content.replace("status: proposed", "status: accepted")
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout=".agents/architecture/ADR-073.md\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout=old_content, stderr=""),
+            MagicMock(returncode=0, stdout=new_content, stderr=""),
+        ]
+
+        result = get_staged_adr_changes()
+
+        assert result == [".agents/architecture/ADR-073.md"]
+
+    @patch("invoke_adr_review_guard.subprocess.run")
+    def test_keeps_malformed_frontmatter_gated(self, mock_run: MagicMock) -> None:
+        old_content = """---
+status: accepted
+implemented: false
+---
+# Decision
+Keep the boundary stable.
+"""
+        new_content = """---
+status: accepted
+implemented: [true
+---
+# Decision
+Keep the boundary stable.
+"""
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout=".agents/architecture/ADR-073.md\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout=old_content, stderr=""),
+            MagicMock(returncode=0, stdout=new_content, stderr=""),
+        ]
+
+        result = get_staged_adr_changes()
+
+        assert result == [".agents/architecture/ADR-073.md"]
+
 
 class TestIsGatedFile:
     def test_matches_adr_file(self) -> None:
@@ -222,6 +339,42 @@ class TestMainAllowPath:
         with patch.object(mock_stdin, "isatty", return_value=False):
             assert main() == 0
 
+    @patch("invoke_adr_review_guard.get_today_session_log", return_value=None)
+    @patch("invoke_adr_review_guard.get_project_directory", return_value="/tmp/test")
+    @patch("invoke_adr_review_guard.subprocess.run")
+    @patch("invoke_adr_review_guard.sys.stdin", new_callable=StringIO)
+    def test_allows_staged_frontmatter_only_metadata_change(
+        self,
+        mock_stdin: StringIO,
+        mock_run: MagicMock,
+        _mock_project_dir: MagicMock,
+        mock_session_log: MagicMock,
+    ) -> None:
+        old_content = """---
+status: accepted
+implemented: false
+---
+# Decision
+Keep the boundary stable.
+"""
+        new_content = old_content.replace("implemented: false", "implemented: true")
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout=".agents/architecture/ADR-073.md\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout=old_content, stderr=""),
+            MagicMock(returncode=0, stdout=new_content, stderr=""),
+        ]
+        data = json.dumps({"tool_input": {"command": "git commit -m test"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+        mock_session_log.assert_not_called()
+
 
 class TestMainBlockPath:
     @patch("invoke_adr_review_guard.get_today_session_log", return_value=None)
@@ -246,6 +399,82 @@ class TestMainBlockPath:
             assert main() == 2
             captured = capsys.readouterr()
             assert "BLOCKED" in captured.out
+
+    @patch("invoke_adr_review_guard.get_today_session_log", return_value=None)
+    @patch("invoke_adr_review_guard.get_project_directory", return_value="/tmp/test")
+    @patch("invoke_adr_review_guard.subprocess.run")
+    @patch("invoke_adr_review_guard.sys.stdin", new_callable=StringIO)
+    def test_blocks_accepted_transition_without_debate_log(
+        self,
+        mock_stdin: StringIO,
+        mock_run: MagicMock,
+        _mock_project_dir: MagicMock,
+        _mock_session_log: MagicMock,
+    ) -> None:
+        old_content = """---
+status: proposed
+implemented: false
+---
+# Decision
+Keep the boundary stable.
+"""
+        new_content = old_content.replace("status: proposed", "status: accepted")
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout=".agents/architecture/ADR-073.md\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout=old_content, stderr=""),
+            MagicMock(returncode=0, stdout=new_content, stderr=""),
+        ]
+        data = json.dumps({"tool_input": {"command": "git commit -m test"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 2
+
+    @patch("invoke_adr_review_guard.get_today_session_log", return_value=None)
+    @patch("invoke_adr_review_guard.get_project_directory", return_value="/tmp/test")
+    @patch("invoke_adr_review_guard.subprocess.run")
+    @patch("invoke_adr_review_guard.sys.stdin", new_callable=StringIO)
+    def test_blocks_content_change_without_debate_log(
+        self,
+        mock_stdin: StringIO,
+        mock_run: MagicMock,
+        _mock_project_dir: MagicMock,
+        _mock_session_log: MagicMock,
+    ) -> None:
+        old_content = """---
+status: accepted
+implemented: false
+---
+# Decision
+Keep the boundary stable.
+"""
+        new_content = """---
+status: accepted
+implemented: true
+---
+# Decision
+Change the boundary.
+"""
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout=".agents/architecture/ADR-073.md\n",
+                stderr="",
+            ),
+            MagicMock(returncode=0, stdout=old_content, stderr=""),
+            MagicMock(returncode=0, stdout=new_content, stderr=""),
+        ]
+        data = json.dumps({"tool_input": {"command": "git commit -m test"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 2
 
     @patch("invoke_adr_review_guard.check_adr_review_evidence")
     @patch("invoke_adr_review_guard.get_today_session_log")

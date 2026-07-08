@@ -129,7 +129,7 @@ Practical consequences:
 - Any `.claude/` content edit regenerates `src/copilot-cli/` too, so you bump BOTH project-toolkit manifests, and `check_plugin_manifest_parity.py` requires the two versions to be IDENTICAL. Bump them to the same new value in one commit.
 - `src/claude/` bumps independently (its own line).
 - `.github/instructions/` and `src/vs-code-agents/` carry no plugin.json; no bump.
-- Marketplace: `.claude-plugin/marketplace.json` lists two plugins (claude-agents from `./src/claude`, project-toolkit from `./.claude`). Count rules live in `templates/marketplace-counters.yaml`, which references `build/scripts/validate_marketplace_counts.py`; that script DOES NOT EXIST in the tree as of 2026-07-03, so treat description-count validation as currently unenforced and keep counts honest by hand. Flag this stale reference if you touch that area (see `ai-agents-docs-of-record` fix-on-contact policy).
+- Marketplace: `.claude-plugin/marketplace.json` lists two plugins (claude-agents from `./src/claude`, project-toolkit from `./.claude`). The old marketplace count validator and its YAML config were retired, so treat description-count validation as currently unenforced and keep counts honest by hand.
 
 ### Phase 5: npm Release Path
 
@@ -190,9 +190,9 @@ Verified 2026-07-03 against the working tree. Volatile facts and how to re-check
 | Hook drift push guard | .claude/hooks/PreToolUse/invoke_hook_drift_guard.py:1-25 | `head -25 .claude/hooks/PreToolUse/invoke_hook_drift_guard.py` |
 | Ruff exemption for generated Python | pyproject.toml:99-100 | `grep -n "src/copilot-cli" pyproject.toml` |
 | npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:12-17 | `grep -n "tags" .github/workflows/publish.yml` |
-| Missing validate_marketplace_counts.py | referenced in templates/marketplace-counters.yaml:8 and validate_plugin_version_bump.py:40; absent from tree | `find . -name "validate_marketplace_counts*" -not -path "./.venv/*"` |
+| Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:66 | `grep -n "build/audit" .gitignore` |
 | 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `ls .agents/retrospective/ \| grep drift` |
 | ADR-036 Accepted, ADR-072 Proposed | .agents/architecture/ADR-036-*.md, ADR-072-*.md | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 
-Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or when validate_marketplace_counts.py lands, update Phase 1/4 tables and re-run every re-verify command above.
+Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or when the retired marketplace count validator lands, update Phase 1/4 tables and re-run every re-verify command above.

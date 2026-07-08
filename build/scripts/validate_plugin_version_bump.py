@@ -36,9 +36,8 @@ Three packaged plugins (the only dirs with a ``.claude-plugin/plugin.json``):
 
 ``.github/`` and ``src/vs-code-agents/`` carry no plugin.json and are not
 marketplace plugins, so they are out of scope: there is no version to bump.
-``marketplace.json`` description counts are gated separately by
-``build/scripts/validate_marketplace_counts.py``; this validator does not touch
-them.
+``marketplace.json`` description counts are outside this validator; the
+old dedicated count validator has been retired.
 
 SEMVER
 ------
@@ -542,7 +541,9 @@ def find_violations(
     the gate to pass while pushed commits lack a bump.
     """
     root = repo_root or _REPO_ROOT
-    effective_base = base_ref if base_already_resolved else _resolve_merge_base(base_ref, head_ref, root)
+    effective_base = (
+        base_ref if base_already_resolved else _resolve_merge_base(base_ref, head_ref, root)
+    )
     pairs = _version_pairs(effective_base, head_ref, root, plugins)
     return evaluate(changed_files, pairs, plugins)
 

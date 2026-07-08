@@ -3,7 +3,7 @@
 
 Centralizes YAML reading + safety checks shared by:
 - validate_templates_schema.py (REQ-003-002)
-- validate_marketplace_counts.py (REQ-003-004)
+- retired marketplace counter configs (REQ-003-004)
 - future config-driven build scripts (M3+)
 
 Enforces ADR-006 Amendment 2026-04-28 conditions:
@@ -132,7 +132,7 @@ def validate_relative_path(field: str, value: object) -> list[str]:
 
 def load_platform_config(
     path: Path | str, supported_major: int = DEFAULT_SUPPORTED_MAJOR
-) -> dict:
+) -> dict[str, object]:
     """Load and minimally validate a build-pipeline YAML config.
 
     Accepts ``str`` or ``Path``; coerces to ``Path`` so callers don't get
