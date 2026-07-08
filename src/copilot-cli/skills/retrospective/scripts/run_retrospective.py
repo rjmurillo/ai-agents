@@ -82,7 +82,7 @@ def _artifact_root_is_set() -> bool:
 def _artifact_dir(project_dir: Path, subdir: str) -> Path:
     """Resolve an artifact directory while preserving explicit project-dir tests."""
     if _artifact_root_is_set() or project_dir.resolve() == Path.cwd().resolve():
-        return paths.resolve_artifact_root(subdir)
+        return Path(paths.resolve_artifact_root(subdir))
     return project_dir / ".agents" / subdir
 
 
