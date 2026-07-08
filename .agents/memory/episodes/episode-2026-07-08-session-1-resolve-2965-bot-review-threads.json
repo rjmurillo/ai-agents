@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-07-08-session-1-resolve-2965-bot-review-threads",
+  "session": "2026-07-08-session-1-resolve-2965-bot-review-threads",
+  "timestamp": "2026-07-08T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Resolve PR 2965 bot review threads for drift flag",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased branch",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified plugin version",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged review threads",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed drift workflow output",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed PR responder source",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed issue feature review source",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated changes",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped Claude agents plugin version",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 16
+  },
+  "lessons": []
+}
