@@ -1074,7 +1074,7 @@ python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWR
 
 **Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
 
-**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`--all`) automatically discovers and resolves all unresolved threads.
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. Do not use bulk resolution in this workflow. Resolve each eligible bot-authored or explicitly approved thread by ID.
 
 #### Step 6.5: Update Task List
 
