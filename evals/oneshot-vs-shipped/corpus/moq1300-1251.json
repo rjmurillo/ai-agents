@@ -1,0 +1,14 @@
+{
+  "id": "moq1300-1251",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1251,
+  "title": "Moq1300 flags unresolved and open generic As<T> type arguments",
+  "discourse": "Reported: AsShouldBeUsedOnlyForInterfaceAnalyzer reports Moq1300 for any As<T>() type argument whose TypeKind is not Interface. Two named TypeKind cases should not be flagged: Error, which appears in mid-edit code or missing references, and TypeParameter, which is valid in a generic helper when T may be an interface at the call site. The issue notes Moq1300 is Error severity, so these false positives are costly. It also asks for broader test coverage beyond the thin existing rows.",
+  "shipped_fix": "PR #1289 made Moq1300 constraint-aware. It skips unresolved error types, allows open type parameters that have an interface-compatible constraint path, and keeps reporting concrete non-interface types. The PR added tests for unresolved symbols, generic type parameters, interface constraints, and concrete invalid types.",
+  "edges_named_in_discourse": [
+    "unresolved Error type arguments are skipped",
+    "generic type parameters that may be interfaces are not flagged",
+    "concrete non-interface As<T> arguments still report Moq1300"
+  ],
+  "difficulty": 4
+}

@@ -1,0 +1,15 @@
+{
+  "id": "moq1302-1261",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1261,
+  "title": "Moq1302 unbounded recursion can overflow the stack",
+  "discourse": "Reported: LinqToMocksExpressionShouldBeValidAnalyzer walks Mock.Of<T>(...) expressions through mutually recursive AnalyzeLambdaBody and AnalyzeMemberOperations calls. A generated predicate with thousands of chained clauses can overflow the stack, and StackOverflowException kills the compiler or IDE process rather than being reported as an analyzer failure. The issue also names a performance defect: per-member SemanticModel.GetDiagnostics(span) forces repeated binding. The fix must bound recursion and reduce repeated binding while preserving valid invalid-member diagnostics.",
+  "shipped_fix": "PR #1294 added an explicit recursion-depth boundary to the Moq1302 operation walk and pinned the exact boundary with tests. It also reduced the costly per-candidate diagnostics path so the analyzer can reject pathological input without stack overflow or repeated full rebinds.",
+  "edges_named_in_discourse": [
+    "deep generated Mock.Of predicates do not overflow the stack",
+    "the recursion-depth boundary is tested",
+    "valid invalid-member diagnostics still report",
+    "per-member diagnostics work is reduced"
+  ],
+  "difficulty": 5
+}
