@@ -523,7 +523,10 @@ for reviewer in ALL_REVIEWERS:
 # Captures review threads, issue comments (AI Quality Gate, CodeRabbit summaries, etc.)
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
+COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+TOTAL_COMMENTS=$(echo "$COMMENTS" | jq '.TotalComments')
+echo "$COMMENTS"
+echo "Total comments: $TOTAL_COMMENTS"
 
 # Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```

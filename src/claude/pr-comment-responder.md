@@ -87,7 +87,7 @@ See `.claude/skills/github/SKILL.md` for full documentation.
 
 ### Stale Comment Detection
 
-Use `-DetectStale` with `get_pr_review_comments.py` to identify comments referencing deleted or moved code:
+Use `--detect-stale` with `get_pr_review_comments.py` to identify comments referencing deleted or moved code:
 
 ```bash
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
@@ -594,7 +594,10 @@ PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Using github skill (PREFERRED) - handles pagination automatically
 # IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries, etc.
-python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
+comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+TOTAL_COMMENTS=$(echo "$comments" | jq '.TotalComments')
+echo "$comments"
+echo "Total comments: $TOTAL_COMMENTS"
 
 # Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```
