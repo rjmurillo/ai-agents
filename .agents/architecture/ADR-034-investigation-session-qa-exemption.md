@@ -89,13 +89,12 @@ $investigationAllowlist = @(
 
 The canonical machine-readable source of this list is
 `scripts/modules/investigation_allowlist.py` (`get_investigation_allowlist()`).
-`.github/scripts/validate_investigation_claims.py` imports it directly. Not
-every check consumes it yet: `scripts/validate_session_json.py` does not read
-the allowlist at all, and the session skill pre-check
-(`.claude/skills/session/scripts/test_investigation_eligibility.py`) still
-carries a parallel hardcoded pattern list that must be kept in sync by hand.
-The 8 patterns above mirror the module exactly. See the Amendment section
-below for the rationale behind the last three.
+`.github/scripts/validate_investigation_claims.py` imports it for diff-mode
+checks, but its session-log commit scan still carries an inline pattern list.
+Not every check consumes the module yet: `scripts/validate_session_json.py` does
+not read the allowlist at all, and the session skill pre-check has no local
+consumer in this worktree. The 8 patterns above mirror the module exactly. See
+the Amendment section below for the rationale behind the last three.
 
 **Allowlist Owner**: Architect agent (reviews additions via ADR amendment)
 

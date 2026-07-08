@@ -129,6 +129,10 @@
     {
       "time": "2026-07-08T08:00:00Z",
       "entry": "Invoked adr-review skill on the ADR-034 amendment; recorded 6/6 Accept debate log at .agents/critique/ADR-034-debate-log.md; deferred allowlist DRY convergence to issue #2966."
+    },
+    {
+      "time": "2026-07-08T09:46:23Z",
+      "entry": "Verified PR #2958 Copilot review threads at byte level; corrected allowlist consumer references in investigation_allowlist.py and ADR-034."
     }
   ],
   "endingCommit": "58f58a7b",
