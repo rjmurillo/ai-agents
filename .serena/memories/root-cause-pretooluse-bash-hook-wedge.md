@@ -32,9 +32,10 @@ exception) can still fail CLOSED and deny every command, because:
 2. When that work exceeds the host timeout, the host sends **SIGKILL**. A SIGKILL cannot be
    caught by the hook's internal `try/except` fail-open path, so the "advisory" contract is
    silently violated and the non-zero exit becomes a hard deny.
-3. Concrete mismatch found: `_remote_repo_name` used `subprocess.run(..., timeout=5)` while the
-   correction-applier host timeout is 3s (`.claude/settings.json`). Internal timeout (5s) >
-   host timeout (3s) guarantees a SIGKILL before the internal timeout can return gracefully.
+3. Concrete mismatch found: `_remote_repo_name` used `subprocess.run(..., timeout=5)`. The guard
+   runs under multiple PreToolUse hosts; the tightest is topical-memory-injection at 2s
+   (`.claude/settings.json`), and the correction-applier host is 3s. Internal timeout (5s) >
+   tightest host timeout (2s) guarantees a SIGKILL before the internal timeout can return gracefully.
 
 ## Five Whys
 
@@ -45,7 +46,7 @@ exception) can still fail CLOSED and deny every command, because:
 - Q4: Why does the fail-open path not save it? -> A SIGKILL is uncatchable; `try/except` only
   covers in-process exceptions, not host-timeout kills.
 - Q5: Why was the internal timeout larger than the host timeout? -> The subprocess timeout (5s)
-  was set without reference to the tightest host hook timeout (3s) that invokes it.
+  was set without reference to the tightest host hook timeout (2s) that invokes it.
 
 ## Invariant (the durable lesson)
 
@@ -58,17 +59,19 @@ subprocess (git) runs *before* the scan under the same host budget. Anchor the d
 hook's entry (`main()` start) and pass it through, so a slow subprocess shrinks the scan window
 instead of pushing total wall-clock past the host timeout.
 
-## Fixes applied (this session, uncommitted; require Copilot restart to take effect)
+## Fixes applied (this session, committed in this PR)
 
 - `scripts/hook_utilities/guards.py` (+ synced copies `.claude/lib/...`,
-  `src/copilot-cli/lib/...`): `_remote_repo_name` git subprocess `timeout=5` -> `timeout=2`, so
-  the per-tool-call git lookup stays under the 3s tightest host timeout. Failure still degrades to
+  `src/copilot-cli/lib/...`): `_remote_repo_name` git subprocess `timeout=5` -> `timeout=1`, so
+  the per-tool-call git lookup stays under the 2s tightest host timeout (topical-memory-injection
+  in `.claude/settings.json`). Failure still degrades to
   None -> identity "unknown" -> pyproject `[project].name` corroboration keeps project identity
   correct. No generator run needed (straight lib sync; all three copies edited identically).
 - `.claude/hooks/PreToolUse/invoke_correction_applier.py`: bounded the `.serena/memories` scan
   (`_MAX_FILES_SCANNED`, `_MAX_TOTAL_BYTES`, wall-clock deadline) AND anchored a
   `_HOOK_WALL_BUDGET_SECONDS = 2.5` deadline at `main()` entry, passed into `scan_memories`, so
-  git-time + scan-time together stay under the 3s host timeout. Single copy (no generated mirror).
+  git-time + scan-time together stay under the correction-applier host timeout (3s). Single copy
+  (no generated mirror).
 - `tests/test_hook_plugin_guards.py::test_origin_lookup_timeout_under_host_budget`: regression
   guard. Reads `.claude/settings.json`, takes the minimum explicit PreToolUse hook timeout, and
   asserts the git lookup timeout is strictly less than it. Catches both a future git-timeout
