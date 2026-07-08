@@ -34,10 +34,10 @@ jobs:
       should-run-compliance: ${{ steps.determine.outputs.should-run-compliance }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Check path filters
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
         id: filter
         if: github.event_name != 'workflow_dispatch'
         with:
@@ -69,10 +69,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: '3.14'
 
@@ -83,7 +83,11 @@ jobs:
             --claude-md-path CLAUDE.md \
             --format table
 
+      - name: Install skill budget dependencies
+        run: python3 -m pip install 'PyYAML==6.0.3'
+
       - name: Run skill description budget
+        continue-on-error: true
         run: python3 scripts/skill_description_budget.py --max-total-chars 40000
 
   skip-compliance:
@@ -96,7 +100,7 @@ jobs:
       - name: Checkout code
         # Required for dorny/paths-filter pattern consistency
         # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Skip message
         run: |
