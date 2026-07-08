@@ -21,7 +21,7 @@ Because the recommendation changed materially from the reviewed draft, the `adr-
 
 ## Date
 
-2026-07-07
+2026-07-08
 
 ## Context
 

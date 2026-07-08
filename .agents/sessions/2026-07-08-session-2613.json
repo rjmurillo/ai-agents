@@ -132,7 +132,7 @@
     },
     {
       "time": "2026-07-08T06:05:00Z",
-      "entry": "Addressed PR #2856 review: bumped ADR-079 frontmatter date to the 2026-07-08 accept date (ADR-073 last-updated semantics) and set episode metrics.commits to 1 to match the single recorded commit event."
+      "entry": "Addressed PR #2856 review: bumped ADR-079 frontmatter date to the 2026-07-08 accept date (ADR-073 last-updated semantics) and reconciled the episode commit metric with the recorded commit events."
     }
   ],
   "endingCommit": "5f25b005",
