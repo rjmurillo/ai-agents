@@ -207,6 +207,22 @@ if ($synced) { Write-Host "Configuration was synced" }
 
 See [docs/technical-guardrails.md](../docs/technical-guardrails.md) for complete validation documentation.
 
+## Keep-Disposition Script Entry Points
+
+These scripts are retained for direct use. Each command below prints the
+script-specific CLI help and validates the documented entry point.
+
+| Script | Purpose | Invocation |
+|--------|---------|------------|
+| `scripts/compute_health_status.py` | Computes aggregate repository health from memory and session metrics. | `uv run python scripts/compute_health_status.py --help` |
+| `scripts/consolidate_skills.py` | Finds recurring session-log patterns and emits skill candidates. | `uv run python scripts/consolidate_skills.py --help` |
+| `scripts/maintenance/gc_worktrees.py` | Reports or removes stale git worktrees after safety checks. | `uv run python scripts/maintenance/gc_worktrees.py --help` |
+| `scripts/new_validated_pr.py` | Creates a PR through the validated PR guardrail wrapper. | `uv run python scripts/new_validated_pr.py --help` |
+| `scripts/openclaw_bridge.py` | Exports Claude agent definitions to an OpenClaw workspace or JSON. | `uv run python scripts/openclaw_bridge.py --help` |
+| `scripts/split_bundled_skills.py` | Splits bundled skill files into individual skill memory files. | `uv run python scripts/split_bundled_skills.py --help` |
+| `scripts/normalize_line_endings.py` | Normalizes repository line endings to LF through git renormalization. | `uv run python scripts/normalize_line_endings.py --help` |
+| `scripts/traceability/reconstruct_trace.py` | Reconstructs multi-agent trace trees from session log correlation fields. | `uv run python scripts/traceability/reconstruct_trace.py --help` |
+
 ## Running Tests
 
 Requires [Pester](https://pester.dev/) 5.x:

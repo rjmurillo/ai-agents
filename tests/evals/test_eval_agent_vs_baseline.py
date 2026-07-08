@@ -1609,7 +1609,7 @@ class TestReportAggregatorCost:
         # 6 records × tokens_in=100, tokens_out=50.
         # cost = (600 * 0.003 + 300 * 0.015) / 1000 = (1.8 + 4.5)/1000 = 0.0063
         assert result.cost_estimate_usd == pytest.approx(0.0063)
-        assert result.pricing_rate_as_of == "2026-05-03"
+        assert result.pricing_rate_as_of == "2026-07-08"
 
 
 # ===========================================================================
@@ -2607,7 +2607,7 @@ class TestReportWriterRecommendationPassThrough:
     """`ReportWriter.write` accepts a verdict that flows into both
     report.json and the Markdown narrative (PR 1873)."""
 
-    def _agg(self) -> "AggregateResult":
+    def _agg(self) -> AggregateResult:
         return AggregateResult(
             agent_recall=0.78,
             baseline_recall=0.40,
@@ -2663,7 +2663,7 @@ class TestReportWriterRecommendationPassThrough:
         assert "halt-due-to-flakiness" in md
         assert "Pending" not in md.split("## Recommendation", 1)[1].split("##", 1)[0]
 
-    def _agg_halted(self) -> "AggregateResult":
+    def _agg_halted(self) -> AggregateResult:
         # Variant of _agg() with the flakiness gate tripped: AC-10 halt
         # implies flakiness, so both flags are set.
         return AggregateResult(
