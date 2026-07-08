@@ -1,0 +1,108 @@
+{
+  "scenarios": [
+    {
+      "id": "S1-ado-devazure-https",
+      "desc": "Azure DevOps HTTPS origin selects ADO host.",
+      "input": "Run /ship on branch feature/ado-https. git remote get-url origin returns https://dev.azure.com/contoso/agent-platform/_git/ai-agents. No PR ownership facts have been queried yet. Classify the VCS host only.",
+      "verdict_options": [
+        "HOST_ADO",
+        "HOST_GITHUB",
+        "ERROR"
+      ],
+      "expected_verdict": "HOST_ADO",
+      "expected_reason_contains": "dev.azure.com",
+      "rationale": "The mode-detection rules classify any origin URL containing dev.azure.com as host=ado."
+    },
+    {
+      "id": "S2-ado-devazure-ssh",
+      "desc": "Azure DevOps SSH origin selects ADO host.",
+      "input": "Run /ship on branch feature/ado-ssh. git remote get-url origin returns git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents. No PR ownership facts have been queried yet. Classify the VCS host only.",
+      "verdict_options": [
+        "HOST_ADO",
+        "HOST_GITHUB",
+        "ERROR"
+      ],
+      "expected_verdict": "HOST_ADO",
+      "expected_reason_contains": "dev.azure.com",
+      "rationale": "The mode-detection rules classify ADO SSH URLs with dev.azure.com as host=ado."
+    },
+    {
+      "id": "S3-ado-visualstudio-https",
+      "desc": "Legacy Visual Studio HTTPS origin selects ADO host.",
+      "input": "Run /ship on branch feature/visualstudio. git remote get-url origin returns https://contoso.visualstudio.com/agent-platform/_git/ai-agents. No PR ownership facts have been queried yet. Classify the VCS host only.",
+      "verdict_options": [
+        "HOST_ADO",
+        "HOST_GITHUB",
+        "ERROR"
+      ],
+      "expected_verdict": "HOST_ADO",
+      "expected_reason_contains": "visualstudio.com",
+      "rationale": "The mode-detection rules classify any origin URL containing visualstudio.com as host=ado."
+    },
+    {
+      "id": "S4-github-origin",
+      "desc": "GitHub origin selects GitHub host.",
+      "input": "Run /ship on branch agent/ship2929. git remote get-url origin returns https://github.com/rjmurillo/ai-agents.git. No PR ownership facts have been queried yet. Classify the VCS host only.",
+      "verdict_options": [
+        "HOST_ADO",
+        "HOST_GITHUB",
+        "ERROR"
+      ],
+      "expected_verdict": "HOST_GITHUB",
+      "expected_reason_contains": "github",
+      "rationale": "Origins without dev.azure.com or visualstudio.com fall through to host=github."
+    },
+    {
+      "id": "S5-no-origin-hard-error",
+      "desc": "Missing origin remote hard-errors instead of falling back to GitHub.",
+      "input": "Run /ship on branch local-only. git remote get-url origin exits non-zero and returns an empty string. Determine the next action before any pre-flight checks.",
+      "verdict_options": [
+        "HOST_GITHUB",
+        "HOST_ADO",
+        "ERROR"
+      ],
+      "expected_verdict": "ERROR",
+      "expected_reason_contains": "origin remote",
+      "rationale": "The mode-detection block exits with code 2 when origin is not configured. It must not default to github."
+    },
+    {
+      "id": "S6-open-pr-other-author-contributor",
+      "desc": "Open PR authored by someone else selects contributor mode.",
+      "input": "Run /ship on branch teammate/feature. host=github. gh pr view --json number,author,state,url returns {\"number\": 120, \"state\": \"OPEN\", \"author\": {\"login\": \"teammate\"}, \"url\": \"https://github.com/rjmurillo/ai-agents/pull/120\"}. The current authenticated user is rjmurillo. Choose the ship mode and terminal behavior.",
+      "verdict_options": [
+        "MODE_CONTRIBUTOR",
+        "MODE_OWNER",
+        "ERROR"
+      ],
+      "expected_verdict": "MODE_CONTRIBUTOR",
+      "expected_reason_contains": "not its author",
+      "rationale": "An open PR whose author differs from the current user means contributor mode. No marker commit, PR creation, or merge is allowed."
+    },
+    {
+      "id": "S7-closed-or-merged-pr-not-open-owner",
+      "desc": "Closed or merged branch PR does not trigger contributor mode.",
+      "input": "Run /ship on branch agent/old-pr. host=github. gh pr view --json number,author,state,url returns {\"number\": 88, \"state\": \"MERGED\", \"author\": {\"login\": \"teammate\"}, \"url\": \"https://github.com/rjmurillo/ai-agents/pull/88\"}. The current authenticated user is rjmurillo. Choose the ship mode.",
+      "verdict_options": [
+        "MODE_OWNER",
+        "MODE_CONTRIBUTOR",
+        "ERROR"
+      ],
+      "expected_verdict": "MODE_OWNER",
+      "expected_reason_contains": "OPEN",
+      "rationale": "Only state exactly OPEN counts as an open PR for contributor-mode detection. Closed or merged PRs are ignored."
+    },
+    {
+      "id": "S8-owner-mode-requires-review-marker",
+      "desc": "Owner mode still requires SHA-bound review marker on HEAD.",
+      "input": "Run /ship on branch agent/ship2929. host=github and mode=owner. git status --porcelain is empty. The current HEAD is abc1234. There is no /review marker commit whose Reviewed-By trailer binds abc1234. Decide the Reviewed pre-flight check result and next action.",
+      "verdict_options": [
+        "REQUIRE_MARKER",
+        "ADVISORY_NO_MARKER",
+        "SKIP_REVIEW"
+      ],
+      "expected_verdict": "REQUIRE_MARKER",
+      "expected_reason_contains": "marker",
+      "rationale": "Owner mode retains the SHA-bound /review marker requirement. Only contributor mode uses a non-commit attestation."
+    }
+  ]
+}

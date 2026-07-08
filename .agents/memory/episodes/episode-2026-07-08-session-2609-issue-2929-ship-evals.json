@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-07-08-session-2609-issue-2929-ship-evals",
+  "session": "2026-07-08-session-2609-issue-2929-ship-evals",
+  "timestamp": "2026-07-08T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #2929 by adding ADR-057 behavioral eval scenarios for /ship mode detection",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #2929, ADR-057, /ship command spec, prompt eval methodology, existing scenario schemas, and eval runner contract. Added tests/evals/ship-scenarios.json with eight mode-detection scenarios covering ADO URL forms, GitHub URL, missing origin, contributor mode, closed or merged PR handling, and owner marker requirement.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1e005dc1f599180d226397dbabebaa4fc3a58afd",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

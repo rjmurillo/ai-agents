@@ -1,0 +1,536 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-4-6",
+  "source": "git: main:.claude/commands/ship.md -> working copy",
+  "runs_per_scenario": 3,
+  "security_critical": false,
+  "comparison": {
+    "before_score": 1.0,
+    "after_score": 1.0,
+    "delta": 0.0,
+    "scenario_count": 8,
+    "api_calls": 48,
+    "est_tokens": 168000
+  },
+  "gate": {
+    "verdict": "PASS",
+    "passed": true,
+    "security_critical": false,
+    "criteria": {
+      "no_regression": true,
+      "has_improvement": true,
+      "no_unexplained_regressions": true,
+      "no_high_flakiness": true
+    },
+    "improvements": [],
+    "regressions": [],
+    "flaky_scenarios": [],
+    "high_flakiness_scenarios": [],
+    "before_score": 1.0,
+    "after_score": 1.0,
+    "delta": 0.0
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "S1-ado-devazure-https",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'https://dev.azure.com/contoso/agent-platform/_git/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'https://dev.azure.com/contoso/agent-platform/_git/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'https://dev.azure.com/contoso/agent-platform/_git/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'https://dev.azure.com/contoso/agent-platform/_git/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2-ado-devazure-ssh",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO detection pattern in the case statement, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO detection pattern in the case statement, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3-ado-visualstudio-https",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL contains 'visualstudio.com', which matches the ADO detection pattern in the mode detection block. The case statement explicitly lists '*visualstudio.com*' as mapping to host=ado.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL contains 'visualstudio.com', which matches the ADO detection pattern in the mode detection block. The case statement explicitly lists '*visualstudio.com*' as mapping to host=ado.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL contains 'visualstudio.com', which matches the ADO pattern in the host detection logic. The case statement explicitly matches '*visualstudio.com*' and sets host=ado.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL contains 'visualstudio.com', which matches the ADO pattern in the host detection logic. The case statement explicitly matches '*visualstudio.com*' and sets host=ado.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL contains 'visualstudio.com', which matches the ADO pattern in the host detection logic (`*visualstudio.com*`), so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL contains 'visualstudio.com', which matches the ADO pattern in the host detection logic (`*visualstudio.com*`), so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4-github-origin",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "HOST_GITHUB",
+            "reason": "The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.",
+            "raw": "{\"verdict\": \"HOST_GITHUB\", \"reason\": \"The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_GITHUB",
+            "reason": "The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.",
+            "raw": "{\"verdict\": \"HOST_GITHUB\", \"reason\": \"The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_GITHUB",
+            "reason": "The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.",
+            "raw": "{\"verdict\": \"HOST_GITHUB\", \"reason\": \"The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5-no-origin-hard-error",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "ERROR",
+            "reason": "The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification occurs.",
+            "raw": "{\"verdict\": \"ERROR\", \"reason\": \"The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification occurs.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "ERROR",
+            "reason": "The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification can occur.",
+            "raw": "{\"verdict\": \"ERROR\", \"reason\": \"The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification can occur.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "ERROR",
+            "reason": "The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification can occur.",
+            "raw": "{\"verdict\": \"ERROR\", \"reason\": \"The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification can occur.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S6-open-pr-other-author-contributor",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "MODE_CONTRIBUTOR",
+            "reason": "The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules: an open PR exists AND the current user is not its author, so mode=contributor. In this mode, /ship must not write a marker commit, create a PR, or merge; it runs readiness checks and /review axes only, emitting RESULT: VALIDATED.",
+            "raw": "```json\n{\"verdict\": \"MODE_CONTRIBUTOR\", \"reason\": \"The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules: an open PR exists AND the current user is not its author, so mode=contributor. In this mode, /ship must not write a marker commit, create a PR, or merge; it runs readiness checks and /review axes only, emitting RESULT: VALIDATED.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "MODE_CONTRIBUTOR",
+            "reason": "The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules, when an open PR exists and the current user is not its author, mode=contributor is set. In this mode, no marker commit is written, no PR is created, and no merge occurs; the terminal state is RESULT: VALIDATED.",
+            "raw": "```json\n{\"verdict\": \"MODE_CONTRIBUTOR\", \"reason\": \"The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules, when an open PR exists and the current user is not its author, mode=contributor is set. In this mode, no marker commit is written, no PR is created, and no merge occurs; the terminal state is RESULT: VALIDATED.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "MODE_CONTRIBUTOR",
+            "reason": "The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules: an open PR exists AND the current user is not its author, so mode=contributor applies. In this mode, /ship runs readiness checks and /review axes but must NOT write a marker commit, create a PR, or merge onto the shared branch.",
+            "raw": "```json\n{\"verdict\": \"MODE_CONTRIBUTOR\", \"reason\": \"The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules: an open PR exists AND the current user is not its author, so mode=contributor applies. In this mode, /ship runs readiness checks and /review axes but must NOT write a marker commit, create a PR, or merge onto the shared branch.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S7-closed-or-merged-pr-not-open-owner",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "MODE_OWNER",
+            "reason": "The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.",
+            "raw": "```json\n{\"verdict\": \"MODE_OWNER\", \"reason\": \"The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "MODE_OWNER",
+            "reason": "The PR for branch agent/old-pr has state=MERGED, not OPEN. The mode detection rules specify: 'Treat the result as an open PR only when the JSON state field is exactly OPEN.' Since the PR is not open, there is no open PR for this branch, so the condition for contributor mode (open PR exists AND you are not its author) is not met. Therefore mode=owner.",
+            "raw": "```json\n{\"verdict\": \"MODE_OWNER\", \"reason\": \"The PR for branch agent/old-pr has state=MERGED, not OPEN. The mode detection rules specify: 'Treat the result as an open PR only when the JSON state field is exactly OPEN.' Since the PR is not open, there is no open PR for this branch, so the condition for contributor mode (open PR exists AND you are not its author) is not met. Therefore mode=owner.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "MODE_OWNER",
+            "reason": "The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.",
+            "raw": "```json\n{\"verdict\": \"MODE_OWNER\", \"reason\": \"The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S8-owner-mode-requires-review-marker",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REQUIRE_MARKER",
+            "reason": "In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The required action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship. This check is blocking in owner mode.",
+            "raw": "{\"verdict\": \"REQUIRE_MARKER\", \"reason\": \"In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The required action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship. This check is blocking in owner mode.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "REQUIRE_MARKER",
+            "reason": "In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The required action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship. This check is blocking in owner mode.",
+            "raw": "{\"verdict\": \"REQUIRE_MARKER\", \"reason\": \"In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The required action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship. This check is blocking in owner mode.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "REQUIRE_MARKER",
+            "reason": "In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The next action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship.",
+            "raw": "{\"verdict\": \"REQUIRE_MARKER\", \"reason\": \"In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The next action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "S1-ado-devazure-https",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'https://dev.azure.com/contoso/agent-platform/_git/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'https://dev.azure.com/contoso/agent-platform/_git/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'https://dev.azure.com/contoso/agent-platform/_git/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'https://dev.azure.com/contoso/agent-platform/_git/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2-ado-devazure-ssh",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO pattern in the host detection logic, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO detection pattern in the mode detection rules, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO detection pattern in the mode detection rules, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO detection pattern in the mode detection rules, so host=ado is selected.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL 'git@ssh.dev.azure.com:v3/contoso/agent-platform/ai-agents' contains 'dev.azure.com', which matches the ADO detection pattern in the mode detection rules, so host=ado is selected.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3-ado-visualstudio-https",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL contains 'visualstudio.com', which matches the ADO detection pattern in the mode detection block. The case statement explicitly lists '*visualstudio.com*' as mapping to host=ado.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL contains 'visualstudio.com', which matches the ADO detection pattern in the mode detection block. The case statement explicitly lists '*visualstudio.com*' as mapping to host=ado.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL contains 'visualstudio.com', which matches the ADO pattern in the host detection logic. The case statement maps any URL containing 'visualstudio.com' to host=ado.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL contains 'visualstudio.com', which matches the ADO pattern in the host detection logic. The case statement maps any URL containing 'visualstudio.com' to host=ado.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_ADO",
+            "reason": "The origin URL contains 'visualstudio.com', which matches the ADO detection pattern in the mode detection block. The case statement explicitly lists '*visualstudio.com*' as mapping to host=ado.",
+            "raw": "{\"verdict\": \"HOST_ADO\", \"reason\": \"The origin URL contains 'visualstudio.com', which matches the ADO detection pattern in the mode detection block. The case statement explicitly lists '*visualstudio.com*' as mapping to host=ado.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4-github-origin",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "HOST_GITHUB",
+            "reason": "The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.",
+            "raw": "{\"verdict\": \"HOST_GITHUB\", \"reason\": \"The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_GITHUB",
+            "reason": "The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.",
+            "raw": "{\"verdict\": \"HOST_GITHUB\", \"reason\": \"The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "HOST_GITHUB",
+            "reason": "The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.",
+            "raw": "{\"verdict\": \"HOST_GITHUB\", \"reason\": \"The origin URL 'https://github.com/rjmurillo/ai-agents.git' does not contain 'dev.azure.com' or 'visualstudio.com', so it matches the default case and is classified as host=github.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5-no-origin-hard-error",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "ERROR",
+            "reason": "The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification occurs.",
+            "raw": "{\"verdict\": \"ERROR\", \"reason\": \"The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification occurs.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "ERROR",
+            "reason": "The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification can occur.",
+            "raw": "{\"verdict\": \"ERROR\", \"reason\": \"The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification can occur.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "ERROR",
+            "reason": "The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification can occur.",
+            "raw": "{\"verdict\": \"ERROR\", \"reason\": \"The mode detection block explicitly checks for an empty remote_url after git remote get-url origin and exits with 'ERROR: origin remote is not configured; cannot detect VCS host.' \u2014 this is a hard error that stops execution before any pre-flight checks or host classification can occur.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S6-open-pr-other-author-contributor",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "MODE_CONTRIBUTOR",
+            "reason": "The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules, when an open PR exists and the current user is not its author, mode=contributor is set. In this mode, no marker commit is written, no PR is created, and no merge occurs; the terminal state is RESULT: VALIDATED.",
+            "raw": "```json\n{\"verdict\": \"MODE_CONTRIBUTOR\", \"reason\": \"The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules, when an open PR exists and the current user is not its author, mode=contributor is set. In this mode, no marker commit is written, no PR is created, and no merge occurs; the terminal state is RESULT: VALIDATED.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "MODE_CONTRIBUTOR",
+            "reason": "The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules, an open PR exists AND the current user is not its author, so mode=contributor applies. This means no marker commit, no PR creation, no merge \u2014 only readiness checks and /review attestation.",
+            "raw": "```json\n{\"verdict\": \"MODE_CONTRIBUTOR\", \"reason\": \"The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules, an open PR exists AND the current user is not its author, so mode=contributor applies. This means no marker commit, no PR creation, no merge \u2014 only readiness checks and /review attestation.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "MODE_CONTRIBUTOR",
+            "reason": "The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules: an open PR exists AND the current user is not its author, so mode=contributor. In this mode, /ship must not write a marker commit, create a PR, or merge; it runs readiness checks and /review axes only, emitting RESULT: VALIDATED.",
+            "raw": "```json\n{\"verdict\": \"MODE_CONTRIBUTOR\", \"reason\": \"The open PR #120 exists with state=OPEN and is authored by 'teammate', not the current authenticated user 'rjmurillo'. Per mode detection rules: an open PR exists AND the current user is not its author, so mode=contributor. In this mode, /ship must not write a marker commit, create a PR, or merge; it runs readiness checks and /review axes only, emitting RESULT: VALIDATED.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S7-closed-or-merged-pr-not-open-owner",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "MODE_OWNER",
+            "reason": "The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.",
+            "raw": "```json\n{\"verdict\": \"MODE_OWNER\", \"reason\": \"The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "MODE_OWNER",
+            "reason": "The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.",
+            "raw": "```json\n{\"verdict\": \"MODE_OWNER\", \"reason\": \"The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "MODE_OWNER",
+            "reason": "The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.",
+            "raw": "```json\n{\"verdict\": \"MODE_OWNER\", \"reason\": \"The PR for this branch has state=MERGED, not OPEN. The instructions specify treating a result as an open PR only when the JSON state field is exactly OPEN. Since the PR is merged (not open), there is no open PR for this branch, so the condition for contributor mode is not met. Mode defaults to owner.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S8-owner-mode-requires-review-marker",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REQUIRE_MARKER",
+            "reason": "In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The required action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship. This check is blocking in owner mode.",
+            "raw": "{\"verdict\": \"REQUIRE_MARKER\", \"reason\": \"In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The required action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship. This check is blocking in owner mode.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "REQUIRE_MARKER",
+            "reason": "In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The next action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship.",
+            "raw": "{\"verdict\": \"REQUIRE_MARKER\", \"reason\": \"In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The next action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          },
+          {
+            "verdict": "REQUIRE_MARKER",
+            "reason": "In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The next action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship.",
+            "raw": "{\"verdict\": \"REQUIRE_MARKER\", \"reason\": \"In mode=owner, the Reviewed pre-flight check requires a SHA-bound /review marker commit on HEAD whose Reviewed-By trailer binds the reviewed tip (abc1234). No such marker exists, so the check FAILS. The next action is to run /review on this branch (which writes the marker on a PASS verdict), then re-run /ship.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-6"
+          }
+        ]
+      }
+    ]
+  }
+}
