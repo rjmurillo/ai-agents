@@ -96,6 +96,45 @@ class TestReadForgetfulConfig:
         assert host == "localhost"
         assert port == 8020
 
+    def test_returns_defaults_when_root_is_not_object(self, tmp_path, capsys):
+        config_file = tmp_path / ".mcp.json"
+        config_file.write_text(json.dumps([]), encoding="utf-8")
+
+        host, port = invoke_session_start_memory_first.read_forgetful_config(
+            str(config_file)
+        )
+
+        assert host == "localhost"
+        assert port == 8020
+        assert "MCP config root must be a JSON object" in capsys.readouterr().err
+
+    def test_returns_defaults_when_mcp_servers_is_not_object(self, tmp_path, capsys):
+        config_file = tmp_path / ".mcp.json"
+        config_file.write_text(json.dumps({"mcpServers": []}), encoding="utf-8")
+
+        host, port = invoke_session_start_memory_first.read_forgetful_config(
+            str(config_file)
+        )
+
+        assert host == "localhost"
+        assert port == 8020
+        assert "mcpServers must be a JSON object" in capsys.readouterr().err
+
+    def test_returns_defaults_when_forgetful_config_is_not_object(self, tmp_path, capsys):
+        config_file = tmp_path / ".mcp.json"
+        config_file.write_text(
+            json.dumps({"mcpServers": {"forgetful": []}}),
+            encoding="utf-8",
+        )
+
+        host, port = invoke_session_start_memory_first.read_forgetful_config(
+            str(config_file)
+        )
+
+        assert host == "localhost"
+        assert port == 8020
+        assert "forgetful server config must be a JSON object" in capsys.readouterr().err
+
 
 # ---------------------------------------------------------------------------
 # Unit tests for main

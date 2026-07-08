@@ -168,10 +168,12 @@ def main() -> int:
         findings_count = 0
         try:
             lines = result.stdout.strip().splitlines()
-            json_lines = [line for line in lines if line.strip().startswith("{")]
+            json_lines = [line for line in lines if line.strip().startswith(("{", "["))]
             if json_lines:
                 json_output = "\n".join(json_lines)
                 scan_result = json.loads(json_output)
+                if not isinstance(scan_result, dict):
+                    raise TypeError("scan output must be a JSON object")
                 findings_count = scan_result.get("TotalFindings", 0)
         except (json.JSONDecodeError, KeyError, TypeError):
             print(
