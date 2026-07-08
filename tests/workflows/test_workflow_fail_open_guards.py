@@ -170,11 +170,15 @@ class TestPytestBanditSecurity:
         permissions = _job_permissions(self._workflow(), "security")
         assert permissions.get("security-events") == "write"
 
-    def test_bandit_sarif_upload_runs_always(self) -> None:
+    def test_bandit_sarif_upload_runs_after_bandit_on_trusted_prs(self) -> None:
         steps = _job_steps(self._workflow(), "security")
         step = _find_step_by_uses(steps, "github/codeql-action/upload-sarif@")
         assert step is not None
-        assert step.get("if") == "always()"
+        condition = step.get("if")
+        assert condition is not None
+        assert condition.startswith("always()")
+        assert "github.event_name != 'pull_request'" in condition
+        assert "github.event.pull_request.head.repo.full_name == github.repository" in condition
         assert step["with"]["sarif_file"] == "bandit.sarif"
         assert step["with"]["category"] == "bandit"
 

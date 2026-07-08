@@ -217,17 +217,26 @@ jobs:
       # confidence so real high-risk findings fail CI, scoped off test-only
       # false positives. SARIF output feeds GitHub code scanning.
       - name: Run Bandit
-        run: bandit -r .claude/ scripts/ -x '*/tests/*,*/test/*' -f sarif -o bandit.sarif --severity-level high --confidence-level high
+        run: |
+          bandit -r .claude/ scripts/ \
+            -x '*/tests/*,*/test/*' \
+            -f sarif \
+            -o bandit.sarif \
+            --severity-level high \
+            --confidence-level high
 
       - name: Upload Bandit SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
+        if: >-
+          always() &&
+          (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit
 
       - name: Upload Bandit results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         if: always()
         with:
           name: bandit-results
