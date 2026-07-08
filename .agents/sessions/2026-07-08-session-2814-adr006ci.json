@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commit 7e665bd5 and test commit 5b9a9deb were created on agent/adr006ci."
+        "Evidence": "Implementation commit 7e665bd5, test commit 5b9a9deb, and session evidence commit 5e18dcf0 were created on agent/adr006ci."
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,7 +139,7 @@
       "entry": "Final validation passed: validate_session_json.py, pre_pr.py, and changed-file em and en dash byte counts all passed."
     }
   ],
-  "endingCommit": "5b9a9debbbf59af4234447501dd0115f0d7cbdad",
+  "endingCommit": "5e18dcf0",
   "nextSteps": [
     "Push agent/adr006ci and resolve PR #2969 review threads."
   ]
