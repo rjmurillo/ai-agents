@@ -1,0 +1,15 @@
+{
+  "id": "moq1210-1263",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1263,
+  "title": "Moq1210 skips Verify calls when named arguments are reordered",
+  "discourse": "Reported: VerifyShouldBeUsedOnlyForOverridableMembersAnalyzer and MoqVerificationHelpers extract the verification lambda by reading IInvocationOperation.Arguments[0]. Roslyn stores invocation arguments in source order, not parameter order. A call like mock.Verify(times: Times.Once(), expression: x => x.DoSomething()) puts Times.Once() first, so the helper returns null and Moq1210 misses a non-overridable member. The issue points to existing setup helpers that bind by parameter identity instead of position. A valid fix must resolve named and reordered arguments for Verify, VerifyGet, and VerifySet.",
+  "shipped_fix": "PR #1302 changed MoqVerificationHelpers to locate the expression argument by parameter identity instead of source position. It added tests for reordered named arguments in Verify, VerifyGet, and VerifySet so non-overridable members are still diagnosed.",
+  "edges_named_in_discourse": [
+    "Verify named-argument reordering is analyzed",
+    "VerifyGet named-argument reordering is analyzed",
+    "VerifySet named-argument reordering is analyzed",
+    "the helper binds by parameter identity instead of source position"
+  ],
+  "difficulty": 4
+}

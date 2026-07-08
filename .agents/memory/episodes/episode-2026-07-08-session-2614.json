@@ -1,16 +1,16 @@
 {
-  "id": "episode-2026-07-08-session-01-ci2933",
-  "session": "2026-07-08-session-01-ci2933",
+  "id": "episode-2026-07-08-session-2614",
+  "session": "2026-07-08-session-2614",
   "timestamp": "2026-07-08T00:00:00+00:00",
   "outcome": "success",
-  "task": "Fix issue #2933 by adding a quarterly skill-overlap eval workflow.",
+  "task": "Fix issue #2926 by adding memory-search and memory-reflexion routing fixtures, then running and recording the ADR-063 kill-gate eval.",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-07-08T00:00:00+00:00",
       "type": "milestone",
-      "content": "Verified worktree branch",
+      "content": "Verified branch agent/eval2926 and read HANDOFF.md.",
       "caused_by": [],
       "leads_to": []
     },
@@ -18,7 +18,7 @@
       "id": "e002",
       "timestamp": "2026-07-08T00:00:00+00:00",
       "type": "milestone",
-      "content": "Read issue #2933 and eval CLI",
+      "content": "Read issue #2926, triage fixture schema, memory-search SKILL.md, memory-reflexion SKILL.md, ADR-063, and eval harness docs.",
       "caused_by": [],
       "leads_to": []
     },
@@ -26,7 +26,7 @@
       "id": "e003",
       "timestamp": "2026-07-08T00:00:00+00:00",
       "type": "milestone",
-      "content": "Read workflow patterns",
+      "content": "Added six memory-search and six memory-reflexion routing prompts to tests/evals/skills/triage-prompts.json.",
       "caused_by": [],
       "leads_to": []
     },
@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-07-08T00:00:00+00:00",
       "type": "milestone",
-      "content": "Added scheduled workflow",
+      "content": "Validated JSON and ran zero-cost dry runs for both sibling skills.",
       "caused_by": [],
       "leads_to": []
     },
@@ -42,7 +42,7 @@
       "id": "e005",
       "timestamp": "2026-07-08T00:00:00+00:00",
       "type": "milestone",
-      "content": "Validated workflow wiring",
+      "content": "Ran live ADR-063 kill-gate evals with ANTHROPIC_API_KEY exported from .env. memory-search PROCEED delta 2.83; memory-reflexion PROCEED delta 2.89.",
       "caused_by": [],
       "leads_to": []
     },
@@ -50,15 +50,15 @@
       "id": "e006",
       "timestamp": "2026-07-08T00:00:00+00:00",
       "type": "milestone",
-      "content": "Completed security review",
+      "content": "Recorded eval outputs under evals/reports/adr-063-kill-gate-20260708/.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e007",
       "timestamp": "2026-07-08T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 5cc3bb75db7a37114275676b01af8fbd001f09ab",
+      "type": "milestone",
+      "content": "Ran scoped markdownlint, dash checks, targeted pytest, diff check, pre-PR validation, and build check.",
       "caused_by": [],
       "leads_to": []
     }
@@ -69,7 +69,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 3
+    "files_changed": 6
   },
   "lessons": []
 }

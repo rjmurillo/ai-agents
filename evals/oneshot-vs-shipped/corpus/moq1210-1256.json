@@ -1,0 +1,15 @@
+{
+  "id": "moq1210-1256",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1256,
+  "title": "Moq1210 Make member virtual fix emits non-compiling code",
+  "discourse": "Reported: VerifyOverridableMembersFixer offers the Make member virtual code fix when virtual cannot legally compile. The issue names static members, members inside sealed classes, and struct members. Those edits produce code such as static virtual or virtual inside a sealed type. The fix must withhold the code fix for illegal targets while still offering it for members that can become virtual. It shares the PR with a sealed default interface member analyzer fix, so a good answer must not confuse diagnostic reporting with code-fix availability.",
+  "shipped_fix": "PR #1299 added code-fix eligibility checks before offering Make member virtual. It blocks static members, sealed containing types, struct members, and other targets where virtual cannot compile, while keeping the fix for legal class members. The same PR also adjusted overridability analysis for sealed default interface members.",
+  "edges_named_in_discourse": [
+    "no Make member virtual fix for static members",
+    "no Make member virtual fix inside sealed classes",
+    "no Make member virtual fix for struct members",
+    "legal class members still get the code fix"
+  ],
+  "difficulty": 4
+}

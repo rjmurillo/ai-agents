@@ -1,0 +1,14 @@
+{
+  "id": "perfdiff-1265",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1265,
+  "title": "PerfDiff ETL verdict is never propagated",
+  "discourse": "Reported: EtlDiffer.TryCompareETL computes and prints an ETL overweight report but never sets its regression out-parameter. PerfDiff.CompareAsync treats a successful ETL comparison with etlRegressionDetected false as proof that a BenchmarkDotNet regression was noise and exits 0, even with failOnRegression enabled. The issue ties this to the CI merge gate because ComparePerfResults runs PerfDiff with failOnRegression. A valid fix must propagate ETL regression verdicts and keep real noise-suppression behavior from hiding BenchmarkDotNet regressions.",
+  "shipped_fix": "PR #1309 extracted a testable ETL HasRegression verdict and wires it into PerfDiff so any ETL row with positive delta and interest reports a regression. The fix prevents ETL traces from downgrading a real BenchmarkDotNet regression to noise and adds coverage in the PerfDiff regression cluster.",
+  "edges_named_in_discourse": [
+    "ETL overweight findings set the regression verdict",
+    "BenchmarkDotNet regressions are not hidden by ETL success",
+    "failOnRegression exits nonzero when ETL regression evidence exists"
+  ],
+  "difficulty": 4
+}

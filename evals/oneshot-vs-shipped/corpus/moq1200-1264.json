@@ -1,0 +1,15 @@
+{
+  "id": "moq1200-1264",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1264,
+  "title": "Moq1200, Moq1207, and Moq1210 miss sealed default interface members",
+  "discourse": "Reported: ISymbolExtensions.IsOverridable treats every non-static interface member as overridable. A sealed default interface method is not interceptable by Moq, so Setup, SetupSequence, and Verify against it throw NotSupportedException at runtime. The issue adds that fixing IsOverridable alone would not work, because the analyzers bail out on interface members before consulting it. It also notes Setup helper gates on IsGenericMethod, which hides void method setups. A valid fix must stop skipping sealed interface members, handle void setup shapes, and preserve legitimate overridable interface members.",
+  "shipped_fix": "PR #1299 corrected interface-member overridability for sealed default interface methods, removed the analyzer skips that prevented Moq1200, Moq1207, and Moq1210 from seeing them, and adjusted setup helper recognition so void method setups are analyzed. It added regression tests for sealed default interface methods and kept legal interface members unreported.",
+  "edges_named_in_discourse": [
+    "sealed default interface members are reported as non-overridable",
+    "void method setups are recognized",
+    "Moq1200, Moq1207, and Moq1210 all see the interface-member case",
+    "legitimate overridable interface members are not flagged"
+  ],
+  "difficulty": 5
+}

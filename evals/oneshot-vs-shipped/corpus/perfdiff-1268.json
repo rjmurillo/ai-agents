@@ -1,0 +1,15 @@
+{
+  "id": "perfdiff-1268",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1268,
+  "title": "PerfDiff drops infinite ratios and lets NaN poison geomeans",
+  "discourse": "Reported: the Mann-Whitney ratio strategies remove infinite median ratios from the regression verdict. When a baseline median is zero and the current run is slower, the ratio can be positive infinity, the most extreme regression, yet it is filtered out and PerfDiff can exit 0. The same area lets NaN ratios flow into Math.Log10 and poison geometric mean summaries, and divides geomeans by the pre-filter count. A valid fix must preserve positive infinity as regression evidence, keep NaN out of summaries, and compute geomeans over valid ratios only.",
+  "shipped_fix": "PR #1309 made ratio and geomean handling defensive. Positive infinity is treated as regression evidence instead of being excluded, NaN and invalid ratios are filtered without poisoning summaries, and geomean denominators use the valid post-filter set.",
+  "edges_named_in_discourse": [
+    "positive infinity ratios count as severe regressions",
+    "NaN ratios do not poison geometric means",
+    "geomeans divide by the valid post-filter count",
+    "empty ratio sets are handled safely"
+  ],
+  "difficulty": 5
+}

@@ -1,0 +1,14 @@
+{
+  "id": "moq1202-1248",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1248,
+  "title": "Moq1202 and Moq1204 flag valid EventHandler-shaped raises",
+  "discourse": "Reported: the shared event-signature validation for Moq1202 Raise and Moq1204 Raises falsely flags canonical EventHandler usage. For event System.EventHandler Closed, Moq supplies the sender argument, so mock.Raise(m => m.Closed += null, EventArgs.Empty) is valid even though the delegate has two parameters. The same shape applies to custom object sender plus event-args delegates. The issue also names a mid-edit edge: unresolved or non-delegate event types should be skipped, not treated as zero-parameter delegates and flagged.",
+  "shipped_fix": "PR #1297 modeled Moq runtime overload selection for Raise and Raises. It recognizes EventHandler-shaped delegates where Moq supplies sender, validates custom two-parameter event delegates correctly, and fails open for unresolved or non-delegate event types. It added regression tests for Moq1202 and Moq1204 valid one-argument raises and unresolved delegate inputs.",
+  "edges_named_in_discourse": [
+    "EventHandler one-argument Raise is not flagged",
+    "custom object-sender event delegates follow the same sender-supplying rule",
+    "unresolved or non-delegate event types fail open"
+  ],
+  "difficulty": 4
+}

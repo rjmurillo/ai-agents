@@ -1,0 +1,141 @@
+{
+  "model": "claude-sonnet-4-6",
+  "skills_evaluated": [
+    "memory-reflexion"
+  ],
+  "total_prompts": 6,
+  "results": {
+    "memory-reflexion": {
+      "context_chars": 33367,
+      "baseline_avg": {
+        "accuracy": 1.17,
+        "depth": 2.83,
+        "specificity": 2.17
+      },
+      "enhanced_avg": {
+        "accuracy": 4.83,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 2,
+          "reasoning": "The response completely misses the expected answer's core concepts: memory-reflexion, extract_session_episode.py, update_causal_graph.py, and the Tier 2/Tier 3 episodic-to-causal pipeline architecture. Instead of recognizing the specific toolchain and memory architecture required, the agent defaulted to generic file-reading tool calls and then offered a vague, generic explanation of what 'extract and fold into memory' might mean. No mention of the tiered memory system, causal graphs, or the specific scripts. The depth is minimal \u2014 it shows no understanding of the underlying memory architecture. Specificity is low because the concrete details provided (generic JSON structure, vector index mentions) are not aligned with the actual system described in the expected answer.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 4,
+          "specificity": 3,
+          "reasoning": "The response completely misses the expected answer, which was a routing instruction to memory-reflexion and its specific update_causal_graph.py path with dry-run capability. Instead, it provides a from-scratch Python implementation of a causal graph system. While the implementation is technically deep and shows genuine understanding of causal graph concepts (decay factors, confidence thresholds, lag windows, batch processing), it is entirely wrong in context \u2014 this appears to be a system navigation/routing question, not a code generation request. The specificity score is moderate because the code uses precise ML/graph terminology, but none of it maps to the actual system components mentioned in the expected answer (memory-reflexion, Tier 3, update_causal_graph.py, dry-run).",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 1,
+          "reasoning": "The response completely misses the expected answer's core concepts: memory-reflexion, the write path, extracting from session logs, folding episodes into a causal graph, and the distinction between memory-reflexion and memory-search for write operations. The actual response assumes a general-purpose AI with no memory system, while the expected answer presupposes a specific agentic architecture with named components (memory-reflexion, causal graph, memory-search). The response shows some depth in reasoning about its own limitations, but this reasoning is entirely irrelevant to the expected answer's domain. No specialized terminology from the target system is used anywhere.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 2,
+          "reasoning": "The response is fundamentally incorrect - it says 'Yes' when the correct answer is 'No'. It completely misses the core concepts: that memory-reflexion only works with COMPLETED sessions, that partial sessions create incomplete episode data, and that this pollutes the causal graph. The response treats this as a generic software/logging question rather than addressing the specific memory-reflexion system constraints. While it shows some depth in discussing general memory episode extraction approaches and provides a JSON structure example, this depth is misapplied to the wrong answer. The specificity score is low because it uses generic terminology rather than the precise domain-specific concepts (completed sessions, causal graph pollution) that the correct answer requires.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 4,
+          "specificity": 3,
+          "reasoning": "The response completely misses the expected answer, which is a simple, specific instruction: use memory-reflexion and run update_causal_graph.py with --dry-run flag. Instead, the response builds a custom Python framework from scratch with no mention of the actual tool (update_causal_graph.py), the --dry-run flag, or memory-reflexion. While the response demonstrates deep understanding of causal graph diffing concepts and shows technical sophistication, it answers a different question entirely \u2014 how to build a preview system rather than how to use the existing one. Specificity is moderate because it uses precise graph terminology and concrete code, but it's specific to the wrong solution.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 2,
+          "depth": 3,
+          "specificity": 2,
+          "reasoning": "The response correctly says 'No' but misses the critical specific concepts from the expected answer: memory-search as the correct Tier 1 lookup tool, and the precise explanation that memory-reflexion is for episode extraction and causal-graph writes after sessions complete. Instead, the response gives generic advice about Notion/Confluence/grep/RAG, which shows no awareness of the actual memory system architecture being referenced. The depth is moderate as it explains reasoning for the 'No' answer, but the specificity is low because it substitutes vague general tools for the precise system-specific terminology (memory-search, Tier 1 lookup, episode extraction, causal-graph writes) that the expected answer requires.",
+          "model_used": "claude-sonnet-4-6"
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly identifies both required scripts (extract_session_episode.py and update_causal_graph.py), the Tier 2/Tier 3 memory architecture, and the directional data flow from episode data to causal patterns \u2014 matching all key concepts in the expected answer. Depth is exceptional: it explains the purpose of each step, adds a dry-run recommendation, includes a verification table, provides an ordering diagram, and warns about edge cases (incomplete sessions, zero-delta re-runs, permission issues). Specificity is equally strong: exact file paths, CLI flags (--dry-run, --episode-path), expected output formats, and references to specific config files like reflexion-memory.md are all concrete and precise.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Accuracy is 4 because the response correctly identifies update_causal_graph.py and the dry-run capability, matching the expected answer's core concepts, but it doesn't explicitly mention routing to 'memory-reflexion' as the owning skill or frame it as a routing decision. Depth is 5 because the response goes well beyond surface-level with troubleshooting tables, anti-patterns, verification checklists, and edge case handling (zero-delta runs, scoped episode paths). Specificity is 5 because it uses precise file paths, exact script names, concrete CLI flags, specific JSON field names, and exact output format examples.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly identifies the memory-reflexion write path, explicitly avoids memory-search for this write operation, extracts from the completed session log, and folds the episode into the causal graph \u2014 all key elements from the expected answer. Depth is excellent: it breaks the operation into discrete verified steps, explains what each produces, and includes guard conditions (e.g., do not proceed if session is incomplete). Specificity is high throughout: concrete script paths, exact CLI flags (--dry-run), precise field names in the episode record, git commit conventions, and references to ADR-007. The response goes well beyond surface-level and demonstrates genuine understanding of the two-step reflexion write operation.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response nails all three core concepts from the expected answer: the prohibition on in-progress extraction, the completed session requirement, and the causal graph pollution risk. It goes well beyond surface-level by explaining WHY each element matters (terminal outcome field, skewed success rates, missing causal edges), and uses highly specific terminology (episode schema, outcome field values, exact script names and paths, causal graph update pipeline). The correct workflow diagram and mid-session alternative add practical depth not present in the expected answer but entirely consistent with it.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response perfectly captures all key concepts from the expected answer: memory-reflexion skill, update_causal_graph.py script, --dry-run flag, prints changes, writes nothing. It goes far beyond surface-level by explaining the internal mechanics (read episodes, compute diff, print, write nothing), providing realistic expected output with concrete examples of nodes/edges/patterns, offering scoping options with --episode-path and --since flags, and including a verification checklist. Specificity is excellent with precise file paths (.claude/skills/memory/scripts/, .agents/memory/causality/causal-graph.json), concrete node types (decision, event, error), edge types (causes, prevents), and weight values.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly identifies memory-search as the right tool and memory-reflexion as the write path for episode extraction and causal-graph updates after sessions complete \u2014 matching the expected answer precisely. It goes beyond surface-level by explaining the architectural distinction between read and write paths, citing the skill's own documentation with direct quotes. Specificity is high: it names the exact skill names, references Tier 1 semantic lookup terminology, mentions the causal graph, and ties the recommendation directly to the ADR-038 use case.",
+          "model_used": "claude-sonnet-4-6"
+        }
+      ]
+    }
+  },
+  "kill_gate": {
+    "passed": true,
+    "verdict": "PROCEED",
+    "failures": [],
+    "summary": {
+      "memory-reflexion": {
+        "baseline_avg": {
+          "accuracy": 1.17,
+          "depth": 2.83,
+          "specificity": 2.17
+        },
+        "enhanced_avg": {
+          "accuracy": 4.83,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "delta": {
+          "accuracy": 3.66,
+          "depth": 2.17,
+          "specificity": 2.83
+        },
+        "overall_delta": 2.89,
+        "passed": true,
+        "regressed": false
+      }
+    },
+    "total_skills": 1,
+    "proceed_threshold": 1,
+    "conditional_threshold": 1,
+    "skills_passing": 1
+  }
+}

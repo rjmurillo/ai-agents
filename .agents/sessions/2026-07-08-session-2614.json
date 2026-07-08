@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2614,
+    "date": "2026-07-08",
+    "branch": "agent/eval2926",
+    "startingCommit": "76c9be15",
+    "objective": "Fix issue #2926 by adding memory-search and memory-reflexion routing fixtures, then running and recording the ADR-063 kill-gate eval."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools available; initial instructions loaded via serena-initial_instructions."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena Instructions Manual read before repo edits."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read lines 1-120; read-only rule observed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created during the session."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github skill loaded for issue and PR workflow; eval harness read from scripts/eval."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub issue context read through github skill script; gh used only where the user explicitly requested gh issue view context."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, testing, scripts, and dash prohibition rules loaded by prompt and path instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant self-improving memories surfaced by hooks and applied, including eval harness and dash byte checks."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned agent/eval2926."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch is agent/eval2926, not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before and after edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "76c9be15"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST fields carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read but not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable repo convention changed; eval results recorded in evals/reports/adr-063-kill-gate-20260708/."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix evals/reports/adr-063-kill-gate-20260708/REPORT.md exited 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Final commit includes the fixture additions, eval report artifacts, and this session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "JSON fixture parse passed; dash byte checks passed; targeted dash pytest passed; git diff --check passed; scripts/validation/pre_pr.py passed; build/scripts/build_all.py --check exited 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #2926 task steps tracked in this work log."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not required for this fixture and eval artifact change."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-08T09:04:00Z",
+      "entry": "Verified branch agent/eval2926 and read HANDOFF.md."
+    },
+    {
+      "time": "2026-07-08T09:10:00Z",
+      "entry": "Read issue #2926, triage fixture schema, memory-search SKILL.md, memory-reflexion SKILL.md, ADR-063, and eval harness docs."
+    },
+    {
+      "time": "2026-07-08T09:20:00Z",
+      "entry": "Added six memory-search and six memory-reflexion routing prompts to tests/evals/skills/triage-prompts.json."
+    },
+    {
+      "time": "2026-07-08T09:25:00Z",
+      "entry": "Validated JSON and ran zero-cost dry runs for both sibling skills."
+    },
+    {
+      "time": "2026-07-08T09:38:00Z",
+      "entry": "Ran live ADR-063 kill-gate evals with ANTHROPIC_API_KEY exported from .env. memory-search PROCEED delta 2.83; memory-reflexion PROCEED delta 2.89."
+    },
+    {
+      "time": "2026-07-08T09:45:00Z",
+      "entry": "Recorded eval outputs under evals/reports/adr-063-kill-gate-20260708/."
+    },
+    {
+      "time": "2026-07-08T10:05:00Z",
+      "entry": "Ran scoped markdownlint, dash checks, targeted pytest, diff check, pre-PR validation, and build check."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Run scoped lint and validation.",
+    "Commit, push, open PR, and arm auto-merge for issue #2926."
+  ]
+}

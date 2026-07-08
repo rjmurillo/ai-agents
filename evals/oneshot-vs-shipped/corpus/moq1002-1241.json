@@ -1,0 +1,15 @@
+{
+  "id": "moq1002-1241",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1241,
+  "title": "ConstructorArgumentsShouldMatchAnalyzer crashes on C# 13 params collections",
+  "discourse": "Reported: ConstructorArgumentsShouldMatchAnalyzer for Moq1001/Moq1002 casts every params parameter type to IArrayTypeSymbol. C# 13 params collections can be ReadOnlySpan<T>, IEnumerable<T>, List<T>, or another collection shape, so the cast throws InvalidCastException and Roslyn reports AD0001. The issue body calls this critical because an analyzer crash disables the analyzer in the compiler or IDE session. The discussion named two required edges: normal-form calls that pass one collection argument must still be accepted, while expanded-form calls must validate each trailing argument against the derived element type. Exotic collection shapes should fail open instead of crashing or producing false positives.",
+  "shipped_fix": "PR #1288 rewrote params-tail validation in AllParamsArgumentsMatch. It accepts a single trailing argument convertible to the whole params type, validates expanded arguments against an element type derived from arrays, Span<T>, ReadOnlySpan<T>, and IEnumerable<T>, and skips unmodeled collection shapes. It added shared symbol helpers and regression coverage for C# 13 params collections instead of assuming IArrayTypeSymbol.",
+  "edges_named_in_discourse": [
+    "C# 13 params collections must not crash the analyzer",
+    "normal-form params collection arguments remain accepted",
+    "expanded-form params arguments validate against the collection element type",
+    "unmodeled params collection shapes fail open"
+  ],
+  "difficulty": 5
+}

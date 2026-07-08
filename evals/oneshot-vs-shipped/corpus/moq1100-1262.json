@@ -1,0 +1,14 @@
+{
+  "id": "moq1100-1262",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1262,
+  "title": "Moq1100 misclassifies scoped ref and ref readonly lambda parameters",
+  "discourse": "Reported: CallbackSignatureShouldMatchMockedMethodAnalyzer determines a callback lambda parameter ref kind by inspecting only parameter.Modifiers[0]. That misclassifies multi-token modifier lists such as scoped ref and ref readonly. The issue says the analyzer should stop deriving ref kind from syntax tokens because it already resolves the lambda parameter symbol. The fix must use semantic ref-kind information and cover both scoped ref and ref readonly without regressing normal ref, out, in, and value parameters.",
+  "shipped_fix": "PR #1293 replaced the first-token modifier read with semantic ref-kind handling for lambda parameters. It added Moq1100 coverage for scoped ref and ref readonly callback parameters along with the existing ref-kind cases.",
+  "edges_named_in_discourse": [
+    "scoped ref callback parameters are classified correctly",
+    "ref readonly callback parameters are classified correctly",
+    "existing ref, out, in, and value parameter cases still work"
+  ],
+  "difficulty": 3
+}
