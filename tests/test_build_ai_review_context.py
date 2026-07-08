@@ -365,6 +365,43 @@ def test_build_spec_context_reports_unavailable_when_diff_and_file_list_fail(
     assert "## Implementation Changes\n[Diff unavailable]" in context.text
 
 
+def test_pr_diff_context_requires_repository(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """PR diff context fails with a config error when repository is missing."""
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setenv("CONTEXT_TYPE", "pr-diff")
+    monkeypatch.setenv("PR_NUMBER", "7")
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    assert _mod.main() == 2
+    assert "GITHUB_REPOSITORY is required for pr-diff context" in capsys.readouterr().err
+
+
+def test_spec_file_pr_context_requires_repository(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Spec-file PR context fails with a config error when repository is missing."""
+
+    spec_path = tmp_path / "spec.md"
+    spec_path.write_text("Spec body", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setenv("CONTEXT_TYPE", "spec-file")
+    monkeypatch.setenv("CONTEXT_PATH", str(spec_path))
+    monkeypatch.setenv("PR_NUMBER", "7")
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    assert _mod.main() == 2
+    assert "GITHUB_REPOSITORY is required for spec-file PR context" in capsys.readouterr().err
+
+
 def test_pr_context_preserves_whitespace_body(monkeypatch: pytest.MonkeyPatch):
     """Whitespace PR bodies are preserved when gh returns them."""
 
@@ -423,6 +460,27 @@ def test_write_outputs_uses_runner_temp(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert f"context_file={context_file}" in output
     assert "context_infra_failure=true" in output
     assert "context_built<<EOF_CONTEXT_BUILT\nhello\nworld\nEOF_CONTEXT_BUILT" in output
+
+
+def test_write_outputs_sanitizes_context_file_identifier(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """PR_NUMBER cannot introduce path separators into the context file path."""
+
+    output_path = tmp_path / "github-output.txt"
+    runner_temp = tmp_path / "runner"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("RUNNER_TEMP", str(runner_temp))
+    monkeypatch.setenv("PR_NUMBER", "../evil/path")
+
+    _mod.write_outputs(ReviewContext("hello", "full"))
+
+    output = output_path.read_text(encoding="utf-8")
+    context_file = runner_temp / "ai-review-context-previl_path.txt"
+    assert context_file.read_text(encoding="utf-8") == "hello"
+    assert f"context_file={context_file}" in output
+    assert not (tmp_path / "evil").exists()
 
 
 def test_main_returns_config_error_when_github_output_missing(

@@ -62,6 +62,11 @@ def sanitize_title(title: str) -> str:
     return cleaned or "Unknown PR"
 
 
+def sanitize_file_identifier(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
+    return cleaned or "local"
+
+
 def count_lines(text: str) -> int:
     if not text:
         return 0
@@ -312,12 +317,16 @@ def build_context_from_environment() -> ReviewContext:
     if context_type == "pr-diff":
         if not pr_number:
             return ReviewContext("No PR number provided", "full")
+        if not repository:
+            raise ConfigError("GITHUB_REPOSITORY is required for pr-diff context")
         return build_pr_diff_context(pr_number, repository, max_diff_lines)
     if context_type == "issue":
         return build_issue_context(issue_number)
     if context_type == "session-log":
         return build_session_log_context(context_path)
     if context_type == "spec-file":
+        if pr_number and not repository:
+            raise ConfigError("GITHUB_REPOSITORY is required for spec-file PR context")
         return build_spec_context(context_path, pr_number, repository, max_diff_lines)
     return ReviewContext(f"Unknown context type: {context_type}", "full")
 
@@ -351,13 +360,13 @@ def write_outputs(review_context: ReviewContext) -> None:
 
     output_path = Path(github_output)
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
-    pr_number = os.environ.get("PR_NUMBER") or run_id
+    context_identifier = sanitize_file_identifier(os.environ.get("PR_NUMBER") or run_id)
     runner_temp = os.environ.get("RUNNER_TEMP")
     if not runner_temp:
         raise ConfigError("RUNNER_TEMP is required")
     workspace = Path(runner_temp).resolve()
     workspace.mkdir(parents=True, exist_ok=True)
-    context_file = workspace / f"ai-review-context-pr{pr_number}.txt"
+    context_file = workspace / f"ai-review-context-pr{context_identifier}.txt"
     context_file.write_text(review_context.text, encoding="utf-8")
 
     append_output(output_path, "context_mode", review_context.mode)
