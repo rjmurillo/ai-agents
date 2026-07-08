@@ -60,7 +60,10 @@ echo_phase() {
 
 run_packed_refs_repair() {
     local repo_root
-    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)
+    repo_root=$(pwd -P)
+    while [ "$repo_root" != "/" ] && [ ! -f "$repo_root/scripts/maintenance/repair_packed_refs.py" ]; do
+        repo_root=$(dirname "$repo_root")
+    done
     local repair_script="$repo_root/scripts/maintenance/repair_packed_refs.py"
     local python_cmd=()
 
