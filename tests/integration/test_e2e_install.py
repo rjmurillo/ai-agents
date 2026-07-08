@@ -20,6 +20,7 @@ Verification scope (per task M6-T5):
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -329,21 +330,33 @@ class TestCopilotBinaryInstall:
         return binary
 
     def test_copilot_plugin_install_succeeds(
-        self, copilot_binary: str, installed_plugin: Path, tmp_path: Path
+        self,
+        copilot_binary: str,
+        installed_plugin: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """`copilot plugin install <local-dir>` exits 0 and registers the plugin.
 
-        Restores global state in a finally block: the install writes an enabled
-        marketplace-less entry into the real ~/.copilot/config.json whose source
-        is this test's tmp dir. Without cleanup, pytest deletes the tmp source
-        and the stale shadow wedges every later Copilot session.
+        Runs against an isolated ``HOME`` so the install writes to a throwaway
+        ``$HOME/.copilot/config.json`` under ``tmp_path`` instead of the real
+        user config. This removes the high-impact side effect of mutating the
+        contributor's global Copilot state: even if the process is killed before
+        the finally block, only the tmp config is affected. ``COPILOT_HOME`` is
+        redirected to the same isolated root so the cleanup targets it. Verified
+        the binary honors an isolated ``HOME`` for a local-dir install.
         """
+        isolated_home = tmp_path / "copilot-home"
+        isolated_home.mkdir()
+        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", isolated_home / ".copilot")
+        env = {**os.environ, "HOME": str(isolated_home)}
         try:
             install_result = subprocess.run(
                 [copilot_binary, "plugin", "install", str(installed_plugin)],
                 capture_output=True,
                 text=True,
                 timeout=60,
+                env=env,
             )
             assert install_result.returncode == 0, (
                 f"copilot plugin install failed:\n"
@@ -356,6 +369,7 @@ class TestCopilotBinaryInstall:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                env=env,
             )
             assert list_result.returncode == 0
             assert "project-toolkit" in list_result.stdout, (
