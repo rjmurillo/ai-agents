@@ -41,6 +41,10 @@ class GhLaunchError(RuntimeError):
     """The gh process could not be launched."""
 
 
+class ExternalGhError(RuntimeError):
+    """GitHub or gh failed while building review context."""
+
+
 def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandResult:
     try:
         result = subprocess.run(
@@ -177,9 +181,10 @@ def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
         print("Retrieved file list using --name-only")
         return ReviewContext(f"[Large PR - showing file list only]\n{name_only}", "summary")
 
-    print(f"::error::All fallback methods failed for PR #{pr_number}")
-    print("::error::PR may have structural issues or GitHub API may be unavailable")
-    raise SystemExit(1)
+    raise ExternalGhError(
+        f"All fallback methods failed for PR #{pr_number}; "
+        "PR may have structural issues or GitHub API may be unavailable"
+    )
 
 
 def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
@@ -213,16 +218,15 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
         line_count = count_lines(diff.stdout)
         print(f"PR diff has {line_count} lines")
         if line_count == 0:
-            print(f"::error::Failed to fetch PR diff for #{pr_number} from {repository}")
+            message = f"Failed to fetch PR diff for #{pr_number} from {repository}"
             if diff.stderr:
-                print(f"::error::Error details: {diff.stderr.strip()}")
-            raise SystemExit(1)
+                message = f"{message}: {diff.stderr.strip()}"
+            raise ExternalGhError(message)
 
         if line_count > max_diff_lines:
             summary = get_pr_name_only(pr_number, repository)
             if not summary:
-                print(f"::error::Failed to fetch PR diff summary for #{pr_number}")
-                raise SystemExit(1)
+                raise ExternalGhError(f"Failed to fetch PR diff summary for #{pr_number}")
             built = ReviewContext(
                 f"[Large PR - {line_count} lines, showing summary only]\n{summary}",
                 "summary",
@@ -244,7 +248,7 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
 
 def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
     if not issue_number:
-        return ReviewContext("No issue number provided", "full")
+        return ReviewContext("No issue number provided", "partial")
     if not repository:
         raise ConfigError("GITHUB_REPOSITORY is required for issue context")
 
@@ -266,7 +270,7 @@ def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
         ]
     )
     if result.returncode != 0:
-        return ReviewContext("Unable to get issue", "full")
+        return ReviewContext("Unable to get issue", "partial")
     return ReviewContext(result.stdout.rstrip(), "full")
 
 
@@ -335,7 +339,7 @@ def build_context_from_environment() -> ReviewContext:
 
     if context_type == "pr-diff":
         if not pr_number:
-            return ReviewContext("No PR number provided", "full")
+            raise ConfigError("PR_NUMBER is required for pr-diff context")
         if not repository:
             raise ConfigError("GITHUB_REPOSITORY is required for pr-diff context")
         return build_pr_diff_context(pr_number, repository, max_diff_lines)
@@ -347,7 +351,7 @@ def build_context_from_environment() -> ReviewContext:
         if pr_number and not repository:
             raise ConfigError("GITHUB_REPOSITORY is required for spec-file PR context")
         return build_spec_context(context_path, pr_number, repository, max_diff_lines)
-    return ReviewContext(f"Unknown context type: {context_type}", "full")
+    raise ConfigError(f"Unknown CONTEXT_TYPE: {context_type}")
 
 
 def append_output(output_path: Path, key: str, value: str) -> None:
@@ -402,7 +406,7 @@ def main() -> int:
     except subprocess.TimeoutExpired as exc:
         print(f"::error::gh command timed out after {exc.timeout} seconds", file=sys.stderr)
         return 3
-    except GhLaunchError as exc:
+    except (GhLaunchError, ExternalGhError) as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 3
     except ConfigError as exc:

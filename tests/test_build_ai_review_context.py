@@ -102,10 +102,8 @@ def test_large_pr_raises_when_all_fallbacks_fail(monkeypatch: pytest.MonkeyPatch
     )
     monkeypatch.setattr(_mod, "get_pr_name_only", lambda pr_number, repository: "")
 
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(_mod.ExternalGhError):
         _mod.build_large_pr_context("7", "owner/repo")
-
-    assert exc.value.code == 1
 
 
 def test_get_pr_name_only_uses_stdout_from_nonzero_diff(
@@ -205,7 +203,7 @@ def test_build_issue_context_without_issue_number_skips_gh(
 
     context = _mod.build_issue_context("", "")
 
-    assert context.mode == "full"
+    assert context.mode == "partial"
     assert context.text == "No issue number provided"
 
 
@@ -435,6 +433,72 @@ def test_pr_diff_context_requires_repository(
 
     assert _mod.main() == 2
     assert "GITHUB_REPOSITORY is required for pr-diff context" in capsys.readouterr().err
+
+
+def test_pr_diff_context_requires_pr_number(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """PR diff context must fail closed when no PR number is available."""
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setenv("CONTEXT_TYPE", "pr-diff")
+    monkeypatch.delenv("PR_NUMBER", raising=False)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+
+    assert _mod.main() == 2
+    assert "PR_NUMBER is required for pr-diff context" in capsys.readouterr().err
+
+
+def test_issue_context_gh_failure_is_partial(monkeypatch: pytest.MonkeyPatch):
+    """Issue lookup failures must not claim full context."""
+
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda arguments, timeout=_mod.GH_TIMEOUT_SECONDS: CommandResult("", "fail", 1),
+    )
+
+    context = _mod.build_issue_context("2814", "owner/repo")
+
+    assert context.mode == "partial"
+    assert context.text == "Unable to get issue"
+
+
+def test_unknown_context_type_returns_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Unknown context types must fail closed instead of unlocking PASS."""
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setenv("CONTEXT_TYPE", "typo")
+
+    assert _mod.main() == 2
+    assert "Unknown CONTEXT_TYPE: typo" in capsys.readouterr().err
+
+
+def test_main_maps_external_gh_error_to_external_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """GitHub outages must report the repository external exit code."""
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setattr(
+        _mod,
+        "build_context_from_environment",
+        lambda: (_ for _ in ()).throw(_mod.ExternalGhError("gh unavailable")),
+    )
+
+    assert _mod.main() == 3
+    assert "::error::gh unavailable" in capsys.readouterr().err
 
 
 def test_spec_file_pr_context_requires_repository(

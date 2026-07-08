@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review-thread fixes were committed through 511eebde: rebased onto origin/main, preserved extracted ai-review context-builder behavior, merged append-only memory aggregates, anchored the composite action context-builder invocation to GITHUB_WORKSPACE, and passed explicit --repo routing for issue context."
+        "Evidence": "Review-thread fixes are staged after 5a682cbe: issue context partial-mode handling, pr-diff PR_NUMBER validation, unknown CONTEXT_TYPE config failure, external gh failure exit-code mapping, and causal graph pattern dedupe."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 124 tests. validate_session_json.py passed with one branch-name warning. Edited-file em and en dash byte counts were zero. Pre-push validation passed after the rebase with commit-limit-bypass label present."
+        "Evidence": "uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 128 tests. Edited-file em and en dash byte counts were zero. Causal graph pattern duplicate check reported zero duplicates."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -169,6 +169,10 @@
     {
       "time": "2026-07-08T14:25:00Z",
       "entry": "Addressed post-rebase review findings: ai-review action now invokes the context builder from GITHUB_WORKSPACE, and issue context passes an explicit --repo value to gh issue view."
+    },
+    {
+      "time": "2026-07-08T14:55:00Z",
+      "entry": "Addressed post-push active review findings: issue context now reports partial mode for missing or failed issue lookups, pr-diff requires PR_NUMBER, unknown CONTEXT_TYPE fails closed with config exit code 2, gh infrastructure failures map to exit code 3, and causal graph pattern rows are deduped by pattern identity."
     }
   ],
   "endingCommit": "511eebde18b8539ec1abb6c82413d9f3df895364",
