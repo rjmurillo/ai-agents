@@ -276,11 +276,11 @@ def _original_main(stdin_bytes):
     # lib/ is the plugin's lib dir. Layout-independent: works in source
     # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    _lib_dir: str | None = None
     if _plugin_root:
         _lib_dir = str(Path(_plugin_root).resolve() / "lib")
     else:
         _cur = Path(__file__).resolve().parent
-        _lib_dir = None
         while True:
             if (_cur / ".claude-plugin" / "plugin.json").is_file():
                 _lib_dir = str(_cur / "lib")
@@ -289,7 +289,11 @@ def _original_main(stdin_bytes):
                 break
             _cur = _cur.parent
     if _lib_dir is None or not os.path.isdir(_lib_dir):
-        print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+        print(
+            f"Plugin lib directory not found: {_lib_dir} "
+            f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+            file=sys.stderr,
+        )
         # Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)
         sys.exit(0)
     if _lib_dir not in sys.path:

@@ -65,11 +65,11 @@ from pathlib import Path
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None = None
 if _plugin_root:  # pragma: no cover - deployment layout (env set), not test env
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _cur = Path(__file__).resolve().parent
-    _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
             _lib_dir = str(_cur / "lib")
@@ -162,13 +162,13 @@ def resolve_providers(pattern: str, project_dir: str) -> list[str]:
     """
     extension = glob_extension(pattern)
     if extension:
-        return detect_providers(f"x{extension}", SYMBOL_NAVIGATION, project_dir)
+        return list(detect_providers(f"x{extension}", SYMBOL_NAVIGATION, project_dir))
     for probe_ext, language in EXTENSION_TO_SERENA_LANGUAGE.items():
         if language not in PROGRAMMING_SERENA_LANGUAGES:
             continue
         providers = detect_providers(f"x{probe_ext}", SYMBOL_NAVIGATION, project_dir)
         if providers:
-            return providers
+            return list(providers)
     return []
 
 
@@ -233,7 +233,9 @@ def _bypassed() -> bool:
     return False
 
 
-def _evaluate(hook_input: dict) -> tuple[str, list[str], list[str]] | None:
+def _evaluate(
+    hook_input: dict[str, object],
+) -> tuple[str, list[str], list[str]] | None:
     """Decide whether a Glob call should block.
 
     Returns ``(pattern, symbols, providers)`` when the pattern carries a code

@@ -76,11 +76,11 @@ from pathlib import Path
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None = None
 if _plugin_root:  # pragma: no cover - deployment layout (env set), not test env
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _cur = Path(__file__).resolve().parent
-    _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
             _lib_dir = str(_cur / "lib")
@@ -254,7 +254,7 @@ def _bypassed() -> bool:
     return False
 
 
-def _evaluate(hook_input: dict) -> tuple[list[str], list[str]] | None:
+def _evaluate(hook_input: dict[str, object]) -> tuple[list[str], list[str]] | None:
     """Decide whether a Grep call should block.
 
     Returns ``(symbols, providers)`` when the call is a code-symbol Grep on a

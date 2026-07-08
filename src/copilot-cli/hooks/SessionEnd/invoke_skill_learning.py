@@ -67,11 +67,11 @@ if not _SECURITY_LOG.handlers:
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None = None
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _cur = Path(__file__).resolve().parent
-    _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
             _lib_dir = str(_cur / "lib")
@@ -80,7 +80,11 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} "
+        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -252,7 +256,9 @@ def _get_safe_root_from_env(env_value: str) -> Path:
         # Security note: path validation precedes resolution
         # JUSTIFICATION: Input has passed _validate_path_string, and the resulting
         # Path is immediately constrained to SAFE_BASE_DIR via _is_relative_to.
-        candidate_root = Path(validated_root).expanduser().resolve(strict=False)  # Path validated before resolution
+        candidate_root = Path(validated_root).expanduser().resolve(
+            strict=False
+        )  # Path validated before resolution
     except Exception:
         # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
         return SAFE_BASE_DIR
@@ -332,7 +338,10 @@ def write_learning_notification(skill_name: str, high_count: int, med_count: int
     """Write silent notification about learnings extracted."""
     total = high_count + med_count + low_count
     if total > 0:
-        print(f"✔️ learned from session ➡️ {skill_name} ({high_count} HIGH, {med_count} MED, {low_count} LOW)")
+        print(
+            f"✔️ learned from session ➡️ {skill_name} "
+            f"({high_count} HIGH, {med_count} MED, {low_count} LOW)"
+        )
 
 
 def get_project_directory(hook_input: dict) -> str:
@@ -369,7 +378,8 @@ def get_project_directory(hook_input: dict) -> str:
         #   2. ROOT ANCHORING: All user input is interpreted under SAFE_BASE_DIR
         #   3. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary
         #   4. FALLBACK: Returns SAFE_BASE_DIR on any validation failure
-        # See: .github/codeql/suppressions.yml and .agents/analysis/908-codeql-path-traversal-analysis.md
+        # See: .github/codeql/suppressions.yml and
+        # .agents/analysis/908-codeql-path-traversal-analysis.md
 
         base_path = SAFE_BASE_DIR
 
@@ -380,7 +390,9 @@ def get_project_directory(hook_input: dict) -> str:
         if user_path.is_absolute():
             candidate = user_path.resolve(strict=False)  # Path validated before resolution
         else:
-            candidate = (base_path / user_path).resolve(strict=False)  # Path validated before resolution
+            candidate = (base_path / user_path).resolve(
+                strict=False
+            )  # Path validated before resolution
     except Exception:
         # Fall back to safe base directory on any resolution error
         return str(SAFE_BASE_DIR)
@@ -444,7 +456,11 @@ def detect_skill_usage(messages: list[dict]) -> dict[str, int]:
     Uses COMMAND_TO_SKILL (module-level) for slash command resolution.
     """
     detected_skills = {}
-    conversation_text = ' '.join(msg.get('content', '') for msg in messages if isinstance(msg.get('content'), str))
+    conversation_text = ' '.join(
+        msg.get('content', '')
+        for msg in messages
+        if isinstance(msg.get('content'), str)
+    )
 
     # Detect skills from .claude/skills/{skill-name} references
     skill_path_pattern = re.compile(r'\.claude[/\\]skills[/\\]([a-z0-9-]+)')
@@ -543,36 +559,39 @@ def classify_learning_by_llm(
     try:
         client = Anthropic(api_key=api_key)
 
-        prompt = f"""Analyze this conversation exchange for skill-related learnings about the "{skill_name}" skill.
-
-Assistant said:
-{assistant_msg[:500]}
-
-User responded:
-{user_response}
-
-Is this a learning signal? If yes, extract the learning and classify it:
-
-Categories:
-- HIGH (correction): Strong user corrections ("no", "wrong", "never do", "must use")
-- HIGH (chestertons_fence): Removed something without understanding why
-- HIGH (immediate_correction): User immediately asked to debug/fix right after
-- MED (preference): Tool/approach preferences ("instead of using", "prefer to", "should use X")
-- MED (success): Success patterns ("perfect", "excellent", "exactly", "that's it") - no qualifiers like "but"
-- MED (edge_case): Important edge cases ("what if the/this", "ensure that", "make sure")
-- MED (documentation): Documentation feedback ("update the docs", "needs documentation")
-- MED (question): Short clarifying question (may indicate confusion)
-- LOW (command_pattern): Repeated command patterns
-
-Respond in JSON format:
-{{
-  "is_learning": true/false,
-  "type": "correction|preference|success|edge_case|documentation|question|command_pattern|chestertons_fence|immediate_correction",
-  "confidence": 0.0-1.0,
-  "category": "High|Med|Low",
-  "extracted_learning": "The key lesson learned",
-  "reasoning": "Why this is/isn't a learning"
-}}"""
+        prompt = (
+            f'Analyze this conversation exchange for skill-related learnings about the '
+            f'"{skill_name}" skill.\n\n'
+            f"Assistant said:\n{assistant_msg[:500]}\n\n"
+            f"User responded:\n{user_response}\n\n"
+            "Is this a learning signal? If yes, extract the learning and classify it:\n\n"
+            "Categories:\n"
+            '- HIGH (correction): Strong user corrections '
+            '("no", "wrong", "never do", "must use")\n'
+            "- HIGH (chestertons_fence): Removed something without understanding why\n"
+            "- HIGH (immediate_correction): User immediately asked to debug/fix "
+            "right after\n"
+            '- MED (preference): Tool/approach preferences '
+            '("instead of using", "prefer to", "should use X")\n'
+            '- MED (success): Success patterns '
+            '("perfect", "excellent", "exactly", "that\'s it") - no qualifiers like "but"\n'
+            '- MED (edge_case): Important edge cases '
+            '("what if the/this", "ensure that", "make sure")\n'
+            '- MED (documentation): Documentation feedback '
+            '("update the docs", "needs documentation")\n'
+            "- MED (question): Short clarifying question (may indicate confusion)\n"
+            "- LOW (command_pattern): Repeated command patterns\n\n"
+            "Respond in JSON format:\n"
+            "{\n"
+            '  "is_learning": true/false,\n'
+            '  "type": "correction|preference|success|edge_case|documentation|question|'
+            'command_pattern|chestertons_fence|immediate_correction",\n'
+            '  "confidence": 0.0-1.0,\n'
+            '  "category": "High|Med|Low",\n'
+            '  "extracted_learning": "The key lesson learned",\n'
+            '  "reasoning": "Why this is/isn\'t a learning"\n'
+            "}"
+        )
 
         # M7-T6: timeout bounds the synchronous call so a stalled API
         # cannot wedge the SessionEnd hook indefinitely. The Anthropic
@@ -667,8 +686,25 @@ def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[d
         learning = None
 
         # HIGH: Strong corrections (confidence 0.85-0.95)
-        if re.search(r'(?i)\b(no\b|nope|not like that|that\'s wrong|incorrect|never do|always do|don\'t ever|must use|should not|avoid|stop)\b', user_response):
-            confidence = 0.9 if len(re.findall(r'(?i)\b(no|wrong|never|must)\b', user_response)) > 1 else 0.85
+        correction_pattern = (
+            r"(?i)\b(no\b|nope|not like that|that\'s wrong|incorrect|"
+            r"never do|always do|don\'t ever|must use|should not|avoid|stop)\b"
+        )
+        chestertons_fence_pattern = (
+            r"(?i)(trashed without understanding|removed without knowing|"
+            r"deleted without checking|why was this here)"
+        )
+        immediate_correction_pattern = (
+            r"(?i)\b(debug|root cause|correct|fix all|address|broken|"
+            r"error|issue|problem)\b"
+        )
+
+        if re.search(correction_pattern, user_response):
+            strong_correction_hits = re.findall(
+                r"(?i)\b(no|wrong|never|must)\b",
+                user_response,
+            )
+            confidence = 0.9 if len(strong_correction_hits) > 1 else 0.85
             learning = {
                 "type": "correction",
                 "source": user_response[:150],
@@ -678,7 +714,7 @@ def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[d
             }
 
         # HIGH: Chesterton's Fence (confidence 0.95)
-        elif re.search(r'(?i)(trashed without understanding|removed without knowing|deleted without checking|why was this here)', user_response):
+        elif re.search(chestertons_fence_pattern, user_response):
             learning = {
                 "type": "chestertons_fence",
                 "source": user_response[:150],
@@ -688,7 +724,10 @@ def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[d
             }
 
         # HIGH: Immediate corrections (confidence 0.8-0.85)
-        elif re.search(r'(?i)\b(debug|root cause|correct|fix all|address|broken|error|issue|problem)\b', user_response) and len(user_response) < 200:
+        elif (
+            re.search(immediate_correction_pattern, user_response)
+            and len(user_response) < 200
+        ):
             confidence = 0.85 if len(user_response) < 50 else 0.8
             learning = {
                 "type": "immediate_correction",
@@ -732,7 +771,8 @@ def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[d
             r'exactly(?:!|\s*$)|'  # "exactly!" or end of string
             r"that's\s+(?:it|right|correct)|"  # "that's it/right/correct"
             r'good\s+job|well\s+done|'  # "good job", "well done"
-            r'works(?:\s+great|\s+perfectly|!)(?!\s+(?:but|however|except))|'  # "works great/perfectly!" not followed by "but"
+            # "works great/perfectly!" not followed by "but"
+            r'works(?:\s+great|\s+perfectly|!)(?!\s+(?:but|however|except))|'
             r'(?:yes|correct|right)(?:\s*[!.])?$'  # "yes/correct/right" at end
             r')',
             user_response
@@ -763,7 +803,11 @@ def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[d
             r'(?i)\b(lunch|dinner|coffee|meeting|call|later|tomorrow)\b',
             user_response
         ):
-            confidence = 0.65 if re.search(r'(?i)\b(ensure|make sure|verify)\b', user_response) else 0.6
+            confidence = (
+                0.65
+                if re.search(r'(?i)\b(ensure|make sure|verify)\b', user_response)
+                else 0.6
+            )
             learning = {
                 "type": "edge_case",
                 "source": user_response[:150],
@@ -785,7 +829,11 @@ def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[d
             r')\b',
             user_response
         ):
-            confidence = 0.65 if re.search(r'(?i)\b(must|should|needs?)\b', user_response) else 0.6
+            confidence = (
+                0.65
+                if re.search(r'(?i)\b(must|should|needs?)\b', user_response)
+                else 0.6
+            )
             learning = {
                 "type": "documentation",
                 "source": user_response[:150],
@@ -795,7 +843,14 @@ def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[d
             }
 
         # MED: Clarifying questions (confidence 0.55-0.6)
-        elif re.search(r'\?', user_response) and len(user_response) < 50 and re.search(r'(?i)^(why|how|what|when|where|can|does|is|are)\b', user_response):
+        elif (
+            re.search(r'\?', user_response)
+            and len(user_response) < 50
+            and re.search(
+                r'(?i)^(why|how|what|when|where|can|does|is|are)\b',
+                user_response,
+            )
+        ):
             confidence = 0.6 if len(user_response) < 30 else 0.55
             learning = {
                 "type": "question",
@@ -818,7 +873,8 @@ def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[d
         # LOW: Short acknowledgements without substance (confidence 0.35-0.45)
         # These may indicate workflow patterns worth tracking
         elif re.search(
-            r'(?i)^(?:ok|okay|sure|got it|sounds good|thanks|thank you|yep|yeah|alright|fine|k|kk)(?:[.!,]?\s*)?$',
+            r'(?i)^(?:ok|okay|sure|got it|sounds good|thanks|thank you|yep|yeah|'
+            r'alright|fine|k|kk)(?:[.!,]?\s*)?$',
             user_response.strip()
         ) and len(user_response.strip()) < 30:
             learning = {
@@ -895,10 +951,17 @@ def update_skill_memory(
         allowed_dir = project_dir.resolve(strict=False)
         # Validate project_dir looks like a real directory path
         if not allowed_dir.is_absolute():
-            print(f"Invalid project directory: '{project_dir}' does not resolve to absolute path", file=sys.stderr)
+            print(
+                f"Invalid project directory: '{project_dir}' does not resolve to absolute path",
+                file=sys.stderr,
+            )
             return False
         if not _is_relative_to(allowed_dir, SAFE_BASE_DIR):
-            print(f"Path traversal attempt detected: '{allowed_dir}' is outside safe base directory", file=sys.stderr)
+            print(
+                f"Path traversal attempt detected: '{allowed_dir}' "
+                "is outside safe base directory",
+                file=sys.stderr,
+            )
             return False
     except Exception as e:
         print(f"Path validation error for project_dir: {e}", file=sys.stderr)
@@ -908,7 +971,10 @@ def update_skill_memory(
     # This prevents attacks via skill names like "../../../etc/passwd" or "..\\attack"
     # Regex allowlist: only alphanumeric, underscore, and hyphen characters permitted
     if not re.fullmatch(r"[A-Za-z0-9_-]+", skill_name):
-        print(f"Invalid skill name: '{skill_name}' contains unsupported characters", file=sys.stderr)
+        print(
+            f"Invalid skill name: '{skill_name}' contains unsupported characters",
+            file=sys.stderr,
+        )
         return False
 
     # Step 3: Construct paths using validated allowed_dir
@@ -927,7 +993,11 @@ def update_skill_memory(
         # Include directory separator to prevent prefix attacks
         # e.g., "/home/user" should not match "/home/usermalicious"
         if not str(resolved_path).startswith(str(allowed_dir) + os.sep):
-            print(f"Path traversal attempt detected: '{resolved_path}' is outside project directory", file=sys.stderr)
+            print(
+                f"Path traversal attempt detected: '{resolved_path}' "
+                "is outside project directory",
+                file=sys.stderr,
+            )
             return False
     except Exception as e:
         print(f"Path validation error for memory_path: {e}", file=sys.stderr)
@@ -1030,7 +1100,10 @@ def update_skill_memory(
                 source = escape_replacement_string(learning["source"])
                 learning_type = learning["type"]
                 method_tag = " [LLM]" if learning.get("method") == "haiku-llm" else ""
-                other_med_items += f"- [{learning_type}] {source}{method_tag} (Session {session_id}, {today})\n"
+                other_med_items += (
+                    f"- [{learning_type}] {source}{method_tag} "
+                    f"(Session {session_id}, {today})\n"
+                )
 
         if other_med_items:
             pattern = r'(## Preferences \(MED confidence\)\r?\n)'
@@ -1103,7 +1176,8 @@ def main():
 
         # Get session ID from today's session log
         # Path validated before resolution
-        # CodeQL suppression: project_dir is validated against safe root and used only for reading session logs
+        # CodeQL suppression: project_dir is validated against safe root and used
+        # only for reading session logs
         sessions_dir = safe_project_path / ".agents" / "sessions"
         today = datetime.now().strftime("%Y-%m-%d")
 

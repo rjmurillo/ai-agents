@@ -266,11 +266,11 @@ def _original_main(stdin_bytes):
     # lib/ is the plugin's lib dir. Layout-independent: works in source
     # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    _lib_dir: str | None = None
     if _plugin_root:
         _lib_dir = str(Path(_plugin_root).resolve() / "lib")
     else:
         _cur = Path(__file__).resolve().parent
-        _lib_dir = None
         while True:
             if (_cur / ".claude-plugin" / "plugin.json").is_file():
                 _lib_dir = str(_cur / "lib")
@@ -279,7 +279,11 @@ def _original_main(stdin_bytes):
                 break
             _cur = _cur.parent
     if _lib_dir is None or not os.path.isdir(_lib_dir):
-        print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+        print(
+            f"Plugin lib directory not found: {_lib_dir} "
+            f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+            file=sys.stderr,
+        )
         sys.exit(2)
     if _lib_dir not in sys.path:
         sys.path.insert(0, _lib_dir)
@@ -324,11 +328,17 @@ def _original_main(stdin_bytes):
             },
             "merge": {
                 "script": "merge_pr.py",
-                "example": "uv run python .claude/skills/github/scripts/pr/merge_pr.py --pull-request 123",
+                "example": (
+                    "uv run python .claude/skills/github/scripts/pr/"
+                    "merge_pr.py --pull-request 123"
+                ),
             },
             "close": {
                 "script": "close_pr.py",
-                "example": "uv run python .claude/skills/github/scripts/pr/close_pr.py --pull-request 123",
+                "example": (
+                    "uv run python .claude/skills/github/scripts/pr/"
+                    "close_pr.py --pull-request 123"
+                ),
             },
             "checks": {
                 "script": "get_pr_checks.py",
@@ -500,7 +510,11 @@ def _original_main(stdin_bytes):
             if gh_args is None:
                 continue
             positional = [tok for tok in gh_args if not tok.startswith("-")]
-            if len(positional) >= 2 and _OPERAND_RE.match(positional[0]) and _OPERAND_RE.match(positional[1]):
+            if (
+                len(positional) >= 2
+                and _OPERAND_RE.match(positional[0])
+                and _OPERAND_RE.match(positional[1])
+            ):
                 return {
                     "operation": positional[0],
                     "action": positional[1],

@@ -338,11 +338,11 @@ def _original_main(stdin_bytes):
     # The in-process import always takes the walk-up else branch (which is
     # measured) because pytest runs with CLAUDE_PLUGIN_ROOT unset.
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    _lib_dir: str | None = None
     if _plugin_root:  # pragma: no cover - harness-set env path; covered via subprocess
         _lib_dir = str(Path(_plugin_root).resolve() / "lib")
     else:
         _cur = Path(__file__).resolve().parent
-        _lib_dir = None
         while True:
             if (_cur / ".claude-plugin" / "plugin.json").is_file():
                 _lib_dir = str(_cur / "lib")
@@ -420,7 +420,7 @@ def _original_main(stdin_bytes):
         return "warn" if os.environ.get("LSP_GATE_MODE", "").strip() == "warn" else "block"
 
 
-    def _emit_warn_message(tool_name: str, state: dict) -> None:
+    def _emit_warn_message(tool_name: str, state: dict[str, object]) -> None:
         """Emit the warn-mode guidance as an exit-0 systemMessage.
 
         In ``LSP_GATE_MODE=warn`` the tracker still records navigation but also

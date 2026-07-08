@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import stat
 import subprocess
 import sys
@@ -13,6 +14,39 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts import install_git_hooks as igh  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_git_global_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ignore developer and leaked git config from every scope.
+
+    install_git_hooks reads core.hooksPath via git config --get, which merges
+    the local, global, system, and env-injected scopes. git resolves config
+    from three sources this fixture must neutralize to stay hermetic:
+
+    1. Global and system files (~/.gitconfig, /etc/gitconfig): pointed at
+       os.devnull.
+    2. Env-injected config (GIT_CONFIG_COUNT + GIT_CONFIG_KEY_n/VALUE_n): git
+       reads these regardless of GIT_CONFIG_GLOBAL, so devnull alone does not
+       cover them. tests/conftest.py sets GIT_CONFIG_COUNT/KEY_0 for commit
+       signing, and an earlier test can leak a higher count carrying a relative
+       core.hooksPath. Delete the whole family here; these tests never commit.
+    3. GIT_CONFIG_PARAMETERS (the -c flag transport): cleared for the same
+       reason.
+
+    Without this, test_check_fails_when_unconfigured is order-dependent: a
+    leaked relative hooksPath makes an unconfigured temp repo look configured,
+    so --check returns EXIT_OK instead of EXIT_LOGIC. Absolute leaked paths are
+    already rejected by hooks_path_points_at_canonical; only a relative
+    ".githooks" leak reproduces the failure.
+    """
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", os.devnull)
+    monkeypatch.delenv("GIT_CONFIG_PARAMETERS", raising=False)
+    for name in [k for k in os.environ if k.startswith("GIT_CONFIG_")]:
+        if name in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"):
+            continue
+        monkeypatch.delenv(name, raising=False)
 
 
 def _make_hook(path: Path, *, executable: bool = True) -> None:
