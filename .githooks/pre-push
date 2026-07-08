@@ -58,6 +58,32 @@ echo_phase() {
     echo -e "${CYAN}=== $1 ===${NC}"
 }
 
+run_packed_refs_repair() {
+    local hook_dir
+    hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+    local repair_script="$hook_dir/../scripts/maintenance/repair_packed_refs.py"
+    local python_bin=""
+
+    if [ ! -f "$repair_script" ]; then
+        return 0
+    fi
+    if command -v python3 > /dev/null 2>&1; then
+        python_bin="python3"
+    elif command -v python > /dev/null 2>&1; then
+        python_bin="python"
+    else
+        echo_error "Python is required to repair git packed-refs before push validation"
+        exit 2
+    fi
+
+    "$python_bin" "$repair_script" || {
+        echo_error "Failed to repair git packed-refs"
+        exit 1
+    }
+}
+
+run_packed_refs_repair
+
 # Track overall exit status and counters
 EXIT_STATUS=0
 PASS_COUNT=0
