@@ -203,8 +203,8 @@ def _write_repaired_packed_refs(packed_refs_path: Path, repaired: bytes) -> None
             temporary_path = Path(temp_file.name)
             temp_file.write(repaired)
             temp_file.flush()
-            os.fsync(temp_file.fileno())
             shutil.copymode(packed_refs_path, temporary_path)
+            os.fsync(temp_file.fileno())
     except Exception:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
