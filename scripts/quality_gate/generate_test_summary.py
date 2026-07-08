@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import argparse
 import os
-import random
+import secrets
 import sys
 from pathlib import Path
 
@@ -42,7 +42,7 @@ def build_summary(pytest_status: str, pytest_summary: str) -> str:
 def write_summary(output_path: Path, summary: str) -> None:
     """Append a ``test_summary`` multiline output using a heredoc delimiter."""
 
-    delimiter = f"EOF_SUMMARY_{random.randint(1000, 9999)}"
+    delimiter = f"EOF_SUMMARY_{secrets.token_hex(16)}"
     with output_path.open("a", encoding="utf-8") as handle:
         handle.write(f"test_summary<<{delimiter}\n")
         handle.write(summary)

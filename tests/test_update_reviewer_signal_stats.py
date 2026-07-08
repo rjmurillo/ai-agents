@@ -379,6 +379,22 @@ class TestReviewerSignalStats:
         result = get_reviewer_signal_stats(reviewer_stats)
         assert result["reviewer1"].prs_with_comments == 2
 
+    def test_logs_date_parse_miss(self, caplog: pytest.LogCaptureFixture) -> None:
+        reviewer_stats = {
+            "reviewer1": ReviewerStats(
+                total_comments=1,
+                prs_with_comments={1},
+                comments=[_make_comment("Critical bug", created_at="not-a-date")],
+            ),
+        }
+        caplog.set_level("DEBUG", logger="scripts.update_reviewer_signal_stats")
+
+        result = get_reviewer_signal_stats(reviewer_stats)
+
+        assert result["reviewer1"].last_30_days_comments == 0
+        assert "Skipping reviewer signal date parse miss" in caplog.text
+        assert "not-a-date" in caplog.text
+
 
 # ---------------------------------------------------------------------------
 # Serena memory update tests
