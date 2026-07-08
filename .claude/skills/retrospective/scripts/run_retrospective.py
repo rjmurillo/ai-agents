@@ -46,6 +46,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 
 def _resolve_paths_lib_dir() -> Path:
     """Resolve the plugin path-helper lib directory or fail with context."""
+    # ADR-047 keeps this bootstrap inline because imports need sys.path first.
     plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         lib_dir = Path(plugin_root) / "lib"
@@ -54,7 +55,7 @@ def _resolve_paths_lib_dir() -> Path:
     else:
         lib_dir = Path(__file__).resolve().parents[3] / "lib"
 
-    if not lib_dir.is_dir():
+    if not os.path.isdir(lib_dir):
         raise RuntimeError(
             "Expected portability helper lib directory not found: "
             f"{lib_dir}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
@@ -81,7 +82,7 @@ def _artifact_root_is_set() -> bool:
 def _artifact_dir(project_dir: Path, subdir: str) -> Path:
     """Resolve an artifact directory while preserving explicit project-dir tests."""
     if _artifact_root_is_set() or project_dir.resolve() == Path.cwd().resolve():
-        return paths.resolve_artifact_root(subdir)
+        return Path(paths.resolve_artifact_root(subdir))
     return project_dir / ".agents" / subdir
 
 

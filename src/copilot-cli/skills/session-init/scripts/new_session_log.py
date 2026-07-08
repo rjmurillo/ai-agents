@@ -27,6 +27,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 _WORKSPACE = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -35,31 +36,32 @@ _WORKSPACE = os.environ.get(
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-def _resolve_paths_lib_dir() -> str:
+def _resolve_paths_lib_dir() -> Path:
     """Resolve the vendor-portable path-helper lib directory (Issue #2050)."""
+    # ADR-047 keeps this bootstrap inline because imports need sys.path first.
     plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         lib_dir = Path(plugin_root).expanduser().resolve() / "lib"
-        if not lib_dir.is_dir():
+        if not os.path.isdir(lib_dir):
             print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
             sys.exit(2)
-        return str(lib_dir)
+        return lib_dir
     candidates: list[Path] = []
     workspace = os.environ.get("GITHUB_WORKSPACE")
     if workspace:
         candidates.append(Path(workspace).expanduser().resolve() / ".claude" / "lib")
     candidates.append(Path(__file__).resolve().parents[3] / "lib")
     for lib_dir in candidates:
-        if lib_dir.is_dir():
-            return str(lib_dir)
+        if os.path.isdir(lib_dir):
+            return lib_dir.resolve()
     checked = ", ".join(str(candidate) for candidate in candidates)
     print(f"Plugin lib directory not found. Checked: {checked}", file=sys.stderr)
     sys.exit(2)
 
 
 _LIB_DIR = _resolve_paths_lib_dir()
-if _LIB_DIR not in sys.path:
-    sys.path.insert(0, _LIB_DIR)
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
 from paths import resolve_artifact_root  # noqa: E402
 from session_init.git_helpers import get_git_info  # noqa: E402
@@ -194,20 +196,23 @@ def _build_session_data(
     session_number: int,
     objective: str,
     current_date: str,
-) -> dict:
+) -> dict[str, Any]:
     """Build the session JSON data structure via the shared builder."""
-    return build_session_log(
-        branch=git_info["branch"],
-        commit=git_info["commit"],
-        session_number=session_number,
-        objective=objective,
-        current_date=current_date,
+    return cast(
+        dict[str, Any],
+        build_session_log(
+            branch=git_info["branch"],
+            commit=git_info["commit"],
+            session_number=session_number,
+            objective=objective,
+            current_date=current_date,
+        ),
     )
 
 
 def _write_session_file(
     sessions_dir: str,
-    session_data: dict,
+    session_data: dict[str, Any],
     current_date: str,
     objective: str,
 ) -> tuple[str, int]:

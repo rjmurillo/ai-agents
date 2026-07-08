@@ -8,31 +8,28 @@ Uses cl100k_base encoding (GPT-4). Approximate for Claude. Caches results for pe
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 
-def validate_path_no_traversal(path: Path) -> Path:
-    """Validate path has no traversal patterns (CWE-22 protection).
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
-    Rejects '..' components and resolves to canonical form.
-    Relative paths must resolve within the current working directory.
-    Absolute paths are allowed (OS permissions provide access control).
-    """
-    if ".." in str(path):
-        raise PermissionError(
-            f"Path traversal detected: '{path}' contains '..'"
-        )
-    resolved = path.resolve()
-    if not path.is_absolute():
-        try:
-            resolved.relative_to(Path.cwd().resolve())
-        except ValueError as exc:
-            raise PermissionError(
-                f"Path '{path}' resolves outside working directory"
-            ) from exc
-    return resolved
+from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
 
 _HAS_TIKTOKEN = False
 try:
@@ -58,7 +55,7 @@ def load_cache(cache_path: Path) -> dict[str, Any]:
         return {}
 
 
-def save_cache(cache_path: Path, cache: dict[str, dict]) -> None:
+def save_cache(cache_path: Path, cache: dict[str, Any]) -> None:
     """Save token count cache to JSON."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(json.dumps(cache, indent=2))
@@ -149,7 +146,7 @@ def count_directory(
     if not directory.exists():
         raise FileNotFoundError(f"Directory not found: {directory}")
 
-    results = {}
+    results: dict[str, int] = {}
     failed = 0
     for file_path in sorted(directory.glob(pattern)):
         if file_path.is_file():

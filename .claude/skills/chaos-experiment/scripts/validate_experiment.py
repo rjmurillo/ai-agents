@@ -15,10 +15,29 @@ Exit Codes:
 """
 
 import argparse
+import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
 
 
 @dataclass
@@ -27,8 +46,8 @@ class ValidationResult:
 
     success: bool
     message: str
-    errors: list = field(default_factory=list)
-    warnings: list = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
     score: int = 0  # 0-100
 
 
@@ -59,34 +78,6 @@ INCOMPLETE_PATTERNS = [
 ]
 
 
-def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
-    """Validate that path does not contain traversal patterns (CWE-22 protection).
-
-    This prevents directory traversal attacks like '../../../etc/passwd' while
-    still allowing legitimate absolute paths and paths within the working directory.
-    """
-    # Check for traversal patterns in the path string
-    path_str = str(path)
-    if ".." in path_str:
-        raise PermissionError(
-            f"Path traversal attempt detected: '{path}' contains prohibited '..' sequence."
-        )
-
-    # Resolve the path and check it doesn't escape when resolved
-    resolved = path.resolve()
-
-    # If original path was relative, ensure resolved doesn't escape cwd
-    if not path.is_absolute():
-        try:
-            resolved.relative_to(Path.cwd().resolve())
-        except ValueError as e:
-            raise PermissionError(
-                f"Path traversal attempt detected: '{path}' resolves outside the working directory."
-            ) from e
-
-    return resolved
-
-
 def load_document(path: Path) -> str:
     """Load the experiment document."""
     # Validate path to prevent traversal (CWE-22)
@@ -99,7 +90,10 @@ def load_document(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def check_section_presence(content: str, sections: list) -> tuple[list, list]:
+def check_section_presence(
+    content: str,
+    sections: list[tuple[str, str]],
+) -> tuple[list[str], list[str]]:
     """Check which sections are present and which are missing."""
     present = []
     missing = []
@@ -113,7 +107,7 @@ def check_section_presence(content: str, sections: list) -> tuple[list, list]:
     return present, missing
 
 
-def check_incomplete_markers(content: str) -> list:
+def check_incomplete_markers(content: str) -> list[str]:
     """Find incomplete content markers."""
     issues = []
 
@@ -129,7 +123,7 @@ def check_incomplete_markers(content: str) -> list:
     return issues
 
 
-def check_hypothesis_quality(content: str) -> tuple[bool, list]:
+def check_hypothesis_quality(content: str) -> tuple[bool, list[str]]:
     """Check if hypothesis follows the proper format."""
     warnings = []
 
@@ -162,7 +156,7 @@ def check_hypothesis_quality(content: str) -> tuple[bool, list]:
     return is_complete, warnings
 
 
-def check_rollback_procedure(content: str) -> tuple[bool, list]:
+def check_rollback_procedure(content: str) -> tuple[bool, list[str]]:
     """Check if rollback procedure is documented."""
     warnings = []
 
@@ -190,7 +184,7 @@ def check_rollback_procedure(content: str) -> tuple[bool, list]:
     return len(warnings) == 0, warnings
 
 
-def check_metrics_defined(content: str) -> tuple[bool, list]:
+def check_metrics_defined(content: str) -> tuple[bool, list[str]]:
     """Check if baseline metrics are defined."""
     warnings = []
 

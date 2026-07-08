@@ -7,32 +7,30 @@ to document why something exists before proposing changes.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 
-def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
-    """Validate that path does not contain traversal patterns (CWE-22 protection)."""
-    path_str = str(path)
-    if ".." in path_str:
-        raise PermissionError(
-            f"Path traversal attempt detected: '{path}' contains prohibited '..' sequence."
-        )
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
-    resolved = path.resolve()
-
-    if not path.is_absolute():
-        try:
-            resolved.relative_to(Path.cwd().resolve())
-        except ValueError as e:
-            raise PermissionError(
-                f"Path traversal attempt detected: '{path}' resolves outside the working directory."
-            ) from e
-
-    return resolved
+from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
 
 
 @dataclass

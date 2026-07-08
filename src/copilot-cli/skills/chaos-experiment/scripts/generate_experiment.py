@@ -19,6 +19,7 @@ from pathlib import Path
 
 def _resolve_paths_lib_dir() -> Path:
     """Resolve the plugin path-helper lib directory or fail with context."""
+    # ADR-047 keeps this bootstrap inline because imports need sys.path first.
     plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         lib_dir = Path(plugin_root) / "lib"
@@ -27,7 +28,7 @@ def _resolve_paths_lib_dir() -> Path:
     else:
         lib_dir = Path(__file__).resolve().parents[3] / "lib"
 
-    if not lib_dir.is_dir():
+    if not os.path.isdir(lib_dir):
         raise RuntimeError(
             "Expected portability helper lib directory not found: "
             f"{lib_dir}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
@@ -45,6 +46,8 @@ try:
 except ImportError as exc:  # pragma: no cover - guarded by explicit path check
     raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
 
+from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
+
 # Default artifact subdirectory written under the artifact root (Issue #2050).
 _CHAOS_SUBDIR = "chaos"
 
@@ -55,8 +58,8 @@ class Result:
 
     success: bool
     message: str
-    data: dict | None = None
-    errors: list | None = None
+    data: dict[str, object] | None = None
+    errors: list[str] | None = None
 
 
 def generate_experiment_id(name: str) -> str:
@@ -112,34 +115,6 @@ def generate_document(
         document = document.replace(placeholder, value)
 
     return document
-
-
-def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
-    """Validate that path does not contain traversal patterns (CWE-22 protection).
-
-    This prevents directory traversal attacks like '../../../etc/passwd' while
-    still allowing legitimate absolute paths and paths within the working directory.
-    """
-    # Check for traversal patterns in the path string
-    path_str = str(path)
-    if ".." in path_str:
-        raise PermissionError(
-            f"Path traversal attempt detected: '{path}' contains prohibited '..' sequence."
-        )
-
-    # Resolve the path and check it doesn't escape when resolved
-    resolved = path.resolve()
-
-    # If original path was relative, ensure resolved doesn't escape cwd
-    if not path.is_absolute():
-        try:
-            resolved.relative_to(Path.cwd().resolve())
-        except ValueError as e:
-            raise PermissionError(
-                f"Path traversal attempt detected: '{path}' resolves outside the working directory."
-            ) from e
-
-    return resolved
 
 
 def save_document(content: str, output_dir: Path, name: str) -> Path:

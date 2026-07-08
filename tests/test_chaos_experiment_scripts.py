@@ -51,7 +51,7 @@ from validate_experiment import (
 )
 
 
-def _import_generate_experiment_with_env(env: dict[str, str]) -> subprocess.CompletedProcess:
+def _import_generate_experiment_with_env(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     script = SKILL_SCRIPTS_PATH / "generate_experiment.py"
     code = "\n".join(
         [
@@ -73,6 +73,25 @@ def _import_generate_experiment_with_env(env: dict[str, str]) -> subprocess.Comp
     )
 
 
+def _write_plugin_lib(root: Path, source: str) -> None:
+    lib_dir = root / "lib"
+    lib_dir.mkdir(parents=True)
+    (lib_dir / "paths.py").write_text(
+        f"SOURCE = {source!r}\n"
+        "def resolve_artifact_root(subdir):\n"
+        "    raise AssertionError('not called')\n",
+        encoding="utf-8",
+    )
+    package = lib_dir / "hook_utilities"
+    package.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "path_safety.py").write_text(
+        "def validate_path_no_traversal(path, context='path'):\n"
+        "    return path\n",
+        encoding="utf-8",
+    )
+
+
 class TestGenerateExperimentPathBootstrap:
     """Tests for importing the vendor-portable path helper."""
 
@@ -80,14 +99,7 @@ class TestGenerateExperimentPathBootstrap:
         copilot_root = tmp_path / "copilot"
         claude_root = tmp_path / "claude"
         for root, source in ((copilot_root, "copilot"), (claude_root, "claude")):
-            lib_dir = root / "lib"
-            lib_dir.mkdir(parents=True)
-            (lib_dir / "paths.py").write_text(
-                f"SOURCE = {source!r}\n"
-                "def resolve_artifact_root(subdir):\n"
-                "    raise AssertionError('not called')\n",
-                encoding="utf-8",
-            )
+            _write_plugin_lib(root, source)
         env = os.environ.copy()
         env["COPILOT_PLUGIN_ROOT"] = str(copilot_root)
         env["CLAUDE_PLUGIN_ROOT"] = str(claude_root)

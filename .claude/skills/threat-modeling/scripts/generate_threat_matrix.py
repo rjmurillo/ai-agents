@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E501
 """Generate a structured threat matrix document.
 
 Creates a markdown threat model template with STRIDE categories
@@ -6,38 +7,28 @@ and risk rating structure.
 """
 
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
+# ADR-047 keeps this bootstrap inline because imports need sys.path first.
+_PLUGIN_ROOT = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _PLUGIN_ROOT:
+    _LIB_DIR = Path(_PLUGIN_ROOT) / "lib"
+else:
+    _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 
-def validate_path_no_traversal(path: Path, context: str = "path") -> Path:
-    """Validate that path does not contain traversal patterns (CWE-22 protection).
+if not os.path.isdir(_LIB_DIR):
+    raise RuntimeError(
+        "Expected portability helper lib directory not found: "
+        f"{_LIB_DIR}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+        "plugin root, or run from an ai-agents checkout."
+    )
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
-    This prevents directory traversal attacks like '../../../etc/passwd' while
-    still allowing legitimate absolute paths and paths within the working directory.
-    """
-    # Check for traversal patterns in the path string
-    path_str = str(path)
-    if ".." in path_str:
-        raise PermissionError(
-            f"Path traversal attempt detected: '{path}' contains prohibited '..' sequence."
-        )
-
-    # Resolve the path and check it doesn't escape when resolved
-    resolved = path.resolve()
-
-    # If original path was relative, ensure resolved doesn't escape cwd
-    if not path.is_absolute():
-        try:
-            resolved.relative_to(Path.cwd().resolve())
-        except ValueError as e:
-            raise PermissionError(
-                f"Path traversal attempt detected: '{path}' resolves outside the working directory."
-            ) from e
-
-    return resolved
-
+from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
 
 STRIDE_CATEGORIES = [
     ("S", "Spoofing", "Pretending to be something or someone else"),
