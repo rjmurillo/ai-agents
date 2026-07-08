@@ -95,7 +95,7 @@ def test_mirror_claim_in_top_comments_with_path_passes(fake_repo: Path) -> None:
         "scripts/validation/cited_via_comment.py",
         "#!/usr/bin/env python3\n"
         "# This script aligns with the contract defined in\n"
-        "# build/scripts/validate_marketplace_counts.py.\n"
+        "# scripts/validate_session_json.py.\n"
         "import os\n",
     )
     violations = ccc.collect_violations(fake_repo)

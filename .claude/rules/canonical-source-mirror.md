@@ -30,7 +30,7 @@ If your code contains the words **matches**, **mirrors**, **aligned with**, **sa
 
 The first commit that introduces the claim MUST:
 
-1. **Cite the path verbatim.** Include the absolute repo path of the canonical source in the docstring or top-level comment. Example: `scripts/validate_session_json.py`, `.agents/architecture/ADR-035-exit-code-standardization.md`, `build/scripts/validate_marketplace_counts.py`.
+1. **Cite the path verbatim.** Include the absolute repo path of the canonical source in the docstring or top-level comment. Example: `scripts/validate_session_json.py` or `.agents/architecture/ADR-035-exit-code-standardization.md`.
 
 2. **Quote the contract verbatim.** Include the exact regex, schema, function signature, exit-code table, or JSON shape, copied character-for-character from the canonical source. Reword nothing. If the contract is too long to inline, quote the load-bearing fragment (the regex pattern, the type signature, the enum values) and link to the file and line range.
 

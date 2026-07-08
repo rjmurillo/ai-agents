@@ -320,13 +320,13 @@ class TestExtractMentionedFiles:
         as proof, not as change claims."""
         desc = (
             "## Summary\nChanged `a.py`.\n\n"
-            "## Evidence\n- `validate_marketplace_counts.py --fix` updated counts\n"
+            "## Evidence\n- `the retired marketplace count validator --fix` updated counts\n"
             "- pre-existing failures in `pre_pr.py` are unrelated\n"
         )
         result = extract_mentioned_files(desc)
         assert "a.py" in result
         assert "pre_pr.py" not in result
-        assert "validate_marketplace_counts.py" not in result
+        assert "the retired marketplace count validator" not in result
 
     def test_evidence_with_suffix_section_ignored(self) -> None:
         """Prefix match absorbs a trailing word: 'Evidence For' strips too."""
@@ -1078,7 +1078,7 @@ class TestValidatePRDescription:
         warning either."""
         description = (
             "## Summary\nBumps `plugin.json` to 0.3.1.\n\n"
-            "## Evidence\n- `validate_marketplace_counts.py` reports no drift\n\n"
+            "## Evidence\n- `the retired marketplace count validator` reports no drift\n\n"
             "## Out of scope\n"
             "- pre-existing `pre_pr.py` lint failures\n"
             "- `marketplace.json` count is handled separately\n"
@@ -2127,7 +2127,6 @@ class TestBypassLabelExcludesDashViolations:
     """
 
     def test_bypass_label_with_only_dash_critical_returns_1(self, tmp_path):
-        from unittest.mock import patch
         from scripts.validation.pr_description import main as pr_main
 
         # Mock fetch_pr_data to return a PR with the bypass label and a
@@ -2153,7 +2152,6 @@ class TestBypassLabelExcludesDashViolations:
         tmp_path,
     ):
         """Bypass label suppresses file-mention CRITICALs (existing behavior)."""
-        from unittest.mock import patch
         from scripts.validation.pr_description import main as pr_main
 
         with (
@@ -2175,7 +2173,6 @@ class TestBypassLabelExcludesDashViolations:
 
     def test_bypass_label_with_both_critical_types_returns_1(self, tmp_path):
         """Mixed CRITICALs: dash takes priority and blocks the merge."""
-        from unittest.mock import patch
         from scripts.validation.pr_description import main as pr_main
 
         with (
