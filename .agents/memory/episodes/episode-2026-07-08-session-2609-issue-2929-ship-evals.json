@@ -13,6 +13,14 @@
       "content": "Read issue #2929, ADR-057, /ship command spec, prompt eval methodology, existing scenario schemas, and eval runner contract. Added tests/evals/ship-scenarios.json with eight mode-detection scenarios covering ADO URL forms, GitHub URL, missing origin, contributor mode, closed or merged PR handling, and owner marker requirement.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1e005dc1f599180d226397dbabebaa4fc3a58afd",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -20,7 +28,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []

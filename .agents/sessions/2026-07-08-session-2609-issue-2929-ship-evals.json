@@ -119,7 +119,7 @@
       "verification": "Dry run: 8 scenarios loaded, 48 estimated API calls, no API calls made. Live eval: ACCEPTANCE GATE PASS, before 100%, after 100%, delta +0%, no regressions, no flaky scenarios. pre_pr.py: RESULT All validations passed, 29 passed, 0 failed, 4 skipped. Dash byte check: 0 em dash and 0 en dash in changed files."
     }
   ],
-  "endingCommit": "Final commit SHA recorded in PR and final report.",
+  "endingCommit": "1e005dc1f599180d226397dbabebaa4fc3a58afd",
   "nextSteps": [
     "Commit, push branch agent/ship2929, open PR with Fixes #2929, and arm squash auto-merge"
   ]
