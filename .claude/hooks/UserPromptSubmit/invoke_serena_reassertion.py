@@ -76,7 +76,7 @@ try:
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 except ImportError:
 
-    def skip_if_consumer_repo(hook_name: str) -> bool:  # type: ignore[misc]
+    def skip_if_consumer_repo(hook_name: str) -> bool:
         """Fallback: skip when .agents/ directory is absent.
 
         Resolves CLAUDE_PROJECT_DIR with expanduser().resolve() to avoid

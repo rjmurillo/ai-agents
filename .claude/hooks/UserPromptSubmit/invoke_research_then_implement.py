@@ -48,7 +48,7 @@ try:
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 except ImportError:
 
-    def skip_if_consumer_repo(hook_name: str) -> bool:  # type: ignore[misc]
+    def skip_if_consumer_repo(hook_name: str) -> bool:
         """Fallback: skip when .agents/ directory is absent."""
         project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip() or str(Path.cwd())
         if not Path(project_dir, ".agents").is_dir():
