@@ -102,8 +102,8 @@ These recur across PRs and are not covered by AGENTS.md.
 
 The "Validate PR" check (`scripts/validation/pr_description.py --ci`) blocks merge on:
 
-- Any file path in the PR body that is not in the diff: CRITICAL "file mentioned but not in diff". **Inline backticks do NOT silence it.** To silence: reword to drop the filename, move it under a `## References`/`## Related Files`/`## Notes` H2, or put it in a fenced block.
-- Any em-dash (U+2014) or en-dash (U+2013) in the body: CRITICAL. Byte-verify: `python3 -c "import sys;print(open(sys.argv[1],'rb').read().count('\u2014'.encode()))" body.md`.
+- Any file path in the PR body that is not in the diff: CRITICAL "file mentioned but not in diff". **Inline backticks do NOT silence it.** To silence: reword to drop the filename, move it under a `## References`/`## Related Files`/`## Notes` H2, put it in a fenced block, or place it inside a GitHub admonition (`> [!NOTE]`), which the validator strips before extracting mentions.
+- Any em-dash (U+2014) or en-dash (U+2013) in the body: CRITICAL. Byte-verify both: `python3 -c "import sys;d=open(sys.argv[1],'rb').read();print(sum(d.count(c.encode()) for c in ('\u2014','\u2013')))" body.md`.
 
 Editing the body re-triggers the gate (`pull_request: edited`); no new commit needed. Verify bot-flagged claims at byte level before editing; false positives happen.
 
@@ -113,7 +113,7 @@ Never place a literal `|` inside a table cell. Escape it (`\|`) or reword. A bar
 
 ### Invoking skill and hook scripts
 
-- Use `uv run python`, not bare `python3`. The scripts import `github_core`, which imports `yaml` at load; bare `python3` fails `ModuleNotFoundError: No module named 'yaml'`.
+- Use `uv run python`, not bare `python3`. These scripts import project packages and third-party deps (for example `yaml`) that resolve only in the project venv; bare `python3` can fail `ModuleNotFoundError`. `uv run python` selects the project venv deterministically.
 - Reference scripts by env-var-qualified plugin root, not a bare `.claude/skills/...` path: `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."`. Bare `.claude/skills` paths fail under Copilot CLI and trip `check_skill_md_exec_portability.py`.
 
 ## Key Documents
