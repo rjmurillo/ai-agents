@@ -15,8 +15,13 @@ import json
 import re
 import subprocess
 
-# Investigation allowlist patterns (single source of truth per Issue #840)
-# Matches InvestigationAllowlist.psm1 patterns
+# Investigation allowlist patterns. Canonical source of truth is
+# scripts/modules/investigation_allowlist.py (ADR-034 amendment, PR #2958).
+# This packaged skill script cannot import that repo-relative module at
+# runtime because it also ships to installed-plugin trees where scripts/
+# is absent, so it keeps a verbatim copy. A drift test
+# (tests/test_investigation_allowlist.py::TestSessionSkillAllowlistParity)
+# fails CI if this copy diverges from the module. Keep the two in lockstep.
 _ALLOWLIST_PATTERNS = [
     r"^\.agents/sessions/",
     r"^\.agents/analysis/",
@@ -26,7 +31,6 @@ _ALLOWLIST_PATTERNS = [
     r"^\.agents/memory/",
     r"^\.agents/architecture/REVIEW-",
     r"^\.agents/critique/",
-    r"^\.agents/memory/episodes/",
 ]
 
 _ALLOWLIST_DISPLAY = [
@@ -38,7 +42,6 @@ _ALLOWLIST_DISPLAY = [
     ".agents/memory/",
     ".agents/architecture/REVIEW-*",
     ".agents/critique/",
-    ".agents/memory/episodes/",
 ]
 
 
