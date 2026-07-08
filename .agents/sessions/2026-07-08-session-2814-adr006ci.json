@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review-thread fixes were committed through 09a62879: UTF-8 decoding, pagination truncation, accurate API-failure warning, mode-selection coverage, issue and session-log coverage, delimiter collision handling, gh diff stdout preservation, config exit-code mapping, output I/O error classification, nonzero name-only stdout preservation, whitespace PR body preservation, RUNNER_TEMP enforcement, repository input validation, safe context-file identifiers, and stricter context-mode regression coverage."
+        "Evidence": "Review-thread fixes were committed through 4f1e8546: UTF-8 decoding, pagination truncation, accurate API-failure warning, mode-selection coverage, issue and session-log coverage, delimiter collision handling, gh diff stdout preservation, config exit-code mapping, output I/O error classification, nonzero name-only stdout preservation, whitespace PR body preservation, RUNNER_TEMP enforcement, repository input validation, safe context-file identifiers, UTF-8 file decode error mapping, and stricter context-mode regression coverage."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/test_build_ai_review_context.py -q passed with 26 tests. uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 116 tests before the latest focused tests. uv run ruff check scripts/ci/build_ai_review_context.py tests/test_build_ai_review_context.py passed. Changed-file em and en dash byte counts were zero."
+        "Evidence": "uv run pytest tests/test_build_ai_review_context.py -q passed with 28 tests. uv run ruff check scripts/ci/build_ai_review_context.py tests/test_build_ai_review_context.py passed. Changed-file em and en dash byte counts were zero. Pre-push validation passed through branch, lint, mypy, workflow validation, build staleness, plugin bump, pytest, Semgrep, session log validation, and review-axes drift checks."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -157,9 +157,13 @@
     {
       "time": "2026-07-08T13:00:00Z",
       "entry": "Addressed final environment and path-safety review findings in 09a62879fbf8a5bc4ece3e115ae69ac2f6db39fe: required repository for GitHub-backed contexts and sanitized PR_NUMBER before writing context files."
+    },
+    {
+      "time": "2026-07-08T13:15:00Z",
+      "entry": "Addressed final file-decoding review findings in 4f1e8546237893682a52d81c50deb16248e38a63: session-log and spec-file UTF-8 decode failures now return config error code 2."
     }
   ],
-  "endingCommit": "09a62879fbf8a5bc4ece3e115ae69ac2f6db39fe",
+  "endingCommit": "4f1e8546237893682a52d81c50deb16248e38a63",
   "nextSteps": [
     "Push agent/adr006ci and resolve PR #2969 review threads."
   ]
