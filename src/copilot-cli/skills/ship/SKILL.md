@@ -81,7 +81,24 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
        if [ -n "${CLAUDE_SKILL_DIR:-}" ]; then
          REVIEW_MARKER_SCRIPT="$CLAUDE_SKILL_DIR/../review/scripts/validate_review_marker.py"
        else
-         REVIEW_MARKER_SCRIPT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/review/scripts/validate_review_marker.py"
+         resolve_review_scripts_dir() {
+           for root in \
+             "${COPILOT_PLUGIN_ROOT:-}" \
+             "${CLAUDE_PLUGIN_ROOT:-}" \
+             ".claude" \
+             "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+             "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+             "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+             if [ -n "$root" ] && [ -d "$root/skills/review/scripts" ]; then
+               printf '%s\n' "$root/skills/review/scripts"
+               return 0
+             fi
+           done
+           printf '%s\n' ".claude/skills/review/scripts"
+         }
+         # Default remains ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/review/scripts/validate_review_marker.py.
+         REVIEW_SCRIPTS_DIR="$(resolve_review_scripts_dir)"
+         REVIEW_MARKER_SCRIPT="$REVIEW_SCRIPTS_DIR/validate_review_marker.py"
        fi
        python3 "$REVIEW_MARKER_SCRIPT" --ref HEAD --repo-root "$(pwd)"
        ```
