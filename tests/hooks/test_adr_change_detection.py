@@ -206,6 +206,36 @@ class TestMain:
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
+    def test_exits_2_on_non_object_json(
+        self, mock_root, mock_run, project_with_detect_script, capsys
+    ):
+        mock_root.return_value = str(project_with_detect_script)
+        mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
+
+        result = invoke_adr_change_detection.main()
+
+        assert result == 2
+        assert "non-object JSON" in capsys.readouterr().err
+
+    @patch("invoke_adr_change_detection.subprocess.run")
+    @patch("invoke_adr_change_detection.get_project_root")
+    def test_exits_2_on_invalid_change_list(
+        self, mock_root, mock_run, project_with_detect_script, capsys
+    ):
+        mock_root.return_value = str(project_with_detect_script)
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps({"HasChanges": True, "Created": [123]}),
+            stderr="",
+        )
+
+        result = invoke_adr_change_detection.main()
+
+        assert result == 2
+        assert "invalid change lists" in capsys.readouterr().err
+
+    @patch("invoke_adr_change_detection.subprocess.run")
+    @patch("invoke_adr_change_detection.get_project_root")
     def test_exits_2_on_subprocess_timeout(
         self, mock_root, mock_run, project_with_detect_script, capsys
     ):

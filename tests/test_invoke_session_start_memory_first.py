@@ -52,6 +52,18 @@ class TestReadForgetfulConfig:
         assert host == "localhost"
         assert port == 8020
 
+    def test_falls_back_on_non_object_root(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config_file = tmp_path / ".mcp.json"
+        config_file.write_text(json.dumps([]), encoding="utf-8")
+
+        host, port = hook.read_forgetful_config(str(config_file))
+
+        assert host == "localhost"
+        assert port == 8020
+        assert "MCP config root must be a JSON object" in capsys.readouterr().err
+
     def test_falls_back_on_empty_url(self, tmp_path: Path) -> None:
         config: dict[str, object] = {"mcpServers": {"forgetful": {"url": ""}}}
         config_file = tmp_path / ".mcp.json"

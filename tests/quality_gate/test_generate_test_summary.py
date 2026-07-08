@@ -5,6 +5,7 @@ Pins the behavior of the extracted ``Generate test summary`` workflow step.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from scripts.quality_gate.generate_test_summary import (
@@ -12,7 +13,6 @@ from scripts.quality_gate.generate_test_summary import (
     main,
     write_summary,
 )
-
 
 # ---------------------------------------------------------------------------
 # build_summary
@@ -50,6 +50,7 @@ class TestWriteSummary:
         lines = text.splitlines()
         assert lines[0].startswith("test_summary<<EOF_SUMMARY_")
         delimiter = lines[0].split("<<", 1)[1]
+        assert re.fullmatch(r"EOF_SUMMARY_[0-9a-f]{32}", delimiter)
         assert "BODY" in lines
         # Heredoc must be closed by the same delimiter token.
         assert lines[-1] == delimiter

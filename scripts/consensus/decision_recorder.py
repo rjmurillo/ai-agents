@@ -7,6 +7,7 @@ Stores decisions as JSON files in .agents/decisions/ directory.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -124,10 +125,7 @@ class DecisionRecorder:
         if not filepath.exists():
             return None
 
-        with filepath.open(encoding="utf-8") as f:
-            data = json.load(f)
-
-        return Decision(**data)
+        return self._load_decision_file(filepath)
 
     def list_decisions(
         self, limit: int | None = None, topic_filter: str | None = None
@@ -157,21 +155,34 @@ class DecisionRecorder:
 
         decisions = []
         for filepath in files:
-            with filepath.open(encoding="utf-8") as f:
-                data = json.load(f)
-                decision = Decision(**data)
+            decision = self._load_decision_file(filepath)
+            if decision is None:
+                continue
 
-                # Apply topic filter
-                if topic_filter and topic_filter.lower() not in decision.topic.lower():
-                    continue
+            # Apply topic filter
+            if topic_filter and topic_filter.lower() not in decision.topic.lower():
+                continue
 
-                decisions.append(decision)
+            decisions.append(decision)
 
-                # Apply limit
-                if limit is not None and len(decisions) >= limit:
-                    break
+            # Apply limit
+            if limit is not None and len(decisions) >= limit:
+                break
 
         return decisions
+
+    def _load_decision_file(self, filepath: Path) -> Decision | None:
+        """Load a decision file, returning None for malformed stored data."""
+        try:
+            with filepath.open(encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                msg = f"decision JSON root must be an object, got {type(data).__name__}"
+                raise TypeError(msg)
+            return Decision(**data)
+        except (json.JSONDecodeError, OSError, TypeError, UnicodeDecodeError) as exc:
+            print(f"Skipping decision file {filepath}: {exc}", file=sys.stderr)
+            return None
 
     def _generate_id(self, timestamp: str) -> str:
         """Generate unique decision ID from timestamp.

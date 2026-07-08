@@ -116,10 +116,38 @@ def load_marketplace_config(project_root: Path) -> list[dict[str, str]]:
         )
         sys.exit(2)
 
-    with open(marketplace_path) as f:
-        data = json.load(f)
+    try:
+        with marketplace_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+        print(
+            f"ERROR: Failed to read {marketplace_path}: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
-    return data.get("plugins", [])
+    if not isinstance(data, dict):
+        print(
+            f"ERROR: {marketplace_path} root must be a JSON object.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    plugins = data.get("plugins")
+    if plugins is None:
+        return []
+    if not isinstance(plugins, list) or not all(
+        isinstance(plugin, dict) and isinstance(plugin.get("source", ""), str)
+        for plugin in plugins
+    ):
+        print(
+            f"ERROR: {marketplace_path} plugins must be a JSON array of objects "
+            "whose 'source' field, when present, is a string.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    return plugins
 
 
 def get_shipped_source_paths(project_root: Path, plugins: list[dict[str, str]]) -> list[Path]:

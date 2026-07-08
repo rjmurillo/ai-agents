@@ -7,6 +7,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -45,8 +46,9 @@ class TestThreshold:
 
     def test_frozen(self) -> None:
         t = Threshold(warning=0.1, error=0.25)
+        mutable_threshold: Any = t
         with pytest.raises(AttributeError):
-            t.warning = 0.5  # type: ignore[misc]
+            mutable_threshold.warning = 0.5
 
     def test_defaults(self) -> None:
         t = Threshold(warning=0.1, error=0.25)
@@ -193,7 +195,7 @@ class TestHealthStatusReport:
                 threshold_warning=0.1, threshold_error=0.25,
             ),
         ])
-        d = report.to_dict()
+        d = cast(dict[str, Any], report.to_dict())
         assert "checked_at" in d
         assert d["overall"] == "healthy"
         assert d["summary"]["total"] == 1
@@ -424,7 +426,51 @@ class TestComputeSessionHealth:
             (c for c in result if c.name == "session_failure_rate"), None
         )
         assert failure_comp is not None
-        assert failure_comp.detail == "0/1 sessions failed"
+        assert failure_comp.detail == "0/1 sessions failed (1 unreadable logs skipped)"
+
+    def test_invalid_json_skip_count_logged(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        sess_dir = tmp_path / "sessions"
+        sess_dir.mkdir()
+        (sess_dir / "bad.json").write_text("not json", encoding="utf-8")
+        (sess_dir / "good.json").write_text(
+            json.dumps({"status": "completed"}), encoding="utf-8"
+        )
+
+        result = compute_session_health(sess_dir)
+
+        failure_comp = next(c for c in result if c.name == "session_failure_rate")
+        assert "1 unreadable logs skipped" in failure_comp.detail
+        assert "Skipped 1 unreadable session log" in capsys.readouterr().err
+
+    def test_non_object_root_skip_count_logged(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        sess_dir = tmp_path / "sessions"
+        sess_dir.mkdir()
+        (sess_dir / "array.json").write_text("[]", encoding="utf-8")
+        (sess_dir / "good.json").write_text(
+            json.dumps({"status": "completed"}), encoding="utf-8"
+        )
+
+        result = compute_session_health(sess_dir)
+
+        failure_comp = next(c for c in result if c.name == "session_failure_rate")
+        assert failure_comp.detail == "0/1 sessions failed (1 unreadable logs skipped)"
+        assert "Skipped 1 unreadable session log" in capsys.readouterr().err
+
+    def test_only_unreadable_logs_emit_warning(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        sess_dir = tmp_path / "sessions"
+        sess_dir.mkdir()
+        (sess_dir / "bad.json").write_text("not json", encoding="utf-8")
+
+        result = compute_session_health(sess_dir)
+
+        assert result == []
+        assert "Skipped 1 unreadable session log" in capsys.readouterr().err
 
     def test_limit_respected(self, tmp_path: Path) -> None:
         sess_dir = tmp_path / "sessions"

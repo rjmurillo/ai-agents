@@ -290,6 +290,33 @@ class TestMain:
         captured = capsys.readouterr()
         assert "No findings" in captured.out
 
+    def test_scan_array_json_output_logs_invalid(self, monkeypatch, tmp_path, capsys):
+        py_file = tmp_path / "test.py"
+        py_file.write_text("x = 1")
+        scan_dir = tmp_path / ".codeql" / "scripts"
+        scan_dir.mkdir(parents=True)
+        (scan_dir / "Invoke-CodeQLScan.ps1").write_text("# scan")
+        input_data = json.dumps({
+            "tool_input": {"file_path": str(py_file)},
+            "cwd": str(tmp_path),
+        })
+        monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
+        with patch.object(
+            invoke_codeql_quick_scan, "_is_codeql_installed", return_value=True
+        ):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout=json.dumps([]),
+                    stderr="",
+                )
+                result = invoke_codeql_quick_scan.main()
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Scan output invalid" in captured.out
+
     def test_scan_invalid_json_output(self, monkeypatch, tmp_path, capsys):
         py_file = tmp_path / "test.py"
         py_file.write_text("x = 1")

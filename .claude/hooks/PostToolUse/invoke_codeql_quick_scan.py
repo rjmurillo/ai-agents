@@ -164,15 +164,23 @@ def main() -> int:
             )
             return 0
 
-        # Parse JSON output for findings count
+        # Parse JSON output for findings count.
+        # The scan may emit log noise around the JSON blob, and the JSON may be
+        # pretty-printed across multiple lines. Locate the first '{' or '[' and
+        # decode from there so multi-line JSON is not truncated to its first line.
         findings_count = 0
         try:
-            lines = result.stdout.strip().splitlines()
-            json_lines = [line for line in lines if line.strip().startswith("{")]
-            if json_lines:
-                json_output = "\n".join(json_lines)
-                scan_result = json.loads(json_output)
-                findings_count = scan_result.get("TotalFindings", 0)
+            stdout = result.stdout
+            start = min(
+                (i for i in (stdout.find("{"), stdout.find("[")) if i != -1),
+                default=-1,
+            )
+            if start == -1:
+                raise json.JSONDecodeError("no JSON object found", stdout, 0)
+            scan_result, _ = json.JSONDecoder().raw_decode(stdout[start:])
+            if not isinstance(scan_result, dict):
+                raise TypeError("scan output must be a JSON object")
+            findings_count = scan_result.get("TotalFindings", 0)
         except (json.JSONDecodeError, KeyError, TypeError):
             print(
                 "\n**CodeQL Quick Scan ERROR**: Scan output invalid. "

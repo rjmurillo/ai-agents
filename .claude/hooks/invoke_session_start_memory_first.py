@@ -68,9 +68,21 @@ def read_forgetful_config(mcp_config_path: str) -> tuple[str, int]:
 
     try:
         config = json.loads(config_path.read_text(encoding="utf-8"))
+        if not isinstance(config, dict):
+            msg = "MCP config root must be a JSON object"
+            raise ValueError(msg)
         servers = config.get("mcpServers", {})
+        if not isinstance(servers, dict):
+            msg = "mcpServers must be a JSON object"
+            raise ValueError(msg)
         forgetful = servers.get("forgetful", {})
+        if not isinstance(forgetful, dict):
+            msg = "forgetful server config must be a JSON object"
+            raise ValueError(msg)
         url_str = forgetful.get("url", "")
+        if not isinstance(url_str, str):
+            msg = "forgetful server url must be a string"
+            raise ValueError(msg)
         if url_str:
             parsed = urlparse(url_str)
             if parsed.hostname:

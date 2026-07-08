@@ -405,6 +405,68 @@ class TestDecisionRecorder:
 
         assert decision is None
 
+    def test_get_decision_skips_malformed_json(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Malformed decision JSON is skipped with a diagnostic."""
+        recorder = DecisionRecorder(tmp_path)
+        (tmp_path / "bad.json").write_text("{", encoding="utf-8")
+
+        decision = recorder.get_decision("bad")
+
+        assert decision is None
+        assert "Skipping decision file" in capsys.readouterr().err
+
+    def test_get_decision_skips_non_object_root(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Array-root decision JSON is skipped with a diagnostic."""
+        recorder = DecisionRecorder(tmp_path)
+        (tmp_path / "array.json").write_text("[]", encoding="utf-8")
+
+        decision = recorder.get_decision("array")
+
+        assert decision is None
+        assert "root must be an object" in capsys.readouterr().err
+
+    def test_get_decision_skips_missing_required_key(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Decision JSON missing required fields is skipped."""
+        recorder = DecisionRecorder(tmp_path)
+        (tmp_path / "missing.json").write_text(
+            json.dumps({"id": "missing"}),
+            encoding="utf-8",
+        )
+
+        decision = recorder.get_decision("missing")
+
+        assert decision is None
+        assert "Skipping decision file" in capsys.readouterr().err
+
+    def test_get_decision_skips_extra_key(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Decision JSON with unexpected fields is skipped."""
+        recorder = DecisionRecorder(tmp_path)
+        (tmp_path / "extra.json").write_text(
+            json.dumps({
+                "id": "extra",
+                "timestamp": "2026-01-01T00:00:00+00:00",
+                "topic": "Topic",
+                "context": "Context",
+                "votes": [],
+                "result": {},
+                "unexpected": True,
+            }),
+            encoding="utf-8",
+        )
+
+        decision = recorder.get_decision("extra")
+
+        assert decision is None
+        assert "Skipping decision file" in capsys.readouterr().err
+
     def test_list_decisions(self, tmp_path: Path) -> None:
         """List returns all recorded decisions."""
         recorder = DecisionRecorder(tmp_path)
@@ -422,6 +484,23 @@ class TestDecisionRecorder:
         decisions = recorder.list_decisions()
 
         assert len(decisions) == 2
+
+    def test_list_decisions_skips_corrupt_files(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """List ignores corrupt decision files and returns valid decisions."""
+        recorder = DecisionRecorder(tmp_path)
+        votes = [Vote("architect", "approve", "Good", 0.9)]
+        result = majority_consensus(votes)
+        recorder.record_decision(
+            topic="Valid decision", context="Test", votes=votes, result=result
+        )
+        (tmp_path / "bad.json").write_text("not json", encoding="utf-8")
+
+        decisions = recorder.list_decisions()
+
+        assert [decision.topic for decision in decisions] == ["Valid decision"]
+        assert "Skipping decision file" in capsys.readouterr().err
 
     def test_list_with_limit(self, tmp_path: Path) -> None:
         """List respects limit parameter."""

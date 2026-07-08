@@ -278,7 +278,10 @@ def get_actionability_score(
                 score += float(heuristics["no_reply_after_days"])
                 reasons.append("NoReplyAfterDays")
         except (ValueError, TypeError):
-            pass
+            logger.debug(
+                "Skipping no-reply heuristic date parse miss for created_at=%r",
+                comment_data.created_at,
+            )
 
     # Clamp score between 0 and 1
     score = max(0.0, min(1.0, score))
@@ -410,7 +413,11 @@ def get_reviewer_signal_stats(
                     if score_result.is_actionable:
                         last_30_days_actionable += 1
             except (ValueError, TypeError):
-                pass
+                logger.debug(
+                    "Skipping reviewer signal date parse miss for reviewer=%s created_at=%r",
+                    reviewer,
+                    comment.created_at,
+                )
 
         signal_rate = (
             round(actionable_count / stats.total_comments, 2)
