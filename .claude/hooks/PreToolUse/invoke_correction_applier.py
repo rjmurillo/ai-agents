@@ -182,6 +182,29 @@ def find_matching_corrections(
     return matches
 
 
+def _collect_memory_files(memories_dir: Path, deadline: float) -> list[Path]:
+    """Return up to ``_MAX_FILES_SCANNED`` ``*.md`` paths, bounded by ``deadline``.
+
+    ``Path.rglob`` returns a lazy generator; iterating it drives the directory
+    walk. The count and deadline checks run DURING iteration so a huge or slow
+    ``.serena/memories/`` tree cannot blow the host hook timeout before the read
+    loop is even entered. Sorting the whole ``rglob`` result up front (the prior
+    behavior) materialized and ordered the entire tree first, defeating the very
+    wedge this hook exists to prevent. The bounded result is sorted afterward so
+    ordering is deterministic within the cap; when the corpus fits under the cap
+    (the normal case) ordering is fully deterministic.
+    """
+    collected: list[Path] = []
+    for md_file in memories_dir.rglob("*.md"):
+        if len(collected) >= _MAX_FILES_SCANNED:
+            break
+        if time.monotonic() >= deadline:
+            break
+        collected.append(md_file)
+    collected.sort()
+    return collected
+
+
 def scan_memories(project_root: str, deadline: float | None = None) -> list[tuple[str, str]]:
     """Scan .serena/memories/ for HIGH confidence corrections.
 
@@ -192,8 +215,10 @@ def scan_memories(project_root: str, deadline: float | None = None) -> list[tupl
     wedge every Bash command (fail-closed-on-timeout regression).
 
     Files are visited in sorted order for determinism. ``deadline`` is an
-    absolute ``time.monotonic()`` value; when omitted it is derived from
-    ``_SCAN_DEADLINE_SECONDS``.
+    absolute ``time.monotonic()`` value. When a caller passes a larger hook-wide
+    deadline (``_HOOK_WALL_BUDGET_SECONDS`` from ``main()``), the scan still caps
+    itself at ``_SCAN_DEADLINE_SECONDS`` so it never consumes the whole hook
+    budget, matching the "stops after ``_SCAN_DEADLINE_SECONDS``" contract above.
 
     Returns list of (source_file, correction_text) tuples.
     """
@@ -201,15 +226,14 @@ def scan_memories(project_root: str, deadline: float | None = None) -> list[tupl
     if not memories_dir.is_dir():
         return []
 
-    if deadline is None:
-        deadline = time.monotonic() + _SCAN_DEADLINE_SECONDS
+    scan_deadline = time.monotonic() + _SCAN_DEADLINE_SECONDS
+    deadline = scan_deadline if deadline is None else min(deadline, scan_deadline)
 
     all_corrections: list[tuple[str, str]] = []
-    files_scanned = 0
     total_bytes = 0
 
-    for md_file in sorted(memories_dir.rglob("*.md")):
-        if files_scanned >= _MAX_FILES_SCANNED or total_bytes >= _MAX_TOTAL_BYTES:
+    for md_file in _collect_memory_files(memories_dir, deadline):
+        if total_bytes >= _MAX_TOTAL_BYTES:
             break
         if time.monotonic() >= deadline:
             break
@@ -217,7 +241,6 @@ def scan_memories(project_root: str, deadline: float | None = None) -> list[tupl
             content = md_file.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        files_scanned += 1
         total_bytes += len(content)
         corrections = extract_high_corrections(content)
         for c in corrections:
