@@ -1,0 +1,147 @@
+{
+  "id": "episode-2026-07-08-session-2814-adr006ci",
+  "session": "2026-07-08-session-2814-adr006ci",
+  "timestamp": "2026-07-08T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Investigate GitHub issue #2814, validate the reported ADR-006 workflow run-block inventory, extract a reviewable first cluster, file a follow-up tracker, and open a PR.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified worktree branch agent/adr006ci and read HANDOFF, ADR-006, PROJECT-CONSTRAINTS, and relevant path rules.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #2814 and full comments. Revalidated the claim: the original 91 count is a genuine high-signal subset, not mostly false positives.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extracted the .github/actions/ai-review/action.yml context-builder block into scripts/ci/build_ai_review_context.py with pytest coverage.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created tracking issue #2967 for the remaining ADR-006 workflow run-block burn-down inventory.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Targeted validation passed: ruff on new script and tests, pytest for 21 tests, validate_workflows.py for ai-review action. actionlint was attempted on the composite action and reported expected workflow-shape errors because actionlint treats action.yml as a workflow.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Final validation passed: validate_session_json.py, pre_pr.py, and changed-file em and en dash byte counts all passed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed follow-up review findings: nonzero gh pr diff stdout is preserved, heredoc delimiter collision is tested, and episode commit metrics are corrected.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed new follow-up review findings: API-failure warnings, config exit-code mapping, output I/O error classification, and missing issue/session-log context tests.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed additional follow-up review findings: nonzero name-only stdout, whitespace PR body preservation, invalid MAX_DIFF_LINES config handling, RUNNER_TEMP enforcement, and stricter context-mode assertion.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed final environment and path-safety review findings: required repository for GitHub-backed contexts and sanitized PR_NUMBER before writing context files.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed final file-decoding review findings: session-log and spec-file UTF-8 decode failures now return config error code 2.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed missing-context mode review findings: missing session-log and spec-file paths now return partial context instead of full context.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased PR #2969 onto origin/main after PRs #2964 and #2975 advanced main. Resolved causal graph conflicts by merging append-only node and edge arrays, preserving main records and adr006ci episode records.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed post-rebase review findings: ai-review action now invokes the context builder from GITHUB_WORKSPACE, and issue context passes an explicit --repo value to gh issue view.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed post-push active review findings: issue context now reports partial mode for missing or failed issue lookups, pr-diff requires PR_NUMBER, unknown CONTEXT_TYPE fails closed with config exit code 2, gh infrastructure failures map to exit code 3, and causal graph pattern rows are deduped by pattern identity.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e11744506505b9ace330adfa8550c53dba3dc627",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

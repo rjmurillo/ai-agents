@@ -1607,7 +1607,7 @@
     {
       "id": "734655ae5e70",
       "type": "milestone",
-      "label": "milestone: Assessed worktree \u2014 partial changes already applied from prior session attempt",
+      "label": "milestone: Assessed worktree - partial changes already applied from prior session attempt",
       "episodes": [
         "episode-2026-03-09-session-1195"
       ],
@@ -2021,7 +2021,7 @@
     {
       "id": "9b951132455c",
       "type": "decision",
-      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2039,7 +2039,7 @@
     {
       "id": "dbf92401f9f0",
       "type": "decision",
-      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2093,7 +2093,7 @@
     {
       "id": "a521a8822e11",
       "type": "milestone",
-      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2156,7 +2156,7 @@
     {
       "id": "2ebc20812a9e",
       "type": "decision",
-      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2165,7 +2165,7 @@
     {
       "id": "1d01daa399d3",
       "type": "milestone",
-      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -2210,7 +2210,7 @@
     {
       "id": "dfbe42de5fde",
       "type": "decision",
-      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream - also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) - also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing - also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check - Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
       "episodes": [
         "episode-2026-04-27-session-1761"
       ],
@@ -12025,7 +12025,7 @@
       "episodes": [
         "episode-2026-07-08-session-01-ci2933"
       ],
-      "created": "2026-07-08T10:31:48.273074+00:00"
+      "created": "2026-07-08T11:30:21.068001+00:00"
     },
     {
       "id": "3e1a1889273e",
@@ -12034,7 +12034,7 @@
       "episodes": [
         "episode-2026-07-08-session-01-ci2933"
       ],
-      "created": "2026-07-08T10:31:48.273144+00:00"
+      "created": "2026-07-08T11:30:21.068070+00:00"
     },
     {
       "id": "2d48b9477147",
@@ -12043,7 +12043,7 @@
       "episodes": [
         "episode-2026-07-08-session-01-ci2933"
       ],
-      "created": "2026-07-08T10:31:48.273200+00:00"
+      "created": "2026-07-08T11:30:21.068127+00:00"
     },
     {
       "id": "bc4c7381bb51",
@@ -12052,7 +12052,7 @@
       "episodes": [
         "episode-2026-07-08-session-01-ci2933"
       ],
-      "created": "2026-07-08T10:31:48.273255+00:00"
+      "created": "2026-07-08T11:30:21.068183+00:00"
     },
     {
       "id": "722b6df750ea",
@@ -12061,7 +12061,7 @@
       "episodes": [
         "episode-2026-07-08-session-01-ci2933"
       ],
-      "created": "2026-07-08T10:31:48.273310+00:00"
+      "created": "2026-07-08T11:30:21.068239+00:00"
     },
     {
       "id": "db492d0eebbd",
@@ -12070,7 +12070,7 @@
       "episodes": [
         "episode-2026-07-08-session-01-ci2933"
       ],
-      "created": "2026-07-08T10:31:48.273366+00:00"
+      "created": "2026-07-08T11:30:21.068295+00:00"
     },
     {
       "id": "f8ac53c74250",
@@ -12097,7 +12097,7 @@
       "episodes": [
         "episode-2026-07-08-session-01-ci2933"
       ],
-      "created": "2026-07-08T10:31:48.273541+00:00"
+      "created": "2026-07-08T11:30:21.068351+00:00"
     },
     {
       "id": "ea29f8403d3a",
@@ -12106,7 +12106,7 @@
       "episodes": [
         "episode-2026-07-08-session-2609-issue-2929-ship-evals"
       ],
-      "created": "2026-07-08T10:31:48.273830+00:00"
+      "created": "2026-07-08T11:30:21.068472+00:00"
     },
     {
       "id": "605b11a2f573",
@@ -12115,7 +12115,7 @@
       "episodes": [
         "episode-2026-07-08-session-2609-issue-2929-ship-evals"
       ],
-      "created": "2026-07-08T10:31:48.273888+00:00"
+      "created": "2026-07-08T11:30:21.068530+00:00"
     },
     {
       "id": "85ee04695d85",
@@ -12124,7 +12124,7 @@
       "episodes": [
         "episode-2026-07-08-session-2609-issue-2929-ship-evals"
       ],
-      "created": "2026-07-08T10:31:48.273944+00:00"
+      "created": "2026-07-08T11:30:21.068586+00:00"
     },
     {
       "id": "4cf24f3c0848",
@@ -12133,7 +12133,7 @@
       "episodes": [
         "episode-2026-07-08-session-2614"
       ],
-      "created": "2026-07-08T10:43:07.829382+00:00"
+      "created": "2026-07-08T11:30:21.069575+00:00"
     },
     {
       "id": "92caf5a9428d",
@@ -12142,7 +12142,7 @@
       "episodes": [
         "episode-2026-07-08-session-2614"
       ],
-      "created": "2026-07-08T10:43:07.829631+00:00"
+      "created": "2026-07-08T11:30:21.069634+00:00"
     },
     {
       "id": "d4e0d6d67da5",
@@ -12151,7 +12151,7 @@
       "episodes": [
         "episode-2026-07-08-session-2614"
       ],
-      "created": "2026-07-08T10:43:07.829845+00:00"
+      "created": "2026-07-08T11:30:21.069691+00:00"
     },
     {
       "id": "12148127c47d",
@@ -12160,7 +12160,7 @@
       "episodes": [
         "episode-2026-07-08-session-2614"
       ],
-      "created": "2026-07-08T10:43:07.830056+00:00"
+      "created": "2026-07-08T11:30:21.069746+00:00"
     },
     {
       "id": "e51db88c6239",
@@ -12169,7 +12169,7 @@
       "episodes": [
         "episode-2026-07-08-session-2614"
       ],
-      "created": "2026-07-08T10:43:07.830266+00:00"
+      "created": "2026-07-08T11:30:21.069802+00:00"
     },
     {
       "id": "0659e88c2004",
@@ -12178,7 +12178,7 @@
       "episodes": [
         "episode-2026-07-08-session-2614"
       ],
-      "created": "2026-07-08T10:43:07.830481+00:00"
+      "created": "2026-07-08T11:30:21.069858+00:00"
     },
     {
       "id": "3cfed5278150",
@@ -12187,7 +12187,7 @@
       "episodes": [
         "episode-2026-07-08-session-2614"
       ],
-      "created": "2026-07-08T10:43:07.830687+00:00"
+      "created": "2026-07-08T11:30:21.069914+00:00"
     },
     {
       "id": "e06ff99c7af9",
@@ -12196,7 +12196,331 @@
       "episodes": [
         "episode-2026-07-08-session-2614"
       ],
-      "created": "2026-07-08T10:43:07.830889+00:00"
+      "created": "2026-07-08T11:30:21.069971+00:00"
+    },
+    {
+      "id": "038f5b39b8fc",
+      "type": "milestone",
+      "label": "milestone: Verified worktree branch agent/adr006ci and read HANDOFF, ADR-006, PROJECT-CONSTRAINTS, and relevant path rules.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070094+00:00"
+    },
+    {
+      "id": "2c3a4e10186e",
+      "type": "milestone",
+      "label": "milestone: Read issue #2814 and full comments. Revalidated the claim: the original 91 count is a genuine high-signal subset, not mostly false positives.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070152+00:00"
+    },
+    {
+      "id": "d69b8cdb4b48",
+      "type": "milestone",
+      "label": "milestone: Extracted the .github/actions/ai-review/action.yml context-builder block into scripts/ci/build_ai_review_context.py with pytest coverage.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070208+00:00"
+    },
+    {
+      "id": "6c35f7759f41",
+      "type": "milestone",
+      "label": "milestone: Created tracking issue #2967 for the remaining ADR-006 workflow run-block burn-down inventory.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070265+00:00"
+    },
+    {
+      "id": "54dbe1e6666d",
+      "type": "milestone",
+      "label": "milestone: Targeted validation passed: ruff on new script and tests, pytest for 21 tests, validate_workflows.py for ai-review action. actionlint was attempted on the composite action and reported expected workflow-shape errors because actionlint treats action.yml as a workflow.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070323+00:00"
+    },
+    {
+      "id": "2b9e07e11535",
+      "type": "milestone",
+      "label": "milestone: Final validation passed: validate_session_json.py, pre_pr.py, and changed-file em and en dash byte counts all passed.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070380+00:00"
+    },
+    {
+      "id": "12cbc16aaef9",
+      "type": "commit",
+      "label": "commit: Commit: 5b9a9debbbf59af4234447501dd0115f0d7cbdad",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070437+00:00"
+    },
+    {
+      "id": "8ac2922c545d",
+      "type": "commit",
+      "label": "commit: Commit: 5e18dcf0",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070497+00:00"
+    },
+    {
+      "id": "1261b64f2a77",
+      "type": "milestone",
+      "label": "milestone: Addressed follow-up review findings: nonzero gh pr diff stdout is preserved, heredoc delimiter collision is tested, and episode commit metrics are corrected.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070554+00:00"
+    },
+    {
+      "id": "b74741713364",
+      "type": "outcome",
+      "label": "Outcome: success - Investigate GitHub issue #2814, validate the reported ADR-006 workflow run-block inventory, extract a reviewable first cluster, file a follow-up tracker, and open a PR.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T11:30:21.070610+00:00"
+    },
+    {
+      "id": "9e921c695d4c",
+      "type": "commit",
+      "label": "commit: Commit: b71df3d1c1919e73807510314667482ff8f1604d",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T12:27:06.670431+00:00"
+    },
+    {
+      "id": "eae409c6b1ba",
+      "type": "milestone",
+      "label": "milestone: Addressed new follow-up review findings: API-failure warnings, config exit-code mapping, output I/O error classification, and missing issue/session-log context tests.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T12:27:06.670500+00:00"
+    },
+    {
+      "id": "6e67022b0bc4",
+      "type": "commit",
+      "label": "commit: Commit: 9e65a0a09811e0a51b4bf39f3d7530e2d25d3f0c",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T12:27:06.670551+00:00"
+    },
+    {
+      "id": "79b400e75988",
+      "type": "milestone",
+      "label": "milestone: Addressed additional follow-up review findings: nonzero name-only stdout, whitespace PR body preservation, invalid MAX_DIFF_LINES config handling, RUNNER_TEMP enforcement, and stricter context-mode assertion.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T12:27:06.670600+00:00"
+    },
+    {
+      "id": "de7373b71735",
+      "type": "commit",
+      "label": "commit: Commit: 246197d8d6fc3e8bb87102780595aad5822c2c99",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T12:27:06.670650+00:00"
+    },
+    {
+      "id": "1f163396a6a8",
+      "type": "milestone",
+      "label": "milestone: Episode commit metrics evidence: 5b9a9debbbf59af4234447501dd0115f0d7cbdad, 5e18dcf0, b71df3d1c1919e73807510314667482ff8f1604d, 9e65a0a09811e0a51b4bf39f3d7530e2d25d3f0c, and 246197d8d6fc3e8bb87102780595aad5822c2c99 are the committed review-fix events represented in the episode file.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T12:31:55.418282+00:00"
+    },
+    {
+      "id": "5ea25cd91e58",
+      "type": "milestone",
+      "label": "milestone: Addressed final environment and path-safety review findings: required repository for GitHub-backed contexts and sanitized PR_NUMBER before writing context files.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T13:21:37.673521+00:00"
+    },
+    {
+      "id": "07ba650427cd",
+      "type": "milestone",
+      "label": "milestone: Addressed final file-decoding review findings: session-log and spec-file UTF-8 decode failures now return config error code 2.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T13:21:37.673736+00:00"
+    },
+    {
+      "id": "e56fdb982f28",
+      "type": "commit",
+      "label": "commit: Commit: 4f1e8546237893682a52d81c50deb16248e38a63",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T13:21:37.673924+00:00"
+    },
+    {
+      "id": "9c982567ac21",
+      "type": "milestone",
+      "label": "milestone: Addressed missing-context mode review findings: missing session-log and spec-file paths now return partial context instead of full context.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T13:57:03.566060+00:00"
+    },
+    {
+      "id": "7fa565ace1de",
+      "type": "commit",
+      "label": "commit: Commit: 80c51df6e3975a9abd29e292969c2623a8da4e9e",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T13:57:03.566305+00:00"
+    },
+    {
+      "id": "19ae404bd1f2",
+      "type": "milestone",
+      "label": "milestone: Removed redundant ^\\.agents/memory/episodes/ pattern from investigation_allowlist.py (subsumed by ^\\.agents/memory/); allowlist now 8 patterns.",
+      "episodes": [
+        "episode-2026-07-08-session-2610"
+      ],
+      "created": "2026-07-08T14:41:50.360256+00:00"
+    },
+    {
+      "id": "344d49e86ad4",
+      "type": "milestone",
+      "label": "milestone: Amended ADR-034: documented memory/ (#831), architecture/REVIEW- and critique/ (#732) additions; updated Not Allowed table and critique test scenario to PASS.",
+      "episodes": [
+        "episode-2026-07-08-session-2610"
+      ],
+      "created": "2026-07-08T14:41:50.360506+00:00"
+    },
+    {
+      "id": "784ffeca438e",
+      "type": "milestone",
+      "label": "milestone: Verified ADR code block matches module exactly (8 patterns); ran pytest -k investigation (50 passed).",
+      "episodes": [
+        "episode-2026-07-08-session-2610"
+      ],
+      "created": "2026-07-08T14:41:50.360718+00:00"
+    },
+    {
+      "id": "59824611a84d",
+      "type": "test",
+      "label": "test: Verified ADR code block matches module exactly (8 patterns); ran pytest -k investigation (50 passed).",
+      "episodes": [
+        "episode-2026-07-08-session-2610"
+      ],
+      "created": "2026-07-08T14:41:50.360927+00:00"
+    },
+    {
+      "id": "449dea5d31e0",
+      "type": "commit",
+      "label": "commit: Commit: 58f58a7b",
+      "episodes": [
+        "episode-2026-07-08-session-2610"
+      ],
+      "created": "2026-07-08T14:41:50.361136+00:00"
+    },
+    {
+      "id": "3fb1c5ec4130",
+      "type": "milestone",
+      "label": "milestone: Invoked adr-review skill on the ADR-034 amendment; recorded 6/6 Accept debate log at .agents/critique/ADR-034-debate-log.md; deferred allowlist DRY convergence to issue #2966.",
+      "episodes": [
+        "episode-2026-07-08-session-2610"
+      ],
+      "created": "2026-07-08T14:41:50.361343+00:00"
+    },
+    {
+      "id": "79f693435034",
+      "type": "milestone",
+      "label": "milestone: Verified PR #2958 Copilot review threads at byte level; corrected allowlist consumer references in investigation_allowlist.py and ADR-034.",
+      "episodes": [
+        "episode-2026-07-08-session-2610"
+      ],
+      "created": "2026-07-08T14:41:50.361557+00:00"
+    },
+    {
+      "id": "54f3257ddd8c",
+      "type": "outcome",
+      "label": "Outcome: success - Autopilot backlog: resolve open GitHub issues. This worktree fixes #2941 (reconcile ADR-034 investigation allowlist to 8 patterns, document memory/critique/REVIEW- additions, remove redundant episodes/ pattern).",
+      "episodes": [
+        "episode-2026-07-08-session-2610"
+      ],
+      "created": "2026-07-08T14:41:50.361767+00:00"
+    },
+    {
+      "id": "eb9303959eeb",
+      "type": "commit",
+      "label": "commit: Commit: f1ce4e401ce97c7d46c6d1eabc306ae3f996d651",
+      "episodes": [
+        "episode-2026-07-08-session-2614"
+      ],
+      "created": "2026-07-08T14:41:50.366890+00:00"
+    },
+    {
+      "id": "4a28017206e9",
+      "type": "commit",
+      "label": "commit: Commit: 80c51df6e3975a9abd29e292969c2623a8da4e9e",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T14:41:50.370092+00:00"
+    },
+    {
+      "id": "3196ea13675f",
+      "type": "milestone",
+      "label": "milestone: Rebased PR #2969 onto origin/main after PRs #2964 and #2975 advanced main. Resolved causal graph conflicts by merging append-only node and edge arrays, preserving main records and adr006ci episode records.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T15:03:48.755842+00:00"
+    },
+    {
+      "id": "12d718cc63eb",
+      "type": "milestone",
+      "label": "milestone: Addressed post-rebase review findings: ai-review action now invokes the context builder from GITHUB_WORKSPACE, and issue context passes an explicit --repo value to gh issue view.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T15:03:48.756085+00:00"
+    },
+    {
+      "id": "bb3069d62878",
+      "type": "commit",
+      "label": "commit: Commit: 511eebde18b8539ec1abb6c82413d9f3df895364",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T15:03:48.756309+00:00"
+    },
+    {
+      "id": "025504158c7f",
+      "type": "milestone",
+      "label": "milestone: Addressed post-push active review findings: issue context now reports partial mode for missing or failed issue lookups, pr-diff requires PR_NUMBER, unknown CONTEXT_TYPE fails closed with config exit code 2, gh infrastructure failures map to exit code 3, and causal graph pattern rows are deduped by pattern identity.",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T15:22:09.458681+00:00"
+    },
+    {
+      "id": "a6dd2f335fda",
+      "type": "commit",
+      "label": "commit: Commit: e11744506505b9ace330adfa8550c53dba3dc627",
+      "episodes": [
+        "episode-2026-07-08-session-2814-adr006ci"
+      ],
+      "created": "2026-07-08T15:23:15.991925+00:00"
     }
   ],
   "patterns": [
@@ -12246,7 +12570,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 61,
+      "occurrences": 66,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -12255,7 +12579,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 145,
+      "occurrences": 165,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -12264,7 +12588,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 244,
+      "occurrences": 264,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -12273,7 +12597,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 366,
+      "occurrences": 396,
       "created": "2026-06-02T04:20:23.790649+00:00"
     },
     {
@@ -12282,7 +12606,7 @@
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "success_rate": 1.0,
-      "occurrences": 12,
+      "occurrences": 17,
       "created": "2026-07-04T06:31:50.952133+00:00"
     },
     {
@@ -12291,7 +12615,7 @@
       "trigger": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
       "action": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
       "success_rate": 1.0,
-      "occurrences": 5,
+      "occurrences": 10,
       "created": "2026-07-07T18:50:46.157605+00:00"
     }
   ],
@@ -12301,7 +12625,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -12309,7 +12633,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -12317,7 +12641,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -12325,7 +12649,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -12333,7 +12657,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -12341,7 +12665,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -12349,7 +12673,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -12357,7 +12681,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -12365,7 +12689,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -12373,7 +12697,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -12381,7 +12705,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -12389,7 +12713,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -12397,7 +12721,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -12405,7 +12729,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -12413,7 +12737,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -12421,7 +12745,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -12429,7 +12753,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -12437,7 +12761,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -12445,7 +12769,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -12453,7 +12777,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -12461,7 +12785,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -12469,7 +12793,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -12477,7 +12801,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -12485,7 +12809,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -12493,7 +12817,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -12501,7 +12825,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -12509,7 +12833,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -12517,7 +12841,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -12525,7 +12849,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -12533,7 +12857,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -12541,7 +12865,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -12549,7 +12873,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -12557,7 +12881,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -12565,7 +12889,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -12573,7 +12897,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -12581,7 +12905,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -12589,7 +12913,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -12597,7 +12921,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -12605,7 +12929,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -12613,7 +12937,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 61,
+      "evidence_count": 68,
       "created": "2026-06-02T04:20:23.796919+00:00"
     },
     {
@@ -12621,7 +12945,7 @@
       "target": "e161750067d4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 17,
+      "evidence_count": 24,
       "created": "2026-07-04T02:21:24.350970+00:00"
     },
     {
@@ -12629,7 +12953,7 @@
       "target": "b895b21a3dc6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 17,
+      "evidence_count": 24,
       "created": "2026-07-04T02:21:24.351162+00:00"
     },
     {
@@ -12637,7 +12961,7 @@
       "target": "890ad3ba78e1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 19,
       "created": "2026-07-04T06:31:50.951735+00:00"
     },
     {
@@ -12645,7 +12969,7 @@
       "target": "184e28bd3bfa",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 19,
       "created": "2026-07-04T06:31:50.952110+00:00"
     },
     {
@@ -12653,7 +12977,7 @@
       "target": "7192bf3b64ff",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 6,
+      "evidence_count": 13,
       "created": "2026-07-07T16:33:28.569184+00:00"
     },
     {
@@ -12661,7 +12985,7 @@
       "target": "6614f3995388",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 6,
+      "evidence_count": 13,
       "created": "2026-07-07T16:33:28.569673+00:00"
     },
     {
@@ -12669,7 +12993,7 @@
       "target": "95d6479ace93",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 5,
+      "evidence_count": 12,
       "created": "2026-07-07T18:50:46.156629+00:00"
     },
     {
@@ -12677,7 +13001,7 @@
       "target": "088df8c10fd4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 5,
+      "evidence_count": 12,
       "created": "2026-07-07T18:50:46.157167+00:00"
     },
     {
@@ -12685,7 +13009,7 @@
       "target": "61d9f5929955",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 5,
+      "evidence_count": 12,
       "created": "2026-07-07T18:50:46.157581+00:00"
     }
   ]

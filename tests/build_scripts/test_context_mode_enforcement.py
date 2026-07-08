@@ -29,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 TWIN_DIR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "references"
 PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
+AI_REVIEW_CONTEXT_SCRIPT = REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
 AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
 REVIEW_SKILL_PATHS = (
     REPO_ROOT / ".claude" / "skills" / "review" / "SKILL.md",
@@ -65,9 +66,8 @@ def _shipped_review_surfaces() -> list[Path]:
     )
 
 
-def _spec_file_context_block() -> str:
-    text = AI_REVIEW_ACTION.read_text(encoding="utf-8")
-    return text.split("spec-file)", 1)[1].split("\n          *)", 1)[0]
+def _spec_file_context_source() -> str:
+    return AI_REVIEW_CONTEXT_SCRIPT.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -207,24 +207,32 @@ def test_review_skill_fails_closed_when_local_context_is_unknown(
 
 def test_spec_file_context_marks_truncated_diff_partial() -> None:
     """A spec-file review must not label a bounded diff preview as full."""
-    block = _spec_file_context_block()
-    assert "head -500" not in block
-    assert 'CONTEXT_MODE="partial"' in block
-    assert "Diff truncated to first $MAX_DIFF_LINES" in block
+    source = _spec_file_context_source()
+    assert "head -500" not in source
+    assert 'mode = "partial"' in source
+    assert "Diff truncated to first {max_diff_lines}" in source
 
 
 def test_spec_file_context_marks_diff_failure_summary() -> None:
     """A spec-file diff fallback carries only file names, so PASS is forbidden."""
-    block = _spec_file_context_block()
-    assert 'CONTEXT_MODE="summary"' in block
-    assert "Diff unavailable, showing file list only" in block
+    source = _spec_file_context_source()
+    assert 'mode = "summary"' in source
+    assert "Diff unavailable, showing file list only" in source
 
 
 def test_spec_file_context_without_pr_marks_partial() -> None:
     """A spec-file review without a PR diff lacks implementation evidence."""
-    block = _spec_file_context_block()
-    assert 'CONTEXT_MODE="partial"' in block
-    assert "[No PR diff provided]" in block
+    source = _spec_file_context_source()
+    no_pr_branch = source.split("if not pr_number:", 1)[1].split("diff = run_gh", 1)[0]
+    assert '"partial"' in no_pr_branch
+    assert "[No PR diff provided]" in source
+
+
+def test_ai_review_action_invokes_context_builder_from_workspace() -> None:
+    """The composite action must not depend on caller working-directory."""
+    source = AI_REVIEW_ACTION.read_text(encoding="utf-8")
+    assert 'python3 "$GITHUB_WORKSPACE/scripts/ci/build_ai_review_context.py"' in source
+    assert "run: python3 scripts/ci/build_ai_review_context.py" not in source
 
 
 @pytest.mark.parametrize("path", _shipped_review_surfaces())

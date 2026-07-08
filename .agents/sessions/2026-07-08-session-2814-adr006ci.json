@@ -1,0 +1,182 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2814,
+    "date": "2026-07-08",
+    "branch": "agent/adr006ci",
+    "startingCommit": "0968e54f",
+    "objective": "Investigate GitHub issue #2814, validate the reported ADR-006 workflow run-block inventory, extract a reviewable first cluster, file a follow-up tracker, and open a PR."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools were discovered and initial instructions were read. activate_project was unavailable in this Copilot CLI surface."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md lines 1-120 were read as a read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github skill loaded first for issue and PR work; context-mode loaded for large issue and scan output."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill context was used for available issue and PR scripts. gh was used only for required issue discussion read and for commands not covered by a loaded skill wrapper."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and ADR-006 were read before implementation."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant corrections from self-improving memory hooks were surfaced and applied, including bot-claim verification and complete path testing."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned agent/adr006ci."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch is agent/adr006ci, not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before edits and during validation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "0968e54f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST fields include evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read but not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable new convention required a Serena memory. The PR and issue tracker record the decision."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No authored markdown files changed. JSON session validation covers this session log."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Review-thread fixes are committed through e1174450: issue context partial-mode handling, pr-diff PR_NUMBER validation, unknown CONTEXT_TYPE config failure, external gh failure exit-code mapping, and causal graph pattern dedupe."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 128 tests. validate_session_json.py passed with one branch-name warning. Edited-file em and en dash byte counts were zero. Causal graph pattern duplicate check reported zero duplicates."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo table updated through classification and implementation."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single issue implementation; no retrospective artifact requested."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-08T08:10:00Z",
+      "entry": "Verified worktree branch agent/adr006ci and read HANDOFF, ADR-006, PROJECT-CONSTRAINTS, and relevant path rules."
+    },
+    {
+      "time": "2026-07-08T08:20:00Z",
+      "entry": "Read issue #2814 and full comments. Revalidated the claim: the original 91 count is a genuine high-signal subset, not mostly false positives."
+    },
+    {
+      "time": "2026-07-08T08:31:00Z",
+      "entry": "Extracted the .github/actions/ai-review/action.yml context-builder block into scripts/ci/build_ai_review_context.py with pytest coverage."
+    },
+    {
+      "time": "2026-07-08T08:37:00Z",
+      "entry": "Created tracking issue #2967 for the remaining ADR-006 workflow run-block burn-down inventory."
+    },
+    {
+      "time": "2026-07-08T08:40:00Z",
+      "entry": "Targeted validation passed: ruff on new script and tests, pytest for 21 tests, validate_workflows.py for ai-review action. actionlint was attempted on the composite action and reported expected workflow-shape errors because actionlint treats action.yml as a workflow."
+    },
+    {
+      "time": "2026-07-08T08:50:00Z",
+      "entry": "Final validation passed: validate_session_json.py, pre_pr.py, and changed-file em and en dash byte counts all passed."
+    },
+    {
+      "time": "2026-07-08T11:45:00Z",
+      "entry": "Addressed follow-up review findings: nonzero gh pr diff stdout is preserved, heredoc delimiter collision is tested, and episode commit metrics are corrected."
+    },
+    {
+      "time": "2026-07-08T12:15:00Z",
+      "entry": "Addressed new follow-up review findings: API-failure warnings, config exit-code mapping, output I/O error classification, and missing issue/session-log context tests."
+    },
+    {
+      "time": "2026-07-08T12:30:00Z",
+      "entry": "Addressed additional follow-up review findings: nonzero name-only stdout, whitespace PR body preservation, invalid MAX_DIFF_LINES config handling, RUNNER_TEMP enforcement, and stricter context-mode assertion."
+    },
+    {
+      "time": "2026-07-08T13:00:00Z",
+      "entry": "Addressed final environment and path-safety review findings: required repository for GitHub-backed contexts and sanitized PR_NUMBER before writing context files."
+    },
+    {
+      "time": "2026-07-08T13:15:00Z",
+      "entry": "Addressed final file-decoding review findings: session-log and spec-file UTF-8 decode failures now return config error code 2."
+    },
+    {
+      "time": "2026-07-08T13:30:00Z",
+      "entry": "Addressed missing-context mode review findings: missing session-log and spec-file paths now return partial context instead of full context."
+    },
+    {
+      "time": "2026-07-08T14:05:00Z",
+      "entry": "Rebased PR #2969 onto origin/main after PRs #2964 and #2975 advanced main. Resolved causal graph conflicts by merging append-only node and edge arrays, preserving main records and adr006ci episode records."
+    },
+    {
+      "time": "2026-07-08T14:25:00Z",
+      "entry": "Addressed post-rebase review findings: ai-review action now invokes the context builder from GITHUB_WORKSPACE, and issue context passes an explicit --repo value to gh issue view."
+    },
+    {
+      "time": "2026-07-08T14:55:00Z",
+      "entry": "Addressed post-push active review findings: issue context now reports partial mode for missing or failed issue lookups, pr-diff requires PR_NUMBER, unknown CONTEXT_TYPE fails closed with config exit code 2, gh infrastructure failures map to exit code 3, and causal graph pattern rows are deduped by pattern identity."
+    }
+  ],
+  "endingCommit": "e11744506505b9ace330adfa8550c53dba3dc627",
+  "nextSteps": [
+    "Push agent/adr006ci and resolve PR #2969 review threads."
+  ]
+}
