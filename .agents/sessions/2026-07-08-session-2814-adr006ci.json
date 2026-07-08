@@ -151,16 +151,12 @@
       "entry": "Addressed additional follow-up review findings: nonzero name-only stdout, whitespace PR body preservation, invalid MAX_DIFF_LINES config handling, RUNNER_TEMP enforcement, and stricter context-mode assertion."
     },
     {
-      "time": "2026-07-08T12:45:00Z",
-      "entry": "Episode commit metrics evidence: 5b9a9debbbf59af4234447501dd0115f0d7cbdad, 5e18dcf0, b71df3d1c1919e73807510314667482ff8f1604d, 9e65a0a09811e0a51b4bf39f3d7530e2d25d3f0c, and 246197d8d6fc3e8bb87102780595aad5822c2c99 are the committed review-fix events represented in the episode file."
-    },
-    {
       "time": "2026-07-08T13:00:00Z",
-      "entry": "Addressed final environment and path-safety review findings in 09a62879fbf8a5bc4ece3e115ae69ac2f6db39fe: required repository for GitHub-backed contexts and sanitized PR_NUMBER before writing context files."
+      "entry": "Addressed final environment and path-safety review findings: required repository for GitHub-backed contexts and sanitized PR_NUMBER before writing context files."
     },
     {
       "time": "2026-07-08T13:15:00Z",
-      "entry": "Addressed final file-decoding review findings in 4f1e8546237893682a52d81c50deb16248e38a63: session-log and spec-file UTF-8 decode failures now return config error code 2."
+      "entry": "Addressed final file-decoding review findings: session-log and spec-file UTF-8 decode failures now return config error code 2."
     }
   ],
   "endingCommit": "4f1e8546237893682a52d81c50deb16248e38a63",
