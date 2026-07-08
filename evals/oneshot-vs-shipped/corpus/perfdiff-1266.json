@@ -3,7 +3,7 @@
   "source_repo": "rjmurillo/moq.analyzers",
   "issue_number": 1266,
   "title": "PerfDiff silently intersects mismatched or empty benchmark sets",
-  "discourse": "Reported: BenchmarkDotNetDiffer compares only the intersection of baseline and current benchmark names. If a PR breaks the benchmark harness, renames benchmarks, or produces an empty result set, the regression strategies see no comparable rows, print no regressions detected, and exit 0. The issue also names silent filtering of failed benchmarks with null Statistics. Maintainer confirmation says the fix implemented HaveMatchingBenchmarkNames so mismatched baseline and current name sets fail the gate instead of passing vacuously.",
+  "discourse": "Reported: BenchmarkDotNetDiffer compares only the intersection of baseline and current benchmark names. If a PR breaks the benchmark harness, renames benchmarks, or produces an empty result set, the regression strategies see no comparable rows, print no regressions detected, and exit 0. The issue also names silent filtering of failed benchmarks with null Statistics. A valid fix must treat mismatched baseline/current benchmark sets, empty intersections, and failed rows as gate failures instead of success.",
   "shipped_fix": "PR #1309 added benchmark-set validation before regression strategies run. It fails the PerfDiff gate when baseline and current benchmark names do not match, when the comparison set is empty, or when failed benchmark rows would otherwise be dropped without evidence.",
   "edges_named_in_discourse": [
     "empty benchmark intersections fail the gate",
