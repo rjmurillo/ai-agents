@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-08-session-2610-pr2960-review-threads",
+  "session": "2026-07-08-session-2610-pr2960-review-threads",
+  "timestamp": "2026-07-08T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Resolve PR #2960 review threads and keep auto-merge armed.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched and rebased agent/docs, verified CLAUDE.md routing comments and autoplan skill stale note.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Clarified CLAUDE.md skill invocation scope, committed, pushed with pre-push checks, and resolved original review threads.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed follow-up review threads, merged origin/main, updated PR description, and verified zero pending checks.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed duplicate abbreviated commit node from causal graph after Copilot review verified duplicate full and short SHA nodes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 951096b22b696baf06f1495e26a02f7f51dec025",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

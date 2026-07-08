@@ -12073,15 +12073,6 @@
       "created": "2026-07-08T10:31:48.273366+00:00"
     },
     {
-      "id": "f8ac53c74250",
-      "type": "commit",
-      "label": "commit: Commit: 5cc3bb75d",
-      "episodes": [
-        "episode-2026-07-08-session-01-ci2933"
-      ],
-      "created": "2026-07-08T10:31:48.273421+00:00"
-    },
-    {
       "id": "1a2b5e994b70",
       "type": "commit",
       "label": "commit: Commit: 5cc3bb75db7a37114275676b01af8fbd001f09ab",
