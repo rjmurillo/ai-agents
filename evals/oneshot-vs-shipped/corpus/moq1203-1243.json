@@ -1,0 +1,14 @@
+{
+  "id": "moq1203-1243",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1243,
+  "title": "Moq1203 false negative when name fallback fires for non-Moq symbols",
+  "discourse": "Reported: MethodSetupShouldSpecifyReturnValueAnalyzer uses a string-name fallback for ReturnsAsync and ThrowsAsync even when the chained method resolves to a non-Moq symbol. That lets a non-Moq extension method with the same name suppress Moq1203, so a setup with no real return-value specification is missed. The issue also names the reason the fallback existed: Moq delegate-based ReturnsAsync overloads live on Moq.GeneratedReturnsExtensions and were not present in MoqKnownSymbols. A valid fix must register the real Moq extension container and stop accepting same-name methods from unrelated types.",
+  "shipped_fix": "PR #1303 registered Moq.GeneratedReturnsExtensions in MoqKnownSymbols and used symbol-based checks for ReturnsAsync and ThrowsAsync. The fix lets real Moq delegate overloads count as return-value specifications while rejecting unrelated same-name methods that previously triggered the fallback.",
+  "edges_named_in_discourse": [
+    "real Moq GeneratedReturnsExtensions overloads are recognized",
+    "unrelated same-name ReturnsAsync or ThrowsAsync methods do not suppress Moq1203",
+    "the fix stays symbol-based instead of broad string matching"
+  ],
+  "difficulty": 4
+}

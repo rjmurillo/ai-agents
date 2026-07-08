@@ -43,8 +43,8 @@ agent-vs-baseline fixture schema.
 
 ## Corpus status
 
-The seed fixture (`moq1208-1091.json`) is a curated summary of the Sample 1
-example named in #2788 (Moq1208 #1091: PARTIAL, matched root cause, missed a
-valid-suppression edge). The remaining issue->fix pairs from
-`rjmurillo/moq.analyzers` are authored incrementally; the full corpus and the
-calibrated live run require API spend and are owner-gated follow-up work.
+The corpus has 21 curated `rjmurillo/moq.analyzers` issue->fix fixtures:
+the seed fixture (`moq1208-1091.json`) named in #2788 plus 20 remaining
+released issue->fix pairs from the follow-up sweep. Corpus authoring is
+complete. The calibrated live run still requires API spend and remains the
+one owner-gated follow-up step.

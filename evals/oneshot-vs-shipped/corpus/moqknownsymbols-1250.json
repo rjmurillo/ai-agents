@@ -1,0 +1,14 @@
+{
+  "id": "moqknownsymbols-1250",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1250,
+  "title": "MoqKnownSymbols Lazy cache is poisoned by duplicate MockBehavior members",
+  "discourse": "Reported: MoqKnownSymbols.CreateLazySingleField uses SingleOrDefault inside a Lazy<T>. If a compilation defines a source MockBehavior type with duplicate members, SingleOrDefault throws inside the cached Lazy. LazyThreadSafetyMode.ExecutionAndPublication then caches the exception, so every analyzer access rethrows for the whole compilation. Maintainer confirmation says the fix replaced SingleOrDefault with DefaultIfNotSingle so duplicate members resolve to null and analyzers skip instead of throwing.",
+  "shipped_fix": "PR #1288 replaced the throwing SingleOrDefault path in MoqKnownSymbols with DefaultIfNotSingle. Duplicate or ambiguous MockBehavior members now produce a null symbol and a deterministic skip path instead of a cached exception that poisons the analyzer session.",
+  "edges_named_in_discourse": [
+    "duplicate MockBehavior members do not throw inside Lazy initialization",
+    "ambiguous symbols resolve to null and skip safely",
+    "the Lazy cache is not permanently poisoned by one bad compilation shape"
+  ],
+  "difficulty": 4
+}

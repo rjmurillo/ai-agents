@@ -1,0 +1,15 @@
+{
+  "id": "moq1500-1253",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1253,
+  "title": "Moq1500 misses constructor setup patterns and walks declarations twice",
+  "discourse": "Reported: MockRepositoryVerifyAnalyzer uses GetContainingMember with only MethodBody and a dead PropertyReference branch. A local MockRepository declared in a constructor roots at a constructor body, so the analyzer skips the xUnit constructor setup pattern and misses Moq1500. The issue also names initializer bodies and a performance flaw: two helper paths walk Descendants() for the same containing member per declarator. A valid fix must detect constructor and initializer scopes and avoid duplicate tree walks.",
+  "shipped_fix": "PR #1304 corrected Moq1500 scope resolution for constructor and initializer bodies. It replaced the narrow containing-member lookup with logic that sees the relevant method, constructor, and initializer roots, removed the dead property-reference path, and consolidated the local analysis so repository and verify calls can be found without duplicate declaration walks.",
+  "edges_named_in_discourse": [
+    "MockRepository locals in constructors are analyzed",
+    "initializer-body declarations are handled",
+    "dead PropertyReference logic is removed or bypassed",
+    "the containing member is walked once for both repository and verify facts"
+  ],
+  "difficulty": 4
+}

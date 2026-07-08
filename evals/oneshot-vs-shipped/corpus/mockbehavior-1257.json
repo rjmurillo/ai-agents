@@ -1,0 +1,14 @@
+{
+  "id": "mockbehavior-1257",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1257,
+  "title": "MockBehavior code fix throws on stale diagnostic shapes",
+  "discourse": "Reported: MockBehavior code fixes assume every diagnostic carries a current and valid DiagnosticEditProperties payload. Stale diagnostic shapes or undefined EditType values can reach the fixer during IDE updates and cause an exception rather than declining the fix. The issue was first referenced by the broad #1288 hardening PR, then fixed by a focused follow-up for the MockBehavior fixer. A valid answer must guard malformed diagnostic properties and avoid returning a success-shaped unchanged edit when the diagnostic cannot be trusted.",
+  "shipped_fix": "PR #1295 guarded the MockBehavior fixer against stale diagnostic payloads. It validates DiagnosticEditProperties and EditType before applying a change, declines unsupported shapes, and adds regression coverage for malformed or undefined edit requests.",
+  "edges_named_in_discourse": [
+    "stale diagnostic payloads do not throw",
+    "undefined EditType values are rejected",
+    "unsupported diagnostic shapes decline the fix instead of editing code"
+  ],
+  "difficulty": 3
+}

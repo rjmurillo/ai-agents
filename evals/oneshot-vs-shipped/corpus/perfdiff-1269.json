@@ -1,0 +1,15 @@
+{
+  "id": "perfdiff-1269",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1269,
+  "title": "PerfDiff input robustness defects crash or hide bad benchmark data",
+  "discourse": "Reported: PerfDiff ingestion has multiple input-robustness defects. Empty or single-sample measurement sets can throw through Pragmastat, duplicate FullNames collapse rows, zero-Operations measurements distort ratios, and null-deserialized files can crash with raw stack traces. Maintainer confirmation says #1309 hardened these paths and added InputRobustnessTests. A valid fix must classify malformed input as a gate failure with clear diagnostics instead of crashing or reporting no regressions detected.",
+  "shipped_fix": "PR #1309 hardened BenchmarkDotNet ingestion for empty samples, single samples, duplicate benchmark names, zero-operation measurements, and null or malformed files. It reports actionable validation failures or safe skips where appropriate and covers the cases in InputRobustnessTests.",
+  "edges_named_in_discourse": [
+    "empty and single-sample measurements do not crash with raw stack traces",
+    "duplicate FullName rows are detected",
+    "zero-Operations measurements do not distort ratios",
+    "null or malformed deserialized files fail with clear diagnostics"
+  ],
+  "difficulty": 5
+}

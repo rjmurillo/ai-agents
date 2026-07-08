@@ -1,0 +1,14 @@
+{
+  "id": "perfdiff-1267",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1267,
+  "title": "PerfDiff absolute-budget strategies classify on the current run alone",
+  "discourse": "Reported: RegressionStrategyHelper.FindRegressions powers the P95 250 ms and Mean 100 ms absolute-budget strategies, but it classifies each benchmark by looking only at the current run. That permanently blocks any benchmark that is already over budget on main, even when the PR is byte-identical to the baseline. It also misses slowdowns that stay under the absolute budget. A valid fix must compare baseline and current measurements, not just current values, and avoid turning a stable over-budget baseline into a fresh regression.",
+  "shipped_fix": "PR #1309 corrected the absolute-budget regression verdict logic so strategies account for baseline and current measurements. The new tests cover stable over-budget cases, true regressions, and under-budget slowdowns so the gate blocks deltas rather than pre-existing baseline cost alone.",
+  "edges_named_in_discourse": [
+    "unchanged over-budget benchmarks do not fail every PR",
+    "current measurements are compared against baseline measurements",
+    "slowdowns that remain under an absolute budget are still evaluated as deltas"
+  ],
+  "difficulty": 4
+}
