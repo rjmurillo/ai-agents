@@ -105,8 +105,24 @@
     {
       "id": "e013",
       "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebased PR #2969 onto origin/main after PRs #2964 and #2975 advanced main. Resolved causal graph conflicts by merging append-only node and edge arrays, preserving main records and adr006ci episode records.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed post-rebase review findings: ai-review action now invokes the context builder from GITHUB_WORKSPACE, and issue context passes an explicit --repo value to gh issue view.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-08T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 80c51df6e3975a9abd29e292969c2623a8da4e9e",
+      "content": "Commit: 511eebde18b8539ec1abb6c82413d9f3df895364",
       "caused_by": [],
       "leads_to": []
     }
@@ -117,7 +133,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 3
+    "files_changed": 2
   },
   "lessons": []
 }

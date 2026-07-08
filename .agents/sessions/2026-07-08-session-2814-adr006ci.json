@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review-thread fixes were committed through 3a725d4e: context builder subprocess decoding, pagination truncation signaling, API-failure warnings, mode-selection coverage, issue and session-log coverage, delimiter collision handling, gh stdout preservation, config exit-code mapping, output I/O error classification, name-only stdout preservation, whitespace body preservation, RUNNER_TEMP enforcement, repository validation, safe context-file identifiers, UTF-8 decode error mapping, missing context partial mode, and stricter context-mode regression coverage."
+        "Evidence": "Review-thread fixes were committed through 511eebde: rebased onto origin/main, preserved extracted ai-review context-builder behavior, merged append-only memory aggregates, anchored the composite action context-builder invocation to GITHUB_WORKSPACE, and passed explicit --repo routing for issue context."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/test_build_ai_review_context.py -q passed with 29 tests. uv run ruff check scripts/ci/build_ai_review_context.py tests/test_build_ai_review_context.py passed. validate_session_json.py passed with one branch-name warning. Changed-file em and en dash byte counts were zero. Pre-push validation passed through lint, mypy, workflow validation, build staleness, plugin bump, pytest, Semgrep, session log validation, and review-axes drift checks."
+        "Evidence": "uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 124 tests. validate_session_json.py passed with one branch-name warning. Edited-file em and en dash byte counts were zero. Pre-push validation passed after the rebase with commit-limit-bypass label present."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -161,9 +161,17 @@
     {
       "time": "2026-07-08T13:30:00Z",
       "entry": "Addressed missing-context mode review findings: missing session-log and spec-file paths now return partial context instead of full context."
+    },
+    {
+      "time": "2026-07-08T14:05:00Z",
+      "entry": "Rebased PR #2969 onto origin/main after PRs #2964 and #2975 advanced main. Resolved causal graph conflicts by merging append-only node and edge arrays, preserving main records and adr006ci episode records."
+    },
+    {
+      "time": "2026-07-08T14:25:00Z",
+      "entry": "Addressed post-rebase review findings: ai-review action now invokes the context builder from GITHUB_WORKSPACE, and issue context passes an explicit --repo value to gh issue view."
     }
   ],
-  "endingCommit": "80c51df6e3975a9abd29e292969c2623a8da4e9e",
+  "endingCommit": "511eebde18b8539ec1abb6c82413d9f3df895364",
   "nextSteps": [
     "Push agent/adr006ci and resolve PR #2969 review threads."
   ]
