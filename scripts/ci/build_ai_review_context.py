@@ -73,6 +73,13 @@ def count_lines(text: str) -> int:
     return len(text.splitlines())
 
 
+def read_utf8_file(path: Path, description: str) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"{description} file must be UTF-8: {path}") from exc
+
+
 def get_pr_title(pr_number: str, repository: str) -> str:
     result = run_gh(
         ["pr", "view", pr_number, "--repo", repository, "--json", "title", "-q", ".title"]
@@ -254,7 +261,7 @@ def build_issue_context(issue_number: str) -> ReviewContext:
 def build_session_log_context(context_path: str) -> ReviewContext:
     path = Path(context_path)
     if context_path and path.is_file():
-        return ReviewContext(path.read_text(encoding="utf-8"), "full")
+        return ReviewContext(read_utf8_file(path, "Session log"), "full")
     return ReviewContext(f"Session log file not found: {context_path}", "full")
 
 
@@ -268,7 +275,7 @@ def build_spec_context(
     if not context_path or not path.is_file():
         return ReviewContext(f"Spec file not found: {context_path}", "full")
 
-    spec = path.read_text(encoding="utf-8")
+    spec = read_utf8_file(path, "Spec")
     if not pr_number:
         return ReviewContext(
             f"## Specification\n{spec}\n\n## Implementation Changes\n[No PR diff provided]",

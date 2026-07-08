@@ -232,6 +232,24 @@ def test_build_session_log_context_reports_missing(tmp_path: Path):
     assert context.text == f"Session log file not found: {missing_path}"
 
 
+def test_invalid_session_log_encoding_returns_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Non-UTF-8 session logs map to the repository config exit code."""
+
+    session_path = tmp_path / "session.json"
+    session_path.write_bytes(b"\xff")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setenv("CONTEXT_TYPE", "session-log")
+    monkeypatch.setenv("CONTEXT_PATH", str(session_path))
+
+    assert _mod.main() == 2
+    assert "Session log file must be UTF-8" in capsys.readouterr().err
+
+
 def test_build_spec_context_without_pr_uses_spec_only(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -363,6 +381,25 @@ def test_build_spec_context_reports_unavailable_when_diff_and_file_list_fail(
 
     assert context.mode == "summary"
     assert "## Implementation Changes\n[Diff unavailable]" in context.text
+
+
+def test_invalid_spec_encoding_returns_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Non-UTF-8 spec files map to the repository config exit code."""
+
+    spec_path = tmp_path / "spec.md"
+    spec_path.write_bytes(b"\xff")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setenv("CONTEXT_TYPE", "spec-file")
+    monkeypatch.setenv("CONTEXT_PATH", str(spec_path))
+    monkeypatch.delenv("PR_NUMBER", raising=False)
+
+    assert _mod.main() == 2
+    assert "Spec file must be UTF-8" in capsys.readouterr().err
 
 
 def test_pr_diff_context_requires_repository(
