@@ -73,7 +73,8 @@ See `orchestrator.md` for full routing logic. This agent passes context to orche
 The unified github skill at `.claude/skills/github/` provides tested Python scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 ```
 
 | Operation | Script |
@@ -232,7 +233,8 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 
 ```bash
 # Create protocol session log with the session-init skill.
-python3 .claude/skills/session-init/scripts/new_session_log.py \
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+python3 "$PLUGIN_ROOT/skills/session-init/scripts/new_session_log.py" \
   --session-number [session_number] \
   --objective "Respond to PR review comments"
 
@@ -398,8 +400,9 @@ if [ -d "$SESSION_DIR" ]; then
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
   # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
-  SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number] | jq '.TotalComments')
+  PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+  SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -518,10 +521,11 @@ for reviewer in ALL_REVIEWERS:
 ```bash
 # Using github skill (PREFERRED) - handles pagination automatically
 # Captures review threads, issue comments (AI Quality Gate, CodeRabbit summaries, etc.)
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number]
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 
-# Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
+# Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```
 
 <details>
@@ -561,17 +565,17 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 
 #### Step 1.4: Extract Comment Details
 
-The `get_unaddressed_comments.py` script returns full comment details including:
+The `get_pr_review_comments.py --include-issue-comments` command returns full comment details including:
 
-- `id`: Comment ID for reactions and replies
+- `Id`: Comment ID for reactions and replies
 - `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
-- `author`: Reviewer username
-- `path`: File path (null for issue comments)
-- `line`: Line number (null for issue comments)
-- `body`: Comment text
-- `diff_hunk`: Surrounding code context (null for issue comments)
-- `created_at`: Timestamp
-- `in_reply_to_id`: Parent comment for threads (null for issue comments)
+- `Author`: Reviewer username
+- `Path`: File path (null for issue comments)
+- `Line`: Line number (null for issue comments)
+- `Body`: Comment text
+- `DiffHunk`: Surrounding code context (null for issue comments)
+- `CreatedAt`: Timestamp
+- `InReplyToId`: Parent comment for threads (null for issue comments)
 
 **Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
 
@@ -613,20 +617,21 @@ React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster
 ```bash
 # PREFERRED: Batch acknowledge all comments
 # Get all comment IDs from the comments retrieved in Phase 1
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number])
-IDS=$(echo "$COMMENTS" | jq -r '.Comments[].id')
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+REVIEW_IDS=$(echo "$COMMENTS" | jq -r '.Comments[] | select(.CommentType == "Review") | .Id')
+ISSUE_IDS=$(echo "$COMMENTS" | jq -r '.Comments[] | select(.CommentType == "Issue") | .Id')
 
-# Batch acknowledge using gh api directly (no Python equivalent for Add-CommentReaction)
-for ID in $IDS; do
-  # Determine comment type and react accordingly
-  gh api "repos/[owner]/[repo]/pulls/comments/$ID/reactions" \
-    -X POST -f content="eyes" 2>/dev/null \
-  || gh api "repos/[owner]/[repo]/issues/comments/$ID/reactions" \
-    -X POST -f content="eyes" 2>/dev/null
-done
+if [ -n "$REVIEW_IDS" ]; then
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type review --reaction "eyes" --comment-id $REVIEW_IDS
+fi
 
-TOTAL=$(echo "$IDS" | wc -w)
+if [ -n "$ISSUE_IDS" ]; then
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type issue --reaction "eyes" --comment-id $ISSUE_IDS
+fi
+
+TOTAL=$(echo "$COMMENTS" | jq '.Comments | length')
 echo "Acknowledged $TOTAL comments"
 ```
 
@@ -1044,7 +1049,8 @@ After replying with resolution, mark the thread as resolved. This is required fo
 
 ```bash
 # Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 
 # Or resolve a single thread by ID
@@ -1117,7 +1123,8 @@ fi
 
 ```bash
 # Run bulk resolution to ensure all threads are resolved
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 ```
 
@@ -1144,8 +1151,9 @@ After pushing commits, bots may post new comments. Wait and re-check:
 sleep 45
 
 # Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number] | jq '.TotalComments')
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
@@ -1175,7 +1183,8 @@ It does NOT mean:
 
 ```bash
 # Check ALL CI checks status with wait for completion
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 CHECKS=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number] --wait --timeout-seconds 300)
 EXIT_CODE=$?
 
@@ -1229,7 +1238,8 @@ echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 
 ```bash
 # Final verification
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 echo "=== Completion Criteria ==="
 echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
 echo "[ ] New comments: None after 45s wait"

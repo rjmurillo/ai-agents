@@ -76,7 +76,8 @@ You have direct access to:
 ### Skill Usage Pattern
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 
 # All scripts are in .claude/skills/github/scripts/
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50
@@ -89,7 +90,8 @@ See `.claude/skills/github/SKILL.md` for full documentation.
 Use `-DetectStale` with `get_pr_review_comments.py` to identify comments referencing deleted or moved code:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Detect and exclude stale comments (recommended for response workflow)
 python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" \
   --pull-request 908 \
@@ -273,7 +275,8 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 
 ```bash
 # Create protocol session log with the session-init skill.
-python3 .claude/skills/session-init/scripts/new_session_log.py \
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+python3 "$PLUGIN_ROOT/skills/session-init/scripts/new_session_log.py" \
   --session-number [session_number] \
   --objective "Respond to PR review comments"
 
@@ -430,7 +433,8 @@ Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **
 Before fetching new data, check if this is a continuation of a previous session:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 SESSION_DIR=".agents/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
@@ -469,7 +473,8 @@ fi
 #### Step 1.1: Fetch PR Metadata
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Using github skill (PREFERRED)
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request [number] --include-changed-files
 
@@ -542,7 +547,8 @@ fi
 #### Step 1.2: Enumerate All Reviewers
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Using github skill (PREFERRED) - prevents single-bot blindness (pr-enum-001)
 python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
 
@@ -584,12 +590,13 @@ for reviewer in ALL_REVIEWERS:
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Using github skill (PREFERRED) - handles pagination automatically
 # IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries, etc.
 python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 
-# Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
+# Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```
 
 <details>
@@ -631,15 +638,15 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 
 The `get_pr_review_comments.py` script returns full comment details including:
 
-- `id`: Comment ID for reactions and replies
+- `Id`: Comment ID for reactions and replies
 - `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
-- `author`: Reviewer username
-- `path`: File path (null for issue comments)
-- `line`: Line number (null for issue comments)
-- `body`: Comment text
-- `diff_hunk`: Surrounding code context (null for issue comments)
-- `created_at`: Timestamp
-- `in_reply_to_id`: Parent comment for threads (null for issue comments)
+- `Author`: Reviewer username
+- `Path`: File path (null for issue comments)
+- `Line`: Line number (null for issue comments)
+- `Body`: Comment text
+- `DiffHunk`: Surrounding code context (null for issue comments)
+- `CreatedAt`: Timestamp
+- `InReplyToId`: Parent comment for threads (null for issue comments)
 
 **Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
 
@@ -679,22 +686,23 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 
 # PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
 # Get all comment IDs from the comments retrieved in Phase 1
-comments=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number])
-ids=$(echo "$comments" | jq -r '.Comments[].id')
+comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+review_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Review") | .Id')
+issue_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Issue") | .Id')
 
-# Batch acknowledge - single process, all comments
 total_ids=$(echo "$comments" | jq '.Comments | length')
 
-if [ "$total_ids" -gt 0 ]; then
-  echo "$ids" | xargs -r -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
-  if [ $? -ne 0 ]; then
-    echo "[BLOCKED] One or more comment acknowledgments failed"
-    exit 1
-  fi
+if [ -n "$review_ids" ]; then
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type review --reaction "eyes" --comment-id $review_ids
+fi
+
+if [ -n "$issue_ids" ]; then
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type issue --reaction "eyes" --comment-id $issue_ids
 fi
 
 # Verify all acknowledged
@@ -705,7 +713,8 @@ echo "Acknowledged $total_ids comments with eyes reaction"
 <summary>Alternative: Individual reactions (legacy)</summary>
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Individual comment reaction (slower - use batch above instead)
 python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id [comment_id] --reaction "eyes"
 
@@ -1029,7 +1038,8 @@ Reply to comments that need immediate response BEFORE implementation:
 > **[CRITICAL]**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Using github skill (PREFERRED) - handles thread-preserving replies correctly (pr-thread-reply)
 # Reply to review comment (in-thread reply using /replies endpoint)
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [comment_id] --body "[response]"
@@ -1152,7 +1162,8 @@ git push origin [branch]
 #### Step 6.3: Reply with Resolution
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Using github skill (PREFERRED)
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [pull_number] --comment-id [comment_id] --body "Fixed in [commit_hash].\n\n[Brief summary of change]"
 
@@ -1223,7 +1234,8 @@ After replying with resolution, mark the thread as resolved. This is required fo
 2. You need a response from the reviewer (human or bot)
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Resolve all bot-authored unresolved threads (use only when no human threads remain)
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 
@@ -1296,7 +1308,8 @@ fi
 **Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Run bulk resolution to ensure all threads are resolved
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 ```
@@ -1320,7 +1333,8 @@ If any threads fail to resolve, investigate and retry before claiming completion
 After pushing commits, bots may post new comments. Wait and re-check:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Wait for bot responses (30-60 seconds)
 sleep 45
 
@@ -1354,7 +1368,8 @@ It does NOT mean:
 **Always verify CI explicitly** using the get_pr_checks.py skill:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 
 # Check ALL CI checks status with wait for completion
 checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number] --wait --timeout-seconds 300)
@@ -1409,7 +1424,8 @@ echo "[PASS] All CI checks passing ($(echo "$checks" | jq '.PassedCount') checks
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 
 # Final verification
 echo "=== Completion Criteria ==="
@@ -1525,7 +1541,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037). Memory 
 **At start (MANDATORY, retrieve context):**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "PR review patterns bot behaviors reviewer preferences"
 ```
 
