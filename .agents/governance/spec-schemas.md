@@ -436,13 +436,10 @@ source: GH-720       # GitHub issue that originated this spec
 Current spec checks validate ID uniqueness and PR/spec contradictions:
 
 ```bash
-# Validate single file
+# Validate spec ID uniqueness across the repo
 python3 scripts/validation/check_spec_id_uniqueness.py
 
-# Validate all specs
-python3 scripts/validation/check_spec_id_uniqueness.py
-
-# Validate traceability
+# Validate PR and spec contradiction signals
 python3 scripts/validation/spec_contradiction.py --advisory
 
 # Output

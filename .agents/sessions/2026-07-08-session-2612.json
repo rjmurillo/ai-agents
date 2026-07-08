@@ -1,144 +1,148 @@
 {
- "schemaVersion": "1.0",
- "session": {
-  "number": 2612,
-  "date": "2026-07-08",
-  "branch": "fix/2864-residual-dead-ps1-refs",
-  "startingCommit": "736fc602ce",
-  "objective": "Clean re-apply of the #2864/#2914/#2915/#2916 dead-.ps1 doc-cleanup and stale-script-refs guard onto current origin/main after PR #2951 diverged 3 commits behind (post #2948/#2950 merges); resolve all bot-cascade review threads and land."
- },
- "protocolCompliance": {
-  "sessionStart": {
-   "serenaActivated": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "serena-* MCP tools live on this local Copilot CLI; initial_instructions loaded earlier this session."
-   },
-   "serenaInstructions": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "Serena Instructions Manual read via serena-initial_instructions earlier this session."
-   },
-   "handoffRead": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "Prior HANDOFF context carried in autopilot session summary and checkpoints."
-   },
-   "sessionLogCreated": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "This file."
-   },
-   "skillScriptsListed": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "github skill pr scripts used for review-thread ops; adr-review skill active."
-   },
-   "usageMandatoryRead": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "gh used via github skill scripts where a skill exists; raw gh only for read-only listing."
-   },
-   "constraintsRead": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "Dash prohibition, atomic-commit, plugin-version-bump, generated-artifact discipline applied."
-   },
-   "memoriesLoaded": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "Repository/user memories surfaced in prompt; plugin-versioning parity and session-log-gate memories applied to this re-apply."
-   },
-   "branchVerified": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "fix/2864-residual-dead-ps1-refs reset --hard onto current origin/main (736fc602)."
-   },
-   "notOnMain": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "On fix/2864-residual-dead-ps1-refs, not main."
-   },
-   "gitStatusVerified": {
-    "level": "SHOULD",
-    "Complete": true,
-    "Evidence": "git status short verified; only the 73 intended non-artifact files plus session log staged."
-   },
-   "startingCommitNoted": {
-    "level": "SHOULD",
-    "Complete": true,
-    "Evidence": "736fc602ce"
-   }
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2612,
+    "date": "2026-07-08",
+    "branch": "fix/2864-residual-dead-ps1-refs",
+    "startingCommit": "736fc602ce",
+    "objective": "Clean re-apply of the #2864/#2914/#2915/#2916 dead-.ps1 doc-cleanup and stale-script-refs guard onto current origin/main after PR #2951 diverged 3 commits behind (post #2948/#2950 merges); resolve all bot-cascade review threads and land."
   },
-  "sessionEnd": {
-   "checklistComplete": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "All sessionStart and sessionEnd MUST fields completed with evidence."
-   },
-   "handoffPreserved": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": ".agents/HANDOFF.md not modified this session."
-   },
-   "serenaMemoryUpdated": {
-    "level": "SHOULD",
-    "Complete": true,
-    "Evidence": "Divergence/orphaning lesson captured in checkpoint and stored memory on auto-merge race."
-   },
-   "markdownLintRun": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "Pre-commit runs markdownlint on staged markdown; doc repoints pass."
-   },
-   "changesCommitted": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "Committed 73-file doc-cleanup + stale_script_refs guard + regenerated agent/skill mirrors + paired plugin bump 0.6.5->0.6.6."
-   },
-   "validationPassed": {
-    "level": "MUST",
-    "Complete": true,
-    "Evidence": "pytest tests/test_stale_script_refs.py 6/6 PASS; ruff clean on guard+test; generate_agents.py and generate_skills.py produced zero net drift."
-   },
-   "tasksUpdated": {
-    "level": "SHOULD",
-    "Complete": true,
-    "Evidence": "Autopilot issue backlog tracked in session DB; #2951 clean re-apply is the active task."
-   },
-   "retrospectiveInvoked": {
-    "level": "SHOULD",
-    "Complete": false,
-    "Evidence": "N/A: mechanical branch-recovery re-apply; retro deferred to end of autopilot backlog run."
-   }
-  }
- },
- "workLog": [
-  {
-   "time": "2026-07-08T00:10:00Z",
-   "entry": "Diagnosed PR #2951 branch was 3 commits behind main (post #2948/#2950 merges) with a session-2609 add/add collision that recurred on every rebased commit."
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-* MCP tools live on this local Copilot CLI; initial_instructions loaded earlier this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena Instructions Manual read via serena-initial_instructions earlier this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prior HANDOFF context carried in autopilot session summary and checkpoints."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github skill pr scripts used for review-thread ops; adr-review skill active."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "gh used via github skill scripts where a skill exists; raw gh only for read-only listing."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Dash prohibition, atomic-commit, plugin-version-bump, generated-artifact discipline applied."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository/user memories surfaced in prompt; plugin-versioning parity and session-log-gate memories applied to this re-apply."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2864-residual-dead-ps1-refs reset --hard onto current origin/main (736fc602)."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2864-residual-dead-ps1-refs, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status short verified; only the 73 intended non-artifact files plus session log staged."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "736fc602ce"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST fields completed with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified this session."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Divergence/orphaning lesson captured in checkpoint and stored memory on auto-merge race."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit runs markdownlint on staged markdown; doc repoints pass."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed 73-file doc-cleanup + stale_script_refs guard + regenerated agent/skill mirrors + paired plugin bump 0.6.5->0.6.6."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/test_stale_script_refs.py 6/6 PASS; ruff clean on guard+test; generate_agents.py and generate_skills.py produced zero net drift."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Autopilot issue backlog tracked in session DB; #2951 clean re-apply is the active task."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "N/A: mechanical branch-recovery re-apply; retro deferred to end of autopilot backlog run."
+      }
+    }
   },
-  {
-   "time": "2026-07-08T00:20:00Z",
-   "entry": "Guarded rebase auto-resolve loop over-resolved and dropped all 16 commits; recovered via ORIG_HEAD (08c23688), no work lost."
-  },
-  {
-   "time": "2026-07-08T00:30:00Z",
-   "entry": "Switched to reset-to-main + selective checkout of the 71 non-artifact files (excluding paired plugin.json to preserve main's 0.6.5 bump base); verified zero source/doc overlap with main's 3 new commits."
-  },
-  {
-   "time": "2026-07-08T00:40:00Z",
-   "entry": "Bumped paired plugin.json 0.6.5->0.6.6; confirmed traceability validator repoints, TASK-001 historical .ps1, stale guard + test, codeql pytest checklist all present."
-  },
-  {
-   "time": "2026-07-08T00:50:00Z",
-   "entry": "Ran generate_agents.py + generate_skills.py: zero net drift vs checked-out mirrors. Guard test 6/6, ruff clean."
-  }
- ],
- "endingCommit": "",
- "nextSteps": [
-  "Force-push fix/2864-residual-dead-ps1-refs; verify PR #2951 mergeStateStatus CLEAN and threads still 0 unresolved.",
-  "Open new PR for the two orphaned post-merge hardening fixes (byte-cap UTF-8 in invoke_correction_applier.py; OSError degrade in detect_test_coverage_gaps.py).",
-  "Resume open-issue backlog burndown."
- ]
+  "workLog": [
+    {
+      "time": "2026-07-08T00:10:00Z",
+      "entry": "Diagnosed PR #2951 branch was 3 commits behind main (post #2948/#2950 merges) with a session-2609 add/add collision that recurred on every rebased commit."
+    },
+    {
+      "time": "2026-07-08T00:20:00Z",
+      "entry": "Guarded rebase auto-resolve loop over-resolved and dropped all 16 commits; recovered via ORIG_HEAD (08c23688), no work lost."
+    },
+    {
+      "time": "2026-07-08T00:30:00Z",
+      "entry": "Switched to reset-to-main + selective checkout of the 71 non-artifact files (excluding paired plugin.json to preserve main's 0.6.5 bump base); verified zero source/doc overlap with main's 3 new commits."
+    },
+    {
+      "time": "2026-07-08T00:40:00Z",
+      "entry": "Bumped paired plugin.json 0.6.5->0.6.6; confirmed traceability validator repoints, TASK-001 historical .ps1, stale guard + test, codeql pytest checklist all present."
+    },
+    {
+      "time": "2026-07-08T00:50:00Z",
+      "entry": "Ran generate_agents.py + generate_skills.py: zero net drift vs checked-out mirrors. Guard test 6/6, ruff clean."
+    },
+    {
+      "time": "2026-07-08T05:10:00Z",
+      "entry": "Resolved 5 PR #2951 review threads: repointed orphan-report-format.md to scripts/validation/traceability.py (--format markdown/--strict), aligned spec-schemas.md command comments to the two real checks, and invoked python explicitly in the devops.md PowerShell CI snippet (both mirrors)."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Force-push fix/2864-residual-dead-ps1-refs; verify PR #2951 mergeStateStatus CLEAN and threads still 0 unresolved.",
+    "Open new PR for the two orphaned post-merge hardening fixes (byte-cap UTF-8 in invoke_correction_applier.py; OSError degrade in detect_test_coverage_gaps.py).",
+    "Resume open-issue backlog burndown."
+  ]
 }
