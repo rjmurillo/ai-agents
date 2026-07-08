@@ -1,12 +1,10 @@
 # AGENTS
 
-## Serena Init (BLOCKING)
+## Serena Init
 
-1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`|Post-compaction: re-run 1+2
+1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback `.serena/memories/<name>.md`|Post-compaction: re-run
 
 ## Retrieval
-
-Read first.
 
 |APIs: Context7, DeepWiki, WebSearch|Memory: `memory` skill
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`|ADRs: `.agents/architecture/ADR-*.md`
@@ -15,7 +13,7 @@ Read first.
 
 ## Gates
 
-**Start**: Init Serena|Read HANDOFF.md + latest issue handoff + resume verify|Session log|Search memories|Verify git
+**Start**: Init Serena|Read HANDOFF.md + issue handoff + resume verify|Session log|Search memories|Verify git
 **Mid**: `git rev-list --count HEAD ^origin/main` <=20, warn >15 (ADR-008)
 **Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
 **End**: Complete log|Preserve HANDOFF.md|Issue handoff if open|Update Serena|Lint|Commit|Validate
@@ -36,13 +34,13 @@ Knowledge -> passive context (@imports, every turn, outside training, <8KB). Act
 
 |PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
-|CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
-|ADR-078: request names no skill -> autoplan is the front door; autoplan hands multi-step/cross-cutting work to orchestrator; orchestrator does not route back to autoplan
-|New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-capability-extension
+|CI feedback: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
+|ADR-078: no matching skill -> autoplan; multi-step/cross-cutting -> orchestrator; no orchestrator -> autoplan loop
+|New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip bug/doc/refactor/approved extension
 
 ### ADR Review
 
-Any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit fires adr-review.
+Any `ADR-*.md` or `SESSION-PROTOCOL.md` edit fires adr-review.
 
 ## Standards
 
