@@ -296,18 +296,20 @@ grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || ex
 **Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
 
 ```bash
-# Count completed tasks in artifact
-COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
-TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
+# Count unresolved comments in the comment map
+PENDING=$(grep -c "Status: \[ACKNOWLEDGED\]\|Status: pending" \
+  .agents/pr-comments/PR-[number]/comments.md || true)
 
-# Count threads to resolve
+# Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Verify alignment
-if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
-  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved ($((TOTAL - UNRESOLVED_API)))"
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] Comment map still has $PENDING pending comment(s)"
   exit 1
 fi
+
+echo "Unresolved API threads: $UNRESOLVED_API"
 ```
 
 **Evidence required**: Counts match before proceeding.
@@ -1051,12 +1053,9 @@ After replying with resolution, mark the thread as resolved. This is required fo
 2. You need a response from the reviewer (human or bot)
 
 ```bash
-# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
-
-# Or resolve a single thread by ID
+# Resolve only bot-authored or explicitly approved threads.
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWRls5m7ln8"
 ```
 
@@ -1125,10 +1124,10 @@ fi
 **Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
 
 ```bash
-# Run bulk resolution to ensure all threads are resolved
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
+# Resolve bot-authored or explicitly approved threads by ID.
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWRls5m7ln8"
 ```
 
 The script will:
