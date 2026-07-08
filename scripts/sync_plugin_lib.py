@@ -40,6 +40,10 @@ SYNC_PAIRS: list[tuple[str, str]] = [
 # (Issue #2816 finding 2) so `--check` enforces parity in CI.
 SYNC_FILE_PAIRS: list[tuple[str, str]] = [
     ("scripts/hook_utilities/bootstrap.py", ".claude/lib/bootstrap.py"),
+    (
+        "scripts/validation/validate_review_marker.py",
+        ".claude/skills/review/scripts/validate_review_marker.py",
+    ),
 ]
 
 IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [

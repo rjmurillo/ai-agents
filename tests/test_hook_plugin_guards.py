@@ -464,6 +464,16 @@ class TestSyncPluginLib:
 
         assert dst.read_bytes() == b'"""Canonical."""\r\nX = 1\r\n'
 
+    def test_validate_review_marker_pair_is_registered(self) -> None:
+        """sync_file --check now enforces the review marker skill copy."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        pair = (
+            "scripts/validation/validate_review_marker.py",
+            ".claude/skills/review/scripts/validate_review_marker.py",
+        )
+        assert pair in sync_mod.SYNC_FILE_PAIRS
+
 
 def _parse_events(stderr_text: str) -> list[dict[str, Any]]:
     return [
