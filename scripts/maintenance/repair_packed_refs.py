@@ -197,17 +197,21 @@ def _backup_packed_refs(packed_refs_path: Path) -> Path:
 
 
 def _write_repaired_packed_refs(packed_refs_path: Path, repaired: bytes) -> None:
-    with tempfile.NamedTemporaryFile(dir=packed_refs_path.parent, delete=False) as temp_file:
-        temporary_path = Path(temp_file.name)
-        try:
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=packed_refs_path.parent, delete=False) as temp_file:
+            temporary_path = Path(temp_file.name)
             temp_file.write(repaired)
             temp_file.flush()
             os.fsync(temp_file.fileno())
             shutil.copymode(packed_refs_path, temporary_path)
-        except Exception:
+    except Exception:
+        if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
-            raise
+        raise
 
+    if temporary_path is None:
+        raise RuntimeError("temporary packed-refs path was not created")
     os.replace(temporary_path, packed_refs_path)
 
 

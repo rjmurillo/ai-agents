@@ -66,8 +66,18 @@ run_packed_refs_repair() {
     if [ ! -f "$repair_script" ]; then
         return 0
     fi
-    if command -v uv > /dev/null 2>&1 && (cd "$repo_root" && uv run python -c 'import sys' > /dev/null 2>&1); then
-        python_cmd=(uv run python)
+    if [ -f "$repo_root/uv.lock" ] || [ -f "$repo_root/pyproject.toml" ]; then
+        if ! command -v uv > /dev/null 2>&1; then
+            echo_error "Python environment: uv is required for this checkout"
+            echo_info "  Install uv so pre-commit can repair packed-refs from uv.lock instead of system Python."
+            exit 2
+        fi
+        if ! (cd "$repo_root" && uv run --frozen python -c 'import sys' > /dev/null 2>&1); then
+            echo_error "Python environment: uv run --frozen python failed"
+            echo_info "  Refusing system Python fallback in a uv-managed checkout; fix uv.lock or pyproject.toml."
+            exit 2
+        fi
+        python_cmd=(uv run --frozen python)
     elif command -v python3 > /dev/null 2>&1; then
         python_cmd=(python3)
     elif command -v python > /dev/null 2>&1; then
