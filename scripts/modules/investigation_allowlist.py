@@ -25,7 +25,6 @@ def get_investigation_allowlist() -> list[str]:
         r"^\.agents/memory/",
         r"^\.agents/architecture/REVIEW-",
         r"^\.agents/critique/",
-        r"^\.agents/memory/episodes/",
     ]
 
 
@@ -40,7 +39,6 @@ def get_investigation_allowlist_display() -> list[str]:
         ".agents/memory/",
         ".agents/architecture/REVIEW-*",
         ".agents/critique/",
-        ".agents/memory/episodes/",
     ]
 
 

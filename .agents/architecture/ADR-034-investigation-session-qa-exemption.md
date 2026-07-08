@@ -76,13 +76,21 @@ Sessions claiming `SKIPPED: investigation-only` may ONLY have these paths staged
 
 ```powershell
 $investigationAllowlist = @(
-    '^\.agents/sessions/',        # Session logs
-    '^\.agents/analysis/',        # Investigation outputs
-    '^\.agents/retrospective/',   # Learnings
-    '^\.serena/memories($|/)',    # Cross-session context (matches file or subdirs)
-    '^\.agents/security/'         # Security assessments
+    '^\.agents/sessions/',            # Session logs
+    '^\.agents/analysis/',           # Investigation outputs
+    '^\.agents/retrospective/',      # Learnings
+    '^\.serena/memories($|/)',       # Cross-session context (matches file or subdirs)
+    '^\.agents/security/',           # Security assessments
+    '^\.agents/memory/',             # Memory-graph updates (Amendment 2026-07-08, issue #831)
+    '^\.agents/architecture/REVIEW-', # ADR-review REVIEW- artifacts only (Amendment 2026-07-08, issue #732)
+    '^\.agents/critique/'            # ADR-review critique artifacts (Amendment 2026-07-08, issue #732)
 )
 ```
+
+The canonical machine-readable source of this list is
+`scripts/modules/investigation_allowlist.py` (`get_investigation_allowlist()`),
+which all consumers import. The 8 patterns above mirror that function exactly.
+See the Amendment section below for the rationale behind the last three.
 
 **Allowlist Owner**: Architect agent (reviews additions via ADR amendment)
 
@@ -91,8 +99,7 @@ $investigationAllowlist = @(
 | Path Pattern | Rationale |
 |--------------|-----------|
 | `.agents/planning/` | Implementation plans produce testable artifacts |
-| `.agents/architecture/` | ADRs are design decisions affecting code |
-| `.agents/critique/` | Plan reviews gate implementation decisions; consequential artifacts |
+| `.agents/architecture/ADR-*` | ADRs are design decisions affecting code. Exception: `.agents/architecture/REVIEW-*` review artifacts are investigation-only (see Amendment 2026-07-08) |
 | `.agents/qa/` | QA reports are validation artifacts |
 | `.github/` | CI/workflow changes are infrastructure code |
 | `.claude/agents/` | Agent prompt files are behavioral code |
@@ -186,6 +193,35 @@ INVESTIGATION SESSION MODE CHANGE
 | Manual opt-in required | Consistent with existing `docs-only` pattern |
 | Pattern proliferation risk | Define skip-reason enum in future iteration |
 
+## Amendment (2026-07-08): Reconcile Allowlist to 8 Patterns
+
+The original allowlist above authorized 5 patterns. Enforcement code drifted to 9
+patterns across two later changes that never amended this ADR, so the ADR and the
+code contradicted each other. This amendment records the reconciliation and makes
+`scripts/modules/investigation_allowlist.py` (`get_investigation_allowlist()`) the
+single machine-readable source of truth. The canonical set is now 8 patterns.
+
+Three patterns are added to the original 5, with rationale:
+
+| Added pattern | Rationale | Origin |
+|---------------|-----------|--------|
+| `^\.agents/memory/` | Memory-graph updates are investigation artifacts, not implementation code. They record cross-session context and produce no testable behavior. | Issue #831 |
+| `^\.agents/architecture/REVIEW-` | ADR-review REVIEW- artifacts are investigation outputs. This is narrowly scoped to the `REVIEW-` filename prefix; ADR-* design files remain Not Allowed. | Issue #732 |
+| `^\.agents/critique/` | ADR-review and plan critique artifacts triggered false `E_INVESTIGATION_HAS_IMPL` failures. They are review outputs, not implementation code. | Issue #732 |
+
+A redundant 9th pattern (`^\.agents/memory/episodes/`) was removed because
+`^\.agents/memory/` already subsumes it. The Not Allowed table above is updated in
+the same change: the `.agents/critique/` row is removed, and `.agents/architecture/`
+is scoped to `ADR-*` with an explicit `REVIEW-*` exception.
+
+The Validation Logic PowerShell block below is illustrative pseudocode from the
+original decision; the authoritative list is the Python module, which all consumers
+(`validate_session_json.py`, the session skill, `validate_investigation_claims.py`)
+import.
+
+**Allowlist Owner** remains the architect agent. Future additions require an ADR
+amendment like this one.
+
 ## Consequences
 
 ### Positive
@@ -274,7 +310,7 @@ Implementation compliance verified by:
 | Investigation session with `.serena/memories/` + session log | PASS |
 | Investigation session with `.agents/security/SA-*.md` staged | PASS |
 | Investigation session with `.agents/planning/PRD.md` staged | FAIL (implementation artifact) |
-| Investigation session with `.agents/critique/` staged | FAIL (consequential artifact) |
+| Investigation session with `.agents/critique/` staged | PASS (review artifact, see Amendment 2026-07-08) |
 | Investigation session with `.github/workflows/ci.yml` staged | FAIL (infrastructure code) |
 | Investigation session with `src/component.ts` staged | FAIL (code file) |
 | Investigation session with `.claude/agents/agent.md` staged | FAIL (agent prompt file) |

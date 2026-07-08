@@ -1,0 +1,135 @@
+{
+ "schemaVersion": "1.0",
+ "session": {
+  "number": 2610,
+  "date": "2026-07-08",
+  "branch": "agent/adr034",
+  "startingCommit": "cba83712",
+  "objective": "Autopilot backlog: resolve open GitHub issues. This worktree fixes #2941 (reconcile ADR-034 investigation allowlist to 8 patterns, document memory/critique/REVIEW- additions, remove redundant episodes/ pattern)."
+ },
+ "protocolCompliance": {
+  "sessionStart": {
+   "serenaActivated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "serena-* MCP tools live on this local Copilot CLI; memories surfaced in prompt."
+   },
+   "serenaInstructions": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Serena instructions carried from session-init earlier this autopilot run."
+   },
+   "handoffRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "HANDOFF context carried in autopilot session summary and checkpoints."
+   },
+   "sessionLogCreated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "This file."
+   },
+   "skillScriptsListed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "github skill pr/issue scripts used for PR and issue operations this session."
+   },
+   "usageMandatoryRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "gh used via github skill scripts where a skill exists; raw gh only for read-only listing."
+   },
+   "constraintsRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Dash prohibition, atomic-commit, ADR-review, single-source-of-truth constraints applied to ADR-034 amendment."
+   },
+   "memoriesLoaded": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Repository and user memories surfaced in prompt and applied (session-log gate, plugin-version, adr-review gate)."
+   },
+   "branchVerified": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "agent/adr034 created from origin/main cba83712."
+   },
+   "notOnMain": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "On agent/adr034 worktree, not main."
+   },
+   "gitStatusVerified": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "git status --short checked before staging."
+   },
+   "startingCommitNoted": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "cba83712"
+   }
+  },
+  "sessionEnd": {
+   "checklistComplete": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "All sessionStart and sessionEnd MUST fields completed with evidence."
+   },
+   "handoffPreserved": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": ".agents/HANDOFF.md not modified this session."
+   },
+   "serenaMemoryUpdated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "ADR-034 reconciliation rationale captured in the ADR Amendment section itself; no new Serena memory required."
+   },
+   "markdownLintRun": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Pre-commit runs markdownlint on staged markdown; ADR-034 passes."
+   },
+   "changesCommitted": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Committed ADR-034 amendment and investigation_allowlist.py pattern reconciliation."
+   },
+   "validationPassed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "pytest tests/ -k investigation PASS (50/50); byte-level dash count zero on ADR and module."
+   },
+   "tasksUpdated": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "Autopilot backlog tracked in session DB; #2941 marked done."
+   },
+   "retrospectiveInvoked": {
+    "level": "SHOULD",
+    "Complete": false,
+    "Evidence": "N/A: mid-autopilot worktree commit; retrospective runs at end of the autopilot objective."
+   }
+  }
+ },
+ "workLog": [
+  {
+   "time": "2026-07-08T07:00:00Z",
+   "entry": "Removed redundant ^\\.agents/memory/episodes/ pattern from investigation_allowlist.py (subsumed by ^\\.agents/memory/); allowlist now 8 patterns."
+  },
+  {
+   "time": "2026-07-08T07:05:00Z",
+   "entry": "Amended ADR-034: documented memory/ (#831), architecture/REVIEW- and critique/ (#732) additions; updated Not Allowed table and critique test scenario to PASS."
+  },
+  {
+   "time": "2026-07-08T07:10:00Z",
+   "entry": "Verified ADR code block matches module exactly (8 patterns); ran pytest -k investigation (50 passed)."
+  }
+ ],
+ "endingCommit": "",
+ "nextSteps": [
+  "Open PR for #2941 with adversarial GPT-5.5 review.",
+  "Continue autopilot backlog: eval pricing #2902, docs/ci/workspace agent clusters, plugin-source serialized issues."
+ ]
+}
