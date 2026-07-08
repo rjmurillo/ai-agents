@@ -61,3 +61,20 @@ B1 (content-hash) rejection sound: no evidence this repo controls the consumer c
 | independent-thinker | Disagree-and-Commit | **Accept** |
 
 **Consensus: 6/6 Accept.** No dissent carried forward. The ADR remains `status: proposed` pending owner acceptance; consensus authorizes moving it forward, not auto-accepting it.
+
+---
+
+## Round 3: Re-review after owner direction change (2026-07-08)
+
+The Round 1-2 debate validated the **merge-time post-merge-bot** draft. After that debate, owner review (issue #2855, 2026-07-07) rejected merge-time automation on first principles and directed the opposite decision: keep the bump in the PR, reject all automation, accept the serialization cost. The ADR body was rewritten to record that PR-time-retention decision. Because the recommendation reversed, the `adr-review` skill re-ran the 6 lenses against the current decision. The direction is owner-settled; the reviewers' task in Round 3 is to validate that the rewritten ADR records the decision soundly, completely, and without gaps, not to re-choose direction.
+
+| Reviewer | Verdict | Rationale |
+|----------|---------|-----------|
+| architect | Accept | Frontmatter and section structure complete; ADR-073 enum satisfied (`accepted`). One P2: filename slug still says `merge-time` while the decision rejects it. Non-blocking: renaming breaks inbound references; the title and `## Status` are authoritative and now say so explicitly. |
+| critic | Accept | Alternatives cover all seven options (PR-time, post-merge bot, merge queue, git-height/NBGV, content-hash, relax-to-`>=`, do-nothing). The "plugin-source PRs are a small fraction of traffic" assumption is explicitly flagged as unmeasured with a revisit trigger. No hidden gaps. |
+| independent-thinker | Accept | The crux ("the write cannot be removed: both hosts read raw HEAD, no build boundary to stamp ephemerally") is correct and is the load-bearing reason git-height/NBGV cannot apply here. Content-hash rejection on legibility is a defensible owner value call, not an evidence gap. |
+| security | Accept | The decision removes rather than adds trust surface: no bot committing to protected `main`, no branch-protection carve-out, no new token. Strictly-greater gate blocks a downgrade-as-update against Copilot's `!=` check (Decision item 3). Risk 1/10. |
+| analyst | Accept | Cross-harness citations verified: Copilot CLI `app.js` v1.0.69-0 (`version: s.version||"unknown"`, `previousVersion!==newVersion`); Claude Code SHA fallback. No code ships, so feasibility is trivially met (the gates already exist and enforce the decision). |
+| high-level-advisor | Accept | Owner has decided; the decision optimizes simplicity over throughput, the owner's stated value. P1 #2855 resolves by documenting the accepted cost plus the retained mitigations (#2543, #2873). Ship it. |
+
+**Consensus: 6/6 Accept on the PR-time-retention decision.** One P2 (filename slug) documented and accepted, not blocking. Owner confirmation (criterion b) recorded in the #2855 thread. `status` flipped `proposed` -> `accepted`; `implemented` set `true` because the decided mechanism is the existing PR-time gate, already in place. Issue #2855 closes as decided.

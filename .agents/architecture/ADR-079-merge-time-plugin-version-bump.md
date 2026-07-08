@@ -1,27 +1,27 @@
 ---
 id: ADR-079
-status: proposed
-date: 2026-07-07
+status: accepted
+date: 2026-07-08
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-079: Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation)
 
 ## Status
 
-Proposed. Requested by issue #2855 (labels `bug`, `agent-qa`, `area-workflows`, `area-infrastructure`, `area-skills`, `priority:P1`, `technical-debt`). The issue surfaces a real throughput cost: parallel plugin-source PRs serialize on the monotonic version-bump gate.
+Accepted (2026-07-08). Requested by issue #2855 (labels `bug`, `agent-qa`, `area-workflows`, `area-infrastructure`, `area-skills`, `priority:P1`, `technical-debt`). The issue surfaces a real throughput cost: parallel plugin-source PRs serialize on the monotonic version-bump gate.
 
 The first draft of this ADR recommended moving the bump to merge time via a post-merge auto-bump bot. Owner review (2026-07-07) rejected that direction on first principles and selected the opposite: keep the bump in the PR, accept the serialization, and add no automation. The decisive objection: any post-merge stamp leaves `main` carrying changed content under an unchanged version until the follow-up commit lands, which is a torn state that violates the repo rule that release-participating artifacts ship with the change that necessitates them.
 
-This revision records that decision and the cross-harness evidence behind it. The recommendation changed materially from the reviewed draft, so re-run the `adr-review` skill before acceptance.
+Because the recommendation changed materially from the reviewed draft, the `adr-review` skill re-ran the 6-agent debate against the current PR-time-retention decision (Round 3 in the debate log at `.agents/critique/ADR-079-debate-log.md`). Outcome: 6/6 Accept. Both acceptance criteria are met: (a) the re-review completed with no blocking findings, and (b) the owner confirmed the decision to keep PR-time bumping and reject automation (issue #2855 thread, 2026-07-08). The ADR filename retains the historical `merge-time` slug to preserve inbound links; the title and decision are authoritative.
 
 ## Date
 
-2026-07-07
+2026-07-08
 
 ## Context
 

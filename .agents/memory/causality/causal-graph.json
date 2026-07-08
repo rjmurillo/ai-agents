@@ -11828,6 +11828,195 @@
         "episode-2026-07-07-session-2609"
       ],
       "created": "2026-07-08T00:09:03.720589+00:00"
+    },
+    {
+      "id": "d18b75b63eac",
+      "type": "milestone",
+      "label": "milestone: Confirmed bash-hook wedge cleared after Copilot restart reloaded .claude/settings.json hooks.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T07:31:43.761350+00:00"
+    },
+    {
+      "id": "e5287e1b5e86",
+      "type": "milestone",
+      "label": "milestone: Regression test caught my own error: git timeout 2s not strictly < tightest host timeout; topical-memory-injection hook is 2s, a guard-caller.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T07:31:43.761418+00:00"
+    },
+    {
+      "id": "a7522e15355c",
+      "type": "milestone",
+      "label": "milestone: Lowered git remote lookup timeout 2s -> 1s across all three synced guards.py copies; corrected comment to cite the real 2s binding constraint.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T07:31:43.761478+00:00"
+    },
+    {
+      "id": "1917dfec0ecf",
+      "type": "milestone",
+      "label": "milestone: Validated: 62 guard tests pass; isolated invoke_skill_learning timeout is flaky under full-suite load, passes in 3s alone, unrelated to git-timeout change.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T07:31:43.761533+00:00"
+    },
+    {
+      "id": "134f93ba6bfb",
+      "type": "milestone",
+      "label": "milestone: Bumped .claude and src/copilot-cli plugin.json 0.6.4 -> 0.6.5 in lockstep for packaged-lib + hook-source change.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T07:31:43.761588+00:00"
+    },
+    {
+      "id": "9c23b6a77e13",
+      "type": "commit",
+      "label": "commit: Commit: 16219bc89333d8c020943f5cdc08c3f275968aaf",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T07:31:43.761642+00:00"
+    },
+    {
+      "id": "15be21c7f001",
+      "type": "outcome",
+      "label": "Outcome: success - RCA and structural fix for PreToolUse bash-hook wedge (git subprocess timeout exceeded host hook timeout -> SIGKILL -> every bash command hard-denied); then resume open-issue backlog.",
+      "episodes": [
+        "episode-2026-07-07-session-2609"
+      ],
+      "created": "2026-07-08T07:31:43.761698+00:00"
+    },
+    {
+      "id": "f46f8a46a268",
+      "type": "milestone",
+      "label": "milestone: Diagnosed PR #2951 branch was 3 commits behind main (post #2948/#2950 merges) with a session-2609 add/add collision that recurred on every rebased commit.",
+      "episodes": [
+        "episode-2026-07-08-session-2612"
+      ],
+      "created": "2026-07-08T07:31:43.761819+00:00"
+    },
+    {
+      "id": "f11a0777749c",
+      "type": "milestone",
+      "label": "milestone: Guarded rebase auto-resolve loop over-resolved and dropped all 16 commits; recovered via ORIG_HEAD (08c23688), no work lost.",
+      "episodes": [
+        "episode-2026-07-08-session-2612"
+      ],
+      "created": "2026-07-08T07:31:43.761875+00:00"
+    },
+    {
+      "id": "0965d8833e64",
+      "type": "milestone",
+      "label": "milestone: Switched to reset-to-main + selective checkout of the 71 non-artifact files (excluding paired plugin.json to preserve main's 0.6.5 bump base); verified zero source/doc overlap with main's 3 new commits.",
+      "episodes": [
+        "episode-2026-07-08-session-2612"
+      ],
+      "created": "2026-07-08T07:31:43.761930+00:00"
+    },
+    {
+      "id": "e2ea7ba24544",
+      "type": "milestone",
+      "label": "milestone: Bumped paired plugin.json 0.6.5->0.6.6; confirmed traceability validator repoints, TASK-001 historical .ps1, stale guard + test, codeql pytest checklist all present.",
+      "episodes": [
+        "episode-2026-07-08-session-2612"
+      ],
+      "created": "2026-07-08T07:31:43.761984+00:00"
+    },
+    {
+      "id": "30f15248891e",
+      "type": "milestone",
+      "label": "milestone: Ran generate_agents.py + generate_skills.py: zero net drift vs checked-out mirrors. Guard test 6/6, ruff clean.",
+      "episodes": [
+        "episode-2026-07-08-session-2612"
+      ],
+      "created": "2026-07-08T07:31:43.762038+00:00"
+    },
+    {
+      "id": "9e1aafba7fe8",
+      "type": "milestone",
+      "label": "milestone: Resolved 5 PR #2951 review threads: repointed orphan-report-format.md to scripts/validation/traceability.py (--format markdown/--strict), aligned spec-schemas.md command comments to the two real checks, and invoked python explicitly in the devops.md PowerShell CI snippet (both mirrors).",
+      "episodes": [
+        "episode-2026-07-08-session-2612"
+      ],
+      "created": "2026-07-08T07:31:43.762092+00:00"
+    },
+    {
+      "id": "24bc419370f1",
+      "type": "outcome",
+      "label": "Outcome: success - Clean re-apply of the #2864/#2914/#2915/#2916 dead-.ps1 doc-cleanup and stale-script-refs guard onto current origin/main after PR #2951 diverged 3 commits behind (post #2948/#2950 merges); resolve all bot-cascade review threads and land.",
+      "episodes": [
+        "episode-2026-07-08-session-2612"
+      ],
+      "created": "2026-07-08T07:31:43.762147+00:00"
+    },
+    {
+      "id": "a7b7c4ead48b",
+      "type": "milestone",
+      "label": "milestone: Landed PR #2951 review-fix commit fb7279bc; resolved all 5 Copilot threads; armed squash auto-merge.",
+      "episodes": [
+        "episode-2026-07-08-session-2613"
+      ],
+      "created": "2026-07-08T07:31:43.762261+00:00"
+    },
+    {
+      "id": "370f979a7bce",
+      "type": "milestone",
+      "label": "milestone: Read ADR-079 on current main: content already records the owner rejection of merge-time and the PR-time-retention decision (via #2908), only frontmatter status was stale at proposed.",
+      "episodes": [
+        "episode-2026-07-08-session-2613"
+      ],
+      "created": "2026-07-08T07:31:43.762317+00:00"
+    },
+    {
+      "id": "7707bb3238fc",
+      "type": "milestone",
+      "label": "milestone: Ran adr-review Round 3 against the current PR-time-retention decision (6 lenses); 6/6 Accept, one P2 filename-slug note documented and accepted.",
+      "episodes": [
+        "episode-2026-07-08-session-2613"
+      ],
+      "created": "2026-07-08T07:31:43.762371+00:00"
+    },
+    {
+      "id": "f2d060797a75",
+      "type": "milestone",
+      "label": "milestone: Flipped ADR-079 status proposed -> accepted, implemented -> true; updated Status prose; appended Round 3 to the debate log.",
+      "episodes": [
+        "episode-2026-07-08-session-2613"
+      ],
+      "created": "2026-07-08T07:31:43.762426+00:00"
+    },
+    {
+      "id": "f3d254862ac7",
+      "type": "commit",
+      "label": "commit: Commit: 5f25b005",
+      "episodes": [
+        "episode-2026-07-08-session-2613"
+      ],
+      "created": "2026-07-08T07:31:43.762486+00:00"
+    },
+    {
+      "id": "40b70b929ae7",
+      "type": "milestone",
+      "label": "milestone: Addressed PR #2856 review: bumped ADR-079 frontmatter date to the 2026-07-08 accept date (ADR-073 last-updated semantics) and reconciled the episode commit metric with the recorded commit events.",
+      "episodes": [
+        "episode-2026-07-08-session-2613"
+      ],
+      "created": "2026-07-08T07:31:43.762540+00:00"
+    },
+    {
+      "id": "d6e68ee10f58",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve owner-flagged issue #2855: flip ADR-079 to accepted after the owner rejected merge-time automation and chose PR-time monotonic bump; record the adr-review Round 3 re-review of the current direction.",
+      "episodes": [
+        "episode-2026-07-08-session-2613"
+      ],
+      "created": "2026-07-08T07:31:43.762596+00:00"
     }
   ],
   "patterns": [
@@ -11877,7 +12066,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 58,
+      "occurrences": 59,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -11886,7 +12075,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 133,
+      "occurrences": 137,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -11895,7 +12084,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 232,
+      "occurrences": 236,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -11904,7 +12093,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 348,
+      "occurrences": 354,
       "created": "2026-06-02T04:20:23.790649+00:00"
     },
     {
@@ -11913,7 +12102,7 @@
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "success_rate": 1.0,
-      "occurrences": 9,
+      "occurrences": 10,
       "created": "2026-07-04T06:31:50.952133+00:00"
     },
     {
@@ -11922,7 +12111,7 @@
       "trigger": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
       "action": "Repair the corrupted main-repo working tree (owner chose surgical option B)",
       "success_rate": 1.0,
-      "occurrences": 2,
+      "occurrences": 3,
       "created": "2026-07-07T18:50:46.157605+00:00"
     }
   ],
@@ -11932,7 +12121,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -11940,7 +12129,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -11948,7 +12137,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -11956,7 +12145,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -11964,7 +12153,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -11972,7 +12161,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -11980,7 +12169,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -11988,7 +12177,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -11996,7 +12185,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -12004,7 +12193,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -12012,7 +12201,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -12020,7 +12209,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -12028,7 +12217,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -12036,7 +12225,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -12044,7 +12233,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -12052,7 +12241,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -12060,7 +12249,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -12068,7 +12257,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -12076,7 +12265,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -12084,7 +12273,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -12092,7 +12281,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -12100,7 +12289,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -12108,7 +12297,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -12116,7 +12305,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -12124,7 +12313,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -12132,7 +12321,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -12140,7 +12329,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -12148,7 +12337,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -12156,7 +12345,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -12164,7 +12353,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -12172,7 +12361,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -12180,7 +12369,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -12188,7 +12377,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -12196,7 +12385,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -12204,7 +12393,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -12212,7 +12401,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -12220,7 +12409,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -12228,7 +12417,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -12236,7 +12425,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -12244,7 +12433,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 58,
+      "evidence_count": 59,
       "created": "2026-06-02T04:20:23.796919+00:00"
     },
     {
@@ -12252,7 +12441,7 @@
       "target": "e161750067d4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 14,
+      "evidence_count": 15,
       "created": "2026-07-04T02:21:24.350970+00:00"
     },
     {
@@ -12260,7 +12449,7 @@
       "target": "b895b21a3dc6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 14,
+      "evidence_count": 15,
       "created": "2026-07-04T02:21:24.351162+00:00"
     },
     {
@@ -12268,7 +12457,7 @@
       "target": "890ad3ba78e1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 9,
+      "evidence_count": 10,
       "created": "2026-07-04T06:31:50.951735+00:00"
     },
     {
@@ -12276,7 +12465,7 @@
       "target": "184e28bd3bfa",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 9,
+      "evidence_count": 10,
       "created": "2026-07-04T06:31:50.952110+00:00"
     },
     {
@@ -12284,7 +12473,7 @@
       "target": "7192bf3b64ff",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 3,
+      "evidence_count": 4,
       "created": "2026-07-07T16:33:28.569184+00:00"
     },
     {
@@ -12292,7 +12481,7 @@
       "target": "6614f3995388",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 3,
+      "evidence_count": 4,
       "created": "2026-07-07T16:33:28.569673+00:00"
     },
     {
@@ -12300,7 +12489,7 @@
       "target": "95d6479ace93",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 2,
+      "evidence_count": 3,
       "created": "2026-07-07T18:50:46.156629+00:00"
     },
     {
@@ -12308,7 +12497,7 @@
       "target": "088df8c10fd4",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 2,
+      "evidence_count": 3,
       "created": "2026-07-07T18:50:46.157167+00:00"
     },
     {
@@ -12316,7 +12505,7 @@
       "target": "61d9f5929955",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 2,
+      "evidence_count": 3,
       "created": "2026-07-07T18:50:46.157581+00:00"
     }
   ]
