@@ -1324,7 +1324,7 @@ echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -EB5 "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true
+  grep -E -B 5 "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true
   # Return to Phase 3 for unaddressed comments
 fi
 ```
