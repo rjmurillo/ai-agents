@@ -9,8 +9,8 @@ Covered:
   - audit-hook-bypass.yml: detection step classifies exit code, fails on >=2,
     and treats missing JSON as a failure (not indicator_count=0).
   - pytest.yml (security job): bandit gates on high severity/confidence with no
-    `|| true`, the job has security-events: write, and a codeql upload-sarif
-    step publishes findings with if: always().
+    `|| true`, the job has actions: read plus security-events: write, and a
+    codeql upload-sarif step publishes findings with if: always().
   - memory-validation.yml: verify step captures the exit code before pipefail
     aborts, and the parse step fails on a missing/empty results file instead of
     posting a green Pass.
@@ -138,11 +138,7 @@ class TestAuditHookBypass:
 
 
 class TestPytestBanditSecurity:
-    """pytest.yml security job must fail on real findings (JSON artifact).
-
-    The code-scanning SARIF surfacing needs the bandit-sarif-formatter dep and
-    is deferred to a focused follow-up PR (see Run Bandit comment).
-    """
+    """pytest.yml security job must fail on real findings and upload SARIF."""
 
     def _workflow(self) -> dict[str, Any]:
         return _load_workflow("pytest.yml")
@@ -161,16 +157,31 @@ class TestPytestBanditSecurity:
         assert "--severity-level high" in run
         assert "--confidence-level high" in run
 
-    def test_bandit_writes_json_artifact(self) -> None:
-        # JSON is a built-in bandit formatter (no extra dep); the scan is
-        # self-contained and the artifact is uploaded below.
+    def test_bandit_writes_sarif_artifact(self) -> None:
         run = self._bandit_step()["run"]
-        assert "-f json" in run
-        assert "artifacts/bandit-results.json" in run
+        assert "-f sarif" in run
+        assert "-o bandit.sarif" in run
 
     def test_bandit_excludes_test_paths(self) -> None:
         # Test-only B324 SHA1-for-module-name false positives must not gate CI.
         assert "-x" in self._bandit_step()["run"]
+
+    def test_security_job_can_write_code_scanning_events(self) -> None:
+        permissions = _job_permissions(self._workflow(), "security")
+        assert permissions.get("actions") == "read"
+        assert permissions.get("security-events") == "write"
+
+    def test_bandit_sarif_upload_runs_after_bandit_on_trusted_prs(self) -> None:
+        steps = _job_steps(self._workflow(), "security")
+        step = _find_step_by_uses(steps, "github/codeql-action/upload-sarif@")
+        assert step is not None
+        condition = step.get("if")
+        assert condition is not None
+        assert condition.startswith("always()")
+        assert "github.event_name != 'pull_request'" in condition
+        assert "github.event.pull_request.head.repo.full_name == github.repository" in condition
+        assert step["with"]["sarif_file"] == "bandit.sarif"
+        assert step["with"]["category"] == "bandit"
 
 
 class TestMemoryValidation:

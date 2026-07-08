@@ -1,20 +1,15 @@
-"""Contract tests for the report-only ruff step in pytest.yml (Issue #2194).
+"""Contract tests for the changed-file ruff ratchet in pytest.yml (Issue #2939).
 
 The repository carries a pre-existing backlog of ruff findings (2026 as of
-2026-06-01), so the CI ruff step is deliberately report-only
-(`continue-on-error: true`) and must not block merges. These tests pin that
-contract so a later edit cannot silently turn the step into a blocking gate, or
-drop the gating/skip condition, without a test failing first.
-
-When the backlog reaches zero and the step is promoted to a blocking gate, the
-report-only assertions here are expected to change in the same PR that drops
-`continue-on-error`.
+2026-06-01), so CI must fail only on new violations in changed Python files.
+These tests pin the ratchet contract so a later edit cannot silently restore a
+repo-wide report-only run or drop the gating/skip condition.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -23,7 +18,7 @@ _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pyt
 
 def _load_workflow() -> dict[str, Any]:
     with _WORKFLOW.open(encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
+        return cast(dict[str, Any], yaml.safe_load(handle))
 
 
 def _steps_from_workflow(workflow: Any) -> list[dict[str, Any]]:
@@ -52,7 +47,7 @@ def _test_job_steps() -> list[dict[str, Any]]:
 def _find_ruff_step() -> dict[str, Any] | None:
     for step in _test_job_steps():
         run = step.get("run")
-        if isinstance(run, str) and "ruff check" in run:
+        if isinstance(run, str) and "scripts/ci/ruff_ratchet.py" in run:
             return step
     return None
 
@@ -72,18 +67,18 @@ class TestWorkflowStepExtraction:
                 "test": {
                     "steps": [
                         "not-a-step",
-                        {"name": "Run ruff", "run": "ruff check . --output-format=github"},
+                        {"name": "Run ruff", "run": "python scripts/ci/ruff_ratchet.py"},
                     ]
                 }
             }
         }
         assert _steps_from_workflow(workflow) == [
-            {"name": "Run ruff", "run": "ruff check . --output-format=github"}
+            {"name": "Run ruff", "run": "python scripts/ci/ruff_ratchet.py"}
         ]
 
 
 class TestRuffStepPresence:
-    """Positive: the ruff step exists and runs the canonical invocation."""
+    """Positive: the ruff ratchet exists and runs the canonical invocation."""
 
     def test_workflow_file_exists(self) -> None:
         assert _WORKFLOW.is_file()
@@ -94,29 +89,26 @@ class TestRuffStepPresence:
     def test_ruff_step_runs_canonical_invocation(self) -> None:
         step = _find_ruff_step()
         assert step is not None
-        # Matches the baseline command `ruff check .`; CI adds GitHub
-        # annotations via --output-format=github.
-        assert step["run"].strip() == "ruff check . --output-format=github"
+        assert step["run"].strip() == "python scripts/ci/ruff_ratchet.py"
 
 
-class TestRuffStepIsReportOnly:
-    """Negative: the step must not block merges while the backlog is non-zero."""
+class TestRuffStepIsBlockingRatchet:
+    """Negative: the ratchet must block changed-file violations."""
 
-    def test_ruff_step_is_continue_on_error(self) -> None:
+    def test_ruff_step_is_not_continue_on_error(self) -> None:
         step = _find_ruff_step()
         assert step is not None
-        assert step.get("continue-on-error") is True
+        assert "continue-on-error" not in step
 
-    def test_no_other_test_step_runs_ruff_as_a_gate(self) -> None:
-        """No additional ruff invocation in the test job lacks continue-on-error."""
-        gating = [
+    def test_no_test_step_runs_repo_wide_report_only_ruff(self) -> None:
+        repo_wide_report_steps = [
             step
             for step in _test_job_steps()
             if isinstance(step.get("run"), str)
-            and "ruff check" in step["run"]
-            and step.get("continue-on-error") is not True
+            and "ruff check ." in step["run"]
+            and step.get("continue-on-error") is True
         ]
-        assert gating == []
+        assert repo_wide_report_steps == []
 
 
 class TestRuffStepGating:
@@ -134,3 +126,10 @@ class TestRuffStepGating:
         step = _find_ruff_step()
         assert step is not None
         assert "${{" not in step["run"]
+
+    def test_ruff_step_gets_base_ref_from_environment(self) -> None:
+        step = _find_ruff_step()
+        assert step is not None
+        env = step.get("env")
+        assert isinstance(env, dict)
+        assert "github.event.pull_request.base.sha" in env["RUFF_RATCHET_BASE_REF"]
