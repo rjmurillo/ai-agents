@@ -56,7 +56,9 @@ def get_staged_ps1_files(repo_root: Path) -> list[str]:
             text=True,
             timeout=10,
         )
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, OSError):
+        # OSError (incl. FileNotFoundError for a missing/non-executable git)
+        # degrades to "no files", matching the non-zero-exit fallback below.
         return []
     if result.returncode != 0:
         return []

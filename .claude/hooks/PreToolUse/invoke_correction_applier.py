@@ -238,10 +238,11 @@ def scan_memories(project_root: str, deadline: float | None = None) -> list[tupl
         if time.monotonic() >= deadline:
             break
         try:
-            content = md_file.read_text(encoding="utf-8")
+            content_bytes = md_file.read_bytes()
+            content = content_bytes.decode("utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        total_bytes += len(content)
+        total_bytes += len(content_bytes)
         corrections = extract_high_corrections(content)
         for c in corrections:
             all_corrections.append((md_file.name, c))
