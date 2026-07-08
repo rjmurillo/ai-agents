@@ -64,7 +64,10 @@ class TestLoadMarketplaceConfig:
         assert exc_info.value.code == 2
         assert "root must be a JSON object" in capsys.readouterr().err
 
-    @pytest.mark.parametrize("plugins", [{}, [1]])
+    @pytest.mark.parametrize(
+        "plugins",
+        [{}, [1], [{"source": 123}], [{"source": []}], [{"source": None}]],
+    )
     def test_wrong_plugins_type_exits_two(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str], plugins: object
     ) -> None:

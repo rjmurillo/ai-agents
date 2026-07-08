@@ -137,10 +137,12 @@ def load_marketplace_config(project_root: Path) -> list[dict[str, str]]:
     if plugins is None:
         return []
     if not isinstance(plugins, list) or not all(
-        isinstance(plugin, dict) for plugin in plugins
+        isinstance(plugin, dict) and isinstance(plugin.get("source", ""), str)
+        for plugin in plugins
     ):
         print(
-            f"ERROR: {marketplace_path} plugins must be a JSON array of objects.",
+            f"ERROR: {marketplace_path} plugins must be a JSON array of objects "
+            "whose 'source' field, when present, is a string.",
             file=sys.stderr,
         )
         sys.exit(2)
