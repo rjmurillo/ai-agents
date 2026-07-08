@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Review-thread fixes were committed through 246197d8: UTF-8 decoding, pagination truncation, accurate API-failure warning, mode-selection coverage, issue and session-log coverage, delimiter collision handling, gh diff stdout preservation, config exit-code mapping, output I/O error classification, nonzero name-only stdout preservation, whitespace PR body preservation, RUNNER_TEMP enforcement, and stricter context-mode regression coverage."
+        "Evidence": "Review-thread fixes were committed through 09a62879: UTF-8 decoding, pagination truncation, accurate API-failure warning, mode-selection coverage, issue and session-log coverage, delimiter collision handling, gh diff stdout preservation, config exit-code mapping, output I/O error classification, nonzero name-only stdout preservation, whitespace PR body preservation, RUNNER_TEMP enforcement, repository input validation, safe context-file identifiers, and stricter context-mode regression coverage."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 116 tests. uv run ruff check scripts/ci/build_ai_review_context.py tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py passed. uv run python scripts/validate_session_json.py .agents/sessions/2026-07-08-session-2814-adr006ci.json passed with one branch-name warning. Changed-file em and en dash byte counts were zero."
+        "Evidence": "uv run pytest tests/test_build_ai_review_context.py -q passed with 26 tests. uv run pytest tests/test_build_ai_review_context.py tests/build_scripts/test_context_mode_enforcement.py -q passed with 116 tests before the latest focused tests. uv run ruff check scripts/ci/build_ai_review_context.py tests/test_build_ai_review_context.py passed. Changed-file em and en dash byte counts were zero."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -153,9 +153,13 @@
     {
       "time": "2026-07-08T12:45:00Z",
       "entry": "Episode commit metrics evidence: 5b9a9debbbf59af4234447501dd0115f0d7cbdad, 5e18dcf0, b71df3d1c1919e73807510314667482ff8f1604d, 9e65a0a09811e0a51b4bf39f3d7530e2d25d3f0c, and 246197d8d6fc3e8bb87102780595aad5822c2c99 are the committed review-fix events represented in the episode file."
+    },
+    {
+      "time": "2026-07-08T13:00:00Z",
+      "entry": "Addressed final environment and path-safety review findings in 09a62879fbf8a5bc4ece3e115ae69ac2f6db39fe: required repository for GitHub-backed contexts and sanitized PR_NUMBER before writing context files."
     }
   ],
-  "endingCommit": "246197d8d6fc3e8bb87102780595aad5822c2c99",
+  "endingCommit": "09a62879fbf8a5bc4ece3e115ae69ac2f6db39fe",
   "nextSteps": [
     "Push agent/adr006ci and resolve PR #2969 review threads."
   ]

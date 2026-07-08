@@ -125,6 +125,22 @@
       "content": "Episode commit metrics evidence: 5b9a9debbbf59af4234447501dd0115f0d7cbdad, 5e18dcf0, b71df3d1c1919e73807510314667482ff8f1604d, 9e65a0a09811e0a51b4bf39f3d7530e2d25d3f0c, and 246197d8d6fc3e8bb87102780595aad5822c2c99 are the committed review-fix events represented in the episode file.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed final environment and path-safety review findings in 09a62879fbf8a5bc4ece3e115ae69ac2f6db39fe: required repository for GitHub-backed contexts and sanitized PR_NUMBER before writing context files.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 09a62879fbf8a5bc4ece3e115ae69ac2f6db39fe",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -132,7 +148,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 5
   },
   "lessons": []
