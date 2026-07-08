@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -196,9 +197,26 @@ def _backup_packed_refs(packed_refs_path: Path) -> Path:
 
 
 def _write_repaired_packed_refs(packed_refs_path: Path, repaired: bytes) -> None:
-    temporary_path = packed_refs_path.with_name(f"{packed_refs_path.name}.repairing")
-    temporary_path.write_bytes(repaired)
-    temporary_path.replace(packed_refs_path)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=packed_refs_path.parent, delete=False) as temp_file:
+            temporary_path = Path(temp_file.name)
+            temp_file.write(repaired)
+            temp_file.flush()
+            shutil.copymode(packed_refs_path, temporary_path)
+            os.fsync(temp_file.fileno())
+    except Exception:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
+
+    if temporary_path is None:
+        raise RuntimeError("temporary packed-refs path was not created")
+    try:
+        os.replace(temporary_path, packed_refs_path)
+    except OSError:
+        temporary_path.unlink(missing_ok=True)
+        raise
 
 
 if __name__ == "__main__":

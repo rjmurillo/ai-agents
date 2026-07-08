@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
+import stat
 from pathlib import Path
 
 import pytest
 
+from scripts.maintenance import repair_packed_refs as repair_module
 from scripts.maintenance.repair_packed_refs import repair_packed_refs
 
 PACKED_REFS_HEADER = b"# pack-refs with: peeled fully-peeled sorted\n"
@@ -115,6 +118,94 @@ def test_restores_backup_when_verification_fails(tmp_path: Path) -> None:
 
     assert packed_refs.read_bytes() == original
     assert (worktree / ".git" / "packed-refs.before-repair").read_bytes() == original
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits differ on Windows")
+def test_repair_preserves_packed_refs_permissions(tmp_path: Path) -> None:
+    """Repair keeps the original packed-refs file mode."""
+    worktree = _create_normal_worktree(tmp_path)
+    packed_refs = worktree / ".git" / "packed-refs"
+    original_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP
+    packed_refs.write_bytes(PACKED_REFS_HEADER + b"\n" + REF_LINE)
+    packed_refs.chmod(original_mode)
+
+    result = repair_packed_refs(worktree, verifier=lambda _worktree: None)
+
+    assert result.status == "repaired"
+    assert stat.S_IMODE(packed_refs.stat().st_mode) == original_mode
+
+
+def test_write_failure_unlinks_temp_after_file_is_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Failed temp writes clean up after the context manager closes the file."""
+    packed_refs = tmp_path / "packed-refs"
+    packed_refs.write_bytes(PACKED_REFS_HEADER)
+    temp_closed = False
+
+    class FailingTempFile:
+        def __init__(self, directory: Path) -> None:
+            self.path = directory / "repair.tmp"
+            self.name = str(self.path)
+            self.handle = self.path.open("wb")
+
+        def __enter__(self) -> FailingTempFile:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            nonlocal temp_closed
+            self.handle.close()
+            temp_closed = True
+
+        def write(self, _data: bytes) -> int:
+            raise OSError("write failed")
+
+        def flush(self) -> None:
+            self.handle.flush()
+
+        def fileno(self) -> int:
+            return self.handle.fileno()
+
+    def fake_named_temporary_file(*, dir: Path, delete: bool) -> FailingTempFile:
+        assert delete is False
+        return FailingTempFile(Path(dir))
+
+    original_unlink = Path.unlink
+
+    def assert_closed_before_unlink(path: Path, missing_ok: bool = False) -> None:
+        if path.name == "repair.tmp":
+            assert temp_closed is True
+        original_unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(
+        repair_module.tempfile, "NamedTemporaryFile", fake_named_temporary_file
+    )
+    monkeypatch.setattr(Path, "unlink", assert_closed_before_unlink)
+
+    with pytest.raises(OSError, match="write failed"):
+        repair_module._write_repaired_packed_refs(packed_refs, REF_LINE)
+
+    assert not (tmp_path / "repair.tmp").exists()
+    assert packed_refs.read_bytes() == PACKED_REFS_HEADER
+
+
+def test_replace_failure_unlinks_temp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Failed replacement removes the closed temp file."""
+    packed_refs = tmp_path / "packed-refs"
+    packed_refs.write_bytes(PACKED_REFS_HEADER)
+
+    def fail_replace(_source: Path, _destination: Path) -> None:
+        raise PermissionError("replace failed")
+
+    monkeypatch.setattr(repair_module.os, "replace", fail_replace)
+
+    with pytest.raises(PermissionError, match="replace failed"):
+        repair_module._write_repaired_packed_refs(packed_refs, REF_LINE)
+
+    assert packed_refs.read_bytes() == PACKED_REFS_HEADER
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["packed-refs"]
 
 
 def _create_normal_worktree(parent: Path) -> Path:
