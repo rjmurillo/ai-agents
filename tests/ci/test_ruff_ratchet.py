@@ -48,9 +48,7 @@ def test_default_base_ref_uses_origin_main_for_zero_before(
 def test_passes_without_changed_python_files(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    recorder = RunRecorder([completed(0, "README.md
-scripts/example.txt
-")])
+    recorder = RunRecorder([completed(0, "README.md\nscripts/example.txt\n")])
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
     status, files = ruff_ratchet.changed_python_files("origin/main", tmp_path)
@@ -68,10 +66,8 @@ def test_changed_python_files_includes_renamed_python_files(
 ) -> None:
     changed_file = tmp_path / "scripts" / "renamed.py"
     changed_file.parent.mkdir()
-    changed_file.write_text("print('ok')
-", encoding="utf-8")
-    recorder = RunRecorder([completed(0, "scripts/renamed.py
-")])
+    changed_file.write_text("print('ok')\n", encoding="utf-8")
+    recorder = RunRecorder([completed(0, "scripts/renamed.py\n")])
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
     status, files = ruff_ratchet.changed_python_files("origin/main", tmp_path)
@@ -85,14 +81,11 @@ def test_changed_python_files_falls_back_when_base_ref_is_stale(
 ) -> None:
     changed_file = tmp_path / "scripts" / "fallback.py"
     changed_file.parent.mkdir()
-    changed_file.write_text("print('ok')
-", encoding="utf-8")
+    changed_file.write_text("print('ok')\n", encoding="utf-8")
     recorder = RunRecorder(
         [
-            completed(128, stderr="fatal: bad revision
-"),
-            completed(0, "scripts/fallback.py
-"),
+            completed(128, stderr="fatal: bad revision\n"),
+            completed(0, "scripts/fallback.py\n"),
         ]
     )
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
@@ -109,10 +102,8 @@ def test_passes_when_changed_python_files_are_clean(
 ) -> None:
     changed_file = tmp_path / "scripts" / "clean.py"
     changed_file.parent.mkdir()
-    changed_file.write_text("print('ok')
-", encoding="utf-8")
-    recorder = RunRecorder([completed(0, "scripts/clean.py
-"), completed(0)])
+    changed_file.write_text("print('ok')\n", encoding="utf-8")
+    recorder = RunRecorder([completed(0, "scripts/clean.py\n"), completed(0)])
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
 
     status, files = ruff_ratchet.changed_python_files("origin/main", tmp_path)
@@ -153,14 +144,11 @@ def test_fails_when_changed_python_files_have_ruff_violations(
 ) -> None:
     changed_file = tmp_path / "scripts" / "dirty.py"
     changed_file.parent.mkdir()
-    changed_file.write_text("import os
-", encoding="utf-8")
+    changed_file.write_text("import os\n", encoding="utf-8")
     recorder = RunRecorder(
         [
-            completed(0, "scripts/dirty.py
-"),
-            completed(1, "::error file=scripts/dirty.py,line=1::F401 unused import
-"),
+            completed(0, "scripts/dirty.py\n"),
+            completed(1, "::error file=scripts/dirty.py,line=1::F401 unused import\n"),
         ]
     )
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
@@ -178,10 +166,8 @@ def test_git_diff_failure_is_external_error(
 ) -> None:
     recorder = RunRecorder(
         [
-            completed(128, stderr="fatal: bad revision
-"),
-            completed(128, stderr="fatal: bad fallback revision
-"),
+            completed(128, stderr="fatal: bad revision\n"),
+            completed(128, stderr="fatal: bad fallback revision\n"),
         ]
     )
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)
