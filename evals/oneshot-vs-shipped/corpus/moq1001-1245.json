@@ -1,0 +1,14 @@
+{
+  "id": "moq1001-1245",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1245,
+  "title": "Moq1001 and Moq1002 miss target-typed new object creation",
+  "discourse": "Reported: ConstructorArgumentsShouldMatchAnalyzer registers only SyntaxKind.ObjectCreationExpression. Target-typed new uses SyntaxKind.ImplicitObjectCreationExpression, so Mock<IFoo> m = new(42); is never analyzed. The issue body says this is a high-confidence false negative on common C# 9 syntax, and it names the bounded fix: register implicit object creation and move the handler to BaseObjectCreationExpressionSyntax. A full IOperation migration was explicitly out of scope.",
+  "shipped_fix": "PR #1301 added the implicit object creation syntax kind, changed the analyzer path to handle BaseObjectCreationExpressionSyntax, and added tests showing Moq1001 and Moq1002 fire on target-typed Mock<T> creation while existing object creation behavior remains intact.",
+  "edges_named_in_discourse": [
+    "target-typed new Mock<T> creation is analyzed",
+    "existing explicit object creation remains analyzed",
+    "the fix does not require a full IOperation migration"
+  ],
+  "difficulty": 3
+}

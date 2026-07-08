@@ -1,0 +1,14 @@
+{
+  "id": "moq1400-1255",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1255,
+  "title": "Moq1400 and Moq1410 compare boxed MockBehavior constants by reference",
+  "discourse": "Reported: SetExplicitMockBehaviorAnalyzer and SetStrictMockBehaviorAnalyzer compare compile-time constants using == and != on object operands. Those operands are independently boxed enum underlying values from IOperation.ConstantValue.Value. Reference equality is not a value comparison, so a valid MockBehavior local or field can be flagged as if it had the wrong value. The issue warns that small enum values may appear to work due to runtime interning, but that is an implementation detail. The analyzer must compare value semantics and preserve existing direct-constant behavior.",
+  "shipped_fix": "PR #1298 changed the MockBehavior analyzers to compare constant values by value rather than object reference. It added regression coverage for local constants and other boxed enum paths that previously depended on accidental reference identity.",
+  "edges_named_in_discourse": [
+    "boxed enum constants compare by value",
+    "MockBehavior locals and constants do not produce false positives",
+    "direct literal MockBehavior cases remain covered"
+  ],
+  "difficulty": 3
+}

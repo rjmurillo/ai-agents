@@ -1,0 +1,14 @@
+{
+  "id": "moq1100-1242",
+  "source_repo": "rjmurillo/moq.analyzers",
+  "issue_number": 1242,
+  "title": "Moq1100 code fix crashes when Setup has no arguments",
+  "discourse": "Reported: SemanticModelExtensions.GetAllMatchingMockedMethodSymbolsFromSetupMethodInvocation indexes ArgumentList.Arguments[0] without checking whether a Setup invocation has an argument. The Moq1100 code fix reaches this helper for mid-edit code such as mock.Setup().Callback(...), then throws ArgumentOutOfRangeException while computing a fix. A valid fix must handle argument-less or malformed Setup invocations as no candidate symbols instead of throwing during code-fix computation.",
+  "shipped_fix": "PR #1291 added a Moq1100 regression test for the empty-argument Setup guard introduced in the shared SemanticModelExtensions helper. The accepted behavior is that an argument-less or malformed Setup invocation returns no mocked method symbols and the code fix pipeline does not throw.",
+  "edges_named_in_discourse": [
+    "mock.Setup().Callback(...) must not throw during code-fix computation",
+    "malformed or mid-edit Setup calls return no candidate symbols",
+    "the shared helper guard protects Moq1100 callers"
+  ],
+  "difficulty": 3
+}
