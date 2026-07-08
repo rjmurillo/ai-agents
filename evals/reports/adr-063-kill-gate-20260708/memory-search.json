@@ -1,0 +1,141 @@
+{
+  "model": "claude-sonnet-4-6",
+  "skills_evaluated": [
+    "memory-search"
+  ],
+  "total_prompts": 6,
+  "results": {
+    "memory-search": {
+      "context_chars": 6210,
+      "baseline_avg": {
+        "accuracy": 1.0,
+        "depth": 2.33,
+        "specificity": 2.0
+      },
+      "enhanced_avg": {
+        "accuracy": 4.17,
+        "depth": 4.83,
+        "specificity": 4.83
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 1,
+          "reasoning": "The response completely misses the expected answer, which describes a specific procedural workflow: using memory-search for Tier 1 semantic lookup, running search_memory.py, prioritizing Serena-first memory with Forgetful as supplementary, and reading relevant index entries. Instead, the response treats this as a general AI limitation question and explains it has no memory. It doesn't mention any of the correct concepts (Tier 1 semantic lookup, search_memory.py, Serena memory, Forgetful memory system, index entries). The depth score gets a 2 only because the response is coherent and structured, but it's deeply wrong in direction. Specificity is 1 because none of the precise terminology from the expected answer appears.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 3,
+          "reasoning": "The response completely misses the expected behavior, which was to route the query to a memory-search function for retrieving stored facts and patterns from prior sessions. Instead, the model treats this as a direct technical question and disclaims any memory capability, then pivots to general git hook troubleshooting advice. The accuracy score is 1 because the core concept \u2014 recognizing this as a memory-search routing task \u2014 is entirely absent. Depth is 2 because while the response shows some understanding of git hooks technically, it fails to engage with the meta-level intent of the prompt (session memory retrieval). Specificity is 3 because the technical content about git hooks is reasonably concrete with named hooks and tools like husky and pre-commit, but this specificity is applied to the wrong problem entirely.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 1,
+          "reasoning": "The response completely misses the expected answer's concepts. The expected answer describes a specific workflow: using memory-search, Tier 1 search with progressive disclosure, reading matching memories, then reasoning about the validator. The actual response instead interprets the prompt as a manipulation attempt and refuses to engage, providing no relevant concepts like memory-search, tiered search strategies, or progressive disclosure. While the response shows some depth in explaining its reasoning for refusal, it scores low on accuracy and specificity because it contains none of the correct terminology or concrete procedures from the expected answer.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 2,
+          "reasoning": "The response completely misses the key concepts from the expected answer: memory-search with lexical-only fallback, Serena as canonical source, and the coverage note vs. hard failure distinction. The actual response treats 'Forgetful' as a generic plugin and offers generic troubleshooting advice (check GitHub, scroll up in chat, check local files) rather than addressing the specific memory/plugin architecture described in the expected answer. It shows no understanding of the system being referenced. The depth is surface-level generic advice, and while it uses some specific terminology (CHANGELOG.md, package.json), none of it is relevant to the actual question's context.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 2,
+          "reasoning": "The response completely misses the expected answer, which was to identify 'memory-search' as the specific Tier 1 semantic memory lookup sub-skill. Instead, the response assumes no named skill system exists and pivots to explaining third-party frameworks (Semantic Kernel, LangChain, etc.). This is a fundamental accuracy failure. While the response shows some depth by providing a framework comparison table and an actual ARM cost fact, it demonstrates depth in the wrong direction entirely. Specificity is low for the actual question \u2014 the precise term 'memory-search' as a Tier 1 sub-skill is never mentioned \u2014 though it does use specific framework names and a concrete cost figure for the tangential ARM pricing answer.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 1,
+          "depth": 4,
+          "specificity": 3,
+          "reasoning": "The response completely misses the expected answer, which is a clear architectural rule: memory-search is lookup-only, and updates belong to memory-reflexion (episode extraction/causal-graph updates) and memory-enhancement (citations/confidence metadata). Instead of stating this system-specific constraint, the response treats it as an open design question and explores both sides philosophically. On accuracy, it scores 1 because it never mentions the correct answer or the specific modules (memory-reflexion, memory-enhancement) that handle these responsibilities. On depth, it scores 4 because the analysis of provenance vs. causal graphs, the tension between retrieval mechanics and domain causality, and the two-structure proposal show genuine analytical thinking. On specificity, it scores 3 because while it uses some precise terminology (provenance graph, causal graph, epistemological provenance), it lacks the system-specific terminology from the expected answer and the concrete module names that would make it truly specific to the actual architecture in question.",
+          "model_used": "claude-sonnet-4-6"
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly identifies the core concepts from the expected answer: Tier 1 semantic lookup, search_memory.py as the canonical script, Serena as primary/canonical with Forgetful as supplementary, and graceful degradation when Forgetful is unreachable. It loses one accuracy point for not explicitly framing the workflow as 'shared' and for not mentioning reading only relevant index entries as a distinct step. Depth is excellent - it elaborates on graceful degradation mechanics, tier boundaries, progressive disclosure rationale, and cross-references to other ADRs. Specificity is strong throughout with precise tool names, script paths, token budget tables, constraint classifications, and source attribution tables.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 3,
+          "depth": 4,
+          "specificity": 4,
+          "reasoning": "Accuracy is middling: the response correctly identifies memory-search as the right route and follows the progressive disclosure pattern, but it over-engineers the answer with fallback chains and general knowledge padding when the expected answer simply confirms 'route to memory-search, this is a lookup over stored facts.' It correctly avoids fabrication and logs a zero-result outcome, which aligns with the spirit of the expected answer. Depth is high: the response demonstrates genuine understanding of the memory-search skill's architecture (Phase 1/2/3, progressive disclosure, Serena/Forgetful distinction, lexical-only fallback). Specificity is high: it uses precise tool names (Serena, Forgetful, search_memory.py), concrete fallback key names, and a structured table of git hook timeout patterns with specific examples like GIT_HOOK_TIMEOUT and timeout wrapping patterns.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Accuracy is high (4) because the response correctly identifies the core concepts: memory search, progressive/tiered disclosure starting with focused queries before escalating, and reading only matching memories before reasoning. It loses one point because it doesn't explicitly label the tiers as 'Tier 1' focused search per the expected answer's framing. Depth is excellent (5) \u2014 the response goes well beyond surface level, explaining the fallback path, why each context category matters before making changes, and includes an anti-pattern guard rationale. Specificity is excellent (5) \u2014 it uses precise terminology (progressive disclosure, atomic entries, domain index, root index), concrete tool names (read_memory, search_memory.py), specific memory key guesses, and a structured table of context categories with justifications.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response nails all three concepts from the expected answer: lexical-only fallback, Serena as canonical store traveling with the repo, and graceful degradation returning a coverage note rather than a hard failure. It goes well beyond surface-level by explaining the rationale, failure modes, and even adds a progressive disclosure workflow. Specificity is high with exact command syntax, flag names, table breakdowns, and a reference to ADR-007.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly identifies memory-search as the handling skill, matches the expected answer's core concepts (Tier 1, semantic lookup, facts/patterns/constraints), and goes well beyond surface-level by explaining why memory-search is preferred over the memory router, showing the actual execution command, referencing ADR-063, and explaining progressive disclosure. Terminology is precise and concrete examples (token cost range, bash command, trigger pattern quote) are included throughout.",
+          "model_used": "claude-sonnet-4-6"
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Accuracy is 4 rather than 5 because the response routes causal graph updates to 'memory' router generically, while the expected answer specifically names 'memory-reflexion' for episode extraction and causal graph updates \u2014 the actual response misses this specific skill name. Depth is 5: the response goes well beyond the expected answer, explaining the architectural rationale (single-responsibility, degradation contract, tier coupling, ADR-063) and providing a correct sequenced workflow. Specificity is 5: the response uses precise terminology (Tier 1, progressive disclosure, lexical-only fallback, read-only vs write operations, skill decomposition) and concrete structured examples including a table and numbered workflow.",
+          "model_used": "claude-sonnet-4-6"
+        }
+      ]
+    }
+  },
+  "kill_gate": {
+    "passed": true,
+    "verdict": "PROCEED",
+    "failures": [],
+    "summary": {
+      "memory-search": {
+        "baseline_avg": {
+          "accuracy": 1.0,
+          "depth": 2.33,
+          "specificity": 2.0
+        },
+        "enhanced_avg": {
+          "accuracy": 4.17,
+          "depth": 4.83,
+          "specificity": 4.83
+        },
+        "delta": {
+          "accuracy": 3.17,
+          "depth": 2.5,
+          "specificity": 2.83
+        },
+        "overall_delta": 2.83,
+        "passed": true,
+        "regressed": false
+      }
+    },
+    "total_skills": 1,
+    "proceed_threshold": 1,
+    "conditional_threshold": 1,
+    "skills_passing": 1
+  }
+}

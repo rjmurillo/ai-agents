@@ -148,6 +148,58 @@
         "expected": "Query memory before reasoning. Pre-training is last resort. Read first, reason second. Evidence in session log."
       }
     ],
+    "memory-search": [
+      {
+        "prompt": "Search memory for prior decisions about ADR-007 and summarize the relevant constraints.",
+        "expected": "Use memory-search for Tier 1 semantic lookup. Run the shared search_memory.py workflow across Serena-first memory, with Forgetful as supplementary when reachable, then read only relevant index entries."
+      },
+      {
+        "prompt": "What do we know about git hook timeout failures from prior sessions?",
+        "expected": "Route to memory-search. This is a what do we know about X lookup over stored facts and patterns, not episode extraction or causal-graph update."
+      },
+      {
+        "prompt": "Recall prior context before changing the session protocol validator.",
+        "expected": "Use memory-search to recall prior context. Start with focused Tier 1 search and progressive disclosure, then read only matching memories before reasoning about the validator."
+      },
+      {
+        "prompt": "Forgetful is unreachable. How should I still search memory for plugin versioning rules?",
+        "expected": "Use memory-search with the lexical-only fallback. Serena remains canonical and travels with the repo; losing Forgetful returns a coverage note, not a hard failure."
+      },
+      {
+        "prompt": "I need one fact from memory about ARM runner cost. Which skill handles that?",
+        "expected": "Use memory-search. It is the focused Tier 1 semantic memory lookup sub-skill for facts, patterns, and constraints."
+      },
+      {
+        "prompt": "Should memory-search update the causal graph after it finds relevant memories?",
+        "expected": "No. memory-search is lookup only. Use memory-reflexion for episode extraction and causal-graph updates, and memory-enhancement for citations or confidence metadata."
+      }
+    ],
+    "memory-reflexion": [
+      {
+        "prompt": "Extract an episode from .agents/sessions/2026-07-08-session-2613.json and fold it into memory.",
+        "expected": "Use memory-reflexion. First run extract_session_episode.py against the completed session log, then update_causal_graph.py so Tier 2 episode data feeds Tier 3 causal patterns."
+      },
+      {
+        "prompt": "Update the causal graph after a batch of completed session episodes.",
+        "expected": "Route to memory-reflexion. It owns the Tier 3 causal-graph update path via update_causal_graph.py, with dry-run available before writing."
+      },
+      {
+        "prompt": "Record what happened this session so future decisions can learn from it.",
+        "expected": "Use memory-reflexion for the full write path. Extract from the completed session log, then fold the episode into the causal graph; do not use memory-search for this write operation."
+      },
+      {
+        "prompt": "Can I extract a memory episode from an in-progress session log?",
+        "expected": "No. memory-reflexion only extracts from COMPLETED sessions. A partial session creates incomplete episode data and pollutes the causal graph."
+      },
+      {
+        "prompt": "Preview causal-graph changes before applying a reflexion update.",
+        "expected": "Use memory-reflexion and run update_causal_graph.py with --dry-run. The dry run prints graph changes and writes nothing."
+      },
+      {
+        "prompt": "I only need to search whether we have prior ADR-038 notes. Should I use memory-reflexion?",
+        "expected": "No. Use memory-search for Tier 1 lookup. memory-reflexion is for episode extraction and causal-graph writes after sessions complete."
+      }
+    ],
     "memory-documentary": [
       {
         "prompt": "Generate a documentary on how this repo decided to use Python over PowerShell for new scripts.",
