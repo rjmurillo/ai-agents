@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 TWIN_DIR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "references"
 PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
-AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
+AI_REVIEW_CONTEXT_SCRIPT = REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
 REVIEW_SKILL_PATHS = (
     REPO_ROOT / ".claude" / "skills" / "review" / "SKILL.md",
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "SKILL.md",
@@ -65,9 +65,8 @@ def _shipped_review_surfaces() -> list[Path]:
     )
 
 
-def _spec_file_context_block() -> str:
-    text = AI_REVIEW_ACTION.read_text(encoding="utf-8")
-    return text.split("spec-file)", 1)[1].split("\n          *)", 1)[0]
+def _spec_file_context_source() -> str:
+    return AI_REVIEW_CONTEXT_SCRIPT.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -207,24 +206,24 @@ def test_review_skill_fails_closed_when_local_context_is_unknown(
 
 def test_spec_file_context_marks_truncated_diff_partial() -> None:
     """A spec-file review must not label a bounded diff preview as full."""
-    block = _spec_file_context_block()
-    assert "head -500" not in block
-    assert 'CONTEXT_MODE="partial"' in block
-    assert "Diff truncated to first $MAX_DIFF_LINES" in block
+    source = _spec_file_context_source()
+    assert "head -500" not in source
+    assert 'mode = "partial"' in source
+    assert "Diff truncated to first {max_diff_lines}" in source
 
 
 def test_spec_file_context_marks_diff_failure_summary() -> None:
     """A spec-file diff fallback carries only file names, so PASS is forbidden."""
-    block = _spec_file_context_block()
-    assert 'CONTEXT_MODE="summary"' in block
-    assert "Diff unavailable, showing file list only" in block
+    source = _spec_file_context_source()
+    assert 'mode = "summary"' in source
+    assert "Diff unavailable, showing file list only" in source
 
 
 def test_spec_file_context_without_pr_marks_partial() -> None:
     """A spec-file review without a PR diff lacks implementation evidence."""
-    block = _spec_file_context_block()
-    assert 'CONTEXT_MODE="partial"' in block
-    assert "[No PR diff provided]" in block
+    source = _spec_file_context_source()
+    assert '"partial"' in source
+    assert "[No PR diff provided]" in source
 
 
 @pytest.mark.parametrize("path", _shipped_review_surfaces())
