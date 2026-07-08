@@ -17,17 +17,18 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 _ZERO_SHA = re.compile(r"^0+$")
+_FALLBACK_BASE_REF = "origin/main"
 
 
 def default_base_ref() -> str:
     raw_base_ref = os.environ.get("RUFF_RATCHET_BASE_REF", "").strip()
     if raw_base_ref and _ZERO_SHA.fullmatch(raw_base_ref) is None:
         return raw_base_ref
-    return "HEAD~1"
+    return _FALLBACK_BASE_REF
 
 
-def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]]:
-    result = subprocess.run(
+def git_diff_name_only(base_ref: str, repo_root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         [
             "git",
             "-C",
@@ -42,6 +43,12 @@ def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]
         text=True,
         encoding="utf-8",
     )
+
+
+def changed_python_files(base_ref: str, repo_root: Path) -> tuple[int, list[str]]:
+    result = git_diff_name_only(base_ref, repo_root)
+    if result.returncode != 0 and base_ref != _FALLBACK_BASE_REF:
+        result = git_diff_name_only(_FALLBACK_BASE_REF, repo_root)
     if result.returncode != 0:
         print(result.stderr.strip(), file=sys.stderr)
         return EXIT_EXTERNAL, []
@@ -60,7 +67,7 @@ def run_ruff(files: Sequence[str], repo_root: Path) -> int:
         return EXIT_OK
 
     result = subprocess.run(
-        ["ruff", "check", "--output-format=github", *files],
+        ["ruff", "check", "--output-format=github", "--", *files],
         check=False,
         capture_output=True,
         cwd=repo_root,
@@ -88,7 +95,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--base-ref",
         default=default_base_ref(),
-        help="Git ref used as the diff base (default: RUFF_RATCHET_BASE_REF or HEAD~1).",
+        help="Git ref used as the diff base (default: RUFF_RATCHET_BASE_REF or origin/main).",
     )
     parser.add_argument(
         "--repo-root",
