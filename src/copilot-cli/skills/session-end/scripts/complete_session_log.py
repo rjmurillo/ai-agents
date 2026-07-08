@@ -23,31 +23,32 @@ from pathlib import Path
 from types import ModuleType
 
 
-def _resolve_paths_lib_dir() -> str:
+def _resolve_paths_lib_dir() -> Path:
     """Resolve the vendor-portable path-helper lib directory (Issue #2050)."""
+    # ADR-047 keeps this bootstrap inline because imports need sys.path first.
     plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         lib_dir = Path(plugin_root).expanduser().resolve() / "lib"
-        if not lib_dir.is_dir():
+        if not os.path.isdir(lib_dir):
             print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
             sys.exit(2)
-        return str(lib_dir)
+        return lib_dir
     candidates: list[Path] = []
     workspace = os.environ.get("GITHUB_WORKSPACE")
     if workspace:
         candidates.append(Path(workspace).expanduser().resolve() / ".claude" / "lib")
     candidates.append(Path(__file__).resolve().parents[3] / "lib")
     for lib_dir in candidates:
-        if lib_dir.is_dir():
-            return str(lib_dir)
+        if os.path.isdir(lib_dir):
+            return lib_dir.resolve()
     checked = ", ".join(str(candidate) for candidate in candidates)
     print(f"Plugin lib directory not found. Checked: {checked}", file=sys.stderr)
     sys.exit(2)
 
 
 _LIB_DIR = _resolve_paths_lib_dir()
-if _LIB_DIR not in sys.path:
-    sys.path.insert(0, _LIB_DIR)
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
 from paths import resolve_artifact_root  # noqa: E402
 
