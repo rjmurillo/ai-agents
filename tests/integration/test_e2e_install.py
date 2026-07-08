@@ -20,10 +20,12 @@ Verification scope (per task M6-T5):
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -31,6 +33,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 COPILOT_PLUGIN_SRC = REPO_ROOT / "src" / "copilot-cli"
 COPILOT_PLUGIN_MANIFEST = COPILOT_PLUGIN_SRC / ".claude-plugin" / "plugin.json"
 COPILOT_HOOKS_FILE = COPILOT_PLUGIN_SRC / "hooks" / "hooks.json"
+
+# Real Copilot CLI home. The binary-dependent smoke test below shells out to
+# `copilot plugin install`, which mutates this global config; teardown must
+# restore it (see _remove_direct_shadow).
+COPILOT_HOME = Path.home() / ".copilot"
+PLUGIN_NAME = "project-toolkit"
 
 # Copilot CLI hook event names. PascalCase event keys make Copilot CLI emit the
 # VS Code-compatible snake_case payload (tool_name, tool_input) the shims expect;
@@ -68,7 +76,7 @@ def _resolve_case_sensitive(root: Path, relative: str) -> bool:
     return current.is_file()
 
 
-def _iter_hook_script_paths(hooks_data: dict) -> list[str]:
+def _iter_hook_script_paths(hooks_data: dict[str, Any]) -> list[str]:
     """Yield every distinct /hooks/<rel>.py script path across bash and powershell."""
     paths: list[str] = []
     for entries in hooks_data.get("hooks", {}).values():
@@ -230,6 +238,83 @@ class TestInstalledArtifactReadability:
 # ---- Conditional binary test (skips when Copilot CLI not installed) ------
 
 
+def _strip_jsonc(text: str) -> str:
+    """Drop whole-line ``//`` comments from Copilot's managed config.json.
+
+    Copilot writes a JSON-with-comments header ("This file is managed
+    automatically."). No string value in this file begins a line with ``//``,
+    so a line-oriented strip is sufficient and avoids a JSONC dependency.
+    """
+    return "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("//")
+    )
+
+
+def _remove_direct_shadow(source_dir: Path) -> None:
+    """Undo the global side effect of ``copilot plugin install <source_dir>``.
+
+    ``copilot plugin install <local-dir>`` registers a marketplace-less
+    ("_direct") entry in the real ~/.copilot/config.json whose ``source.path``
+    is ``source_dir``. Because ``source_dir`` lives under pytest's ``tmp_path``,
+    pytest deletes it after the test, leaving an *enabled* duplicate hook
+    install pointing at a dead path. That stale shadow doubles PreToolUse hook
+    dispatch and, on version skew with the real marketplace install, can wedge
+    every later Copilot session (all shell tools denied with "hook errored").
+
+    Remove only the entry this test created so global state is restored. Match
+    is scoped to a ``project-toolkit`` entry with no marketplace whose
+    ``source.path`` resolves to ``source_dir`` (or under its tmp parent), so an
+    unrelated real install is never touched.
+    """
+    config_path = COPILOT_HOME / "config.json"
+    if not config_path.is_file():
+        return
+    try:
+        config = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return
+
+    plugins = config.get("installedPlugins")
+    if not isinstance(plugins, list):
+        return
+
+    source_resolved = source_dir.resolve()
+    source_parent = source_resolved.parent
+
+    def _is_created_shadow(entry: object) -> bool:
+        if not isinstance(entry, dict):
+            return False
+        if entry.get("name") != PLUGIN_NAME or entry.get("marketplace"):
+            return False
+        source = entry.get("source")
+        src_path = source.get("path") if isinstance(source, dict) else None
+        if not src_path:
+            return False
+        candidate = Path(src_path)
+        try:
+            candidate_resolved = candidate.resolve()
+        except (OSError, RuntimeError):
+            candidate_resolved = candidate
+        return (
+            candidate.as_posix() == source_dir.as_posix()
+            or candidate_resolved == source_resolved
+            or source_parent in candidate_resolved.parents
+        )
+
+    remaining = [entry for entry in plugins if not _is_created_shadow(entry)]
+    if len(remaining) == len(plugins):
+        return  # This test did not register a shadow; leave the file untouched.
+
+    config["installedPlugins"] = remaining
+    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+    cache_dir = COPILOT_HOME / "installed-plugins" / "_direct" / PLUGIN_NAME
+    if cache_dir.is_dir():
+        shutil.rmtree(cache_dir, ignore_errors=True)
+
+
+
+
 class TestCopilotBinaryInstall:
     """Smoke test: invoke `copilot` to install the plugin and list it.
 
@@ -245,29 +330,160 @@ class TestCopilotBinaryInstall:
         return binary
 
     def test_copilot_plugin_install_succeeds(
-        self, copilot_binary: str, installed_plugin: Path, tmp_path: Path
+        self,
+        copilot_binary: str,
+        installed_plugin: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """`copilot plugin install <local-dir>` exits 0 and registers the plugin."""
-        install_result = subprocess.run(
-            [copilot_binary, "plugin", "install", str(installed_plugin)],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        assert install_result.returncode == 0, (
-            f"copilot plugin install failed:\n"
-            f"stdout: {install_result.stdout}\n"
-            f"stderr: {install_result.stderr}"
-        )
+        """`copilot plugin install <local-dir>` exits 0 and registers the plugin.
 
-        list_result = subprocess.run(
-            [copilot_binary, "plugin", "list"],
-            capture_output=True,
-            text=True,
-            timeout=30,
+        Runs against an isolated ``HOME`` so the install writes to a throwaway
+        ``$HOME/.copilot/config.json`` under ``tmp_path`` instead of the real
+        user config. This removes the high-impact side effect of mutating the
+        contributor's global Copilot state: even if the process is killed before
+        the finally block, only the tmp config is affected. ``COPILOT_HOME`` is
+        redirected to the same isolated root so the cleanup targets it. Verified
+        the binary honors an isolated ``HOME`` for a local-dir install.
+        """
+        isolated_home = tmp_path / "copilot-home"
+        isolated_home.mkdir()
+        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", isolated_home / ".copilot")
+        env = {**os.environ, "HOME": str(isolated_home)}
+        try:
+            install_result = subprocess.run(
+                [copilot_binary, "plugin", "install", str(installed_plugin)],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
+            )
+            assert install_result.returncode == 0, (
+                f"copilot plugin install failed:\n"
+                f"stdout: {install_result.stdout}\n"
+                f"stderr: {install_result.stderr}"
+            )
+
+            list_result = subprocess.run(
+                [copilot_binary, "plugin", "list"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=env,
+            )
+            assert list_result.returncode == 0
+            assert "project-toolkit" in list_result.stdout, (
+                f"project-toolkit not registered after install:\n"
+                f"{list_result.stdout}"
+            )
+        finally:
+            _remove_direct_shadow(installed_plugin)
+
+
+@pytest.mark.integration
+class TestDirectShadowCleanup:
+    """Unit coverage for _remove_direct_shadow (runs without the copilot binary).
+
+    Guards the regression where the binary smoke test left an enabled
+    marketplace-less project-toolkit install in the real ~/.copilot/config.json
+    pointing at a deleted pytest tmp dir, wedging later Copilot sessions.
+    """
+
+    @staticmethod
+    def _write_config(copilot_home: Path, plugins: list[dict[str, Any]]) -> Path:
+        copilot_home.mkdir(parents=True, exist_ok=True)
+        config_path = copilot_home / "config.json"
+        config_path.write_text(
+            "// This file is managed automatically.\n"
+            + json.dumps({"installedPlugins": plugins}),
+            encoding="utf-8",
         )
-        assert list_result.returncode == 0
-        assert "project-toolkit" in list_result.stdout, (
-            f"project-toolkit not registered after install:\n"
-            f"{list_result.stdout}"
-        )
+        return config_path
+
+    def test_removes_only_the_created_shadow(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        copilot_home = tmp_path / ".copilot"
+        source_dir = tmp_path / "src" / PLUGIN_NAME
+        source_dir.mkdir(parents=True)
+        real = {"name": PLUGIN_NAME, "marketplace": "ai-agents", "enabled": True}
+        shadow = {
+            "name": PLUGIN_NAME,
+            "marketplace": "",
+            "enabled": True,
+            "source": {"source": "local", "path": str(source_dir)},
+        }
+        other = {"name": "caveman", "marketplace": "caveman", "enabled": True}
+        config_path = self._write_config(copilot_home, [real, shadow, other])
+        cache_dir = copilot_home / "installed-plugins" / "_direct" / PLUGIN_NAME
+        cache_dir.mkdir(parents=True)
+        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
+
+        _remove_direct_shadow(source_dir)
+
+        result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
+        surviving = [
+            (entry["name"], entry.get("marketplace"))
+            for entry in result["installedPlugins"]
+        ]
+        assert (PLUGIN_NAME, "") not in surviving
+        assert (PLUGIN_NAME, "ai-agents") in surviving
+        assert ("caveman", "caveman") in surviving
+        assert not cache_dir.exists()
+
+    def test_preserves_config_without_a_shadow(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        copilot_home = tmp_path / ".copilot"
+        source_dir = tmp_path / "src" / PLUGIN_NAME
+        real = {"name": PLUGIN_NAME, "marketplace": "ai-agents", "enabled": True}
+        config_path = self._write_config(copilot_home, [real])
+        before = config_path.read_text(encoding="utf-8")
+        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
+
+        _remove_direct_shadow(source_dir)
+
+        assert config_path.read_text(encoding="utf-8") == before
+
+    def test_leaves_unrelated_direct_install_untouched(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        copilot_home = tmp_path / ".copilot"
+        source_dir = tmp_path / "src" / PLUGIN_NAME
+        unrelated = {
+            "name": PLUGIN_NAME,
+            "marketplace": "",
+            "enabled": True,
+            "source": {"source": "local", "path": "/some/other/checkout"},
+        }
+        config_path = self._write_config(copilot_home, [unrelated])
+        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
+
+        _remove_direct_shadow(source_dir)
+
+        result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
+        assert result["installedPlugins"] == [unrelated]
+
+    def test_noop_when_config_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        copilot_home = tmp_path / ".copilot"
+        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
+
+        _remove_direct_shadow(tmp_path / "src" / PLUGIN_NAME)  # must not raise
+
+        assert not (copilot_home / "config.json").exists()
+
+    def test_survives_malformed_config(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        copilot_home = tmp_path / ".copilot"
+        copilot_home.mkdir(parents=True)
+        config_path = copilot_home / "config.json"
+        config_path.write_text("{ not valid json", encoding="utf-8")
+        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
+
+        _remove_direct_shadow(tmp_path / "src" / PLUGIN_NAME)  # must not raise
+
+        assert config_path.read_text(encoding="utf-8") == "{ not valid json"
+

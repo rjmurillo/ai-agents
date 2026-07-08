@@ -49,7 +49,18 @@ def _remote_repo_name(project_root: str) -> str | None:
             capture_output=True,
             encoding="utf-8",
             errors="replace",
-            timeout=5,
+            # skip_if_consumer_repo() runs this on every tool use. The tightest
+            # host hook timeout that invokes it is 2s (topical-memory-injection
+            # in .claude/settings.json), so keep this subprocess timeout strictly
+            # below that: a slow or hung git must degrade to None here, not let
+            # the host SIGKILL the whole hook. A SIGKILL cannot be caught by the
+            # caller's fail-open try/except, so it surfaces as a hard "hook
+            # errored" deny of the command (repo-settings Bash-hook wedge RCA).
+            # A local `git remote get-url origin` reads .git/config in <10ms;
+            # 1s only trips on a genuine hang, which is exactly when we want to
+            # degrade fast. Enforced by tests/test_hook_plugin_guards.py::
+            # test_origin_lookup_timeout_under_host_budget.
+            timeout=1,
             check=True,
         )
     except (OSError, subprocess.SubprocessError):

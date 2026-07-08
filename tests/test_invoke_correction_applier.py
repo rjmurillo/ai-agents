@@ -196,6 +196,64 @@ class TestScanMemories:
         obs.write_text("## Notes\n\n- Just a note.\n", encoding="utf-8")
         assert scan_memories(str(tmp_path)) == []
 
+    def test_traversal_bounded_before_sort(self, tmp_path: Path, monkeypatch) -> None:
+        """A corpus larger than the file cap must not be fully materialized.
+
+        The prior implementation sorted the entire ``rglob`` result before the
+        cap applied, so the whole tree was walked regardless. Bounding during
+        iteration means the walk stops at the cap. We assert the reader only
+        touched a bounded subset by counting distinct source files returned.
+        """
+        import invoke_correction_applier as mod
+
+        monkeypatch.setattr(mod, "_MAX_FILES_SCANNED", 5)
+        memories = tmp_path / ".serena" / "memories"
+        memories.mkdir(parents=True)
+        for i in range(50):
+            (memories / f"obs-{i:03d}.md").write_text(
+                f"## Constraints (HIGH confidence)\n\n- Rule number {i} uses pnpm.\n",
+                encoding="utf-8",
+            )
+        result = scan_memories(str(tmp_path))
+        distinct_sources = {src for src, _ in result}
+        assert len(distinct_sources) <= 5
+
+    def test_scan_caps_at_own_deadline_when_larger_passed(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """A caller-supplied deadline larger than the scan budget is clamped.
+
+        ``main()`` passes the hook-wide ``_HOOK_WALL_BUDGET_SECONDS`` deadline.
+        The scan must still cap itself at ``_SCAN_DEADLINE_SECONDS`` so it never
+        consumes the whole hook budget (the docstring contract).
+        """
+        import time as _time
+
+        import invoke_correction_applier as mod
+
+        monkeypatch.setattr(mod, "_SCAN_DEADLINE_SECONDS", 0.0)
+        memories = tmp_path / ".serena" / "memories"
+        memories.mkdir(parents=True)
+        (memories / "obs.md").write_text(
+            "## Constraints (HIGH confidence)\n\n- Use pnpm.\n", encoding="utf-8"
+        )
+        far_deadline = _time.monotonic() + 999.0
+        result = scan_memories(str(tmp_path), deadline=far_deadline)
+        assert result == []
+
+    def test_scan_reads_all_when_under_caps(self, tmp_path: Path) -> None:
+        """Negative control: under the caps, every file is read deterministically."""
+        memories = tmp_path / ".serena" / "memories"
+        memories.mkdir(parents=True)
+        for name in ("b.md", "a.md", "c.md"):
+            (memories / name).write_text(
+                f"## Constraints (HIGH confidence)\n\n- {name} uses pnpm.\n",
+                encoding="utf-8",
+            )
+        result = scan_memories(str(tmp_path))
+        sources = [src for src, _ in result]
+        assert sources == ["a.md", "b.md", "c.md"]
+
 
 class TestMainAllowPath:
     @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)

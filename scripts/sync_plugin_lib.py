@@ -320,7 +320,7 @@ def _imports_scripts_package(tree: ast.Module) -> bool:
     """
 
     def _is_scripts(name: str | None) -> bool:
-        return bool(name) and (name == "scripts" or name.startswith("scripts."))
+        return name is not None and (name == "scripts" or name.startswith("scripts."))
 
     def _dynamic_import_target(node: ast.Call) -> str | None:
         """Return the literal module string of a dynamic import call, else None."""

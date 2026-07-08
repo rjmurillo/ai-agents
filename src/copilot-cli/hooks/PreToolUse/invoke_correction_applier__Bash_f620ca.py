@@ -258,6 +258,7 @@ def _original_main(stdin_bytes):
     import os
     import re
     import sys
+    import time
     from pathlib import Path
 
     # Bootstrap: find lib directory via env var or manifest walk-up.
@@ -267,7 +268,7 @@ def _original_main(stdin_bytes):
     # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if _plugin_root:
-        _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+        _lib_dir: str | None = str(Path(_plugin_root).resolve() / "lib")
     else:
         _cur = Path(__file__).resolve().parent
         _lib_dir = None
@@ -279,7 +280,11 @@ def _original_main(stdin_bytes):
                 break
             _cur = _cur.parent
     if _lib_dir is None or not os.path.isdir(_lib_dir):
-        print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+        print(
+            f"Plugin lib directory not found: {_lib_dir} "
+            f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+            file=sys.stderr,
+        )
         # Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)
         sys.exit(0)
     if _lib_dir not in sys.path:
@@ -315,6 +320,24 @@ def _original_main(stdin_bytes):
     MAX_CORRECTIONS = 3
     # Minimum keyword length to avoid false positives
     MIN_KEYWORD_LENGTH = 4
+    # Scan bounds (issue: advisory PreToolUse hook must never wedge the session).
+    # This hook runs on EVERY Bash command with a tight host timeout (3s in
+    # .claude/settings.json). A host timeout kills the process (SIGKILL), which
+    # the try/except in main() cannot catch, so the "advisory, never blocks"
+    # contract silently becomes fail-CLOSED and denies every command once the
+    # memory corpus grows past the budget. These caps keep the scan best-effort
+    # and bounded so wall-clock stays well under the host timeout regardless of
+    # how large .serena/memories/ becomes.
+    _SCAN_DEADLINE_SECONDS = 1.5
+    _MAX_FILES_SCANNED = 500
+    _MAX_TOTAL_BYTES = 5_000_000
+    # Total wall-clock budget for the whole hook body, anchored at main() start and
+    # kept under the 3s host timeout (.claude/settings.json). skip_if_consumer_repo()
+    # may spend up to its git subprocess timeout before the scan runs, so anchoring
+    # the scan deadline here (not at scan start) makes a slow git shrink the scan
+    # window instead of pushing total wall-clock past the host timeout and tripping
+    # a SIGKILL-into-"hook errored" deny.
+    _HOOK_WALL_BUDGET_SECONDS = 2.5
 
 
     def parse_command(stdin_data: str) -> str | None:
@@ -328,8 +351,11 @@ def _original_main(stdin_bytes):
             try:
                 tool_input = json.loads(tool_input)
             except (json.JSONDecodeError, TypeError):
-                return tool_input
-        return tool_input.get("command") if isinstance(tool_input, dict) else None
+                return tool_input if isinstance(tool_input, str) else None
+        if isinstance(tool_input, dict):
+            command = tool_input.get("command")
+            return command if isinstance(command, str) else None
+        return None
 
 
     def extract_high_corrections(content: str) -> list[str]:
@@ -392,8 +418,43 @@ def _original_main(stdin_bytes):
         return matches
 
 
-    def scan_memories(project_root: str) -> list[tuple[str, str]]:
+    def _collect_memory_files(memories_dir: Path, deadline: float) -> list[Path]:
+        """Return up to ``_MAX_FILES_SCANNED`` ``*.md`` paths, bounded by ``deadline``.
+
+        ``Path.rglob`` returns a lazy generator; iterating it drives the directory
+        walk. The count and deadline checks run DURING iteration so a huge or slow
+        ``.serena/memories/`` tree cannot blow the host hook timeout before the read
+        loop is even entered. Sorting the whole ``rglob`` result up front (the prior
+        behavior) materialized and ordered the entire tree first, defeating the very
+        wedge this hook exists to prevent. The bounded result is sorted afterward so
+        ordering is deterministic within the cap; when the corpus fits under the cap
+        (the normal case) ordering is fully deterministic.
+        """
+        collected: list[Path] = []
+        for md_file in memories_dir.rglob("*.md"):
+            if len(collected) >= _MAX_FILES_SCANNED:
+                break
+            if time.monotonic() >= deadline:
+                break
+            collected.append(md_file)
+        collected.sort()
+        return collected
+
+
+    def scan_memories(project_root: str, deadline: float | None = None) -> list[tuple[str, str]]:
         """Scan .serena/memories/ for HIGH confidence corrections.
+
+        Best-effort and bounded: stops after ``_SCAN_DEADLINE_SECONDS`` wall clock,
+        ``_MAX_FILES_SCANNED`` files, or ``_MAX_TOTAL_BYTES`` read, whichever comes
+        first. This is advisory context, so surfacing a subset is acceptable; the
+        hard requirement is that the scan cannot exceed the host hook timeout and
+        wedge every Bash command (fail-closed-on-timeout regression).
+
+        Files are visited in sorted order for determinism. ``deadline`` is an
+        absolute ``time.monotonic()`` value. When a caller passes a larger hook-wide
+        deadline (``_HOOK_WALL_BUDGET_SECONDS`` from ``main()``), the scan still caps
+        itself at ``_SCAN_DEADLINE_SECONDS`` so it never consumes the whole hook
+        budget, matching the "stops after ``_SCAN_DEADLINE_SECONDS``" contract above.
 
         Returns list of (source_file, correction_text) tuples.
         """
@@ -401,13 +462,22 @@ def _original_main(stdin_bytes):
         if not memories_dir.is_dir():
             return []
 
-        all_corrections: list[tuple[str, str]] = []
+        scan_deadline = time.monotonic() + _SCAN_DEADLINE_SECONDS
+        deadline = scan_deadline if deadline is None else min(deadline, scan_deadline)
 
-        for md_file in memories_dir.rglob("*.md"):
+        all_corrections: list[tuple[str, str]] = []
+        total_bytes = 0
+
+        for md_file in _collect_memory_files(memories_dir, deadline):
+            if total_bytes >= _MAX_TOTAL_BYTES:
+                break
+            if time.monotonic() >= deadline:
+                break
             try:
                 content = md_file.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
+            total_bytes += len(content)
             corrections = extract_high_corrections(content)
             for c in corrections:
                 all_corrections.append((md_file.name, c))
@@ -418,6 +488,7 @@ def _original_main(stdin_bytes):
     def main() -> int:
         """Main entry point. Always returns 0 (advisory, never blocks)."""
         hook_name = "correction-applier"
+        deadline = time.monotonic() + _HOOK_WALL_BUDGET_SECONDS
         try:
             if skip_if_consumer_repo(hook_name):
                 return 0
@@ -438,7 +509,7 @@ def _original_main(stdin_bytes):
                 return 0
 
             project_root = get_project_directory()
-            all_corrections = scan_memories(project_root)
+            all_corrections = scan_memories(project_root, deadline=deadline)
             if not all_corrections:
                 return 0
 
