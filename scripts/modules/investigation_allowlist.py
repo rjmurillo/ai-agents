@@ -1,7 +1,7 @@
 """Shared investigation-only allowlist for ADR-034 QA exemption.
 
 Single source of truth for investigation artifact path patterns.
-Consumers: validate_session_json.py, the session skill, validate_investigation_claims.py, and tests.
+Consumers: .github/scripts/validate_investigation_claims.py diff-mode checks and tests.
 
 See: ADR-034 Investigation Session QA Exemption
 """
@@ -25,7 +25,6 @@ def get_investigation_allowlist() -> list[str]:
         r"^\.agents/memory/",
         r"^\.agents/architecture/REVIEW-",
         r"^\.agents/critique/",
-        r"^\.agents/memory/episodes/",
     ]
 
 
@@ -40,7 +39,6 @@ def get_investigation_allowlist_display() -> list[str]:
         ".agents/memory/",
         ".agents/architecture/REVIEW-*",
         ".agents/critique/",
-        ".agents/memory/episodes/",
     ]
 
 

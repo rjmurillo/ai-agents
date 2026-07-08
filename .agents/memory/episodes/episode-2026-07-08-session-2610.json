@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-07-08-session-2610",
+  "session": "2026-07-08-session-2610",
+  "timestamp": "2026-07-08T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Autopilot backlog: resolve open GitHub issues. This worktree fixes #2941 (reconcile ADR-034 investigation allowlist to 8 patterns, document memory/critique/REVIEW- additions, remove redundant episodes/ pattern).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed redundant ^\\.agents/memory/episodes/ pattern from investigation_allowlist.py (subsumed by ^\\.agents/memory/); allowlist now 8 patterns.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Amended ADR-034: documented memory/ (#831), architecture/REVIEW- and critique/ (#732) additions; updated Not Allowed table and critique test scenario to PASS.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified ADR code block matches module exactly (8 patterns); ran pytest -k investigation (50 passed).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified ADR code block matches module exactly (8 patterns); ran pytest -k investigation (50 passed).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 58f58a7b",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Invoked adr-review skill on the ADR-034 amendment; recorded 6/6 Accept debate log at .agents/critique/ADR-034-debate-log.md; deferred allowlist DRY convergence to issue #2966.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified PR #2958 Copilot review threads at byte level; corrected allowlist consumer references in investigation_allowlist.py and ADR-034.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
