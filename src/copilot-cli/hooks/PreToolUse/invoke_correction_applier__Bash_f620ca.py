@@ -477,7 +477,7 @@ def _original_main(stdin_bytes):
                 content = md_file.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-            total_bytes += len(content)
+            total_bytes += len(content.encode("utf-8"))
             corrections = extract_high_corrections(content)
             for c in corrections:
                 all_corrections.append((md_file.name, c))

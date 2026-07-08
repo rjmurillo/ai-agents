@@ -254,6 +254,34 @@ class TestScanMemories:
         sources = [src for src, _ in result]
         assert sources == ["a.md", "b.md", "c.md"]
 
+    def test_byte_cap_counts_utf8_bytes_not_chars(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """The total-bytes cap must measure UTF-8 bytes, not Python characters.
+
+        ``_MAX_TOTAL_BYTES`` is a byte budget. Non-ASCII memory files have more
+        bytes than characters, so a char-based accumulator undercounts and reads
+        past the budget. We set the cap to exactly the first file's byte length:
+        a byte-correct accumulator stops after file ``a`` (skipping ``b``); a
+        char-based accumulator stays under the cap and reads ``b`` too.
+        """
+        import invoke_correction_applier as mod
+
+        memories = tmp_path / ".serena" / "memories"
+        memories.mkdir(parents=True)
+        # 200 two-byte characters -> bytes far exceed char count.
+        content_a = "## Constraints (HIGH confidence)\n\n- " + ("é" * 200) + " pnpm.\n"
+        (memories / "a.md").write_text(content_a, encoding="utf-8")
+        (memories / "b.md").write_text(
+            "## Constraints (HIGH confidence)\n\n- b.md uses pnpm.\n", encoding="utf-8"
+        )
+        byte_len = len(content_a.encode("utf-8"))
+        assert byte_len > len(content_a)  # sanity: multibyte content present
+        monkeypatch.setattr(mod, "_MAX_TOTAL_BYTES", byte_len)
+        result = scan_memories(str(tmp_path))
+        distinct_sources = {src for src, _ in result}
+        assert distinct_sources == {"a.md"}
+
 
 class TestMainAllowPath:
     @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
