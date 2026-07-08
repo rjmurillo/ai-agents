@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-07-08",
+    "branch": "agent/drift-flag",
+    "startingCommit": "36f85f6a",
+    "objective": "Resolve PR 2965 bot review threads for drift flag"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project activation and initial instructions were invoked before code changes."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions were loaded before code changes."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read as a read-only project dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pr-comment-responder skill was invoked and its workflow instructions were followed."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository AGENTS.md and generated-file instructions were loaded before edits."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS, SESSION-PROTOCOL, generator inventory, and path-scoped instructions were read before edits."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hook-surfaced PR review, GitHub, markdownlint, and validation memories were loaded during the task."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "agent/drift-flag"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On agent/drift-flag"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short was checked before and after regeneration."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "36f85f6a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All six PR 2965 review threads were triaged at byte level and fixed in the branch diff."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read and left unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable repository convention was discovered during this PR-thread resolution."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix on changed markdown files passed with 0 errors; git diff --check passed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Changes are included in the conventional commit for this PR-thread fix."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Agent generation validation, install parity, plugin parity, plugin version bump validation, targeted pytest, markdownlint, and whitespace checks passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Todos were tracked through prepare, triage, fixes, validation, push, and thread resolution."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single PR review-thread task; retrospective not warranted."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Rebased branch",
+      "detail": "Fetched origin and rebased agent/drift-flag onto origin/main."
+    },
+    {
+      "action": "Verified plugin version",
+      "detail": "origin/main plugin version is 0.6.8; branch manifests remain 0.6.9 with parity."
+    },
+    {
+      "action": "Triaged review threads",
+      "detail": "Verified all six unresolved bot claims against generated files or workflow bytes; all were introduced by this PR."
+    },
+    {
+      "action": "Fixed drift workflow output",
+      "detail": "Restored steps.drift.outputs.drift_detected and delayed job failure until telemetry and issue update steps run."
+    },
+    {
+      "action": "Fixed PR responder source",
+      "detail": "Updated the shared template and Claude source for session log paths and non-emoji status text, then synced generated outputs."
+    },
+    {
+      "action": "Fixed issue feature review source",
+      "detail": "Removed external research toolsets from the shared template and clarified repo-only review context, then synced generated outputs."
+    },
+    {
+      "action": "Validated changes",
+      "detail": "Ran generator validation, install parity, plugin parity, targeted pytest, markdownlint, and dash byte checks."
+    },
+    {
+      "action": "Bumped Claude agents plugin version",
+      "detail": "Pre-push plugin-source gate required src/claude/.claude-plugin/plugin.json to move from 0.3.36 to 0.3.37 because this PR edits src/claude agents."
+    }
+  ],
+  "endingCommit": "bcd1a32be120c4a6e6b3306385beb6853c78ce8f",
+  "nextSteps": [
+    "Push branch, reply to six review threads, resolve them, and confirm zero unresolved threads."
+  ]
+}

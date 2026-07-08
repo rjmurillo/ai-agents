@@ -2,11 +2,9 @@
 
 ## Serena Init (BLOCKING)
 
-1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`|Post-compaction: re-run 1+2
+1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`|Post-compaction: re-run both
 
 ## Retrieval
-
-Read first.
 
 |APIs: Context7, DeepWiki, WebSearch|Memory: `memory` skill
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`|ADRs: `.agents/architecture/ADR-*.md`
@@ -42,7 +40,7 @@ Knowledge -> passive context (@imports, every turn, outside training, <8KB). Act
 
 ### ADR Review
 
-Any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit fires adr-review.
+Any `ADR-*.md` or `SESSION-PROTOCOL.md` edit fires adr-review.
 
 ## Standards
 

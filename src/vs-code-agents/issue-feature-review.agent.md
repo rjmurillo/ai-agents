@@ -6,17 +6,10 @@ tools:
   - read
   - edit
   - search
-  - github/search_code
-  - github/search_issues
-  - github/search_pull_requests
   - github/issue_read
   - github/pull_request_read
   - github/get_file_contents
   - github/list_commits
-  - web
-  - cognitionai/deepwiki/*
-  - context7/*
-  - perplexity/*
   - cloudmcp-manager/*
   - serena/*
   - memory
@@ -153,9 +146,9 @@ RECOMMENDATION: [PROCEED | DEFER | REQUEST_EVIDENCE | NEEDS_RESEARCH | DECLINE]
 
 ## Tools
 
-Read, Grep, Glob, Bash (for `gh issue`/`gh api` via github skill). Memory via `mcp__serena__read_memory` when available.
+Use the configured tool surface only: read, edit, search, the GitHub issue and pull request read APIs, repository file reads, commit listing, cloud MCP tools, and Serena memory tools when available.
 
-**No general web browsing or web search.** The canonical prompt explicitly constrains the reviewer to the issue body and repo contents, while allowing GitHub API access through the approved tools listed above when available. This agent enforces the same constraint so behavior matches in both contexts (Claude Code and CI via `ai-issue-triage.yml`). When external data beyond repo contents and approved GitHub tooling is needed, state `UNKNOWN - requires manual research by maintainer`.
+**Use repository and GitHub issue context only.** Do not use general web browsing or web search. The canonical prompt constrains the reviewer to the issue body and repo contents, while allowing GitHub API access through the approved tools listed above when available. This agent enforces the same constraint so behavior matches in both contexts (Claude Code and CI via `ai-issue-triage.yml`). When data beyond repo contents and approved GitHub tooling is needed, state `UNKNOWN - requires manual research by maintainer`.
 
 ## Handoff
 

@@ -66,14 +66,15 @@ See `orchestrator.md` for full routing logic. This agent passes context to orche
 The unified github skill at `.claude/skills/github/` provides tested Python scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 ```
 
 | Operation | Script |
 |-----------|--------|
 | PR metadata | `python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}` |
 | Review threads | `python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request {number}` |
-| Unaddressed comments | `python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request {number}` |
+| Review + issue comments | `python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request {number} --include-issue-comments` |
 | Reply to comment | `python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request {number} --body "..."` |
 | Reply to thread | `python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --thread-id "PRRT_..." --body "..."` |
 | CI check status | `python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request {number}` |
@@ -224,23 +225,19 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 **Before any work**: Create session log with protocol compliance checklist.
 
 ```bash
-# Create session log
-SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
-cat > "$SESSION_FILE" << 'EOF'
-# PR Comment Responder Session
+# Create protocol session log with the session-init skill.
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+python3 "$PLUGIN_ROOT/skills/session-init/scripts/new_session_log.py" \
+  --session-number [session_number] \
+  --objective "Respond to PR review comments"
 
-## Protocol Compliance Checklist
-
-- [ ] Gate 0: Session log created
-- [ ] Gate 1: Eyes reactions = comment count
-- [ ] Gate 2: Artifact files created
-- [ ] Gate 3: All tasks tracked in tasks.md
-- [ ] Gate 4: Artifact state matches API state
-- [ ] Gate 5: All threads resolved
-EOF
+# Create the PR comment run log consumed by later gates.
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+mkdir -p "$(dirname "$PR_COMMENT_LOG")"
+: > "$PR_COMMENT_LOG"
 ```
 
-**Evidence required**: Session log file exists with checkboxes.
+**Evidence required**: Protocol session log and PR comment run log both exist.
 
 ### Gate 1: Acknowledgment Verification
 
@@ -248,7 +245,12 @@ EOF
 
 ```bash
 # Count reactions added vs comments
-REACTIONS_ADDED=$(cat .agents/pr-comments/PR-[number]/session.log | grep -c "reaction.*eyes")
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+if [ ! -f "$PR_COMMENT_LOG" ]; then
+  echo "[BLOCKED] PR comment log missing: $PR_COMMENT_LOG"
+  exit 1
+fi
+REACTIONS_ADDED=$(grep -c "reaction.*eyes" "$PR_COMMENT_LOG" || true)
 COMMENT_COUNT=$TOTAL_COMMENTS
 
 if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
@@ -298,21 +300,27 @@ grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || ex
 **Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
 
 ```bash
-# Count completed tasks in artifact
-COMPLETED=$(grep -c "\[COMPLETE\]" .agents/pr-comments/PR-[number]/tasks.md)
-TOTAL=$(grep -c "^- \[ \]\|^\[x\]" .agents/pr-comments/PR-[number]/tasks.md)
+# Count unresolved comments in the comment map
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+PENDING=$(grep -Ec "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true)
 
-# Count threads to resolve
+# Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Verify alignment
-if [ "$COMPLETED" -ne "$((TOTAL - UNRESOLVED_API))" ]; then
-  echo "[BLOCKED] Artifact COMPLETED ($COMPLETED) != API resolved ($((TOTAL - UNRESOLVED_API)))"
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] Comment map still has $PENDING pending comment(s)"
   exit 1
 fi
+
+echo "Unresolved API threads: $UNRESOLVED_API"
 ```
 
-**Evidence required**: Counts match before proceeding.
+**Evidence required**: The comment map exists, pending artifact entries are 0, and the unresolved API thread count is recorded before proceeding.
 
 ### Gate 5: Final Verification
 
@@ -323,7 +331,12 @@ fi
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Artifact state
-PENDING=$(grep -c "Status: pending\|Status: \[ACKNOWLEDGED\]" .agents/pr-comments/PR-[number]/comments.md)
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+PENDING=$(grep -Ec "Status: pending|Status: \[ACKNOWLEDGED\]" "$COMMENT_MAP" || true)
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -395,8 +408,9 @@ if [ -d "$SESSION_DIR" ]; then
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
   # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
-  SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number] | jq '.TotalComments')
+  PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+  SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -515,10 +529,14 @@ for reviewer in ALL_REVIEWERS:
 ```bash
 # Using github skill (PREFERRED) - handles pagination automatically
 # Captures review threads, issue comments (AI Quality Gate, CodeRabbit summaries, etc.)
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number]
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+TOTAL_COMMENTS=$(echo "$COMMENTS" | jq '.TotalComments')
+echo "$COMMENTS"
+echo "Total comments: $TOTAL_COMMENTS"
 
-# Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
+# Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```
 
 <details>
@@ -558,17 +576,17 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 
 #### Step 1.4: Extract Comment Details
 
-The `get_unaddressed_comments.py` script returns full comment details including:
+The `get_pr_review_comments.py --include-issue-comments` command returns full comment details including:
 
-- `id`: Comment ID for reactions and replies
+- `Id`: Comment ID for reactions and replies
 - `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
-- `author`: Reviewer username
-- `path`: File path (null for issue comments)
-- `line`: Line number (null for issue comments)
-- `body`: Comment text
-- `diff_hunk`: Surrounding code context (null for issue comments)
-- `created_at`: Timestamp
-- `in_reply_to_id`: Parent comment for threads (null for issue comments)
+- `Author`: Reviewer username
+- `Path`: File path (null for issue comments)
+- `Line`: Line number (null for issue comments)
+- `Body`: Comment text
+- `DiffHunk`: Surrounding code context (null for issue comments)
+- `CreatedAt`: Timestamp
+- `InReplyToId`: Parent comment for threads (null for issue comments)
 
 **Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
 
@@ -610,20 +628,28 @@ React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster
 ```bash
 # PREFERRED: Batch acknowledge all comments
 # Get all comment IDs from the comments retrieved in Phase 1
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number])
-IDS=$(echo "$COMMENTS" | jq -r '.Comments[].id')
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+REVIEW_IDS=$(echo "$COMMENTS" | jq -r '.Comments[] | select(.CommentType == "Review") | .Id')
+ISSUE_IDS=$(echo "$COMMENTS" | jq -r '.Comments[] | select(.CommentType == "Issue") | .Id')
 
-# Batch acknowledge using gh api directly (no Python equivalent for Add-CommentReaction)
-for ID in $IDS; do
-  # Determine comment type and react accordingly
-  gh api "repos/[owner]/[repo]/pulls/comments/$ID/reactions" \
-    -X POST -f content="eyes" 2>/dev/null \
-  || gh api "repos/[owner]/[repo]/issues/comments/$ID/reactions" \
-    -X POST -f content="eyes" 2>/dev/null
-done
+if [ -n "$REVIEW_IDS" ]; then
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type review --reaction "eyes" --comment-id $REVIEW_IDS || exit 1
+  for id in $REVIEW_IDS; do
+    printf 'reaction eyes review %s\n' "$id" >> "$PR_COMMENT_LOG"
+  done
+fi
 
-TOTAL=$(echo "$IDS" | wc -w)
+if [ -n "$ISSUE_IDS" ]; then
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-type issue --reaction "eyes" --comment-id $ISSUE_IDS || exit 1
+  for id in $ISSUE_IDS; do
+    printf 'reaction eyes issue %s\n' "$id" >> "$PR_COMMENT_LOG"
+  done
+fi
+
+TOTAL=$(echo "$COMMENTS" | jq '.Comments | length')
 echo "Acknowledged $TOTAL comments"
 ```
 
@@ -1040,17 +1066,16 @@ After replying with resolution, mark the thread as resolved. This is required fo
 2. You need a response from the reviewer (human or bot)
 
 ```bash
-# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
-
-# Or resolve a single thread by ID
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWRls5m7ln8"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+# Resolve only bot-authored or explicitly approved threads.
+THREAD_ID="PRRT_current_pr_thread_id"
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
 ```
 
 **Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
 
-**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`--all`) automatically discovers and resolves all unresolved threads.
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. Do not use bulk resolution in this workflow. Resolve each eligible bot-authored or explicitly approved thread by ID.
 
 #### Step 6.5: Update Task List
 
@@ -1093,15 +1118,20 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Count addressed vs total
-ADDRESSED=$(grep -c "Status: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
-WONTFIX=$(grep -c "Status: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+ADDRESSED=$(grep -c "Status: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -c "Status: \[WONTFIX\]" "$COMMENT_MAP" || true)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
   echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -B5 "Status: \[ACKNOWLEDGED\]\|Status: pending" .agents/pr-comments/PR-[number]/comments.md
+  grep -E -B 5 "Status: \[ACKNOWLEDGED\]|Status: pending" "$COMMENT_MAP" || true
   # Return to Phase 3 for unaddressed comments
 fi
 ```
@@ -1113,17 +1143,21 @@ fi
 **Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
 
 ```bash
-# Run bulk resolution to ensure all threads are resolved
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+# Resolve bot-authored or explicitly approved threads by ID.
+THREAD_IDS=("PRRT_current_pr_thread_id_1" "PRRT_current_pr_thread_id_2")
+for THREAD_ID in "${THREAD_IDS[@]}"; do
+  python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
+done
 ```
 
-The script will:
+The loop must:
 
-1. Query all review threads on the PR
-2. Identify any unresolved threads
-3. Resolve each one via GraphQL API
-4. Report summary: `N resolved, M failed`
+1. Use only bot-authored or explicitly approved thread IDs.
+2. Resolve one explicit thread ID per command invocation.
+3. Re-query all review threads after the loop.
+4. Confirm no eligible unresolved thread remains.
 
 **Exit codes**:
 
@@ -1141,8 +1175,9 @@ After pushing commits, bots may post new comments. Wait and re-check:
 sleep 45
 
 # Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number] | jq '.TotalComments')
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
@@ -1160,19 +1195,20 @@ fi
 
 **Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
 
-- ✅ No merge conflicts
-- ✅ Branch is compatible with base
+- [PASS] No merge conflicts
+- [PASS] Branch is compatible with base
 
 It does NOT mean:
 
-- ❌ CI checks passing
-- ❌ Required status checks satisfied
+- [FAIL] CI checks passing
+- [FAIL] Required status checks satisfied
 
 **Always verify CI explicitly** using the `get_pr_checks.py` script:
 
 ```bash
 # Check ALL CI checks status with wait for completion
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 CHECKS=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number] --wait --timeout-seconds 300)
 EXIT_CODE=$?
 
@@ -1226,7 +1262,8 @@ echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 
 ```bash
 # Final verification
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 echo "=== Completion Criteria ==="
 echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
 echo "[ ] New comments: None after 45s wait"
@@ -1375,17 +1412,16 @@ Use Memory Router for search and Serena tools for persistence (ADR-037). Memory 
 
 ```text
 # Use Serena memory tools to search for PR review context
-mcp__serena__read_memory(memory_name="pr-comment-responder-skills")
-# Or search Forgetful for semantic matches
-mcp__forgetful__execute_forgetful_tool("query_memory", {"query": "PR review patterns bot behaviors reviewer preferences"})
+mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
 ```
 
 **After EVERY triage decision (store learnings):**
 
 ```text
-mcp__serena__write_memory
-memory_file_name: "pr-pattern-[category]"
-content: "# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
+mcp__serena__write_memory(
+    memory_file_name="pr-pattern-[category]",
+    content="# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
+)
 ```
 
 > **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.

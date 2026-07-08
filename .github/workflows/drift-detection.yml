@@ -32,11 +32,8 @@ jobs:
         id: drift
         run: |
           echo "Running agent drift detection..."
+          python3 build/scripts/detect_agent_drift.py --output-format text --fail-on-install-drift || EXIT_CODE=$?
 
-          # Run detection script and capture exit code
-          python3 build/scripts/detect_agent_drift.py --output-format text || EXIT_CODE=$?
-
-          # Set outputs based on exit code
           if [ "${EXIT_CODE:-0}" = "1" ]; then
             echo "drift_detected=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -204,6 +201,12 @@ jobs:
           EOF
 
           gh issue comment "$ISSUE_NUMBER" --body-file comment-body.md
+
+      - name: Fail when drift was detected
+        if: steps.drift.outputs.drift_detected == 'true'
+        run: |
+          echo "::error::agent drift detected"
+          exit 1
 
       - name: Summary
         if: always()
