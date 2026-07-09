@@ -105,7 +105,9 @@ def _walk_python_files(repo_root: Path) -> list[Path]:
     return found
 
 
-def find_syntax_errors(repo_root: Path, floor: tuple[int, int] | None = None) -> list[tuple[Path, str]]:
+def find_syntax_errors(
+    repo_root: Path, floor: tuple[int, int] | None = None
+) -> list[tuple[Path, str]]:
     """Parse every tracked file at ``floor``; return ``(path, message)`` failures."""
     if floor is None:
         floor = support_floor()
