@@ -716,7 +716,7 @@ All functions follow PowerShell error handling conventions:
 
 - [Memory Router](memory-router.md) - Detailed Memory Router usage
 - [Reflexion Memory](reflexion-memory.md) - Detailed Reflexion Memory usage
-- [Benchmarking](benchmarking.md) - Performance measurement
+- [Benchmarking](../../memory-maintenance/references/benchmarking.md) - Performance measurement
 - [Quick Start Guide](quick-start.md) - Common usage patterns
 - ADR-037 - Memory Router Architecture
 - ADR-038 - Reflexion Memory Schema

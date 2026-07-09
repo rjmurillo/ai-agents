@@ -494,6 +494,6 @@ past_reviews = [
 - [Full API Reference](api-reference.md) - Complete function signatures
 - [Memory Router Documentation](memory-router.md) - Detailed Router usage
 - [Reflexion Memory Documentation](reflexion-memory.md) - Detailed Reflexion usage
-- [Benchmarking Guide](benchmarking.md) - Performance measurement
+- [Benchmarking Guide](../../memory-maintenance/references/benchmarking.md) - Performance measurement
 - ADR-037 - Memory Router Architecture
 - ADR-038 - Reflexion Memory Schema

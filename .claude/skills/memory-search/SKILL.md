@@ -168,3 +168,13 @@ attribution, to the caller.
 - ADR-038: Episodic memory structure
 - ADR-056: Memory progressive disclosure
 - ADR-063: Memory skill decomposition (this extraction)
+
+These reference files travel with the search operation per ADR-063. They are
+demand-loaded; read one when you need the detail it covers.
+
+| Document | Content |
+|----------|---------|
+| [references/quick-start.md](references/quick-start.md) | Common search and usage workflows |
+| [references/memory-router.md](references/memory-router.md) | ADR-037 router architecture behind `search_memory.py` |
+| [references/api-reference.md](references/api-reference.md) | Complete function reference for the memory API |
+| [references/skill-reference.md](references/skill-reference.md) | Detailed `search_memory.py` script parameters |
