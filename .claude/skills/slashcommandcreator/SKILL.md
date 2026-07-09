@@ -122,11 +122,23 @@ Task(subagent_type="critic", prompt="Validate frontmatter completeness: [spec]")
 
 **Tasks**:
 
-1. Run `python3 .claude/skills/slashcommandcreator/scripts/new_slash_command.py`
+1. Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/slashcommandcreator/scripts/new_slash_command.py"`
 2. Create `.claude/commands/[namespace]/[command].md`
 3. Write frontmatter + prompt body
 4. Test invocation with sample arguments
 5. Update command catalog (if exists)
+
+**Portable script invocations (Required)**: If the generated command body
+invokes a repo skill script, resolve the script root through a plugin-root env
+var. Never emit a bare `.claude/skills/...` path: it works only in the upstream
+checkout and fails silently in Claude Code and Copilot CLI plugin installs.
+
+```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<skill>/scripts"
+python3 "$SCRIPTS_DIR/<script>.py"
+```
+
+See `docs/SKILL-AUTHORING.md` ("Portable Script Invocations") for the full rule.
 
 **Deliverable**: Working slash command file
 
@@ -136,7 +148,7 @@ Task(subagent_type="critic", prompt="Validate frontmatter completeness: [spec]")
 
 **Tasks**:
 
-1. Run `python3 .claude/skills/slashcommandcreator/scripts/validate_slash_command.py --path [file]`
+1. Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/slashcommandcreator/scripts/validate_slash_command.py" --path [file]`
 2. Fix violations if any
 3. Re-run validation until exit code 0
 4. Commit with conventional commit message
@@ -179,6 +191,7 @@ Before marking complete:
 - [ ] No overly permissive wildcards in `allowed-tools`
 - [ ] Description follows trigger-based pattern (creator-001)
 - [ ] File is <200 lines (or converted to skill)
+- [ ] No bare `.claude/skills/...` exec path in the generated command; use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}` form (see `docs/SKILL-AUTHORING.md`). Verify: `grep -nE '(python3?|bash|sh)[[:space:]].*\.claude/skills/[^[:space:]]+\.(py|sh)|\./\.claude/skills/[^[:space:]]+\.(py|sh)' [file]` returns no match
 - [ ] Passes `markdownlint-cli2` validation
 - [ ] Passes `validate_slash_command.py` validation
 - [ ] Tested with sample arguments
@@ -202,6 +215,7 @@ Before marking complete:
 | Skipping multi-agent validation | Miss security, scope, or necessity issues | Run all 4 validation agents |
 | Duplicate commands for similar purposes | Confusing discoverability | Check existing commands first |
 | Generic description without trigger keywords | Model cannot find the command | Include specific "Use when" phrases |
+| Bare `.claude/skills/...` exec path in a generated command | Works only upstream; fails in plugin installs | Resolve via `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` |
 
 ## Quality Gates Checklist
 
@@ -219,7 +233,8 @@ All checks from Verification section plus:
 Creates a new slash command from a template.
 
 ```bash
-python3 .claude/skills/slashcommandcreator/scripts/new_slash_command.py --name <name> --description <desc>
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/slashcommandcreator/scripts"
+python3 "$SCRIPTS_DIR/new_slash_command.py" --name <name> --description <desc>
 ```
 
 ### validate_slash_command.py
@@ -227,7 +242,8 @@ python3 .claude/skills/slashcommandcreator/scripts/new_slash_command.py --name <
 Validates slash command structure and frontmatter.
 
 ```bash
-python3 .claude/skills/slashcommandcreator/scripts/validate_slash_command.py <skill-dir>
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/slashcommandcreator/scripts"
+python3 "$SCRIPTS_DIR/validate_slash_command.py" <skill-dir>
 ```
 
 ## References
