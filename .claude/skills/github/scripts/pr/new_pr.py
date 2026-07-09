@@ -235,8 +235,8 @@ def run_validations(
     if diff_failed:
         print(
             f"  WARNING: 'git diff {base}...{head}' failed (exit {result.returncode}); "
-            "changed-file set is unknown. Change-scoped checks are skipped, "
-            "not silently treated as 'no changes'.",
+            "the changed-file set is unknown. Validations that rely on it are "
+            "skipped, not treated as 'no changes'.",
             file=sys.stderr,
         )
     changed_files = result.stdout.strip().splitlines() if not diff_failed else []
@@ -281,6 +281,8 @@ def run_validations(
                             raise SystemExit(1)
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
+    elif diff_failed:
+        print("  Skipped: git diff failed, changed files unknown (see warning above).")
     else:
         print("  No .agents/ changes, skipping")
 

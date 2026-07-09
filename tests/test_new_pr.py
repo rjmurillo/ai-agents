@@ -358,8 +358,12 @@ class TestRunValidations:
         assert not any(
             len(cmd) >= 2 and cmd[1] == str(skill_script) for cmd in calls
         )
-        err = capsys.readouterr().err
-        assert "git diff" in err and "failed" in err
+        captured = capsys.readouterr()
+        assert "git diff" in captured.err and "failed" in captured.err
+        # Validation 1 (Session End) must also honor the failed diff: it must
+        # report the skip explicitly, not masquerade as "No .agents/ changes".
+        assert "Skipped: git diff failed" in captured.out
+        assert "No .agents/ changes, skipping" not in captured.out
 
     def test_skill_violation_detection_scopes_to_changed_files(self, tmp_path):
         skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
