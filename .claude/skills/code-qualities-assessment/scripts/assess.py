@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import Any
 
 # Language detection by file suffix. Only languages with tuned heuristics are
-# listed; anything else is analyzed with generic fallbacks and reduced
-# confidence so the gate never fails a file it cannot actually score.
+# listed. Unsupported files are reported as unscored for gate purposes so the
+# gate never fails a file it cannot actually score.
 _LANGUAGE_BY_SUFFIX = {
     ".py": "python",
     ".ts": "typescript",
@@ -59,14 +59,17 @@ _IMPORT_PATTERNS = {
     "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "csharp": re.compile(r"^\s*using\s+[A-Za-z_]"),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
-    "go": re.compile(r'^\s*import\s+(?:[\w.]+\s+)?"|^\s+(?:[\w.]+\s+)?"[^"]+"\s*$'),
+    "go": re.compile(
+        r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*$'
+        r'|^\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*$'
+    ),
 }
 
 # Generic import fallback for languages without a tuned pattern.
 _GENERIC_IMPORT_PATTERN = re.compile(r"^\s*(?:import|from|using|require|#include)\b")
 
 # Per-language definition patterns (types, functions, methods) for the cohesion
-# heuristic. More top-level definitions plus larger size means lower cohesion.
+# heuristic. More definitions plus larger size means lower cohesion.
 _DEFINITION_PATTERNS = {
     "python": re.compile(r"^\s*(?:async\s+)?def\s+\w|^\s*class\s+\w"),
     "javascript": re.compile(
@@ -109,14 +112,33 @@ def _count_web_global_state(lines: list[str]) -> int:
     patterns = (
         re.compile(r"\bglobalThis\b"),
         re.compile(r"\bwindow\.\w+\s*="),
-        re.compile(r"^var\s+\w"),
+        re.compile(r"^(?:var|let|const)\s+\w"),
     )
     return sum(1 for line in lines if any(p.search(line) for p in patterns))
 
 
 def _count_go_global_state(lines: list[str]) -> int:
     # Package-level (unindented) var declarations are mutable global state.
-    return sum(1 for line in lines if re.match(r"^var\s+\w", line))
+    count = 0
+    in_package_var_block = False
+    for line in lines:
+        stripped = line.strip()
+        if in_package_var_block:
+            if stripped == ")":
+                in_package_var_block = False
+                continue
+            if not stripped or stripped.startswith("//"):
+                continue
+            if re.match(r"^[A-Za-z_]\w*(?:\s|,|=)", stripped):
+                count += 1
+            continue
+
+        if re.match(r"^var\s+\(", line):
+            in_package_var_block = True
+            continue
+        if re.match(r"^var\s+\w", line):
+            count += 1
+    return count
 
 
 def _immutable_static(stripped: str, immutable_keywords: tuple[str, ...]) -> bool:
@@ -164,9 +186,13 @@ _GLOBAL_STATE_COUNTERS = {
 
 def _count_python_public_fields(lines: list[str]) -> int:
     pattern = re.compile(r"(?<!\w)self\.([A-Za-z]\w*)\s*=(?!=)")
-    return sum(
-        1 for line in lines for m in pattern.finditer(line) if not m.group(1).startswith("_")
-    )
+    fields = {
+        m.group(1)
+        for line in lines
+        for m in pattern.finditer(line)
+        if not m.group(1).startswith("_")
+    }
+    return len(fields)
 
 
 def _count_public_fields_by_modifier(lines: list[str]) -> int:
@@ -187,6 +213,8 @@ def _count_public_fields_by_modifier(lines: list[str]) -> int:
             kw in stripped
             for kw in ("class ", "interface ", "struct ", "enum ", "record ")
         ):
+            continue
+        if any(kw in stripped.split() for kw in ("const", "readonly", "final")):
             continue
         if stripped.endswith(";") or "=" in stripped:
             count += 1
@@ -229,14 +257,21 @@ class FileAssessment:
 
     @property
     def overall(self) -> float:
-        """Weighted average of all qualities"""
-        return (
-            self.cohesion.value +
-            self.coupling.value +
-            self.encapsulation.value +
-            self.testability.value +
-            self.non_redundancy.value
-        ) / 5
+        """Average of scored qualities only."""
+        scored_values = [
+            score.value
+            for score in (
+                self.cohesion,
+                self.coupling,
+                self.encapsulation,
+                self.testability,
+                self.non_redundancy,
+            )
+            if score.confidence > 0.0
+        ]
+        if not scored_values:
+            return 0.0
+        return sum(scored_values) / len(scored_values)
 
 
 def parse_args() -> argparse.Namespace:
@@ -287,7 +322,7 @@ def parse_args() -> argparse.Namespace:
 def load_config(config_path: str) -> dict[str, Any]:
     """Load configuration or return defaults"""
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             config: dict[str, Any] = json.load(f)
             return config
     except FileNotFoundError:
@@ -339,7 +374,7 @@ def get_files_to_assess(target: str, changed_only: bool) -> list[Path]:
 
 
 def _score_cohesion(language: str | None, code_lines: list[str], loc: int) -> QualityScore:
-    """Approximate cohesion from size plus top-level definition count.
+    """Approximate cohesion from size plus definition count.
 
     This is a size+definition approximation, not a true LCOM cohesion metric.
     More definitions packed into a larger file suggests the file is doing many
@@ -351,11 +386,14 @@ def _score_cohesion(language: str | None, code_lines: list[str], loc: int) -> Qu
     )
     score = 10.0 - (loc / 120.0) - max(0, def_count - 1) * 0.3
     score = max(1.0, min(10.0, score))
-    confidence = 0.4 if pattern else 0.3
+    confidence = 0.4 if pattern else 0.0
     reasons = [
-        f"{loc} LOC, {def_count} top-level definitions "
+        f"{loc} LOC, {def_count} definitions "
         "(size+definition approximation, not LCOM)",
         (
+            "Definition count not scored for this language"
+            if pattern is None
+            else
             "Large file with many definitions suggests low cohesion"
             if score < 7
             else "Size and definition count are reasonable"
@@ -458,16 +496,17 @@ def _score_testability(language: str | None, code_lines: list[str]) -> QualitySc
     return QualityScore(value=round(score, 1), confidence=0.5, reasons=reasons)
 
 
-def _score_non_redundancy(lines: list[str]) -> QualityScore:
+def _score_non_redundancy(lines: list[str], scored: bool) -> QualityScore:
     """Approximate non-redundancy from the ratio of unique to total lines.
 
     This is language-agnostic and unchanged in spirit from the original
     heuristic.
     """
+    confidence = 0.5 if scored else 0.0
     non_blank = [line.strip() for line in lines if line.strip()]
     if not non_blank:
         return QualityScore(
-            value=10.0, confidence=0.5, reasons=["Empty file, no duplication"]
+            value=10.0, confidence=confidence, reasons=["Empty file, no duplication"]
         )
     unique_lines = len(set(non_blank))
     score = (unique_lines / len(non_blank)) * 10.0
@@ -475,7 +514,9 @@ def _score_non_redundancy(lines: list[str]) -> QualityScore:
         f"{unique_lines}/{len(non_blank)} unique non-blank lines",
         "High duplication detected" if score < 7 else "Low duplication",
     ]
-    return QualityScore(value=round(score, 1), confidence=0.5, reasons=reasons)
+    if not scored:
+        reasons.append("Non-redundancy not scored for this language")
+    return QualityScore(value=round(score, 1), confidence=confidence, reasons=reasons)
 
 
 def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
@@ -537,8 +578,37 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
         coupling=_score_coupling(language, code_lines),
         encapsulation=_score_encapsulation(language, code_lines),
         testability=_score_testability(language, code_lines),
-        non_redundancy=_score_non_redundancy(lines),
+        non_redundancy=_score_non_redundancy(lines, language is not None),
     )
+
+
+def _average_scored(scores: list[QualityScore]) -> float | None:
+    values = [score.value for score in scores if score.confidence > 0.0]
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _format_average(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.1f}/10"
+
+
+def _format_quality_score(score: QualityScore) -> str:
+    if score.confidence == 0.0:
+        return "unscored (n/a)"
+    return f"{score.value:.1f}/10"
+
+
+def _threshold_min(thresholds: dict[str, Any], key: str) -> float | None:
+    threshold = thresholds.get(key, {})
+    value = threshold.get("min")
+    return float(value) if value is not None else None
+
+
+def _score_below_threshold(score: QualityScore, threshold: float | None) -> bool:
+    return threshold is not None and score.confidence > 0.0 and score.value < threshold
 
 
 def generate_markdown_report(assessments: list[FileAssessment], config: dict[str, Any]) -> str:
@@ -549,69 +619,62 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
     if not assessments:
         return "No files assessed."
 
-    avg_cohesion = sum(a.cohesion.value for a in assessments) / len(assessments)
-    avg_coupling = sum(a.coupling.value for a in assessments) / len(assessments)
-    avg_encap = sum(a.encapsulation.value for a in assessments) / len(assessments)
-    avg_test = sum(a.testability.value for a in assessments) / len(assessments)
-    avg_nonred = sum(a.non_redundancy.value for a in assessments) / len(assessments)
+    avg_cohesion = _average_scored([a.cohesion for a in assessments])
+    avg_coupling = _average_scored([a.coupling for a in assessments])
+    avg_encap = _average_scored([a.encapsulation for a in assessments])
+    avg_test = _average_scored([a.testability for a in assessments])
+    avg_nonred = _average_scored([a.non_redundancy for a in assessments])
+    thresholds = config["thresholds"]
 
     report.append("## Summary\n")
     report.append(f"**Files Assessed**: {len(assessments)}\n")
-    report.append(f"**Average Cohesion**: {avg_cohesion:.1f}/10")
-    report.append(f"**Average Coupling**: {avg_coupling:.1f}/10")
-    report.append(f"**Average Encapsulation**: {avg_encap:.1f}/10")
-    report.append(f"**Average Testability**: {avg_test:.1f}/10")
-    report.append(f"**Average Non-Redundancy**: {avg_nonred:.1f}/10\n")
+    report.append(f"**Average Cohesion**: {_format_average(avg_cohesion)}")
+    report.append(f"**Average Coupling**: {_format_average(avg_coupling)}")
+    report.append(f"**Average Encapsulation**: {_format_average(avg_encap)}")
+    report.append(f"**Average Testability**: {_format_average(avg_test)}")
+    report.append(f"**Average Non-Redundancy**: {_format_average(avg_nonred)}\n")
 
     # Per-file breakdown
     report.append("## File Assessments\n")
     for assessment in sorted(assessments, key=lambda a: a.overall):
         report.append(f"### {assessment.file_path}\n")
-        report.append(f"**Overall**: {assessment.overall:.1f}/10\n")
-        report.append(f"- **Cohesion**: {assessment.cohesion.value}/10")
-        report.append(f"- **Coupling**: {assessment.coupling.value}/10")
-        report.append(f"- **Encapsulation**: {assessment.encapsulation.value}/10")
-        report.append(f"- **Testability**: {assessment.testability.value}/10")
-        report.append(f"- **Non-Redundancy**: {assessment.non_redundancy.value}/10\n")
+        overall = _format_average(assessment.overall if assessment.overall > 0 else None)
+        report.append(f"**Overall**: {overall}\n")
+        quality_rows = (
+            ("Cohesion", "cohesion", assessment.cohesion),
+            ("Coupling", "coupling", assessment.coupling),
+            ("Encapsulation", "encapsulation", assessment.encapsulation),
+            ("Testability", "testability", assessment.testability),
+            ("Non-Redundancy", "nonRedundancy", assessment.non_redundancy),
+        )
+        for label, _, score in quality_rows:
+            report.append(f"- **{label}**: {_format_quality_score(score)}")
+        report.append("")
 
         # Show reasons for low scores
-        if assessment.cohesion.value < 7:
-            report.append("**Cohesion Issues**:")
-            for reason in assessment.cohesion.reasons:
-                report.append(f"  - {reason}")
-            report.append("")
-
-        if assessment.coupling.value < 7:
-            report.append("**Coupling Issues**:")
-            for reason in assessment.coupling.reasons:
-                report.append(f"  - {reason}")
-            report.append("")
+        for label, threshold_key, score in quality_rows:
+            if _score_below_threshold(score, _threshold_min(thresholds, threshold_key)):
+                report.append(f"**{label} Issues**:")
+                for reason in score.reasons:
+                    report.append(f"  - {reason}")
+                report.append("")
 
     return "\n".join(report)
 
 
 def generate_json_report(assessments: list[FileAssessment]) -> str:
     """Generate JSON report"""
-    count = len(assessments) if assessments else 1
     return json.dumps({
         "files": [asdict(a) for a in assessments],
         "summary": {
             "file_count": len(assessments),
             "average_scores": {
-                "cohesion": (
-                    sum(a.cohesion.value for a in assessments) / count if assessments else 0
-                ),
-                "coupling": (
-                    sum(a.coupling.value for a in assessments) / count if assessments else 0
-                ),
-                "encapsulation": (
-                    sum(a.encapsulation.value for a in assessments) / count if assessments else 0
-                ),
-                "testability": (
-                    sum(a.testability.value for a in assessments) / count if assessments else 0
-                ),
-                "non_redundancy": (
-                    sum(a.non_redundancy.value for a in assessments) / count if assessments else 0
+                "cohesion": _average_scored([a.cohesion for a in assessments]),
+                "coupling": _average_scored([a.coupling for a in assessments]),
+                "encapsulation": _average_scored([a.encapsulation for a in assessments]),
+                "testability": _average_scored([a.testability for a in assessments]),
+                "non_redundancy": _average_scored(
+                    [a.non_redundancy for a in assessments]
                 ),
             }
         }

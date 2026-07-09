@@ -15,6 +15,7 @@ the bugs fixed for issue #2994:
 
 from __future__ import annotations
 
+import builtins
 import importlib.util
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,8 @@ assess_file = _mod.assess_file
 check_thresholds = _mod.check_thresholds
 detect_language = _mod.detect_language
 get_files_to_assess = _mod.get_files_to_assess
+generate_json_report = _mod.generate_json_report
+generate_markdown_report = _mod.generate_markdown_report
 load_config = _mod.load_config
 
 
@@ -362,6 +365,113 @@ def test_go_aliased_and_dot_imports_counted(tmp_path: Path) -> None:
     assert coupling.value == 6
 
 
+@pytest.mark.parametrize(
+    "import_line",
+    [
+        'import _ "fmt"\n',
+        'import myfmt "fmt"\n',
+        'import . "fmt"\n',
+    ],
+)
+def test_go_single_line_named_blank_and_dot_imports_counted(
+    tmp_path: Path, import_line: str
+) -> None:
+    body = "package main\n\n" + import_line + "\nfunc main() {}\n"
+    path = _write(tmp_path, "main.go", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 9
+
+
+def test_go_named_blank_and_dot_imports_counted_inside_block(tmp_path: Path) -> None:
+    body = (
+        "package main\n\n"
+        "import (\n"
+        '    myfmt "fmt"\n'
+        '    _ "database/sql"\n'
+        '    . "strings"\n'
+        ")\n\n"
+        "func main() {}\n"
+    )
+    path = _write(tmp_path, "main.go", body)
+
+    coupling = assess_file(path, "production", False).coupling
+
+    assert coupling.value == 7
+
+
+def test_go_package_var_block_counts_as_global_state(tmp_path: Path) -> None:
+    clean = _write(tmp_path, "clean.go", "package main\n\nfunc main() {}\n")
+    dirty = _write(
+        tmp_path,
+        "dirty.go",
+        "package main\n\n"
+        "var (\n"
+        "    counter int\n"
+        "    cache = map[string]string{}\n"
+        ")\n\n"
+        "func main() {}\n",
+    )
+
+    clean_score = assess_file(clean, "production", False).testability
+    dirty_score = assess_file(dirty, "production", False).testability
+
+    assert dirty_score.value < clean_score.value
+
+
+def test_go_indented_local_var_block_not_counted_as_global_state(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        "local.go",
+        "package main\n\n"
+        "func main() {\n"
+        "    var (\n"
+        "        local int\n"
+        "    )\n"
+        "    _ = local\n"
+        "}\n",
+    )
+
+    testability = assess_file(path, "production", False).testability
+
+    assert testability.value == 10
+
+
+def test_python_public_fields_are_deduplicated_by_name(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        "fields.py",
+        "class C:\n"
+        "    def first(self):\n"
+        "        self.x = 1\n"
+        "    def second(self):\n"
+        "        self.x = 2\n",
+    )
+
+    encapsulation = assess_file(path, "production", False).encapsulation
+
+    assert encapsulation.reasons[0] == "1 exposed public field(s)"
+
+
+@pytest.mark.parametrize(
+    ("name", "body"),
+    [
+        ("Constants.cs", "public class C {\n    public const int Answer = 42;\n}\n"),
+        ("Readonly.cs", "public class C {\n    public readonly int Answer = 42;\n}\n"),
+        ("Final.java", "public class C {\n    public final int answer = 42;\n}\n"),
+    ],
+)
+def test_public_immutable_fields_do_not_lower_encapsulation(
+    tmp_path: Path, name: str, body: str
+) -> None:
+    path = _write(tmp_path, name, body)
+
+    encapsulation = assess_file(path, "production", False).encapsulation
+
+    assert encapsulation.value == 10
+
+
 def test_untuned_language_coupling_not_gated(tmp_path: Path) -> None:
     """A language without a tuned import pattern is counted only for the report
     (confidence 0.0), so check_thresholds skips it rather than gating on an
@@ -372,6 +482,16 @@ def test_untuned_language_coupling_not_gated(tmp_path: Path) -> None:
     path = _write(tmp_path, "many_imports.rb", body)
     coupling = assess_file(path, "production", False).coupling
     assert coupling.confidence == 0.0
+    assert all(
+        score.confidence == 0.0
+        for score in (
+            assess_file(path, "production", False).cohesion,
+            assess_file(path, "production", False).coupling,
+            assess_file(path, "production", False).encapsulation,
+            assess_file(path, "production", False).testability,
+            assess_file(path, "production", False).non_redundancy,
+        )
+    )
     # Even a low coupling score must not fail the gate when unscored.
     config = _default_config()
     config["thresholds"]["coupling"] = {"min": 7}
@@ -393,3 +513,94 @@ def test_unreadable_file_is_unscored_not_passed(tmp_path: Path) -> None:
         assert score.confidence == 0.0
     # An unreadable file must not fail (or pass by scoring) any threshold.
     assert check_thresholds([assessment], _default_config(), "production") == 0
+
+
+def test_read_error_is_reported_as_unscored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write(tmp_path, "broken.py", "def f():\n    return 1\n")
+    real_open = builtins.open
+
+    def raise_permission_error(file: Any, *args: Any, **kwargs: Any) -> Any:
+        if file == path:
+            raise PermissionError("blocked")
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", raise_permission_error)
+
+    assessment = assess_file(path, "production", False)
+
+    assert assessment.overall == 0.0
+    assert all(
+        score.confidence == 0.0
+        for score in (
+            assessment.cohesion,
+            assessment.coupling,
+            assessment.encapsulation,
+            assessment.testability,
+            assessment.non_redundancy,
+        )
+    )
+    assert "blocked" in assessment.cohesion.reasons[0]
+    assert check_thresholds([assessment], _default_config(), "production") == 0
+
+
+def test_markdown_report_displays_unscored_metrics_as_na(tmp_path: Path) -> None:
+    path = _write(tmp_path, "unknown.rb", "require 'x'\n")
+    assessment = assess_file(path, "production", False)
+
+    report = generate_markdown_report([assessment], _default_config())
+
+    assert "**Overall**: n/a" in report
+    assert "- **Cohesion**: unscored (n/a)" in report
+    assert "**Average Cohesion**: n/a" in report
+    assert "10.0/10" not in report
+
+
+def test_json_report_excludes_unscored_metrics_from_average(tmp_path: Path) -> None:
+    import json
+
+    path = _write(tmp_path, "unknown.rb", "require 'x'\n")
+    assessment = assess_file(path, "production", False)
+
+    report = json.loads(generate_json_report([assessment]))
+
+    assert report["summary"]["average_scores"]["cohesion"] is None
+
+
+def test_overall_ignores_unscored_metrics(tmp_path: Path) -> None:
+    path = _write(tmp_path, "mixed.py", "def f():\n    return 1\n")
+    assessment = assess_file(path, "production", False)
+    assessment.encapsulation.confidence = 0.0
+    assessment.encapsulation.value = 10.0
+    assessment.coupling.value = 4.0
+
+    scored_values = [
+        assessment.cohesion.value,
+        assessment.coupling.value,
+        assessment.testability.value,
+        assessment.non_redundancy.value,
+    ]
+
+    assert assessment.overall == pytest.approx(sum(scored_values) / len(scored_values))
+
+
+def test_markdown_report_uses_configured_thresholds(tmp_path: Path) -> None:
+    path = _write(tmp_path, "imports.py", "import a\nimport b\n\ndef f():\n    return 1\n")
+    assessment = assess_file(path, "production", False)
+    config = _default_config()
+    config["thresholds"]["coupling"] = {"min": 9}
+
+    report = generate_markdown_report([assessment], config)
+
+    assert "**Coupling Issues**:" in report
+    assert "2 import/dependency statements" in report
+
+
+def test_load_config_reads_utf8_json(tmp_path: Path) -> None:
+    config_path = tmp_path / ".qualityrc.json"
+    config_path.write_text('{"thresholds": {}, "label": "café"}', encoding="utf-8")
+
+    config = load_config(str(config_path))
+
+    assert config["label"] == "café"
