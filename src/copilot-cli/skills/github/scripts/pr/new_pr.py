@@ -280,7 +280,7 @@ def run_validations(
     print()
     print("[2/5] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
-    if os.path.exists(skill_script):
+    if os.path.exists(skill_script) and changed_files:
         skill_args = [sys.executable, skill_script]
         for changed_file in changed_files:
             skill_args.extend(["--file", changed_file])
@@ -288,6 +288,8 @@ def run_validations(
             skill_args,
             timeout=30,
         )
+    elif os.path.exists(skill_script):
+        print("  No changed files to check.")
 
     # Validation 3: Test coverage detection (WARNING)
     print()
