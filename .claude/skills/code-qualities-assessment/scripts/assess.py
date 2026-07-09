@@ -329,11 +329,11 @@ def load_config(config_path: str) -> dict[str, Any]:
         # Default configuration
         return {
             "thresholds": {
-                "cohesion": {"min": 7, "warn": 5},
-                "coupling": {"min": 7, "warn": 5},
-                "encapsulation": {"min": 7, "warn": 5},
-                "testability": {"min": 6, "warn": 4},
-                "nonRedundancy": {"min": 8, "warn": 6}
+                "cohesion": {"min": 7},
+                "coupling": {"min": 7},
+                "encapsulation": {"min": 7},
+                "testability": {"min": 6},
+                "nonRedundancy": {"min": 8}
             },
             "context": {
                 "test": {"testability": {"min": 3}}

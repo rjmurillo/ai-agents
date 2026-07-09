@@ -258,10 +258,26 @@ def test_gate_legacy_coupling_max_only_config_does_not_crash(tmp_path: Path) -> 
     assessment = assess_file(path, "production", False)
 
     legacy = _default_config()
-    legacy["thresholds"]["coupling"] = {"max": 3, "warn": 5}  # no "min"
+    legacy["thresholds"]["coupling"] = {"max": 3, "warn": 5}  # no "min"; "warn" is an ignored unknown key
 
     rc = check_thresholds([assessment], legacy, "production")
     assert rc == 0
+
+
+def test_default_config_declares_no_unconsumed_threshold_keys() -> None:
+    """The default config must not declare threshold keys the gate never reads.
+
+    Only ``min`` (and legacy ``max`` for coupling) are consumed by
+    ``check_thresholds`` and the report. A ``warn`` tier was declared for every
+    quality but never implemented, which misled users into thinking a warning
+    level existed. This guards the config contract so a future edit does not
+    reintroduce an unimplemented key.
+    """
+    consumed = {"min", "max"}
+    thresholds = _default_config()["thresholds"]
+    for quality, spec in thresholds.items():
+        unconsumed = set(spec) - consumed
+        assert not unconsumed, f"{quality} declares unconsumed keys: {unconsumed}"
 
 
 def test_gate_fails_tightly_coupled_file(tmp_path: Path) -> None:
