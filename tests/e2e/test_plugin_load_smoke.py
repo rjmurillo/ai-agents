@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -186,6 +187,30 @@ def _plugin_enumeration_available(payload: object) -> bool:
     return _has_plugin_source_record(payload)
 
 
+_COPILOT_BENIGN_NO_ENUM_VERSIONS = frozenset({"1.0.69"})
+
+
+def _copilot_version_omits_plugin_enumeration(version_output: str) -> bool:
+    """True when the Copilot CLI version is known to omit ``--plugin-dir`` skills.
+
+    Only the versions in ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` are allowed to skip
+    the strict subset assertion when ``skill list --json`` surfaces zero
+    ``source: plugin`` records (issue #2990). Any other version that fails to
+    enumerate the plugin is a real plugin-load regression and must fail loud, so
+    the smoke keeps its negative control instead of masking a broken load on a
+    CLI that DOES enumerate ``--plugin-dir`` skills.
+
+    The version token is the first ``MAJOR.MINOR.PATCH`` in the CLI's
+    ``--version`` output; a ``-<suffix>`` build tag (for example ``1.0.69-3``) is
+    ignored because the enumeration behavior tracks the release, not the build.
+    A version string with no parseable token returns False (fail loud).
+    """
+    match = re.search(r"\d+\.\d+\.\d+", version_output)
+    if match is None:
+        return False
+    return match.group(0) in _COPILOT_BENIGN_NO_ENUM_VERSIONS
+
+
 def _read_manifest_version(manifest_path: Path) -> str:
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     version = data.get("version")
@@ -247,6 +272,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         )
 
     if not _plugin_enumeration_available(payload):
+        version_text = version.stdout.strip() or version.stderr.strip()
         sources = sorted(
             {
                 str(record.get("source"))
@@ -254,12 +280,21 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
                 if isinstance(record, dict)
             }
         )
+        if not _copilot_version_omits_plugin_enumeration(version_text):
+            pytest.fail(
+                "copilot skill list --json surfaced no source:plugin records for a "
+                f"known-good --plugin-dir on CLI version {version_text!r}, which is "
+                "NOT a known plugin-enumeration-omitting version (issue #2990). "
+                "A version that enumerates --plugin-dir skills but returns none is a "
+                "real plugin-load regression, not the benign 1.0.69 shape. "
+                f"sources seen: {sources}"
+            )
         pytest.skip(
             "copilot skill list --json surfaced no source:plugin records for a "
             "known-good --plugin-dir. On CLI 1.0.69 the plugin-dir load is not "
             "enumerated through this surface (issue #2990); the load itself is "
             "unaffected. Skipping loud rather than false-failing. "
-            f"copilot --version: {version.stdout.strip() or version.stderr.strip()!r}; "
+            f"copilot --version: {version_text!r}; "
             f"sources seen: {sources}"
         )
 
@@ -488,6 +523,35 @@ def test_has_plugin_source_record() -> None:
     assert _has_plugin_source_record([]) is False
     assert _has_plugin_source_record({"unexpected": "object"}) is False
     assert _has_plugin_source_record(None) is False
+
+
+def test_copilot_version_omits_enumeration_true_for_benign_version() -> None:
+    """CLI 1.0.69 is the known plugin-enumeration-omitting release (issue #2990).
+
+    A build-tag suffix (``1.0.69-3``) tracks the same release, so it still
+    matches; extra surrounding text from ``--version`` is tolerated.
+    """
+    assert _copilot_version_omits_plugin_enumeration("1.0.69") is True
+    assert _copilot_version_omits_plugin_enumeration("1.0.69-3") is True
+    assert _copilot_version_omits_plugin_enumeration("copilot 1.0.69 (build 42)") is True
+
+
+def test_copilot_version_omits_enumeration_false_for_other_versions() -> None:
+    """Any version not in the benign set must fail loud, not skip (issue #2990).
+
+    A CLI that enumerates ``--plugin-dir`` skills but returns none is a real
+    plugin-load regression; the negative control depends on this returning False.
+    """
+    assert _copilot_version_omits_plugin_enumeration("1.0.70") is False
+    assert _copilot_version_omits_plugin_enumeration("1.1.0") is False
+    assert _copilot_version_omits_plugin_enumeration("2.0.0") is False
+
+
+def test_copilot_version_omits_enumeration_false_when_unparseable() -> None:
+    """No parseable version token means fail loud (return False), never skip."""
+    assert _copilot_version_omits_plugin_enumeration("") is False
+    assert _copilot_version_omits_plugin_enumeration("unknown") is False
+    assert _copilot_version_omits_plugin_enumeration("v1.0") is False
 
 
 def test_clean_env_strips_plugin_root_keys_case_insensitively(
