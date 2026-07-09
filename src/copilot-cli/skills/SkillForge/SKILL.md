@@ -238,6 +238,7 @@ After creation:
 - [ ] Timelessness score >=7
 - [ ] `python scripts/quick_validate.py` passes
 - [ ] `python scripts/check_docs_safety.py` passes
+- [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
 - [ ] Scripts self-verify when scripts are present
 

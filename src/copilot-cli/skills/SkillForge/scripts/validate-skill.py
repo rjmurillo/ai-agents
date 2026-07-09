@@ -11,10 +11,10 @@ Usage:
 """
 
 import os
-import sys
 import re
+import sys
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import Any
 
 
 class SkillValidator:
@@ -29,9 +29,9 @@ class SkillValidator:
         self.skill_path = Path(skill_path)
         self.skill_md_path = self._find_skill_md()
         self.content = ""
-        self.frontmatter: Dict[str, Any] = {}
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+        self.frontmatter: dict[str, Any] = {}
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
         self.checks_passed = 0
         self.checks_total = 0
 
@@ -73,7 +73,9 @@ class SkillValidator:
             if parsed is None:
                 self.frontmatter = {}
             elif not isinstance(parsed, dict):
-                self.errors.append(f"Frontmatter must be a YAML dictionary, got {type(parsed).__name__}")
+                self.errors.append(
+                    f"Frontmatter must be a YAML dictionary, got {type(parsed).__name__}"
+                )
                 return False
             else:
                 self.frontmatter = parsed
@@ -90,7 +92,7 @@ class SkillValidator:
         """Fallback YAML parser for when PyYAML is not available."""
         lines = frontmatter_text.split('\n')
         current_key = None
-        current_value_lines = []
+        current_value_lines: list[str] = []
         is_folded = False  # Track folded scalar (>)
         is_literal = False  # Track literal scalar (|)
 
@@ -126,7 +128,8 @@ class SkillValidator:
 
             elif line.startswith('  ') and current_key == 'metadata':
                 # Basic nested parsing for metadata
-                if 'metadata' not in self.frontmatter or not isinstance(self.frontmatter['metadata'], dict):
+                metadata_val = self.frontmatter.get('metadata')
+                if 'metadata' not in self.frontmatter or not isinstance(metadata_val, dict):
                     self.frontmatter['metadata'] = {}
                 if ':' in line:
                     nested_key, nested_value = line.strip().split(':', 1)
@@ -136,7 +139,13 @@ class SkillValidator:
         if current_key and (is_folded or is_literal) and current_value_lines:
             self.frontmatter[current_key] = ' '.join(current_value_lines).strip()
 
-    def check(self, name: str, condition: bool, error_msg: str = None, warning: bool = False):
+    def check(
+        self,
+        name: str,
+        condition: bool,
+        error_msg: str | None = None,
+        warning: bool = False,
+    ):
         """Run a check and record result."""
         self.checks_total += 1
         if condition:
@@ -154,23 +163,28 @@ class SkillValidator:
         # Import or define constants
         try:
             from _constants import (
-                ALLOWED_PROPERTIES, REQUIRED_PROPERTIES, RECOMMENDED_PROPERTIES,
-                VALID_AGENT_TYPES, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH,
-                SEMVER_REGEX, NAME_REGEX
+                ALLOWED_PROPERTIES,
+                DESCRIPTION_MAX_LENGTH,
+                NAME_MAX_LENGTH,
+                NAME_REGEX,
+                RECOMMENDED_PROPERTIES,
+                REQUIRED_PROPERTIES,
+                SEMVER_REGEX,
+                VALID_AGENT_TYPES,
             )
         except ImportError:
-            ALLOWED_PROPERTIES = {
+            ALLOWED_PROPERTIES = {  # noqa: N806
                 'name', 'description', 'license', 'allowed-tools', 'metadata',
                 'model', 'context', 'agent', 'hooks', 'user-invocable', 'version',
-                'argument-hint'
+                'argument-hint', 'size-exception'
             }
-            REQUIRED_PROPERTIES = {'name', 'description'}
-            RECOMMENDED_PROPERTIES = {'license'}
-            VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}
-            NAME_MAX_LENGTH = 64
-            DESCRIPTION_MAX_LENGTH = 1024
-            SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'
-            NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'
+            REQUIRED_PROPERTIES = {'name', 'description'}  # noqa: N806
+            RECOMMENDED_PROPERTIES = {'license'}  # noqa: N806
+            VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}  # noqa: N806
+            NAME_MAX_LENGTH = 64  # noqa: N806
+            DESCRIPTION_MAX_LENGTH = 1024  # noqa: N806
+            SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'  # noqa: N806
+            NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'  # noqa: N806
 
         # Check required fields
         for field in REQUIRED_PROPERTIES:
@@ -205,7 +219,8 @@ class SkillValidator:
             self.check(
                 "frontmatter.name.format",
                 re.match(NAME_REGEX, name) and '--' not in name,
-                f"Skill name should be hyphen-case (start with letter, no consecutive hyphens): {name}"
+                "Skill name should be hyphen-case "
+                f"(start with letter, no consecutive hyphens): {name}"
             )
             self.check(
                 "frontmatter.name.length",
@@ -320,7 +335,7 @@ class SkillValidator:
         try:
             from _constants import KNOWN_TOOLS
         except ImportError:
-            KNOWN_TOOLS = {
+            KNOWN_TOOLS = {  # noqa: N806
                 'Read', 'Glob', 'Grep', 'Write', 'Edit',
                 'Bash', 'Task', 'WebFetch', 'WebSearch',
                 'TodoWrite', 'NotebookEdit', 'AskUserQuestion'
@@ -357,8 +372,8 @@ class SkillValidator:
         try:
             from _constants import VALID_HOOK_EVENTS, VALID_HOOK_TYPES
         except ImportError:
-            VALID_HOOK_EVENTS = {'PreToolUse', 'PostToolUse', 'Stop'}
-            VALID_HOOK_TYPES = {'command', 'prompt'}
+            VALID_HOOK_EVENTS = {'PreToolUse', 'PostToolUse', 'Stop'}  # noqa: N806
+            VALID_HOOK_TYPES = {'command', 'prompt'}  # noqa: N806
 
         # Validate each hook event
         for hook_name, hook_config in hooks.items():
@@ -384,7 +399,7 @@ class SkillValidator:
                     self.check(
                         f"frontmatter.hooks.{hook_name}[{i}].type",
                         False,
-                        f"Hook matcher should be an object with 'matcher' and 'hooks' keys"
+                        "Hook matcher should be an object with 'matcher' and 'hooks' keys"
                     )
                     continue
 
@@ -597,7 +612,7 @@ class SkillValidator:
                 self.check(
                     "scripts.presence",
                     False,
-                    f"SKILL.md references scripts/ but no scripts directory exists",
+                    "SKILL.md references scripts/ but no scripts directory exists",
                     warning=False
                 )
             elif bash_example_count > 3:
@@ -692,7 +707,7 @@ class SkillValidator:
             warning=True
         )
 
-    def _validate_script_documentation(self, scripts: List[Path]):
+    def _validate_script_documentation(self, scripts: list[Path]):
         """Check that scripts are documented in SKILL.md."""
         if not scripts:
             return
@@ -734,7 +749,7 @@ class SkillValidator:
                 warning=True
             )
 
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self) -> tuple[bool, str]:
         """Run all validations and return result."""
         if not self.load_skill():
             return False, self._format_report()

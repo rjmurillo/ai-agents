@@ -12,6 +12,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
+from typing import Protocol
 
 # Add the SkillForge scripts directory to the import path
 _scripts_dir = os.path.join(
@@ -29,12 +30,32 @@ _spec = importlib.util.spec_from_file_location(
     "validate_skill",
     os.path.join(os.path.abspath(_scripts_dir), "validate-skill.py"),
 )
+assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 SkillValidator = _mod.SkillValidator
 
 
-def _make_skill(tmp_path: Path, content: str) -> SkillValidator:
+class _ValidatorLike(Protocol):
+    """Structural view of SkillValidator used by this test suite.
+
+    The validator is imported via importlib from a hyphenated filename, so its
+    static type is ``Any``. Returning this Protocol from ``_make_skill`` keeps
+    the test bodies type-checked against a fixed surface instead of ``Any``.
+    """
+
+    errors: list[str]
+
+    def load_skill(self) -> bool: ...
+
+    def parse_frontmatter(self) -> bool: ...
+
+    def validate_frontmatter(self) -> None: ...
+
+    def validate_triggers(self) -> None: ...
+
+
+def _make_skill(tmp_path: Path, content: str) -> _ValidatorLike:
     """Create a skill directory with SKILL.md and return a validator."""
     skill_dir = tmp_path / "test-skill"
     skill_dir.mkdir()
@@ -43,7 +64,7 @@ def _make_skill(tmp_path: Path, content: str) -> SkillValidator:
     orig = os.getcwd()
     os.chdir(tmp_path)
     try:
-        validator = SkillValidator(str(skill_dir))
+        validator: _ValidatorLike = SkillValidator(str(skill_dir))
     finally:
         os.chdir(orig)
     return validator
@@ -221,3 +242,47 @@ class TestTriggerCountThreshold:
         v.parse_frontmatter()
         v.validate_triggers()
         assert any("1-5" in e for e in v.errors)
+
+
+# ---------------------------------------------------------------------------
+# size-exception frontmatter property acceptance (skill_size escape hatch)
+# ---------------------------------------------------------------------------
+
+
+class TestSizeExceptionProperty:
+    """The `size-exception` escape hatch must pass frontmatter allow-listing.
+
+    The blocking `scripts/validation/skill_size.py` gate requires a top-level
+    `size-exception: true` to exempt a >500-line SKILL.md, so the structural
+    validator must accept that key. Otherwise the two blocking gates deadlock
+    and no oversized skill can be committed.
+    """
+
+    def test_size_exception_true_is_allowed(self, tmp_path: Path) -> None:
+        content = (
+            "---\nname: test-skill\n"
+            "description: A valid skill declaring a justified size exception\n"
+            "size-exception: true\n---\n"
+            "# Title\n## Process\nSteps.\n## Verification\n- [ ] a\n"
+        )
+        v = _make_skill(tmp_path, content)
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        unexpected = [e for e in v.errors if "Unexpected frontmatter" in e]
+        assert not unexpected, f"size-exception should be allowed, got: {v.errors}"
+
+    def test_unknown_property_still_rejected(self, tmp_path: Path) -> None:
+        content = (
+            "---\nname: test-skill\n"
+            "description: A valid skill with an unknown frontmatter property\n"
+            "not-a-real-key: true\n---\n"
+            "# Title\n## Process\nSteps.\n## Verification\n- [ ] a\n"
+        )
+        v = _make_skill(tmp_path, content)
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        assert any("Unexpected frontmatter" in e for e in v.errors), (
+            f"unknown key must still be rejected, got: {v.errors}"
+        )
