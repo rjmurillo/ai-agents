@@ -17,6 +17,10 @@ Transform feature descriptions into 3-tier specifications: Requirements (WHAT/WH
 
 This skill supersedes the former `spec-generator` agent. The change exists because the agent emitted invalid frontmatter enum values on every spec PR (PR #1995 drew 9 schema-violation threads; PR #1989 the same) because it wrote frontmatter from memory instead of reading the schema. This skill bundles the schema and a deterministic validator so the drift cannot ship.
 
+## Prose Self-Check
+
+Before emitting any prose artifact (spec narrative, requirements, design, tasks, PR or issue body), run the prose-self-check skill (`.claude/skills/prose-self-check/SKILL.md`): four-layer AI-vernacular audit; weight structural and semantic findings above lexical; do not flag low-signal words on presence alone.
+
 ## Triggers
 
 | Phrase | Action |
