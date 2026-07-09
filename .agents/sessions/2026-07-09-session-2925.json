@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2925,
+    "date": "2026-07-09",
+    "branch": "fix/2925-memory-decomposition",
+    "startingCommit": "b14a05db",
+    "objective": "Finish the ADR-063 memory-skill decomposition for issue #2925: extract the Memory-First Gate and maintenance operations into memory-gate and memory-maintenance sub-skills, redistribute the reference files to the sub-skills that invoke them, shrink memory/SKILL.md to a thin router, and regenerate the Copilot mirror."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools available; project activated at the worktree root before edits."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded before repo edits."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; read-only rule observed (not modified)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created during the session."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "SkillForge validate-skill.py, build_all.py, and skill portability validators read and run."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-063, ADR-070 gate semantics, and skill authoring conventions read before authoring sub-skills."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, universal rules, dash prohibition, and skill authoring rules loaded via path instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Self-improving memories surfaced by hooks and applied, including dash byte checks and uv run guidance."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/2925-memory-decomposition."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch is fix/2925-memory-decomposition, not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before and after edits and between atomic commits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "b14a05db (merge-base with origin/main)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST fields carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read but not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable repo convention changed; decomposition follows the existing ADR-063 contract."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit markdownlint --fix ran on each staged SKILL.md and reference file, exiting 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commits for memory-gate, memory-maintenance, memory-search, router shrink, plugin bump and plan, and the regenerated Copilot mirror."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-gate and memory-maintenance structural tests passed; memory-search and memory-reflexion regression tests passed; check_skill_md_exec_portability rc 0; validate_skill_installation passed; SkillForge validate-skill rc 0 for the router; plugin manifest parity matched; build_all.py --check exited 0; dash byte checks all 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PLAN-skill-catalog-triage-action-slate.md M3 row marked done."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not required for this decomposition change; the orchestrator owns the PR-level retrospective."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-09T02:10:00Z",
+      "entry": "Verified branch fix/2925-memory-decomposition and read HANDOFF.md, ADR-063, and ADR-070 gate semantics."
+    },
+    {
+      "time": "2026-07-09T02:20:00Z",
+      "entry": "Created memory-gate sub-skill owning the Memory-First Gate and Investigation Protocol, with structural test package."
+    },
+    {
+      "time": "2026-07-09T02:30:00Z",
+      "entry": "Created memory-maintenance sub-skill owning health, token count, size, benchmark, and density operations, delegating to canonical scripts, with structural test package."
+    },
+    {
+      "time": "2026-07-09T02:40:00Z",
+      "entry": "Redistributed reference files: agent-integration to memory-gate; benchmarking and troubleshooting to memory-maintenance; api-reference, memory-router, quick-start, skill-reference to memory-search. Kept three shared references in the router. Fixed cross-links."
+    },
+    {
+      "time": "2026-07-09T02:50:00Z",
+      "entry": "Shrank memory/SKILL.md to a thin router; restored the required Triggers, Process, Verification, and Scripts sections documenting the canonical scripts."
+    },
+    {
+      "time": "2026-07-09T02:58:00Z",
+      "entry": "Bumped both plugin manifests to 0.6.20 and marked ADR-063 M3 done in the plan."
+    },
+    {
+      "time": "2026-07-09T03:02:00Z",
+      "entry": "Regenerated the Copilot mirror and ran the validation battery: structural tests, portability gates, skill installation, plugin parity, and build_all.py --check."
+    }
+  ],
+  "endingCommit": "PENDING",
+  "nextSteps": [
+    "Commit the regenerated Copilot mirror.",
+    "Run build_all.py --check to confirm rc 0 with all mirror output committed.",
+    "Hand the local branch to the orchestrator to push and open the PR for issue #2925."
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-07-09-session-2925",
+  "session": "2026-07-09-session-2925",
+  "timestamp": "2026-07-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Finish the ADR-063 memory-skill decomposition for issue #2925: extract the Memory-First Gate and maintenance operations into memory-gate and memory-maintenance sub-skills, redistribute the reference files to the sub-skills that invoke them, shrink memory/SKILL.md to a thin router, and regenerate the Copilot mirror.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified branch fix/2925-memory-decomposition and read HANDOFF.md, ADR-063, and ADR-070 gate semantics.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created memory-gate sub-skill owning the Memory-First Gate and Investigation Protocol, with structural test package.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created memory-maintenance sub-skill owning health, token count, size, benchmark, and density operations, delegating to canonical scripts, with structural test package.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Redistributed reference files: agent-integration to memory-gate; benchmarking and troubleshooting to memory-maintenance; api-reference, memory-router, quick-start, skill-reference to memory-search. Kept three shared references in the router. Fixed cross-links.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Shrank memory/SKILL.md to a thin router; restored the required Triggers, Process, Verification, and Scripts sections documenting the canonical scripts.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped both plugin manifests to 0.6.20 and marked ADR-063 M3 done in the plan.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot mirror and ran the validation battery: structural tests, portability gates, skill installation, plugin parity, and build_all.py --check.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}

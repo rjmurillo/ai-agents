@@ -67,7 +67,7 @@ Skill eval (session-1825) ran `eval-knowledge-integration.py` against 15 suspect
 |-----------|-------|----------|--------|
 | **M1**: Prune doc-coverage + doc-sync + workflow | Low-risk deletions only | Nothing | Spec in progress |
 | **M2**: Fold session-qa-eligibility + sunset session-migration | Session cluster consolidation | M1 optional | Not started |
-| **M3**: memory decomposition | ADR-led architecture | ADR draft | Blocked on ADR |
+| **M3**: memory decomposition | ADR-led architecture | ADR-063 accepted | Done (issue #2925): router split into memory-gate + memory-maintenance sub-skills, 7 references redistributed |
 | **M4**: Investigate memory cluster overlap | Pairwise eval | Issue #1932 eval infra | Live verdicts landed 2026-06-17: Pair 1 KEEP, Pair 2 REWRITE boundary |
 | **Wave 2**: Remaining 47 skills | Full catalog | M1-M4 learnings | Not started |
 
@@ -90,9 +90,9 @@ Wave 2 triage → M1-M4 learnings + quarterly CI cron
 - [ ] Implement M1: PR deleting doc-coverage + doc-sync + workflow skills
 - [ ] Spec M2: session-qa-eligibility fold + session-migration sunset
 - [ ] Implement M2: PR consolidating session cluster
-- [ ] ADR: memory skill decomposition approach
+- [x] ADR: memory skill decomposition approach (ADR-063)
 - [ ] Spec M3: memory skill decomposition PRD
-- [ ] Implement M3: memory cluster refactor
+- [x] Implement M3: memory cluster refactor (issue #2925: memory-gate + memory-maintenance sub-skills)
 - [ ] Implement #1932: eval-skill-overlap.py + Phase 1 (4 known pairs)
 - [x] Run M4: overlap eval on curating-memories / exploring-knowledge-graph (live run 2026-06-17, `.agents/analysis/skill-overlap-2026-06-17.md`)
 - [ ] Wave 2: triage remaining 47 skills
@@ -122,7 +122,7 @@ Wave 2 triage → M1-M4 learnings + quarterly CI cron
 ## Blockers
 
 1. ~~**Issue #1949** (live overlap eval): Blocks final M4 verdicts until credentials are available.~~ RESOLVED 2026-06-17: live run executed (key present in local, gitignored repo-root `.env`; not committed). Verdicts: Pair 1 KEEP (DISTINCT), Pair 2 REWRITE boundary (SUBSUMED, moderate band). Follow-up: SKILL.md boundary statements for both pairs (AC5), then a confirmatory Pair 2 eval before any delete/FOLD.
-2. **ADR: memory decomposition**: Blocks M3. Owner: engineering (needs design discussion).
+2. ~~**ADR: memory decomposition**: Blocks M3. Owner: engineering (needs design discussion).~~ RESOLVED: ADR-063 accepted and M3 implemented in issue #2925 (router split into memory-gate + memory-maintenance sub-skills, references redistributed).
 
 ## References
 
