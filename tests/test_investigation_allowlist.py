@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
 
@@ -60,12 +61,14 @@ class TestFileMatchesAllowlist:
         assert file_matches_allowlist(".agents/architecture/ADR-001.md") is False
 
 
+@lru_cache(maxsize=1)
 def _load_session_skill_module() -> ModuleType:
     """Load the packaged session-skill eligibility script by path.
 
     The script ships to installed-plugin trees, so it keeps a verbatim copy
     of the allowlist instead of importing the repo-relative module. This
-    loader lets the parity test compare the two in-repo.
+    loader lets the parity test compare the two in-repo. The result is cached
+    so the script executes once across the whole test class.
     """
     script = (
         Path(__file__).resolve().parents[1]
@@ -75,8 +78,11 @@ def _load_session_skill_module() -> ModuleType:
         / "scripts"
         / "test_investigation_eligibility.py"
     )
+    assert script.is_file(), f"session-skill eligibility script missing: {script}"
     spec = importlib.util.spec_from_file_location("_session_eligibility", script)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None and spec.loader is not None, (
+        f"could not build import spec for {script}"
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
