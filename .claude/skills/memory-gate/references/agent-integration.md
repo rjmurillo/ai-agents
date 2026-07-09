@@ -414,7 +414,7 @@ done
 
 ## Related Documentation
 
-- [README.md](README.md) - System overview
+- [Skill overview](../SKILL.md) - Memory gate skill guide
 - [Quick Start](../../memory-search/references/quick-start.md) - Common patterns
 - [API Reference](../../memory-search/references/api-reference.md) - Complete function signatures
 - [Skill Reference](../../memory-search/references/skill-reference.md) - Skill script documentation

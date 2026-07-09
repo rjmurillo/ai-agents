@@ -629,7 +629,7 @@ If issues persist after trying these solutions:
 
 ## Related Documentation
 
-- [README.md](README.md) - System overview
+- [Skill overview](../SKILL.md) - Memory maintenance skill guide
 - [API Reference](../../memory-search/references/api-reference.md) - Complete function signatures
 - [Quick Start](../../memory-search/references/quick-start.md) - Common patterns
 - [Benchmarking](benchmarking.md) - Performance measurement
