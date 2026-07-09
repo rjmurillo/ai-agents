@@ -336,3 +336,60 @@ def test_template_qualityrc_uses_coupling_min(tmp_path: Path) -> None:
     coupling = config["thresholds"]["coupling"]
     assert "min" in coupling
     assert "max" not in coupling
+
+
+# --------------------------------------------------------------------------- #
+# PR #3000 adversarial-review fixes (GPT-5.5 / Copilot findings)
+# --------------------------------------------------------------------------- #
+
+
+def test_go_aliased_and_dot_imports_counted(tmp_path: Path) -> None:
+    """Aliased (`m "math"`) and dot (`. "strings"`) imports in a Go block must
+    count, or coupling is inflated and the gate can pass when it should fail."""
+    body = (
+        "package main\n\n"
+        "import (\n"
+        '    "fmt"\n'
+        '    _ "database/sql"\n'
+        '    m "math"\n'
+        '    . "strings"\n'
+        ")\n\n"
+        "func main() {}\n"
+    )
+    path = _write(tmp_path, "main.go", body)
+    coupling = assess_file(path, "production", False).coupling
+    # 4 import specs: plain, blank, aliased, dot. 10 - 4 == 6.
+    assert coupling.value == 6
+
+
+def test_untuned_language_coupling_not_gated(tmp_path: Path) -> None:
+    """A language without a tuned import pattern is counted only for the report
+    (confidence 0.0), so check_thresholds skips it rather than gating on an
+    untuned heuristic (honors the file-header contract)."""
+    # .rb has no tuned pattern; detect_language returns None.
+    lines = [f"require 'lib{i}'" for i in range(12)]
+    body = "\n".join(lines) + "\n"
+    path = _write(tmp_path, "many_imports.rb", body)
+    coupling = assess_file(path, "production", False).coupling
+    assert coupling.confidence == 0.0
+    # Even a low coupling score must not fail the gate when unscored.
+    config = _default_config()
+    config["thresholds"]["coupling"] = {"min": 7}
+    assert check_thresholds([assess_file(path, "production", False)], config, "production") == 0
+
+
+def test_unreadable_file_is_unscored_not_passed(tmp_path: Path) -> None:
+    """A file that cannot be read must come back all-unscored (confidence 0.0)
+    so the gate skips it, instead of scoring empty content as a perfect 10."""
+    missing = tmp_path / "gone.py"  # never created -> open() raises OSError
+    assessment = assess_file(missing, "production", False)
+    for score in (
+        assessment.cohesion,
+        assessment.coupling,
+        assessment.encapsulation,
+        assessment.testability,
+        assessment.non_redundancy,
+    ):
+        assert score.confidence == 0.0
+    # An unreadable file must not fail (or pass by scoring) any threshold.
+    assert check_thresholds([assessment], _default_config(), "production") == 0
