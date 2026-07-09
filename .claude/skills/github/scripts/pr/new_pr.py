@@ -55,6 +55,16 @@ from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
 # entry 5 (Issue #1923).
 _DASH_RE = re.compile("[\u2013\u2014]")
 
+# Extensions the skill-violation scanner (scripts/detect_skill_violation.py)
+# actually inspects. Filtering changed files to this set before building the
+# scan argv keeps the command line short on large diffs and skips the
+# subprocess entirely when no changed file is scannable. This mirrors
+# detect_skill_violation.VALID_EXTENSIONS; the two are kept in sync by
+# test_new_pr.py, which imports both and asserts equality (same drift-guard
+# strategy as _DASH_RE above). A local constant avoids the cross-package
+# import path resolution the _DASH_RE comment documents rejecting.
+_SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -290,9 +300,10 @@ def run_validations(
     print()
     print("[2/5] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
-    if os.path.exists(skill_script) and changed_files:
+    scannable_files = [f for f in changed_files if Path(f).suffix in _SKILL_SCAN_EXTENSIONS]
+    if os.path.exists(skill_script) and scannable_files:
         skill_args = [sys.executable, skill_script]
-        for changed_file in changed_files:
+        for changed_file in scannable_files:
             skill_args.extend(["--file", changed_file])
         subprocess.run(
             skill_args,
@@ -302,8 +313,10 @@ def run_validations(
     elif os.path.exists(skill_script):
         if diff_failed:
             print("  Skipped: git diff failed, changed files unknown (see warning above).")
-        else:
+        elif not changed_files:
             print("  No changed files to check.")
+        else:
+            print("  No changed files with a scannable extension (.md, .py, .ps1, .psm1).")
 
     # Validation 3: Test coverage detection (WARNING)
     print()
