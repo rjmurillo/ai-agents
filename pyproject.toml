@@ -3,7 +3,7 @@ name = "ai-agents"
 version = "0.1.0"
 description = "AI agent orchestration framework"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 license = {text = "MIT"}
 
 dependencies = [
