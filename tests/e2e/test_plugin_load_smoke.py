@@ -168,10 +168,15 @@ def _plugin_enumeration_available(payload: object) -> bool:
     ``--plugin-dir`` based, so it is not a valid load signal for a neutral-cwd
     smoke. See issue #2990.
 
-    Every other shape returns True so the smoke proceeds and fails loud:
+    The caller validates list-ness first:
+    ``test_copilot_plugin_loads_expected_skills`` fails loud on a non-list
+    payload before this helper is consulted. This helper still returns True for
+    every non-benign shape as defense in depth, so any caller (present or
+    future) that omits its own guard fails loud rather than skips:
 
-    - a non-list payload (unexpected schema, or a CLI error object) must not
-      silently skip; and
+    - a non-list payload (unexpected schema, or a CLI error object) returns True,
+      so a caller without its own list guard still fails loud instead of
+      skipping silently; and
     - a list that DOES carry ``source: plugin`` records keeps the strict subset
       assertion, so a plugin record with a missing name fails on the absent
       skill instead of masking a regression.
