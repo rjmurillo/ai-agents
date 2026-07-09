@@ -33,7 +33,7 @@ TypeError: Cannot read property 'map' of undefined
 - `create skill` - Natural language activation
 - `design skill for {purpose}` - Purpose-first creation
 - `ultimate skill` - Emphasize maximum quality
-- `skillforge --plan-only` - Generate specification without execution
+- `SkillForge --plan-only` - Generate specification without execution
 
 ### Routing Triggers (NEW in v4.0)
 
