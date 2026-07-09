@@ -12,6 +12,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add the SkillForge scripts directory to the import path
 _scripts_dir = os.path.join(
@@ -29,12 +30,13 @@ _spec = importlib.util.spec_from_file_location(
     "validate_skill",
     os.path.join(os.path.abspath(_scripts_dir), "validate-skill.py"),
 )
+assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 SkillValidator = _mod.SkillValidator
 
 
-def _make_skill(tmp_path: Path, content: str) -> SkillValidator:
+def _make_skill(tmp_path: Path, content: str) -> Any:
     """Create a skill directory with SKILL.md and return a validator."""
     skill_dir = tmp_path / "test-skill"
     skill_dir.mkdir()
