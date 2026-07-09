@@ -519,7 +519,7 @@ def test_read_error_is_reported_as_unscored(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     path = _write(tmp_path, "broken.py", "def f():\n    return 1\n")
-    real_open = builtins.open
+    real_open: Any = builtins.open
 
     def raise_permission_error(file: Any, *args: Any, **kwargs: Any) -> Any:
         if file == path:
