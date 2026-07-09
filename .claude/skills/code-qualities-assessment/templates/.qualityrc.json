@@ -5,7 +5,7 @@
       "warn": 5
     },
     "coupling": {
-      "max": 3,
+      "min": 7,
       "warn": 5
     },
     "encapsulation": {
