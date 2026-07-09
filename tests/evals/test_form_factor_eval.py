@@ -64,6 +64,7 @@ FORM_FACTOR_VARIANTS = plan_mod.FORM_FACTOR_VARIANTS
 
 compute_form_factor = aggregator_mod.compute_form_factor
 pairwise_bootstrap_ci = aggregator_mod.pairwise_bootstrap_ci
+_form_factor_verdict = aggregator_mod._form_factor_verdict
 _records_by_fixture_variant = aggregator_mod._records_by_fixture_variant
 EmptyRunError = aggregator_mod.EmptyRunError
 
@@ -209,6 +210,16 @@ class TestSkillPathArg:
         value = ".claude/skills/security-review/SKILL.md"
         assert cli_mod._skill_path_arg(value) == value
 
+    def test_content_controlled_evals_path_accepted(self):
+        value = "evals/security-spike/skill-content-controlled/SKILL.md"
+        assert cli_mod._skill_path_arg(value) == value
+
+    def test_evals_traversal_rejected(self):
+        import argparse
+
+        with pytest.raises(argparse.ArgumentTypeError):
+            cli_mod._skill_path_arg("evals/../.claude/skills/x/SKILL.md")
+
     def test_traversal_rejected(self):
         import argparse
 
@@ -317,6 +328,131 @@ class TestPairwiseBootstrapCi:
 
     def test_empty_fixture_ids_returns_zero_interval(self):
         assert pairwise_bootstrap_ci({}, [], "agent", "skill") == (0.0, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# _form_factor_verdict: equivalence margin
+# ---------------------------------------------------------------------------
+
+
+class TestFormFactorVerdict:
+    def test_spanning_zero_narrow_ci_prefers_cheaper_skill(self):
+        result = _form_factor_verdict(
+            agent_skill_delta=0.02,
+            agent_skill_ci=(-0.08, 0.10),
+            skill_tokens_total=100,
+            agent_tokens_total=200,
+        )
+
+        assert result == "prefer-skill-form"
+
+    def test_spanning_zero_tiny_savings_is_inconclusive(self):
+        # A sub-1% token gap (noise-scale sampling delta) must not flip the
+        # verdict to prefer-skill-form.
+        result = _form_factor_verdict(
+            agent_skill_delta=0.0,
+            agent_skill_ci=(-0.05, 0.05),
+            skill_tokens_total=1999,
+            agent_tokens_total=2000,
+        )
+
+        assert result == "inconclusive"
+        result = _form_factor_verdict(
+            agent_skill_delta=0.02,
+            agent_skill_ci=(-0.11, 0.12),
+            skill_tokens_total=100,
+            agent_tokens_total=200,
+        )
+
+        assert result == "inconclusive"
+
+    def test_clear_agent_win_takes_precedence_over_width_guard(self):
+        result = _form_factor_verdict(
+            agent_skill_delta=0.20,
+            agent_skill_ci=(0.05, 0.27),
+            skill_tokens_total=100,
+            agent_tokens_total=200,
+        )
+
+        assert result == "prefer-agent-form"
+
+    def test_clear_skill_win_takes_precedence_over_width_guard(self):
+        result = _form_factor_verdict(
+            agent_skill_delta=-0.20,
+            agent_skill_ci=(-0.31, -0.05),
+            skill_tokens_total=300,
+            agent_tokens_total=200,
+        )
+
+        assert result == "prefer-skill-form"
+
+
+# ---------------------------------------------------------------------------
+# _strip_frontmatter + content-controlled prompt SHA parity (Issue #2936)
+# ---------------------------------------------------------------------------
+
+
+class TestStripFrontmatter:
+    def test_strips_leading_yaml_frontmatter_block(self):
+        text = "---\nname: x\ndescription: y\n---\n# Body\n\ncontent\n"
+
+        result = cli_mod._strip_frontmatter(text)
+
+        assert result == "# Body\n\ncontent\n"
+
+    def test_strips_leading_yaml_frontmatter_block_with_windows_line_endings(self):
+        text = "---\r\nname: x\r\ndescription: y\r\n---\r\n# Body\r\n\r\ncontent\r\n"
+
+        result = cli_mod._strip_frontmatter(text)
+
+        assert result == "# Body\r\n\r\ncontent\r\n"
+
+    def test_returns_text_unchanged_when_no_frontmatter(self):
+        text = "# Body\n\nno frontmatter here\n"
+
+        result = cli_mod._strip_frontmatter(text)
+
+        assert result == text
+
+    def test_returns_text_unchanged_when_fence_not_closed(self):
+        text = "---\nname: x\nunterminated body without closing fence\n"
+
+        result = cli_mod._strip_frontmatter(text)
+
+        assert result == text
+
+    def test_strips_only_the_first_block_leaving_body_hrules(self):
+        text = "---\nname: x\n---\nintro\n\n---\n\nmore\n"
+
+        result = cli_mod._strip_frontmatter(text)
+
+        assert result == "intro\n\n---\n\nmore\n"
+
+
+class TestContentControlledPromptParity:
+    """Issue #2936 acceptance (a): the content-controlled skill body and the
+    agent body hash to the same prompt_sha, so form_factor isolates form."""
+
+    def test_agent_and_content_controlled_skill_share_prompt_sha(self):
+        skill_rel = "evals/security-spike/skill-content-controlled/SKILL.md"
+
+        agent_prompt, _ = cli_mod._read_agent_prompt("security")
+        skill_prompt, _ = cli_mod._read_skill_prompt("security", skill_rel)
+
+        assert cli_mod._sha256_text(agent_prompt) == cli_mod._sha256_text(
+            skill_prompt
+        )
+
+    def test_stripped_agent_prompt_drops_frontmatter_description(self):
+        agent_prompt, _ = cli_mod._read_agent_prompt("security")
+
+        # Structural invariants: the leading YAML frontmatter block is gone and
+        # the prompt now opens on the agent body's first heading. Asserting on
+        # the body heading rather than the absence of a specific frontmatter key
+        # avoids a false failure if the body ever quotes a key such as
+        # "tier: builder" in an example.
+        assert not agent_prompt.startswith("---")
+        assert agent_prompt.lstrip().startswith("# Security Agent")
 
 
 # ---------------------------------------------------------------------------

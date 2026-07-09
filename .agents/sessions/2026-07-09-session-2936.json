@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2936,
+    "date": "2026-07-09",
+    "branch": "fix/2936-adr075-content-controlled",
+    "startingCommit": "791bdcab3",
+    "objective": "Land issue #2936: correct the form-factor eval methodology with a content-controlled rerun where the skill body is byte-identical to the security agent body, so form is isolated from content. Update ADR-075 with the corrected verdict, add the content-controlled harness support and equivalence-margin verdict guard, commit the eval evidence, and exempt eval fixtures under evals/ from the pre-commit SkillForge structural validator."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "This Copilot CLI instance exposes no serena-* MCP tools; used the documented fallback of reading .agents/HANDOFF.md and .serena/memories/*.md directly."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* MCP tools in this instance; Serena initial instructions unavailable, direct file reads used instead."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; read-only rule observed (not modified)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created during the session."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read and ran validate-skill.py, pre_pr.py, ruff, and pytest; inspected the .githooks/pre-commit skill-validation filter."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and the AGENTS.md skill-first rules."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, universal rules, dash prohibition, generated-artifacts, and testing-rigor loaded via path instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Self-improving memories surfaced by hooks were applied, including dash byte checks, uv run invocation, and check-main-before-attributing-a-failure."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree HEAD is on fix/2936-adr075-content-controlled."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch is fix/2936-adr075-content-controlled, not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before staging and before commit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "791bdcab3, equal to origin/main HEAD at session start."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST fields carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read but not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The durable fact (pre-commit exempts evals/ fixtures from SkillForge structural validation) is captured in ADR-075 and in the .githooks/pre-commit STAGED_SKILL_FILES comment, and stored as a Copilot repository memory."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit markdownlint --fix ran on the staged ADR and markdown evidence, exiting 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Single atomic commit for the #2936 content-controlled eval deliverable plus the enabling pre-commit evals/ exemption and its regression test."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "49 tests pass (test_form_factor_eval 43, test_pre_commit_skill_validation_filter 6); ruff clean on new files; pre_pr.py passed under uv run; dash byte checks 0; no new ruff violations, the 4 remaining in eval-agent-vs-baseline.py are pre-existing on main and tracked in #2993."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Objective #9 issue tracker: #2936 advanced to PR-ready."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "The orchestrator owns the PR-level retrospective for this change."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-09T09:00:00Z",
+      "entry": "Confirmed the content-controlled fixture body strips to the same SHA as the security agent body (be36604d...), matching report.json agent_prompt_sha; the parity test reads the fixture on disk, so the fixture is load-bearing and must stay tracked."
+    },
+    {
+      "time": "2026-07-09T09:10:00Z",
+      "entry": "Diagnosed the commit blocker: the pre-commit SkillForge validator scans every staged /SKILL.md and had no exemption for eval fixtures, which are agent bodies reused verbatim and lack Triggers/Process sections by construction."
+    },
+    {
+      "time": "2026-07-09T09:20:00Z",
+      "entry": "Added an evals/ exemption to the pre-commit STAGED_SKILL_FILES filter with rationale, matching the existing command-mirror exemption pattern."
+    },
+    {
+      "time": "2026-07-09T09:30:00Z",
+      "entry": "Wrote tests/hooks/test_pre_commit_skill_validation_filter.py that extracts the exact filter block from the hook and runs it under bash, proving real skills are selected while evals/ fixtures and command-mirror skills are excluded. 6 tests pass."
+    },
+    {
+      "time": "2026-07-09T09:40:00Z",
+      "entry": "Documented the exemption and the fixture reconstructability in ADR-075; verified 0 em/en dashes; ran the 49-test suite green and ruff on all changed files."
+    }
+  ],
+  "endingCommit": "64576c75c",
+  "nextSteps": [
+    "Serial-push fix/2936-adr075-content-controlled (pre-push runs the full pytest suite).",
+    "Open the PR with Fixes #2936 and run the adversarial GPT-5.5 review loop.",
+    "Continue the plugin-version domino: merge #3004 (0.6.22), then rebase and merge #3002/#2921 (0.6.23)."
+  ]
+}

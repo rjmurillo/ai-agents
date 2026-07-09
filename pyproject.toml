@@ -171,8 +171,12 @@ disable_error_code = ["no-redef"]
 # modules resolves to Any, so annotations that reference them (RunRecord and
 # friends) read as valid-type/no-any-return, and bare dict/list annotations
 # read as type-arg. Scoped here so the debt stays visible and tracked (#2876)
-# rather than suppressed inline.
-module = "tests.evals.test_eval_agent_vs_baseline"
+# rather than suppressed inline. test_form_factor_eval uses the identical
+# runtime-load pattern for the same eval scripts, so it shares this scope.
+module = [
+    "tests.evals.test_eval_agent_vs_baseline",
+    "tests.evals.test_form_factor_eval",
+]
 disable_error_code = ["type-arg", "valid-type", "no-any-return"]
 
 [dependency-groups]
