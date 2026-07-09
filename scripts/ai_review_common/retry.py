@@ -11,8 +11,10 @@ from typing import TypeVar
 logger = logging.getLogger(__name__)
 
 # PEP 695 generic syntax `def invoke_with_retry[T](...)` requires Python 3.12+,
-# but pyproject.toml declares `requires-python = ">=3.10"`. Use the
-# Python-3.10-compatible TypeVar form. PR #1965 copilot review (cluster G).
+# but this module must parse under the hook-execution syntax floor of Python
+# 3.10 (scripts/validation/validate_python_syntax.py), independent of the
+# pyproject install contract. Use the 3.10-compatible TypeVar form.
+# PR #1965 copilot review (cluster G).
 T = TypeVar("T")
 
 _DEFAULT_MAX_RETRIES = 3
@@ -26,7 +28,7 @@ def _get_config_int(env_var: str, default: int) -> int:
     return default
 
 
-def invoke_with_retry(
+def invoke_with_retry(  # noqa: UP047
     func: Callable[[], T],
     max_retries: int | None = None,
     initial_delay: int | None = None,
