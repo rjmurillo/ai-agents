@@ -231,7 +231,15 @@ def run_validations(
         timeout=30,
         env=_git_env(),
     )
-    changed_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
+    diff_failed = result.returncode != 0
+    if diff_failed:
+        print(
+            f"  WARNING: 'git diff {base}...{head}' failed (exit {result.returncode}); "
+            "the changed-file set is unknown. Validations that rely on it are "
+            "skipped, not treated as 'no changes'.",
+            file=sys.stderr,
+        )
+    changed_files = result.stdout.strip().splitlines() if not diff_failed else []
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
 
     if agents_changed:
@@ -273,6 +281,8 @@ def run_validations(
                             raise SystemExit(1)
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
+    elif diff_failed:
+        print("  Skipped: git diff failed, changed files unknown (see warning above).")
     else:
         print("  No .agents/ changes, skipping")
 
@@ -280,11 +290,20 @@ def run_validations(
     print()
     print("[2/5] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
-    if os.path.exists(skill_script):
+    if os.path.exists(skill_script) and changed_files:
+        skill_args = [sys.executable, skill_script]
+        for changed_file in changed_files:
+            skill_args.extend(["--file", changed_file])
         subprocess.run(
-            [sys.executable, skill_script],
+            skill_args,
             timeout=30,
+            env=_git_env(),
         )
+    elif os.path.exists(skill_script):
+        if diff_failed:
+            print("  Skipped: git diff failed, changed files unknown (see warning above).")
+        else:
+            print("  No changed files to check.")
 
     # Validation 3: Test coverage detection (WARNING)
     print()

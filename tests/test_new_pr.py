@@ -335,6 +335,64 @@ class TestRunValidations:
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
 
+    def test_skill_violation_scan_skipped_when_git_diff_fails(self, tmp_path, capsys):
+        """A failed git diff must NOT run detect_skill_violation.py with zero
+        --file args (which would trigger a full-repo scan and 30s timeout), and
+        must NOT silently masquerade as 'no changes'. Instead it warns visibly
+        and skips the change-scoped scan (Copilot review, issue #3006)."""
+        skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
+        skill_script.parent.mkdir(parents=True)
+        skill_script.write_text("# mock")
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(rc=128, stderr="fatal: bad revision")
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        # detect_skill_violation.py must never be invoked on a failed diff.
+        assert not any(
+            len(cmd) >= 2 and cmd[1] == str(skill_script) for cmd in calls
+        )
+        captured = capsys.readouterr()
+        assert "git diff" in captured.err and "failed" in captured.err
+        # Validation 1 (Session End) must also honor the failed diff: it must
+        # report the skip explicitly, not masquerade as "No .agents/ changes".
+        assert "Skipped: git diff failed" in captured.out
+        assert "No .agents/ changes, skipping" not in captured.out
+
+    def test_skill_violation_detection_scopes_to_changed_files(self, tmp_path):
+        skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
+        skill_script.parent.mkdir(parents=True)
+        skill_script.write_text("# mock")
+        changed = "scripts/changed.py\ndocs/guide.md\n"
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=changed, rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        skill_calls = [c for c in calls if len(c) >= 2 and c[1] == str(skill_script)]
+        assert skill_calls == [
+            [
+                sys.executable,
+                str(skill_script),
+                "--file",
+                "scripts/changed.py",
+                "--file",
+                "docs/guide.md",
+            ]
+        ]
+
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):
         changed = ".agents/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
