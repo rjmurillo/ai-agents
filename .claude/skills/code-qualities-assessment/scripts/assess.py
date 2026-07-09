@@ -60,8 +60,8 @@ _IMPORT_PATTERNS = {
     "csharp": re.compile(r"^\s*using\s+[A-Za-z_]"),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
     "go": re.compile(
-        r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*$'
-        r'|^\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*$'
+        r'^\s*import\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
+        r'|^\s+(?:(?:[A-Za-z_]\w*|\.)\s+)?"[^"]+"\s*(?://.*)?$'
     ),
 }
 

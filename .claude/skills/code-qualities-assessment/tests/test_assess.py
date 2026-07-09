@@ -316,6 +316,36 @@ def test_go_import_block_not_overcounted(tmp_path: Path) -> None:
     assert coupling.value == 7
 
 
+def test_go_imports_with_trailing_comments_counted(tmp_path: Path) -> None:
+    """Go import specs may carry a trailing ``// ...`` line comment, both for a
+    single ``import "x"`` line and inside an ``import ( ... )`` block. The
+    coupling regex must still count them; otherwise a tightly coupled file is
+    under-counted and can slip through the gate."""
+    single = _write(
+        tmp_path,
+        "single.go",
+        'package main\n\nimport "fmt" // formatting\n\nfunc main() {}\n',
+    )
+    # One counted import => coupling 9 (10 - 1); a missed import would score 10.
+    assert assess_file(single, "production", False).coupling.value == 9
+
+    block = _write(
+        tmp_path,
+        "block.go",
+        (
+            "package main\n\n"
+            "import (\n"
+            '    "fmt" // formatting\n'
+            '    "os"  // process env\n'
+            '    _ "github.com/lib/pq" // sql driver, blank import\n'
+            ")\n\n"
+            "func main() {}\n"
+        ),
+    )
+    # Three specs, each with a trailing comment => coupling 7 (10 - 3).
+    assert assess_file(block, "production", False).coupling.value == 7
+
+
 def test_web_indented_local_var_not_counted_as_global(tmp_path: Path) -> None:
     """An indented function-local ``var`` is not global state; only a
     module-scope (unindented) ``var`` lowers JS testability."""
