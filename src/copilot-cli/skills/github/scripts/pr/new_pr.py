@@ -231,7 +231,15 @@ def run_validations(
         timeout=30,
         env=_git_env(),
     )
-    changed_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
+    diff_failed = result.returncode != 0
+    if diff_failed:
+        print(
+            f"  WARNING: 'git diff {base}...{head}' failed (exit {result.returncode}); "
+            "changed-file set is unknown. Change-scoped checks are skipped, "
+            "not silently treated as 'no changes'.",
+            file=sys.stderr,
+        )
+    changed_files = result.stdout.strip().splitlines() if not diff_failed else []
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
 
     if agents_changed:
@@ -289,7 +297,10 @@ def run_validations(
             timeout=30,
         )
     elif os.path.exists(skill_script):
-        print("  No changed files to check.")
+        if diff_failed:
+            print("  Skipped: git diff failed, changed files unknown (see warning above).")
+        else:
+            print("  No changed files to check.")
 
     # Validation 3: Test coverage detection (WARNING)
     print()

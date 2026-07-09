@@ -335,6 +335,32 @@ class TestRunValidations:
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
 
+    def test_skill_violation_scan_skipped_when_git_diff_fails(self, tmp_path, capsys):
+        """A failed git diff must NOT run detect_skill_violation.py with zero
+        --file args (which would trigger a full-repo scan and 30s timeout), and
+        must NOT silently masquerade as 'no changes'. Instead it warns visibly
+        and skips the change-scoped scan (Copilot review, PR #3007)."""
+        skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
+        skill_script.parent.mkdir(parents=True)
+        skill_script.write_text("# mock")
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(rc=128, stderr="fatal: bad revision")
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        # detect_skill_violation.py must never be invoked on a failed diff.
+        assert not any(
+            len(cmd) >= 2 and cmd[1] == str(skill_script) for cmd in calls
+        )
+        err = capsys.readouterr().err
+        assert "git diff" in err and "failed" in err
+
     def test_skill_violation_detection_scopes_to_changed_files(self, tmp_path):
         skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
         skill_script.parent.mkdir(parents=True)
