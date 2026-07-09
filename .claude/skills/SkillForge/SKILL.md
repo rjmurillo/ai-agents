@@ -60,7 +60,7 @@ flow and script examples.
 - `create skill`: natural language activation
 - `design skill for {purpose}`: purpose-first creation
 - `ultimate skill`: maximum quality creation path
-- `skillforge --plan-only`: generate specification without execution
+- `SkillForge --plan-only`: generate specification without execution
 
 ### Routing Triggers
 
@@ -245,7 +245,7 @@ After creation:
 
 ## Scripts
 
-The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. Scripts use the Python 3 standard library. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
+The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
 
 | Script | Purpose |
 |--------|---------|

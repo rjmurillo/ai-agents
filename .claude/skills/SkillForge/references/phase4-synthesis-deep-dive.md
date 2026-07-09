@@ -78,4 +78,4 @@ IF 5 iterations without consensus:
     → User makes final decision
 ```
 
-See: [references/synthesis-protocol.md](synthesis-protocol.md)
+See: [synthesis-protocol.md](synthesis-protocol.md)
