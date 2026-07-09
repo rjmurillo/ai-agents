@@ -11,10 +11,10 @@ Usage:
 """
 
 import os
-import sys
 import re
+import sys
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import Any
 
 
 class SkillValidator:
@@ -29,9 +29,9 @@ class SkillValidator:
         self.skill_path = Path(skill_path)
         self.skill_md_path = self._find_skill_md()
         self.content = ""
-        self.frontmatter: Dict[str, Any] = {}
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+        self.frontmatter: dict[str, Any] = {}
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
         self.checks_passed = 0
         self.checks_total = 0
 
@@ -154,9 +154,14 @@ class SkillValidator:
         # Import or define constants
         try:
             from _constants import (
-                ALLOWED_PROPERTIES, REQUIRED_PROPERTIES, RECOMMENDED_PROPERTIES,
-                VALID_AGENT_TYPES, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH,
-                SEMVER_REGEX, NAME_REGEX
+                ALLOWED_PROPERTIES,
+                DESCRIPTION_MAX_LENGTH,
+                NAME_MAX_LENGTH,
+                NAME_REGEX,
+                RECOMMENDED_PROPERTIES,
+                REQUIRED_PROPERTIES,
+                SEMVER_REGEX,
+                VALID_AGENT_TYPES,
             )
         except ImportError:
             ALLOWED_PROPERTIES = {
@@ -384,7 +389,7 @@ class SkillValidator:
                     self.check(
                         f"frontmatter.hooks.{hook_name}[{i}].type",
                         False,
-                        f"Hook matcher should be an object with 'matcher' and 'hooks' keys"
+                        "Hook matcher should be an object with 'matcher' and 'hooks' keys"
                     )
                     continue
 
@@ -597,7 +602,7 @@ class SkillValidator:
                 self.check(
                     "scripts.presence",
                     False,
-                    f"SKILL.md references scripts/ but no scripts directory exists",
+                    "SKILL.md references scripts/ but no scripts directory exists",
                     warning=False
                 )
             elif bash_example_count > 3:
@@ -692,7 +697,7 @@ class SkillValidator:
             warning=True
         )
 
-    def _validate_script_documentation(self, scripts: List[Path]):
+    def _validate_script_documentation(self, scripts: list[Path]):
         """Check that scripts are documented in SKILL.md."""
         if not scripts:
             return
@@ -734,7 +739,7 @@ class SkillValidator:
                 warning=True
             )
 
-    def validate(self) -> Tuple[bool, str]:
+    def validate(self) -> tuple[bool, str]:
         """Run all validations and return result."""
         if not self.load_skill():
             return False, self._format_report()
