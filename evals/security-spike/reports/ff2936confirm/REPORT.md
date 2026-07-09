@@ -29,7 +29,7 @@
 | Agent - skill 95% bootstrap CI | [+0.00pp, +0.00pp] |
 | Agent tokens | 595028 |
 | Skill tokens | 594702 |
-| Verdict | `prefer-skill-form` |
+| Verdict | `inconclusive` |
 
 ## Per-Fixture Pass Rates
 

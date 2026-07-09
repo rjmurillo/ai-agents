@@ -42,7 +42,7 @@
     "skill_recall": 0.789474,
     "skill_tokens_in": 582040,
     "skill_tokens_out": 12662,
-    "verdict": "prefer-skill-form"
+    "verdict": "inconclusive"
   },
   "model_id": "claude-sonnet-4-6",
   "per_fixture_pass_rates": {
