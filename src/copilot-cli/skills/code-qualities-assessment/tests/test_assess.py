@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +47,13 @@ def _write(tmp_path: Path, name: str, body: str) -> Path:
 
 def _default_config() -> dict[str, Any]:
     # load_config with a nonexistent path returns the built-in defaults.
-    config: dict[str, Any] = load_config(str(Path("/nonexistent/.qualityrc.json")))
+    # Use a path inside a fresh temp dir and assert it is absent so the
+    # FileNotFoundError branch is exercised deterministically, independent
+    # of host filesystem state.
+    with tempfile.TemporaryDirectory() as tmp:
+        missing = Path(tmp) / ".qualityrc.json"
+        assert not missing.exists()
+        config: dict[str, Any] = load_config(str(missing))
     return config
 
 
