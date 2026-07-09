@@ -245,7 +245,7 @@ After creation:
 
 ## Scripts
 
-The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. All scripts use Python 3 standard library, the `Result` dataclass pattern, and shared exit codes: `0`=success, `1`=failure, `10`=validation failure, `11`=verification failure.
+The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. Scripts use the Python 3 standard library and exit `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
 
 | Script | Purpose |
 |--------|---------|
@@ -289,26 +289,10 @@ See [references/script-integration-framework.md](references/script-integration-f
 
 ## Related Skills
 
-| Skill | Relationship |
-|-------|--------------|
-| skill-composer | Can orchestrate created skills |
-| claude-authoring-guide | Deeper patterns reference |
-| codereview | Pattern for multi-agent panels |
-| maker-framework | Zero error standard source |
+skill-composer (orchestrate created skills), claude-authoring-guide (deeper patterns), codereview (multi-agent panel pattern), maker-framework (zero-error standard).
 
 ---
 
 ## Extension Points
 
-1. Add thinking models in [references/multi-lens-framework.md](references/multi-lens-framework.md).
-2. Extend panel agents in [references/synthesis-protocol.md](references/synthesis-protocol.md).
-3. Add architecture patterns in [references/architecture-patterns.md](references/architecture-patterns.md).
-4. Add domain templates in `assets/templates/`.
-5. Add script patterns in [references/script-patterns-catalog.md](references/script-patterns-catalog.md).
-6. Extend script categories in [references/script-integration-framework.md](references/script-integration-framework.md).
-
----
-
-## Changelog
-
-See [references/changelog.md](references/changelog.md) for the full version history.
+Add thinking models, panel agents, architecture patterns, or script patterns via the matching `references/*.md`; add domain templates in `assets/templates/`.
