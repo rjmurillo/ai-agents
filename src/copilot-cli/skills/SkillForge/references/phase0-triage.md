@@ -38,6 +38,7 @@ Before creating anything, SkillForge intelligently analyzes your input to determ
 │  Step 3: DECISION MATRIX                                            │
 │                                                                     │
 │  Match ≥80%  + explicit create → CLARIFY (duplicate warning)       │
+│  Match ≥60%  + skill question  → USE_EXISTING (recommend skill)    │
 │  Match ≥80%  + other input     → USE_EXISTING (recommend skill)    │
 │  Match 50-79%                  → IMPROVE_EXISTING (enhance match)  │
 │  Match <50%  + explicit create → CREATE_NEW (proceed to Phase 1)   │
@@ -50,7 +51,7 @@ Before creating anything, SkillForge intelligently analyzes your input to determ
 
 | Action | When | Result |
 |--------|------|--------|
-| **USE_EXISTING** | Match ≥80% | Recommends existing skill(s) to invoke |
+| **USE_EXISTING** | Match ≥80% (task, code, URL) or ≥60% (skill question) | Recommends existing skill(s) to invoke |
 | **IMPROVE_EXISTING** | Match 50-79% | Loads skill and enters enhancement mode |
 | **CREATE_NEW** | Match <50% | Proceeds to Phase 1 (Deep Analysis) |
 | **COMPOSE** | Multi-domain | Suggests skill chain via SkillComposer |
