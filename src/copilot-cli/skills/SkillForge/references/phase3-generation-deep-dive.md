@@ -1,6 +1,6 @@
 
 **Context:** Fresh, clean (no analysis artifacts polluting)
-**Standard:** Zero errors—every section verified before proceeding
+**Standard:** Zero errors, every section verified before proceeding
 
 ### Generation Order
 
