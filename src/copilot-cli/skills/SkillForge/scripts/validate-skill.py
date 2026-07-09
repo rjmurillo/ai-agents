@@ -73,7 +73,9 @@ class SkillValidator:
             if parsed is None:
                 self.frontmatter = {}
             elif not isinstance(parsed, dict):
-                self.errors.append(f"Frontmatter must be a YAML dictionary, got {type(parsed).__name__}")
+                self.errors.append(
+                    f"Frontmatter must be a YAML dictionary, got {type(parsed).__name__}"
+                )
                 return False
             else:
                 self.frontmatter = parsed
@@ -126,7 +128,8 @@ class SkillValidator:
 
             elif line.startswith('  ') and current_key == 'metadata':
                 # Basic nested parsing for metadata
-                if 'metadata' not in self.frontmatter or not isinstance(self.frontmatter['metadata'], dict):
+                metadata_val = self.frontmatter.get('metadata')
+                if 'metadata' not in self.frontmatter or not isinstance(metadata_val, dict):
                     self.frontmatter['metadata'] = {}
                 if ':' in line:
                     nested_key, nested_value = line.strip().split(':', 1)
@@ -170,18 +173,18 @@ class SkillValidator:
                 VALID_AGENT_TYPES,
             )
         except ImportError:
-            ALLOWED_PROPERTIES = {
+            ALLOWED_PROPERTIES = {  # noqa: N806
                 'name', 'description', 'license', 'allowed-tools', 'metadata',
                 'model', 'context', 'agent', 'hooks', 'user-invocable', 'version',
                 'argument-hint', 'size-exception'
             }
-            REQUIRED_PROPERTIES = {'name', 'description'}
-            RECOMMENDED_PROPERTIES = {'license'}
-            VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}
-            NAME_MAX_LENGTH = 64
-            DESCRIPTION_MAX_LENGTH = 1024
-            SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'
-            NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'
+            REQUIRED_PROPERTIES = {'name', 'description'}  # noqa: N806
+            RECOMMENDED_PROPERTIES = {'license'}  # noqa: N806
+            VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}  # noqa: N806
+            NAME_MAX_LENGTH = 64  # noqa: N806
+            DESCRIPTION_MAX_LENGTH = 1024  # noqa: N806
+            SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'  # noqa: N806
+            NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'  # noqa: N806
 
         # Check required fields
         for field in REQUIRED_PROPERTIES:
@@ -216,7 +219,8 @@ class SkillValidator:
             self.check(
                 "frontmatter.name.format",
                 re.match(NAME_REGEX, name) and '--' not in name,
-                f"Skill name should be hyphen-case (start with letter, no consecutive hyphens): {name}"
+                "Skill name should be hyphen-case "
+                f"(start with letter, no consecutive hyphens): {name}"
             )
             self.check(
                 "frontmatter.name.length",
@@ -331,7 +335,7 @@ class SkillValidator:
         try:
             from _constants import KNOWN_TOOLS
         except ImportError:
-            KNOWN_TOOLS = {
+            KNOWN_TOOLS = {  # noqa: N806
                 'Read', 'Glob', 'Grep', 'Write', 'Edit',
                 'Bash', 'Task', 'WebFetch', 'WebSearch',
                 'TodoWrite', 'NotebookEdit', 'AskUserQuestion'
@@ -368,8 +372,8 @@ class SkillValidator:
         try:
             from _constants import VALID_HOOK_EVENTS, VALID_HOOK_TYPES
         except ImportError:
-            VALID_HOOK_EVENTS = {'PreToolUse', 'PostToolUse', 'Stop'}
-            VALID_HOOK_TYPES = {'command', 'prompt'}
+            VALID_HOOK_EVENTS = {'PreToolUse', 'PostToolUse', 'Stop'}  # noqa: N806
+            VALID_HOOK_TYPES = {'command', 'prompt'}  # noqa: N806
 
         # Validate each hook event
         for hook_name, hook_config in hooks.items():
