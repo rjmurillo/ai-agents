@@ -47,7 +47,8 @@ TypeError: Cannot read property 'map' of undefined
 |-------|--------|--------------|
 | Any input | Triage → Route → Action | Phase 0 analysis |
 | Explicit create | New skill | Unanimous panel approval |
-| Task/question | Skill recommendation | Match confidence ≥60% |
+| Skill question | Skill recommendation | Match confidence ≥60% |
+| Task / code / URL | Recommend, improve, or compose | ≥80% recommend; 50-79% improve |
 
 ---
 

@@ -74,7 +74,7 @@ flow and script examples.
 |-------|--------|--------------|
 | Any input | Triage -> Route -> Action | Phase 0 analysis |
 | Explicit create | New skill | Unanimous panel approval |
-| Task or question | Skill recommendation | Match confidence >=60% |
+| Skill question | Skill recommendation | Match confidence >=60% |
 
 ---
 
@@ -122,9 +122,10 @@ local scripts, external facts, or true parallel sub-agent orchestration.
 ## Phase 0: Skill Triage
 
 Classify the input, scan the skill ecosystem, score matches, then route to one
-of five actions. Use existing skills for matches >=80%, improve matches in the
-50-79% range, create below 50%, compose multi-domain requests, and clarify only
-when ambiguity or duplicate risk blocks a safe route.
+of five actions. Recommend existing skills for strong matches (>=80%, or >=60%
+for skill questions), improve matches in the 50-79% range, create below 50%,
+compose multi-domain requests, and clarify only when ambiguity or duplicate risk
+blocks a safe route.
 
 See [references/phase0-triage.md](references/phase0-triage.md) for the decision
 matrix, script examples, ecosystem index, and integration with later phases.
@@ -198,14 +199,13 @@ safety, and packaging. Keep command examples portable when a plugin-root path is
 needed.
 
 ```bash
-# Quick validation (required for packaging)
-python scripts/quick_validate.py ~/.claude/skills/my-skill/
-
-# Full structural validation
-python scripts/validate-skill.py ~/.claude/skills/my-skill/
-
-# Package for distribution
-python scripts/package_skill.py ~/.claude/skills/my-skill/ ./dist
+# Validators enforce a path-traversal guard: the target skill directory must
+# live under your current directory. Run them from an ancestor of the skill.
+cd ~/.claude/skills
+FORGE=~/.claude/skills/SkillForge/scripts   # adjust to your SkillForge install
+python "$FORGE/quick_validate.py" my-skill/     # required before packaging
+python "$FORGE/validate-skill.py" my-skill/     # full structural validation
+python "$FORGE/package_skill.py" my-skill/ ./dist   # package for distribution
 ```
 
 See [references/output-structure.md](references/output-structure.md) for allowed
