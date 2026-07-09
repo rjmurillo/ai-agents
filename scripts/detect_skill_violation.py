@@ -68,6 +68,7 @@ VALID_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 SKIP_DIRS = frozenset(
     {
         ".git",
+        ".wt",
         ".worktrees",
         "node_modules",
         ".venv",
@@ -153,6 +154,29 @@ def get_staged_files(repo_root: Path) -> list[str]:
         return [f for f in files if Path(f).suffix in VALID_EXTENSIONS]
     except subprocess.TimeoutExpired:
         return []
+
+
+def get_requested_files(paths: Sequence[str]) -> list[str]:
+    """Return valid requested files, preserving order and removing duplicates.
+
+    Args:
+        paths: Requested file paths relative to the repository root.
+
+    Returns:
+        Relative file paths with extensions the scanner understands.
+    """
+    files: list[str] = []
+    seen: set[str] = set()
+    for raw_path in paths:
+        path = Path(raw_path)
+        if path.suffix not in VALID_EXTENSIONS:
+            continue
+        file_path = path.as_posix()
+        if file_path in seen:
+            continue
+        files.append(file_path)
+        seen.add(file_path)
+    return files
 
 
 def get_all_files(repo_root: Path) -> list[str]:
@@ -315,6 +339,13 @@ def parse_args() -> argparse.Namespace:
         help="Only check git-staged files",
     )
     parser.add_argument(
+        "--file",
+        dest="files",
+        action="append",
+        default=[],
+        help="Relative file to scan. May be repeated and overrides repository walk.",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress output (exit code only)",
@@ -346,7 +377,9 @@ def main() -> int:
             return 0
 
         # Get files to check
-        if args.staged_only:
+        if args.files:
+            files = get_requested_files(args.files)
+        elif args.staged_only:
             files = get_staged_files(repo_root)
         else:
             files = get_all_files(repo_root)

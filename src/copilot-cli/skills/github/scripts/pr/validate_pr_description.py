@@ -19,6 +19,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Validators
@@ -34,7 +35,7 @@ _ISSUE_KEYWORD_PATTERN = re.compile(
 )
 
 
-def validate_conventional_commit(title: str) -> dict:
+def validate_conventional_commit(title: str) -> dict[str, Any]:
     """Check title follows conventional commit format."""
     if _CONVENTIONAL_COMMIT_PATTERN.match(title):
         return {"Status": "PASS", "Message": "Title follows conventional commit format"}
@@ -47,7 +48,7 @@ def validate_conventional_commit(title: str) -> dict:
     }
 
 
-def validate_issue_keywords(text: str) -> dict:
+def validate_issue_keywords(text: str) -> dict[str, Any]:
     """Check for GitHub issue linking keywords."""
     keywords = [m.group() for m in _ISSUE_KEYWORD_PATTERN.finditer(text)]
     if keywords:
@@ -67,7 +68,7 @@ def validate_issue_keywords(text: str) -> dict:
     }
 
 
-def validate_template_compliance(body: str) -> dict:
+def validate_template_compliance(body: str) -> dict[str, Any]:
     """Check PR template section completion.
 
     Note: Patterns are coupled to .github/PULL_REQUEST_TEMPLATE.md format.

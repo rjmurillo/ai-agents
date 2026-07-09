@@ -25,6 +25,7 @@ from scripts.detect_skill_violation import (
     extract_capability_gaps,
     get_all_files,
     get_repo_root,
+    get_requested_files,
     get_skills_dir,
     get_staged_files,
     report_violations,
@@ -122,6 +123,18 @@ class TestGetStagedFiles:
         result = get_staged_files(project_root)
 
         assert isinstance(result, list)
+
+
+class TestGetRequestedFiles:
+    """Tests for explicit file selection."""
+
+    def test_filters_extensions_and_deduplicates(self) -> None:
+        """Only supported extensions are kept in original order."""
+        result = get_requested_files(
+            ["docs/readme.md", "image.png", "docs/readme.md", "scripts/tool.py"]
+        )
+
+        assert result == ["docs/readme.md", "scripts/tool.py"]
 
 
 class TestGetAllFiles:
@@ -512,6 +525,36 @@ class TestMainFunction:
         assert result == 0
         captured = capsys.readouterr()
         assert "No files to check" in captured.out
+
+    def test_main_file_argument_scans_only_requested_files(
+        self,
+        test_repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: CaptureFixture[str],
+    ) -> None:
+        """main() with --file scans only explicitly requested files."""
+        from scripts import detect_skill_violation
+
+        (test_repo / "violation.md").write_text("Run: gh pr create --title test")
+        (test_repo / "ignored.md").write_text("Run: gh issue list")
+
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "detect_skill_violation.py",
+                "--path",
+                str(test_repo),
+                "--file",
+                "violation.md",
+            ],
+        )
+
+        result = detect_skill_violation.main()
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "violation.md:1" in captured.out
+        assert "ignored.md" not in captured.out
 
     def test_main_invalid_repo(
         self,

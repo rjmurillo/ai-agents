@@ -281,8 +281,11 @@ def run_validations(
     print("[2/5] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
     if os.path.exists(skill_script):
+        skill_args = [sys.executable, skill_script]
+        for changed_file in changed_files:
+            skill_args.extend(["--file", changed_file])
         subprocess.run(
-            [sys.executable, skill_script],
+            skill_args,
             timeout=30,
         )
 

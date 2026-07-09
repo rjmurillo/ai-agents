@@ -335,6 +335,31 @@ class TestRunValidations:
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
 
+    def test_skill_violation_detection_scopes_to_changed_files(self, tmp_path):
+        skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
+        skill_script.parent.mkdir(parents=True)
+        skill_script.write_text("# mock")
+        changed = "scripts/changed.py\ndocs/guide.md\n"
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=changed, rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        assert calls[1] == [
+            sys.executable,
+            str(skill_script),
+            "--file",
+            "scripts/changed.py",
+            "--file",
+            "docs/guide.md",
+        ]
+
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):
         changed = ".agents/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
