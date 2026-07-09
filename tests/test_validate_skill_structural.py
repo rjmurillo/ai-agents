@@ -12,7 +12,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Protocol
 
 # Add the SkillForge scripts directory to the import path
 _scripts_dir = os.path.join(
@@ -36,7 +36,26 @@ _spec.loader.exec_module(_mod)
 SkillValidator = _mod.SkillValidator
 
 
-def _make_skill(tmp_path: Path, content: str) -> Any:
+class _ValidatorLike(Protocol):
+    """Structural view of SkillValidator used by this test suite.
+
+    The validator is imported via importlib from a hyphenated filename, so its
+    static type is ``Any``. Returning this Protocol from ``_make_skill`` keeps
+    the test bodies type-checked against a fixed surface instead of ``Any``.
+    """
+
+    errors: list[str]
+
+    def load_skill(self) -> bool: ...
+
+    def parse_frontmatter(self) -> bool: ...
+
+    def validate_frontmatter(self) -> None: ...
+
+    def validate_triggers(self) -> None: ...
+
+
+def _make_skill(tmp_path: Path, content: str) -> _ValidatorLike:
     """Create a skill directory with SKILL.md and return a validator."""
     skill_dir = tmp_path / "test-skill"
     skill_dir.mkdir()
@@ -45,7 +64,7 @@ def _make_skill(tmp_path: Path, content: str) -> Any:
     orig = os.getcwd()
     os.chdir(tmp_path)
     try:
-        validator = SkillValidator(str(skill_dir))
+        validator: _ValidatorLike = SkillValidator(str(skill_dir))
     finally:
         os.chdir(orig)
     return validator
