@@ -100,8 +100,8 @@ Scripts enable skills to be **agentic** - capable of autonomous operation with s
 **Script Requirements:**
 
 - Python 3.x with standard library only (graceful fallbacks for extras)
-- `Result` dataclass pattern for structured returns
-- Exit codes: 0=success, 1=failure, 10=validation failure, 11=verification failure
+- `Result` dataclass pattern for structured returns, where a script produces structured output
+- Exit codes follow the repo convention: 0=success, 1=logic error, 2=config error, 3=external error (see AGENTS.md)
 - Self-verification where applicable
 - Documented in SKILL.md with usage examples
 
