@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -643,7 +644,9 @@ def assert_no_claude_writes(
 
     Returns the sorted list of offending paths (empty when compliant).
     """
-    current = _snapshot_owned_prefixes(repo_root, CLAUDE_GUARD_PREFIX)
+    current = _snapshot_owned_prefixes(
+        repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
     offending: set[Path] = set()
     for path, content in current.items():
         if baseline.get(path) != content:
@@ -722,8 +725,61 @@ def _select_platform_configs(
 OWNED_PREFIXES: tuple[str, ...] = ("src/", ".github/instructions/", "docs/agent-catalog.md")
 
 
+def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
+    """Return absolute paths of gitignored files under ``prefixes``.
+
+    Runtime artifacts such as ``.claude/hooks/audit.log`` and the
+    ``__pycache__/*.pyc`` bytecode caches are gitignored. Generators never
+    emit gitignored files, so the REQ-003-010 guard must exclude them: a
+    session hook appending to ``audit.log`` or CPython writing bytecode
+    during the build window would otherwise register as a spurious
+    generator write and fail the build nondeterministically (issue #2992).
+
+    Uses ``git ls-files --others --ignored --exclude-standard`` (one call
+    per prefix, NUL-delimited). A git failure returns whatever was gathered
+    so far: the guard then falls back to snapshotting those paths, which is
+    safe but not race-immune. Paths are built as ``repo_root / rel`` without
+    ``resolve()`` so they compare equal to the ``rglob`` output in
+    :func:`_snapshot_owned_prefixes`.
+    """
+    ignored: set[Path] = set()
+    for prefix in prefixes:
+        argv = [
+            "git",
+            "-C",
+            str(repo_root),
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "-z",
+            "--",
+            prefix,
+        ]
+        try:
+            proc = subprocess.run(
+                argv,
+                capture_output=True,
+                check=False,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if proc.returncode != 0:
+            continue
+        for raw in proc.stdout.split(b"\x00"):
+            if not raw:
+                continue
+            rel = os.fsdecode(raw)
+            ignored.add(repo_root / rel)
+    return ignored
+
+
 def _snapshot_owned_prefixes(
-    repo_root: Path, prefixes: tuple[str, ...]
+    repo_root: Path,
+    prefixes: tuple[str, ...],
+    *,
+    exclude_ignored: bool = False,
 ) -> dict[Path, bytes]:
     """Snapshot every file under ``prefixes`` into an in-memory dict.
 
@@ -738,11 +794,19 @@ def _snapshot_owned_prefixes(
     not in scope today: generators only emit regular files, and treating
     them as such matches the existing copytree semantics in
     :func:`_build_directory_copy`.
+
+    When ``exclude_ignored`` is set, gitignored runtime artifacts (see
+    :func:`_ignored_paths`) are omitted. The REQ-003-010 guard passes this
+    so a concurrent hook write to ``.claude/hooks/audit.log`` or a bytecode
+    recompile does not read as a generator write (issue #2992).
     """
+    ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
     snapshot: dict[Path, bytes] = {}
     for prefix in prefixes:
         root = repo_root / prefix
         if root.is_file() and not root.is_symlink():
+            if root in ignored:
+                continue
             try:
                 snapshot[root] = root.read_bytes()
             except OSError:
@@ -754,6 +818,8 @@ def _snapshot_owned_prefixes(
             continue
         for path in root.rglob("*"):
             if not path.is_file() or path.is_symlink():
+                continue
+            if path in ignored:
                 continue
             try:
                 snapshot[path] = path.read_bytes()
@@ -901,7 +967,9 @@ def run(
     # REQ-003-010 (issue #2613): snapshot the .claude/ tree before any
     # generator runs so the no-write guard attributes only writes the
     # generators made, not pre-build drift such as a .claude/lib sync.
-    claude_baseline = _snapshot_owned_prefixes(repo_root, CLAUDE_GUARD_PREFIX)
+    claude_baseline = _snapshot_owned_prefixes(
+        repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
 
     try:
         return _run_generators(
