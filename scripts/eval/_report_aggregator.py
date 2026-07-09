@@ -20,8 +20,8 @@ different shape. See REQ-004 dependencies note.
 from __future__ import annotations
 
 import random
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from _eval_agent_types import RunRecord
 from _eval_common import (
@@ -347,9 +347,10 @@ def _cost_estimate(
             f"No pricing rate for model_id={model_id!r}. "
             f"Add it to MODEL_PRICING_RATES_USD_PER_1K_TOKENS in _eval_common.py."
         )
-    return (
-        total_tokens_in * rates["input"] + total_tokens_out * rates["output"]
-    ) / 1000.0
+    return float(
+        (total_tokens_in * rates["input"] + total_tokens_out * rates["output"])
+        / 1000.0
+    )
 
 
 class ReportAggregator:
@@ -475,6 +476,7 @@ class ReportAggregator:
 # ---------------------------------------------------------------------------
 
 FormFactorVerdict = str  # {"prefer-skill-form", "prefer-agent-form", "inconclusive"}
+FORM_FACTOR_EQUIVALENCE_CI_HALF_WIDTH_LIMIT = 0.10
 
 
 @dataclass
@@ -522,15 +524,19 @@ def _form_factor_verdict(
 ) -> FormFactorVerdict:
     """Map the agent-skill delta, its CI, and per-variant cost to a verdict.
 
-    Criteria mirror the Issue #1875 normative table:
+    Criteria mirror the Issue #1875 normative table, with the Issue #2936
+    equivalence-margin guard applied before cost-based equivalence:
       - prefer-agent-form: delta > 0 AND CI lower bound > 0 (the agent form
         genuinely helps beyond the content).
-      - prefer-skill-form: the CI spans zero (form does not measurably help)
-        AND the skill variant is cheaper. Default to the cheaper form.
-      - inconclusive: the CI spans zero but the skill is not cheaper, so
-        there is no cost reason to prefer either form.
-    The order matters: a genuine agent-form win wins even when skill is
-    cheaper.
+      - prefer-skill-form: CI upper bound < 0 (the skill form wins clearly).
+      - inconclusive: the CI spans zero and its half-width is > 0.10 recall
+        proportion units. The interval is too wide to conclude equivalence.
+      - prefer-skill-form: the CI spans zero, its half-width is <= 0.10, and
+        the skill variant is cheaper. Default to the cheaper equivalent form.
+      - inconclusive: the CI spans zero but the skill is not cheaper, so there
+        is no cost reason to prefer either form.
+    The order matters: clear agent and skill wins take precedence over the
+    width guard, and the width guard takes precedence over cheaper skill cost.
     """
     ci_low, ci_high = agent_skill_ci
     if agent_skill_delta > 0 and ci_low > 0:
@@ -538,6 +544,9 @@ def _form_factor_verdict(
     if ci_high < 0:
         return "prefer-skill-form"
     ci_spans_zero = ci_low <= 0 <= ci_high
+    ci_half_width = (ci_high - ci_low) / 2
+    if ci_spans_zero and ci_half_width > FORM_FACTOR_EQUIVALENCE_CI_HALF_WIDTH_LIMIT:
+        return "inconclusive"
     if ci_spans_zero and skill_tokens_total < agent_tokens_total:
         return "prefer-skill-form"
     return "inconclusive"

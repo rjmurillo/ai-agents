@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-07-09-session-2936",
+  "session": "2026-07-09-session-2936",
+  "timestamp": "2026-07-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Land issue #2936: correct the form-factor eval methodology with a content-controlled rerun where the skill body is byte-identical to the security agent body, so form is isolated from content. Update ADR-075 with the corrected verdict, add the content-controlled harness support and equivalence-margin verdict guard, commit the eval evidence, and exempt eval fixtures under evals/ from the pre-commit SkillForge structural validator.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "test",
+      "context": "Wrote tests/hooks/test_pre_commit_skill_validation_filter.py that extracts the exact filter block from the hook and runs it under bash, proving real skills are selected while evals/ fixtures and command-mirror skills are excluded. 6 tests pass.",
+      "chosen": "Wrote tests/hooks/test_pre_commit_skill_validation_filter.py that extracts the exact filter block from the hook and runs it under bash, proving real skills are selected while evals/ fixtures and command-mirror skills are excluded. 6 tests pass.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the content-controlled fixture body strips to the same SHA as the security agent body (be36604d...), matching report.json agent_prompt_sha; the parity test reads the fixture on disk, so the fixture is load-bearing and must stay tracked.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the commit blocker: the pre-commit SkillForge validator scans every staged /SKILL.md and had no exemption for eval fixtures, which are agent bodies reused verbatim and lack Triggers/Process sections by construction.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added an evals/ exemption to the pre-commit STAGED_SKILL_FILES filter with rationale, matching the existing command-mirror exemption pattern.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote tests/hooks/test_pre_commit_skill_validation_filter.py that extracts the exact filter block from the hook and runs it under bash, proving real skills are selected while evals/ fixtures and command-mirror skills are excluded. 6 tests pass.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Documented the exemption and the fixture reconstructability in ADR-075; verified 0 em/en dashes; ran the 49-test suite green and ruff on all changed files.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-09T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 64576c75c",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 12
+  },
+  "lessons": []
+}

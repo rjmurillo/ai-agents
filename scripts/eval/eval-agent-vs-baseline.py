@@ -49,6 +49,7 @@ from _eval_api_adapter import AnthropicAPIAdapter, APICallResult
 from _plan_runner import (
     FORM_FACTOR_VARIANTS,
     VARIANTS,
+    ExecutionPlan,
     PlanRunner,
     UnsupportedModelError,
 )
@@ -60,7 +61,7 @@ from _run_persistence import (
     RunDirectoryNotFreshError,
     RunPersistence,
 )
-from _scoring_engine import build_default_engine
+from _scoring_engine import ScoringEngine, build_default_engine
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -127,11 +128,12 @@ _AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 # operator-supplied identifiers.
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 # `--skill-path` flows into REPO_ROOT / <path>. Restrict to a repo-relative
-# path under `.claude/skills/` ending in `SKILL.md`; the resolved path is
+# path under `.claude/skills/` (shipped skills) or `evals/` (content-controlled
+# eval artifacts, Issue #2936), ending in `SKILL.md`; the resolved path is
 # re-checked against REPO_ROOT in `_read_skill_prompt`. No `..`, no leading
 # slash, no backslash.
 _SKILL_PATH_RE = re.compile(
-    r"^\.claude/skills/[A-Za-z0-9][A-Za-z0-9._/-]{0,127}/SKILL\.md$"
+    r"^(?:\.claude/skills|evals)/[A-Za-z0-9][A-Za-z0-9._/-]{0,159}/SKILL\.md$"
 )
 
 
@@ -293,7 +295,7 @@ class FixtureValidator:
 
     @staticmethod
     def _validate_assertion(
-        path: Path, fixture_id: str, index: int, item: Any
+        path: Path, fixture_id: str, index: int, item: object
     ) -> Assertion:
         if not isinstance(item, dict):
             raise FixtureValidationError(
@@ -370,15 +372,39 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _strip_frontmatter(text: str) -> str:
+    """Return the prompt body with a leading YAML frontmatter block removed.
+
+    Content-control for the form-factor eval (Issue #2936): the agent prompt
+    (`security.shared.md`) and the content-controlled skill carry different
+    frontmatter (the agent's includes a behaviorally-relevant `description`),
+    while their bodies are byte-identical. Stripping the leading `---`-fenced
+    block from both variants sends the model identical content and makes the
+    recorded `prompt_sha` identical, so the eval isolates FORM from content.
+
+    A document without a leading frontmatter fence is returned unchanged.
+    """
+    if not text.startswith("---"):
+        return text
+    match = re.match(r"^---[ \t]*\n.*?\n---[ \t]*\n", text, re.DOTALL)
+    if match is None:
+        return text
+    return text[match.end():]
+
+
 def _read_agent_prompt(agent: str) -> tuple[str, str]:
-    """Return (prompt_text, prompt_ref). Raises FileNotFoundError on miss."""
+    """Return (prompt_text, prompt_ref). Raises FileNotFoundError on miss.
+
+    `prompt_text` is the frontmatter-stripped body (see `_strip_frontmatter`)
+    so the agent and skill variants are compared on identical content.
+    """
     rel = AGENT_PROMPT_REF_TEMPLATE.format(agent=agent)
     path = _assert_under_repo_root(REPO_ROOT / rel)
     if not path.exists():
         raise FileNotFoundError(
             f"agent prompt not found at {path} (looked for {agent}.shared.md)"
         )
-    return path.read_text(encoding="utf-8"), rel
+    return _strip_frontmatter(path.read_text(encoding="utf-8")), rel
 
 
 def _read_skill_prompt(agent: str, skill_rel: str | None) -> tuple[str, str]:
@@ -390,6 +416,10 @@ def _read_skill_prompt(agent: str, skill_rel: str | None) -> tuple[str, str]:
     (`.claude/skills/<agent>-review/SKILL.md`). Raises FileNotFoundError on
     miss so the runner exits config (2) rather than ship a skill-variant run
     with no skill content.
+
+    `skill_text` is the frontmatter-stripped body (see `_strip_frontmatter`)
+    so a content-controlled skill whose body matches the agent body yields an
+    identical `prompt_sha`.
     """
     rel = skill_rel if skill_rel is not None else SKILL_PROMPT_REF_TEMPLATE.format(
         agent=agent
@@ -400,7 +430,7 @@ def _read_skill_prompt(agent: str, skill_rel: str | None) -> tuple[str, str]:
             f"skill prompt not found at {path} (looked for {rel}). The skill "
             "variant needs a SKILL.md; create it or pass --skill-path."
         )
-    return path.read_text(encoding="utf-8"), rel
+    return _strip_frontmatter(path.read_text(encoding="utf-8")), rel
 
 
 def _fixture_sha(path: Path) -> str:
@@ -419,7 +449,7 @@ def _fixture_set_sha(paths: list[Path]) -> str:
 
 def _generate_run_id() -> str:
     """ISO8601 compact timestamp + UUID4 short tail. Collision-free by construction."""
-    now = _dt.datetime.now(_dt.timezone.utc)
+    now = _dt.datetime.now(_dt.UTC)
     stamp = now.strftime("%Y%m%dT%H%M%SZ")
     suffix = uuid.uuid4().hex[:8]
     return f"{stamp}-{suffix}"
@@ -584,7 +614,7 @@ def _execute_one(
     agent_prompt: str,
     agent_prompt_ref: str,
     adapter: AnthropicAPIAdapter,
-    scoring_engine,
+    scoring_engine: ScoringEngine,
     skill_prompt: str | None = None,
     skill_prompt_ref: str | None = None,
 ) -> RunRecord:
@@ -659,7 +689,7 @@ def _run_live(
     args: argparse.Namespace,
     fixtures: list[Fixture],
     fixture_paths: list[Path],
-    plan,
+    plan: ExecutionPlan,
 ) -> int:
     """Execute the live run loop. Returns exit code."""
     try:
@@ -712,7 +742,9 @@ def _run_live(
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
-    fixture_path_by_id = {f.id: p for f, p in zip(fixtures, fixture_paths)}
+    fixture_path_by_id = {
+        f.id: p for f, p in zip(fixtures, fixture_paths, strict=True)
+    }
     adapter = AnthropicAPIAdapter()
     engine = build_default_engine()
 

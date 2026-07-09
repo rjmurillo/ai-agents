@@ -918,9 +918,17 @@ SKILL_VALIDATOR="$REPO_ROOT/.claude/skills/SkillForge/scripts/validate-skill.py"
 # the same reason; this filter is the validator-level analogue. Issue #2743
 # completed the list: checkpoint, pr-review, retro, and sync are command-mirrors
 # of the same kind that were missing here.
+# Also exclude eval fixtures under evals/ (issue #2936). These are harness
+# inputs, not shipped skills: the form-factor eval reuses an agent body verbatim
+# as a "skill" body to isolate form from content, so a content-controlled
+# fixture inherently lacks SkillForge Triggers/Process sections by construction.
+# The eval's own --skill-path allow-list (eval-agent-vs-baseline.py) already
+# restricts to evals/**/SKILL.md, and these fixtures are never installed or
+# loaded as skills, so structural skill validation does not apply to them.
 STAGED_SKILL_FILES=$(echo "$STAGED_FILES" \
     | grep -E '/SKILL\.md$' \
     | grep -v -E '^src/copilot-cli/skills/(spec|plan|build|test|ship|checkpoint|pr-review|retro|sync)/SKILL\.md$' \
+    | grep -v -E '^evals/' \
     || true)
 
 if [ -n "$STAGED_SKILL_FILES" ]; then
