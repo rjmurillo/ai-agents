@@ -143,11 +143,11 @@ Create `.qualityrc.json` to customize thresholds:
 ```json
 {
   "thresholds": {
-    "cohesion": { "min": 7, "warn": 5 },
-    "coupling": { "max": 3, "warn": 5 },
-    "encapsulation": { "min": 7, "warn": 5 },
-    "testability": { "min": 6, "warn": 4 },
-    "nonRedundancy": { "min": 8, "warn": 6 }
+    "cohesion": { "min": 7 },
+    "coupling": { "min": 7 },
+    "encapsulation": { "min": 7 },
+    "testability": { "min": 6 },
+    "nonRedundancy": { "min": 8 }
   },
   "context": {
     "test": {
@@ -280,7 +280,7 @@ Output:
 
 ## Summary
 - **Cohesion**: 8/10
-- **Coupling**: 4/10 (warning)
+- **Coupling**: 4/10
 - **Encapsulation**: 9/10
 - **Testability**: 7/10
 - **Non-Redundancy**: 9/10

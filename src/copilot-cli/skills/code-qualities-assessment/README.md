@@ -45,11 +45,11 @@ Create `.qualityrc.json` in your project root:
 ```json
 {
   "thresholds": {
-    "cohesion": { "min": 7, "warn": 5 },
-    "coupling": { "max": 3, "warn": 5 },
-    "encapsulation": { "min": 7, "warn": 5 },
-    "testability": { "min": 6, "warn": 4 },
-    "nonRedundancy": { "min": 8, "warn": 6 }
+    "cohesion": { "min": 7 },
+    "coupling": { "min": 7 },
+    "encapsulation": { "min": 7 },
+    "testability": { "min": 6 },
+    "nonRedundancy": { "min": 8 }
   },
   "ignore": ["**/generated/**", "**/*.pb.py"]
 }
