@@ -339,7 +339,7 @@ class TestRunValidations:
         """A failed git diff must NOT run detect_skill_violation.py with zero
         --file args (which would trigger a full-repo scan and 30s timeout), and
         must NOT silently masquerade as 'no changes'. Instead it warns visibly
-        and skips the change-scoped scan (Copilot review, PR #3007)."""
+        and skips the change-scoped scan (Copilot review, issue #3006)."""
         skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
         skill_script.parent.mkdir(parents=True)
         skill_script.write_text("# mock")
