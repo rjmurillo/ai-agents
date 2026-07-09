@@ -1,38 +1,23 @@
 ---
 name: memory
-version: 0.2.0
-description: Unified four-tier memory system for AI agents. Tier 1 Semantic (Serena+Forgetful
-  search), Tier 2 Episodic (session replay), Tier 3 Causal (decision patterns). Enables
-  memory-first architecture per ADR-007. Use when you ask "what do we know about X",
-  "recall prior context", "search memory". Do NOT use for adding citations to existing
-  memories (use memory-enhancement) or for narrative cross-system reports (use memory-documentary).
+version: 0.3.0
+description: Thin router for the four-tier memory system. Points callers at the
+  focused sub-skills for each operation, Tier 1 search, the reflexion write path,
+  the memory-first gate, and maintenance. Use when you ask "what do we know about
+  X", "recall prior context", or "search memory" and are not sure which operation
+  you need. Do NOT use for adding citations (use memory-enhancement) or narrative
+  cross-system reports (use memory-documentary).
 license: MIT
 model: claude-sonnet-4-6
 metadata:
-  adr: ADR-037, ADR-038
+  adr: ADR-037, ADR-038, ADR-063
   timelessness: 8/10
 ---
 # Memory System Skill
 
-Unified memory operations across four tiers for AI agents.
-
----
-
-## Quick Start
-
-```bash
-# Check system health
-python3 .claude/skills/memory/scripts/test_memory_health.py
-
-# Search memory (Tier 1)
-python3 .claude/skills/memory/scripts/search_memory.py "git hooks"
-
-# Extract episode from session (Tier 2)
-python3 .claude/skills/memory/scripts/extract_session_episode.py ".agents/sessions/2026-01-01-session-126.json"
-
-# Update causal graph (Tier 3)
-python3 .claude/skills/memory/scripts/update_causal_graph.py
-```
+Thin router across the four-tier memory system. Each operation lives in a focused
+sub-skill (ADR-063 memory-skill decomposition); this router points you at the
+right one so a caller loads only the surface it needs.
 
 ---
 
@@ -40,149 +25,31 @@ python3 .claude/skills/memory/scripts/update_causal_graph.py
 
 | Scenario | Use Memory Router? | Alternative |
 |----------|-------------------|-------------|
-| Script needs memory | Yes | - |
+| Not sure which memory operation you need | Yes | - |
+| Tier 1 search only | No | `memory-search` sub-skill |
+| Record a completed session | No | `memory-reflexion` sub-skill |
+| Pre-change memory-first gate | No | `memory-gate` sub-skill |
+| Health, token count, benchmark | No | `memory-maintenance` sub-skill |
 | Agent needs deep context | No | `exploring-knowledge-graph` skill |
 | Human at CLI | No | `/memory-search` command |
-| Cross-project semantic search | No | Forgetful MCP directly |
 
-See the [exploring-knowledge-graph skill](../exploring-knowledge-graph/SKILL.md) for the deep-context decision tree and the five-source strategy (Issue #2103 folded the former context-retrieval agent into it).
-
----
-
-## Memory-First as Chesterton's Fence
-
-**Core Insight**: Memory-first architecture implements Chesterton's Fence principle for AI agents.
-
-> "Do not remove a fence until you know why it was put up" - G.K. Chesterton
-
-**Translation for agents**: Do not change code/architecture/protocol until you search memory for why it exists.
-
-### Why This Matters
-
-**Without memory search** (removing fence without investigation):
-
-- Agent encounters complex code, thinks "this is ugly, I'll refactor it"
-- Removes validation logic that prevents edge case
-- Production incident occurs
-- Memory contains past incident that explains why validation existed
-
-**With memory search** (Chesterton's Fence investigation):
-
-- Agent encounters complex code
-- Searches memory: `search_memory.py "validation logic edge case"`
-- Finds past incident explaining why code exists
-- Makes informed decision: preserve, modify, or replace with equivalent safety
-
-### Investigation Protocol
-
-When you encounter something you want to change:
-
-| Change Type | Memory Search Required |
-|-------------|------------------------|
-| Remove ADR constraint | `search_memory.py "[constraint name]"` |
-| Bypass protocol | `search_memory.py "[protocol name] why"` |
-| Delete >100 lines | `search_memory.py "[component] purpose"` |
-| Refactor complex code | `search_memory.py "[component] edge case"` |
-| Change workflow | `search_memory.py "[workflow] rationale"` |
-
-### What Memory Contains (Git Archaeology)
-
-**Tier 1 (Semantic)**: Facts, patterns, constraints
-
-- Why does PowerShell-only constraint exist? (ADR-005)
-- Why do skills exist instead of raw CLI? (usage-mandatory)
-- What incidents led to BLOCKING gates? (protocol-blocking-gates)
-
-**Tier 2 (Episodic)**: Past session outcomes
-
-- What happened when we tried approach X? (session replay)
-- What edge cases did we encounter? (failure episodes)
-
-**Tier 3 (Causal)**: Decision patterns
-
-- What decisions led to success? (causal paths)
-- What patterns should we repeat/avoid? (success/failure patterns)
-
-### Memory-First Gate (BLOCKING)
-
-**Before changing existing systems, you MUST**:
-
-1. `python3 .claude/skills/memory/scripts/search_memory.py "[topic]"`
-2. Review results for historical context
-3. If insufficient, escalate to Tier 2/3
-4. Document findings in decision rationale
-5. Only then proceed with change
-
-**Why BLOCKING**: <50% compliance with "check memory first" guidance. Making it BLOCKING achieves 100% compliance (same pattern as session protocol gates).
-
-**Verification**: Session logs must show memory search BEFORE decisions, not after.
-
-### Connection to Chesterton's Fence Analysis
-
-See `.agents/analysis/chestertons-fence.md` for:
-
-- 4-phase decision framework (Investigation → Understanding → Evaluation → Action)
-- Application to ai-agents project (ADR-037 recursion guard, skills-first violations)
-- Decision matrix for when to investigate
-- Implementation checklist
-
-**Key takeaway**: Memory IS your investigation tool. It contains the "why" that Chesterton's Fence requires you to discover.
+See the [exploring-knowledge-graph skill](../exploring-knowledge-graph/SKILL.md)
+for the deep-context decision tree and the five-source strategy (Issue #2103
+folded the former context-retrieval agent into it).
 
 ---
 
-## Context Engineering
+## Related Sub-Skills
 
-This skill implements [progressive disclosure principles](../../../.agents/analysis/context-engineering.md) from Anthropic and claude-mem.ai research through three-layer architecture.
+The router delegates every operation to a focused sub-skill. Load the one that
+matches your task; each carries a smaller context than the full memory surface.
 
-### Architecture
-
-| Layer | Tool | Cost | When to Use |
-|-------|------|------|-------------|
-| **Index** | `search_memory.py` | ~100-500 tokens | Always start here |
-| **Details** | `mcp__serena__read_memory` | ~500-10K tokens | After index confirms relevance |
-| **Deep Dive** | Follow cross-references | Variable | For complete understanding |
-
-**Routing**: `search_memory.py "<q>"` keyword-ranks Serena memory names (Serena-first, augments with Forgetful when reachable, flags large memories by token estimate) and returns the relevant `*-index`; `read_memory` it, then follow its links to the atomic file. Raw fallback when scripting: guess `read_memory("<intuitive-name>")` (a miss is a cheap "not found", not a list), then the domain `*-index`, then `read_memory("memory-index")`. Prefer these name/index lookups over a bare `list_memories`. On add: update the `*-index` so the next agent finds it by name. Atomic files plus indexes are deliberate (no embeddings; filename is the activation vocabulary): do NOT consolidate atomic memories to cheapen listing, it breaks discovery and cross-links.
-
-### Token Cost Visibility
-
-```bash
-# Count tokens before retrieval (informed ROI decision)
-python3 .claude/skills/memory/scripts/count_memory_tokens.py .serena/memories/memory-index.md
-
-# Output: memory-index.md: 2,450 tokens
-```
-
-**Caching**: SHA-256 hash-based cache in `.serena/.token-cache.json` provides 10-100x speedup on repeated queries.
-
-See: [scripts/README-count-tokens.md](scripts/README-count-tokens.md)
-
-### Size Validation
-
-```bash
-# Pre-commit hook: enforce atomicity thresholds
-python3 .claude/skills/memory/scripts/test_memory_size.py .serena/memories --pattern "*.md"
-
-# Exit 0 (pass) or 1 (fail) with decomposition recommendations
-```
-
-**Thresholds** (from `memory-size-001-decomposition-thresholds`):
-
-- Max 10,000 chars (~2,500 tokens, atomic memory)
-- Max 15 skills (independent concepts per file)
-- Max 5 categories (domain focus)
-
-See: [scripts/README-test-size.md](scripts/README-test-size.md)
-
-### Principles
-
-**Progressive Disclosure**: List names → Read details → Deep dive on cross-references. Prevents loading 9,500 tokens when only 1,200 are relevant (87% waste reduction).
-
-**Just-in-Time Retrieval**: Serena-first with Forgetful augmentation. High precision through lexical search before expensive semantic operations.
-
-**Size Enforcement**: Atomic memories prevent token waste. One retrievable concept per file.
-
-For full analysis, see: `.agents/analysis/context-engineering.md`
+| Sub-Skill | Operation | Load When |
+|-----------|-----------|-----------|
+| `memory-search` | Tier 1 semantic search (Serena + Forgetful) | You need facts, patterns, or rules |
+| `memory-reflexion` | Tier 2 episode extraction and Tier 3 causal update | You are recording a completed session |
+| `memory-gate` | Memory-First Gate (BLOCKING) and Chesterton's Fence protocol | You are about to change an existing system |
+| `memory-maintenance` | Health check, token count, size validation, benchmark, density | You are maintaining the memory stores |
 
 ---
 
@@ -190,26 +57,11 @@ For full analysis, see: `.agents/analysis/context-engineering.md`
 
 Use this skill when the user says:
 
-- `search memory` for semantic search across tiers
-- `check memory health` for system status
-- `extract episode from session` for session replay
-- `update causal graph` for pattern tracking
-- `count memory tokens` for budget analysis
-
----
-
-## Quick Reference
-
-| Operation | Script | Key Parameters |
-|-----------|--------|----------------|
-| Search facts/patterns | `search_memory.py` | `query`, `--lexical-only`, `--max-results` |
-| Extract episode | `extract_session_episode.py` | `session_log_path`, `--output-path` |
-| Update patterns | `update_causal_graph.py` | `--episode-path`, `--dry-run` |
-| Health check | `test_memory_health.py` | `--format` (json/table) |
-| Benchmark performance | `measure_memory_performance.py` | `--serena-only`, `--format` |
-| Convert index links | `convert_index_table_links.py` | `--memory-path`, `--dry-run` |
-| Cross-reference | `invoke_memory_cross_reference.py` | `--memory-path`, `--threshold` |
-| Improve graph density | `improve_memory_graph_density.py` | `--memory-path`, `--dry-run` |
+- `search memory` for semantic search across tiers (routes to memory-search)
+- `check memory health` for system status (routes to memory-maintenance)
+- `extract episode from session` for session replay (routes to memory-reflexion)
+- `update causal graph` for pattern tracking (routes to memory-reflexion)
+- `memory-first gate` before changing an existing system (routes to memory-gate)
 
 ---
 
@@ -219,61 +71,40 @@ Use this skill when the user says:
 What do you need?
 │
 ├─► Current facts, patterns, or rules?
-│   └─► TIER 1: search_memory.py
+│   └─► memory-search sub-skill (Tier 1)
 │
-├─► What happened in a specific session?
-│   └─► TIER 2: Episode JSON in .agents/memory/episodes/
+├─► About to change existing code, a constraint, or a protocol?
+│   └─► memory-gate sub-skill (search the "why" first, BLOCKING)
 │
-├─► Need to store new knowledge?
-│   ├─ From completed session? → extract_session_episode.py
-│   └─ Factual knowledge? → using-forgetful-memory skill
+├─► Record what happened in a completed session?
+│   └─► memory-reflexion sub-skill (Tier 2 episode, then Tier 3 causal)
 │
-├─► Update decision patterns?
-│   └─► TIER 3: update_causal_graph.py
+├─► Store new factual knowledge directly?
+│   └─► using-forgetful-memory skill
+│
+├─► Check health, count tokens, benchmark, or improve graph density?
+│   └─► memory-maintenance sub-skill
 │
 └─► Not sure which tier?
-    └─► Start with TIER 1 (search_memory.py), escalate if insufficient
+    └─► Start with memory-search (Tier 1), escalate if insufficient
 ```
 
----
-
-## Anti-Patterns
-
-| Anti-Pattern | Do This Instead |
-|--------------|-----------------|
-| Skipping memory search | Always search before multi-step reasoning |
-| Tier confusion | Follow decision tree explicitly |
-| Forgetful dependency | Use `--lexical-only` fallback |
-| Stale causal graph | Run `update_causal_graph.py` after extractions |
-| Incomplete extraction | Only extract from COMPLETED sessions |
+For deeper guidance on picking a tier, see
+[references/tier-selection-guide.md](references/tier-selection-guide.md).
 
 ---
 
-## See Also
+## Progressive Disclosure
 
-| Document | Content |
-|----------|---------|
-| [quick-start.md](references/quick-start.md) | Common workflows |
-| [skill-reference.md](references/skill-reference.md) | Detailed script parameters |
-| [tier-selection-guide.md](references/tier-selection-guide.md) | When to use each tier |
-| [memory-router.md](references/memory-router.md) | ADR-037 router architecture |
-| [memory-reflexion skill](../memory-reflexion/SKILL.md) | ADR-038 episode/causal write path and schemas |
-| [troubleshooting.md](references/troubleshooting.md) | Error recovery |
-| [benchmarking.md](references/benchmarking.md) | Performance targets |
-| [agent-integration.md](references/agent-integration.md) | Multi-agent patterns |
-| [zettelkasten-memory-agents.md](references/zettelkasten-memory-agents.md) | Atomic memory principle and auto-linking |
-| [codebase-knowledge-graph.md](references/codebase-knowledge-graph.md) | GitNexus pattern for structural context via MCP |
+The memory system uses progressive disclosure: list names, read details, deep
+dive on cross-references. This prevents loading a large memory when a small slice
+answers the query (up to an 87% token reduction). The `memory-search` sub-skill
+owns the Tier 1 index-then-read flow; start there.
 
----
-
-## Storage Locations
-
-| Data | Location |
-|------|----------|
-| Serena memories | `.serena/memories/*.md` |
-| Forgetful memories | HTTP MCP (vector DB) |
-| Episodes | `.agents/memory/episodes/*.json` |
-| Causal graph | `.agents/memory/causality/causal-graph.json` |
+Atomic files plus indexes are deliberate: there are no embeddings, so the
+filename is the activation vocabulary. Do NOT consolidate atomic memories to
+cheapen listing; it breaks discovery and cross-links. On add, update the domain
+`*-index` so the next agent finds the memory by name.
 
 ---
 
@@ -338,30 +169,66 @@ When observations contradict, prefer the most recent, create a new memory with a
 
 ---
 
+## Storage Locations
+
+| Data | Location |
+|------|----------|
+| Serena memories | Serena memory store (travels with the repository) |
+| Forgetful memories | HTTP MCP (vector DB) |
+| Episodes | Local episode store (see `memory-reflexion`) |
+| Causal graph | Local causal-graph store (see `memory-reflexion`) |
+
+---
+
+## Anti-Patterns
+
+| Anti-Pattern | Do This Instead |
+|--------------|-----------------|
+| Skipping the memory-first gate | Route to `memory-gate` before changing existing systems |
+| Loading the full router for one operation | Load the focused sub-skill instead |
+| Tier confusion | Follow the decision tree; start at Tier 1 |
+| Consolidating atomic memories | Keep one concept per file; update the index on add |
+
+---
+
+## See Also
+
+Router-owned references, shared across the memory sub-skills. Operation-specific
+references travel with their sub-skill (ADR-063).
+
+| Document | Content |
+|----------|---------|
+| [tier-selection-guide.md](references/tier-selection-guide.md) | When to use each tier |
+| [zettelkasten-memory-agents.md](references/zettelkasten-memory-agents.md) | Atomic memory principle and auto-linking |
+| [codebase-knowledge-graph.md](references/codebase-knowledge-graph.md) | GitNexus pattern for structural context via MCP |
+
+---
+
 ## Verification
 
 | Operation | Verification |
 |-----------|--------------|
+| Routed to sub-skill | Sub-skill SKILL.md loaded and its verification gate applied |
 | Search completed | Result count > 0 OR logged "no results" |
 | Episode extracted | JSON file in `.agents/memory/episodes/` |
-| Graph updated | Stats show nodes/edges added |
 | Health check | All tiers show "available: true" |
 
-```bash
-python3 .claude/skills/memory/scripts/test_memory_health.py --format table
-```
+Verification checklist:
+
+- [ ] Correct sub-skill selected from the decision tree
+- [ ] Operation ran through the sub-skill, not inline in the router
 
 ---
 
 ## Process
 
-### Phase 1: Query
+### Phase 1: Route
 
-Determine the memory tier and run the appropriate script.
+Match the request to a sub-skill using the decision tree and When-to-Use matrix.
 
-### Phase 2: Validate
+### Phase 2: Delegate
 
-Verify results are non-empty and relevant to the query context.
+Load the selected sub-skill and run its operation against the canonical scripts.
 
 ### Phase 3: Report
 
@@ -371,6 +238,9 @@ Return structured results to the caller with source attribution.
 
 ## Scripts
 
+The router owns the canonical memory scripts. Sub-skills delegate to these paths
+(ADR-063); the router does not duplicate them.
+
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
 | `search_memory.py` | Tier 1 semantic search across Serena and Forgetful | 0=success, 1=error |
@@ -379,7 +249,16 @@ Return structured results to the caller with source attribution.
 | `test_memory_health.py` | System health dashboard | 0=success |
 | `extract_session_episode.py` | Episode extraction from session logs | 0=success, 1=error |
 | `update_causal_graph.py` | Causal graph pattern tracking | 0=success, 1=error |
-| `measure_memory_performance.py` | Serena/Forgetful benchmark | 0=success, 1=error |
+| `measure_memory_performance.py` | Serena and Forgetful benchmark | 0=success, 1=error |
+| `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |
+| `convert_index_table_links.py` | Index table link conversion | 0=success, 1=error |
+| `invoke_memory_cross_reference.py` | Cross-reference memories | 0=success, 1=error |
+
+Invoke via the portable root form:
+
+```bash
+"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
+```
 
 ---
 
@@ -387,10 +266,14 @@ Return structured results to the caller with source attribution.
 
 | Skill | When to Use Instead |
 |-------|---------------------|
-| `memory-search` | Tier 1 search only; smaller context than the full router (ADR-063) |
-| `memory-reflexion` | Tier 2 episode extraction and Tier 3 causal-graph update; smaller context than the full router (ADR-063) |
+| `memory-search` | Tier 1 search only; smaller context than the router (ADR-063) |
+| `memory-reflexion` | Tier 2 episode extraction and Tier 3 causal update (ADR-063) |
+| `memory-gate` | Memory-First Gate and Chesterton's Fence protocol (ADR-063) |
+| `memory-maintenance` | Health, token count, size, benchmark, density (ADR-063) |
+| `memory-enhancement` | Add citations, verify code references, track confidence |
+| `memory-documentary` | Narrative cross-system memory reports |
 | `using-forgetful-memory` | Deep Forgetful operations (create, update, link) |
-| `curating-memories` | Memory maintenance (obsolete, deduplicate) |
+| `curating-memories` | Memory content maintenance (obsolete, deduplicate) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal |
 
-<!-- vendor-portability: declared. This skill links analysis docs under .agents/analysis/ and reads/writes its episode and causal-graph stores under .agents/memory/. The analysis links are documentation; the memory stores are the consumer's own data dirs, created on demand when absent in a vendored install. Issue #2050. -->
+<!-- vendor-portability: declared. This skill links reference docs that ship in its own references/ tree and routes callers to sibling sub-skills. The episode and causal-graph stores are the consumer's own data dirs, created on demand when absent in a vendored install. Issue #2050, ADR-063. -->
