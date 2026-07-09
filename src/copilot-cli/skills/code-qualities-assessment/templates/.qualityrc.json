@@ -1,24 +1,19 @@
 {
   "thresholds": {
     "cohesion": {
-      "min": 7,
-      "warn": 5
+      "min": 7
     },
     "coupling": {
-      "min": 7,
-      "warn": 5
+      "min": 7
     },
     "encapsulation": {
-      "min": 7,
-      "warn": 5
+      "min": 7
     },
     "testability": {
-      "min": 6,
-      "warn": 4
+      "min": 6
     },
     "nonRedundancy": {
-      "min": 8,
-      "warn": 6
+      "min": 8
     }
   },
   "context": {
