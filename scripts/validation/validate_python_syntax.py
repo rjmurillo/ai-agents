@@ -13,9 +13,11 @@ Why no existing gate caught it:
 
   - The dev and CI target is Python 3.14 (``[tool.ruff] target-version=py314``,
     the pytest workflow runs 3.14). On 3.14 the code is *valid*, so it compiles,
-    imports, and tests pass. The defect only appears under the floor declared in
-    ``pyproject.toml`` (``requires-python = ">=3.10"``), which is the range the
-    host interpreter may actually be.
+    imports, and tests pass. The defect only appears under the hook-execution
+    portability floor: the oldest interpreter a Copilot CLI host may resolve
+    ``python3`` / ``py -3`` to. That floor is a property of the deployment
+    target, not of the ``requires-python`` install contract, which may
+    legitimately be higher (issue #3008 raised it to 3.14 for the dev package).
   - ``ruff`` E999 is report-only in CI (issue #2194) and advisory in the hooks
     (issue #2592), and its per-file-ignores exempt the generated
     ``src/copilot-cli`` mirror trees, so it would not block this regardless.
@@ -40,14 +42,18 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import ast
-import re
 import subprocess
 import sys
 from pathlib import Path
 
-# Fallback floor if pyproject.toml cannot be read. Matches the documented
-# `requires-python = ">=3.10"` contract at the time of writing (issue #2655).
-_DEFAULT_FLOOR = (3, 10)
+# Hook-execution portability floor: the oldest Python a Copilot CLI host may run
+# plugin hooks under. Deliberately INDEPENDENT of `requires-python` in
+# pyproject.toml (the dev/install contract, which is higher since issue #3008).
+# Raising this drops support for older hosts and must be a conscious decision;
+# tests/validation/test_validate_python_syntax.py::test_pep758_rejected_at_floor
+# guards it. See issue #2655 (why the gate exists) and issue #3008 (why the gate
+# floor decoupled from requires-python).
+_SUPPORT_FLOOR = (3, 10)
 
 # Directories never worth parsing: virtualenvs, VCS metadata, caches, vendored
 # node deps. Only consulted by the filesystem-walk fallback; the primary path
@@ -56,25 +62,17 @@ _SKIP_DIRS = frozenset(
     {".venv", "venv", ".git", "__pycache__", "node_modules", ".mypy_cache", ".ruff_cache"}
 )
 
-_REQUIRES_PYTHON_RE = re.compile(r"""requires-python\s*=\s*["'][^"']*?>=\s*(\d+)\.(\d+)""")
 
+def support_floor() -> tuple[int, int]:
+    """Return the (major, minor) hook-execution portability floor.
 
-def support_floor(repo_root: Path) -> tuple[int, int]:
-    """Return the (major, minor) floor from pyproject's ``requires-python``.
-
-    Parsed with a regex rather than ``tomllib`` so the gate itself runs on the
-    floor interpreter (3.10), where ``tomllib`` is absent. Falls back to
-    ``_DEFAULT_FLOOR`` when the field is missing or unparseable.
+    This is the oldest interpreter a Copilot CLI host may run plugin hooks
+    under, NOT the ``requires-python`` install contract in ``pyproject.toml``.
+    The two were unified while both were 3.10; issue #3008 raised
+    ``requires-python`` to 3.14 for the dev/CI package, so the gate pins its own
+    floor here to keep protecting older hosts (issue #2655).
     """
-    pyproject = repo_root / "pyproject.toml"
-    try:
-        text = pyproject.read_text(encoding="utf-8")
-    except OSError:
-        return _DEFAULT_FLOOR
-    match = _REQUIRES_PYTHON_RE.search(text)
-    if not match:
-        return _DEFAULT_FLOOR
-    return (int(match.group(1)), int(match.group(2)))
+    return _SUPPORT_FLOOR
 
 
 def _tracked_python_files(repo_root: Path) -> list[Path]:
@@ -107,10 +105,12 @@ def _walk_python_files(repo_root: Path) -> list[Path]:
     return found
 
 
-def find_syntax_errors(repo_root: Path, floor: tuple[int, int] | None = None) -> list[tuple[Path, str]]:
+def find_syntax_errors(
+    repo_root: Path, floor: tuple[int, int] | None = None
+) -> list[tuple[Path, str]]:
     """Parse every tracked file at ``floor``; return ``(path, message)`` failures."""
     if floor is None:
-        floor = support_floor(repo_root)
+        floor = support_floor()
     failures: list[tuple[Path, str]] = []
     for path in _tracked_python_files(repo_root):
         try:
@@ -131,7 +131,7 @@ def validate_python_syntax(repo_root: Path) -> bool:
     Runner-facing entry point matching the ``validate_*(repo_root) -> bool``
     contract used by ``pre_pr.py``.
     """
-    floor = support_floor(repo_root)
+    floor = support_floor()
     failures = find_syntax_errors(repo_root, floor)
     if not failures:
         return True

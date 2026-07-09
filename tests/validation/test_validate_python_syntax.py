@@ -11,7 +11,8 @@ parse against the declared support floor, not the host interpreter.
 - neg (classic): an always-invalid syntax error is rejected
 - edge: an invalid repo root returns exit 2 (config error per ADR-035)
 - branch: the git-unavailable filesystem-walk fallback skips vendored dirs
-- floor: ``support_floor`` reads ``requires-python`` from pyproject
+- floor: ``support_floor`` returns the fixed hook-portability floor, and the
+  gate stays at that floor even when ``requires-python`` is higher (issue #3008)
 """
 
 from __future__ import annotations
@@ -111,14 +112,25 @@ def test_walk_fallback_skips_vendored_and_finds_broken(tmp_path: Path) -> None:
     assert "alsobroken.py" not in found
 
 
-def test_support_floor_reads_pyproject(tmp_path: Path) -> None:
-    (tmp_path / "pyproject.toml").write_text('requires-python = ">=3.11"\n', encoding="utf-8")
+def test_support_floor_is_hook_portability_floor() -> None:
+    # The gate floor is the fixed hook-execution portability floor, not the
+    # pyproject install contract. It ignores repo state entirely.
+    assert support_floor() == (3, 10)
 
-    assert support_floor(tmp_path) == (3, 11)
 
+def test_floor_independent_of_requires_python(tmp_path: Path) -> None:
+    # Regression guard for issue #3008: raising requires-python (here 3.14) must
+    # NOT relax the gate. PEP 758 stays rejected because the hook-portability
+    # floor is pinned independently of the install contract.
+    (tmp_path / "pyproject.toml").write_text('requires-python = ">=3.14"\n', encoding="utf-8")
+    (tmp_path / "broken.py").write_text(_PEP758, encoding="utf-8")
+    _git_repo(tmp_path)
 
-def test_support_floor_defaults_when_missing(tmp_path: Path) -> None:
-    assert support_floor(tmp_path) == (3, 10)
+    result = _run_cli(tmp_path)
+
+    assert result.returncode == 1
+    assert "broken.py" in result.stderr
+    assert "except expressions without parentheses" in result.stderr
 
 
 def test_validate_function_returns_false_on_floor_violation(tmp_path: Path) -> None:
