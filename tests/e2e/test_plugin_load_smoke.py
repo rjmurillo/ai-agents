@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -138,6 +139,78 @@ def _plugin_skill_names(payload: object) -> set[str]:
     return names
 
 
+def _has_plugin_source_record(payload: object) -> bool:
+    """True if `payload` is a list with at least one `source: plugin` record.
+
+    Unlike `_plugin_skill_names`, this ignores the ``name`` field: a plugin
+    record with a missing or non-string name still proves the enumeration
+    surface carried plugin loads. The strict ``name`` filter is applied later by
+    `_plugin_skill_names`, so a nameless plugin record makes the smoke fail loud
+    on the missing skill rather than skip.
+    """
+    if not isinstance(payload, list):
+        return False
+    return any(
+        isinstance(record, dict) and record.get("source") == "plugin"
+        for record in payload
+    )
+
+
+def _plugin_enumeration_available(payload: object) -> bool:
+    """True when the caller must keep the strict assertion instead of skipping.
+
+    The smoke skips ONLY for the known-benign shape: a well-formed JSON array
+    that carries zero ``source: plugin`` records. On Copilot CLI 1.0.69
+    (verified 2026-07-08 on this repo's shipped ``src/copilot-cli`` tree),
+    ``copilot --plugin-dir <dir> skill list --json`` run from a neutral cwd
+    surfaces ZERO ``source: plugin`` records: the output carries only
+    ``builtin`` and ``personal-copilot``. The ``source: project`` group that
+    does list the lifecycle skills is cwd-based (the repo you stand in), not
+    ``--plugin-dir`` based, so it is not a valid load signal for a neutral-cwd
+    smoke. See issue #2990.
+
+    The caller validates list-ness first:
+    ``test_copilot_plugin_loads_expected_skills`` fails loud on a non-list
+    payload before this helper is consulted. This helper still returns True for
+    every non-benign shape as defense in depth, so any caller (present or
+    future) that omits its own guard fails loud rather than skips:
+
+    - a non-list payload (unexpected schema, or a CLI error object) returns True,
+      so a caller without its own list guard still fails loud instead of
+      skipping silently; and
+    - a list that DOES carry ``source: plugin`` records keeps the strict subset
+      assertion, so a plugin record with a missing name fails on the absent
+      skill instead of masking a regression.
+    """
+    if not isinstance(payload, list):
+        return True
+    return _has_plugin_source_record(payload)
+
+
+_COPILOT_BENIGN_NO_ENUM_VERSIONS = frozenset({"1.0.69"})
+
+
+def _copilot_version_omits_plugin_enumeration(version_output: str) -> bool:
+    """True when the Copilot CLI version is known to omit ``--plugin-dir`` skills.
+
+    Only the versions in ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` are allowed to skip
+    the strict subset assertion when ``skill list --json`` surfaces zero
+    ``source: plugin`` records (issue #2990). Any other version that fails to
+    enumerate the plugin is a real plugin-load regression and must fail loud, so
+    the smoke keeps its negative control instead of masking a broken load on a
+    CLI that DOES enumerate ``--plugin-dir`` skills.
+
+    The version token is the first ``MAJOR.MINOR.PATCH`` in the CLI's
+    ``--version`` output; a ``-<suffix>`` build tag (for example ``1.0.69-3``) is
+    ignored because the enumeration behavior tracks the release, not the build.
+    A version string with no parseable token returns False (fail loud).
+    """
+    match = re.search(r"\d+\.\d+\.\d+", version_output)
+    if match is None:
+        return False
+    return match.group(0) in _COPILOT_BENIGN_NO_ENUM_VERSIONS
+
+
 def _read_manifest_version(manifest_path: Path) -> str:
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     version = data.get("version")
@@ -190,6 +263,40 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         payload = json.loads(run.stdout)
     except json.JSONDecodeError as exc:
         pytest.fail(f"copilot skill list emitted non-JSON: {exc}. stdout={run.stdout[-600:]!r}")
+
+    if not isinstance(payload, list):
+        pytest.fail(
+            "copilot skill list --json did not return a JSON array "
+            f"(got {type(payload).__name__}); the enumeration schema changed. "
+            f"stdout={run.stdout[-600:]!r}"
+        )
+
+    if not _plugin_enumeration_available(payload):
+        version_text = version.stdout.strip() or version.stderr.strip()
+        sources = sorted(
+            {
+                str(record.get("source"))
+                for record in (payload if isinstance(payload, list) else [])
+                if isinstance(record, dict)
+            }
+        )
+        if not _copilot_version_omits_plugin_enumeration(version_text):
+            pytest.fail(
+                "copilot skill list --json surfaced no source:plugin records for a "
+                f"known-good --plugin-dir on CLI version {version_text!r}, which is "
+                "NOT a known plugin-enumeration-omitting version (issue #2990). "
+                "A version that enumerates --plugin-dir skills but returns none is a "
+                "real plugin-load regression, not the benign 1.0.69 shape. "
+                f"sources seen: {sources}"
+            )
+        pytest.skip(
+            "copilot skill list --json surfaced no source:plugin records for a "
+            "known-good --plugin-dir. On CLI 1.0.69 the plugin-dir load is not "
+            "enumerated through this surface (issue #2990); the load itself is "
+            "unaffected. Skipping loud rather than false-failing. "
+            f"copilot --version: {version_text!r}; "
+            f"sources seen: {sources}"
+        )
 
     loaded = _plugin_skill_names(payload)
     missing = EXPECTED_SKILLS - loaded
@@ -347,6 +454,104 @@ def test_plugin_skill_names_handles_non_list_payload() -> None:
     """
     assert _plugin_skill_names({"unexpected": "object"}) == set()
     assert _plugin_skill_names(None) == set()
+
+
+def test_plugin_enumeration_available_true_when_plugin_records_present() -> None:
+    """A payload with at least one `source: plugin` record enables the assertion.
+
+    This is the branch where the CLI does enumerate `--plugin-dir` loads, so the
+    caller keeps the strict subset check rather than skipping.
+    """
+    payload = [
+        {"name": "build", "source": "plugin"},
+        {"name": "review", "source": "builtin"},
+    ]
+
+    assert _plugin_enumeration_available(payload) is True
+
+
+def test_plugin_enumeration_available_false_when_no_plugin_records() -> None:
+    """No `source: plugin` record means the CLI did not enumerate the plugin dir.
+
+    On CLI 1.0.69 a neutral-cwd run surfaces only `builtin` and
+    `personal-copilot`; the smoke must SKIP rather than false-fail (issue #2990).
+    Only a well-formed list with zero plugin records collapses to this
+    not-available verdict; malformed shapes are handled separately below.
+    """
+    only_builtin = [
+        {"name": "review", "source": "builtin"},
+        {"name": "explain", "source": "personal-copilot"},
+    ]
+
+    assert _plugin_enumeration_available(only_builtin) is False
+    assert _plugin_enumeration_available([]) is False
+
+
+def test_plugin_enumeration_available_true_on_non_list_payload() -> None:
+    """A non-list payload proceeds (True) so the smoke fails loud, not skips.
+
+    A CLI error object or any unexpected schema must surface as a failed
+    assertion with diagnostics, never a silent skip that masks a regression
+    (gemini/copilot review on PR #3001).
+    """
+    assert _plugin_enumeration_available({"unexpected": "object"}) is True
+    assert _plugin_enumeration_available(None) is True
+    assert _plugin_enumeration_available("not-a-list") is True
+
+
+def test_plugin_enumeration_available_true_when_plugin_record_missing_name() -> None:
+    """A `source: plugin` record counts even without a string `name`.
+
+    Detection is name-independent so a schema change that drops or mangles the
+    name field keeps the strict assertion (True), where `_plugin_skill_names`
+    then fails on the absent skill instead of skipping.
+    """
+    payload = [
+        {"source": "plugin"},
+        {"name": 123, "source": "plugin"},
+    ]
+
+    assert _plugin_enumeration_available(payload) is True
+    assert _plugin_skill_names(payload) == set()
+
+
+def test_has_plugin_source_record() -> None:
+    """`_has_plugin_source_record` detects plugin records independent of name."""
+    assert _has_plugin_source_record([{"source": "plugin"}]) is True
+    assert _has_plugin_source_record([{"name": "build", "source": "plugin"}]) is True
+    assert _has_plugin_source_record([{"name": "review", "source": "builtin"}]) is False
+    assert _has_plugin_source_record([]) is False
+    assert _has_plugin_source_record({"unexpected": "object"}) is False
+    assert _has_plugin_source_record(None) is False
+
+
+def test_copilot_version_omits_enumeration_true_for_benign_version() -> None:
+    """CLI 1.0.69 is the known plugin-enumeration-omitting release (issue #2990).
+
+    A build-tag suffix (``1.0.69-3``) tracks the same release, so it still
+    matches; extra surrounding text from ``--version`` is tolerated.
+    """
+    assert _copilot_version_omits_plugin_enumeration("1.0.69") is True
+    assert _copilot_version_omits_plugin_enumeration("1.0.69-3") is True
+    assert _copilot_version_omits_plugin_enumeration("copilot 1.0.69 (build 42)") is True
+
+
+def test_copilot_version_omits_enumeration_false_for_other_versions() -> None:
+    """Any version not in the benign set must fail loud, not skip (issue #2990).
+
+    A CLI that enumerates ``--plugin-dir`` skills but returns none is a real
+    plugin-load regression; the negative control depends on this returning False.
+    """
+    assert _copilot_version_omits_plugin_enumeration("1.0.70") is False
+    assert _copilot_version_omits_plugin_enumeration("1.1.0") is False
+    assert _copilot_version_omits_plugin_enumeration("2.0.0") is False
+
+
+def test_copilot_version_omits_enumeration_false_when_unparseable() -> None:
+    """No parseable version token means fail loud (return False), never skip."""
+    assert _copilot_version_omits_plugin_enumeration("") is False
+    assert _copilot_version_omits_plugin_enumeration("unknown") is False
+    assert _copilot_version_omits_plugin_enumeration("v1.0") is False
 
 
 def test_clean_env_strips_plugin_root_keys_case_insensitively(
