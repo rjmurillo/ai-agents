@@ -245,7 +245,7 @@ After creation:
 
 ## Scripts
 
-The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. Scripts use the Python 3 standard library and exit `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
+The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. Scripts use the Python 3 standard library. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
 
 | Script | Purpose |
 |--------|---------|
@@ -257,6 +257,8 @@ The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, vali
 | `skill_modularity_audit.py` | Audit SKILL.md size and flag progressive-disclosure violations |
 | `package_skill.py` | Package a completed skill for distribution |
 | `check_docs_safety.py` | Safety scan of generated documentation |
+| `frontmatter.py` | Internal helper module: shared YAML frontmatter parsing (imported, not run directly) |
+| `_constants.py` | Internal helper module: shared constants and thresholds (imported, not run directly) |
 
 See [references/script-integration-framework.md](references/script-integration-framework.md) for when to add scripts and [references/script-patterns-catalog.md](references/script-patterns-catalog.md) for the standard patterns.
 
@@ -290,8 +292,6 @@ See [references/script-integration-framework.md](references/script-integration-f
 ## Related Skills
 
 skill-composer (orchestrate created skills), claude-authoring-guide (deeper patterns), codereview (multi-agent panel pattern), maker-framework (zero-error standard).
-
----
 
 ## Extension Points
 
