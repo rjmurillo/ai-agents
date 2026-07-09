@@ -14,26 +14,41 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.validation.models import ValidationResult  # noqa: E402
+from tests.git_config_isolation import (  # noqa: E402
+    restore_git_config_env,
+    snapshot_git_config_env,
+    strip_git_config_hooks_path,
+)
 
 
 @pytest.fixture(autouse=True, scope="session")
-def _disable_commit_signing_for_test_git() -> Iterator[None]:
-    """Neutralize host ``commit.gpgsign`` for all git subprocesses in the suite.
+def _isolate_git_config_for_test_git() -> Iterator[None]:
+    """Make git-config hermetic for all git subprocesses in the suite.
 
-    Some environments (e.g. Claude web containers) set a global
-    ``commit.gpgsign`` backed by a signing server that rejects commits made in
-    ``tmp_path`` fixture repos with HTTP 400, breaking the ~57 tests that create
-    commits (adr-review, metrics, merge-resolver, worktree tests, ...). Injecting
-    ``commit.gpgsign=false`` via ``GIT_CONFIG_COUNT`` gives it command-line
-    precedence over host config, so fixtures commit cleanly without per-fixture
-    edits (issue #2548). The signing-sensitive tests still RUN (they are not
-    skipped); only the signing requirement is removed.
+    Two host-environment leaks break ``tmp_path`` fixture commits, so both are
+    neutralized here (the whole ``GIT_CONFIG*`` namespace is snapshotted and
+    restored on teardown):
 
-    No test sets ``GIT_CONFIG_COUNT``, so index 0 is free; if some outer process
-    already uses the indexed mechanism, this fixture leaves it untouched.
+    1. ``commit.gpgsign`` (issue #2548). Some environments (e.g. Claude web
+       containers) set a global ``commit.gpgsign`` backed by a signing server
+       that rejects fixture commits with HTTP 400, breaking the ~57 tests that
+       create commits. Injecting ``commit.gpgsign=false`` via
+       ``GIT_CONFIG_COUNT`` gives it command-line precedence over host config.
+
+    2. ``core.hooksPath`` (issue #2996). ``git -c core.hooksPath=/abs push``
+       re-exports the override to child processes via ``GIT_CONFIG_PARAMETERS``.
+       An *absolute* hooks path (used when pushing from a linked worktree)
+       resolves inside every fixture repo, so each ``git commit`` runs the real
+       pre-commit hook and fails outside the repo (~84 failures observed on the
+       #2925 push). ``GIT_CONFIG_PARAMETERS`` outranks the indexed form, so an
+       empty override cannot win; the leaked key is stripped instead.
+
+    No test sets ``GIT_CONFIG_COUNT``, so index 0 is free after the strip; if
+    some outer process already uses the indexed mechanism, gpgsign injection is
+    skipped and left to that process.
     """
-    keys = ("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0")
-    prior = {k: os.environ.get(k) for k in keys}
+    snapshot = snapshot_git_config_env(os.environ)
+    strip_git_config_hooks_path(os.environ)
     if not os.environ.get("GIT_CONFIG_COUNT"):
         os.environ["GIT_CONFIG_COUNT"] = "1"
         os.environ["GIT_CONFIG_KEY_0"] = "commit.gpgsign"
@@ -41,11 +56,7 @@ def _disable_commit_signing_for_test_git() -> Iterator[None]:
     try:
         yield
     finally:
-        for key, value in prior.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        restore_git_config_env(os.environ, snapshot)
 
 
 @pytest.fixture(autouse=True)
