@@ -97,8 +97,15 @@ def test_points_at_canonical_health_script() -> None:
     body = _read_skill()
 
     # Act / Assert: the sub-skill must route to the canonical script, not
-    # reimplement the check. The script stays in the memory skill tree.
-    assert ".claude/skills/memory/scripts/test_memory_health.py" in body, (
+    # reimplement the check. The script stays in the memory skill tree. Assert
+    # the shared location fragment and the script name separately so the test
+    # does not hard-code the bare .claude/skills path the portability ratchet
+    # forbids (check_skill_portability); test_uses_portable_script_root covers
+    # the plugin-root invocation form.
+    assert "skills/memory/scripts" in body, (
+        "memory-maintenance must reference the shared memory scripts directory"
+    )
+    assert "test_memory_health.py" in body, (
         "memory-maintenance must delegate to the canonical test_memory_health.py"
     )
 
@@ -107,8 +114,10 @@ def test_points_at_canonical_token_script() -> None:
     # Arrange
     body = _read_skill()
 
-    # Act / Assert
-    assert ".claude/skills/memory/scripts/count_memory_tokens.py" in body, (
+    # Act / Assert: assert the script name only; the shared directory fragment
+    # is checked in test_points_at_canonical_health_script and the portable
+    # invocation form in test_uses_portable_script_root.
+    assert "count_memory_tokens.py" in body, (
         "memory-maintenance must delegate to the canonical count_memory_tokens.py"
     )
 

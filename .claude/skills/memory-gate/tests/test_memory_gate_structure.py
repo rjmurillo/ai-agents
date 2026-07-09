@@ -97,7 +97,14 @@ def test_points_at_canonical_search_script() -> None:
 
     # Act / Assert: the gate delegates Tier 1 search to the canonical script; it
     # does not reimplement search. The script stays in the memory skill tree.
-    assert ".claude/skills/memory/scripts/search_memory.py" in body, (
+    # Assert the shared location fragment and the script name separately so the
+    # test does not hard-code the bare .claude/skills path that the portability
+    # ratchet forbids (check_skill_portability); the SKILL.md invokes it through
+    # the portable plugin-root form asserted in test_uses_portable_script_root.
+    assert "skills/memory/scripts" in body, (
+        "memory-gate must reference the shared memory scripts directory"
+    )
+    assert "search_memory.py" in body, (
         "memory-gate must delegate to the canonical search_memory.py"
     )
 
