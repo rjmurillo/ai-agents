@@ -258,7 +258,8 @@ def test_gate_legacy_coupling_max_only_config_does_not_crash(tmp_path: Path) -> 
     assessment = assess_file(path, "production", False)
 
     legacy = _default_config()
-    legacy["thresholds"]["coupling"] = {"max": 3, "warn": 5}  # no "min"; "warn" is an ignored unknown key
+    # no "min"; "warn" is an ignored unknown key
+    legacy["thresholds"]["coupling"] = {"max": 3, "warn": 5}
 
     rc = check_thresholds([assessment], legacy, "production")
     assert rc == 0
@@ -529,6 +530,41 @@ def test_unreadable_file_is_unscored_not_passed(tmp_path: Path) -> None:
         assert score.confidence == 0.0
     # An unreadable file must not fail (or pass by scoring) any threshold.
     assert check_thresholds([assessment], _default_config(), "production") == 0
+
+
+def test_csharp_public_brace_initializer_field_lowers_encapsulation(tmp_path: Path) -> None:
+    """A C# public field declared with a brace initializer
+    (``public int[] xs = {1, 2};``) is still exposed public state and must
+    lower encapsulation, not be skipped as a property or type body."""
+    exposed = _write(
+        tmp_path,
+        "Exposed.cs",
+        "public class C\n{\n    public int[] xs = {1, 2};\n}\n",
+    )
+    hidden = _write(
+        tmp_path,
+        "Hidden.cs",
+        "public class C\n{\n    private int[] xs = {1, 2};\n}\n",
+    )
+    assert (
+        assess_file(exposed, "production", False).encapsulation.value
+        < assess_file(hidden, "production", False).encapsulation.value
+    )
+
+
+def test_unreadable_assessment_scores_are_not_aliased(tmp_path: Path) -> None:
+    """Each quality of an unreadable file must be an independent QualityScore;
+    mutating one metric's reasons must not bleed into the others."""
+    missing = tmp_path / "gone.py"  # never created -> open() raises OSError
+    assessment = assess_file(missing, "production", False)
+    assessment.cohesion.reasons.append("mutated")
+    for score in (
+        assessment.coupling,
+        assessment.encapsulation,
+        assessment.testability,
+        assessment.non_redundancy,
+    ):
+        assert "mutated" not in score.reasons
 
 
 def test_read_error_is_reported_as_unscored(

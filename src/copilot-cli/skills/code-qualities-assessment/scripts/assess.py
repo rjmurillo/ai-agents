@@ -207,7 +207,12 @@ def _count_public_fields_by_modifier(lines: list[str]) -> int:
         stripped = line.strip()
         if not stripped.startswith("public "):
             continue
-        if "(" in stripped or "{" in stripped:  # method, ctor, property, or type body
+        if "(" in stripped:  # method or constructor
+            continue
+        brace_idx = stripped.find("{")
+        if brace_idx != -1 and "=" not in stripped[:brace_idx]:
+            # Property (`{ get; set; }`) or type body, not a brace initializer
+            # such as `public int[] xs = {1, 2};`, which is still a public field.
             continue
         if any(
             kw in stripped
@@ -470,7 +475,11 @@ def _score_encapsulation(language: str | None, code_lines: list[str]) -> Quality
 
 
 def _score_testability(language: str | None, code_lines: list[str]) -> QualityScore:
-    """Approximate testability from the amount of mutable global/static state.
+    """Approximate testability from the amount of global/static state.
+
+    The per-language counters flag global and static references. Some of these
+    (for example JS/TS ``const``) are not reassignable, so the label is
+    "global/static", not "mutable".
 
     Languages without a global-state counter are left unscored (confidence
     0.0) rather than defaulting to a perfect constant, which previously made
@@ -486,7 +495,7 @@ def _score_testability(language: str | None, code_lines: list[str]) -> QualitySc
     global_count = counter(code_lines)
     score = max(1.0, 10.0 - global_count * 2)
     reasons = [
-        f"{global_count} mutable global/static references",
+        f"{global_count} global/static references",
         (
             "Global state hinders testability"
             if global_count > 0
@@ -526,18 +535,22 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
     rather than passing it on meaningless scores derived from empty content.
     The reason is carried so the report explains why the file was not scored.
     """
-    unscored = QualityScore(
-        value=10.0,
-        confidence=0.0,
-        reasons=[f"Not scored ({reason})"],
-    )
+    def _unscored() -> QualityScore:
+        # A fresh instance (and reasons list) per quality so a later mutation
+        # of one metric cannot alias into the others.
+        return QualityScore(
+            value=10.0,
+            confidence=0.0,
+            reasons=[f"Not scored ({reason})"],
+        )
+
     return FileAssessment(
         file_path=str(file_path),
-        cohesion=unscored,
-        coupling=unscored,
-        encapsulation=unscored,
-        testability=unscored,
-        non_redundancy=unscored,
+        cohesion=_unscored(),
+        coupling=_unscored(),
+        encapsulation=_unscored(),
+        testability=_unscored(),
+        non_redundancy=_unscored(),
     )
 
 
