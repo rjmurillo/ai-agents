@@ -181,6 +181,52 @@ def test_testability_not_constant_across_languages(tmp_path: Path) -> None:
     assert dirty_score.value < clean_score.value
 
 
+def test_csharp_using_static_not_counted_as_state(tmp_path: Path) -> None:
+    """Regression: `using static` is an import (dependency), not mutable
+    static state, so it must not lower testability."""
+    plain = _write(
+        tmp_path,
+        "Plain.cs",
+        "public class Plain {\n    public int Add(int a, int b) => a + b;\n}\n",
+    )
+    with_static_import = _write(
+        tmp_path,
+        "WithImport.cs",
+        "using static System.Math;\n\n"
+        "public class WithImport {\n"
+        "    public double Hyp(double a, double b) => Sqrt(a * a + b * b);\n"
+        "}\n",
+    )
+
+    plain_score = assess_file(plain, "production", False).testability
+    import_score = assess_file(with_static_import, "production", False).testability
+
+    assert import_score.value == plain_score.value
+
+
+def test_java_import_static_not_counted_as_state(tmp_path: Path) -> None:
+    """Regression: `import static` is an import (dependency), not mutable
+    static state, so it must not lower testability."""
+    plain = _write(
+        tmp_path,
+        "Plain.java",
+        "public class Plain {\n    int add(int a, int b) { return a + b; }\n}\n",
+    )
+    with_static_import = _write(
+        tmp_path,
+        "WithImport.java",
+        "import static org.junit.Assert.assertEquals;\n\n"
+        "public class WithImport {\n"
+        "    void check() { assertEquals(1, 1); }\n"
+        "}\n",
+    )
+
+    plain_score = assess_file(plain, "production", False).testability
+    import_score = assess_file(with_static_import, "production", False).testability
+
+    assert import_score.value == plain_score.value
+
+
 def test_testability_python_global_state(tmp_path: Path) -> None:
     clean = _write(tmp_path, "clean.py", "def f():\n    return 1\n")
     dirty = _write(

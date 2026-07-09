@@ -152,6 +152,8 @@ def _count_csharp_static_state(lines: list[str]) -> int:
         stripped = line.strip()
         if "static" not in stripped or "(" in stripped:
             continue
+        if stripped.startswith("using "):
+            continue
         if _immutable_static(stripped, ("readonly", "const ")):
             continue
         if stripped.endswith(";") or "=" in stripped:
@@ -164,6 +166,8 @@ def _count_java_static_state(lines: list[str]) -> int:
     for line in lines:
         stripped = line.strip()
         if "static" not in stripped or "(" in stripped:
+            continue
+        if stripped.startswith("import "):
             continue
         if _immutable_static(stripped, ("final",)):
             continue
