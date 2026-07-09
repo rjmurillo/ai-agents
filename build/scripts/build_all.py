@@ -596,6 +596,7 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     """
     paths: list[str] = []
     seen: set[str] = set()
+    scrubbed_env = _git_scrubbed_env()
     for argv in (
         ["git", "-C", str(repo_root), "diff", "--name-only"],
         ["git", "-C", str(repo_root), "ls-files", "--others", "--exclude-standard"],
@@ -607,6 +608,7 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
                 text=True,
                 check=False,
                 timeout=30,
+                env=scrubbed_env,
             )
         except (OSError, subprocess.SubprocessError):
             continue

@@ -1426,14 +1426,55 @@ def test_ignored_paths_ignores_inherited_git_dir_env(
     audit = hooks / "audit.log"
     audit.write_text("runtime append\n", encoding="utf-8")
 
-    # Simulate a hook context: GIT_DIR points at a different repo's .git.
+    # Simulate a hook context: git location env vars point at a different
+    # repo. The scrub must remove all of _GIT_LOCATION_ENV_VARS, so set the
+    # full list to invalid/other paths and assert the ignore set is still
+    # computed against repo_root.
     other = tmp_path / "other"
     _init_git_repo(other)
     monkeypatch.setenv("GIT_DIR", str(other / ".git"))
     monkeypatch.setenv("GIT_WORK_TREE", str(other))
+    monkeypatch.setenv("GIT_COMMON_DIR", str(other / ".git"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(other / ".git" / "index"))
 
     ignored = build_all._ignored_paths(repo, build_all.CLAUDE_GUARD_PREFIX)
     assert audit in ignored
+
+
+def test_git_diff_paths_ignores_inherited_git_dir_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An inherited GIT_DIR must not redirect diff/ls-files away from repo_root.
+
+    _git_diff_paths backs both --check (staleness) and the .claude/ guard. It
+    runs ``git -C repo_root diff`` and ``git ls-files``, which git resolves
+    against an inherited GIT_DIR/GIT_WORK_TREE over ``-C`` (issue #2992). The
+    scrub in _git_diff_paths removes the git location env vars so the diff is
+    computed against repo_root, not the outer repo.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / "tracked.txt").write_text("v1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
+    )
+    # An untracked file in repo must be reported by ls-files --others.
+    (repo / "new.txt").write_text("new\n", encoding="utf-8")
+
+    # Point git location env at a clean, unrelated repo. Without the scrub,
+    # ls-files would resolve against ``other`` and miss repo/new.txt.
+    other = tmp_path / "other"
+    _init_git_repo(other)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(other))
+    monkeypatch.setenv("GIT_COMMON_DIR", str(other / ".git"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(other / ".git" / "index"))
+
+    paths = build_all._git_diff_paths(repo)
+    assert "new.txt" in paths
 
 
 def test_snapshot_excludes_ignored_runtime_artifacts(tmp_path: Path) -> None:
