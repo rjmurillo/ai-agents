@@ -156,7 +156,7 @@ Each row verified 2026-07-03. Longer stories live with the sibling skills
 | CONTRIBUTING.md build commands were DEAD before PR #2871 | `CONTRIBUTING.md:155` said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871 repointed it to `python3 build/generate_agents.py`; zero `.ps1` files exist in the repo (ADR-042) | Real commands: `python3 build/generate_agents.py` and `python3 build/scripts/build_all.py` |
 | PEP 668: bare pip fails | `pip install X` errors with externally-managed-environment on uv-managed interpreters | Everything goes through uv: `uv sync`, `uv add`, `uv run` (`scripts/bootstrap-vm.sh:118-123`) |
 | Skill scripts need the project venv | `.claude/skills/github/scripts/pr/*.py` import `github_core`, which imports `yaml` at load; bare `python3` throws `ModuleNotFoundError: No module named 'yaml'` unless `.venv/bin` is first on PATH (bootstrap-vm.sh arranges that; a manual setup usually does not) | Run skill scripts with `uv run python`, which resolves the venv deterministically |
-| `requires-python` floor is misleading | `pyproject.toml:6` says `>=3.10`, but tooling and CI target the 3.14 pin; code that only works on 3.10 semantics is not the target | Develop and test against `.python-version` (3.14.6). Note: the blocking CI syntax gate parses at the support floor, NOT 3.14 (issue #2655); see `ai-agents-debugging-playbook` |
+| Two floors, not one | `pyproject.toml:6` says `requires-python = ">=3.14"` (the dev/install contract), but plugin hooks run under the host's ambient interpreter, which may be older | Develop and test against `.python-version` (3.14.6). The blocking CI syntax gate parses every file at the hook-portability floor (3.10), NOT 3.14, so hooks stay portable to older hosts (issue #2655, decoupled from `requires-python` in issue #3008); see `ai-agents-debugging-playbook` |
 | LF line endings enforced | CRLF in YAML frontmatter breaks the Copilot CLI parser (github/copilot-cli#694); `.gitattributes:59` sets `* text=auto eol=lf` | Configure your editor for LF; never commit CRLF |
 | pre-push hook is un-skippable and slow | Push takes minutes: branch-wide validation (workflow validation, drift detection, agent drift, tests). No `SKIP_PREPUSH` exists; it was removed after being abused 3 times within hours of creation (session 1187) | Budget minutes per push; do not attempt `--no-verify` (prohibited, AGENTS.md Never list) |
 | Skill tests not collected by default | `uv run pytest tests/ -x` skips `.claude/skills/*/tests/` (pyproject testpaths are `tests`, `test`) | Run skill tests explicitly: `uv run pytest .claude/skills/NAME/tests/`; details in `ai-agents-validation-and-qa` |
@@ -200,7 +200,8 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | Python pin 3.14.6 | `.python-version` | `cat .python-version` |
-| `requires-python >=3.10` floor | `pyproject.toml:6` | `grep -n requires-python pyproject.toml` |
+| `requires-python >=3.14` install floor | `pyproject.toml:6` | `grep -n requires-python pyproject.toml` |
+| Syntax-gate hook floor 3.10 (separate from install floor) | `scripts/validation/validate_python_syntax.py` `_SUPPORT_FLOOR` | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
 | PyYAML 6.0.3 pin | `pyproject.toml:13` | `grep -n PyYAML pyproject.toml` |
 | `uv sync --frozen --extra dev` is the canonical sync | `scripts/bootstrap-vm.sh:114` | `grep -n "uv sync --frozen" scripts/bootstrap-vm.sh` |
 | Node 22 LTS | `scripts/bootstrap-vm.sh:40` | `grep -n NODE_MAJOR scripts/bootstrap-vm.sh` |
