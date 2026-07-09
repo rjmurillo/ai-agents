@@ -30,6 +30,7 @@ OPTIONAL_PROPERTIES = {
     'user-invocable', # Slash menu visibility (default: true)
     'version',        # Semantic version (e.g., 1.0.0)
     'argument-hint',  # Slash-command argument hint(s) for user-invocable skills
+    'size-exception', # Opt out of the 500-line skill_size block (justified overage)
 }
 
 # All allowed properties

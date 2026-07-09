@@ -162,7 +162,7 @@ class SkillValidator:
             ALLOWED_PROPERTIES = {
                 'name', 'description', 'license', 'allowed-tools', 'metadata',
                 'model', 'context', 'agent', 'hooks', 'user-invocable', 'version',
-                'argument-hint'
+                'argument-hint', 'size-exception'
             }
             REQUIRED_PROPERTIES = {'name', 'description'}
             RECOMMENDED_PROPERTIES = {'license'}

@@ -221,3 +221,47 @@ class TestTriggerCountThreshold:
         v.parse_frontmatter()
         v.validate_triggers()
         assert any("1-5" in e for e in v.errors)
+
+
+# ---------------------------------------------------------------------------
+# size-exception frontmatter property acceptance (skill_size escape hatch)
+# ---------------------------------------------------------------------------
+
+
+class TestSizeExceptionProperty:
+    """The `size-exception` escape hatch must pass frontmatter allow-listing.
+
+    The blocking `scripts/validation/skill_size.py` gate requires a top-level
+    `size-exception: true` to exempt a >500-line SKILL.md, so the structural
+    validator must accept that key. Otherwise the two blocking gates deadlock
+    and no oversized skill can be committed.
+    """
+
+    def test_size_exception_true_is_allowed(self, tmp_path: Path) -> None:
+        content = (
+            "---\nname: test-skill\n"
+            "description: A valid skill declaring a justified size exception\n"
+            "size-exception: true\n---\n"
+            "# Title\n## Process\nSteps.\n## Verification\n- [ ] a\n"
+        )
+        v = _make_skill(tmp_path, content)
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        unexpected = [e for e in v.errors if "Unexpected frontmatter" in e]
+        assert not unexpected, f"size-exception should be allowed, got: {v.errors}"
+
+    def test_unknown_property_still_rejected(self, tmp_path: Path) -> None:
+        content = (
+            "---\nname: test-skill\n"
+            "description: A valid skill with an unknown frontmatter property\n"
+            "not-a-real-key: true\n---\n"
+            "# Title\n## Process\nSteps.\n## Verification\n- [ ] a\n"
+        )
+        v = _make_skill(tmp_path, content)
+        v.load_skill()
+        v.parse_frontmatter()
+        v.validate_frontmatter()
+        assert any("Unexpected frontmatter" in e for e in v.errors), (
+            f"unknown key must still be rejected, got: {v.errors}"
+        )
