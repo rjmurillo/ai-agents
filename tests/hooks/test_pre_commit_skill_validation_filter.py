@@ -63,7 +63,8 @@ def _run_filter(staged_files: str) -> list[str]:
     result = subprocess.run(
         [bash, "-c", script],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         env={**os.environ, "STAGED_FILES": staged_files},
     )

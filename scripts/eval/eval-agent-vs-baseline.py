@@ -386,7 +386,7 @@ def _strip_frontmatter(text: str) -> str:
     """
     if not text.startswith("---"):
         return text
-    match = re.match(r"^---[ \t]*\n.*?\n---[ \t]*\n", text, re.DOTALL)
+    match = re.match(r"^---[ \t]*\r?\n.*?\r?\n---[ \t]*\r?\n", text, re.DOTALL)
     if match is None:
         return text
     return text[match.end():]

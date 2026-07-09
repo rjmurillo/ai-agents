@@ -477,6 +477,10 @@ class ReportAggregator:
 
 FormFactorVerdict = str  # {"prefer-skill-form", "prefer-agent-form", "inconclusive"}
 FORM_FACTOR_EQUIVALENCE_CI_HALF_WIDTH_LIMIT = 0.10
+# Minimum cost gap, as a fraction of the agent-form token total, required before
+# the cheaper-form tie-break prefers the skill form. Guards against a tiny
+# output-token sampling delta flipping an otherwise equivalent result.
+FORM_FACTOR_MIN_COST_SAVINGS_FRACTION = 0.01
 
 
 @dataclass
@@ -532,9 +536,11 @@ def _form_factor_verdict(
       - inconclusive: the CI spans zero and its half-width is > 0.10 recall
         proportion units. The interval is too wide to conclude equivalence.
       - prefer-skill-form: the CI spans zero, its half-width is <= 0.10, and
-        the skill variant is cheaper. Default to the cheaper equivalent form.
-      - inconclusive: the CI spans zero but the skill is not cheaper, so there
-        is no cost reason to prefer either form.
+        the skill variant is cheaper by more than
+        `FORM_FACTOR_MIN_COST_SAVINGS_FRACTION` of the agent token total.
+        Default to the cheaper equivalent form only when the gap is real.
+      - inconclusive: the CI spans zero but the skill is not meaningfully
+        cheaper, so there is no cost reason to prefer either form.
     The order matters: clear agent and skill wins take precedence over the
     width guard, and the width guard takes precedence over cheaper skill cost.
     """
@@ -547,7 +553,9 @@ def _form_factor_verdict(
     ci_half_width = (ci_high - ci_low) / 2
     if ci_spans_zero and ci_half_width > FORM_FACTOR_EQUIVALENCE_CI_HALF_WIDTH_LIMIT:
         return "inconclusive"
-    if ci_spans_zero and skill_tokens_total < agent_tokens_total:
+    cost_savings = agent_tokens_total - skill_tokens_total
+    min_savings = agent_tokens_total * FORM_FACTOR_MIN_COST_SAVINGS_FRACTION
+    if ci_spans_zero and cost_savings > min_savings:
         return "prefer-skill-form"
     return "inconclusive"
 

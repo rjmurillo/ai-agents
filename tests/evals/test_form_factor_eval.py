@@ -346,7 +346,17 @@ class TestFormFactorVerdict:
 
         assert result == "prefer-skill-form"
 
-    def test_spanning_zero_wide_ci_is_inconclusive_even_when_skill_is_cheaper(self):
+    def test_spanning_zero_tiny_savings_is_inconclusive(self):
+        # A sub-1% token gap (noise-scale sampling delta) must not flip the
+        # verdict to prefer-skill-form.
+        result = _form_factor_verdict(
+            agent_skill_delta=0.0,
+            agent_skill_ci=(-0.05, 0.05),
+            skill_tokens_total=1999,
+            agent_tokens_total=2000,
+        )
+
+        assert result == "inconclusive"
         result = _form_factor_verdict(
             agent_skill_delta=0.02,
             agent_skill_ci=(-0.11, 0.12),
@@ -389,6 +399,13 @@ class TestStripFrontmatter:
         result = cli_mod._strip_frontmatter(text)
 
         assert result == "# Body\n\ncontent\n"
+
+    def test_strips_leading_yaml_frontmatter_block_with_windows_line_endings(self):
+        text = "---\r\nname: x\r\ndescription: y\r\n---\r\n# Body\r\n\r\ncontent\r\n"
+
+        result = cli_mod._strip_frontmatter(text)
+
+        assert result == "# Body\r\n\r\ncontent\r\n"
 
     def test_returns_text_unchanged_when_no_frontmatter(self):
         text = "# Body\n\nno frontmatter here\n"
