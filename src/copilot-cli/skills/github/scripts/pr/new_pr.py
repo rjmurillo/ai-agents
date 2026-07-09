@@ -297,6 +297,7 @@ def run_validations(
         subprocess.run(
             skill_args,
             timeout=30,
+            env=_git_env(),
         )
     elif os.path.exists(skill_script):
         if diff_failed:
