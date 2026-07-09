@@ -61,7 +61,7 @@ Apply all 11 thinking models systematically:
 
 **Minimum requirement:** All 11 lenses scanned, at least 5 applied in depth.
 
-See: [references/multi-lens-framework.md](references/multi-lens-framework.md)
+See: [multi-lens-framework.md](multi-lens-framework.md)
 
 ### 1C: Regression Questioning
 
@@ -91,7 +91,7 @@ ROUND N:
 - Evolution/timelessness explicitly evaluated
 - Automation opportunities identified
 
-See: [references/regression-questions.md](references/regression-questions.md)
+See: [regression-questions.md](regression-questions.md)
 
 ### 1D: Automation Analysis
 
@@ -136,4 +136,4 @@ FOR EACH operation in the skill:
 | Enables autonomous operation | No verification needed |
 | External tool integration | Pure Claude reasoning |
 
-See: [references/script-integration-framework.md](references/script-integration-framework.md)
+See: [script-integration-framework.md](script-integration-framework.md)

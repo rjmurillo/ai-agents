@@ -22,7 +22,7 @@ The Script Agent is activated when the skill includes a `scripts/` directory. Fo
 | **Self-Verification** | Scripts can verify their own output |
 | **Error Handling** | Graceful failures, actionable messages |
 | **Documentation** | Usage examples in SKILL.md |
-| **Agentic Capability** | Can run autonomously without human intervention |
+| **Agentic Capability** | Scripts complete cleanly without interactive prompts during scoped, user-approved invocations |
 
 **Script Agent Scoring:**
 
@@ -78,4 +78,4 @@ IF 5 iterations without consensus:
     → User makes final decision
 ```
 
-See: [references/synthesis-protocol.md](references/synthesis-protocol.md)
+See: [synthesis-protocol.md](synthesis-protocol.md)
