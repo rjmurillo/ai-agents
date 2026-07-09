@@ -377,13 +377,16 @@ class TestRunValidations:
         with patch("subprocess.run", side_effect=fake_run):
             run_validations(str(tmp_path), "main", "feat/branch")
 
-        assert calls[1] == [
-            sys.executable,
-            str(skill_script),
-            "--file",
-            "scripts/changed.py",
-            "--file",
-            "docs/guide.md",
+        skill_calls = [c for c in calls if len(c) >= 2 and c[1] == str(skill_script)]
+        assert skill_calls == [
+            [
+                sys.executable,
+                str(skill_script),
+                "--file",
+                "scripts/changed.py",
+                "--file",
+                "docs/guide.md",
+            ]
         ]
 
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):

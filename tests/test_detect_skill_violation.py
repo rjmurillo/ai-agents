@@ -187,7 +187,7 @@ class TestGetAllFiles:
 
     @pytest.mark.parametrize(
         "skip_dir",
-        ["worktrees", ".venv", ".pytest_cache", ".mypy_cache", "node_modules"],
+        ["worktrees", ".venv", ".pytest_cache", ".mypy_cache", "node_modules", ".wt"],
     )
     def test_prunes_high_cost_dirs(self, tmp_path: Path, skip_dir: str) -> None:
         """Each high-cost directory in SKIP_DIRS is pruned from the walk.
