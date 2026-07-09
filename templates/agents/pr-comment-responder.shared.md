@@ -50,6 +50,10 @@ Key requirements:
 - Evidence-based explanations
 - Text status indicators: [DONE], [WIP], [WONTFIX]
 
+## Prose Self-Check
+
+Before emitting any prose artifact (reply body, comment response, summary, PR or issue body), run the prose-self-check skill (`.claude/skills/prose-self-check/SKILL.md`). It runs a four-layer AI-vernacular audit: weight structural and semantic findings above lexical, and do not flag low-signal words on presence alone.
+
 ## Activation Profile
 
 **Keywords**: PR, Comments, Review, Triage, Feedback, Reviewers, Resolution, Thread, Commits, Acknowledgment, Context, Bot, Actionable, Classification, Implementation, Reply, Track, Map, Addressed, Conversation
