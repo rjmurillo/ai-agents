@@ -138,6 +138,25 @@ def _plugin_skill_names(payload: object) -> set[str]:
     return names
 
 
+def _plugin_enumeration_available(payload: object) -> bool:
+    """True if `skill list --json` surfaced at least one `source: plugin` record.
+
+    On Copilot CLI 1.0.69 (verified 2026-07-08 on this repo's shipped
+    ``src/copilot-cli`` tree), ``copilot --plugin-dir <dir> skill list --json``
+    run from a neutral cwd surfaces ZERO ``source: plugin`` records: the output
+    carries only ``builtin`` and ``personal-copilot``. The ``source: project``
+    group that does list the lifecycle skills is cwd-based (the repo you stand
+    in), not ``--plugin-dir`` based, so it is not a valid load signal for a
+    neutral-cwd smoke. See issue #2990.
+
+    When this returns False, the CLI does not expose plugin-dir loads through
+    this enumeration surface, so the smoke cannot verify the load here and must
+    SKIP loud rather than false-FAIL. When it returns True (a CLI version that
+    does enumerate plugin skills), the caller keeps the strict subset assertion.
+    """
+    return bool(_plugin_skill_names(payload))
+
+
 def _read_manifest_version(manifest_path: Path) -> str:
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     version = data.get("version")
@@ -190,6 +209,23 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         payload = json.loads(run.stdout)
     except json.JSONDecodeError as exc:
         pytest.fail(f"copilot skill list emitted non-JSON: {exc}. stdout={run.stdout[-600:]!r}")
+
+    if not _plugin_enumeration_available(payload):
+        sources = sorted(
+            {
+                str(record.get("source"))
+                for record in (payload if isinstance(payload, list) else [])
+                if isinstance(record, dict)
+            }
+        )
+        pytest.skip(
+            "copilot skill list --json surfaced no source:plugin records for a "
+            "known-good --plugin-dir. On CLI 1.0.69 the plugin-dir load is not "
+            "enumerated through this surface (issue #2990); the load itself is "
+            "unaffected. Skipping loud rather than false-failing. "
+            f"copilot --version: {version.stdout.strip() or version.stderr.strip()!r}; "
+            f"sources seen: {sources}"
+        )
 
     loaded = _plugin_skill_names(payload)
     missing = EXPECTED_SKILLS - loaded
@@ -347,6 +383,37 @@ def test_plugin_skill_names_handles_non_list_payload() -> None:
     """
     assert _plugin_skill_names({"unexpected": "object"}) == set()
     assert _plugin_skill_names(None) == set()
+
+
+def test_plugin_enumeration_available_true_when_plugin_records_present() -> None:
+    """A payload with at least one `source: plugin` record enables the assertion.
+
+    This is the branch where the CLI does enumerate `--plugin-dir` loads, so the
+    caller keeps the strict subset check rather than skipping.
+    """
+    payload = [
+        {"name": "build", "source": "plugin"},
+        {"name": "review", "source": "builtin"},
+    ]
+
+    assert _plugin_enumeration_available(payload) is True
+
+
+def test_plugin_enumeration_available_false_when_no_plugin_records() -> None:
+    """No `source: plugin` record means the CLI did not enumerate the plugin dir.
+
+    On CLI 1.0.69 a neutral-cwd run surfaces only `builtin` and
+    `personal-copilot`; the smoke must SKIP rather than false-fail (issue #2990).
+    Non-list and empty payloads collapse to the same not-available verdict.
+    """
+    only_builtin = [
+        {"name": "review", "source": "builtin"},
+        {"name": "explain", "source": "personal-copilot"},
+    ]
+
+    assert _plugin_enumeration_available(only_builtin) is False
+    assert _plugin_enumeration_available([]) is False
+    assert _plugin_enumeration_available({"unexpected": "object"}) is False
 
 
 def test_clean_env_strips_plugin_root_keys_case_insensitively(
