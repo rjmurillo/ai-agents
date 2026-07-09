@@ -59,7 +59,7 @@ _IMPORT_PATTERNS = {
     "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "csharp": re.compile(r"^\s*using\s+[A-Za-z_]"),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
-    "go": re.compile(r'^\s*import\s+"|^\s+_?\s*"[^"]+"\s*$'),
+    "go": re.compile(r'^\s*import\s+(?:[\w.]+\s+)?"|^\s+(?:[\w.]+\s+)?"[^"]+"\s*$'),
 }
 
 # Generic import fallback for languages without a tuned pattern.
@@ -368,25 +368,33 @@ def _score_coupling(language: str | None, code_lines: list[str]) -> QualityScore
     """Approximate coupling from the number of import/dependency statements.
 
     A high score means loose coupling (few imports), which is good, matching
-    the rubric where 10 is best.
+    the rubric where 10 is best. Languages without a tuned import pattern are
+    counted with a generic fallback for the report but returned at confidence
+    0.0 so the threshold gate does not fail a file scored only by that
+    untuned heuristic (matches the file-header contract).
     """
     pattern = _IMPORT_PATTERNS.get(language) if language else None
     if pattern is not None:
         import_count = sum(1 for line in code_lines if pattern.search(line))
         confidence = 0.6
+        tuned = True
     else:
         import_count = sum(
             1 for line in code_lines if _GENERIC_IMPORT_PATTERN.search(line)
         )
-        confidence = 0.3
+        confidence = 0.0
+        tuned = False
     score = max(1.0, min(10.0, 10.0 - import_count))
+    detail = (
+        "High import count suggests high coupling"
+        if import_count > 10
+        else "Import count is reasonable"
+    )
+    if not tuned:
+        detail = "Generic import approximation (untuned language); not gated"
     reasons = [
         f"{import_count} import/dependency statements",
-        (
-            "High import count suggests high coupling"
-            if import_count > 10
-            else "Import count is reasonable"
-        ),
+        detail,
     ]
     return QualityScore(value=round(score, 1), confidence=confidence, reasons=reasons)
 
@@ -470,6 +478,28 @@ def _score_non_redundancy(lines: list[str]) -> QualityScore:
     return QualityScore(value=round(score, 1), confidence=0.5, reasons=reasons)
 
 
+def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
+    """Return an all-unscored assessment for a file that could not be read.
+
+    Every quality is confidence 0.0 so ``check_thresholds`` skips the file
+    rather than passing it on meaningless scores derived from empty content.
+    The reason is carried so the report explains why the file was not scored.
+    """
+    unscored = QualityScore(
+        value=10.0,
+        confidence=0.0,
+        reasons=[f"Not scored ({reason})"],
+    )
+    return FileAssessment(
+        file_path=str(file_path),
+        cohesion=unscored,
+        coupling=unscored,
+        encapsulation=unscored,
+        testability=unscored,
+        non_redundancy=unscored,
+    )
+
+
 def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessment:
     """
     Assess a single file for all 5 qualities.
@@ -487,8 +517,10 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
     try:
         with open(file_path, encoding='utf-8') as f:
             content = f.read()
-    except Exception:
-        content = ""
+    except OSError as exc:
+        return _unreadable_assessment(file_path, f"read failed: {exc}")
+    except UnicodeDecodeError as exc:
+        return _unreadable_assessment(file_path, f"decode failed: {exc}")
 
     lines = content.split('\n')
     code_lines = [
