@@ -48,8 +48,8 @@ from generate_agents_common import (  # noqa: E402
     read_toolset_definitions,
     read_yaml_frontmatter,
 )
-from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 
 
 def read_artifacts_stanza(config_path: Path, artifact: str) -> dict[str, object] | None:
@@ -252,12 +252,18 @@ def generate_agents(
             #   2. artifacts.agents.{outputDir,outputSuffix} (REQ-003-001 schema)
             #   3. platform top-level (oldest fallback)
             platform_name = str(platform.get("provider", platform.get("platform", "")))
-            legacy = platform.get("legacy") if isinstance(platform.get("legacy"), dict) else {}
-            stanza = platform.get("__agents_stanza__") if isinstance(platform.get("__agents_stanza__"), dict) else {}
+            _legacy_raw = platform.get("legacy")
+            legacy: dict[str, object] = (
+                _legacy_raw if isinstance(_legacy_raw, dict) else {}
+            )
+            _stanza_raw = platform.get("__agents_stanza__")
+            agents_stanza: dict[str, object] = (
+                _stanza_raw if isinstance(_stanza_raw, dict) else {}
+            )
             output_dir_relative = str(
                 legacy.get(
                     "outputDir",
-                    stanza.get("outputDir", platform.get("outputDir", "")),
+                    agents_stanza.get("outputDir", platform.get("outputDir", "")),
                 )
             )
 
@@ -270,7 +276,7 @@ def generate_agents(
             file_ext = str(
                 legacy.get(
                     "fileExtension",
-                    stanza.get("outputSuffix", platform.get("fileExtension", ".md")),
+                    agents_stanza.get("outputSuffix", platform.get("fileExtension", ".md")),
                 )
             )
             output_file = output_dir / f"{agent_name}{file_ext}"
@@ -291,7 +297,11 @@ def generate_agents(
             # Expand toolset references
             # Use toolsFrom alias if set (e.g., visual-studio reuses vscode tools)
             tools_value = transformed_fm.get("tools")
-            tools_from_val = legacy.get("toolsFrom") if legacy.get("toolsFrom") else platform.get("toolsFrom")
+            tools_from_val = (
+                legacy.get("toolsFrom")
+                if legacy.get("toolsFrom")
+                else platform.get("toolsFrom")
+            )
             toolset_platform = str(tools_from_val) if tools_from_val else platform_name
             if (
                 toolsets
@@ -303,8 +313,14 @@ def generate_agents(
                 )
 
             # Transform body
-            handoff_syntax = str(legacy.get("handoffSyntax", platform.get("handoffSyntax", "")))
-            memory_prefix = str(legacy.get("memoryPrefix", platform.get("memoryPrefix", "cloudmcp-manager/")))
+            handoff_syntax = str(
+                legacy.get("handoffSyntax", platform.get("handoffSyntax", ""))
+            )
+            memory_prefix = str(
+                legacy.get(
+                    "memoryPrefix", platform.get("memoryPrefix", "cloudmcp-manager/")
+                )
+            )
 
             transformed_body = convert_handoff_syntax(body, handoff_syntax)
             transformed_body = convert_memory_prefix(transformed_body, memory_prefix)
