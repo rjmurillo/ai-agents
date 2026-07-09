@@ -90,7 +90,7 @@ class SkillValidator:
         """Fallback YAML parser for when PyYAML is not available."""
         lines = frontmatter_text.split('\n')
         current_key = None
-        current_value_lines = []
+        current_value_lines: list[str] = []
         is_folded = False  # Track folded scalar (>)
         is_literal = False  # Track literal scalar (|)
 
@@ -136,7 +136,13 @@ class SkillValidator:
         if current_key and (is_folded or is_literal) and current_value_lines:
             self.frontmatter[current_key] = ' '.join(current_value_lines).strip()
 
-    def check(self, name: str, condition: bool, error_msg: str = None, warning: bool = False):
+    def check(
+        self,
+        name: str,
+        condition: bool,
+        error_msg: str | None = None,
+        warning: bool = False,
+    ):
         """Run a check and record result."""
         self.checks_total += 1
         if condition:
