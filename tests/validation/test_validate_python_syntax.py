@@ -112,7 +112,7 @@ def test_walk_fallback_skips_vendored_and_finds_broken(tmp_path: Path) -> None:
     assert "alsobroken.py" not in found
 
 
-def test_support_floor_is_hook_portability_floor(tmp_path: Path) -> None:
+def test_support_floor_is_hook_portability_floor() -> None:
     # The gate floor is the fixed hook-execution portability floor, not the
     # pyproject install contract. It ignores repo state entirely.
     assert support_floor() == (3, 10)
