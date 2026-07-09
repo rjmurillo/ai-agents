@@ -138,23 +138,47 @@ def _plugin_skill_names(payload: object) -> set[str]:
     return names
 
 
-def _plugin_enumeration_available(payload: object) -> bool:
-    """True if `skill list --json` surfaced at least one `source: plugin` record.
+def _has_plugin_source_record(payload: object) -> bool:
+    """True if `payload` is a list with at least one `source: plugin` record.
 
-    On Copilot CLI 1.0.69 (verified 2026-07-08 on this repo's shipped
-    ``src/copilot-cli`` tree), ``copilot --plugin-dir <dir> skill list --json``
-    run from a neutral cwd surfaces ZERO ``source: plugin`` records: the output
-    carries only ``builtin`` and ``personal-copilot``. The ``source: project``
-    group that does list the lifecycle skills is cwd-based (the repo you stand
-    in), not ``--plugin-dir`` based, so it is not a valid load signal for a
-    neutral-cwd smoke. See issue #2990.
-
-    When this returns False, the CLI does not expose plugin-dir loads through
-    this enumeration surface, so the smoke cannot verify the load here and must
-    SKIP loud rather than false-FAIL. When it returns True (a CLI version that
-    does enumerate plugin skills), the caller keeps the strict subset assertion.
+    Unlike `_plugin_skill_names`, this ignores the ``name`` field: a plugin
+    record with a missing or non-string name still proves the enumeration
+    surface carried plugin loads. The strict ``name`` filter is applied later by
+    `_plugin_skill_names`, so a nameless plugin record makes the smoke fail loud
+    on the missing skill rather than skip.
     """
-    return bool(_plugin_skill_names(payload))
+    if not isinstance(payload, list):
+        return False
+    return any(
+        isinstance(record, dict) and record.get("source") == "plugin"
+        for record in payload
+    )
+
+
+def _plugin_enumeration_available(payload: object) -> bool:
+    """True when the caller must keep the strict assertion instead of skipping.
+
+    The smoke skips ONLY for the known-benign shape: a well-formed JSON array
+    that carries zero ``source: plugin`` records. On Copilot CLI 1.0.69
+    (verified 2026-07-08 on this repo's shipped ``src/copilot-cli`` tree),
+    ``copilot --plugin-dir <dir> skill list --json`` run from a neutral cwd
+    surfaces ZERO ``source: plugin`` records: the output carries only
+    ``builtin`` and ``personal-copilot``. The ``source: project`` group that
+    does list the lifecycle skills is cwd-based (the repo you stand in), not
+    ``--plugin-dir`` based, so it is not a valid load signal for a neutral-cwd
+    smoke. See issue #2990.
+
+    Every other shape returns True so the smoke proceeds and fails loud:
+
+    - a non-list payload (unexpected schema, or a CLI error object) must not
+      silently skip; and
+    - a list that DOES carry ``source: plugin`` records keeps the strict subset
+      assertion, so a plugin record with a missing name fails on the absent
+      skill instead of masking a regression.
+    """
+    if not isinstance(payload, list):
+        return True
+    return _has_plugin_source_record(payload)
 
 
 def _read_manifest_version(manifest_path: Path) -> str:
@@ -209,6 +233,13 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         payload = json.loads(run.stdout)
     except json.JSONDecodeError as exc:
         pytest.fail(f"copilot skill list emitted non-JSON: {exc}. stdout={run.stdout[-600:]!r}")
+
+    if not isinstance(payload, list):
+        pytest.fail(
+            "copilot skill list --json did not return a JSON array "
+            f"(got {type(payload).__name__}); the enumeration schema changed. "
+            f"stdout={run.stdout[-600:]!r}"
+        )
 
     if not _plugin_enumeration_available(payload):
         sources = sorted(
@@ -404,7 +435,8 @@ def test_plugin_enumeration_available_false_when_no_plugin_records() -> None:
 
     On CLI 1.0.69 a neutral-cwd run surfaces only `builtin` and
     `personal-copilot`; the smoke must SKIP rather than false-fail (issue #2990).
-    Non-list and empty payloads collapse to the same not-available verdict.
+    Only a well-formed list with zero plugin records collapses to this
+    not-available verdict; malformed shapes are handled separately below.
     """
     only_builtin = [
         {"name": "review", "source": "builtin"},
@@ -413,7 +445,44 @@ def test_plugin_enumeration_available_false_when_no_plugin_records() -> None:
 
     assert _plugin_enumeration_available(only_builtin) is False
     assert _plugin_enumeration_available([]) is False
-    assert _plugin_enumeration_available({"unexpected": "object"}) is False
+
+
+def test_plugin_enumeration_available_true_on_non_list_payload() -> None:
+    """A non-list payload proceeds (True) so the smoke fails loud, not skips.
+
+    A CLI error object or any unexpected schema must surface as a failed
+    assertion with diagnostics, never a silent skip that masks a regression
+    (gemini/copilot review on PR #3001).
+    """
+    assert _plugin_enumeration_available({"unexpected": "object"}) is True
+    assert _plugin_enumeration_available(None) is True
+    assert _plugin_enumeration_available("not-a-list") is True
+
+
+def test_plugin_enumeration_available_true_when_plugin_record_missing_name() -> None:
+    """A `source: plugin` record counts even without a string `name`.
+
+    Detection is name-independent so a schema change that drops or mangles the
+    name field keeps the strict assertion (True), where `_plugin_skill_names`
+    then fails on the absent skill instead of skipping.
+    """
+    payload = [
+        {"source": "plugin"},
+        {"name": 123, "source": "plugin"},
+    ]
+
+    assert _plugin_enumeration_available(payload) is True
+    assert _plugin_skill_names(payload) == set()
+
+
+def test_has_plugin_source_record() -> None:
+    """`_has_plugin_source_record` detects plugin records independent of name."""
+    assert _has_plugin_source_record([{"source": "plugin"}]) is True
+    assert _has_plugin_source_record([{"name": "build", "source": "plugin"}]) is True
+    assert _has_plugin_source_record([{"name": "review", "source": "builtin"}]) is False
+    assert _has_plugin_source_record([]) is False
+    assert _has_plugin_source_record({"unexpected": "object"}) is False
+    assert _has_plugin_source_record(None) is False
 
 
 def test_clean_env_strips_plugin_root_keys_case_insensitively(
