@@ -37,6 +37,10 @@ Key requirements:
 - **Atomicity Scores**: All learnings scored 0-100% using defined criteria
 - **Source Attribution**: Link every insight to specific execution artifacts
 
+## Prose Self-Check
+
+Before emitting any prose artifact (retrospective narrative, learning write-up, session-log prose, PR or issue body), run the prose-self-check skill (`.claude/skills/prose-self-check/SKILL.md`). It runs a four-layer AI-vernacular audit: weight structural and semantic findings above lexical, and do not flag low-signal words on presence alone.
+
 ## Activation Profile
 
 **Keywords**: Learnings, Reflection, Diagnosis, Patterns, Five-Whys, Evidence, Failures, Success, Improvement, Atomicity, Skillbook, Debrief, Root-cause, Insights, Actions, Timeline, Outcome, Continuous, Extraction, Performance
