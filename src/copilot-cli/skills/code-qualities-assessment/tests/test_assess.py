@@ -31,6 +31,7 @@ _spec.loader.exec_module(_mod)
 assess_file = _mod.assess_file
 check_thresholds = _mod.check_thresholds
 detect_language = _mod.detect_language
+get_files_to_assess = _mod.get_files_to_assess
 load_config = _mod.load_config
 
 
@@ -270,3 +271,68 @@ def test_gate_fails_tightly_coupled_file(tmp_path: Path) -> None:
 
     rc = check_thresholds([assessment], _default_config(), "production")
     assert rc == 11
+
+
+# --------------------------------------------------------------------------- #
+# Regression guards for GPT-5.5 adversarial review of PR #3000
+# --------------------------------------------------------------------------- #
+
+
+def test_go_import_block_not_overcounted(tmp_path: Path) -> None:
+    """A Go ``import ( ... )`` block must count only the specs inside it, not
+    the block opener. A 3-import block is 3 imports (coupling 7), not 4."""
+    body = (
+        "package main\n\n"
+        "import (\n"
+        '    "fmt"\n'
+        '    "os"\n'
+        '    "strings"\n'
+        ")\n\n"
+        "func main() {}\n"
+    )
+    path = _write(tmp_path, "main.go", body)
+    coupling = assess_file(path, "production", False).coupling
+    # 10 - 3 imports == 7; the block opener must not add a fourth.
+    assert coupling.value == 7
+
+
+def test_web_indented_local_var_not_counted_as_global(tmp_path: Path) -> None:
+    """An indented function-local ``var`` is not global state; only a
+    module-scope (unindented) ``var`` lowers JS testability."""
+    local_only = _write(
+        tmp_path,
+        "local.js",
+        "function f() {\n    var x = 1;\n    return x;\n}\n",
+    )
+    module_scope = _write(
+        tmp_path,
+        "global.js",
+        "var x = 1;\nfunction f() {\n    return x;\n}\n",
+    )
+    local_score = assess_file(local_only, "production", False).testability
+    global_score = assess_file(module_scope, "production", False).testability
+    # The local-only file has no global state, so it scores strictly higher.
+    assert local_score.value > global_score.value
+
+
+def test_directory_scan_includes_all_supported_suffixes(tmp_path: Path) -> None:
+    """Directory assessment must pick up every suffix detect_language supports,
+    including .go, .tsx, .jsx, .mjs, .cjs (previously omitted)."""
+    for name in ("a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"):
+        _write(tmp_path, name, "x = 1\n")
+    found = {p.name for p in get_files_to_assess(str(tmp_path), False)}
+    assert {"a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"} <= found
+
+
+def test_template_qualityrc_uses_coupling_min(tmp_path: Path) -> None:
+    """The shipped template config must use coupling.min (matching
+    check_thresholds), not the legacy coupling.max that disabled the gate."""
+    import json
+
+    template = (
+        Path(__file__).parent.parent / "templates" / ".qualityrc.json"
+    )
+    config = json.loads(template.read_text(encoding="utf-8"))
+    coupling = config["thresholds"]["coupling"]
+    assert "min" in coupling
+    assert "max" not in coupling

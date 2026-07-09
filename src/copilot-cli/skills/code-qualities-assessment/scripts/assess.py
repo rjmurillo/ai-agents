@@ -59,7 +59,7 @@ _IMPORT_PATTERNS = {
     "typescript": re.compile(r"^\s*import\s+|\brequire\s*\("),
     "csharp": re.compile(r"^\s*using\s+[A-Za-z_]"),
     "java": re.compile(r"^\s*import\s+[A-Za-z_]"),
-    "go": re.compile(r'^\s*import\s+[("]|^\s+_?\s*"[^"]+"\s*$'),
+    "go": re.compile(r'^\s*import\s+"|^\s+_?\s*"[^"]+"\s*$'),
 }
 
 # Generic import fallback for languages without a tuned pattern.
@@ -109,7 +109,7 @@ def _count_web_global_state(lines: list[str]) -> int:
     patterns = (
         re.compile(r"\bglobalThis\b"),
         re.compile(r"\bwindow\.\w+\s*="),
-        re.compile(r"^\s*var\s+\w"),
+        re.compile(r"^var\s+\w"),
     )
     return sum(1 for line in lines if any(p.search(line) for p in patterns))
 
@@ -326,11 +326,11 @@ def get_files_to_assess(target: str, changed_only: bool) -> list[Path]:
         if target_path.is_file():
             files = [target_path]
         elif target_path.is_dir():
-            files = list(target_path.rglob("*.py")) + \
-                    list(target_path.rglob("*.ts")) + \
-                    list(target_path.rglob("*.js")) + \
-                    list(target_path.rglob("*.cs")) + \
-                    list(target_path.rglob("*.java"))
+            files = [
+                f
+                for suffix in _LANGUAGE_BY_SUFFIX
+                for f in target_path.rglob(f"*{suffix}")
+            ]
         else:
             # Glob pattern
             files = [Path(f) for f in glob(target, recursive=True)]
