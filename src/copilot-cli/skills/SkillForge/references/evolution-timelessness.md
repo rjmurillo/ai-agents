@@ -31,4 +31,4 @@ Every skill is evaluated through the evolution lens:
 | Abstract volatile dependencies | Direct coupling |
 | Version-agnostic patterns | Pin specific versions |
 
-See: [references/evolution-scoring.md](evolution-scoring.md)
+See: [evolution-scoring.md](evolution-scoring.md)

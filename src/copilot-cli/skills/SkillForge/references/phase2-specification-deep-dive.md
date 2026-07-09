@@ -50,7 +50,7 @@ The specification captures all analysis insights in XML format:
 </skill_specification>
 ```
 
-See: [references/specification-template.md](specification-template.md)
+See: [specification-template.md](specification-template.md)
 
 ### Specification Validation
 
