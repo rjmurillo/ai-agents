@@ -413,6 +413,6 @@ Store new memories to Serena with optional Forgetful sync.
 ## Related Documentation
 
 - [Memory Router](memory-router.md) - Underlying module
-- [Agent Integration](agent-integration.md) - Agent workflows
+- [Agent Integration](../../memory-gate/references/agent-integration.md) - Agent workflows
 - [API Reference](api-reference.md) - Complete API
 - [Quick Start](quick-start.md) - Common patterns

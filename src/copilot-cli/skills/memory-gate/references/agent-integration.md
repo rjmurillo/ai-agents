@@ -414,10 +414,10 @@ done
 
 ## Related Documentation
 
-- [README.md](README.md) - System overview
-- [Quick Start](quick-start.md) - Common patterns
-- [API Reference](api-reference.md) - Complete function signatures
-- [Skill Reference](skill-reference.md) - Skill script documentation
+- [Skill overview](../SKILL.md) - Memory gate skill guide
+- [Quick Start](../../memory-search/references/quick-start.md) - Common patterns
+- [API Reference](../../memory-search/references/api-reference.md) - Complete function signatures
+- [Skill Reference](../../memory-search/references/skill-reference.md) - Skill script documentation
 - ADR-007 - Memory-First Architecture
 - ADR-037 - Memory Router Architecture
 - ADR-038 - Reflexion Memory Schema

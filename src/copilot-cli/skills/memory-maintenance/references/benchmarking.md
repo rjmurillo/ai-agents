@@ -521,8 +521,8 @@ Not currently supported. Configuration is hardcoded in script.
 
 ## Related Documentation
 
-- [Memory Router](memory-router.md) - Understanding what's being benchmarked
-- [API Reference](api-reference.md) - Function signatures
+- [Memory Router](../../memory-search/references/memory-router.md) - Understanding what's being benchmarked
+- [API Reference](../../memory-search/references/api-reference.md) - Function signatures
 - ADR-037 - Memory Router Architecture
 - Task M-008 - Memory Search Benchmarks
 

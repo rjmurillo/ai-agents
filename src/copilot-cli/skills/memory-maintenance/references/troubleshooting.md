@@ -624,14 +624,14 @@ If issues persist after trying these solutions:
 
 1. **Check Logs**: Review session logs for error context
 2. **Verify Configuration**: Ensure ADR-037 and ADR-038 guidelines are followed
-3. **Review Documentation**: See [API Reference](api-reference.md) for function details
+3. **Review Documentation**: See [API Reference](../../memory-search/references/api-reference.md) for function details
 4. **File Issue**: Create GitHub issue with `memory-system` label
 
 ## Related Documentation
 
-- [README.md](README.md) - System overview
-- [API Reference](api-reference.md) - Complete function signatures
-- [Quick Start](quick-start.md) - Common patterns
+- [Skill overview](../SKILL.md) - Memory maintenance skill guide
+- [API Reference](../../memory-search/references/api-reference.md) - Complete function signatures
+- [Quick Start](../../memory-search/references/quick-start.md) - Common patterns
 - [Benchmarking](benchmarking.md) - Performance measurement
 
 <!-- vendor-portability: declared. This guide tells the user to create .agents/memory/episodes/ when the episode directory is missing. The path is the memory store's data dir, created by the fix the doc describes; it is not a read precondition. Issue #2050. -->
