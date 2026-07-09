@@ -627,6 +627,25 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
 # `.claude/lib` sync from scripts/sync_plugin_lib.py (issue #2613).
 CLAUDE_GUARD_PREFIX: tuple[str, ...] = (".claude/",)
 
+# Git honors these env vars over ``-C``/discovery: an inherited GIT_DIR or
+# GIT_WORK_TREE (for example when build_all.py runs inside a git hook) would
+# redirect ``git ls-files`` away from ``repo_root`` and yield the wrong ignore
+# set. Strip them so the subprocess resolves the repo purely from ``-C``.
+_GIT_LOCATION_ENV_VARS: tuple[str, ...] = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+)
+
+
+def _git_scrubbed_env() -> dict[str, str]:
+    """Return a copy of the process env with git location overrides removed."""
+    env = dict(os.environ)
+    for key in _GIT_LOCATION_ENV_VARS:
+        env.pop(key, None)
+    return env
+
 
 def assert_no_claude_writes(
     repo_root: Path, baseline: dict[Path, bytes]
@@ -741,8 +760,13 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
     safe but not race-immune. Paths are built as ``repo_root / rel`` without
     ``resolve()`` so they compare equal to the ``rglob`` output in
     :func:`_snapshot_owned_prefixes`.
+
+    Git location env vars (``GIT_DIR`` and friends) are stripped from the
+    subprocess env so an inherited value cannot redirect ``ls-files`` away
+    from ``repo_root`` (issue #2992 hook-execution context).
     """
     ignored: set[Path] = set()
+    scrubbed_env = _git_scrubbed_env()
     for prefix in prefixes:
         argv = [
             "git",
@@ -762,6 +786,7 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
                 capture_output=True,
                 check=False,
                 timeout=30,
+                env=scrubbed_env,
             )
         except (OSError, subprocess.SubprocessError):
             continue
