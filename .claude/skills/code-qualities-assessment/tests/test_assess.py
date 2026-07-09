@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -39,9 +40,10 @@ def _write(tmp_path: Path, name: str, body: str) -> Path:
     return path
 
 
-def _default_config() -> dict:
+def _default_config() -> dict[str, Any]:
     # load_config with a nonexistent path returns the built-in defaults.
-    return load_config(str(Path("/nonexistent/.qualityrc.json")))
+    config: dict[str, Any] = load_config(str(Path("/nonexistent/.qualityrc.json")))
+    return config
 
 
 # --------------------------------------------------------------------------- #

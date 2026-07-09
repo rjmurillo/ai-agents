@@ -22,6 +22,7 @@ import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 # Language detection by file suffix. Only languages with tuned heuristics are
 # listed; anything else is analyzed with generic fallbacks and reduced
@@ -283,11 +284,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_config(config_path: str) -> dict:
+def load_config(config_path: str) -> dict[str, Any]:
     """Load configuration or return defaults"""
     try:
         with open(config_path) as f:
-            config: dict = json.load(f)
+            config: dict[str, Any] = json.load(f)
             return config
     except FileNotFoundError:
         # Default configuration
@@ -508,7 +509,7 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
     )
 
 
-def generate_markdown_report(assessments: list[FileAssessment], config: dict) -> str:
+def generate_markdown_report(assessments: list[FileAssessment], config: dict[str, Any]) -> str:
     """Generate markdown report"""
     report = ["# Code Quality Assessment Report\n"]
 
@@ -585,7 +586,9 @@ def generate_json_report(assessments: list[FileAssessment]) -> str:
     }, indent=2)
 
 
-def check_thresholds(assessments: list[FileAssessment], config: dict, context: str) -> int:
+def check_thresholds(
+    assessments: list[FileAssessment], config: dict[str, Any], context: str
+) -> int:
     """
     Check if quality scores meet configured thresholds.
 
