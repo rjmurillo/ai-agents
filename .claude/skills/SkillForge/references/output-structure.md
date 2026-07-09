@@ -105,7 +105,7 @@ Scripts enable skills to be **agentic** - capable of autonomous operation with s
 - Self-verification where applicable
 - Documented in SKILL.md with usage examples
 
-See: [references/script-integration-framework.md](script-integration-framework.md)
+See: [script-integration-framework.md](script-integration-framework.md)
 
 ### Hooks Integration
 
