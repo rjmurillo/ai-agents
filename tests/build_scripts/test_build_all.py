@@ -1338,3 +1338,155 @@ def test_run_check_returns_2_when_skill_mirror_is_stale(
         f"--check should restore the src/ mirror and leave only the source "
         f"edit dirty; got:\n{porcelain}"
     )
+
+
+# _ignored_paths + exclude_ignored guard filtering (issue #2992) -------------
+
+
+def test_ignored_paths_lists_gitignored_files(tmp_path: Path) -> None:
+    """git-ignored runtime artifacts must appear in the ignored set."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text(
+        ".claude/hooks/audit.log\n__pycache__/\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
+    )
+    hooks = repo / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    audit = hooks / "audit.log"
+    audit.write_text("runtime append\n", encoding="utf-8")
+    pyc_dir = hooks / "__pycache__"
+    pyc_dir.mkdir()
+    pyc = pyc_dir / "mod.cpython-314.pyc"
+    pyc.write_bytes(b"\x00bytecode")
+
+    ignored = build_all._ignored_paths(repo, build_all.CLAUDE_GUARD_PREFIX)
+    assert audit in ignored
+    assert pyc in ignored
+
+
+def test_ignored_paths_excludes_tracked_files(tmp_path: Path) -> None:
+    """A tracked .claude/ file is NOT gitignored, so it stays out of the set."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    tracked = repo / ".claude" / "agents" / "real.md"
+    tracked.parent.mkdir(parents=True)
+    tracked.write_text("# real agent\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(repo), "add", ".claude/agents/real.md"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "add"], check=True
+    )
+
+    ignored = build_all._ignored_paths(repo, build_all.CLAUDE_GUARD_PREFIX)
+    assert tracked not in ignored
+
+
+def test_ignored_paths_empty_when_not_a_git_repo(tmp_path: Path) -> None:
+    """Outside a git repo, ls-files fails and the set is empty (safe fallback)."""
+    claude = tmp_path / ".claude" / "hooks"
+    claude.mkdir(parents=True)
+    (claude / "audit.log").write_text("noise\n", encoding="utf-8")
+
+    ignored = build_all._ignored_paths(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
+    assert ignored == set()
+
+
+def test_snapshot_excludes_ignored_runtime_artifacts(tmp_path: Path) -> None:
+    """exclude_ignored omits gitignored files from the snapshot."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text(
+        ".claude/hooks/audit.log\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
+    )
+    hooks = repo / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    audit = hooks / "audit.log"
+    audit.write_text("v1\n", encoding="utf-8")
+    tracked = repo / ".claude" / "agents" / "a.md"
+    tracked.parent.mkdir(parents=True)
+    tracked.write_text("a\n", encoding="utf-8")
+
+    snap = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+    assert audit not in snap
+    assert tracked in snap
+
+
+def test_assert_no_claude_writes_ignores_audit_log_churn(tmp_path: Path) -> None:
+    """REQ-003-010 false positive fix (#2992): a gitignored audit.log that
+    changes DURING the build window must NOT be attributed to a generator.
+
+    Reproduces the intermittent push blocker: a session hook appends to
+    .claude/hooks/audit.log between the baseline snapshot and the post-build
+    re-read. Before the fix, that byte difference tripped the guard.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text(
+        ".claude/hooks/audit.log\n__pycache__/\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
+    )
+    hooks = repo / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    audit = hooks / "audit.log"
+    audit.write_text("before build\n", encoding="utf-8")
+
+    baseline = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+    # Session hook appends to the gitignored log mid-build (the race).
+    audit.write_text("before build\nappended during build\n", encoding="utf-8")
+
+    assert build_all.assert_no_claude_writes(repo, baseline) == []
+
+
+def test_assert_no_claude_writes_still_flags_real_write_in_git_repo(
+    tmp_path: Path,
+) -> None:
+    """The gitignore filter must NOT mask a genuine generator write to a
+    non-ignored .claude/ path (#2992 negative control)."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text(
+        ".claude/hooks/audit.log\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
+    )
+    (repo / ".claude" / "agents").mkdir(parents=True)
+
+    baseline = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+    # Generator writes a NON-ignored file after the snapshot.
+    (repo / ".claude" / "agents" / "leak.md").write_text(
+        "generated", encoding="utf-8"
+    )
+
+    assert build_all.assert_no_claude_writes(repo, baseline) == [
+        ".claude/agents/leak.md"
+    ]
