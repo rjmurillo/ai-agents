@@ -446,8 +446,13 @@ class TestContentControlledPromptParity:
     def test_stripped_agent_prompt_drops_frontmatter_description(self):
         agent_prompt, _ = cli_mod._read_agent_prompt("security")
 
+        # Structural invariants: the leading YAML frontmatter block is gone and
+        # the prompt now opens on the agent body's first heading. Asserting on
+        # the body heading rather than the absence of a specific frontmatter key
+        # avoids a false failure if the body ever quotes a key such as
+        # "tier: builder" in an example.
         assert not agent_prompt.startswith("---")
-        assert "tier: builder" not in agent_prompt
+        assert agent_prompt.lstrip().startswith("# Security Agent")
 
 
 # ---------------------------------------------------------------------------
