@@ -284,9 +284,10 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
             pytest.fail(
                 "copilot skill list --json surfaced no source:plugin records for a "
                 f"known-good --plugin-dir on CLI version {version_text!r}, which is "
-                "NOT a known plugin-enumeration-omitting version (issue #2990). "
-                "A version that enumerates --plugin-dir skills but returns none is a "
-                "real plugin-load regression, not the benign 1.0.69/1.0.70 shape. "
+                "NOT a known plugin-enumeration-omitting version (issues #2990, "
+                "#3014). A version that enumerates --plugin-dir skills but returns "
+                "none is a real plugin-load regression, not the benign 1.0.69/1.0.70 "
+                "shape. "
                 f"sources seen: {sources}"
             )
         pytest.skip(
@@ -542,7 +543,7 @@ def test_copilot_version_omits_enumeration_true_for_benign_version() -> None:
 
 
 def test_copilot_version_omits_enumeration_false_for_other_versions() -> None:
-    """Any version not in the benign set must fail loud, not skip (issue #2990).
+    """Any version not in the benign set must fail loud, not skip (issues #2990, #3014).
 
     A CLI that enumerates ``--plugin-dir`` skills but returns none is a real
     plugin-load regression; the negative control depends on this returning False.
