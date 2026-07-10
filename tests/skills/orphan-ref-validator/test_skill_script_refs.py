@@ -1,6 +1,6 @@
 """CI-collected tests for the issue #1987 skill-script reference check.
 
-testpaths = ["tests", "test"] (pyproject), so the skill-local
+testpaths = ["tests"] (pyproject), so the skill-local
 .claude/skills/orphan-ref-validator/tests/test_scan.py is not collected by the
 default CI pytest run. This file lives under tests/ so the #1987 guard has CI
 coverage. It loads scan.py via the same importlib shim the skill-local suite
