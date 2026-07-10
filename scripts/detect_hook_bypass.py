@@ -26,7 +26,7 @@ import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Matches squashed merge-resolution commits (single parent, merge-like subject)
@@ -209,7 +209,7 @@ def analyze_commits(
     commits = get_pr_commits(base_ref)
 
     report = AuditReport(
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         branch=branch,
         base_ref=base_ref,
         total_commits=len(commits),

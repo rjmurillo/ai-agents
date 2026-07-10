@@ -27,9 +27,9 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
 
 _ACCEPTANCE_HEADING = re.compile(
     r"^#{1,6}\s*acceptance(?:\s+criteria)?\s*$",
@@ -106,9 +106,9 @@ _STOP_WORDS: frozenset[str] = frozenset(
         "the", "and", "for", "are", "but", "not", "you", "all", "can", "her",
         "was", "one", "our", "out", "day", "get", "has", "him", "his", "how",
         "its", "let", "may", "new", "now", "old", "see", "two", "use", "way",
-        "who", "why", "yet", "did", "its", "per", "set", "via", "any", "had",
+        "who", "why", "yet", "did", "per", "set", "via", "any", "had",
         "top", "try", "put", "too", "off", "own", "big", "far", "few", "got",
-        "end", "due", "run", "nit", "nor", "nor", "isn", "was", "are",
+        "end", "due", "run", "nit", "nor", "isn",
     }
 )
 
