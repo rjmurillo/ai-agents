@@ -161,13 +161,14 @@ def _plugin_enumeration_available(payload: object) -> bool:
 
     The smoke skips ONLY for the known-benign shape: a well-formed JSON array
     that carries zero ``source: plugin`` records. On Copilot CLI 1.0.69
-    (verified 2026-07-08 on this repo's shipped ``src/copilot-cli`` tree),
-    ``copilot --plugin-dir <dir> skill list --json`` run from a neutral cwd
-    surfaces ZERO ``source: plugin`` records: the output carries only
-    ``builtin`` and ``personal-copilot``. The ``source: project`` group that
-    does list the lifecycle skills is cwd-based (the repo you stand in), not
-    ``--plugin-dir`` based, so it is not a valid load signal for a neutral-cwd
-    smoke. See issue #2990.
+    (verified 2026-07-08 on this repo's shipped ``src/copilot-cli`` tree) and
+    1.0.70 (issue #3014), ``copilot --plugin-dir <dir> skill list --json`` run
+    from a neutral cwd surfaces ZERO ``source: plugin`` records: the output
+    carries only ``builtin`` and ``personal-copilot``. The ``source: project``
+    group that does list the lifecycle skills is cwd-based (the repo you stand
+    in), not ``--plugin-dir`` based, so it is not a valid load signal for a
+    neutral-cwd smoke. The full set of benign versions lives in
+    ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` below. See issues #2990 and #3014.
 
     The caller validates list-ness first:
     ``test_copilot_plugin_loads_expected_skills`` fails loud on a non-list
@@ -195,10 +196,13 @@ def _copilot_version_omits_plugin_enumeration(version_output: str) -> bool:
 
     Only the versions in ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` are allowed to skip
     the strict subset assertion when ``skill list --json`` surfaces zero
-    ``source: plugin`` records (issues #2990 and #3014). Any other version that
-    fails to enumerate the plugin is a real plugin-load regression and must fail
-    loud, so the smoke keeps its negative control instead of masking a broken
-    load on a CLI that DOES enumerate ``--plugin-dir`` skills.
+    ``source: plugin`` records (issues #2990 and #3014). This is an
+    output-surface quirk of those releases: the plugin loads and its hooks fire,
+    but ``skill list --json`` does not enumerate ``--plugin-dir`` skills under
+    ``source: plugin``. Any other version that surfaces zero ``source: plugin``
+    records is treated as a real plugin-load regression and must fail loud, so
+    the smoke keeps its negative control instead of masking a broken load on a
+    CLI that DOES enumerate ``--plugin-dir`` skills through this surface.
 
     The version token is the first ``MAJOR.MINOR.PATCH`` in the CLI's
     ``--version`` output; a ``-<suffix>`` build tag (for example ``1.0.69-3``) is
