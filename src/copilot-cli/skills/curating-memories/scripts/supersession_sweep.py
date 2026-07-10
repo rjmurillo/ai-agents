@@ -214,7 +214,10 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     root = Path(args.root)
     if not root.is_dir():
-        print(f"error: root not found: {root}", file=sys.stderr)
+        message = f"root not found: {root}"
+        print(f"error: {message}", file=sys.stderr)
+        if args.json:
+            print(json.dumps({"error": message}))
         return 0
     proposals = sweep(root)
     if args.json:

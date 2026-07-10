@@ -188,6 +188,17 @@ def test_main_missing_root_exits_zero(capsys: pytest.CaptureFixture[str]) -> Non
     assert "root not found" in capsys.readouterr().err
 
 
+def test_main_missing_root_json_emits_error_payload(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # --json callers must get parseable JSON even on a bad root, not empty
+    # stdout, so a downstream parser gets a structured error.
+    rc = sweep_mod.main(["--root", "/nonexistent/path/xyz", "--json"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert json.loads(out)["error"].startswith("root not found")
+
+
 def test_sweep_skips_unreadable_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
