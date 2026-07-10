@@ -458,14 +458,25 @@ class TestRunValidations:
         detector_path = (
             Path(__file__).resolve().parents[1] / "scripts" / "detect_skill_violation.py"
         )
-        spec = importlib.util.spec_from_file_location(
-            "detect_skill_violation", detector_path
-        )
+        mod_key = "detect_skill_violation_drift_guard"
+        spec = importlib.util.spec_from_file_location(mod_key, detector_path)
         assert spec is not None and spec.loader is not None
         detector = importlib.util.module_from_spec(spec)
-        sys.modules["detect_skill_violation"] = detector
-        spec.loader.exec_module(detector)
-        assert _mod._SKILL_SCAN_EXTENSIONS == detector.VALID_EXTENSIONS
+        # detect_skill_violation.py uses @dataclass, whose decorator resolves
+        # cls.__module__ via sys.modules, so the module must be registered
+        # before exec_module. Register under a unique key and restore prior
+        # state in finally to avoid leaking global sys.modules state into other
+        # tests (gemini-code-assist review, PR #3012).
+        previous = sys.modules.get(mod_key)
+        sys.modules[mod_key] = detector
+        try:
+            spec.loader.exec_module(detector)
+            assert _mod._SKILL_SCAN_EXTENSIONS == detector.VALID_EXTENSIONS
+        finally:
+            if previous is not None:
+                sys.modules[mod_key] = previous
+            else:
+                sys.modules.pop(mod_key, None)
 
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):
         changed = ".agents/sessions/2025-01-01-session-01.json\n"
