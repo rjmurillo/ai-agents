@@ -196,7 +196,14 @@ def test_sweep_skips_unreadable_file(
     ],
 )
 def test_confirmed_cases_classify_as_expected(rel: str, expected: str) -> None:
+    # When the whole memories tree is absent (shallow checkout, foreign
+    # environment) the module-level skipif above skips this test. But when
+    # the tree IS present, a missing named case must FAIL, not skip: these
+    # files are the #3019 contract, and a silent skip would hide a rename,
+    # removal, or premature ratification that changed a proof case.
     path = MEMORIES / rel
-    if not path.exists():
-        pytest.skip(f"fixture absent: {rel}")
+    assert path.exists(), (
+        f"confirmed-case memory {rel} is missing; the #3019 contract requires "
+        "it. If it was intentionally renamed or ratified, update this test."
+    )
     assert sweep_mod.classify_file(path) == expected
