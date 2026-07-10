@@ -195,7 +195,8 @@ def _copilot_version_omits_plugin_enumeration(version_output: str) -> bool:
 
     Only the versions in ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` are allowed to skip
     the strict subset assertion when ``skill list --json`` surfaces zero
-    ``source: plugin`` records (issue #2990). Any other version that fails to
+    ``source: plugin`` records (issues #2990 and #3014). Any other version that
+    fails to
     enumerate the plugin is a real plugin-load regression and must fail loud, so
     the smoke keeps its negative control instead of masking a broken load on a
     CLI that DOES enumerate ``--plugin-dir`` skills.
