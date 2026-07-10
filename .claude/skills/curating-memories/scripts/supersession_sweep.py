@@ -42,8 +42,9 @@ HEALTHY_SUPERSESSION = "healthy-supersession"
 RESOLVED_HISTORICAL = "resolved-or-historical-but-present"
 TEMPORAL_SNAPSHOT = "temporal-snapshot-as-live"
 
-# Dispositions that warrant a proposal (everything except live).
-ACTIONABLE = (RESOLVED_HISTORICAL, HEALTHY_SUPERSESSION, TEMPORAL_SNAPSHOT)
+# Dispositions that warrant a follow-up proposal. healthy-supersession and
+# live are both "leave alone", so neither appears in the proposals list.
+ACTIONABLE = (RESOLVED_HISTORICAL, TEMPORAL_SNAPSHOT)
 
 _STATUS_RE = re.compile(r"status[^A-Za-z0-9]{0,6}(resolved|blocking)", re.IGNORECASE)
 _REMOVED_RE = re.compile(r"\(removed\)", re.IGNORECASE)
@@ -55,7 +56,7 @@ _BANNER_RE = re.compile(
 )
 _DATE_RE = re.compile(r"20\d{2}-\d{2}-\d{2}")
 _SNAPSHOT_FRAME_RE = re.compile(
-    r"top[\s\-]?\d+|snapshot|as of|current state|\bv\d+(?:\.\d+)*\b",
+    r"top[\s\-]?\d+|snapshot|as of|current state",
     re.IGNORECASE,
 )
 

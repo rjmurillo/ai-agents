@@ -24,9 +24,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_DIR = REPO_ROOT / ".claude" / "skills" / "curating-memories" / "scripts"
+_orig_sys_path = list(sys.path)
 sys.path.insert(0, str(SCRIPT_DIR))
-
-import supersession_sweep as sweep_mod  # noqa: E402
+try:
+    import supersession_sweep as sweep_mod  # noqa: E402
+finally:
+    sys.path[:] = _orig_sys_path
 
 LIVE = sweep_mod.LIVE
 HEALTHY = sweep_mod.HEALTHY_SUPERSESSION
@@ -76,6 +79,14 @@ def test_dated_snapshot_framing_is_temporal_snapshot() -> None:
 def test_plain_guidance_is_live() -> None:
     text = "# How to do X\n\nRun the thing. Then check the result.\n"
     assert sweep_mod.classify(sweep_mod.scan_signals(text)) == LIVE
+
+
+def test_version_string_without_framing_is_not_snapshot() -> None:
+    # Regression: a historical changelog with a version like v3.0.0 and a date
+    # must not be flagged as temporal-snapshot-as-live. Only explicit framing
+    # (top N, snapshot, as of, current state) qualifies.
+    text = "# Skill - Version History\n\n## v3.0.0 (2026-01-03)\n\nChanged stuff.\n"
+    assert sweep_mod.classify(sweep_mod.scan_signals(text)) != SNAPSHOT
 
 
 # --- negative / false-positive guards -------------------------------------
@@ -133,7 +144,7 @@ def test_sweep_proposes_without_editing(tmp_path: Path) -> None:
     rot.write_text("**Status**: RESOLVED\nx.py (removed) y.py (removed)\n")
     live = tmp_path / "b.md"
     live.write_text("# Live\n\nCurrent guidance.\n")
-    before = {p: p.read_text() for p in (rot, live)}
+    before = {p: p.read_text(encoding="utf-8") for p in (rot, live)}
 
     proposals = sweep_mod.sweep(tmp_path)
 
@@ -142,7 +153,7 @@ def test_sweep_proposes_without_editing(tmp_path: Path) -> None:
     assert dispositions["b.md"] == LIVE
     # AC4: nothing on disk changed.
     for path, content in before.items():
-        assert path.read_text() == content
+        assert path.read_text(encoding="utf-8") == content
 
 
 def test_main_json_exit_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -158,6 +169,17 @@ def test_main_text_exit_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     rc = sweep_mod.main(["--root", str(tmp_path)])
     assert rc == 0
     assert "proposal only" in capsys.readouterr().out
+
+
+def test_healthy_supersession_not_listed_as_proposal() -> None:
+    # Regression: healthy-supersession is "leave alone", so it must be counted
+    # but never appear under Proposals, which would misroute operator attention.
+    healthy = sweep_mod.Proposal("h.md", HEALTHY, {})
+    rot = sweep_mod.Proposal("r.md", ROT, {})
+    report = sweep_mod.render_text([healthy, rot])
+    proposals_section = report.split("Proposals", 1)[1]
+    assert "r.md" in proposals_section
+    assert "h.md" not in proposals_section
 
 
 def test_main_missing_root_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
