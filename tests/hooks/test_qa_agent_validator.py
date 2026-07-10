@@ -5,6 +5,8 @@ Covers: non-QA agent skip, missing transcript, valid transcript with
 all sections, missing sections, file errors, invalid JSON.
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path
@@ -161,28 +163,28 @@ class TestMain:
         assert result == 0
 
     def test_exits_0_on_empty_input(
-        self, mock_stdin: "Callable[[str], None]"
+        self, mock_stdin: Callable[[str], None]
     ):
         mock_stdin("")
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
     def test_exits_0_for_non_qa_agent(
-        self, mock_stdin: "Callable[[str], None]"
+        self, mock_stdin: Callable[[str], None]
     ):
         mock_stdin(json.dumps({"subagent_type": "implementer"}))
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
     def test_exits_0_for_missing_transcript(
-        self, mock_stdin: "Callable[[str], None]"
+        self, mock_stdin: Callable[[str], None]
     ):
         mock_stdin(json.dumps({"subagent_type": "qa"}))
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
     def test_reports_passed_when_complete(
-        self, mock_stdin: "Callable[[str], None]", tmp_path, capsys
+        self, mock_stdin: Callable[[str], None], tmp_path, capsys
     ):
         transcript = tmp_path / "transcript.md"
         transcript.write_text(
@@ -205,7 +207,7 @@ class TestMain:
         assert data["missing_sections"] == []
 
     def test_reports_failure_when_incomplete(
-        self, mock_stdin: "Callable[[str], None]", tmp_path, capsys
+        self, mock_stdin: Callable[[str], None], tmp_path, capsys
     ):
         transcript = tmp_path / "transcript.md"
         transcript.write_text("# Some Other Section\n\nContent\n")
@@ -226,7 +228,7 @@ class TestMain:
         assert len(data["missing_sections"]) == 3
 
     def test_handles_file_read_error(
-        self, mock_stdin: "Callable[[str], None]", tmp_path, capsys
+        self, mock_stdin: Callable[[str], None], tmp_path, capsys
     ):
         """Handles OSError when reading transcript."""
         transcript_path = str(tmp_path / "unreadable.md")

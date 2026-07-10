@@ -2,9 +2,6 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
 
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))

@@ -1,7 +1,5 @@
 """Tests for extract_github_context.py."""
 
-import json
-from unittest.mock import patch
 
 import pytest
 

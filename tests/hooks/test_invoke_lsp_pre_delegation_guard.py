@@ -14,13 +14,8 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
 
 import pytest
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK_DIR = str(REPO_ROOT / ".claude" / "hooks" / "PreToolUse")

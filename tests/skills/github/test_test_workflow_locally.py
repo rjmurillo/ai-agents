@@ -1,13 +1,10 @@
 """Tests for test_workflow_locally.py."""
 
-import json
-import os
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
-
 from test_helpers import make_completed_process
 
 # Ensure importability
