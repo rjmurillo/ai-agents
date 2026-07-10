@@ -38,7 +38,7 @@ class TestOrchestrateShSyntax:
 
     def test_shebang_is_bash(self):
         """Script uses bash shebang."""
-        with open(SCRIPT_PATH) as f:
+        with open(SCRIPT_PATH, encoding="utf-8") as f:
             first_line = f.readline().strip()
         assert first_line == "#!/bin/bash", f"Expected bash shebang, got: {first_line}"
 
@@ -164,14 +164,14 @@ class TestOrchestrateShStateFile:
     def test_state_file_is_valid_json(self):
         """State file contains valid JSON."""
         state_file = PROJECT_DIR / "state" / "orchestrator.json"
-        with open(state_file) as f:
+        with open(state_file, encoding="utf-8") as f:
             data = json.load(f)
         assert isinstance(data, dict), "State file root should be an object"
 
     def test_state_file_has_required_fields(self):
         """State file has required top-level fields."""
         state_file = PROJECT_DIR / "state" / "orchestrator.json"
-        with open(state_file) as f:
+        with open(state_file, encoding="utf-8") as f:
             data = json.load(f)
         required_fields = ["version", "current_week", "chains", "issues"]
         for field in required_fields:

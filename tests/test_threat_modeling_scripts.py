@@ -205,6 +205,7 @@ class TestGenerateThreatMatrixCLI:
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -219,6 +220,7 @@ class TestGenerateThreatMatrixCLI:
             [sys.executable, str(script_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -233,6 +235,7 @@ class TestGenerateThreatMatrixCLI:
             [sys.executable, str(script_path), "--scope", "Test", "--output", str(output_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -692,6 +695,7 @@ class TestGenerateMitigationRoadmapCLI:
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -717,6 +721,7 @@ class TestGenerateMitigationRoadmapCLI:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1066,6 +1071,7 @@ T001: Use MFA
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1079,6 +1085,7 @@ T001: Use MFA
             [sys.executable, str(script_path), str(valid_threat_model)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1091,6 +1098,7 @@ T001: Use MFA
             [sys.executable, str(script_path), str(invalid_threat_model)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1103,6 +1111,7 @@ T001: Use MFA
             [sys.executable, str(script_path), str(valid_threat_model), "--json"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1118,6 +1127,7 @@ T001: Use MFA
             [sys.executable, str(script_path), str(invalid_threat_model), "--json"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1131,6 +1141,7 @@ T001: Use MFA
             [sys.executable, str(script_path), str(tmp_path / "nonexistent.md")],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
