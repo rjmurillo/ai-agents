@@ -15,7 +15,9 @@ from typing import TYPE_CHECKING
 import pytest
 
 # Import the modules under test
-sys.path.insert(0, str(Path(__file__).parents[1] / ".claude" / "skills" / "threat-modeling" / "scripts"))
+sys.path.insert(
+    0, str(Path(__file__).parents[1] / ".claude" / "skills" / "threat-modeling" / "scripts")
+)
 
 from generate_mitigation_roadmap import (
     RISK_ORDER,
@@ -26,24 +28,32 @@ from generate_mitigation_roadmap import (
     format_threat_table,
     generate_roadmap,
     parse_threat_matrix,
+)
+from generate_mitigation_roadmap import (
     validate_path_no_traversal as roadmap_validate_path,
 )
 from generate_threat_matrix import (
     STRIDE_CATEGORIES,
     generate_stride_sections,
     generate_threat_matrix,
+)
+from generate_threat_matrix import (
     validate_path_no_traversal as matrix_validate_path,
 )
 from validate_threat_model import (
     REQUIRED_SECTIONS,
     RISK_LEVELS,
-    STRIDE_CATEGORIES as VALIDATE_STRIDE_CATEGORIES,
     ValidationResult,
     check_components,
     check_mitigations,
     check_required_sections,
     check_threat_matrix,
     validate_threat_model,
+)
+from validate_threat_model import (
+    STRIDE_CATEGORIES as VALIDATE_STRIDE_CATEGORIES,
+)
+from validate_threat_model import (
     validate_path_no_traversal as validate_model_validate_path,
 )
 
@@ -180,7 +190,14 @@ class TestGenerateThreatMatrixCLI:
     @pytest.fixture
     def script_path(self) -> Path:
         """Return path to the script."""
-        return Path(__file__).parents[1] / ".claude" / "skills" / "threat-modeling" / "scripts" / "generate_threat_matrix.py"
+        return (
+            Path(__file__).parents[1]
+            / ".claude"
+            / "skills"
+            / "threat-modeling"
+            / "scripts"
+            / "generate_threat_matrix.py"
+        )
 
     def test_help_flag(self, script_path: Path) -> None:
         """--help flag shows usage information."""
@@ -355,10 +372,42 @@ class TestCategorizeByRisk:
     def test_categorizes_threats(self) -> None:
         """Categorizes threats by risk level."""
         threats = [
-            Threat(id="T001", element="A", stride="S", description="X", likelihood="H", impact="H", risk="Critical"),
-            Threat(id="T002", element="B", stride="T", description="Y", likelihood="H", impact="M", risk="High"),
-            Threat(id="T003", element="C", stride="R", description="Z", likelihood="M", impact="M", risk="Medium"),
-            Threat(id="T004", element="D", stride="I", description="W", likelihood="L", impact="L", risk="Low"),
+            Threat(
+                id="T001",
+                element="A",
+                stride="S",
+                description="X",
+                likelihood="H",
+                impact="H",
+                risk="Critical",
+            ),
+            Threat(
+                id="T002",
+                element="B",
+                stride="T",
+                description="Y",
+                likelihood="H",
+                impact="M",
+                risk="High",
+            ),
+            Threat(
+                id="T003",
+                element="C",
+                stride="R",
+                description="Z",
+                likelihood="M",
+                impact="M",
+                risk="Medium",
+            ),
+            Threat(
+                id="T004",
+                element="D",
+                stride="I",
+                description="W",
+                likelihood="L",
+                impact="L",
+                risk="Low",
+            ),
         ]
 
         result = categorize_by_risk(threats)
@@ -371,8 +420,24 @@ class TestCategorizeByRisk:
     def test_normalizes_risk_levels(self) -> None:
         """Normalizes case-insensitive risk levels."""
         threats = [
-            Threat(id="T001", element="A", stride="S", description="X", likelihood="H", impact="H", risk="CRITICAL"),
-            Threat(id="T002", element="B", stride="T", description="Y", likelihood="M", impact="M", risk="medium"),
+            Threat(
+                id="T001",
+                element="A",
+                stride="S",
+                description="X",
+                likelihood="H",
+                impact="H",
+                risk="CRITICAL",
+            ),
+            Threat(
+                id="T002",
+                element="B",
+                stride="T",
+                description="Y",
+                likelihood="M",
+                impact="M",
+                risk="medium",
+            ),
         ]
 
         result = categorize_by_risk(threats)
@@ -383,7 +448,15 @@ class TestCategorizeByRisk:
     def test_defaults_unknown_to_medium(self) -> None:
         """Defaults unknown risk levels to Medium."""
         threats = [
-            Threat(id="T001", element="A", stride="S", description="X", likelihood="M", impact="M", risk="Unknown"),
+            Threat(
+                id="T001",
+                element="A",
+                stride="S",
+                description="X",
+                likelihood="M",
+                impact="M",
+                risk="Unknown",
+            ),
         ]
 
         result = categorize_by_risk(threats)
@@ -403,7 +476,15 @@ class TestFormatThreatSection:
     def test_formats_threats(self) -> None:
         """Formats threats for roadmap section."""
         threats = [
-            Threat(id="T001", element="Auth", stride="S", description="Spoofing", likelihood="H", impact="H", risk="Critical"),
+            Threat(
+                id="T001",
+                element="Auth",
+                stride="S",
+                description="Spoofing",
+                likelihood="H",
+                impact="H",
+                risk="Critical",
+            ),
         ]
 
         result = format_threat_section(threats)
@@ -425,7 +506,15 @@ class TestFormatThreatTable:
     def test_formats_table(self) -> None:
         """Formats all threats as summary table."""
         threats = [
-            Threat(id="T001", element="A", stride="S", description="Test", likelihood="H", impact="H", risk="Critical"),
+            Threat(
+                id="T001",
+                element="A",
+                stride="S",
+                description="Test",
+                likelihood="H",
+                impact="H",
+                risk="Critical",
+            ),
         ]
 
         result = format_threat_table(threats)
@@ -436,8 +525,24 @@ class TestFormatThreatTable:
     def test_sorts_by_risk(self) -> None:
         """Sorts threats by risk level."""
         threats = [
-            Threat(id="T001", element="A", stride="S", description="Low", likelihood="L", impact="L", risk="Low"),
-            Threat(id="T002", element="B", stride="T", description="Critical", likelihood="H", impact="H", risk="Critical"),
+            Threat(
+                id="T001",
+                element="A",
+                stride="S",
+                description="Low",
+                likelihood="L",
+                impact="L",
+                risk="Low",
+            ),
+            Threat(
+                id="T002",
+                element="B",
+                stride="T",
+                description="Critical",
+                likelihood="H",
+                impact="H",
+                risk="Critical",
+            ),
         ]
 
         result = format_threat_table(threats)
@@ -517,7 +622,9 @@ class TestGenerateRoadmap:
         assert "## Executive Summary" in content
         assert "Total Threats" in content
 
-    def test_roadmap_contains_priority_sections(self, valid_threat_model: Path, tmp_path: Path) -> None:
+    def test_roadmap_contains_priority_sections(
+        self, valid_threat_model: Path, tmp_path: Path
+    ) -> None:
         """Roadmap contains priority sections."""
         output_path = tmp_path / "roadmap.md"
 
@@ -557,7 +664,14 @@ class TestGenerateMitigationRoadmapCLI:
     @pytest.fixture
     def script_path(self) -> Path:
         """Return path to the script."""
-        return Path(__file__).parents[1] / ".claude" / "skills" / "threat-modeling" / "scripts" / "generate_mitigation_roadmap.py"
+        return (
+            Path(__file__).parents[1]
+            / ".claude"
+            / "skills"
+            / "threat-modeling"
+            / "scripts"
+            / "generate_mitigation_roadmap.py"
+        )
 
     @pytest.fixture
     def valid_threat_model(self, tmp_path: Path) -> Path:
@@ -586,12 +700,21 @@ class TestGenerateMitigationRoadmapCLI:
         assert "--input" in result.stdout
         assert "--output" in result.stdout
 
-    def test_successful_generation(self, script_path: Path, valid_threat_model: Path, tmp_path: Path) -> None:
+    def test_successful_generation(
+        self, script_path: Path, valid_threat_model: Path, tmp_path: Path
+    ) -> None:
         """Successful generation returns exit code 0."""
         output_path = tmp_path / "roadmap.md"
 
         result = subprocess.run(
-            [sys.executable, str(script_path), "--input", str(valid_threat_model), "--output", str(output_path)],
+            [
+                sys.executable,
+                str(script_path),
+                "--input",
+                str(valid_threat_model),
+                "--output",
+                str(output_path),
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -888,7 +1011,14 @@ class TestValidateThreatModelCLI:
     @pytest.fixture
     def script_path(self) -> Path:
         """Return path to the script."""
-        return Path(__file__).parents[1] / ".claude" / "skills" / "threat-modeling" / "scripts" / "validate_threat_model.py"
+        return (
+            Path(__file__).parents[1]
+            / ".claude"
+            / "skills"
+            / "threat-modeling"
+            / "scripts"
+            / "validate_threat_model.py"
+        )
 
     @pytest.fixture
     def valid_threat_model(self, tmp_path: Path) -> Path:
