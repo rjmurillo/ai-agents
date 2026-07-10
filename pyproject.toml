@@ -179,6 +179,20 @@ module = [
 ]
 disable_error_code = ["type-arg", "valid-type", "no-any-return"]
 
+[[tool.mypy.overrides]]
+# Test code gets relaxed generic-type strictness, matching the existing ruff
+# ANN waiver for tests/**/*.py ([tool.ruff.lint.per-file-ignores] above). The
+# pre-push per-file mypy gate (#2876) surfaces disallow_any_generics/type-arg
+# and warn_return_any/no-any-return on any touched test file: bare dict/list
+# annotations and json.load() returning Any. These are the lowest-value type
+# checks (they demand annotation ceremony without catching test bugs), and the
+# ruff waiver already establishes that tests prioritize behavior coverage over
+# annotation rigor. Relaxing both here brings mypy into line with that policy so
+# editing a test file no longer trips an unrelated pre-existing type gate (#3017).
+module = "tests.*"
+disallow_any_generics = false
+warn_return_any = false
+
 [dependency-groups]
 dev = [
     "pytest-cov>=7.1.0",
