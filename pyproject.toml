@@ -38,7 +38,7 @@ where = ["."]
 include = ["scripts*", "scripts.mcp_cli*", "scripts.memory_sync*", "scripts.hook_utilities*", "scripts.test_result_helpers*", "scripts.pr_maintenance*", "scripts.github_core*", "scripts.ai_review_common*", "scripts.validation*", "scripts.workflow*", "memory_enhancement*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "test"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -84,7 +84,6 @@ ignore = []
 "tests/skills/**/*.py" = ["E402"]
 # ANN suppression for test files (annotations not required in tests)
 "tests/**/*.py" = ["ANN"]
-"test/**/*.py" = ["ANN"]
 "**/tests/**/*.py" = ["ANN"]
 # ANN suppression for pre-existing code (to be fixed incrementally)
 ".claude/skills/**/*.py" = ["ANN"]
