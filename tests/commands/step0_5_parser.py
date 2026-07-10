@@ -186,7 +186,7 @@ def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
 
 
 def normalize_topic_with_aliases(
-    raw: str, aliases: "dict[str, str] | None" = None
+    raw: str, aliases: dict[str, str] | None = None
 ) -> str:
     """Normalize a topic, then apply the rule-5 alias substitution.
 
@@ -257,7 +257,7 @@ def entity_matches_answer(entity_name: str, answer: str) -> bool:
     return False
 
 
-def adjudicate_entity_scope(entity_name: str, q_answers: "list[str] | tuple[str, ...]") -> str:
+def adjudicate_entity_scope(entity_name: str, q_answers: list[str] | tuple[str, ...]) -> str:
     """Classify a discovered entity as `in-scope` or `blast-radius` in auto-mode.
 
     Mirrors the auto-mode resolution in `.claude/commands/spec.md`,

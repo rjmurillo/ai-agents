@@ -22,7 +22,6 @@ sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
 import ci_runner_base as base  # noqa: E402
 import run_install_parity_ci as runner  # noqa: E402
 
-
 # --- validate_branch -----------------------------------------------------
 
 
