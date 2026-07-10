@@ -283,16 +283,16 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         if not _copilot_version_omits_plugin_enumeration(version_text):
             benign_versions = "/".join(sorted(_COPILOT_BENIGN_NO_ENUM_VERSIONS))
             pytest.fail(
-                "copilot skill list --json surfaced no source:plugin records for a "
+                "copilot skill list --json surfaced no source: plugin records for a "
                 f"known-good --plugin-dir on CLI version {version_text!r}, which is "
                 "NOT a known plugin-enumeration-omitting version (issues #2990, "
                 f"#3014). A version outside the benign {benign_versions} set that "
-                "surfaces no source:plugin records is treated as a real "
+                "surfaces no source: plugin records is treated as a real "
                 "plugin-load regression. "
                 f"sources seen: {sources}"
             )
         pytest.skip(
-            "copilot skill list --json surfaced no source:plugin records for a "
+            "copilot skill list --json surfaced no source: plugin records for a "
             "known-good --plugin-dir. On CLI 1.0.69 and 1.0.70 the plugin-dir load "
             "is not enumerated through this surface (issues #2990, #3014); the load "
             "itself is unaffected (the plugin's hooks still load and fire). Skipping "
