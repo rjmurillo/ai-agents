@@ -281,11 +281,12 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
             }
         )
         if not _copilot_version_omits_plugin_enumeration(version_text):
+            benign_versions = "/".join(sorted(_COPILOT_BENIGN_NO_ENUM_VERSIONS))
             pytest.fail(
                 "copilot skill list --json surfaced no source:plugin records for a "
                 f"known-good --plugin-dir on CLI version {version_text!r}, which is "
                 "NOT a known plugin-enumeration-omitting version (issues #2990, "
-                "#3014). A version outside the benign 1.0.69/1.0.70 set that "
+                f"#3014). A version outside the benign {benign_versions} set that "
                 "surfaces no source:plugin records is treated as a real "
                 "plugin-load regression. "
                 f"sources seen: {sources}"
