@@ -2,7 +2,7 @@
 name: curating-memories
 description: Guidance for maintaining memory quality through curation. Covers updating outdated memories, marking obsolete content, and linking related knowledge. Use when memories need modification, when new information supersedes old, or when building knowledge graph connections.
 license: MIT
-version: 1.0.0
+version: 1.1.0
 model: claude-sonnet-4-6
 ---
 
@@ -175,6 +175,56 @@ Use [exploring-knowledge-graph](../exploring-knowledge-graph/SKILL.md) instead w
 2. Evaluate whether the memory needs updating, linking, or marking obsolete
 3. Apply the appropriate curation operation
 4. Verify the change took effect
+
+---
+
+## Scripts: Supersession Sweep
+
+The append-never-delete pattern is the failure this sweep targets: a memory
+that is fully resolved or historical but still reads as live guidance, so a
+fresh agent has to read past archaeology to reach current truth. Run the
+sweep to surface those files. It **proposes** a disposition per file and
+edits nothing; ratification is a separate, confirmed step.
+
+```bash
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/curating-memories/scripts/supersession_sweep.py"
+```
+
+Add `--json` for machine-readable output, or `--root <dir>` to scan a
+directory other than `.serena/memories`.
+
+### The four buckets
+
+| Bucket | Signal | Action |
+|--------|--------|--------|
+| `live` | No supersession markers | Leave alone |
+| `healthy-supersession` | Struck-through obsolete content plus a dated banner, current truth visible | Leave alone; this is the target shape |
+| `resolved-or-historical-but-present` | `Status: RESOLVED`/`BLOCKING` co-present with references to removed artifacts or per-section `(Historical)` tags | Propose archive, or collapse to a one-line changelog footer |
+| `temporal-snapshot-as-live` | A dated point-in-time doc framed as current state | Propose a dated-snapshot banner |
+
+### The constraint (non-negotiable)
+
+The sweep is a generator self-report, which is the closed-loop-validator
+trap. The classification is a **routing signal into verification, never a
+verdict**:
+
+- The sweep proposes a disposition. It does not edit or delete.
+- Ratify with the [doc-accuracy](../doc-accuracy/SKILL.md) code-as-source-of-truth
+  discipline: archive a memory only after confirming the artifacts it
+  references are actually gone and no live path depends on it.
+- A human or a second independent check confirms before any content is
+  removed. A mis-flag on a load-bearing entry is the exact loss this
+  proposal-only design prevents.
+
+### The healthy-supersession target shape
+
+When you collapse a `resolved-or-historical-but-present` file, do not bury
+it. Strike through the obsolete content, add a dated banner explaining why,
+and keep current truth visible inline. `cost/cost-summary-reference.md` is
+the exemplar: obsolete rows struck through, a dated `IMPORTANT` banner,
+history preserved, nothing hidden. Strikethrough density alone is a
+healthy-supersession signal, never a rot signal; the sweep will not propose
+archiving a file on strikethrough count.
 
 ---
 
