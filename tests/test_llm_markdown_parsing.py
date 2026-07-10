@@ -13,11 +13,10 @@ The fix uses regex to reliably extract JSON from markdown blocks.
 Run with: python3 tests/test_llm_markdown_parsing.py
 """
 
-import json
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 # Add .claude/hooks/Stop directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
@@ -42,7 +41,15 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         # Mock LLM response with plain JSON
         mock_client = MagicMock()
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='{"is_learning": true, "type": "correction", "confidence": 0.9, "category": "High", "extracted_learning": "Test", "reasoning": "Test"}')]
+        mock_message.content = [
+            MagicMock(
+                text=(
+                    "{\"is_learning\": true, \"type\": \"correction\", \"confidence\": 0.9, "
+                    "\"category\": \"High\", \"extracted_learning\": \"Test\", "
+                    "\"reasoning\": \"Test\"}"
+                )
+            )
+        ]
         mock_client.messages.create.return_value = mock_message
         mock_anthropic.return_value = mock_client
 
@@ -62,7 +69,17 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         # Mock LLM response with markdown ```json
         mock_client = MagicMock()
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='```json\n{"is_learning": true, "type": "preference", "confidence": 0.7, "category": "Med", "extracted_learning": "Test", "reasoning": "Test"}\n```')]
+        mock_message.content = [
+            MagicMock(
+                text=(
+                    "```json\n"
+                    "{\"is_learning\": true, \"type\": \"preference\", \"confidence\": 0.7, "
+                    "\"category\": \"Med\", \"extracted_learning\": \"Test\", "
+                    "\"reasoning\": \"Test\"}\n"
+                    "```"
+                )
+            )
+        ]
         mock_client.messages.create.return_value = mock_message
         mock_anthropic.return_value = mock_client
 
@@ -82,7 +99,17 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         # Mock LLM response with markdown ``` (no language)
         mock_client = MagicMock()
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='```\n{"is_learning": true, "type": "success", "confidence": 0.65, "category": "Med", "extracted_learning": "Test", "reasoning": "Test"}\n```')]
+        mock_message.content = [
+            MagicMock(
+                text=(
+                    "```\n"
+                    "{\"is_learning\": true, \"type\": \"success\", \"confidence\": 0.65, "
+                    "\"category\": \"Med\", \"extracted_learning\": \"Test\", "
+                    "\"reasoning\": \"Test\"}\n"
+                    "```"
+                )
+            )
+        ]
         mock_client.messages.create.return_value = mock_message
         mock_anthropic.return_value = mock_client
 
@@ -102,7 +129,17 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         # Mock LLM response with whitespace around JSON
         mock_client = MagicMock()
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='```json\n\n  {"is_learning": true, "type": "edge_case", "confidence": 0.6, "category": "Med", "extracted_learning": "Test", "reasoning": "Test"}  \n\n```')]
+        mock_message.content = [
+            MagicMock(
+                text=(
+                    "```json\n\n  "
+                    "{\"is_learning\": true, \"type\": \"edge_case\", \"confidence\": 0.6, "
+                    "\"category\": \"Med\", \"extracted_learning\": \"Test\", "
+                    "\"reasoning\": \"Test\"}  \n\n"
+                    "```"
+                )
+            )
+        ]
         mock_client.messages.create.return_value = mock_message
         mock_anthropic.return_value = mock_client
 
@@ -121,7 +158,16 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         # Mock LLM response with explanatory text before JSON
         mock_client = MagicMock()
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='Here is the analysis:\n```json\n{"is_learning": true, "type": "documentation", "confidence": 0.65, "category": "Med", "extracted_learning": "Test", "reasoning": "Test"}\n```')]
+        mock_message.content = [
+            MagicMock(
+                text=(
+                    "Here is the analysis:\n```json\n"
+                    "{\"is_learning\": true, \"type\": \"documentation\", \"confidence\": 0.65, "
+                    "\"category\": \"Med\", \"extracted_learning\": \"Test\", "
+                    "\"reasoning\": \"Test\"}\n```"
+                )
+            )
+        ]
         mock_client.messages.create.return_value = mock_message
         mock_anthropic.return_value = mock_client
 
@@ -140,7 +186,17 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         # Mock LLM response with explanatory text after JSON
         mock_client = MagicMock()
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='```json\n{"is_learning": true, "type": "question", "confidence": 0.55, "category": "Med", "extracted_learning": "Test", "reasoning": "Test"}\n```\nThis indicates a learning signal.')]
+        mock_message.content = [
+            MagicMock(
+                text=(
+                    "```json\n"
+                    "{\"is_learning\": true, \"type\": \"question\", \"confidence\": 0.55, "
+                    "\"category\": \"Med\", \"extracted_learning\": \"Test\", "
+                    "\"reasoning\": \"Test\"}\n"
+                    "```\nThis indicates a learning signal."
+                )
+            )
+        ]
         mock_client.messages.create.return_value = mock_message
         mock_anthropic.return_value = mock_client
 
@@ -188,7 +244,17 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         # Mock LLM response with nested JSON
         mock_client = MagicMock()
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='```json\n{"is_learning": true, "type": "correction", "confidence": 0.9, "category": "High", "extracted_learning": "Test with {nested: data}", "reasoning": "Test", "meta": {"level": 2}}\n```')]
+        mock_message.content = [
+            MagicMock(
+                text=(
+                    "```json\n"
+                    "{\"is_learning\": true, \"type\": \"correction\", \"confidence\": 0.9, "
+                    "\"category\": \"High\", \"extracted_learning\": \"Test with {nested: data}\", "
+                    "\"reasoning\": \"Test\", \"meta\": {\"level\": 2}}\n"
+                    "```"
+                )
+            )
+        ]
         mock_client.messages.create.return_value = mock_message
         mock_anthropic.return_value = mock_client
 
@@ -226,7 +292,15 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         # Mock LLM response with no code fence
         mock_client = MagicMock()
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='{"is_learning": true, "type": "correction", "confidence": 0.8, "category": "High", "extracted_learning": "Raw JSON", "reasoning": "Test"}')]
+        mock_message.content = [
+            MagicMock(
+                text=(
+                    "{\"is_learning\": true, \"type\": \"correction\", \"confidence\": 0.8, "
+                    "\"category\": \"High\", \"extracted_learning\": \"Raw JSON\", "
+                    "\"reasoning\": \"Test\"}"
+                )
+            )
+        ]
         mock_client.messages.create.return_value = mock_message
         mock_anthropic.return_value = mock_client
 

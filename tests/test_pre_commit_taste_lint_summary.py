@@ -1,4 +1,5 @@
-"""Regression tests for #2436: pre-commit final summary must distinguish blocking success from advisory taste-lint errors.
+"""Regression tests for #2436: pre-commit final summary must distinguish
+blocking success from advisory taste-lint errors.
 
 Background
 ----------
@@ -17,10 +18,16 @@ Agents and humans reading the transcript would see both ``[ERROR]`` and
 The fix tracks an advisory flag (``TASTE_LINTS_ADVISORY=1`` when
 ``TASTE_EXIT`` is 10) and rewords the final summary accordingly:
 
-* Blocking failure (EXIT_STATUS != 0)            -> ``ERROR: Pre-commit checks failed`` (unchanged, exit 2).
-* Blocking pass + advisory taste-lint errors     -> ``SUCCESS: Blocking pre-commit checks passed; non-blocking taste-lints reported errors.``
-* Blocking pass + auto-fixed files               -> ``SUCCESS: All checks passed. Some files were auto-fixed and re-staged.`` (unchanged).
-* Blocking pass + no advisories and no auto-fix  -> ``SUCCESS: All pre-commit checks passed.`` (unchanged).
+* Blocking failure (EXIT_STATUS != 0)
+  -> ``ERROR: Pre-commit checks failed`` (unchanged, exit 2).
+* Blocking pass + advisory taste-lint errors
+  -> ``SUCCESS: Blocking pre-commit checks passed;
+  non-blocking taste-lints reported errors.``
+* Blocking pass + auto-fixed files
+  -> ``SUCCESS: All checks passed. Some files were auto-fixed and
+  re-staged.`` (unchanged).
+* Blocking pass + no advisories and no auto-fix
+  -> ``SUCCESS: All pre-commit checks passed.`` (unchanged).
 
 These tests reproduce the final-summary block in isolation as a small
 bash fragment, exercising every combination of the three signals that

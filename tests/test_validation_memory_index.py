@@ -529,7 +529,13 @@ class TestCheckMemoryIndexReferences:
             ),
             "skills-session-init-index.md": "content",
         })
-        indices = [DomainIndex(tmp_path / "skills-session-init-index.md", "skills-session-init-index", "session")]
+        indices = [
+            DomainIndex(
+                tmp_path / "skills-session-init-index.md",
+                "skills-session-init-index",
+                "session",
+            )
+        ]
         result = check_memory_index_references(tmp_path, indices)
         assert result.passed is True
         assert not result.broken_references

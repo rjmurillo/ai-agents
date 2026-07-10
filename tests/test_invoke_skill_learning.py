@@ -54,7 +54,10 @@ class TestDynamicSkillDetection(unittest.TestCase):
         """Skills detected via .claude/skills/{name} path get captured."""
         messages = [
             {"role": "user", "content": "Check .claude/skills/custom-analyzer for the script"},
-            {"role": "assistant", "content": "I found the script in .claude/skills/custom-analyzer"},
+            {
+                "role": "assistant",
+                "content": "I found the script in " ".claude/skills/custom-analyzer",
+            },
         ]
         detected = detect_skill_usage(messages)
         self.assertIn("custom-analyzer", detected)
@@ -283,7 +286,9 @@ class TestPathTraversalPrevention(unittest.TestCase):
             self.assertTrue(result, "Valid skill name should be accepted")
 
             # Verify file was created in correct location
-            expected_path = Path(project_dir) / ".serena" / "memories" / f"{valid_skill}-observations.md"
+            expected_path = (
+                Path(project_dir) / ".serena" / "memories" / f"{valid_skill}-observations.md"
+            )
             self.assertTrue(expected_path.exists(), "Memory file should be created")
 
 
@@ -377,7 +382,11 @@ class TestSuccessPatternPrecision(unittest.TestCase):
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
-        success_learnings = [l for l in learnings["Med"] if l["type"] == "success"]
+        success_learnings = [
+            learning
+            for learning in learnings["Med"]
+            if learning["type"] == "success"
+        ]
         return success_learnings
 
     def test_success_matches_perfect(self):
@@ -409,7 +418,11 @@ class TestSuccessPatternPrecision(unittest.TestCase):
             {"role": "user", "content": "Great question about the API"},
         ]
         learnings = extract_learnings(messages, "github")
-        success_learnings = [l for l in learnings["Med"] if l["type"] == "success"]
+        success_learnings = [
+            learning
+            for learning in learnings["Med"]
+            if learning["type"] == "success"
+        ]
         self.assertEqual(len(success_learnings), 0, "Should not match 'Great question'")
 
     def test_success_rejects_yes_but(self):
@@ -439,7 +452,11 @@ class TestEdgeCasePatternPrecision(unittest.TestCase):
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
-        edge_learnings = [l for l in learnings["Med"] if l["type"] == "edge_case"]
+        edge_learnings = [
+            learning
+            for learning in learnings["Med"]
+            if learning["type"] == "edge_case"
+        ]
         return edge_learnings
 
     def test_edge_case_matches_what_if_the(self):
@@ -491,7 +508,11 @@ class TestPreferencePatternPrecision(unittest.TestCase):
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
-        pref_learnings = [l for l in learnings["Med"] if l["type"] == "preference"]
+        pref_learnings = [
+            learning
+            for learning in learnings["Med"]
+            if learning["type"] == "preference"
+        ]
         return pref_learnings
 
     def test_preference_matches_instead_of_using(self):
@@ -536,7 +557,11 @@ class TestDocumentationLearningType(unittest.TestCase):
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
-        doc_learnings = [l for l in learnings["Med"] if l["type"] == "documentation"]
+        doc_learnings = [
+            learning
+            for learning in learnings["Med"]
+            if learning["type"] == "documentation"
+        ]
         return doc_learnings
 
     def test_documentation_matches_update_docs(self):
@@ -585,7 +610,9 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
             with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
                 update_skill_memory(project_dir, skill_name, learnings, session_id)
 
-            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            memory_path = (
+                Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            )
             content = memory_path.read_text(encoding='utf-8')
 
             self.assertIn("## Documentation (MED confidence)", content,
@@ -613,7 +640,9 @@ class TestMemoryFileDocumentationSection(unittest.TestCase):
             with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
                 update_skill_memory(project_dir, skill_name, learnings, session_id)
 
-            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            memory_path = (
+                Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            )
             content = memory_path.read_text(encoding='utf-8')
 
             self.assertIn("Update the docs with usage examples", content,
@@ -645,7 +674,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
                 update_skill_memory(project_dir, skill_name, learnings, session_id)
 
-            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            memory_path = (
+                Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            )
             content = memory_path.read_text(encoding='utf-8')
 
             # Header must still be present
@@ -682,7 +713,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
                 update_skill_memory(project_dir, skill_name, learnings, session_id)
 
-            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            memory_path = (
+                Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            )
             content = memory_path.read_text(encoding='utf-8')
 
             # Header must still be present
@@ -714,7 +747,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
                 update_skill_memory(project_dir, skill_name, learnings, session_id)
 
-            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            memory_path = (
+                Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            )
             content = memory_path.read_text(encoding='utf-8')
 
             # Header must still be present
@@ -763,7 +798,9 @@ class TestMemoryFileContentPreservation(unittest.TestCase):
             with patch.object(invoke_skill_learning, 'SAFE_BASE_DIR', project_dir):
                 update_skill_memory(project_dir, skill_name, learnings2, "session-002")
 
-            memory_path = Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            memory_path = (
+                Path(project_dir) / ".serena" / "memories" / f"{skill_name}-observations.md"
+            )
             content = memory_path.read_text(encoding='utf-8')
 
             # Both learnings should be present
@@ -785,7 +822,7 @@ class TestLowConfidenceDetection(unittest.TestCase):
         ]
         learnings = extract_learnings(messages, "github")
         if learning_type:
-            return [l for l in learnings["Low"] if l["type"] == learning_type]
+            return [learning for learning in learnings["Low"] if learning["type"] == learning_type]
         return learnings["Low"]
 
     def test_command_pattern_detected(self):
@@ -822,7 +859,10 @@ class TestLowConfidenceDetection(unittest.TestCase):
         """Long messages should not be detected as acknowledgements."""
         # Long message with 'ok' at start should not match simple acknowledgement
         learnings = self._extract_low_learning(
-            "ok so I was thinking about this problem and here are my thoughts on how we should approach it",
+            (
+                "ok so I was thinking about this problem and here are my thoughts "
+                "on how we should approach it"
+            ),
             "acknowledgement"
         )
         self.assertEqual(len(learnings), 0, "Long message should not match acknowledgement")

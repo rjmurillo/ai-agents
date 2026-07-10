@@ -8,10 +8,7 @@ These tests do NOT execute agents but verify the orchestration harness itself.
 import json
 import os
 import subprocess
-import tempfile
 from pathlib import Path
-
-import pytest
 
 # Get paths relative to repo root
 REPO_ROOT = Path(__file__).parent.parent
@@ -41,7 +38,7 @@ class TestOrchestrateShSyntax:
 
     def test_shebang_is_bash(self):
         """Script uses bash shebang."""
-        with open(SCRIPT_PATH, "r") as f:
+        with open(SCRIPT_PATH, encoding="utf-8") as f:
             first_line = f.readline().strip()
         assert first_line == "#!/bin/bash", f"Expected bash shebang, got: {first_line}"
 
@@ -72,7 +69,15 @@ class TestOrchestrateShHelp:
             text=True,
             cwd=str(REPO_ROOT),
         )
-        expected_commands = ["start", "resume", "status", "chain", "setup", "cleanup", "interactive"]
+        expected_commands = [
+            "start",
+            "resume",
+            "status",
+            "chain",
+            "setup",
+            "cleanup",
+            "interactive",
+        ]
         for cmd in expected_commands:
             assert cmd in result.stdout, f"Missing command '{cmd}' in help output"
 
@@ -100,7 +105,10 @@ class TestOrchestrateShStatus:
         )
         # Status may return 0 (success) or non-zero if state is empty
         # Just verify it doesn't crash
-        assert result.returncode in [0, 1], f"Unexpected exit code: {result.returncode}, stderr: {result.stderr}"
+        assert result.returncode in [0, 1], (
+            f"Unexpected exit code: {result.returncode}, stderr: "
+            f"{result.stderr}"
+        )
 
     def test_status_shows_chain_info(self):
         """Status output includes chain information."""
@@ -156,14 +164,14 @@ class TestOrchestrateShStateFile:
     def test_state_file_is_valid_json(self):
         """State file contains valid JSON."""
         state_file = PROJECT_DIR / "state" / "orchestrator.json"
-        with open(state_file, "r") as f:
+        with open(state_file, encoding="utf-8") as f:
             data = json.load(f)
         assert isinstance(data, dict), "State file root should be an object"
 
     def test_state_file_has_required_fields(self):
         """State file has required top-level fields."""
         state_file = PROJECT_DIR / "state" / "orchestrator.json"
-        with open(state_file, "r") as f:
+        with open(state_file, encoding="utf-8") as f:
             data = json.load(f)
         required_fields = ["version", "current_week", "chains", "issues"]
         for field in required_fields:

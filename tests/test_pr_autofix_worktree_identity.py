@@ -21,8 +21,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 # ---------------------------------------------------------------------------
 # Helpers for building temp git repos
 # ---------------------------------------------------------------------------
@@ -66,7 +64,6 @@ class TestWorktreeIdentityReset:
         """After reset_worktree_identity, commits use rjmurillo-bot identity."""
         from scripts.github_core.worktree_identity import reset_worktree_identity
 
-        repo = _make_repo(tmp_path / "repo")
         worktree_path = tmp_path / "wt"
         worktree_path.mkdir()
 
