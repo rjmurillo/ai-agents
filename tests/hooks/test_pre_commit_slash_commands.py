@@ -8,7 +8,7 @@ git command failures, validation script failures.
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -16,7 +16,6 @@ HOOK_DIR = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks")
 sys.path.insert(0, HOOK_DIR)
 
 import pre_commit_slash_commands  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Unit tests for get_staged_slash_commands
