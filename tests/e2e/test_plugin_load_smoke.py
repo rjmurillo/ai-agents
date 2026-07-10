@@ -196,10 +196,9 @@ def _copilot_version_omits_plugin_enumeration(version_output: str) -> bool:
     Only the versions in ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` are allowed to skip
     the strict subset assertion when ``skill list --json`` surfaces zero
     ``source: plugin`` records (issues #2990 and #3014). Any other version that
-    fails to
-    enumerate the plugin is a real plugin-load regression and must fail loud, so
-    the smoke keeps its negative control instead of masking a broken load on a
-    CLI that DOES enumerate ``--plugin-dir`` skills.
+    fails to enumerate the plugin is a real plugin-load regression and must fail
+    loud, so the smoke keeps its negative control instead of masking a broken
+    load on a CLI that DOES enumerate ``--plugin-dir`` skills.
 
     The version token is the first ``MAJOR.MINOR.PATCH`` in the CLI's
     ``--version`` output; a ``-<suffix>`` build tag (for example ``1.0.69-3``) is
@@ -286,9 +285,9 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
                 "copilot skill list --json surfaced no source:plugin records for a "
                 f"known-good --plugin-dir on CLI version {version_text!r}, which is "
                 "NOT a known plugin-enumeration-omitting version (issues #2990, "
-                "#3014). A version that enumerates --plugin-dir skills but returns "
-                "none is a real plugin-load regression, not the benign 1.0.69/1.0.70 "
-                "shape. "
+                "#3014). A version outside the benign 1.0.69/1.0.70 set that "
+                "surfaces no source:plugin records is treated as a real "
+                "plugin-load regression. "
                 f"sources seen: {sources}"
             )
         pytest.skip(
