@@ -393,6 +393,97 @@ class TestRunValidations:
             ]
         ]
 
+    def test_skill_violation_scan_skipped_when_no_scannable_extension(
+        self, tmp_path, capsys
+    ):
+        """When every changed file has an unscannable extension, the scanner
+        subprocess must be skipped entirely (issue #3010) and the skip reported."""
+        skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
+        skill_script.parent.mkdir(parents=True)
+        skill_script.write_text("# mock")
+        changed = "assets/logo.png\ndata/table.json\nMakefile\n"
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=changed, rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        assert not any(len(cmd) >= 2 and cmd[1] == str(skill_script) for cmd in calls)
+        captured = capsys.readouterr()
+        assert "No changed files with a scannable extension" in captured.out
+
+    def test_skill_violation_scan_filters_unscannable_extensions(self, tmp_path):
+        """A mixed changed-file list must pass only scannable extensions to the
+        scanner argv, dropping the rest (issue #3010)."""
+        skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
+        skill_script.parent.mkdir(parents=True)
+        skill_script.write_text("# mock")
+        changed = "scripts/mod.py\nassets/logo.png\ndocs/guide.md\nhooks/setup.ps1\ndata/x.json\n"
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=changed, rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        skill_calls = [c for c in calls if len(c) >= 2 and c[1] == str(skill_script)]
+        assert skill_calls == [
+            [
+                sys.executable,
+                str(skill_script),
+                "--file",
+                "scripts/mod.py",
+                "--file",
+                "docs/guide.md",
+                "--file",
+                "hooks/setup.ps1",
+            ]
+        ]
+
+    def test_skill_scan_extensions_match_detector(self):
+        """The local _SKILL_SCAN_EXTENSIONS constant must stay in sync with the
+        scanner's VALID_EXTENSIONS (drift guard, issue #3010). It is a local copy
+        by design: the two synced new_pr.py trees sit at different repo depths, so
+        cross-package importing scripts/detect_skill_violation.py is avoided (same
+        rationale documented for _DASH_RE)."""
+        detector_path = (
+            Path(__file__).resolve().parents[1] / "scripts" / "detect_skill_violation.py"
+        )
+        mod_key = "detect_skill_violation_drift_guard"
+        spec = importlib.util.spec_from_file_location(mod_key, detector_path)
+        assert spec is not None and spec.loader is not None
+        detector = importlib.util.module_from_spec(spec)
+        # detect_skill_violation.py uses @dataclass, whose decorator resolves
+        # cls.__module__ via sys.modules, so the module must be registered
+        # before exec_module. Register under a unique key and restore prior
+        # state in finally to avoid leaking global sys.modules state into other
+        # tests (gemini-code-assist review, PR #3012).
+        previous = sys.modules.get(mod_key)
+        sys.modules[mod_key] = detector
+        # detect_skill_violation.py mutates global sys.path at import time
+        # (sys.path.insert(0, project_root)); snapshot and restore it in finally
+        # so the insertion cannot leak into later tests and create
+        # order-dependent failures (copilot review, PR #3012).
+        sys_path_snapshot = list(sys.path)
+        try:
+            spec.loader.exec_module(detector)
+            assert _mod._SKILL_SCAN_EXTENSIONS == detector.VALID_EXTENSIONS
+        finally:
+            if previous is not None:
+                sys.modules[mod_key] = previous
+            else:
+                sys.modules.pop(mod_key, None)
+            sys.path[:] = sys_path_snapshot
+
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):
         changed = ".agents/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
