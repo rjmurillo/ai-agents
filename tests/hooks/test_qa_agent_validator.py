@@ -5,6 +5,8 @@ Covers: non-QA agent skip, missing transcript, valid transcript with
 all sections, missing sections, file errors, invalid JSON.
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path
