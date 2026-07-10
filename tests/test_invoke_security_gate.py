@@ -19,6 +19,7 @@ from invoke_security_gate import (  # noqa: E402
     is_auth_path,
     main,
 )
+
 from scripts.security import invoke_precommit_security  # noqa: E402
 
 
