@@ -469,6 +469,11 @@ class TestRunValidations:
         # tests (gemini-code-assist review, PR #3012).
         previous = sys.modules.get(mod_key)
         sys.modules[mod_key] = detector
+        # detect_skill_violation.py mutates global sys.path at import time
+        # (sys.path.insert(0, project_root)); snapshot and restore it in finally
+        # so the insertion cannot leak into later tests and create
+        # order-dependent failures (copilot review, PR #3012).
+        sys_path_snapshot = list(sys.path)
         try:
             spec.loader.exec_module(detector)
             assert _mod._SKILL_SCAN_EXTENSIONS == detector.VALID_EXTENSIONS
@@ -477,6 +482,7 @@ class TestRunValidations:
                 sys.modules[mod_key] = previous
             else:
                 sys.modules.pop(mod_key, None)
+            sys.path[:] = sys_path_snapshot
 
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):
         changed = ".agents/sessions/2025-01-01-session-01.json\n"

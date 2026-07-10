@@ -316,7 +316,8 @@ def run_validations(
         elif not changed_files:
             print("  No changed files to check.")
         else:
-            print("  No changed files with a scannable extension (.md, .py, .ps1, .psm1).")
+            _exts = ", ".join(sorted(_SKILL_SCAN_EXTENSIONS))
+            print(f"  No changed files with a scannable extension ({_exts}).")
 
     # Validation 3: Test coverage detection (WARNING)
     print()
