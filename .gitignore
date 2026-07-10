@@ -101,6 +101,7 @@ ENV/
 .work-*/
 worktree-*/
 worktree--/
+.wt/
 
 # Flowbaby files
 .flowbaby/
