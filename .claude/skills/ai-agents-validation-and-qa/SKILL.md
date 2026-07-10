@@ -54,13 +54,12 @@ Quality trumps quantity: `.agents/governance/TESTING-ANTI-PATTERNS.md` bans cove
 
 ### Phase 2: Know where tests live and how they are collected
 
-pytest collects only `testpaths = ["tests", "test"]` (pyproject.toml:41). Everything else runs explicitly.
+pytest collects only `testpaths = ["tests"]` (pyproject.toml:41). Everything else runs explicitly.
 
 | Location | Collected by default | What lives there | Run it |
 |----------|---------------------|------------------|--------|
-| `tests/` | Yes | Root suite: scripts, hooks (`tests/hooks/`), build scripts (`tests/build_scripts/`), workflows | `uv run pytest tests/ -x` |
+| `tests/` | Yes | Root suite: scripts, hooks (`tests/hooks/`), build scripts (`tests/build_scripts/`), workflows, harness-specific suites (`tests/claude_mem/`, `tests/forgetful/`, `tests/claude/skills/`) | `uv run pytest tests/ -x` |
 | `tests/skills/NAME/` | Yes | Tests for a skill's Python scripts (importable via conftest sys.path) | `uv run pytest tests/skills/github/ -x` |
-| `test/` | Yes | Harness-specific suites (`test/claude`, `test/claude-mem`, `test/forgetful`) | `uv run pytest test/ -x` |
 | `.claude/skills/NAME/tests/` | NO | Per-skill structure tests, colocated with the skill (claude-agents.md MUST 3) | `uv run pytest .claude/skills/NAME/tests/ -q` |
 
 Two skill-test locations is a real fork, not a typo: structure tests colocate under `.claude/skills/NAME/tests/` and are NOT collected by `uv run pytest tests/ -x`; behavior tests for skill scripts land in `tests/skills/NAME/` and are. CI coverage pins reference both (`.github/workflows/pytest.yml:159-164` runs `tests/skills/github/test_wait_for_unresolved_zero.py`). When you add a skill, you usually need both (Phase 6).
