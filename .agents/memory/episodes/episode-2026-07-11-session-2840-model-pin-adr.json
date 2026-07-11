@@ -1,0 +1,62 @@
+{
+  "id": "episode-2026-07-11-session-2840-model-pin-adr",
+  "session": "2026-07-11-session-2840-model-pin-adr",
+  "timestamp": "2026-07-11T00:00:00+00:00",
+  "outcome": "partial",
+  "task": "Author ADR-080, the model-pin justification policy that is criterion 1 of issue #2840. Ground the policy against the actual eval-sweep harness (#2901), run a multi-agent adversarial review (architect plus two GPT-5.5 reviewers), record the debate, incorporate all findings, and open a PR for owner review.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Re-listed open issues (3016, 2993, 2967, 2840). Per the owner's expanded mandate to write and review ADRs, selected #2840 as the keystone (its criterion 1 is an unwritten ADR).",
+      "chosen": "Re-listed open issues (3016, 2993, 2967, 2840). Per the owner's expanded mandate to write and review ADRs, selected #2840 as the keystone (its criterion 1 is an unwritten ADR).",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-listed open issues (3016, 2993, 2967, 2840). Per the owner's expanded mandate to write and review ADRs, selected #2840 as the keystone (its criterion 1 is an unwritten ADR).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Grounded the policy against the real infra: eval-model-sweep.py is agent-only; only 1 of 74 pinned skills and 17 of 31 pinned agents have eval fixtures; KEEP_PIN needs delta>=0.05 AND ci_low>0; the Copilot generator injects model: claude-opus-4.6 as a default.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the ADR Review Protocol: a multi-agent consensus debate on ADR-080 with the architect agent plus two GPT-5.5 adversarial reviewers (independent-thinker, critic). Recorded 12 findings and their resolutions in .agents/analysis/ADR-080-model-pin-policy-debate.md.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote ADR-080 incorporating every finding: agent-only evidence scope, skills/commands banned from versioned pins, sidecar evidence manifest instead of frontmatter, generator default removal, draining ratchet with burn-down, freshness and identity binding, and the pure-simpler alternative recorded for the owner.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2840,
+    "date": "2026-07-11",
+    "branch": "feat/2840-model-pin-policy-adr",
+    "startingCommit": "4ece4776c",
+    "objective": "Author ADR-080, the model-pin justification policy that is criterion 1 of issue #2840. Ground the policy against the actual eval-sweep harness (#2901), run a multi-agent adversarial review (architect plus two GPT-5.5 reviewers), record the debate, incorporate all findings, and open a PR for owner review."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live on this local Copilot CLI (serena-* tools loaded via tool search); the project is auto-active and no separate activate_project verb is exposed on this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions; the Serena manual loaded successfully."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; observed the read-only rule (ADR-014) and did not modify it."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created during the session under .agents/sessions/."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used the github skill scripts (new_pr, resolve threads) and ran validate scripts; read the ADR template and ADR-079 for conventions."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the AGENTS.md skill-first rules and the surfaced usage-mandatory guidance."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/architecture/ADR-TEMPLATE.md, ADR-079, and the .agents/AGENTS.md artifact rules before authoring ADR-080."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the repository and user memories surfaced this session (plugin versioning, push gates, eval harness, session-log rules)."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned feat/2840-model-pin-policy-adr."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work is on feature branch feat/2840-model-pin-policy-adr, created off main at 4ece4776c."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status inspected; only ADR-080, its debate log, and this session log are staged."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Starting commit recorded as 4ece4776c (main HEAD at branch creation)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Session ongoing; ADR PR is being opened for owner review."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was read only and never modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "A policy ADR under owner review does not yet warrant a durable memory; will follow the outcome."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran markdownlint-cli2 on ADR-080 and the debate log; 0 errors. Byte-checked both for em/en dashes: 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-080, the debate log, and this session log are committed together on feat/2840-model-pin-policy-adr."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The pre-commit gates (adr-review evidence, session-log JSON, taste-lints, markdownlint) passed for this commit."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No task-tracker changes in this ADR-authoring session."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-ADR session; a retrospective is not warranted."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Re-listed open issues (3016, 2993, 2967, 2840). Per the owner's expanded mandate to write and review ADRs, selected #2840 as the keystone (its criterion 1 is an unwritten ADR)."
+    },
+    {
+      "time": "T1",
+      "entry": "Grounded the policy against the real infra: eval-model-sweep.py is agent-only; only 1 of 74 pinned skills and 17 of 31 pinned agents have eval fixtures; KEEP_PIN needs delta>=0.05 AND ci_low>0; the Copilot generator injects model: claude-opus-4.6 as a default."
+    },
+    {
+      "time": "T2",
+      "entry": "Ran the ADR Review Protocol: a multi-agent consensus debate on ADR-080 with the architect agent plus two GPT-5.5 adversarial reviewers (independent-thinker, critic). Recorded 12 findings and their resolutions in .agents/analysis/ADR-080-model-pin-policy-debate.md."
+    },
+    {
+      "time": "T3",
+      "entry": "Wrote ADR-080 incorporating every finding: agent-only evidence scope, skills/commands banned from versioned pins, sidecar evidence manifest instead of frontmatter, generator default removal, draining ratchet with burn-down, freshness and identity binding, and the pure-simpler alternative recorded for the owner."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Owner reviews ADR-080; on acceptance, implement scripts/validation/check_model_pins.py with the frozen baseline and the sidecar manifest.",
+    "Then migrate: de-version skill and command pins, sweep the ~17 fixture-backed agents, flip the check to enforce once the baseline drains."
+  ]
+}
