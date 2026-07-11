@@ -658,7 +658,9 @@ elif [ -n "$STAGED_YAML_FILES" ]; then
         else
             # Respects .yamllint.yml config for the passed files.
             YAMLLINT_OUTPUT=$(mktemp)
-            if ! yamllint -f parsable "${YAML_FILES[@]}" > "$YAMLLINT_OUTPUT" 2>&1; then
+            # "--" ends option parsing so a staged path beginning with "-" is
+            # treated as a filename, not a yamllint flag (option injection).
+            if ! yamllint -f parsable -- "${YAML_FILES[@]}" > "$YAMLLINT_OUTPUT" 2>&1; then
                 echo_warning "yamllint found style issues (non-blocking):"
                 echo ""
                 # Show first 20 lines of warnings

@@ -14,6 +14,7 @@ and run it under bash against controlled inputs, plus a structural assertion
 that the whole-tree scan is gone.
 """
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -53,26 +54,28 @@ def _extract_target_block() -> str:
 def _run_block(paths: list[str], cwd: Path) -> list[str]:
     """Run the extracted array-build block and return the selected targets.
 
-    ``paths`` becomes the newline-joined ``STAGED_YAML_FILES`` value. The hook
-    function ``echo_warning`` is stubbed. Returns the resulting ``YAML_FILES``
-    entries, one per line.
+    ``paths`` becomes the newline-joined ``STAGED_YAML_FILES`` value, passed via
+    the child environment so filenames stay literal (no bash expansion of ``$``,
+    backticks, or ``$(...)``). The hook function ``echo_warning`` is stubbed.
+    Returns the resulting ``YAML_FILES`` entries, one per line.
     """
     block = _extract_target_block()
-    value = "\n".join(paths)
     script = (
         "echo_warning() { :; }\n"
-        f'STAGED_YAML_FILES="{value}"\n'
         f"{block}\n"
         'if [ ${#YAML_FILES[@]} -gt 0 ]; then printf "%s\\n" "${YAML_FILES[@]}"; fi\n'
     )
     bash = shutil.which("bash")
     assert bash is not None, "bash interpreter required for this test"
+    env = {**os.environ, "STAGED_YAML_FILES": "\n".join(paths)}
     result = subprocess.run(
         [bash, "-c", script],
         cwd=cwd,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
+        env=env,
     )
     return [ln for ln in result.stdout.splitlines() if ln]
 
@@ -128,6 +131,16 @@ def test_skips_paths_not_on_disk(tmp_path: Path) -> None:
     assert selected == ["present.yml"]
 
 
+def test_selects_leading_dash_filename(tmp_path: Path) -> None:
+    # A filename starting with "-" must still be selected (and, at the yamllint
+    # call site, the "--" separator keeps it from being read as a flag).
+    (tmp_path / "-dash.yml").write_text("k: v\n", encoding="utf-8")
+
+    selected = _run_block(["-dash.yml"], cwd=tmp_path)
+
+    assert selected == ["-dash.yml"]
+
+
 # --- Structural: the whole-tree scan must not return -----------------------
 
 
@@ -141,8 +154,9 @@ def test_hook_has_no_whole_tree_yamllint_scan() -> None:
 
 def test_hook_scopes_yamllint_to_array() -> None:
     text = _hook_text()
-    assert 'yamllint -f parsable "${YAML_FILES[@]}"' in text, (
-        "yamllint must lint the staged-file array, not the whole tree"
+    assert 'yamllint -f parsable -- "${YAML_FILES[@]}"' in text, (
+        "yamllint must lint the staged-file array (with -- guard), "
+        "not the whole tree"
     )
 
 
