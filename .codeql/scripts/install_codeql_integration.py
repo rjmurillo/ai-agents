@@ -19,10 +19,10 @@ from __future__ import annotations
 import argparse
 import os
 import platform
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:
