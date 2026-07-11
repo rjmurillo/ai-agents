@@ -48,7 +48,6 @@ from github_core.output import (  # noqa: E402
     write_skill_output,
 )
 
-
 _GH_TIMEOUT_SECONDS = 30
 
 
