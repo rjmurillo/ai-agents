@@ -32,58 +32,13 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    # ADR-006: logic lives in debounce.py, not inline YAML. The step passes
+    # inputs as env and delegates to the tested script.
     - name: Debounce workflow run
       id: debounce
       shell: bash
-      run: |
-        # Capture start time
-        START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        START_EPOCH=$(date +%s)
-        
-        echo "=== Workflow Debouncing ==="
-        echo "Workflow: ${{ inputs.workflow-name }}"
-        echo "Concurrency Group: ${{ inputs.concurrency-group }}"
-        echo "Delay: ${{ inputs.delay-seconds }} seconds"
-        echo "Start Time: ${START_TIME}"
-        echo ""
-        echo "Purpose: Creating cancellation window for duplicate runs"
-        echo "Note: This delay allows GitHub Actions' cancel-in-progress to take effect"
-        echo ""
-        
-        # Execute debouncing delay
-        echo "Sleeping for ${{ inputs.delay-seconds }} seconds..."
-        sleep ${{ inputs.delay-seconds }}
-        
-        # Capture end time
-        END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        END_EPOCH=$(date +%s)
-        DURATION=$((END_EPOCH - START_EPOCH))
-        
-        echo ""
-        echo "=== Debouncing Complete ==="
-        echo "End Time: ${END_TIME}"
-        echo "Actual Duration: ${DURATION} seconds"
-        echo "Proceeding with workflow execution..."
-        
-        # Set outputs
-        echo "start=${START_TIME}" >> $GITHUB_OUTPUT
-        echo "end=${END_TIME}" >> $GITHUB_OUTPUT
-        echo "duration=${DURATION}" >> $GITHUB_OUTPUT
-        
-        # Add to job summary
-        cat >> $GITHUB_STEP_SUMMARY <<EOF
-        ## Workflow Debouncing Applied
-        
-        | Metric | Value |
-        |--------|-------|
-        | **Workflow** | ${{ inputs.workflow-name }} |
-        | **Concurrency Group** | ${{ inputs.concurrency-group }} |
-        | **Delay Configured** | ${{ inputs.delay-seconds }}s |
-        | **Actual Duration** | ${DURATION}s |
-        | **Start Time** | ${START_TIME} |
-        | **End Time** | ${END_TIME} |
-        
-        **Purpose**: Provide cancellation window for GitHub Actions to terminate duplicate runs
-        
-        **Impact**: This delay helps reduce race conditions where multiple workflow runs start before cancellation takes effect.
-        EOF
+      env:
+        DELAY_SECONDS: ${{ inputs.delay-seconds }}
+        WORKFLOW_NAME: ${{ inputs.workflow-name }}
+        CONCURRENCY_GROUP: ${{ inputs.concurrency-group }}
+      run: python3 "$GITHUB_ACTION_PATH/debounce.py"
