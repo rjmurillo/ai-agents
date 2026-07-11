@@ -64,6 +64,14 @@
       "content": "Commit: 470724842",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed 3 auto-generated retrospective files that an auto-staging hook swept into the ADR PR; they are scope creep on an atomic ADR change.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
