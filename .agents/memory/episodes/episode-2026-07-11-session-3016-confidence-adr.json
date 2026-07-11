@@ -48,6 +48,22 @@
       "content": "Wrote ADR-081: reject the blocking hook; reframe into an offline shadow study with external-only labels and a power-justified corpus, plus a recommended gate-hardening alternative and a WONTFIX option, for the owner to choose under User Sovereignty.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed bot review on PR #3030: set endingCommit to the work commit so it agrees with changesCommitted and the episode emits a commit event.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 470724842",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -55,7 +71,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 7
   },
   "lessons": []

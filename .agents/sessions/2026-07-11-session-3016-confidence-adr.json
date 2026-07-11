@@ -129,9 +129,13 @@
     {
       "time": "T3",
       "entry": "Wrote ADR-081: reject the blocking hook; reframe into an offline shadow study with external-only labels and a power-justified corpus, plus a recommended gate-hardening alternative and a WONTFIX option, for the owner to choose under User Sovereignty."
+    },
+    {
+      "time": "T4",
+      "entry": "Addressed bot review on PR #3030: set endingCommit to the work commit so it agrees with changesCommitted and the episode emits a commit event."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "470724842",
   "nextSteps": [
     "Owner chooses among the three tracks in ADR-081 (shadow study, gate hardening, or WONTFIX).",
     "If gate hardening is chosen, implement evidence-after-last-edit in the false-completion gate."
