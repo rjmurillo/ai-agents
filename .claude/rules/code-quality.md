@@ -205,14 +205,15 @@ A function that fails predictably is easier to operate than one that succeeds un
 
 ## Suppressions Are a Last Resort
 
-Fix violations idiomatically. A lint or type-checker complaint is usually the tool asking for a clearer type, a shorter line, a better name, or a real bug fix. Prefer the idiomatic fix: add the annotation, wrap the line, narrow the type, rename the symbol, restructure the code. Idiomatic code is easier for outside maintainers to read and easier for tooling and AI to pattern-match. Blanket ignores hide the signal and train the next reader to distrust the checker.
+Fix violations idiomatically. A lint or type complaint usually asks for a clearer type, a shorter line, a better name, or a real bug fix. Prefer the idiomatic fix: add the annotation, wrap the line, narrow the type, rename the symbol. Idiomatic code reads better and is easier for tooling and AI to pattern-match.
 
-Reach for a suppression (`# noqa`, a type-ignore comment, `# nosec`, an editor-disable, or a config-level ignore) only when the idiomatic fix is genuinely impossible: a confirmed false positive, an untyped third-party dependency the checker cannot model, or a generated file you do not own. When you must suppress:
+Blanket ignores hide the signal. They also train the next reader to distrust the checker.
 
-- **Scope it as narrowly as possible.** Prefer an inline, rule-specific suppression on the single offending line over a file-level or config-level blanket ignore. A per-module ignore or a directory-wide disable is the least acceptable form and needs an extra sentence on why it cannot be scoped tighter.
-- **Write a mini-ADR above it.** One short comment block, in your own words, that tells the next maintainer you thought about this: what the check wants, why the idiomatic fix does not work here, and why this suppression is the only remaining option. A bare suppression with no rationale is not acceptable and will be treated as a defect in review.
+Reach for a suppression only when the idiomatic fix is genuinely impossible. Valid cases are a confirmed false positive, an untyped third-party dependency, or a generated file you do not own. Forms include `# noqa`, a type-ignore comment, `# nosec`, an editor-disable, or a config-level ignore. When you must suppress, follow two rules.
 
-The comment exists so the next maintainer knows you are not being lazy. Something like: the check wants X, the idiomatic fix would be Y, Y does not work here because Z, so this narrow suppression is the only option left. Write it in plain prose, above the suppressed line.
+**Scope it narrowly.** Prefer an inline, rule-specific suppression on the single offending line. A per-module ignore or a directory-wide disable is the least acceptable form. It needs an extra sentence on why it cannot be scoped tighter.
+
+**Write a mini-ADR above it.** One short comment tells the next maintainer you thought about this. State what the check wants, why the idiomatic fix does not work here, and why the suppression is the only option left. A bare suppression with no rationale is a defect in review.
 
 When in doubt, fix the code.
 
