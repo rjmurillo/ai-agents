@@ -8,7 +8,7 @@ edits to ScoringEngine or Fixture.
 from __future__ import annotations
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 from _eval_agent_types import Assertion, AssertionKind, AssertionResult
 
