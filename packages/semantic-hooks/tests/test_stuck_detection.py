@@ -9,7 +9,6 @@ import pytest
 from semantic_hooks.guards import (
     StuckConfig,
     StuckDetectionGuard,
-    StuckResult,
     build_nudge,
     check_stuck,
     extract_topic_signature,

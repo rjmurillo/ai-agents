@@ -1,7 +1,5 @@
 """Tests for core data structures."""
 
-import pytest
-from datetime import datetime
 
 from semantic_hooks.core import (
     HookContext,

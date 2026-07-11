@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from scripts.quality_gate import path_utils
 from scripts.quality_gate.path_utils import resolve_workspace_path
 
 

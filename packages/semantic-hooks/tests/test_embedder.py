@@ -1,12 +1,11 @@
 """Tests for embedder module."""
 
 import pytest
-import numpy as np
 
 from semantic_hooks.embedder import (
+    compute_trajectory_embedding,
     cosine_similarity,
     semantic_tension,
-    compute_trajectory_embedding,
 )
 
 

@@ -8,7 +8,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "eval" / "analyze-pr-churn.py"
 
 
