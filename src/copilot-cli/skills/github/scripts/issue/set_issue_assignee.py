@@ -13,7 +13,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -36,7 +35,6 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    error_and_exit,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
