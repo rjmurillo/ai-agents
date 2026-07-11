@@ -17,7 +17,7 @@ Inputs (environment):
     GITHUB_OUTPUT       step-output file (GitHub sets this); optional
     GITHUB_STEP_SUMMARY job-summary file (GitHub sets this); optional
 
-Exit codes: 0 on success, 1 on a non-integer DELAY_SECONDS.
+Exit codes: 0 on success, 1 on a non-integer or negative DELAY_SECONDS.
 """
 
 from __future__ import annotations
@@ -26,12 +26,15 @@ import os
 import sys
 import time
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 
 def iso_utc(epoch_seconds: float) -> str:
     """Format an epoch timestamp as an ISO 8601 UTC string (second precision)."""
-    return datetime.fromtimestamp(epoch_seconds, tz=UTC).strftime(
+    # timezone.utc (not datetime.UTC) keeps this importable on the runner's
+    # system python3, which can predate 3.11 on older or self-hosted images.
+    # UP017 would rewrite this to datetime.UTC, so it is suppressed here.
+    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).strftime(  # noqa: UP017
         "%Y-%m-%dT%H:%M:%SZ"
     )
 
@@ -94,6 +97,13 @@ def run(
         )
         return 1
 
+    if delay < 0:
+        print(
+            f"error: DELAY_SECONDS must be non-negative, got {delay}",
+            file=sys.stderr,
+        )
+        return 1
+
     start = clock()
     start_iso = iso_utc(start)
     print("=== Workflow Debouncing ===")
@@ -105,7 +115,10 @@ def run(
 
     end = clock()
     end_iso = iso_utc(end)
-    duration = int(round(end - start))
+    # Match the original bash contract: DURATION=$((END_EPOCH - START_EPOCH))
+    # where each epoch came from `date +%s` (whole seconds). Floor both ends
+    # before subtracting rather than rounding the delta.
+    duration = int(end) - int(start)
 
     _append(
         env.get("GITHUB_OUTPUT"),

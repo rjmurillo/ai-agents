@@ -110,6 +110,15 @@ def test_run_rejects_non_integer_delay(capsys: pytest.CaptureFixture[str]) -> No
     assert "DELAY_SECONDS must be an integer" in capsys.readouterr().err
 
 
+def test_run_rejects_negative_delay(capsys: pytest.CaptureFixture[str]) -> None:
+    slept: list[float] = []
+    rc = debounce.run({"DELAY_SECONDS": "-5"}, sleep=slept.append)
+    assert rc == 1
+    assert "DELAY_SECONDS must be non-negative" in capsys.readouterr().err
+    # Rejected before sleeping (a negative sleep would otherwise raise).
+    assert slept == []
+
+
 def test_run_without_github_files_does_not_crash() -> None:
     # No GITHUB_OUTPUT / GITHUB_STEP_SUMMARY in env: the appends are skipped.
     ticks = iter([0.0, 3.0])
@@ -117,9 +126,24 @@ def test_run_without_github_files_does_not_crash() -> None:
     assert rc == 0
 
 
-def test_run_rounds_fractional_duration(tmp_path: Path) -> None:
+def test_run_truncates_fractional_duration(tmp_path: Path) -> None:
+    # Matches the old `date +%s` contract: floor both timestamps, then subtract.
+    # int(9.6) - int(0.0) == 9 (not 10 from rounding the 9.6s delta).
     out = tmp_path / "output"
     ticks = iter([0.0, 9.6])
+    debounce.run(
+        {"DELAY_SECONDS": "10", "GITHUB_OUTPUT": str(out)},
+        sleep=lambda _s: None,
+        clock=lambda: next(ticks),
+    )
+    assert "duration=9" in out.read_text(encoding="utf-8")
+
+
+def test_run_duration_floors_both_endpoints(tmp_path: Path) -> None:
+    # Fractional start and end: int(10.1) - int(0.9) == 10 - 0 == 10, the same
+    # value the two `date +%s` calls would have produced.
+    out = tmp_path / "output"
+    ticks = iter([0.9, 10.1])
     debounce.run(
         {"DELAY_SECONDS": "10", "GITHUB_OUTPUT": str(out)},
         sleep=lambda _s: None,
