@@ -1,6 +1,5 @@
 """Tests for convert_index_table_links.py."""
 
-import json
 import sys
 from pathlib import Path
 
