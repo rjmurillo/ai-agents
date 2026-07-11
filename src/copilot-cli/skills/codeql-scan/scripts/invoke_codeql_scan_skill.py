@@ -85,7 +85,7 @@ def run_scan(
     scan_script = os.path.join(repo_root, ".codeql", "scripts", "Invoke-CodeQLScan.ps1")
     config_script = os.path.join(repo_root, ".codeql", "scripts", "Test-CodeQLConfig.ps1")
 
-    print(f"\n=== CodeQL Security Scan ===", file=sys.stderr)
+    print("\n=== CodeQL Security Scan ===", file=sys.stderr)
     print(f"Operation: {operation}", file=sys.stderr)
     print("", file=sys.stderr)
 
@@ -114,7 +114,7 @@ def run_scan(
     if not Path(codeql_cli_path).exists():
         write_colored(f"CodeQL CLI not found at: {codeql_cli_path}", "error")
         print("", file=sys.stderr)
-        write_colored(f"Install CodeQL CLI with:", "info")
+        write_colored("Install CodeQL CLI with:", "info")
         print(f"  pwsh {install_script} -AddToPath", file=sys.stderr)
         return 3
 
