@@ -131,7 +131,7 @@
       "entry": "Wrote ADR-080 incorporating every finding: agent-only evidence scope, skills/commands banned from versioned pins, sidecar evidence manifest instead of frontmatter, generator default removal, draining ratchet with burn-down, freshness and identity binding, and the pure-simpler alternative recorded for the owner."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "49e419146",
   "nextSteps": [
     "Owner reviews ADR-080; on acceptance, implement scripts/validation/check_model_pins.py with the frozen baseline and the sidecar manifest.",
     "Then migrate: de-version skill and command pins, sweep the ~17 fixture-backed agents, flip the check to enforce once the baseline drains."

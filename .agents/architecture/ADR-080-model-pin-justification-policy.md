@@ -58,7 +58,7 @@ pinned agents** have an `evals/<name>-spike/fixtures` directory. About 90 of
 the ~108 pinned units cannot produce a sweep at all. Any policy that says
 "pin only with a sweep" without acknowledging this would be unenforceable for
 83 percent of the pins. The adversarial review of this decision
-(`.agents/critique/ADR-080-model-pin-policy-debate.md`) treated this as the
+(`.agents/analysis/ADR-080-model-pin-policy-debate.md`) treated this as the
 decisive finding.
 
 ## Decision
@@ -266,5 +266,5 @@ Suggested sequence, each its own PR:
   (injected model default)
 - `scripts/validation/check_skill_md_exec_portability.py`,
   `scripts/validation/check_vendor_portability.py` (ratchet patterns)
-- `.agents/critique/ADR-080-model-pin-policy-debate.md` (the review this ADR
+- `.agents/analysis/ADR-080-model-pin-policy-debate.md` (the review this ADR
   incorporates)

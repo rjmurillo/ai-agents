@@ -48,6 +48,14 @@
       "content": "Wrote ADR-080 incorporating every finding: agent-only evidence scope, skills/commands banned from versioned pins, sidecar evidence manifest instead of frontmatter, generator default removal, draining ratchet with burn-down, freshness and identity binding, and the pure-simpler alternative recorded for the owner.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 49e419146",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -55,7 +63,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []
