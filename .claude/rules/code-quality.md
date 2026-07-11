@@ -203,6 +203,20 @@ Errors are part of the contract. Handle them with the same care as the happy pat
 
 A function that fails predictably is easier to operate than one that succeeds unpredictably.
 
+## Suppressions Are a Last Resort
+
+Fix violations idiomatically. A lint or type complaint usually asks for a clearer type, a shorter line, a better name, or a real bug fix. Prefer the idiomatic fix: add the annotation, wrap the line, narrow the type, rename the symbol. Idiomatic code reads better and is easier for tooling and AI to pattern-match.
+
+Blanket ignores hide the signal. They also train the next reader to distrust the checker.
+
+Reach for a suppression only when the idiomatic fix is genuinely impossible. Valid cases are a confirmed false positive, an untyped third-party dependency, or a generated file you do not own. Forms include `# noqa`, a type-ignore comment, `# nosec`, an editor-disable, or a config-level ignore. When you must suppress, follow two rules.
+
+**Scope it narrowly.** Prefer an inline, rule-specific suppression on the single offending line. A per-module ignore or a directory-wide disable is the least acceptable form. It needs an extra sentence on why it cannot be scoped tighter.
+
+**Write a mini-ADR above it.** One short comment tells the next maintainer you thought about this. State what the check wants, why the idiomatic fix does not work here, and why the suppression is the only option left. A bare suppression with no rationale is a defect in review.
+
+When in doubt, fix the code.
+
 ## Quick Self-Review
 
 Before you mark work complete, walk this list:
@@ -217,6 +231,7 @@ Before you mark work complete, walk this list:
 - [ ] Variables live in the narrowest scope that satisfies their use.
 - [ ] Comments explain _why_; the code explains _what_.
 - [ ] Errors are typed, traced, and logged without secrets.
+- [ ] Any suppression is a scoped last resort with a mini-ADR comment above it; no blanket ignores.
 - [ ] Mandatory security patterns (CWE-22 path traversal, CWE-78 command injection, authentication and authorization boundaries, secret handling) are checked. See the [security-detection](../skills/security-detection/SKILL.md) and [security-scan](../skills/security-scan/SKILL.md) skills for the full list.
 
 If you cannot check a box, fix it before requesting review. The cost of a fix grows after the merge.
