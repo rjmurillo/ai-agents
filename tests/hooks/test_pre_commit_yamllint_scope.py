@@ -61,6 +61,9 @@ def _run_block(paths: list[str], cwd: Path) -> list[str]:
     """
     block = _extract_target_block()
     script = (
+        # Run under the same error mode as the hook (`.githooks/pre-commit`
+        # sets `set -e`) so the block's exit behavior matches production.
+        "set -e\n"
         "echo_warning() { :; }\n"
         f"{block}\n"
         'if [ ${#YAML_FILES[@]} -gt 0 ]; then printf "%s\\n" "${YAML_FILES[@]}"; fi\n'
