@@ -635,27 +635,48 @@ elif [ -n "$STAGED_YAML_FILES" ]; then
 
     # Check if yamllint is installed
     if command -v yamllint &> /dev/null; then
-        # Run yamllint on repository root (respects .yamllint.yml config)
-        YAMLLINT_OUTPUT=$(mktemp)
-        
-        if ! yamllint -f parsable . > "$YAMLLINT_OUTPUT" 2>&1; then
-            echo_warning "yamllint found style issues (non-blocking):"
-            echo ""
-            # Show first 20 lines of warnings
-            head -20 "$YAMLLINT_OUTPUT"
-            echo ""
-            echo_info "Common style issues:"
-            echo_info "  - Line too long (exceeds 120 characters)"
-            echo_info "  - Trailing spaces"
-            echo_info "  - Inconsistent indentation"
-            echo_info "  - Missing space after comment"
-            echo ""
-            echo_info "Note: These are warnings, not errors. Fix when convenient."
-            # Non-blocking: don't set EXIT_STATUS
+        # Lint only the staged YAML files, not the whole working tree. Passing
+        # "." made yamllint walk every YAML on disk, including gitignored tool
+        # bundles (.codeql/cli alone vendors 5000+ YAMLs), which hung the commit
+        # for minutes (#3031). The staged set is already computed above.
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray.
+        YAML_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            # Reject symlinks to prevent TOCTOU race conditions (MEDIUM-002).
+            if [ -L "$file" ]; then
+                echo_warning "Skipping symlink: $file"
+                continue
+            fi
+            # Skip anything no longer on disk (defensive; ACMR excludes deletes).
+            [ -f "$file" ] || continue
+            YAML_FILES+=("$file")
+        done <<< "$STAGED_YAML_FILES"
+
+        if [ ${#YAML_FILES[@]} -eq 0 ]; then
+            echo_info "No existing staged YAML files to lint."
         else
-            echo_success "YAML files conform to style guidelines."
+            # Respects .yamllint.yml config for the passed files.
+            YAMLLINT_OUTPUT=$(mktemp)
+            if ! yamllint -f parsable "${YAML_FILES[@]}" > "$YAMLLINT_OUTPUT" 2>&1; then
+                echo_warning "yamllint found style issues (non-blocking):"
+                echo ""
+                # Show first 20 lines of warnings
+                head -20 "$YAMLLINT_OUTPUT"
+                echo ""
+                echo_info "Common style issues:"
+                echo_info "  - Line too long (exceeds 120 characters)"
+                echo_info "  - Trailing spaces"
+                echo_info "  - Inconsistent indentation"
+                echo_info "  - Missing space after comment"
+                echo ""
+                echo_info "Note: These are warnings, not errors. Fix when convenient."
+                # Non-blocking: don't set EXIT_STATUS
+            else
+                echo_success "YAML files conform to style guidelines."
+            fi
+            rm -f "$YAMLLINT_OUTPUT"
         fi
-        rm -f "$YAMLLINT_OUTPUT"
     else
         echo_info "yamllint not installed. Skipping YAML style validation."
         echo_info ""
