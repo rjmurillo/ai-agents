@@ -16,7 +16,6 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import validate_templates_schema as vts  # noqa: E402
 
-
 # Minimum valid documents -----------------------------------------------------
 
 MINIMAL_VALID = """\

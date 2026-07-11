@@ -11,7 +11,6 @@ sys.path.insert(0, str(REPO_ROOT / "build"))
 
 import generate_commands  # noqa: E402
 
-
 # Helpers --------------------------------------------------------------------
 
 

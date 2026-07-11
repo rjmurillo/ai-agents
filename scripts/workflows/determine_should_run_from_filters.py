@@ -7,8 +7,8 @@ import json
 import os
 import re
 import sys
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping
 
 _OUTPUT_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 

@@ -21,7 +21,6 @@ from yaml_loader import (  # noqa: E402
     validate_relative_path,
 )
 
-
 # --- load_platform_config: happy path ------------------------------------
 
 
