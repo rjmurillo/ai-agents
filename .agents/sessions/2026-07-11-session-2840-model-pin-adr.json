@@ -129,6 +129,10 @@
     {
       "time": "T3",
       "entry": "Wrote ADR-080 incorporating every finding: agent-only evidence scope, skills/commands banned from versioned pins, sidecar evidence manifest instead of frontmatter, generator default removal, draining ratchet with burn-down, freshness and identity binding, and the pure-simpler alternative recorded for the owner."
+    },
+    {
+      "time": "T4",
+      "entry": "Addressed bot review on PR #3028: fixed the debate-log path references (analysis not critique), set endingCommit, and clarified that the rolling-alias cost exception resolves through the platform model_tiers mapping before the pricing lookup."
     }
   ],
   "endingCommit": "49e419146",

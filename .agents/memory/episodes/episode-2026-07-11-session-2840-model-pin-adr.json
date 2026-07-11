@@ -56,6 +56,14 @@
       "content": "Commit: 49e419146",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed bot review on PR #3028: fixed the debate-log path references (analysis not critique), set endingCommit, and clarified that the rolling-alias cost exception resolves through the platform model_tiers mapping before the pricing lookup.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

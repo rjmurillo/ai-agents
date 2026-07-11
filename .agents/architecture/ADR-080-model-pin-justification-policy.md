@@ -91,9 +91,11 @@ the rule splits by unit kind, because only agents can be measured:
    exception is narrow.** Converting a bare alias to a versioned id (as #2891
    did for `haiku`) downgrades the unit and re-arms the #2839 retirement risk;
    do not do it for `sonnet` or `opus`. A `model-rationale:` cost exception is
-   valid only for an alias that prices strictly below the harness default in
-   `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` (in practice `haiku`); it is not a
-   general escape hatch, and it never applies to a versioned pin.
+   valid only for an alias that resolves, via the platform `model_tiers`
+   mapping, to a versioned id priced strictly below the harness default in
+   `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` (in practice `haiku`, which resolves
+   to `claude-haiku-4-5`); it is not a general escape hatch, and it never
+   applies to a versioned pin.
 
 4. **Evidence lives in a sidecar manifest, not in frontmatter.** A committed
    `.agents/governance/model-pin-evidence.json` maps each versioned agent pin
