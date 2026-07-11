@@ -72,6 +72,14 @@
       "content": "Bot review round 3 on #3028: added the build/scripts/ path prefix to the copilot_body_translation citations and clarified the ADR-033 routing-gate reference.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bot review round 4: comprehensively prefixed every bare filename citation in ADR-080 and its debate log with full relative paths so all references are actionable.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

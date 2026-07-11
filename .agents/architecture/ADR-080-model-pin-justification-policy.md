@@ -46,11 +46,11 @@ The pins encode a guess, not a measurement. This ADR is criterion 1 of issue
 ### What measurement is actually possible
 
 Issue #2901 delivered the sweep harness (`scripts/eval/eval-model-sweep.py`
-plus `_model_sweep_core.py`) and #2902 completed the pricing table. But the
+plus `scripts/eval/_model_sweep_core.py`) and #2902 completed the pricing table. But the
 harness is **agent-shaped**: it builds child arguments only for `--agent`,
-`--fixtures`, `--model`, `--n-runs` (`eval-model-sweep.py:158-184`) and the
+`--fixtures`, `--model`, `--n-runs` (`scripts/eval/eval-model-sweep.py:158-184`) and the
 base evaluator reads `templates/agents/{agent}.shared.md`
-(`eval-agent-vs-baseline.py:104,394-406`). It cannot evaluate a skill or a
+(`scripts/eval/eval-agent-vs-baseline.py:104,394-406`). It cannot evaluate a skill or a
 command.
 
 Grounding the consequence: only **1 of 74 pinned skills** and **17 of 31
@@ -79,7 +79,7 @@ the rule splits by unit kind, because only agents can be measured:
    committed sweep artifact justifies it, recorded in a sidecar manifest (see
    point 4). The evidence bar is the harness verdict as it actually computes:
    `delta >= 0.05` mean recall **and** the paired bootstrap CI lower bound
-   `> 0` (`_model_sweep_core.py:277`, `DEFAULT_MIN_EFFECT = 0.05`), from a
+   `> 0` (`scripts/eval/_model_sweep_core.py:277`, `DEFAULT_MIN_EFFECT = 0.05`), from a
    single-candidate-versus-default sweep (so the CI is a plain 95 percent
    interval, not Bonferroni-widened) over **at least 8 shared fixtures**. A
    sweep with fewer shared fixtures, or one that returns DROP_PIN, is

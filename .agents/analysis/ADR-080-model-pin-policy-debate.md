@@ -26,8 +26,8 @@ commands, only agents.
 
 The evidence mechanism the policy leans on (`scripts/eval/eval-model-sweep.py`)
 builds child args only for `--agent`/`--fixtures`/`--model`/`--n-runs`
-(`eval-model-sweep.py:158-184`) and the base evaluator reads
-`templates/agents/{agent}.shared.md` (`eval-agent-vs-baseline.py:104,394-406`).
+(`scripts/eval/eval-model-sweep.py:158-184`) and the base evaluator reads
+`templates/agents/{agent}.shared.md` (`scripts/eval/eval-agent-vs-baseline.py:104,394-406`).
 It has no skill or command path.
 
 Author grounding confirmed the consequence: of the current pins, only **1 of
@@ -47,7 +47,7 @@ sweep, and reserves the eval machinery for the ~17 agents where it works.
 
 1. **KEEP_PIN bar was stated wrong (architect).** The verdict is
    `qualifies = delta >= min_effect and ci_low > 0.0` with
-   `DEFAULT_MIN_EFFECT = 0.05` (`_model_sweep_core.py:277,62`), not "CI
+   `DEFAULT_MIN_EFFECT = 0.05` (`scripts/eval/_model_sweep_core.py:277,62`), not "CI
    excludes zero" alone. **Resolved:** ADR states both conditions.
 
 2. **`model-evidence:` frontmatter would pollute downstream mirrors
@@ -65,7 +65,7 @@ sweep, and reserves the eval machinery for the ~17 agents where it works.
 
 3. **DROP_PIN means underpowered, not "safe to remove" (independent-thinker).**
    The paired bootstrap resamples fixture ids; with a 2-fixture floor
-   (`_model_sweep_core.py:321-335`) and 7-8 fixtures typical, the CI is
+   (`scripts/eval/_model_sweep_core.py:321-335`) and 7-8 fixtures typical, the CI is
    low-powered and a real winner can still get DROP_PIN
    (`tests/eval/test_model_sweep_core.py:179-204`). **Resolved:** the ADR
    requires at least 8 shared fixtures for a KEEP verdict to justify a pin,
@@ -76,7 +76,7 @@ sweep, and reserves the eval machinery for the ~17 agents where it works.
 4. **Identity binding unspecified (architect, critic).** The check must
    verify `decision == KEEP_PIN` AND `artifact.agent == unit` AND
    `artifact.winner == pinned model`, not merely that a field is present
-   (`_model_sweep_core.py:430-482`). **Resolved:** ADR specifies the full
+   (`scripts/eval/_model_sweep_core.py:430-482`). **Resolved:** ADR specifies the full
    predicate plus `fixtures_sha` and a max-age check.
 
 5. **Mirror obligations unspecified (critic).** Skills copy to
@@ -89,15 +89,15 @@ sweep, and reserves the eval machinery for the ~17 agents where it works.
 ### Medium severity
 
 6. **Bonferroni widening not disclosed (architect).** CI lower percentile is
-   divided by candidate count (`_model_sweep_core.py:340`). **Resolved:** ADR
+   divided by candidate count (`scripts/eval/_model_sweep_core.py:340`). **Resolved:** ADR
    pins the expected single-candidate-vs-default sweep protocol for evidence.
 
 7. **Ratchet baseline schema wrong shape (architect, independent-thinker).**
    Exec-portability ratchet is `dict[str,int]`
-   (`check_skill_md_exec_portability.py:213-234`); model pins need
+   (`scripts/validation/check_skill_md_exec_portability.py:213-234`); model pins need
    `dict[str,str]` (file to model-id) with new-pin and changed-value
    detection, and the frozen baseline drains nothing on its own
-   (`check_vendor_portability.py:321-330,401-433`). **Resolved:** ADR
+   (`scripts/validation/check_vendor_portability.py:321-330,401-433`). **Resolved:** ADR
    specifies the schema and adds a burn-down rule (baseline count must shrink
    each release; entries carry a removal target).
 
