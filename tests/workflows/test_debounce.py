@@ -104,10 +104,25 @@ def test_run_defaults_delay_to_ten(tmp_path: Path) -> None:
 # --- run(): negative / edge -----------------------------------------------
 
 
-def test_run_rejects_non_integer_delay(capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_rejects_non_numeric_delay(capsys: pytest.CaptureFixture[str]) -> None:
     rc = debounce.run({"DELAY_SECONDS": "soon"}, sleep=lambda _s: None)
     assert rc == 1
-    assert "DELAY_SECONDS must be an integer" in capsys.readouterr().err
+    assert "DELAY_SECONDS must be a number" in capsys.readouterr().err
+
+
+def test_run_accepts_fractional_delay(tmp_path: Path) -> None:
+    # The old bash `sleep "$DELAY_SECONDS"` accepted fractional seconds; preserve
+    # that contract (float parse), so "0.5" sleeps 0.5s rather than erroring.
+    out = tmp_path / "output"
+    slept: list[float] = []
+    ticks = iter([0.0, 0.5])
+    rc = debounce.run(
+        {"DELAY_SECONDS": "0.5", "GITHUB_OUTPUT": str(out)},
+        sleep=slept.append,
+        clock=lambda: next(ticks),
+    )
+    assert rc == 0
+    assert slept == [0.5]
 
 
 def test_run_rejects_negative_delay(capsys: pytest.CaptureFixture[str]) -> None:

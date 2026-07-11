@@ -11,13 +11,13 @@ The formatting helpers are pure and unit-tested; the sleep and the file
 appends are the only side effects, and both are injectable for tests.
 
 Inputs (environment):
-    DELAY_SECONDS       delay to sleep, integer seconds (default "10")
+    DELAY_SECONDS       delay to sleep in seconds, fractional allowed (default "10")
     WORKFLOW_NAME       workflow name, for logging and the summary
     CONCURRENCY_GROUP   concurrency group identifier, for the summary
     GITHUB_OUTPUT       step-output file (GitHub sets this); optional
     GITHUB_STEP_SUMMARY job-summary file (GitHub sets this); optional
 
-Exit codes: 0 on success, 1 on a non-integer or negative DELAY_SECONDS.
+Exit codes: 0 on success, 1 on a non-numeric or negative DELAY_SECONDS.
 """
 
 from __future__ import annotations
@@ -89,10 +89,10 @@ def run(
     concurrency_group = env.get("CONCURRENCY_GROUP", "")
 
     try:
-        delay = int(delay_configured)
+        delay = float(delay_configured)
     except ValueError:
         print(
-            f"error: DELAY_SECONDS must be an integer, got {delay_configured!r}",
+            f"error: DELAY_SECONDS must be a number, got {delay_configured!r}",
             file=sys.stderr,
         )
         return 1
@@ -109,7 +109,7 @@ def run(
     print("=== Workflow Debouncing ===")
     print(f"Workflow: {workflow_name}")
     print(f"Concurrency Group: {concurrency_group}")
-    print(f"Sleeping for {delay} seconds...")
+    print(f"Sleeping for {delay_configured} seconds...")
 
     sleep(delay)
 
