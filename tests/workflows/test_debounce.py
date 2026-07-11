@@ -134,6 +134,19 @@ def test_run_rejects_negative_delay(capsys: pytest.CaptureFixture[str]) -> None:
     assert slept == []
 
 
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "Infinity"])
+def test_run_rejects_non_finite_delay(
+    value: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # float() accepts nan/inf/-inf; sleep(nan) raises and sleep(inf) would hang
+    # the job forever, so they must be rejected before sleeping.
+    slept: list[float] = []
+    rc = debounce.run({"DELAY_SECONDS": value}, sleep=slept.append)
+    assert rc == 1
+    assert "DELAY_SECONDS must be finite" in capsys.readouterr().err
+    assert slept == []
+
+
 def test_run_without_github_files_does_not_crash() -> None:
     # No GITHUB_OUTPUT / GITHUB_STEP_SUMMARY in env: the appends are skipped.
     ticks = iter([0.0, 3.0])

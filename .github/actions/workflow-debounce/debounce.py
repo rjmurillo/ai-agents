@@ -17,11 +17,12 @@ Inputs (environment):
     GITHUB_OUTPUT       step-output file (GitHub sets this); optional
     GITHUB_STEP_SUMMARY job-summary file (GitHub sets this); optional
 
-Exit codes: 0 on success, 1 on a non-numeric or negative DELAY_SECONDS.
+Exit codes: 0 on success, 1 on a non-numeric, non-finite, or negative DELAY_SECONDS.
 """
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 import time
@@ -93,6 +94,15 @@ def run(
     except ValueError:
         print(
             f"error: DELAY_SECONDS must be a number, got {delay_configured!r}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if not math.isfinite(delay):
+        # nan/inf/-inf pass float() but sleep(nan) raises and sleep(inf) would
+        # hang the job forever, so reject them before sleeping.
+        print(
+            f"error: DELAY_SECONDS must be finite, got {delay_configured!r}",
             file=sys.stderr,
         )
         return 1
