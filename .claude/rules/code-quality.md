@@ -203,6 +203,19 @@ Errors are part of the contract. Handle them with the same care as the happy pat
 
 A function that fails predictably is easier to operate than one that succeeds unpredictably.
 
+## Suppressions Are a Last Resort
+
+Fix violations idiomatically. A lint or type-checker complaint is usually the tool asking for a clearer type, a shorter line, a better name, or a real bug fix. Prefer the idiomatic fix: add the annotation, wrap the line, narrow the type, rename the symbol, restructure the code. Idiomatic code is easier for outside maintainers to read and easier for tooling and AI to pattern-match. Blanket ignores hide the signal and train the next reader to distrust the checker.
+
+Reach for a suppression (`# noqa`, a type-ignore comment, `# nosec`, an editor-disable, or a config-level ignore) only when the idiomatic fix is genuinely impossible: a confirmed false positive, an untyped third-party dependency the checker cannot model, or a generated file you do not own. When you must suppress:
+
+- **Scope it as narrowly as possible.** Prefer an inline, rule-specific suppression on the single offending line over a file-level or config-level blanket ignore. A per-module ignore or a directory-wide disable is the least acceptable form and needs an extra sentence on why it cannot be scoped tighter.
+- **Write a mini-ADR above it.** One short comment block, in your own words, that tells the next maintainer you thought about this: what the check wants, why the idiomatic fix does not work here, and why this suppression is the only remaining option. A bare suppression with no rationale is not acceptable and will be treated as a defect in review.
+
+The comment exists so the next maintainer knows you are not being lazy. Something like: the check wants X, the idiomatic fix would be Y, Y does not work here because Z, so this narrow suppression is the only option left. Write it in plain prose, above the suppressed line.
+
+When in doubt, fix the code.
+
 ## Quick Self-Review
 
 Before you mark work complete, walk this list:
@@ -217,6 +230,7 @@ Before you mark work complete, walk this list:
 - [ ] Variables live in the narrowest scope that satisfies their use.
 - [ ] Comments explain _why_; the code explains _what_.
 - [ ] Errors are typed, traced, and logged without secrets.
+- [ ] Any suppression is a scoped last resort with a mini-ADR comment above it; no blanket ignores.
 - [ ] Mandatory security patterns (CWE-22 path traversal, CWE-78 command injection, authentication and authorization boundaries, secret handling) are checked. See the [security-detection](../skills/security-detection/SKILL.md) and [security-scan](../skills/security-scan/SKILL.md) skills for the full list.
 
 If you cannot check a box, fix it before requesting review. The cost of a fix grows after the merge.
