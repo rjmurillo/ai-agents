@@ -1,7 +1,6 @@
 """Tests for invoke_copilot_assignment.py."""
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,7 +17,6 @@ for _p in (str(_lib_dir), str(_scripts_dir / "issue")):
         sys.path.insert(0, _p)
 
 from github_core.api import RepoInfo  # noqa: E402
-
 from test_helpers import make_completed_process  # noqa: E402
 
 
