@@ -42,7 +42,7 @@
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read the ADR template, ADR-079/ADR-080 conventions, and the .agents/AGENTS.md artifact rules before authoring ADR-081."
+        "Evidence": "Read the ADR template, ADR-079 conventions (ADR-080 is a concurrent proposed sibling in PR #3028, not yet on main), and the .agents/AGENTS.md artifact rules before authoring ADR-081."
       },
       "memoriesLoaded": {
         "level": "MUST",
@@ -137,6 +137,10 @@
     {
       "time": "T5",
       "entry": "Removed 3 auto-generated retrospective files that an auto-staging hook swept into the ADR PR; they are scope creep on an atomic ADR change."
+    },
+    {
+      "time": "T6",
+      "entry": "Bot review: corrected the ADR to say one GPT-5.5 pass (not two) and marked the ADR-080 cross-reference as a concurrent proposed sibling not yet on main."
     }
   ],
   "endingCommit": "470724842",

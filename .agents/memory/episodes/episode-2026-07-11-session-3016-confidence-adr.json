@@ -80,6 +80,14 @@
       "content": "Addressed bot review on the ADR PR for #3016: set endingCommit to the work commit so it agrees with changesCommitted and the episode emits a commit event.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bot review: corrected the ADR to say one GPT-5.5 pass (not two) and marked the ADR-080 cross-reference as a concurrent proposed sibling not yet on main.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

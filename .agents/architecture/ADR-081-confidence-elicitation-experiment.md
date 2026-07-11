@@ -32,8 +32,7 @@ calibration gate: an A/B that measures whether surfaced items actually predict
 defects the critic or tests caught, and removal of the feature if they do not.
 
 The intent is sound: measure whether a folk technique earns its place rather
-than shipping it on faith. But an adversarial review of the proposal (architect
-plus two GPT-5.5 passes, recorded in
+than shipping it on faith. But an adversarial review of the proposal (architect plus a GPT-5.5 pass, recorded in
 `.agents/analysis/ADR-081-confidence-elicitation-debate.md`) found that the
 feature as specified is mechanically unbuildable, its calibration is not
 runnable with current tooling, and its ground truth is circular. This ADR
@@ -181,7 +180,7 @@ Python within the existing timeout.
 
 - Issue #3016 (this ADR's subject), #1673 and #1703 (false-completion history),
   ADR-008 (verification-based enforcement).
-- ADR-080 (a sibling gated-experiment ADR from this cycle; both apply the
+- ADR-080 (a sibling gated-experiment ADR proposed concurrently in PR #3028, not yet on main; both apply the
   measure-before-adopt discipline).
 
 ## References
