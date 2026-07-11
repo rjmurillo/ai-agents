@@ -72,6 +72,14 @@
       "content": "Removed 3 auto-generated retrospective files that an auto-staging hook swept into the ADR PR; they are scope creep on an atomic ADR change.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed bot review on the ADR PR for #3016: set endingCommit to the work commit so it agrees with changesCommitted and the episode emits a commit event.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

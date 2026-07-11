@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR-081, the debate log, and this session log are committed together on feat/3016-confidence-elicitation-adr."
+        "Evidence": "ADR-081, its debate log, the session log, and the auto-generated episode are committed on feat/3016-confidence-elicitation-adr; a follow-up commit removed 3 auto-retro files an auto-staging hook had swept in. endingCommit names the ADR content commit (a commit cannot contain its own SHA)."
       },
       "validationPassed": {
         "level": "MUST",
@@ -132,7 +132,7 @@
     },
     {
       "time": "T4",
-      "entry": "Addressed bot review on PR #3030: set endingCommit to the work commit so it agrees with changesCommitted and the episode emits a commit event."
+      "entry": "Addressed bot review on the ADR PR for #3016: set endingCommit to the work commit so it agrees with changesCommitted and the episode emits a commit event."
     },
     {
       "time": "T5",
