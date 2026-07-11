@@ -102,7 +102,7 @@ the rule splits by unit kind, because only agents can be measured:
    to its justifying artifact: unit name, pinned model id, artifact path,
    `fixtures_sha`, harness/pricing date. Frontmatter is not used because the
    generators copy unknown frontmatter keys straight into the customer-facing
-   mirrors (`copilot_body_translation.py:192-203`), which would ship internal
+   mirrors (`build/scripts/copilot_body_translation.py:192-203`), which would ship internal
    CI-artifact paths to Copilot and VS Code consumers.
 
 5. **The generator must stop injecting a default model.** The Copilot agent

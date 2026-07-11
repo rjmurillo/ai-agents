@@ -133,6 +133,10 @@
     {
       "time": "T4",
       "entry": "Addressed bot review on PR #3028: fixed the debate-log path references (analysis not critique), set endingCommit, and clarified that the rolling-alias cost exception resolves through the platform model_tiers mapping before the pricing lookup."
+    },
+    {
+      "time": "T5",
+      "entry": "Bot review round 3 on #3028: added the build/scripts/ path prefix to the copilot_body_translation citations and clarified the ADR-033 routing-gate reference."
     }
   ],
   "endingCommit": "49e419146",

@@ -2,7 +2,7 @@
 
 Multi-agent adversarial review of the proposed model-pin policy, run
 2026-07-11 before the ADR was written. Three reviewers plus author
-grounding. This log satisfies the ADR-033 architect-review gate and records
+grounding. This log satisfies the routing-level architect-review gate on ADR writes (the PreToolUse gate implemented per ADR-033, Routing-Level Enforcement Gates) and records
 the findings that shaped the final ADR.
 
 ## Participants
@@ -52,7 +52,7 @@ sweep, and reserves the eval machinery for the ~17 agents where it works.
 
 2. **`model-evidence:` frontmatter would pollute downstream mirrors
    (architect, critic).** Generators preserve unknown frontmatter
-   (`copilot_body_translation.py:192-203`) and the agent generator injects
+   (`build/scripts/copilot_body_translation.py:192-203`) and the agent generator injects
    `model: "claude-opus-4.6"` as a default
    (`templates/platforms/copilot-cli.yaml:95`;
    `build/generate_agents_common.py:211-233`). Internal CI-artifact paths
