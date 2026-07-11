@@ -8,7 +8,6 @@ import pytest
 
 from scripts.external_signals import acceptance_criteria as ac
 
-
 BODY_OK = """\
 # Title
 

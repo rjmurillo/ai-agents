@@ -23,6 +23,7 @@ sys.path.insert(0, HOOK_DIR)
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import invoke_security_gate  # noqa: E402
+
 from scripts.security import invoke_precommit_security  # noqa: E402
 
 # ---------------------------------------------------------------------------
