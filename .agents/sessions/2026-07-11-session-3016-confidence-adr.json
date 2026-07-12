@@ -73,8 +73,8 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Session ongoing; ADR PR being opened for owner review."
+        "Complete": true,
+        "Evidence": "Session-end steps completed; ADR-081 was authored, adversarially reviewed, and accepted by the owner (PR #3030)."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "A policy ADR under owner review does not yet warrant a durable memory; will follow the outcome."
+        "Evidence": "ADR-081 is now accepted; the ADR document is the durable decision record, so no separate Serena memory is created for it."
       },
       "markdownLintRun": {
         "level": "MUST",

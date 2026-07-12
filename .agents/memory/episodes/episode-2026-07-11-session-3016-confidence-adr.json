@@ -2,7 +2,7 @@
   "id": "episode-2026-07-11-session-3016-confidence-adr",
   "session": "2026-07-11-session-3016-confidence-adr",
   "timestamp": "2026-07-11T00:00:00+00:00",
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Author ADR-081 for issue #3016 (metacognitive confidence-elicitation). Ground the proposal against the real false-completion gate and eval harness, run a multi-agent adversarial review (architect plus GPT-5.5), record the debate, and open a PR for owner review. The review found the blocking-hook design unbuildable and the calibration circular; the ADR reframes into a shadow study and a simpler gate-hardening alternative for the owner to choose.",
   "decisions": [
     {
