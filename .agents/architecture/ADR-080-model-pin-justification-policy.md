@@ -1,6 +1,6 @@
 ---
 id: ADR-080
-status: proposed
+status: accepted
 date: 2026-07-11
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,7 +13,7 @@ implemented: false
 
 ## Status
 
-Proposed
+Accepted (approved by @rjmurillo on 2026-07-11, PR #3028).
 
 ## Date
 
