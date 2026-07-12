@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-07-12-session-3034-causal-graph",
+  "session": "2026-07-12-session-3034-causal-graph",
+  "timestamp": "2026-07-12T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive issue #3034 (pre-commit causal-graph regeneration scope) to closure. Scope the regen to staged episodes, make the generator episode-aware and idempotent, feed the staged index blob with real exit-code handling, run an adversarial GPT-5.6 Sol review, and fix every verified finding (edge/pattern idempotency, occurrence-weighted pattern average, hook atomicity and mktemp guard, and the stale shipped skill-local tests) before opening a PR for owner review.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Continued #3034. The initial scoping fix (loop over staged episodes, one --episode-path per file) was already committed as 5dd1e6606 and a GPT-5.6 Sol adversarial review had returned three verified findings: edge/pattern non-idempotency, an unreachable failure branch from '|| true' plus UPDATE_EXIT=0, and the hook reading working-tree bytes for staged paths.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made add_causal_edge and add_pattern episode-aware: both take an episode_id and carry an 'episodes' list; a same-episode reprocess returns None (no-op) instead of inflating evidence_count/occurrences or drifting the running averages. Threaded episode_id through both main() call sites. Committed as e5abeb1b1 with a lockstep 0.6.32->0.6.33 plugin bump and regenerated mirror.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the hook block to materialize each staged episode's index blob (git show :path to a temp file) and feed that to the generator, and to capture the real per-episode exit code (... 2>&1) && _rc=0 || _rc=$?, recording any non-zero into UPDATE_EXIT. Verified git show :path resolves top-level-relative from any cwd and that episodes carry a stable 'id' field so the changing temp name does not break idempotency. Committed as 6f5736ae7 and pushed (full pre-push green).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a recursive GPT-5.6 Sol re-review. It confirmed the three originals as PASS and surfaced five follow-ups: a two-point pattern average (0.50 vs 0.67), legacy graphs lacking episode provenance, edit/deletion orphaning, non-atomic multi-episode failure plus an unguarded mktemp, and stale shipped skill-local tests still on the old signature.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the in-scope re-review findings: occurrence-weighted pattern average consistent with add_causal_edge (with a 3-episode regression test in both test trees); a graph snapshot/restore for atomic multi-episode failure plus an mktemp guard in the hook; documented the one-time proportional self-heal for legacy edges/patterns; and updated the shipped skill-local test (and its copilot-cli mirror) to the evidence_count/episode_id contract, also parametrizing three pre-existing bare pytest.CaptureFixture params the whole-file mypy gate surfaced.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-12T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the batch: `uv run pytest` reported 30 passed (canonical tests/skills/memory and tests/hooks) plus 26 passed in each of the .claude and copilot-cli skill-local trees, 82 total, run separately to avoid a conftest-name collision; `uv run ruff check` and `uv run mypy` clean on the changed set; build_all.py mirror parity confirmed. Filing a follow-up issue for the residual edit/deletion orphaning, which needs replace-episode-contributions semantics beyond #3034's scope.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-12T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the batch: `uv run pytest` reported 30 passed (canonical tests/skills/memory and tests/hooks) plus 26 passed in each of the .claude and copilot-cli skill-local trees, 82 total, run separately to avoid a conftest-name collision; `uv run ruff check` and `uv run mypy` clean on the changed set; build_all.py mirror parity confirmed. Filing a follow-up issue for the residual edit/deletion orphaning, which needs replace-episode-contributions semantics beyond #3034's scope.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-12T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7defa3338",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 2
+  },
+  "lessons": []
+}

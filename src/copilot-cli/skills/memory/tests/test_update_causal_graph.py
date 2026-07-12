@@ -105,19 +105,27 @@ class TestAddCausalEdge:
 
     def test_add_new_edge(self) -> None:
         graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
-        edge = add_causal_edge(graph, "src", "tgt", "causes", 0.8)
+        edge = add_causal_edge(graph, "src", "tgt", "causes", 0.8, "ep-001")
         assert edge is not None
         assert edge["weight"] == 0.8
+        assert edge["evidence_count"] == 1
+        assert edge["episodes"] == ["ep-001"]
         assert len(graph["edges"]) == 1
 
     def test_duplicate_averages_weight(self) -> None:
         graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
-        add_causal_edge(graph, "src", "tgt", "causes", 0.8)
-        edge = add_causal_edge(graph, "src", "tgt", "causes", 0.6)
+        add_causal_edge(graph, "src", "tgt", "causes", 0.8, "ep-001")
+        edge = add_causal_edge(graph, "src", "tgt", "causes", 0.6, "ep-002")
         assert len(graph["edges"]) == 1
         assert edge is not None
         assert edge["weight"] == 0.7
-        assert edge["count"] == 2
+        assert edge["evidence_count"] == 2
+
+    def test_same_episode_reprocess_is_noop(self) -> None:
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        add_causal_edge(graph, "src", "tgt", "causes", 0.8, "ep-001")
+        assert add_causal_edge(graph, "src", "tgt", "causes", 0.8, "ep-001") is None
+        assert graph["edges"][0]["evidence_count"] == 1
 
 
 class TestAddPattern:
@@ -125,18 +133,29 @@ class TestAddPattern:
 
     def test_add_new_pattern(self) -> None:
         graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
-        pat = add_pattern(graph, "test", "desc", "trigger", "action", 1.0)
+        pat = add_pattern(graph, "test", "desc", "trigger", "action", 1.0, "ep-001")
         assert pat is not None
         assert pat["occurrences"] == 1
+        assert pat["episodes"] == ["ep-001"]
 
     def test_duplicate_updates_rate(self) -> None:
         graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
-        add_pattern(graph, "test", "desc", "trigger", "action", 1.0)
-        pat = add_pattern(graph, "test", "desc", "trigger", "action", 0.0)
+        add_pattern(graph, "test", "desc", "trigger", "action", 1.0, "ep-001")
+        pat = add_pattern(graph, "test", "desc", "trigger", "action", 0.0, "ep-002")
         assert len(graph["patterns"]) == 1
         assert pat is not None
         assert pat["success_rate"] == 0.5
         assert pat["occurrences"] == 2
+
+    def test_running_average_is_occurrence_weighted(self) -> None:
+        # 1.0, 1.0, 0.0 must average to 0.67, not 0.50 (#3034 review).
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        add_pattern(graph, "test", "desc", "trigger", "action", 1.0, "ep-001")
+        add_pattern(graph, "test", "desc", "trigger", "action", 1.0, "ep-002")
+        add_pattern(graph, "test", "desc", "trigger", "action", 0.0, "ep-003")
+        pat = graph["patterns"][0]
+        assert pat["occurrences"] == 3
+        assert pat["success_rate"] == 0.67
 
 
 class TestGetEpisodeFiles:
@@ -222,7 +241,7 @@ class TestMainFunction:
     """Tests for the main CLI entry point."""
 
     def test_no_episodes(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         ep_dir = tmp_path / "episodes"
         ep_dir.mkdir()
@@ -235,7 +254,7 @@ class TestMainFunction:
         assert result == 0
 
     def test_processes_episode(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         ep_dir = tmp_path / "episodes"
         ep_dir.mkdir()
@@ -272,7 +291,7 @@ class TestMainFunction:
         assert len(graph["nodes"]) > 0
 
     def test_dry_run(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         ep_dir = tmp_path / "episodes"
         ep_dir.mkdir()

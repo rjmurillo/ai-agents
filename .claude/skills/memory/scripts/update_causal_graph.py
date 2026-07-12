@@ -83,11 +83,35 @@ def add_causal_edge(
     target_id: str,
     edge_type: str,
     weight: float,
+    episode_id: str,
 ) -> dict[str, Any] | None:
-    """Add an edge to the causal graph. Returns the edge or None if duplicate."""
+    """Add an edge to the causal graph.
+
+    Returns the edge when this episode contributes new evidence, or None when
+    the episode already contributed to this edge (idempotent no-op).
+
+    An episode contributes to a given edge at most once. Reprocessing the same
+    episode (a re-commit, an edit, or the pre-commit hook re-running) must not
+    manufacture evidence: without the ``episodes`` guard, ``evidence_count`` and
+    the running-average ``weight`` drift on every reprocess, so a byte-stable
+    input produced a churning graph (#3034 follow-up).
+
+    Legacy note: edges and patterns created before this guard carry no
+    ``episodes`` provenance, so the code cannot tell whether a reprocessed
+    episode already contributed. The first reprocess of such a legacy edge
+    therefore bumps it once (a heuristic that may overcount if that episode had
+    in fact contributed before) and records the episode id; every later
+    reprocess of the same episode is then a correct no-op. A full rebuild is not
+    used: it would only guess the missing provenance and would reset every
+    ``created`` timestamp. The one-time bump is bounded and proportional to the
+    staged episode, not a whole-graph churn.
+    """
     # Check for existing edge
     for existing in graph["edges"]:
         if existing["source"] == source_id and existing["target"] == target_id:
+            if episode_id in existing.get("episodes", []):
+                # This episode already contributed; reprocess is a no-op.
+                return None
             previous_evidence_count = int(
                 existing.get("evidence_count", existing.get("count", 1)),
             )
@@ -97,6 +121,7 @@ def add_causal_edge(
                 2,
             )
             existing["evidence_count"] = previous_evidence_count + 1
+            existing.setdefault("episodes", []).append(episode_id)
             existing.pop("count", None)
             edge_result: dict[str, Any] = existing
             return edge_result
@@ -107,6 +132,7 @@ def add_causal_edge(
         "type": edge_type,
         "weight": weight,
         "evidence_count": 1,
+        "episodes": [episode_id],
         "created": datetime.now(UTC).isoformat(),
     }
     graph["edges"].append(edge)
@@ -120,16 +146,33 @@ def add_pattern(
     trigger: str,
     action: str,
     success_rate: float,
+    episode_id: str,
 ) -> dict[str, Any] | None:
-    """Add a pattern to the causal graph."""
+    """Add a pattern to the causal graph.
+
+    Returns the pattern when this episode contributes a new occurrence, or None
+    when the episode already contributed (idempotent no-op). Reprocessing the
+    same episode must not inflate ``occurrences`` or drift ``success_rate``
+    (#3034 follow-up); the ``episodes`` guard enforces at-most-once contribution.
+    """
     # Check for existing pattern with same name
     for existing in graph["patterns"]:
         if existing["name"] == name:
-            # Update success rate (running average)
+            if episode_id in existing.get("episodes", []):
+                # This episode already contributed; reprocess is a no-op.
+                return None
+            # Occurrence-weighted running average, consistent with
+            # add_causal_edge. A plain (old + new) / 2 over-weights the most
+            # recent episode: contributions 1.0, 1.0, 0.0 must average to 0.67,
+            # not the 0.50 the two-point form produced (#3034 review).
+            previous_occurrences = int(existing.get("occurrences", 1))
             existing["success_rate"] = round(
-                (existing["success_rate"] + success_rate) / 2, 2,
+                (existing["success_rate"] * previous_occurrences + success_rate)
+                / (previous_occurrences + 1),
+                2,
             )
-            existing["occurrences"] = existing.get("occurrences", 1) + 1
+            existing["occurrences"] = previous_occurrences + 1
+            existing.setdefault("episodes", []).append(episode_id)
             pattern_result: dict[str, Any] = existing
             return pattern_result
 
@@ -140,6 +183,7 @@ def add_pattern(
         "action": action,
         "success_rate": success_rate,
         "occurrences": 1,
+        "episodes": [episode_id],
         "created": datetime.now(UTC).isoformat(),
     }
     graph["patterns"].append(pattern)
@@ -181,7 +225,7 @@ def get_episode_files(
     return list(files)
 
 
-def get_decision_patterns(episode: dict) -> list[dict]:
+def get_decision_patterns(episode: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract decision patterns from an episode."""
     patterns = []
     decisions = episode.get("decisions", [])
@@ -214,7 +258,7 @@ def get_decision_patterns(episode: dict) -> list[dict]:
     return patterns
 
 
-def build_causal_chains(episode: dict) -> list[dict]:
+def build_causal_chains(episode: dict[str, Any]) -> list[dict[str, Any]]:
     """Build causal chains from episode events."""
     chains = []
     events = episode.get("events", [])
@@ -400,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
                 if from_node and to_node:
                     edge = add_causal_edge(
                         graph, from_node["id"], to_node["id"],
-                        chain["edge_type"], chain["weight"],
+                        chain["edge_type"], chain["weight"], episode_id,
                     )
                     if edge:
                         stats["edges_added"] += 1
@@ -418,7 +462,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.dry_run:
                 p = add_pattern(
                     graph, pat["name"], pat["description"],
-                    pat["trigger"], pat["action"], success_rate,
+                    pat["trigger"], pat["action"], success_rate, episode_id,
                 )
                 if p:
                     stats["patterns_added"] += 1
