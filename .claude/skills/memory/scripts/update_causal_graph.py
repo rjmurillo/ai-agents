@@ -97,11 +97,13 @@ def add_causal_edge(
     input produced a churning graph (#3034 follow-up).
 
     Legacy note: edges and patterns created before this guard carry no
-    ``episodes`` provenance. Their contributors cannot be reconstructed after
-    the fact, so a full rebuild would guess (and would reset every ``created``
-    timestamp). Instead they self-heal: the first reprocess of an
-    already-represented episode bumps that edge once, records the episode, and
-    is a no-op thereafter. The correction is one-time and proportional to the
+    ``episodes`` provenance, so the code cannot tell whether a reprocessed
+    episode already contributed. The first reprocess of such a legacy edge
+    therefore bumps it once (a heuristic that may overcount if that episode had
+    in fact contributed before) and records the episode id; every later
+    reprocess of the same episode is then a correct no-op. A full rebuild is not
+    used: it would only guess the missing provenance and would reset every
+    ``created`` timestamp. The one-time bump is bounded and proportional to the
     staged episode, not a whole-graph churn.
     """
     # Check for existing edge

@@ -150,10 +150,12 @@ def _episode_with_chains(episode_id: str) -> dict:
     """An episode that yields both edges and patterns.
 
     The decision produces a pattern (via get_decision_patterns) and a
-    decision -> outcome edge (its chosen keywords match event e003). The error
-    event followed by a matching milestone produces an error -> recovery edge.
-    This exercises the edge/pattern idempotency guard that a plain single-event
-    episode does not reach (#3034 review finding).
+    decision -> event edge to e003: build_causal_chains matches the decision's
+    chosen keywords against event content, and to_type is the matched event's
+    type (milestone here), not "outcome". The error event followed by a matching
+    milestone produces an error -> recovery edge. This exercises the edge/pattern
+    idempotency guard that a plain single-event episode does not reach (#3034
+    review finding).
     """
     return {
         "id": episode_id,
