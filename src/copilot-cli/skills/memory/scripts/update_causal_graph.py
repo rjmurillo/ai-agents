@@ -95,6 +95,14 @@ def add_causal_edge(
     manufacture evidence: without the ``episodes`` guard, ``evidence_count`` and
     the running-average ``weight`` drift on every reprocess, so a byte-stable
     input produced a churning graph (#3034 follow-up).
+
+    Legacy note: edges and patterns created before this guard carry no
+    ``episodes`` provenance. Their contributors cannot be reconstructed after
+    the fact, so a full rebuild would guess (and would reset every ``created``
+    timestamp). Instead they self-heal: the first reprocess of an
+    already-represented episode bumps that edge once, records the episode, and
+    is a no-op thereafter. The correction is one-time and proportional to the
+    staged episode, not a whole-graph churn.
     """
     # Check for existing edge
     for existing in graph["edges"]:
@@ -151,11 +159,17 @@ def add_pattern(
             if episode_id in existing.get("episodes", []):
                 # This episode already contributed; reprocess is a no-op.
                 return None
-            # Update success rate (running average)
+            # Occurrence-weighted running average, consistent with
+            # add_causal_edge. A plain (old + new) / 2 over-weights the most
+            # recent episode: contributions 1.0, 1.0, 0.0 must average to 0.67,
+            # not the 0.50 the two-point form produced (#3034 review).
+            previous_occurrences = int(existing.get("occurrences", 1))
             existing["success_rate"] = round(
-                (existing["success_rate"] + success_rate) / 2, 2,
+                (existing["success_rate"] * previous_occurrences + success_rate)
+                / (previous_occurrences + 1),
+                2,
             )
-            existing["occurrences"] = existing.get("occurrences", 1) + 1
+            existing["occurrences"] = previous_occurrences + 1
             existing.setdefault("episodes", []).append(episode_id)
             pattern_result: dict[str, Any] = existing
             return pattern_result

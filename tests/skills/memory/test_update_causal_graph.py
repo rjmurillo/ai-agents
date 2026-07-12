@@ -147,6 +147,24 @@ class TestAddPattern:
         assert graph["patterns"][0]["success_rate"] == 1.0
         assert graph["patterns"][0]["episodes"] == ["ep-1"]
 
+    def test_running_average_is_occurrence_weighted(self):
+        # An occurrence-weighted average of 1.0, 1.0, 0.0 is 0.67; the old
+        # two-point (old + new) / 2 form produced 0.50 (#3034 review).
+        graph = {"nodes": [], "edges": [], "patterns": []}
+        update_causal_graph.add_pattern(
+            graph, "test-pattern", "desc", "trigger", "action", 1.0, "ep-1"
+        )
+        update_causal_graph.add_pattern(
+            graph, "test-pattern", "desc", "trigger", "action", 1.0, "ep-2"
+        )
+        update_causal_graph.add_pattern(
+            graph, "test-pattern", "desc", "trigger", "action", 0.0, "ep-3"
+        )
+        pattern = graph["patterns"][0]
+        assert pattern["occurrences"] == 3
+        assert pattern["success_rate"] == 0.67
+        assert pattern["episodes"] == ["ep-1", "ep-2", "ep-3"]
+
 
 class TestGetDecisionPatterns:
     """Tests for get_decision_patterns function."""
