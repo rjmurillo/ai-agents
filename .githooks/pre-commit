@@ -1484,28 +1484,43 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
             echo_warning "Skipping causal graph update: script path is a symlink"
         elif [ -f "$UPDATE_CAUSAL_SCRIPT" ]; then
             if set_python_cmd; then
-                # Update the causal graph from the STAGED episodes only, one at a
-                # time. The generator builds nodes, edges, chains, and patterns
-                # per episode (no cross-episode relationships), so processing the
-                # whole directory only bundled unrelated cross-session drift into
-                # the commit whenever the committed graph was stale (#3034).
-                # Scoping to the staged files keeps the graph delta proportional
-                # to the change. The additive merge dedupes by node id.
-                # Guard against set -e aborting the hook on non-blocking failures.
+                # Update the causal graph from the STAGED episodes only, one at
+                # a time. The generator builds nodes, edges, chains, and
+                # patterns per episode (no cross-episode relationships), so
+                # processing the whole directory only bundled unrelated
+                # cross-session drift into the commit whenever the committed
+                # graph was stale (#3034). Scoping to the staged files keeps the
+                # graph delta proportional to the change. The additive merge
+                # dedupes by node id and is idempotent per episode.
+                #
+                # Feed the STAGED (index) blob for each episode, not the
+                # working-tree file: partial staging (git add -p) or a later
+                # unstaged edit must not leak into the committed graph (#3034
+                # review finding). "git show :path" reads the index content.
+                # Capture the real generator exit code per episode so a failure
+                # cannot silently stage a partial graph while reporting success.
                 UPDATE_OUTPUT=""
+                UPDATE_EXIT=0
                 while IFS= read -r _episode; do
                     [ -z "$_episode" ] && continue
-                    # Reject symlinks (MEDIUM-002); skip staged deletions.
+                    # Reject symlinks (MEDIUM-002).
                     if [ -L "$REPO_ROOT/$_episode" ]; then
                         echo_warning "Skipping symlink: $_episode"
                         continue
                     fi
-                    [ -f "$REPO_ROOT/$_episode" ] || continue
-                    _episode_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --episode-path "$REPO_ROOT/$_episode" 2>&1 || true)
-                    UPDATE_OUTPUT="${UPDATE_OUTPUT}${_episode_out}
+                    # Materialize the staged blob. A staged deletion has no
+                    # index blob, so "git show" fails and the episode is skipped.
+                    _staged_tmp=$(mktemp)
+                    if git show ":$_episode" > "$_staged_tmp" 2>/dev/null; then
+                        _episode_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --episode-path "$_staged_tmp" 2>&1) && _rc=0 || _rc=$?
+                        UPDATE_OUTPUT="${UPDATE_OUTPUT}${_episode_out}
 "
+                        if [ "$_rc" -ne 0 ]; then
+                            UPDATE_EXIT=$_rc
+                        fi
+                    fi
+                    rm -f "$_staged_tmp"
                 done <<< "$STAGED_EPISODE_FILES"
-                UPDATE_EXIT=0
 
                 if [ $UPDATE_EXIT -eq 0 ]; then
                     # Check if causal graph was updated and stage it
