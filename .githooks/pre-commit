@@ -1484,11 +1484,28 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
             echo_warning "Skipping causal graph update: script path is a symlink"
         elif [ -f "$UPDATE_CAUSAL_SCRIPT" ]; then
             if set_python_cmd; then
-                # Run causal graph update on the entire episodes directory
-                # This ensures all relationships are captured, not just the new episode
-                # Guard against set -e aborting the hook on non-blocking update failures
-                UPDATE_OUTPUT=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --episode-path "$REPO_ROOT/.agents/memory/episodes" 2>&1 || true)
-                UPDATE_EXIT=$?
+                # Update the causal graph from the STAGED episodes only, one at a
+                # time. The generator builds nodes, edges, chains, and patterns
+                # per episode (no cross-episode relationships), so processing the
+                # whole directory only bundled unrelated cross-session drift into
+                # the commit whenever the committed graph was stale (#3034).
+                # Scoping to the staged files keeps the graph delta proportional
+                # to the change. The additive merge dedupes by node id.
+                # Guard against set -e aborting the hook on non-blocking failures.
+                UPDATE_OUTPUT=""
+                while IFS= read -r _episode; do
+                    [ -z "$_episode" ] && continue
+                    # Reject symlinks (MEDIUM-002); skip staged deletions.
+                    if [ -L "$REPO_ROOT/$_episode" ]; then
+                        echo_warning "Skipping symlink: $_episode"
+                        continue
+                    fi
+                    [ -f "$REPO_ROOT/$_episode" ] || continue
+                    _episode_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --episode-path "$REPO_ROOT/$_episode" 2>&1 || true)
+                    UPDATE_OUTPUT="${UPDATE_OUTPUT}${_episode_out}
+"
+                done <<< "$STAGED_EPISODE_FILES"
+                UPDATE_EXIT=0
 
                 if [ $UPDATE_EXIT -eq 0 ]; then
                     # Check if causal graph was updated and stage it
