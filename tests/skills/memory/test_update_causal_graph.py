@@ -49,23 +49,39 @@ class TestAddCausalEdge:
     def test_adds_new_edge(self):
         graph = {"nodes": [], "edges": [], "patterns": []}
         edge = update_causal_graph.add_causal_edge(
-            graph, "n001", "n002", "causes", 0.8
+            graph, "n001", "n002", "causes", 0.8, "ep-1"
         )
         assert edge is not None
         assert edge["source"] == "n001"
         assert edge["weight"] == 0.8
         assert edge["evidence_count"] == 1
+        assert edge["episodes"] == ["ep-1"]
         assert "count" not in edge
         assert len(graph["edges"]) == 1
 
     def test_updates_existing_edge(self):
         graph = {"nodes": [], "edges": [], "patterns": []}
-        update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.8)
-        edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.6)
+        update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.8, "ep-1")
+        edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.6, "ep-2")
         assert len(graph["edges"]) == 1
         assert edge["evidence_count"] == 2
         assert edge["weight"] == 0.7
+        assert edge["episodes"] == ["ep-1", "ep-2"]
         assert "count" not in edge
+
+    def test_same_episode_reprocess_is_noop(self):
+        # An episode contributes to an edge at most once; reprocessing the
+        # same episode must not manufacture evidence (#3034 follow-up).
+        graph = {"nodes": [], "edges": [], "patterns": []}
+        update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.8, "ep-1")
+        result = update_causal_graph.add_causal_edge(
+            graph, "n001", "n002", "causes", 0.8, "ep-1"
+        )
+        assert result is None
+        assert len(graph["edges"]) == 1
+        assert graph["edges"][0]["evidence_count"] == 1
+        assert graph["edges"][0]["weight"] == 0.8
+        assert graph["edges"][0]["episodes"] == ["ep-1"]
 
     def test_migrates_legacy_count_key(self):
         graph = {
@@ -81,11 +97,12 @@ class TestAddCausalEdge:
             ],
             "patterns": [],
         }
-        edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.6)
+        edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.6, "ep-1")
 
         assert edge["evidence_count"] == 10
         assert edge["weight"] == 0.78
         assert "count" not in edge
+        assert edge["episodes"] == ["ep-1"]
 
 
 class TestAddPattern:
@@ -94,23 +111,41 @@ class TestAddPattern:
     def test_adds_new_pattern(self):
         graph = {"nodes": [], "edges": [], "patterns": []}
         pattern = update_causal_graph.add_pattern(
-            graph, "test-pattern", "desc", "trigger", "action", 1.0
+            graph, "test-pattern", "desc", "trigger", "action", 1.0, "ep-1"
         )
         assert pattern is not None
         assert pattern["name"] == "test-pattern"
+        assert pattern["episodes"] == ["ep-1"]
         assert len(graph["patterns"]) == 1
 
     def test_updates_existing_pattern(self):
         graph = {"nodes": [], "edges": [], "patterns": []}
         update_causal_graph.add_pattern(
-            graph, "test-pattern", "desc", "trigger", "action", 1.0
+            graph, "test-pattern", "desc", "trigger", "action", 1.0, "ep-1"
         )
         pattern = update_causal_graph.add_pattern(
-            graph, "test-pattern", "desc", "trigger", "action", 0.0
+            graph, "test-pattern", "desc", "trigger", "action", 0.0, "ep-2"
         )
         assert len(graph["patterns"]) == 1
         assert pattern["occurrences"] == 2
         assert pattern["success_rate"] == 0.5
+        assert pattern["episodes"] == ["ep-1", "ep-2"]
+
+    def test_same_episode_reprocess_is_noop(self):
+        # Reprocessing the same episode must not inflate occurrences or drift
+        # success_rate (#3034 follow-up).
+        graph = {"nodes": [], "edges": [], "patterns": []}
+        update_causal_graph.add_pattern(
+            graph, "test-pattern", "desc", "trigger", "action", 1.0, "ep-1"
+        )
+        result = update_causal_graph.add_pattern(
+            graph, "test-pattern", "desc", "trigger", "action", 1.0, "ep-1"
+        )
+        assert result is None
+        assert len(graph["patterns"]) == 1
+        assert graph["patterns"][0]["occurrences"] == 1
+        assert graph["patterns"][0]["success_rate"] == 1.0
+        assert graph["patterns"][0]["episodes"] == ["ep-1"]
 
 
 class TestGetDecisionPatterns:
