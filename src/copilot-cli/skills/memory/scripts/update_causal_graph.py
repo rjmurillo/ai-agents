@@ -153,7 +153,12 @@ def add_pattern(
     Returns the pattern when this episode contributes a new occurrence, or None
     when the episode already contributed (idempotent no-op). Reprocessing the
     same episode must not inflate ``occurrences`` or drift ``success_rate``
-    (#3034 follow-up); the ``episodes`` guard enforces at-most-once contribution.
+    (#3034 follow-up); the ``episodes`` guard enforces at-most-once contribution
+    for patterns created with provenance. Legacy patterns created before this
+    guard carry no ``episodes`` list, so the same heuristic as add_causal_edge
+    applies: the first reprocess bumps ``occurrences`` and ``success_rate`` once
+    (and may overcount if that episode had already contributed) before recording
+    the episode id; every later reprocess of the same episode is then a no-op.
     """
     # Check for existing pattern with same name
     for existing in graph["patterns"]:
