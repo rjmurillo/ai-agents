@@ -1,0 +1,110 @@
+{
+  "id": "episode-2026-07-11-session-3016-confidence-adr",
+  "session": "2026-07-11-session-3016-confidence-adr",
+  "timestamp": "2026-07-11T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Author ADR-081 for issue #3016 (metacognitive confidence-elicitation). Ground the proposal against the real false-completion gate and eval harness, run a multi-agent adversarial review (architect plus GPT-5.5), record the debate, and open a PR for owner review. The review found the blocking-hook design unbuildable and the calibration circular; the ADR reframes into a shadow study and a simpler gate-hardening alternative for the owner to choose.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Selected #3016 as the last ADR-needing issue per the owner mandate. Read the full issue and its acceptance criteria, including the mandatory calibration gate.",
+      "chosen": "Selected #3016 as the last ADR-needing issue per the owner mandate. Read the full issue and its acceptance criteria, including the mandatory calibration gate.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Selected #3016 as the last ADR-needing issue per the owner mandate. Read the full issue and its acceptance criteria, including the mandatory calibration gate.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Grounded against real infra: the false-completion gate is a local 5s blocking PreToolUse hook that only checks external evidence; the eval scorer supports only REGEX/VERDICT fixture assertions; the session-log schema has no confidence field.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the ADR Review Protocol: a multi-agent consensus debate on ADR-081 with the architect agent and a GPT-5.5 independent-thinker. Both concluded the blocking-hook design is unbuildable and the calibration circular. Recorded findings in .agents/analysis/ADR-081-confidence-elicitation-debate.md.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote ADR-081: reject the blocking hook; reframe into an offline shadow study with external-only labels and a power-justified corpus, plus a recommended gate-hardening alternative and a WONTFIX option, for the owner to choose under User Sovereignty.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed bot review on PR #3030: set endingCommit to the work commit so it agrees with changesCommitted and the episode emits a commit event.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 470724842",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed 3 auto-generated retrospective files that an auto-staging hook swept into the ADR PR; they are scope creep on an atomic ADR change.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed bot review on the ADR PR for #3016: set endingCommit to the work commit so it agrees with changesCommitted and the episode emits a commit event.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bot review: corrected the ADR to say one GPT-5.5 pass (not two) and marked the ADR-080 cross-reference as a concurrent proposed sibling not yet on main.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Owner accepted ADR-081: shadow-study reframe accepted, blocking hook rejected (latency/cost). Flipped status proposed -> accepted and recorded the track-1 decision.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 7
+  },
+  "lessons": []
+}
