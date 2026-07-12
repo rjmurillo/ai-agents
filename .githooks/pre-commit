@@ -1501,6 +1501,20 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                 # cannot silently stage a partial graph while reporting success.
                 UPDATE_OUTPUT=""
                 UPDATE_EXIT=0
+
+                # Snapshot the graph before any per-episode write so a partial
+                # multi-episode failure leaves the working tree unchanged rather
+                # than a half-applied graph (#3034 review). The generator writes
+                # once per episode, so an early success followed by a later
+                # failure would otherwise persist an unstaged partial write.
+                _graph_backup=""
+                if [ -f "$CAUSAL_GRAPH_FILE" ] && [ ! -L "$CAUSAL_GRAPH_FILE" ]; then
+                    _graph_backup=$(mktemp 2>/dev/null) || _graph_backup=""
+                    if [ -n "$_graph_backup" ]; then
+                        cp -- "$CAUSAL_GRAPH_FILE" "$_graph_backup" || _graph_backup=""
+                    fi
+                fi
+
                 while IFS= read -r _episode; do
                     [ -z "$_episode" ] && continue
                     # Reject symlinks (MEDIUM-002).
@@ -1510,7 +1524,13 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                     fi
                     # Materialize the staged blob. A staged deletion has no
                     # index blob, so "git show" fails and the episode is skipped.
-                    _staged_tmp=$(mktemp)
+                    # Guard mktemp so its failure cannot abort this non-blocking
+                    # hook under set -e (#3034 review).
+                    _staged_tmp=$(mktemp 2>/dev/null) || {
+                        echo_warning "mktemp failed; skipping causal-graph update"
+                        UPDATE_EXIT=1
+                        break
+                    }
                     if git show ":$_episode" > "$_staged_tmp" 2>/dev/null; then
                         _episode_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --episode-path "$_staged_tmp" 2>&1) && _rc=0 || _rc=$?
                         UPDATE_OUTPUT="${UPDATE_OUTPUT}${_episode_out}
@@ -1549,11 +1569,21 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                         echo_warning "Causal graph file not found after update"
                     fi
                 else
+                    # Restore the pre-update graph so a partial per-episode
+                    # write does not linger in the working tree (#3034 review).
+                    if [ -n "$_graph_backup" ] && [ -f "$_graph_backup" ]; then
+                        cp -- "$_graph_backup" "$CAUSAL_GRAPH_FILE" || true
+                    fi
                     # Update failed - show warning but don't block commit
                     echo_warning "Causal graph update failed (non-blocking):"
                     echo "$UPDATE_OUTPUT" | head -5
                     echo_info "  Episodes will still be committed."
                     echo_info "  Update manually: python3 .claude/skills/memory/scripts/update_causal_graph.py"
+                fi
+
+                # Clean up the graph snapshot.
+                if [ -n "$_graph_backup" ]; then
+                    rm -f "$_graph_backup"
                 fi
             else
                 echo_warning "Python 3 not available. Skipping causal graph update."

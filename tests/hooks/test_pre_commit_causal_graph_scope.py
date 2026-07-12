@@ -98,6 +98,28 @@ def test_hook_captures_real_generator_exit_code() -> None:
     )
 
 
+def test_hook_guards_mktemp_failure() -> None:
+    text = _hook_text()
+    # mktemp failure must not abort the non-blocking hook under set -e
+    # (#3034 review); it should be guarded and turn into UPDATE_EXIT=1.
+    assert "_staged_tmp=$(mktemp 2>/dev/null) || {" in text, (
+        "pre-commit should guard mktemp so its failure cannot abort the hook"
+    )
+
+
+def test_hook_snapshots_graph_for_atomicity() -> None:
+    text = _hook_text()
+    # A partial multi-episode failure must not leave a half-applied graph in
+    # the working tree; the hook snapshots before writing and restores on
+    # failure (#3034 review).
+    assert '_graph_backup=$(mktemp 2>/dev/null)' in text, (
+        "pre-commit should snapshot the graph before per-episode writes"
+    )
+    assert 'cp -- "$_graph_backup" "$CAUSAL_GRAPH_FILE"' in text, (
+        "pre-commit should restore the graph snapshot on failure"
+    )
+
+
 # --- behavioral guards on the generator ------------------------------------
 
 
