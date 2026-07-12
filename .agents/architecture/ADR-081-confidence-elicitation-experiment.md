@@ -1,6 +1,6 @@
 ---
 id: ADR-081
-status: proposed
+status: accepted
 date: 2026-07-11
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,7 +13,7 @@ implemented: false
 
 ## Status
 
-Proposed
+Accepted (approved by @rjmurillo on 2026-07-11, PR #3030). Owner decision: accept the shadow-study reframe and reject the blocking hook (cited excessive latency and cost). Track 1 (offline shadow study) is the sanctioned path if the technique is pursued; the gate-hardening alternative (track 2) remains separately available.
 
 ## Date
 
@@ -49,8 +49,10 @@ existing eval harness. Instead, if the technique is pursued at all, pursue it as
 an offline shadow study, and present the owner with a simpler alternative that
 delivers value now.
 
-Concretely, the ADR offers three tracks and asks the owner to choose; it does
-not close #3016 unilaterally (User Sovereignty: the owner filed it):
+Concretely, the ADR offered three tracks. Owner decision (2026-07-11): track 1
+(shadow study) is accepted and the blocking hook is rejected on latency and cost
+grounds. Tracks 2 and 3 are retained below for the record, since gate hardening
+remains a separately buildable improvement:
 
 1. **Shadow study (the faithful reframe of the requester's intent).** Instrument
    confidence elicitation at the Stop or PR boundary only, never in the blocking

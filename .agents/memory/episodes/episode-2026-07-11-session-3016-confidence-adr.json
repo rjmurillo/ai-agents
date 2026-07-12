@@ -88,6 +88,14 @@
       "content": "Bot review: corrected the ADR to say one GPT-5.5 pass (not two) and marked the ADR-080 cross-reference as a concurrent proposed sibling not yet on main.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Owner accepted ADR-081: shadow-study reframe accepted, blocking hook rejected (latency/cost). Flipped status proposed -> accepted and recorded the track-1 decision.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
