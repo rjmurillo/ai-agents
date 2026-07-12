@@ -120,6 +120,17 @@ def test_hook_snapshots_graph_for_atomicity() -> None:
     )
 
 
+def test_hook_skips_update_when_snapshot_fails() -> None:
+    text = _hook_text()
+    # If an existing graph cannot be snapshotted (mktemp or cp failure), the
+    # hook must not run the per-episode writes, because it could not restore a
+    # partial multi-episode failure (#3040 review).
+    assert "_can_update=0" in text, (
+        "pre-commit should skip the update when the graph snapshot cannot be "
+        "created, to preserve the atomicity guarantee"
+    )
+
+
 # --- behavioral guards on the generator ------------------------------------
 
 

@@ -1507,40 +1507,52 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                 # than a half-applied graph (#3034 review). The generator writes
                 # once per episode, so an early success followed by a later
                 # failure would otherwise persist an unstaged partial write.
+                #
+                # If a graph exists but cannot be snapshotted (mktemp or cp
+                # failure), we cannot guarantee a restore, so skip the update
+                # entirely rather than risk a half-applied graph (#3040 review).
+                # When no graph exists yet there is no prior state to protect, so
+                # the update may proceed.
                 _graph_backup=""
+                _can_update=1
                 if [ -f "$CAUSAL_GRAPH_FILE" ] && [ ! -L "$CAUSAL_GRAPH_FILE" ]; then
                     _graph_backup=$(mktemp 2>/dev/null) || _graph_backup=""
-                    if [ -n "$_graph_backup" ]; then
-                        cp -- "$CAUSAL_GRAPH_FILE" "$_graph_backup" || _graph_backup=""
+                    if [ -z "$_graph_backup" ] || ! cp -- "$CAUSAL_GRAPH_FILE" "$_graph_backup" 2>/dev/null; then
+                        _graph_backup=""
+                        _can_update=0
                     fi
                 fi
 
-                while IFS= read -r _episode; do
-                    [ -z "$_episode" ] && continue
-                    # Reject symlinks (MEDIUM-002).
-                    if [ -L "$REPO_ROOT/$_episode" ]; then
-                        echo_warning "Skipping symlink: $_episode"
-                        continue
-                    fi
-                    # Materialize the staged blob. A staged deletion has no
-                    # index blob, so "git show" fails and the episode is skipped.
-                    # Guard mktemp so its failure cannot abort this non-blocking
-                    # hook under set -e (#3034 review).
-                    _staged_tmp=$(mktemp 2>/dev/null) || {
-                        echo_warning "mktemp failed; skipping causal-graph update"
-                        UPDATE_EXIT=1
-                        break
-                    }
-                    if git show ":$_episode" > "$_staged_tmp" 2>/dev/null; then
-                        _episode_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --episode-path "$_staged_tmp" 2>&1) && _rc=0 || _rc=$?
-                        UPDATE_OUTPUT="${UPDATE_OUTPUT}${_episode_out}
-"
-                        if [ "$_rc" -ne 0 ]; then
-                            UPDATE_EXIT=$_rc
+                if [ "$_can_update" -eq 0 ]; then
+                    echo_warning "Could not snapshot the causal graph; skipping update (non-blocking)."
+                else
+                    while IFS= read -r _episode; do
+                        [ -z "$_episode" ] && continue
+                        # Reject symlinks (MEDIUM-002).
+                        if [ -L "$REPO_ROOT/$_episode" ]; then
+                            echo_warning "Skipping symlink: $_episode"
+                            continue
                         fi
-                    fi
-                    rm -f "$_staged_tmp"
-                done <<< "$STAGED_EPISODE_FILES"
+                        # Materialize the staged blob. A staged deletion has no
+                        # index blob, so "git show" fails and the episode is
+                        # skipped. Guard mktemp so its failure cannot abort this
+                        # non-blocking hook under set -e (#3034 review).
+                        _staged_tmp=$(mktemp 2>/dev/null) || {
+                            echo_warning "mktemp failed; skipping causal-graph update"
+                            UPDATE_EXIT=1
+                            break
+                        }
+                        if git show ":$_episode" > "$_staged_tmp" 2>/dev/null; then
+                            _episode_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --episode-path "$_staged_tmp" 2>&1) && _rc=0 || _rc=$?
+                            UPDATE_OUTPUT="${UPDATE_OUTPUT}${_episode_out}
+"
+                            if [ "$_rc" -ne 0 ]; then
+                                UPDATE_EXIT=$_rc
+                            fi
+                        fi
+                        rm -f "$_staged_tmp"
+                    done <<< "$STAGED_EPISODE_FILES"
+                fi
 
                 if [ $UPDATE_EXIT -eq 0 ]; then
                     # Check if causal graph was updated and stage it
