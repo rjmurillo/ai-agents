@@ -80,6 +80,14 @@
       "content": "Bot review round 4: comprehensively prefixed every bare filename citation in ADR-080 and its debate log with full relative paths so all references are actionable.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Owner approved ADR-080 (PR #3028 merged). Flipped ADR-080 status proposed -> accepted in frontmatter and body.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

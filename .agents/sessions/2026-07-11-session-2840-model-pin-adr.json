@@ -141,6 +141,10 @@
     {
       "time": "T6",
       "entry": "Bot review round 4: comprehensively prefixed every bare filename citation in ADR-080 and its debate log with full relative paths so all references are actionable."
+    },
+    {
+      "time": "T7",
+      "entry": "Owner approved ADR-080 (PR #3028 merged). Flipped ADR-080 status proposed -> accepted in frontmatter and body."
     }
   ],
   "endingCommit": "49e419146",
