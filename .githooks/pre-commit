@@ -1518,6 +1518,9 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                 if [ -f "$CAUSAL_GRAPH_FILE" ] && [ ! -L "$CAUSAL_GRAPH_FILE" ]; then
                     _graph_backup=$(mktemp 2>/dev/null) || _graph_backup=""
                     if [ -z "$_graph_backup" ] || ! cp -- "$CAUSAL_GRAPH_FILE" "$_graph_backup" 2>/dev/null; then
+                        # Remove a created-but-unusable temp file so it does not
+                        # leak when cp failed (#3043 review).
+                        [ -n "$_graph_backup" ] && rm -f "$_graph_backup"
                         _graph_backup=""
                         _can_update=0
                     fi
@@ -1554,7 +1557,12 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                     done <<< "$STAGED_EPISODE_FILES"
                 fi
 
-                if [ $UPDATE_EXIT -eq 0 ]; then
+                if [ "$_can_update" -eq 0 ]; then
+                    # Snapshot failed; already warned above. Nothing was updated,
+                    # so do not stage or emit an "up to date" message (#3043
+                    # review).
+                    :
+                elif [ $UPDATE_EXIT -eq 0 ]; then
                     # Check if causal graph was updated and stage it
                     if [ -f "$CAUSAL_GRAPH_FILE" ]; then
                         # MEDIUM-002: Defense-in-depth symlink check before staging
