@@ -23,7 +23,7 @@ A contributor who assumes symmetry will under-serve both tiers: the frontier mod
 External sources, not this project's own measurement:
 
 - Prompting Inversion (arXiv 2510.22251, Oct 2025) measured the same constrained prompt across model tiers on GSM8K. On gpt-4o it scored 97% versus 93% for chain-of-thought (n=100). On gpt-5 it scored 94.00% versus 96.36% for chain-of-thought (all 1,317 problems). The prompt that helped the mid-tier model hurt the frontier one. Read this as a prompt-preference reversal in one math benchmark, one model family (OpenAI), with the gpt-4o leg at n=100, not as a general law. The authors flag code generation as a domain where constraints might still help strong models, an open question for this repository.
-- Overthinking literature corroborates the frontier failure mode this project designs against: "Do NOT Think That Much for 2+3=?" (arXiv 2412.21187); LLMThinkBench (ACL 2026), where reasoning models emit far more output tokens than a basic task needs and GPT-5 and o-series models show near-zero accuracy gain from low to high reasoning effort; and Cuadron et al., "The Danger of Overthinking," where a higher overthinking score correlates with worse agentic-task performance.
+- Overthinking literature corroborates the frontier failure mode this project designs against: "Do NOT Think That Much for 2+3=?" (arXiv 2412.21187); LLMThinkBench (ACL 2026), where GPT-5 and o-series models show near-zero accuracy gain from low to high reasoning effort on basic tasks; and Cuadron et al., "The Danger of Overthinking," where a higher overthinking score correlates with worse agentic-task performance.
 
 ### Relationship to the model-pin policy
 

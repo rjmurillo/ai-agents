@@ -64,6 +64,22 @@
       "content": "Commit: 49aa2ed4a",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recursive re-review converged: findings 1 and 4 PASS; findings 2 and 3 refined (scoped the evidence to the GSM8K benchmark, removed an unverifiable 18x token figure and the later 'more tokens than a task needs' phrasing, and reframed How to Verify to preserve valid project-specific instructions while excluding scaffold-up-only defaults). Committed the documentation as 8964a355c; this follow-up drops the last token-budget phrasing.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8964a355c",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
