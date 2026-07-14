@@ -10,7 +10,7 @@ These principles guide the design, implementation, and evolution of agents in th
 
 **Statement**: This project's instructions assume a top-tier thinking frontier model runs them. Its dominant failure mode is over-thinking, not incapability.
 
-The guardrails in this repository are written to **constrain that capability down**, not to **scaffold a weaker model up**. Prescriptive and constraining instructions are calibrated for a capable model. Run this project on a materially less capable model than the current harness default and it falls outside the calibrated envelope; it may need scaffold-up instructions this project does not provide.
+The guardrails in this repository are written to **constrain that capability down**, not to **scaffold a weaker model up**. Prescriptive and constraining instructions are calibrated for a capable model. Run this project on a materially less capable model than the current harness default, and it falls outside the calibrated envelope. It may then need scaffold-up instructions this project does not provide.
 
 ### Why the direction matters
 
