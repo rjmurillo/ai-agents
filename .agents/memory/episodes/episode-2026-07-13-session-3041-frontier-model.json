@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-07-13-session-3041-frontier-model",
+  "session": "2026-07-13-session-3041-frontier-model",
+  "timestamp": "2026-07-13T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Resolve issue #3041: document the project's implicit frontier-model operating assumption (guardrails are constrain-down, not scaffold-up) in .agents/governance/agent-design-principles.md, cross-reference the model-pin policy, and decide the capability-floor-detection scope. Ground the text against the real ADR-080 policy, run a GPT-5.6 Sol adversarial review of the content, and open a PR for owner review.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Selected #3041 (P1) as the next tractable issue: it documents the frontier-model operating assumption that #2840 and #3042 both depend on, and has concrete acceptance criteria with a provided draft.",
+      "chosen": "Selected #3041 (P1) as the next tractable issue: it documents the frontier-model operating assumption that #2840 and #3042 both depend on, and has concrete acceptance criteria with a provided draft.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Selected #3041 (P1) as the next tractable issue: it documents the frontier-model operating assumption that #2840 and #3042 both depend on, and has concrete acceptance criteria with a provided draft.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read ADR-080 (accepted, implemented:false; unpinned units inherit, rolling aliases and evidence-backed agent pins still permitted) and the agent-design-principles.md structure to place the assumption correctly and describe the pin policy accurately.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added an 'Operating Assumption: Frontier-Model Execution' section right after Purpose: the statement, the constrain-down vs scaffold-up asymmetry, the external evidence with the issue's caveats preserved, the relationship to ADR-080, and a How to Verify. Added an ADR-080 link to Related Documents.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Satisfied AC2 by commenting on #2840 (the accepted ADR-080 is gated against direct edits) and AC4 by spinning out capability-floor detection as #3045; the assumption doc itself links to ADR-080.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a GPT-5.6 Sol adversarial review of the section. It flagged four issues: ADR-080 was misrepresented as a blanket pin removal (it is not, and it is not yet implemented); the evidence stated a two-model math result as a general law; the asymmetry used unsupported absolutes and the wrong 'loosening' framing; and one paper title dropped a character. Incorporated all four; re-review requested.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-13T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 49aa2ed4a",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3041,
+    "date": "2026-07-13",
+    "branch": "feat/3041-frontier-model-assumption",
+    "startingCommit": "49aa2ed4a",
+    "objective": "Resolve issue #3041: document the project's implicit frontier-model operating assumption (guardrails are constrain-down, not scaffold-up) in .agents/governance/agent-design-principles.md, cross-reference the model-pin policy, and decide the capability-floor-detection scope. Ground the text against the real ADR-080 policy, run a GPT-5.6 Sol adversarial review of the content, and open a PR for owner review."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* MCP tools are exposed in this Copilot CLI session's toolset, verified earlier by a tool_search_tool probe that returned no serena tools. Proceeded per the AGENTS.md Serena-unavailable fallback, reading .agents governance and architecture files directly."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "serena-initial_instructions is not callable in this session (no serena-* tools available). Followed in-repo AGENTS.md and .claude/rules guidance instead."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md earlier this session; observed the read-only rule (ADR-014) and did not modify it."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created for the 2026-07-13 portion of the continued session after the date rolled past the 2026-07-12 log."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned feat/3041-frontier-model-assumption."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work is on the feature branch feat/3041-frontier-model-assumption, based off main at 49aa2ed4a."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status inspected; only .agents/governance/agent-design-principles.md is the intended change. .serena/project.yml auto-refresh and 3 untracked auto-retro files were left unstaged."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Followed the skill-first usage-mandatory rule: used the github skill scripts for issue creation and comments (raw gh is blocked by the usage-mandatory guard)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read ADR-080 (Decision and frontmatter, implemented:false) and the agent-design-principles.md structure before authoring; respected the adr-architect-gate by not editing the accepted ADR-080 and cross-referencing from #2840 instead."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded repository and user memories surfaced this session (session-log gate mechanics, false-completion gate two-token rule, adr-architect-gate on ADR edits, dash prohibition)."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Starting commit recorded as 49aa2ed4a (main HEAD after the #3034 fixes merged)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "All four #3041 acceptance criteria addressed: assumption documented (AC1), asymmetry stated (AC3), cross-referenced from #2840 plus the doc links ADR-080 (AC2), capability-floor detection spun out to #3045 (AC4)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP is not callable in this session's toolset; durable context lives in the doc, the PR body, and this log."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 config excludes .agents/**, so the governance file is not linted by the repo config; byte-checked it for em/en dashes: 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The #3041 documentation change is committed on feat/3041-frontier-model-assumption. endingCommit names the documentation commit (a commit cannot contain its own SHA, so the session-log commit follows it)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Docs-only change: dash byte-check returned 0; markdownlint config excludes .agents; a GPT-5.6 Sol adversarial review of the content ran and its four findings (ADR-080 misrepresentation, evidence overclaim, asymmetry absolutes, one title typo) were incorporated. No code tests apply to a governance-doc change."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No task-tracker changes; the work is tracked by issue #3041 and its PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-issue documentation session; a full retrospective is not warranted."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Selected #3041 (P1) as the next tractable issue: it documents the frontier-model operating assumption that #2840 and #3042 both depend on, and has concrete acceptance criteria with a provided draft."
+    },
+    {
+      "time": "T1",
+      "entry": "Read ADR-080 (accepted, implemented:false; unpinned units inherit, rolling aliases and evidence-backed agent pins still permitted) and the agent-design-principles.md structure to place the assumption correctly and describe the pin policy accurately."
+    },
+    {
+      "time": "T2",
+      "entry": "Added an 'Operating Assumption: Frontier-Model Execution' section right after Purpose: the statement, the constrain-down vs scaffold-up asymmetry, the external evidence with the issue's caveats preserved, the relationship to ADR-080, and a How to Verify. Added an ADR-080 link to Related Documents."
+    },
+    {
+      "time": "T3",
+      "entry": "Satisfied AC2 by commenting on #2840 (the accepted ADR-080 is gated against direct edits) and AC4 by spinning out capability-floor detection as #3045; the assumption doc itself links to ADR-080."
+    },
+    {
+      "time": "T4",
+      "entry": "Ran a GPT-5.6 Sol adversarial review of the section. It flagged four issues: ADR-080 was misrepresented as a blanket pin removal (it is not, and it is not yet implemented); the evidence stated a two-model math result as a general law; the asymmetry used unsupported absolutes and the wrong 'loosening' framing; and one paper title dropped a character. Incorporated all four; re-review requested."
+    }
+  ],
+  "endingCommit": "49aa2ed4a",
+  "nextSteps": [
+    "Open the PR (Fixes #3041) for owner review after the adversarial re-review confirms convergence.",
+    "Owner decides on #3045 (capability-floor detection) and #3042 (tiered eval sweep), which build on this documented assumption."
+  ]
+}

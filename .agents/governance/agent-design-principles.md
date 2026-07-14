@@ -6,6 +6,36 @@ These principles guide the design, implementation, and evolution of agents in th
 
 ---
 
+## Operating Assumption: Frontier-Model Execution
+
+**Statement**: This project's instructions assume a top-tier thinking frontier model runs them. Its dominant failure mode is over-thinking, not incapability.
+
+The guardrails in this repository are written to **constrain that capability down**, not to **scaffold a weaker model up**. Prescriptive and constraining instructions are calibrated for a capable model. Run this project on a materially less capable model than the current harness default and it falls outside the calibrated envelope; it may need scaffold-up instructions this project does not provide.
+
+### Why the direction matters
+
+The two costs are asymmetric. Constraining a frontier model down is a small edit: the capability is already present, so you prune over-thinking. Supporting a weaker model is not the inverse. It is not just loosening constraints; it means adding the decomposition, worked examples, and checks a weaker model needs, which costs more and may still hit the model's capability ceiling.
+
+A contributor who assumes symmetry will under-serve both tiers: the frontier model gets handcuffed, and the weaker model never gets the scaffolding it needed. Most guardrails in this repository constrain over-thinking, though a given instruction may serve another purpose.
+
+### Evidence
+
+External sources, not this project's own measurement:
+
+- Prompting Inversion (arXiv 2510.22251, Oct 2025) measured the same constrained prompt across model tiers on GSM8K. On gpt-4o it scored 97% versus 93% for chain-of-thought (n=100). On gpt-5 it scored 94.00% versus 96.36% for chain-of-thought (all 1,317 problems). The prompt that helped the mid-tier model hurt the frontier one. Read this as a prompt-preference reversal in one math benchmark, one model family (OpenAI), with the gpt-4o leg at n=100, not as a general law. The authors flag code generation as a domain where constraints might still help strong models, an open question for this repository.
+- Overthinking literature corroborates the frontier failure mode this project designs against: "Do NOT Think That Much for 2+3=?" (arXiv 2412.21187); LLMThinkBench (ACL 2026), where reasoning models emit far more output tokens than a basic task needs and GPT-5 and o-series models show near-zero accuracy gain from low to high reasoning effort; and Cuadron et al., "The Danger of Overthinking," where a higher overthinking score correlates with worse agentic-task performance.
+
+### Relationship to the model-pin policy
+
+ADR-080 (accepted, not yet implemented) sets the model-pin policy: an unpinned unit inherits the harness model, and that absence needs no justification. The policy still permits a bare rolling alias with a rationale on skills and commands, and an evidence-backed versioned pin on an agent when a cited sweep justifies it. For the inherited-model units, this project assumes the harness default stays inside the frontier-tier calibrated envelope, because the guardrails are constrain-down. If that stops being true, revisit the default-to-inherit policy and its exception rules. See [ADR-080](../architecture/ADR-080-model-pin-justification-policy.md).
+
+### How to Verify
+
+1. For a new prescriptive instruction, identify whether it constrains over-thinking or serves another documented project purpose. Both are valid.
+2. Do not merge an instruction as a default when its sole purpose is to compensate for a model below the calibrated envelope. That is scaffold-up this project does not provide, so flag it instead.
+
+---
+
 ## Principle 1: Non-Overlapping Specialization
 
 **Statement**: Each agent has a unique specialty that does not substantially overlap with other agents.
@@ -292,6 +322,7 @@ All ADRs must demonstrate compliance with all 6 principles:
 ## Related Documents
 
 - [ADR Template](../architecture/ADR-TEMPLATE.md)
+- [ADR-080: Model Pins Require Cited Eval Evidence](../architecture/ADR-080-model-pin-justification-policy.md)
 - [Steering Committee Charter](./steering-committee-charter.md)
 - [Agent Consolidation Process](./agent-consolidation-process.md)
 - [Agent Interview Protocol](./agent-interview-protocol.md)
