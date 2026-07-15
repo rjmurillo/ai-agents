@@ -137,8 +137,12 @@
     {
       "time": "T5",
       "entry": "Cursor review found the generated episode undercounted the final branch scope. Final branch scope: 3 files changed. Regenerated the episode from this source entry without preserve mode."
+    },
+    {
+      "time": "T6",
+      "entry": "A concurrent Cursor agent pushed commit 28a962645 with the same episode metric correction. Merged the remote branch without force and regenerated the episode from this session source so the session log remains the system of record."
     }
   ],
-  "endingCommit": "5fab43559",
+  "endingCommit": "43d384af9",
   "nextSteps": []
 }

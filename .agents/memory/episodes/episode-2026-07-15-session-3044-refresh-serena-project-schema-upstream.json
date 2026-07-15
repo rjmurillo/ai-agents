@@ -65,8 +65,16 @@
     {
       "id": "e008",
       "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A concurrent Cursor agent pushed commit 28a962645 with the same episode metric correction. Merged the remote branch without force and regenerated the episode from this session source so the session log remains the system of record.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 5fab43559",
+      "content": "Commit: 43d384af9",
       "caused_by": [],
       "leads_to": []
     }
@@ -76,7 +84,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 3
   },
   "lessons": []
