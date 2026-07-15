@@ -263,3 +263,141 @@ class TestGetEpisodeFiles:
         # Source expects since as ISO string, not datetime
         files = update_causal_graph.get_episode_files(tmp_path, "2026-01-01")
         assert len(files) == 1
+
+
+class TestRemoveEpisodeContributions:
+    """Issue #3039: retract a specific episode's nodes/edges/patterns."""
+
+    def _graph_with_two_episodes(self):
+        graph = {"nodes": [], "edges": [], "patterns": []}
+        # Shared edge contributed by both episodes; node shared; pattern per ep.
+        update_causal_graph.add_causal_node(graph, "decision", "d", "ep-1")
+        update_causal_graph.add_causal_node(graph, "decision", "d", "ep-2")
+        update_causal_graph.add_causal_edge(graph, "a", "b", "causes", 1.0, "ep-1")
+        update_causal_graph.add_causal_edge(graph, "a", "b", "causes", 0.0, "ep-2")
+        update_causal_graph.add_pattern(graph, "p", "d", "t", "x", 1.0, "ep-1")
+        return graph
+
+    def test_removes_sole_supporter_edge_and_pattern(self):
+        graph = self._graph_with_two_episodes()
+        removed = update_causal_graph.remove_episode_contributions(graph, "ep-1")
+        # The pattern only ep-1 supported is gone; the shared edge survives.
+        assert removed["patterns"] == 1
+        assert graph["patterns"] == []
+        assert len(graph["edges"]) == 1
+
+    def test_shared_edge_weight_recomputed_exactly(self):
+        graph = self._graph_with_two_episodes()
+        # Shared edge mean of {1.0, 0.0} = 0.5 before removal.
+        assert graph["edges"][0]["weight"] == 0.5
+        update_causal_graph.remove_episode_contributions(graph, "ep-2")
+        # ep-2's 0.0 removed -> mean of {1.0} = 1.0, exact (running average
+        # could not have recovered this).
+        assert graph["edges"][0]["weight"] == 1.0
+        assert graph["edges"][0]["evidence_count"] == 1
+        assert graph["edges"][0]["episodes"] == ["ep-1"]
+
+    def test_shared_node_survives_partial_removal(self):
+        graph = self._graph_with_two_episodes()
+        update_causal_graph.remove_episode_contributions(graph, "ep-1")
+        # Node "d" was contributed by ep-1 and ep-2; still supported by ep-2.
+        assert len(graph["nodes"]) == 1
+        assert graph["nodes"][0]["episodes"] == ["ep-2"]
+
+    def test_removing_absent_episode_is_noop(self):
+        graph = self._graph_with_two_episodes()
+        before = json.dumps(graph, sort_keys=True)
+        update_causal_graph.remove_episode_contributions(graph, "ep-404")
+        assert json.dumps(graph, sort_keys=True) == before
+
+    def test_legacy_anonymous_evidence_survives_prune(self):
+        # A bare-count legacy edge plus one real episode; pruning the episode
+        # keeps the anonymous legacy evidence.
+        graph = {"nodes": [], "edges": [
+            {"source": "a", "target": "b", "type": "causes", "weight": 0.8, "count": 3},
+        ], "patterns": []}
+        update_causal_graph.add_causal_edge(graph, "a", "b", "causes", 0.4, "ep-1")
+        # mean of {0.8,0.8,0.8,0.4} = 0.7
+        assert graph["edges"][0]["weight"] == 0.7
+        update_causal_graph.remove_episode_contributions(graph, "ep-1")
+        assert len(graph["edges"]) == 1  # legacy evidence keeps the edge
+        assert graph["edges"][0]["weight"] == 0.8
+        assert graph["edges"][0]["evidence_count"] == 3
+        assert graph["edges"][0]["episodes"] == []
+
+
+class TestReplaceSemanticsOnEdit:
+    """Issue #3039: editing an episode to shrink it retracts stale content."""
+
+    def _episode(self, tmp_path, name, events):
+        ep = {"id": name, "task": "t", "outcome": "success", "events": events,
+              "decisions": []}
+        path = tmp_path / f"episode-{name}.json"
+        path.write_text(json.dumps(ep), encoding="utf-8")
+        return path
+
+    def _run(self, tmp_path, graph_path, episode_path):
+        return update_causal_graph.main([
+            "--episode-path", str(episode_path),
+            "--graph-path", str(graph_path),
+        ])
+
+    def test_edit_shrink_removes_stale_edge(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        # First: an error->recovery chain produces one edge.
+        events = [
+            {"type": "error", "content": "boom happened"},
+            {"type": "milestone", "content": "fix applied to boom"},
+        ]
+        ep = self._episode(tmp_path, "1", events)
+        assert self._run(tmp_path, graph_path, ep) == 0
+        graph = json.loads(graph_path.read_text())
+        assert len(graph["edges"]) == 1
+
+        # Edit the episode to drop the recovery milestone -> chain gone.
+        ep.write_text(json.dumps({
+            "id": "1", "task": "t", "outcome": "success",
+            "events": [{"type": "error", "content": "boom happened"}],
+            "decisions": [],
+        }), encoding="utf-8")
+        assert self._run(tmp_path, graph_path, ep) == 0
+        graph = json.loads(graph_path.read_text())
+        # The stale edge must be gone (pre-#3039 it stayed frozen).
+        assert graph["edges"] == []
+
+
+class TestPruneCli:
+    """Issue #3039: --prune-episode-ids removes a deleted episode's content."""
+
+    def test_prune_removes_deleted_episode(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        graph = {"nodes": [], "edges": [], "patterns": []}
+        update_causal_graph.add_causal_edge(graph, "a", "b", "causes", 1.0, "gone")
+        update_causal_graph.add_causal_node(graph, "decision", "d", "gone")
+        graph_path.write_text(json.dumps(graph), encoding="utf-8")
+
+        rc = update_causal_graph.main([
+            "--episode-path", str(tmp_path / "no-such-dir"),
+            "--graph-path", str(graph_path),
+            "--prune-episode-ids", "gone",
+        ])
+        assert rc == 0
+        result = json.loads(graph_path.read_text())
+        assert result["edges"] == []
+        assert result["nodes"] == []
+
+    def test_prune_dry_run_makes_no_change(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        graph = {"nodes": [], "edges": [
+            {"source": "a", "target": "b", "type": "causes", "weight": 1.0,
+             "evidence_count": 1, "episodes": ["gone"],
+             "contributions": {"gone": 1.0}},
+        ], "patterns": []}
+        graph_path.write_text(json.dumps(graph), encoding="utf-8")
+        rc = update_causal_graph.main([
+            "--episode-path", str(tmp_path / "no-such-dir"),
+            "--graph-path", str(graph_path),
+            "--prune-episode-ids", "gone", "--dry-run",
+        ])
+        assert rc == 0
+        assert len(json.loads(graph_path.read_text())["edges"]) == 1

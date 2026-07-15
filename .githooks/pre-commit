@@ -1474,7 +1474,12 @@ CAUSAL_GRAPH_FILE="$REPO_ROOT/.agents/memory/causality/causal-graph.json"
 # Check if any episode files are staged
 STAGED_EPISODE_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/memory/episodes/episode-.*\.json$' || true)
 
-if [ -n "$STAGED_EPISODE_FILES" ]; then
+# Staged DELETIONS of episode files (#3039). STAGED_FILES uses --diff-filter=ACMR
+# and so excludes deletions; a deleted episode's nodes/edges/patterns would linger
+# in the graph forever. Collect them separately so the update can prune them.
+STAGED_DELETED_EPISODES=$(git diff --cached --name-only --diff-filter=D | grep -E '^\.agents/memory/episodes/episode-.*\.json$' || true)
+
+if [ -n "$STAGED_EPISODE_FILES" ] || [ -n "$STAGED_DELETED_EPISODES" ]; then
     # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
     if [ "$AUTOFIX" = "1" ]; then
         echo_info "Updating causal graph from staged episodes..."
@@ -1555,6 +1560,34 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                         fi
                         rm -f "$_staged_tmp"
                     done <<< "$STAGED_EPISODE_FILES"
+
+                    # Prune deleted episodes (#3039). Their contributions cannot
+                    # be reached by reprocessing (the file is gone), so pass the
+                    # deleted ids explicitly. The episode id is the filename stem
+                    # (verified: episode.id == "episode-<slug>" == stem). A
+                    # nonexistent --episode-path ensures no episode is reprocessed;
+                    # only the prune runs.
+                    if [ -n "$STAGED_DELETED_EPISODES" ]; then
+                        _prune_ids=""
+                        while IFS= read -r _del_ep; do
+                            [ -z "$_del_ep" ] && continue
+                            _del_base=${_del_ep##*/}
+                            _del_id=${_del_base%.json}
+                            if [ -n "$_prune_ids" ]; then
+                                _prune_ids="${_prune_ids},${_del_id}"
+                            else
+                                _prune_ids="$_del_id"
+                            fi
+                        done <<< "$STAGED_DELETED_EPISODES"
+                        if [ -n "$_prune_ids" ]; then
+                            _prune_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --prune-episode-ids "$_prune_ids" --episode-path "$REPO_ROOT/.agents/memory/episodes/__prune_only__" --graph-path "$CAUSAL_GRAPH_FILE" 2>&1) && _prc=0 || _prc=$?
+                            UPDATE_OUTPUT="${UPDATE_OUTPUT}${_prune_out}
+"
+                            if [ "$_prc" -ne 0 ]; then
+                                UPDATE_EXIT=$_prc
+                            fi
+                        fi
+                    fi
                 fi
 
                 if [ "$_can_update" -eq 0 ]; then
