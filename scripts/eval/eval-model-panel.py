@@ -23,6 +23,7 @@ import argparse
 import json
 import subprocess
 import sys
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 
@@ -48,11 +49,30 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 _HARNESS = _EVAL_DIR / "eval-agent-vs-baseline.py"
+_REPO_ROOT = _EVAL_DIR.parents[1]
+_REPORTS_DIR_TEMPLATE = "evals/{agent}-spike/reports"
 
 # A runner turns a (unit, tier, n_runs, fixtures) request into the harness's
 # report.json mapping, or raises RuntimeError. The default runner shells out to
 # eval-agent-vs-baseline.py; tests inject a fake to exercise aggregation offline.
 Runner = Callable[[str, PanelTier, int, str], dict[str, object]]
+
+
+def _make_run_id(unit: str, tier_label: str) -> str:
+    """Build a unique run id for one (unit, tier) cell: panel-<unit>-<tier>-<8hex>."""
+    suffix = uuid.uuid4().hex[:8]
+    slug = f"panel-{unit}-{tier_label}"[:55]
+    return f"{slug}-{suffix}"
+
+
+def _child_report_path(unit: str, run_id: str) -> Path:
+    """Path to the report.json the harness writes for a run."""
+    return (
+        _REPO_ROOT
+        / _REPORTS_DIR_TEMPLATE.format(agent=unit)
+        / run_id
+        / "report.json"
+    )
 
 
 def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> dict[str, object]:
@@ -63,6 +83,7 @@ def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> d
     on a non-zero exit or unreadable report so the caller records the cell as an
     error instead of a silent zero.
     """
+    run_id = _make_run_id(unit, tier.label)
     argv = [
         sys.executable, str(_HARNESS),
         "--agent", unit,
@@ -70,7 +91,7 @@ def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> d
         "--n-runs", str(n_runs),
         "--provider", tier.provider,
         "--model", tier.model,
-        "--output-format", "json",
+        "--run-id", run_id,
     ]
     try:
         completed = subprocess.run(
@@ -83,10 +104,13 @@ def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> d
             f"harness exited {completed.returncode}: "
             f"{(completed.stderr or completed.stdout)[:200]}"
         )
+    report_path = _child_report_path(unit, run_id)
     try:
-        report = json.loads(completed.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"harness stdout was not JSON: {exc}") from exc
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"harness exited 0 but report at {report_path} is unreadable: {exc}"
+        ) from exc
     if not isinstance(report, dict):
         raise RuntimeError("harness report was not a JSON object")
     return report
