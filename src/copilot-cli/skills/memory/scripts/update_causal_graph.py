@@ -299,6 +299,98 @@ def remove_episode_contributions(
     return removed
 
 
+def _episode_membership(
+    graph: dict[str, Any], episode_id: str,
+) -> dict[str, set[Any]]:
+    """Return the nodes/edges/patterns ``episode_id`` currently contributes to.
+
+    Membership is read from each item's ``episodes`` provenance (kept in sync by
+    ``_recompute``). Used by the reconcile path to find contributions the episode
+    dropped between reprocesses (#3039).
+    """
+    return {
+        "nodes": {
+            n["id"] for n in graph.get("nodes", [])
+            if episode_id in n.get("episodes", [])
+        },
+        "edges": {
+            (e["source"], e["target"]) for e in graph.get("edges", [])
+            if episode_id in e.get("episodes", [])
+        },
+        "patterns": {
+            p["name"] for p in graph.get("patterns", [])
+            if episode_id in p.get("episodes", [])
+        },
+    }
+
+
+def _retract_stale(
+    graph: dict[str, Any],
+    episode_id: str,
+    old: dict[str, set[Any]],
+    touched: dict[str, set[Any]],
+) -> dict[str, int]:
+    """Remove ``episode_id`` from items it supported before but not this pass.
+
+    ``old`` is the pre-add membership; ``touched`` is what the current content
+    re-added. The difference is the episode's dropped contributions, retracted
+    the same way :func:`remove_episode_contributions` retracts a whole episode
+    (drop the item on its last supporter, else recompute the mean). Items the
+    episode still supports are left untouched, so their ``created`` timestamps
+    and the byte-idempotency of an unchanged reprocess are preserved.
+    """
+    removed = {"nodes": 0, "edges": 0, "patterns": 0}
+
+    stale_nodes = old["nodes"] - touched["nodes"]
+    if stale_nodes:
+        kept = []
+        for node in graph.get("nodes", []):
+            if node["id"] in stale_nodes:
+                episodes = [ep for ep in node.get("episodes", []) if ep != episode_id]
+                if not episodes:
+                    removed["nodes"] += 1
+                    continue
+                node["episodes"] = episodes
+            kept.append(node)
+        graph["nodes"] = kept
+
+    stale_edges = old["edges"] - touched["edges"]
+    if stale_edges:
+        kept = []
+        for edge in graph.get("edges", []):
+            if (edge["source"], edge["target"]) in stale_edges:
+                contributions = _legacy_backfill_contributions(
+                    edge, "weight", "evidence_count",
+                )
+                if episode_id in contributions:
+                    del contributions[episode_id]
+                    if not contributions:
+                        removed["edges"] += 1
+                        continue
+                    _recompute_edge(edge, contributions)
+            kept.append(edge)
+        graph["edges"] = kept
+
+    stale_patterns = old["patterns"] - touched["patterns"]
+    if stale_patterns:
+        kept = []
+        for pattern in graph.get("patterns", []):
+            if pattern["name"] in stale_patterns:
+                contributions = _legacy_backfill_contributions(
+                    pattern, "success_rate", "occurrences",
+                )
+                if episode_id in contributions:
+                    del contributions[episode_id]
+                    if not contributions:
+                        removed["patterns"] += 1
+                        continue
+                    _recompute_pattern(pattern, contributions)
+            kept.append(pattern)
+        graph["patterns"] = kept
+
+    return removed
+
+
 def get_episode_files(
     path: Path, since: str | None = None,
 ) -> list[Path]:
@@ -542,14 +634,17 @@ def main(argv: list[str] | None = None) -> int:
 
         episode_id = episode.get("id", file_path.stem)
 
-        # Replace semantics (#3039): retract this episode's prior contributions
-        # before re-adding from current content. An episode edited to drop a
-        # chain, decision, or event must not leave the old edge/pattern frozen in
-        # place (the pre-#3039 episodes-guard made the re-add a no-op and kept the
-        # stale contribution). Removing first, then re-adding the current content,
-        # makes the graph reflect exactly what the episode says now.
-        if not args.dry_run:
-            remove_episode_contributions(graph, episode_id)
+        # Reconcile semantics (#3039). Snapshot which nodes/edges/patterns this
+        # episode currently supports, re-add from current content (adding is a
+        # no-op when unchanged, so a byte-stable reprocess leaves the graph and
+        # its `created` timestamps untouched, preserving #3034 idempotency), then
+        # retract only the items the episode used to support but no longer does.
+        # An episode edited to drop a chain thus loses exactly that chain; an
+        # unchanged episode changes nothing.
+        old = None if args.dry_run else _episode_membership(graph, episode_id)
+        touched_nodes: set[str] = set()
+        touched_edges: set[tuple[str, str]] = set()
+        touched_patterns: set[str] = set()
 
         # Add decision nodes
         for decision in episode.get("decisions", []):
@@ -557,6 +652,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.dry_run:
                 node = add_causal_node(graph, "decision", node_label, episode_id)
                 if node:
+                    touched_nodes.add(node["id"])
                     stats["nodes_added"] += 1
             else:
                 print(f"  [DRY] Would add node: {node_label}", file=sys.stderr)
@@ -569,6 +665,7 @@ def main(argv: list[str] | None = None) -> int:
                     graph, event.get("type", "unknown"), node_label, episode_id,
                 )
                 if node:
+                    touched_nodes.add(node["id"])
                     stats["nodes_added"] += 1
             else:
                 print(f"  [DRY] Would add node: {node_label}", file=sys.stderr)
@@ -578,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.dry_run:
             outcome_node = add_causal_node(graph, "outcome", outcome_label, episode_id)
             if outcome_node:
+                touched_nodes.add(outcome_node["id"])
                 stats["nodes_added"] += 1
 
         # Build and add causal chains
@@ -591,6 +689,9 @@ def main(argv: list[str] | None = None) -> int:
                     graph, chain["to_type"], chain["to_label"], episode_id,
                 )
                 if from_node and to_node:
+                    touched_nodes.add(from_node["id"])
+                    touched_nodes.add(to_node["id"])
+                    touched_edges.add((from_node["id"], to_node["id"]))
                     edge = add_causal_edge(
                         graph, from_node["id"], to_node["id"],
                         chain["edge_type"], chain["weight"], episode_id,
@@ -609,6 +710,7 @@ def main(argv: list[str] | None = None) -> int:
         for pat in patterns:
             success_rate = 1.0 if pat["success"] else 0.0
             if not args.dry_run:
+                touched_patterns.add(pat["name"])
                 p = add_pattern(
                     graph, pat["name"], pat["description"],
                     pat["trigger"], pat["action"], success_rate, episode_id,
@@ -620,6 +722,18 @@ def main(argv: list[str] | None = None) -> int:
                     f"  [DRY] Would add pattern: {pat['name']}",
                     file=sys.stderr,
                 )
+
+        # Retract contributions this episode no longer makes (edit-shrink).
+        if not args.dry_run and old is not None:
+            touched: dict[str, set[Any]] = {
+                "nodes": touched_nodes,
+                "edges": touched_edges,
+                "patterns": touched_patterns,
+            }
+            removed = _retract_stale(graph, episode_id, old, touched)
+            stats["nodes_removed"] += removed["nodes"]
+            stats["edges_removed"] += removed["edges"]
+            stats["patterns_removed"] += removed["patterns"]
 
         stats["episodes_processed"] += 1
 
