@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena loaded the config without rewriting it. Security detection found no sensitive paths. pre_pr.py reported 29 passed with four expected skips. The final SHA-bound /review rerun remains the shipping gate."
+        "Evidence": "Serena loaded the config without rewriting it. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr reported 29 passed with four expected skips. The final SHA-bound /review rerun remains the shipping gate."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -128,7 +128,7 @@
     },
     {
       "time": "T3",
-      "entry": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. scripts/validation/pre_pr.py completed with 29 passed, 0 failed, and 4 skipped."
+      "entry": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 skipped."
     },
     {
       "time": "T4",
@@ -141,8 +141,12 @@
     {
       "time": "T6",
       "entry": "Corrected the session source record after reliability review. Final branch scope: 3 files changed."
+    },
+    {
+      "time": "T7",
+      "entry": "Re-ran pre-PR validation through its reproducible module entry point after QA review identified ambiguous command evidence."
     }
   ],
-  "endingCommit": "55468a211",
+  "endingCommit": "b6e86509e",
   "nextSteps": []
 }
