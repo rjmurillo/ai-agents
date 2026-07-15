@@ -189,7 +189,9 @@ class TestMain:
         exit_code = main(["--sessions-dir", str(empty)])
         assert exit_code == 1
 
-    def test_specific_trace_id(self, sessions_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_specific_trace_id(
+        self, sessions_dir: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         exit_code = main(["--sessions-dir", str(sessions_dir), "--trace-id", TRACE_ID])
         assert exit_code == 0
         captured = capsys.readouterr()
