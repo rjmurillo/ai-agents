@@ -132,7 +132,7 @@
     },
     {
       "time": "T4",
-      "entry": "The first /review passed all 15 axes at config-only tip fe12b3bfe. That result became stale when session artifacts were committed."
+      "entry": "The first /review passed all 15 axes at config-only tip fe12b3bfeccb07064d2f530cad7c79fc94ac5fcd. That result became stale when session artifacts were committed."
     },
     {
       "time": "T5",
@@ -147,6 +147,6 @@
       "entry": "Re-ran pre-PR validation through its reproducible module entry point after QA review identified ambiguous command evidence."
     }
   ],
-  "endingCommit": "b6e86509e",
+  "endingCommit": "6b84291e6",
   "nextSteps": []
 }
