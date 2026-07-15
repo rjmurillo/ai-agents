@@ -2,7 +2,7 @@
 """Tests for the invoke_skill_learning Stop hook.
 
 Covers: main entry point, skill detection, learning extraction,
-non-blocking exit code (always 0), path validation, consumer repo skip.
+non-blocking exits, required-loader failure, path validation, consumer repo skip.
 """
 
 from __future__ import annotations
@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -311,6 +313,82 @@ class TestSafeBaseDirM7T5:
 
         assert result == invoke_skill_learning._FAILED_PROJECT_ROOT
 
+    def test_returns_none_when_git_invocation_raises_oserror(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            MagicMock(side_effect=OSError("git unavailable")),
+        )
+
+        assert invoke_skill_learning._git_worktree_root_from_cwd() is None
+
+    def test_returns_none_when_git_invocation_times_out(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.chdir(tmp_path)
+        timeout = invoke_skill_learning.subprocess.TimeoutExpired("git", 5)
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            MagicMock(side_effect=timeout),
+        )
+
+        assert invoke_skill_learning._git_worktree_root_from_cwd() is None
+
+    def test_returns_none_for_malformed_git_root(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        result = self._git_result(tmp_path)
+        result.stdout = f"{tmp_path}\nmalformed"
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            lambda *_args, **_kwargs: result,
+        )
+
+        assert invoke_skill_learning._git_worktree_root_from_cwd() is None
+
+    def test_returns_none_for_non_absolute_git_root(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        result = self._git_result(tmp_path)
+        result.stdout = "relative/worktree"
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            lambda *_args, **_kwargs: result,
+        )
+
+        assert invoke_skill_learning._git_worktree_root_from_cwd() is None
+
+
+class TestRequiredSkillPatternLoader:
+    def test_missing_loader_raises_and_does_not_mark_patterns_loaded(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr(invoke_skill_learning, "_patterns_loaded", False)
+
+        with patch.dict(sys.modules, {"skill_pattern_loader": None}):
+            with pytest.raises(invoke_skill_learning.SkillPatternLoadError):
+                invoke_skill_learning._ensure_patterns_loaded(tmp_path)
+
+        assert invoke_skill_learning._patterns_loaded is False
+
+    def test_broken_loader_raises_and_does_not_mark_patterns_loaded(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr(invoke_skill_learning, "_patterns_loaded", False)
+
+        with patch(
+            "skill_pattern_loader.load_skill_patterns",
+            side_effect=RuntimeError("loader broke"),
+        ):
+            with pytest.raises(invoke_skill_learning.SkillPatternLoadError):
+                invoke_skill_learning._ensure_patterns_loaded(tmp_path)
+
+        assert invoke_skill_learning._patterns_loaded is False
+
 
 class TestWriteLearningNotification:
     def test_outputs_notification(self, capsys):
@@ -391,6 +469,32 @@ class TestMain:
         )
         result = invoke_skill_learning.main()
         assert result == 0
+
+    def test_returns_one_when_required_loader_fails(
+        self,
+        mock_stdin: Callable[[str], None],
+        tmp_path,
+        capsys,
+    ):
+        mock_stdin(json.dumps({"cwd": str(tmp_path), "messages": []}))
+        error = invoke_skill_learning.SkillPatternLoadError("loader broke")
+
+        with patch.object(
+            invoke_skill_learning, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_skill_learning, "get_project_directory", return_value=str(tmp_path)
+        ), patch.object(
+            invoke_skill_learning, "get_safe_project_path", return_value=tmp_path
+        ), patch.object(
+            invoke_skill_learning, "_ensure_patterns_loaded", side_effect=error
+        ):
+            result = invoke_skill_learning.main()
+
+        captured = capsys.readouterr()
+
+        assert result == 1
+        assert captured.out == ""
+        assert "loader broke" in captured.err
 
     @patch("invoke_skill_learning.skip_if_consumer_repo", return_value=False)
     def test_always_exits_0_on_exception(

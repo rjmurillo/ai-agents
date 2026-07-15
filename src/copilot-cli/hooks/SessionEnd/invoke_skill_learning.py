@@ -32,7 +32,9 @@ Confidence Levels:
 - LOW (0.3-0.49): Repeated patterns, track for frequency
 
 Hook Type: Stop (non-blocking)
-Exit Codes: Always 0 (silent background learning)
+Exit Codes:
+  0 = Normal completion or optional learning failure
+  1 = Required skill pattern loader unavailable or failed
 
 Related:
 - .claude/skills/reflect/SKILL.md
@@ -301,9 +303,14 @@ def _get_safe_root_from_env(env_value: str) -> Path:
 #   3. ~/.claude/skills/*/SKILL.md          (Claude Code user)
 #   4. ~/.copilot/skills/*/SKILL.md         (Copilot CLI user)
 #
-# Graceful degradation: if loading fails, regex-based detection
-# (skill path patterns, slash commands) still works with empty dicts.
+# The loader is a required runtime companion. Import or execution failure must
+# leave this hook non-successful instead of reporting an empty-pattern success.
 # =============================================================================
+
+
+class SkillPatternLoadError(RuntimeError):
+    """Required skill-pattern loading failed."""
+
 
 SKILL_PATTERNS: dict[str, list[str]] = {}
 COMMAND_TO_SKILL: dict[str, str] = {}
@@ -314,21 +321,25 @@ def _ensure_patterns_loaded(project_dir: Path) -> None:
     """Lazy-load skill patterns from SKILL.md files on first use.
 
     Uses stat-based caching for performance (~2ms warm, ~40ms cold).
-    Falls back silently to empty dicts if loading fails.
+    Raises SkillPatternLoadError when the required loader cannot run.
     """
     global SKILL_PATTERNS, COMMAND_TO_SKILL, _patterns_loaded
     if _patterns_loaded:
         return
     try:
         from skill_pattern_loader import load_skill_patterns
+
         loaded_patterns, loaded_commands = load_skill_patterns(project_dir)
-        if loaded_patterns:
-            SKILL_PATTERNS = loaded_patterns
-        if loaded_commands:
-            COMMAND_TO_SKILL = loaded_commands
     except Exception as exc:
-        print(f"Warning: Failed to load skill patterns: {exc}", file=sys.stderr)
+        raise SkillPatternLoadError(
+            f"required skill pattern loader failed: {exc}"
+        ) from exc
+    if loaded_patterns:
+        SKILL_PATTERNS = loaded_patterns
+    if loaded_commands:
+        COMMAND_TO_SKILL = loaded_commands
     _patterns_loaded = True
+
 
 # LLM fallback configuration
 CONFIDENCE_THRESHOLD = float(os.getenv("SKILL_LEARNING_CONFIDENCE_THRESHOLD", "0.7"))
@@ -1175,8 +1186,11 @@ def main():
 
         return 0
 
+    except SkillPatternLoadError as exc:
+        print(f"Skill learning hook error: {exc}", file=sys.stderr)
+        return 1
     except Exception as e:
-        # Silent failure - don't block session end
+        # Optional background learning failures do not block session end.
         print(f"Skill learning hook error: {e}", file=sys.stderr)
         return 0
 
