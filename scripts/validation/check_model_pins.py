@@ -1,0 +1,430 @@
+#!/usr/bin/env python3
+"""Governance check for model: pins (ADR-080, issue #2840 criterion 3).
+
+Enforces the ADR-080 policy as a draining ratchet:
+
+- Skills and commands may not carry a versioned model id. Their only allowed
+  states are no ``model:`` line, or a bare rolling alias (sonnet/opus/haiku)
+  that carries a ``model-rationale:`` field.
+- Agents may carry a versioned pin only when a valid entry in the sidecar
+  manifest ``.agents/governance/model-pin-evidence.json`` justifies it
+  (decision KEEP_PIN, unit/model match, fixtures_sha present, within max age,
+  recorded against the current default model).
+- A bare alias with a ``model-rationale:`` cost exception is valid only when the
+  alias resolves, via the platform ``model_tiers`` map, to a versioned id priced
+  strictly below the harness default in the pricing table.
+
+Current pins predate the policy, so the check ships against a frozen baseline
+(unit path -> model id). It fails only on a new pin, a baselined pin whose value
+changed without evidence, or a baseline whose entry count grew. The baseline
+carries a burn-down obligation: its count must shrink over time until empty, at
+which point the check can flip to enforce.
+
+Exit codes (AGENTS.md): 0 ok, 1 policy violation (enforce mode), 2 config error.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
+from pathlib import Path
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+
+# Reuse the single frontmatter parser rather than hand-rolling a second one.
+sys.path.insert(0, str(_SCRIPT_DIR))
+from skill_frontmatter import parse_frontmatter  # noqa: E402  (path set above)
+
+# Single source of truth for pricing lives with the eval harness.
+sys.path.insert(0, str(_REPO_ROOT / "scripts" / "eval"))
+from _eval_common import (  # noqa: E402  (path set above)
+    MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
+)
+
+# The harness-inherited default. Rolling-alias cost rationales must price below
+# this model, and manifest evidence is only valid while it was measured against
+# this default. Kept as a constant with a pointer to the eval default.
+DEFAULT_MODEL = "claude-sonnet-4-6"
+
+ROLLING_ALIASES = ("sonnet", "opus", "haiku")
+
+# Manifest evidence older than this many days is stale (harness/pricing drift).
+MANIFEST_MAX_AGE_DAYS = 180
+
+# A versioned Claude id: tier plus at least one numeric version component.
+# Matches claude-opus-4-6, claude-sonnet-4-20250514, claude-haiku-4.5, etc.
+_VERSIONED_RE = re.compile(r"^claude-(?:opus|sonnet|haiku)-[0-9]")
+
+_BASELINE_PATH = _SCRIPT_DIR / "model_pin_baseline.json"
+_MANIFEST_PATH = _REPO_ROOT / ".agents" / "governance" / "model-pin-evidence.json"
+_TIERS_PATH = _REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
+
+# Source unit trees. Generated mirrors (src/copilot-cli, .github/agents) are
+# handled by regeneration in the migration, not scanned here.
+_UNIT_GLOBS: tuple[tuple[str, str], ...] = (
+    ("skill", ".claude/skills/*/SKILL.md"),
+    ("agent", ".claude/agents/*.md"),
+    ("agent", "templates/agents/*.shared.md"),
+    ("command", ".claude/commands/**/*.md"),
+)
+
+_DOC_EXAMPLE_NAMES = frozenset({"AGENTS.md", "CLAUDE.md"})
+
+
+@dataclass(frozen=True)
+class Unit:
+    """A scanned unit and the model state read from its frontmatter."""
+
+    path: str
+    kind: str
+    model: str | None
+    rationale: str | None
+
+
+@dataclass
+class CheckReport:
+    """Hard violations (fail enforce) versus grandfathered backlog (warn only)."""
+
+    violations: list[str] = field(default_factory=list)
+    backlog: list[str] = field(default_factory=list)
+    scanned: int = 0
+
+    def fail(self, path: str, message: str) -> None:
+        self.violations.append(f"{path}: {message}")
+
+    def defer(self, path: str, message: str) -> None:
+        self.backlog.append(f"{path}: {message}")
+
+
+def _normalize_id(model_id: str) -> str:
+    """Normalize a version id so dotted and hyphenated spellings compare equal.
+
+    copilot-cli.yaml spells ids with dots (claude-opus-4.6); the pricing table
+    uses hyphens (claude-opus-4-6). Collapse dots to hyphens for lookup.
+    """
+    return model_id.replace(".", "-")
+
+
+def _is_versioned(model_id: str) -> bool:
+    return bool(_VERSIONED_RE.match(_normalize_id(model_id)))
+
+
+def load_tier_map(tiers_path: Path = _TIERS_PATH) -> dict[str, str]:
+    """Read the alias -> versioned-id map from the platform config.
+
+    Falls back to an empty map when the file or block is absent; callers treat a
+    missing alias resolution as an invalid cost rationale.
+    """
+    try:
+        import yaml
+
+        data = yaml.safe_load(tiers_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    tiers = _find_model_tiers(data)
+    if tiers is None:
+        return {}
+    return {str(k): str(v) for k, v in tiers.items()}
+
+
+def _find_model_tiers(node: object) -> dict[object, object] | None:
+    """Locate the ``model_tiers`` mapping wherever it nests in the config."""
+    if isinstance(node, dict):
+        tiers = node.get("model_tiers")
+        if isinstance(tiers, dict):
+            return tiers
+        for value in node.values():
+            found = _find_model_tiers(value)
+            if found is not None:
+                return found
+    return None
+
+
+def _input_price(model_id: str) -> float | None:
+    rate = MODEL_PRICING_RATES_USD_PER_1K_TOKENS.get(_normalize_id(model_id))
+    if not isinstance(rate, dict):
+        return None
+    price = rate.get("input")
+    return float(price) if isinstance(price, (int, float)) else None
+
+
+def alias_prices_below_default(
+    alias: str, tier_map: dict[str, str], default_model: str = DEFAULT_MODEL
+) -> bool:
+    """True when the rolling alias resolves to an id priced below the default."""
+    resolved = tier_map.get(alias)
+    if resolved is None:
+        return False
+    alias_price = _input_price(resolved)
+    default_price = _input_price(default_model)
+    if alias_price is None or default_price is None:
+        return False
+    return alias_price < default_price
+
+
+def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
+    """Read a unit's model state, or None when it has no frontmatter."""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    parsed = parse_frontmatter(content)
+    if parsed.errors:
+        return None
+    fm = parsed.frontmatter
+    model = fm.get("model")
+    rationale = fm.get("model-rationale")
+    try:
+        rel = path.relative_to(repo_root).as_posix()
+    except ValueError:
+        rel = path.as_posix()
+    return Unit(
+        path=rel,
+        kind=kind,
+        model=model.strip() if isinstance(model, str) else None,
+        rationale=rationale.strip() if isinstance(rationale, str) else None,
+    )
+
+
+def scan_units(repo_root: Path = _REPO_ROOT) -> list[Unit]:
+    """Collect every source unit that carries a model: pin."""
+    units: list[Unit] = []
+    seen: set[str] = set()
+    for kind, glob in _UNIT_GLOBS:
+        for path in sorted(repo_root.glob(glob)):
+            if path.name in _DOC_EXAMPLE_NAMES:
+                continue
+            if ".claude/worktrees/" in path.as_posix():
+                continue
+            key = path.as_posix()
+            if key in seen:
+                continue
+            seen.add(key)
+            unit = _classify_and_read(path, kind, repo_root)
+            if unit is not None and unit.model:
+                units.append(unit)
+    return units
+
+
+def _artifact_within_repo(artifact: str, repo_root: Path) -> bool:
+    """Reject path-traversal artifact paths (CWE-22)."""
+    try:
+        resolved = (repo_root / artifact).resolve()
+        resolved.relative_to(repo_root.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
+def _manifest_entry_valid(
+    entry: dict[str, object],
+    unit: Unit,
+    repo_root: Path,
+    today: date,
+    default_model: str,
+) -> str | None:
+    """Return a failure reason for a manifest entry, or None when it is valid."""
+    if entry.get("decision") != "KEEP_PIN":
+        return "manifest entry decision is not KEEP_PIN"
+    if entry.get("unit") != unit.path:
+        return "manifest entry unit does not match"
+    if _normalize_id(str(entry.get("model", ""))) != _normalize_id(unit.model or ""):
+        return "manifest entry model does not match the pin"
+    if not entry.get("fixtures_sha"):
+        return "manifest entry missing fixtures_sha"
+    artifact = entry.get("artifact")
+    if not isinstance(artifact, str) or not artifact:
+        return "manifest entry missing artifact path"
+    if not _artifact_within_repo(artifact, repo_root):
+        return "manifest artifact path escapes the repository"
+    if _normalize_id(str(entry.get("default_model", ""))) != _normalize_id(default_model):
+        return "manifest evidence recorded against a different default model"
+    recorded = entry.get("date")
+    if not isinstance(recorded, str):
+        return "manifest entry missing date"
+    try:
+        recorded_date = datetime.strptime(recorded, "%Y-%m-%d").date()
+    except ValueError:
+        return "manifest entry date is not YYYY-MM-DD"
+    age = (today - recorded_date).days
+    if age > MANIFEST_MAX_AGE_DAYS:
+        return f"manifest evidence is stale ({age} days > {MANIFEST_MAX_AGE_DAYS})"
+    return None
+
+
+def _unit_rule_failure(
+    unit: Unit,
+    manifest: dict[str, dict[str, object]],
+    tier_map: dict[str, str],
+    repo_root: Path,
+    today: date,
+    default_model: str,
+) -> str | None:
+    """Return why a unit violates ADR-080 rules 1-3, or None when it complies."""
+    model = unit.model or ""
+    if model in ROLLING_ALIASES:
+        if not unit.rationale:
+            return f"bare alias '{model}' lacks a model-rationale field"
+        if not alias_prices_below_default(model, tier_map, default_model):
+            return (
+                f"cost rationale on '{model}' but it does not price below the "
+                f"default '{default_model}'"
+            )
+        return None
+
+    if not _is_versioned(model):
+        return f"model '{model}' is neither a rolling alias nor a versioned id"
+
+    if unit.kind in ("skill", "command"):
+        return (
+            f"{unit.kind} carries versioned id '{model}'; skills and commands "
+            f"may not pin a version (ADR-080 rule 1)"
+        )
+
+    entry = manifest.get(unit.path)
+    if entry is None:
+        return f"versioned agent pin '{model}' has no manifest evidence entry"
+    return _manifest_entry_valid(entry, unit, repo_root, today, default_model)
+
+
+def load_baseline(baseline_path: Path = _BASELINE_PATH) -> dict[str, str]:
+    if not baseline_path.is_file():
+        return {}
+    data = json.loads(baseline_path.read_text(encoding="utf-8"))
+    pins = data.get("pins", data) if isinstance(data, dict) else {}
+    return {str(k): str(v) for k, v in pins.items()} if isinstance(pins, dict) else {}
+
+
+def load_manifest(manifest_path: Path = _MANIFEST_PATH) -> dict[str, dict[str, object]]:
+    if not manifest_path.is_file():
+        return {}
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    pins = data.get("pins") if isinstance(data, dict) else None
+    result: dict[str, dict[str, object]] = {}
+    if isinstance(pins, list):
+        for entry in pins:
+            if isinstance(entry, dict) and isinstance(entry.get("unit"), str):
+                result[str(entry["unit"])] = entry
+    return result
+
+
+def run_check(
+    repo_root: Path = _REPO_ROOT,
+    baseline_path: Path = _BASELINE_PATH,
+    manifest_path: Path = _MANIFEST_PATH,
+    tiers_path: Path = _TIERS_PATH,
+    default_model: str = DEFAULT_MODEL,
+    today: date | None = None,
+) -> CheckReport:
+    """Scan the tree and evaluate ADR-080. Grandfather baselined debt as backlog.
+
+    A rule-compliant pin always passes. A non-compliant pin is a hard violation
+    when it is new (absent from the baseline) or changed to a still-non-compliant
+    value; it is grandfathered backlog only when the baseline already records it
+    unchanged. This is the draining ratchet: existing debt is reported, never
+    fails CI, and new debt is blocked so the baseline can only shrink.
+    """
+    resolved_today = today or datetime.now(UTC).date()
+    units = scan_units(repo_root)
+    manifest = load_manifest(manifest_path)
+    baseline = load_baseline(baseline_path)
+    tier_map = load_tier_map(tiers_path)
+
+    report = CheckReport(scanned=len(units))
+    for unit in units:
+        failure = _unit_rule_failure(
+            unit, manifest, tier_map, repo_root, resolved_today, default_model
+        )
+        if failure is None:
+            continue
+        model = unit.model or ""
+        if unit.path not in baseline:
+            report.fail(unit.path, f"[new pin] {failure}")
+        elif baseline[unit.path] != model:
+            report.fail(
+                unit.path,
+                f"[changed pin] was '{baseline[unit.path]}', now '{model}' without "
+                f"evidence: {failure}",
+            )
+        else:
+            report.defer(unit.path, failure)
+    return report
+
+
+def write_baseline(units: list[Unit], baseline_path: Path = _BASELINE_PATH) -> int:
+    """Freeze the current pins as the baseline. Returns the entry count."""
+    pins = {u.path: (u.model or "") for u in sorted(units, key=lambda u: u.path)}
+    payload = {
+        "schema_version": "1",
+        "description": (
+            "Frozen ADR-080 model-pin baseline. Draining ratchet: this count "
+            "must never grow and should shrink each release until empty."
+        ),
+        "pins": pins,
+    }
+    baseline_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return len(pins)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Validate model: pins against ADR-080.")
+    parser.add_argument(
+        "--mode",
+        choices=("warn", "enforce"),
+        default="warn",
+        help="warn reports and exits 0; enforce exits nonzero on any violation.",
+    )
+    parser.add_argument(
+        "--update-baseline",
+        action="store_true",
+        help="Rewrite the frozen baseline from the current tree, then exit.",
+    )
+    parser.add_argument("--baseline", type=Path, default=_BASELINE_PATH)
+    parser.add_argument("--manifest", type=Path, default=_MANIFEST_PATH)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
+
+    if args.update_baseline:
+        count = write_baseline(scan_units(), args.baseline)
+        print(f"[model-pins] baseline written: {count} pins -> {args.baseline}")
+        return 0
+
+    try:
+        report = run_check(baseline_path=args.baseline, manifest_path=args.manifest)
+    except (OSError, ValueError) as exc:
+        print(f"[model-pins] config error: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"[model-pins] scanned {report.scanned} pinned units")
+    if report.backlog:
+        print(
+            f"[model-pins] grandfathered backlog: {len(report.backlog)} pin(s) "
+            f"awaiting migration (ADR-080 draining ratchet)"
+        )
+        for item in report.backlog:
+            print(f"[model-pins]   backlog: {item}")
+
+    if not report.violations:
+        print("[model-pins] OK: no new or changed pin violations")
+        return 0
+
+    for violation in report.violations:
+        print(f"[model-pins] VIOLATION: {violation}")
+    print(f"[model-pins] {len(report.violations)} hard violation(s)")
+
+    if args.mode == "enforce":
+        return 1
+    print("[model-pins] warn mode: reporting only, exit 0")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
