@@ -125,7 +125,9 @@ class TestFindTopicalMemories:
         # A memory file with YAML frontmatter must summarize to the heading,
         # not the first frontmatter key (e.g. "status: accepted").
         _seed_memories(tmp_path, {
-            "github/github-cli-notes.md": "---\nstatus: accepted\ntags: [a, b]\n---\n# Real Heading\nbody",
+            "github/github-cli-notes.md": (
+                "---\nstatus: accepted\ntags: [a, b]\n---\n# Real Heading\nbody"
+            ),
         })
         out = find_topical_memories(str(tmp_path), "github", time.monotonic() + 10)
         assert len(out) == 1
