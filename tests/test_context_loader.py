@@ -74,10 +74,33 @@ class TestUtf8ProtocolOutput:
         monkeypatch.setattr(sys, "stdout", stream)
 
         invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
-        stream.flush()
 
         assert raw.getvalue().decode("utf-8") == self.PROTOCOL_TEXT + "\n"
 
+    def test_broken_pipe_is_not_retried_through_binary_buffer(self, monkeypatch) -> None:
+        class BrokenPipeStream:
+            def __init__(self) -> None:
+                self.buffer = io.BytesIO()
+                self.write_calls = 0
+
+            def reconfigure(self, **_kwargs: object) -> None:
+                return None
+
+            def write(self, _text: str) -> int:
+                self.write_calls += 1
+                raise BrokenPipeError("consumer closed")
+
+            def flush(self) -> None:
+                raise AssertionError("flush must not follow a failed write")
+
+        stream = BrokenPipeStream()
+        monkeypatch.setattr(sys, "stdout", stream)
+
+        with pytest.raises(BrokenPipeError, match="consumer closed"):
+            invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
+
+        assert stream.write_calls == 1
+        assert stream.buffer.getvalue() == b""
     def test_uses_binary_buffer_when_stdout_cannot_reconfigure(self, monkeypatch) -> None:
         class NonReconfigurableStream:
             def __init__(self) -> None:

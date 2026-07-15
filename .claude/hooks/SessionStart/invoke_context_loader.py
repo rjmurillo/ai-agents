@@ -261,10 +261,12 @@ def _emit_utf8(text: str) -> None:
     if callable(reconfigure):
         try:
             reconfigure(encoding="utf-8", errors="strict", newline="\n")
-            print(text)
-            return
         except (AttributeError, io.UnsupportedOperation, OSError):
             pass
+        else:
+            stream.write(text + "\n")
+            stream.flush()
+            return
 
     payload = f"{text}\n".encode()
     buffer = getattr(stream, "buffer", None)
@@ -275,7 +277,6 @@ def _emit_utf8(text: str) -> None:
 
     stream.write(text + "\n")
     stream.flush()
-
 
 def main() -> None:
     """Load HANDOFF.md and latest retrospective into session context."""
