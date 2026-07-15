@@ -12782,6 +12782,78 @@
         "episode-2026-07-15-session-3042"
       ],
       "created": "2026-07-15T19:13:40.609369+00:00"
+    },
+    {
+      "id": "1661b9bae6ea",
+      "type": "milestone",
+      "label": "milestone: Fetched origin/main after PR #3067 merged and verified five later unresolved review threads as untrusted data.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664048+00:00"
+    },
+    {
+      "id": "8e019024d728",
+      "type": "milestone",
+      "label": "milestone: Cluster analysis found no 4-thread shared-gist cluster; independent triage found two valid corrections, two historical-context clarifications, and one evidence-backed reply-only finding.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664113+00:00"
+    },
+    {
+      "id": "247edeaf0558",
+      "type": "milestone",
+      "label": "milestone: Created and claimed issue #3079, then created docs/3079-reconcile-memory-evidence from origin/main for one atomic follow-up PR.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664159+00:00"
+    },
+    {
+      "id": "89599ef868cb",
+      "type": "milestone",
+      "label": "milestone: Applied the valid subset of missed commit c9789e87d, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664204+00:00"
+    },
+    {
+      "id": "672072630ffa",
+      "type": "milestone",
+      "label": "milestone: QA verified exact git provenance, source-session alignment, and minimal scope; commit 7f2bd0f992e535e028f61ef4693462beabcb28e2 passed all pre-commit gates.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664249+00:00"
+    },
+    {
+      "id": "f0ba22caacd0",
+      "type": "milestone",
+      "label": "milestone: Validated both source-derived episodes, both session records, memory indexing, 117 generator tests, and all 27 active quick pre-PR checks with no failures.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664293+00:00"
+    },
+    {
+      "id": "635381bd1b75",
+      "type": "commit",
+      "label": "commit: Commit: 7f2bd0f992e535e028f61ef4693462beabcb28e2",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664339+00:00"
+    },
+    {
+      "id": "91488d91441f",
+      "type": "outcome",
+      "label": "Outcome: success - Reconcile merged PR #3067 review evidence under issue #3079",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664384+00:00"
     }
   ],
   "patterns": [
