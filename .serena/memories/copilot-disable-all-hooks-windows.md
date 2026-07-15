@@ -20,13 +20,16 @@ an already wedged session.
 
 ## Operational use
 
-Treat `disableAllHooks` as a version-specific performance kill switch, not a selective
-repo-hook switch. It stops repository, user, and plugin hook execution in the
-verified CLI version. Use it when Windows process and hook costs make the CLI
-unusable, then restart Copilot CLI.
+Treat `disableAllHooks` as a version-specific, approval-required, read-only
+diagnostic procedure, not a selective repository-hook switch. It stops
+repository, user, and plugin hook execution in the verified CLI version. Keep
+the local setting visible, remove it after diagnosis, and start a hook-enabled
+session before any mutation, commit, or push.
 
-A selective frontier-model profile requires dispatcher support. No current
-configuration keeps plugin hooks while disabling repository hooks.
+A selective frontier-model profile would require new dispatcher feature work.
+Copilot CLI is maintenance-only, so the current path is to fix and rescope
+existing hooks. No supported Copilot CLI 1.0.70 configuration was found that keeps plugin
+hooks while disabling repository hooks.
 
 ## Evidence
 
