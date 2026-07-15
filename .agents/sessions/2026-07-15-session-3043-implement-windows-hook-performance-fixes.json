@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3043,
+    "date": "2026-07-15",
+    "branch": "perf/batch-claude-hooks",
+    "startingCommit": "7b9d3ce3",
+    "objective": "Implement Windows hook performance fixes for issue 3075"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena activation was unavailable in this worktree session; the tool transport closed, so local worktree files and documented memory fallbacks were used."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": "serena-initial_instructions failed with Transport closed. No successful manual retrieval claim is made."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and preserved its read-only status."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read applicable local skills and scoped rules. No GitHub operation was performed because the user prohibited GitHub access."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and will use skill-owned GitHub scripts."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md, including Python-first, skill-first, atomic commit, and session requirements."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read copilot-hooks-observations.md and copilot-disable-all-hooks-windows.md from the worktree memory fallback."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/batch-claude-hooks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/batch-claude-hooks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified perf/batch-claude-hooks at 7b9d3ce3. Session logs 3043 and user-owned 3044 were untracked; 3044 remains untouched."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7b9d3ce3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "User directed implementation after reviewing the documentation-only PR. Scope is maintenance-only Windows hook fixes and advisory-hook rescoping; the rejected batching dispatcher remains out of scope."
+    },
+    {
+      "time": "T1",
+      "entry": "Read root and scoped instructions, applicable ADRs, canonical hooks, generator code, registrations, and adjacent tests. The user success criteria were authoritative because no issue 3075 plan file exists."
+    },
+    {
+      "time": "T2",
+      "entry": "Named inverse failures before edits: UTF-8 handling must not alter protocol text or LF framing; cwd worktree validation must reject mismatched, malformed, outside, and Git-failure roots without weakening downstream containment or symlink checks."
+    },
+    {
+      "time": "T3",
+      "entry": "Implemented deterministic UTF-8 SessionStart output and strict cwd Git worktree derivation for skill learning and observation sync. CLAUDE_PROJECT_DIR is accepted only when it resolves to the same root."
+    },
+    {
+      "time": "T4",
+      "entry": "Added explicit skill_pattern_loader companion generation, portable and loader-absent tests, and a cache-parent guard so consumer projects do not gain .claude state."
+    },
+    {
+      "time": "T5",
+      "entry": "Removed only correction-applier and topical-memory advisory PreToolUse registrations from repository and Claude plugin manifests. Regenerated Copilot manifests, removed their stale shims, and preserved hard gates and SessionStart registrations."
+    },
+    {
+      "time": "T6",
+      "entry": "Added canonical/generated single-registration assertions and an isolated one-origin branch/session emission probe without stdout suppression or deduplication. Targeted suite reached 249 passes before final artifact assertions; Ruff passed."
+    },
+    {
+      "time": "T7",
+      "entry": "SECURITY_FLAG: changed CWE-22 project-root validation in skill learning and observation sync. Post-implementation security verification is required before merge."
+    },
+    {
+      "time": "T8",
+      "entry": "Validation environment uses Python 3.13.14 because the pinned Python 3.14.6 environment is unavailable. System Python has no mypy module. Copilot CLI 1.0.70 is available."
+    },
+    {
+      "time": "T9",
+      "entry": "Created seven atomic commits: 19bde51d, 2e4d93f3, 2ece85d8, 2f8c4bac, 42f6adde, 8265bf53, and e38cc38c. No push or GitHub operation was performed."
+    },
+    {
+      "time": "T10",
+      "entry": "Final validation passed: 259 targeted tests, Ruff, canonical build_all --check, install parity, plugin version bump, and all three plugin manifest schemas. Copilot CLI version is 1.0.70."
+    },
+    {
+      "time": "T11",
+      "entry": "Reported environment-limited checks exactly: system Python 3.13.14 has no mypy module; broad tests/hooks collection has two pre-existing missing-Callable errors; runtime-contract batch had 70 passes and three Windows Bash environment-resolution failures."
+    },
+    {
+      "time": "T12",
+      "entry": "Did not run an external Copilot model probe because the user prohibited GitHub access and mutation of user-owned Copilot state. The local isolated generated-origin probe passed in the targeted suite."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Route the CWE-22 worktree validation changes to security review before merge.",
+    "Let QA review the seven implementation commits and the exact validation limitations.",
+    "If three-to-one installed-origin cleanup is desired, obtain authority before changing user-owned Copilot state."
+  ]
+}
