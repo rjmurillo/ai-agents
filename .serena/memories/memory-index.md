@@ -26,7 +26,7 @@
 |security vulnerability TOCTOU secret injection: [skills-security-index](skills-security-index.md) (477)
 
 [Architecture and Design]
-|architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (363)
+|architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (546)
 |adr decision record active proposed superseded rationale artifact amendment: [adr-reference-index](adr-reference-index.md) (673), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
 |cache invalidation TTL session-local cloudmcp stale refresh: [adr-reference-index](adr-reference-index.md) (673)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
