@@ -1,0 +1,70 @@
+{
+  "id": "episode-2026-07-15-session-2993-e501-wrap",
+  "session": "2026-07-15-session-2993-e501-wrap",
+  "timestamp": "2026-07-15T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Resolve issue #2993 (ruff line-length cleanup) for a bounded set of top-level test files: wrap the long lines in four tests/ files whose only ruff violation is E501, so each file becomes fully ruff-clean without triggering the plugin-lib mirror cascade or a plugin version bump.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "test",
+      "context": "Selected a non-cascading subset of #2993: four top-level tests/ files (test_generate_agent_catalog.py, test_security_scan_cli.py, e2e/test_installed_plugin_hook_e2e.py, hooks/test_topical_memory_injection.py) whose ONLY ruff violation is E501. Deliberately excluded tests/test_redact_secrets.py to avoid the secret-shaped string literals interacting with the redaction guard.",
+      "chosen": "Selected a non-cascading subset of #2993: four top-level tests/ files (test_generate_agent_catalog.py, test_security_scan_cli.py, e2e/test_installed_plugin_hook_e2e.py, hooks/test_topical_memory_injection.py) whose ONLY ruff violation is E501. Deliberately excluded tests/test_redact_secrets.py to avoid the secret-shaped string literals interacting with the redaction guard.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Selected a non-cascading subset of #2993: four top-level tests/ files (test_generate_agent_catalog.py, test_security_scan_cli.py, e2e/test_installed_plugin_hook_e2e.py, hooks/test_topical_memory_injection.py) whose ONLY ruff violation is E501. Deliberately excluded tests/test_redact_secrets.py to avoid the secret-shaped string literals interacting with the redaction guard.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrapped five long lines: two call/def sites in test_generate_agent_catalog.py, one assert message in test_security_scan_cli.py, one def signature in test_installed_plugin_hook_e2e.py, and one dict string value in test_topical_memory_injection.py. Used implicit string concatenation and parenthesized continuation so no value or signature changes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified ruff check on the four files: All checks passed. Ran pytest on the four files: 64 passed, 8 skipped.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified ruff check on the four files: All checks passed. Ran pytest on the four files: 64 passed, 8 skipped.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a5aa5ef962",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

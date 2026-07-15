@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2993,
+    "date": "2026-07-15",
+    "branch": "chore/ruff-e501-wrap-2993",
+    "startingCommit": "d9b0dd087d",
+    "objective": "Resolve issue #2993 (ruff line-length cleanup) for a bounded set of top-level test files: wrap the long lines in four tests/ files whose only ruff violation is E501, so each file becomes fully ruff-clean without triggering the plugin-lib mirror cascade or a plugin version bump."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Session resumed post-compaction under caveman mode; serena-* tools are deferred and were not activated for this mechanical line-wrap task. Followed AGENTS.md and .claude/rules guidance read directly from the tree."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not run; serena deferred. In-repo AGENTS.md and rules used instead."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by the SessionStart context loader and read; not modified (read-only per ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created for the #2993 line-wrap work on 2026-07-15."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git rev-parse --abbrev-ref HEAD returned chore/ruff-e501-wrap-2993."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work is on chore/ruff-e501-wrap-2993, based off origin/main at d9b0dd087d (git rev-list --count HEAD ^origin/main == 0 before commit)."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status --short showed only the four intended test files modified; the untracked auto-retro skeleton was left unstaged."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Starting commit recorded as d9b0dd087d (branch head equal to origin/main)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Five E501 lines wrapped across four files; ruff reports All checks passed for the four files; affected tests pass (64 passed, 8 skipped)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena deferred this session; durable context lives in this log and the PR body."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed (Python test files only); markdownlint not applicable. Session log byte-checked for em/en dashes: 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The four wrapped test files are committed on chore/ruff-e501-wrap-2993; endingCommit names that commit (the session-log commit follows it)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff check on the four files: All checks passed. pytest on the four files: 64 passed, 8 skipped. No security-suppression comments introduced. No behavior change: line wraps only (implicit string concatenation and parenthesized continuation preserve values and signatures)."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Selected a non-cascading subset of #2993: four top-level tests/ files (test_generate_agent_catalog.py, test_security_scan_cli.py, e2e/test_installed_plugin_hook_e2e.py, hooks/test_topical_memory_injection.py) whose ONLY ruff violation is E501. Deliberately excluded tests/test_redact_secrets.py to avoid the secret-shaped string literals interacting with the redaction guard."
+    },
+    {
+      "time": "T1",
+      "entry": "Wrapped five long lines: two call/def sites in test_generate_agent_catalog.py, one assert message in test_security_scan_cli.py, one def signature in test_installed_plugin_hook_e2e.py, and one dict string value in test_topical_memory_injection.py. Used implicit string concatenation and parenthesized continuation so no value or signature changes."
+    },
+    {
+      "time": "T2",
+      "entry": "Verified ruff check on the four files: All checks passed. Ran pytest on the four files: 64 passed, 8 skipped."
+    }
+  ],
+  "endingCommit": "a5aa5ef962",
+  "nextSteps": [
+    "Push branch and open PR (Refs #2993) for the wrapped subset.",
+    "Remaining #2993 E501 sites in other files (including the secret-string file and any plugin-lib-cascading files) stay open under #2993 for a follow-up."
+  ]
+}
