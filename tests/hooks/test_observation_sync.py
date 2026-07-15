@@ -19,6 +19,7 @@ sys.path.insert(0, str(HOOK_DIR))
 
 from invoke_observation_sync import (  # noqa: E402
     _find_observation_file,
+    _get_repo_root,
     _is_observation_memory,
     main,
 )
@@ -126,6 +127,103 @@ class TestFindObservationFile:
         symlink.symlink_to(real_file)
         result = _find_observation_file(str(tmp_path), "evil")
         assert result is None
+
+
+class TestRepoRoot:
+    """The consumer root must come from Git at cwd."""
+
+    @staticmethod
+    def _git_result(root: Path, returncode: int = 0) -> MagicMock:
+        result = MagicMock()
+        result.returncode = returncode
+        result.stdout = str(root) if returncode == 0 else ""
+        result.stderr = "git failure" if returncode else ""
+        return result
+
+    def test_accepts_exact_project_dir_from_nested_cwd(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        worktree = tmp_path / "worktree"
+        child = worktree / "nested"
+        child.mkdir(parents=True)
+        monkeypatch.chdir(child)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(worktree))
+        monkeypatch.setattr(
+            "invoke_observation_sync.subprocess.run",
+            lambda *_args, **_kwargs: self._git_result(worktree),
+        )
+
+        assert _get_repo_root() == str(worktree.resolve())
+
+    def test_uses_git_worktree_when_project_dir_unset(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setattr(
+            "invoke_observation_sync.subprocess.run",
+            lambda *_args, **_kwargs: self._git_result(tmp_path),
+        )
+
+        assert _get_repo_root() == str(tmp_path.resolve())
+
+    def test_rejects_mismatched_project_dir(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog
+    ) -> None:
+        arbitrary = tmp_path / "arbitrary"
+        arbitrary.mkdir()
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(arbitrary))
+        monkeypatch.setattr(
+            "invoke_observation_sync.subprocess.run",
+            lambda *_args, **_kwargs: self._git_result(tmp_path),
+        )
+
+        assert _get_repo_root() is None
+        assert any(
+            getattr(record, "code", "") == "E_CWE22_PROJECT_DIR_MISMATCH"
+            for record in caplog.records
+        )
+
+    def test_rejects_malformed_project_dir(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path) + "\nevil")
+        monkeypatch.setattr(
+            "invoke_observation_sync.subprocess.run",
+            lambda *_args, **_kwargs: self._git_result(tmp_path),
+        )
+
+        assert _get_repo_root() is None
+
+    def test_rejects_git_failure(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setattr(
+            "invoke_observation_sync.subprocess.run",
+            lambda *_args, **_kwargs: self._git_result(tmp_path, returncode=128),
+        )
+
+        assert _get_repo_root() is None
+
+    def test_rejects_git_root_outside_cwd(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        arbitrary = tmp_path / "arbitrary"
+        arbitrary.mkdir()
+        monkeypatch.chdir(cwd)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setattr(
+            "invoke_observation_sync.subprocess.run",
+            lambda *_args, **_kwargs: self._git_result(arbitrary),
+        )
+
+        assert _get_repo_root() is None
 
 
 class TestMainHook:
