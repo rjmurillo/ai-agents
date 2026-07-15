@@ -31,7 +31,7 @@ Conditional, availability-gated LSP-first navigation enforcement. Prefer Serena 
 
 ## Validation snapshot from PR #2168
 
-1314 hooks tests pass. Lib 100% coverage; guards 95-100%. pre_pr.py: 12 pass (em-dash, install-parity, plugin-bump, canonical-citation all PASS); 2 fails are PREEXISTING and unrelated (agent drift in security/task-decomposer; markdownlint debt in build/audit/GENERATION-AUDIT.md + powershell-security-checklist.md).
+1314 hooks tests pass. Lib 100% coverage; guards 95-100%. pre_pr.py: 12 pass (em-dash, install-parity, plugin-bump, canonical-citation all PASS); 2 fails are pre-existing and unrelated (agent drift in security/task-decomposer; markdownlint debt in build/audit/GENERATION-AUDIT.md + powershell-security-checklist.md).
 
 ## Dogfooding proof
 

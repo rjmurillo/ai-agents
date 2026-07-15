@@ -65,6 +65,14 @@
     {
       "id": "e008",
       "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR #3081 review removed stale graph nodes and a dangling edge, clarified the handoff commit scope, and corrected the historical validation prose.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 7f2bd0f992e535e028f61ef4693462beabcb28e2",
       "caused_by": [],
@@ -77,7 +85,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 4
+    "files_changed": 5
   },
   "lessons": []
 }

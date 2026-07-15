@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Artifact assertions, both session validators, memory index validation, 117 episode-generator tests, QA verification, 27 active quick pre-PR checks, and two zero-change causal-graph dry runs passed."
+        "Evidence": "Artifact assertions, both session validators, memory index validation, 117 episode-generator tests, QA verification, 29 active full pre-PR checks, causal idempotency checks, and graph integrity checks passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -141,6 +141,10 @@
     {
       "time": "T6",
       "entry": "Critic review tightened the per-thread handoff map and aligned the generated commit metric with the single deliverable commit; causal-graph dry runs reported zero changes for both corrected episodes."
+    },
+    {
+      "time": "T7",
+      "entry": "PR #3081 review removed stale graph nodes and a dangling edge, clarified the handoff commit scope, and corrected the historical validation prose."
     }
   ],
   "endingCommit": "7f2bd0f992e535e028f61ef4693462beabcb28e2",

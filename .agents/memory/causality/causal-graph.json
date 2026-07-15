@@ -12854,6 +12854,15 @@
         "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
       ],
       "created": "2026-07-15T19:27:18.056215+00:00"
+    },
+    {
+      "id": "241784644fcb",
+      "type": "milestone",
+      "label": "milestone: PR #3081 review removed stale graph nodes and a dangling edge, clarified the handoff commit scope, and corrected the historical validation prose.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T22:00:57.141851+00:00"
     }
   ],
   "patterns": [
