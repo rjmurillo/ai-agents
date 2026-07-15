@@ -688,6 +688,109 @@ def _setup_full_fixture(tmp_path: Path) -> tuple[Path, Path]:
     return cfg, settings
 
 
+def _setup_skill_companion_fixture(
+    tmp_path: Path, *, include_owner: bool = True, include_loader: bool = True
+) -> Path:
+    cfg = _write_config(tmp_path)
+    hooks_src = tmp_path / "hooks_src"
+    hooks: dict[str, Any] = {}
+    if include_owner:
+        _write_script(
+            hooks_src,
+            "Stop",
+            "invoke_skill_learning.py",
+            "try:\n"
+            "    from skill_pattern_loader import TOKEN\n"
+            "except ModuleNotFoundError:\n"
+            "    TOKEN = 'fallback'\n"
+            "print(TOKEN)\n",
+        )
+        hooks = {
+            "Stop": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u .claude/hooks/Stop/"
+                                "invoke_skill_learning.py"
+                            ),
+                        }
+                    ]
+                }
+            ]
+        }
+    if include_loader:
+        _write_script(
+            hooks_src,
+            "Stop",
+            "skill_pattern_loader.py",
+            "TOKEN = 'portable-import'\n",
+        )
+    _write_settings(tmp_path / "settings.json", hooks)
+    return cfg
+
+
+def test_generator_copies_skill_loader_without_dispatching_it(tmp_path: Path) -> None:
+    cfg = _setup_skill_companion_fixture(tmp_path)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    assert companion.read_text(encoding="utf-8") == "TOKEN = 'portable-import'\n"
+    generated = json.loads((tmp_path / "out" / "hooks.json").read_text())
+    entries = generated["hooks"]["SessionEnd"]
+    assert len(entries) == 1
+    assert "skill_pattern_loader.py" not in json.dumps(entries)
+
+
+def test_generated_skill_owner_imports_companion_portably(tmp_path: Path) -> None:
+    cfg = _setup_skill_companion_fixture(tmp_path)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+
+    process = subprocess.run(
+        [sys.executable, str(owner)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert rc == 0
+    assert process.returncode == 0
+    assert process.stdout.strip() == "portable-import"
+
+
+def test_generated_skill_owner_degrades_when_loader_absent(tmp_path: Path) -> None:
+    cfg = _setup_skill_companion_fixture(tmp_path, include_loader=False)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+
+    process = subprocess.run(
+        [sys.executable, str(owner)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert rc == 0
+    assert not (owner.parent / "skill_pattern_loader.py").exists()
+    assert process.returncode == 0
+    assert process.stdout.strip() == "fallback"
+
+
+def test_generator_does_not_copy_unowned_skill_loader(tmp_path: Path) -> None:
+    cfg = _setup_skill_companion_fixture(tmp_path, include_owner=False)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert not (tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py").exists()
+
+
 def test_generator_emits_version_one_wrapper(tmp_path: Path) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     rc, result = generate_hooks.generate_hooks(cfg, tmp_path)

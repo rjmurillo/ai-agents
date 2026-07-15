@@ -461,6 +461,17 @@ class TestLoadSkillPatterns(unittest.TestCase):
         self.assertIn("create a PR", patterns["github"])
         self.assertIn("session-init", commands)
 
+    def test_does_not_create_consumer_claude_state(self):
+        """Loading repo skills does not create a missing hook directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir)
+            _create_skill_md(project / ".github" / "skills", "github", GITHUB_SKILL_MD)
+
+            patterns, _commands = load_skill_patterns(project)
+
+            self.assertIn("github", patterns)
+            self.assertFalse((project / ".claude").exists())
+
     def test_caches_results(self):
         """Second call uses cache (returns same data without re-parsing)."""
         with tempfile.TemporaryDirectory() as tmpdir:

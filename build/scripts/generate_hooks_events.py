@@ -46,6 +46,12 @@ from generate_hooks_emit import (  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError  # noqa: E402
 
+# Files required at runtime by one emitted hook but not dispatched themselves.
+_COMPANIONS_BY_OWNER = {
+    "Stop/invoke_skill_learning.py": ("skill_pattern_loader.py",),
+}
+
+
 # --- Driver ---------------------------------------------------------------
 
 
@@ -177,6 +183,12 @@ def _emit_one_hook(
     written, reason = _copy_script(
         src, target, matcher=matcher_str, what_if=what_if
     )
+    _copy_companions(
+        src,
+        script_rel,
+        target.parent,
+        what_if=what_if,
+    )
     entry = _build_copilot_entry(target_event, script_name, timeout_sec=timeout)
     if not written:
         # NO-REGEN: keep customer-owned script untouched but still emit
@@ -205,6 +217,27 @@ def _emit_one_hook(
     )
     result.written += 1
     return target_event, entry
+
+
+def _copy_companions(
+    owner_source: Path,
+    owner_relative_path: Path,
+    target_directory: Path,
+    *,
+    what_if: bool,
+) -> None:
+    """Copy explicitly declared runtime companions without dispatch entries."""
+    companion_names = _COMPANIONS_BY_OWNER.get(owner_relative_path.as_posix(), ())
+    for companion_name in companion_names:
+        companion_source = owner_source.with_name(companion_name)
+        if not companion_source.is_file():
+            continue
+        _copy_script(
+            companion_source,
+            target_directory / companion_name,
+            matcher=None,
+            what_if=what_if,
+        )
 
 
 def _process_event(
