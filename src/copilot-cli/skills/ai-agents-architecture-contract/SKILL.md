@@ -95,7 +95,7 @@ The dispatcher (ADR-068) exists because Copilot CLI ignores per-hook matchers, r
 
 - Canonical/supplementary split (ADR-007): `.serena/memories/` markdown files are the source of truth; Forgetful is a supplementary graph store. `scripts/memory_sync/sync_engine.py` mirrors Serena into Forgetful ("Serena-to-Forgetful synchronization ... to mirror Serena's canonical .serena/memories/ files").
 - Tiers (ADR-063, Accepted): Tier 1 semantic search, Tier 2 episodic session replay, Tier 3 causal graph. Front doors are the `memory` and `memory-search` skills.
-- Observation loop (issue #1345, Detect-Log-Graduate-Apply): the `reflect` skill and Stop hook detect corrections, observations land in Serena memories, the skillbook agent graduates patterns, and `.claude/hooks/PreToolUse/invoke_correction_applier.py` re-surfaces HIGH-confidence corrections at command time. This is why hook output injects "Self-Improving Agent" context into sessions.
+- Observation loop (issue #1345): the `reflect` skill and Stop hook detect corrections, observations land in Serena memories, and the skillbook agent graduates patterns. The retained `.claude/hooks/PreToolUse/invoke_correction_applier.py` and `invoke_topical_memory_injection.py` files are not registered in either Claude source manifest. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. The absence is guarded by `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent`.
 
 Architectural consequence: memories are load-bearing runtime inputs, not documentation. Deleting or renaming a `.serena/memories/` file changes hook behavior in live sessions.
 
@@ -177,7 +177,7 @@ Verified 2026-07-03 against the working tree. Volatile facts are date-stamped in
 | Dispatcher modes, ~75% spawn reduction | `build/scripts/generate_dispatcher.py` docstring | `head -20 build/scripts/generate_dispatcher.py` |
 | Skill vs subagent latency 5-20ms vs 100-200ms | `.agents/architecture/ADR-030-skills-pattern-superiority.md:31` | `grep -n "100-200ms" .agents/architecture/ADR-030*.md` |
 | Memory sync direction | `scripts/memory_sync/sync_engine.py` module docstring | `head -8 scripts/memory_sync/sync_engine.py` |
-| Correction-applier loop | `.claude/hooks/PreToolUse/invoke_correction_applier.py` docstring (issue #1345) | `head -12 .claude/hooks/PreToolUse/invoke_correction_applier.py` |
+| Explicit correction and topical-memory retrieval | `memory` and `memory-search` skills; retained hook files are unregistered | `pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |
 | Plugin names/versions, marketplaces, npm CLI | the three `.claude-plugin/plugin.json` files, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`, `packages/ai-agents-cli/package.json` | `find . -name plugin.json -not -path "*/node_modules/*"` then read each |
 | Stale CONTRIBUTING pwsh commands | `CONTRIBUTING.md:155`; no repo `.ps1` files | `grep -n "pwsh" CONTRIBUTING.md; find . -name "*.ps1" -not -path "./.venv/*"` |
 | ruff advisory | `.github/workflows/pytest.yml` (comments near lines 107-119, issue #2194) | `grep -n -i "ruff" .github/workflows/pytest.yml` |
