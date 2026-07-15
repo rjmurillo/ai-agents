@@ -53,7 +53,9 @@ def _make_repo_with_diff(repo: Path) -> None:
 class TestGetDiffFiles:
     """Tests for diff-scoped file selection (--diff-scope)."""
 
-    def test_returns_only_changed_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_only_changed_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
         result = get_diff_files("main")
@@ -63,7 +65,9 @@ class TestGetDiffFiles:
         assert result[0].endswith("/changed.py")
         assert os.path.isfile(result[0])
 
-    def test_returns_empty_when_no_changes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_empty_when_no_changes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _make_repo_with_diff(tmp_path)
         _run_git(tmp_path, "checkout", "main")
         monkeypatch.chdir(tmp_path)
@@ -106,7 +110,9 @@ class TestGetDiffFiles:
 class TestMainDiffScope:
     """Tests for the --diff-scope main entry path."""
 
-    def test_diff_scope_scans_only_changed_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_diff_scope_scans_only_changed_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _make_repo_with_diff(tmp_path)
         # A pre-existing shell script on the base would trip GP-001 on a
         # whole-tree scan, but it is not in the diff so --diff-scope ignores it.
@@ -121,7 +127,9 @@ class TestMainDiffScope:
             result = main()
         assert result == EXIT_SUCCESS
 
-    def test_diff_scope_flags_violation_in_changed_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_diff_scope_flags_violation_in_changed_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _make_repo_with_diff(tmp_path)
         # Add a new shell script in the diff: GP-001 (script-language) is an error.
         (tmp_path / "added.sh").write_text("echo added\n")
@@ -132,7 +140,9 @@ class TestMainDiffScope:
             result = main()
         assert result == EXIT_VIOLATIONS
 
-    def test_diff_scope_unknown_base_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_diff_scope_unknown_base_returns_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # A git failure must surface as EXIT_ERROR, never a false EXIT_SUCCESS.
         _make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
@@ -140,14 +150,18 @@ class TestMainDiffScope:
             result = main()
         assert result == EXIT_ERROR
 
-    def test_diff_scope_dash_base_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_diff_scope_dash_base_returns_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         _make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
         with patch("sys.argv", ["scan_principles.py", "--diff-scope=--bad"]):
             result = main()
         assert result == EXIT_ERROR
 
-    def test_diff_scope_empty_base_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_diff_scope_empty_base_returns_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # An empty base (e.g. ship/review passing "$BASE_BRANCH" while unset) must
         # error, not silently fall through to a full-repository scan.
         _make_repo_with_diff(tmp_path)
@@ -156,7 +170,9 @@ class TestMainDiffScope:
             result = main()
         assert result == EXIT_ERROR
 
-    def test_diff_scope_catches_violation_from_subdirectory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_diff_scope_catches_violation_from_subdirectory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # Diff paths are repo-root-relative; anchoring them to the git root means
         # the scan still finds them when cwd is a subdirectory. Without the
         # anchor the file would be skipped and the gate would pass falsely.
