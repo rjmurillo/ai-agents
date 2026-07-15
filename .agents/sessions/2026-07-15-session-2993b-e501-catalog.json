@@ -93,7 +93,7 @@
       "entry": "Wrapped the gac.main([...]) call and the long def signature. ruff clean; pytest 26 passed."
     }
   ],
-  "endingCommit": "PENDING",
+  "endingCommit": "7c303cb5f8230bc4c26c2b1262584adc53884dd3",
   "nextSteps": [
     "Open a small PR (Refs #2993) for the two-line wrap; the file is now fully ruff-clean and #3063 stays closed."
   ]
