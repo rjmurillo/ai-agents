@@ -12748,15 +12748,6 @@
       "created": "2026-07-15T19:13:40.609049+00:00"
     },
     {
-      "id": "e4744bf81381",
-      "type": "milestone",
-      "label": "User chose to keep Graphify local, then requested its repository changes be reverted. Restored CLAUDE.md, .claude/CLAUDE.md, and .claude/settings.json, and moved both untracked Graphify skill trees into the session artifact backup.",
-      "episodes": [
-        "episode-2026-07-15-session-3042"
-      ],
-      "created": "2026-07-15T19:13:40.609096+00:00"
-    },
-    {
       "id": "066bab450636",
       "type": "milestone",
       "label": "Verified the CVA draft regresses content already merged on origin/main, the Serena project.yml edit is generated schema drift, and the three auto-retrospectives are unfilled or superseded. None warrants a PR.",
@@ -12809,15 +12800,6 @@
         "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
       ],
       "created": "2026-07-15T19:16:52.664159+00:00"
-    },
-    {
-      "id": "89599ef868cb",
-      "type": "milestone",
-      "label": "milestone: Applied the valid subset of missed commit c9789e87d, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone.",
-      "episodes": [
-        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
-      ],
-      "created": "2026-07-15T19:16:52.664204+00:00"
     },
     {
       "id": "672072630ffa",
@@ -13377,17 +13359,6 @@
         "episode-2026-07-13-session-3041-frontier-model"
       ],
       "created": "2026-07-14T04:09:24.920971+00:00"
-    },
-    {
-      "source": "ca97b9c4bc1b",
-      "target": "e4744bf81381",
-      "type": "causes",
-      "weight": 0.6,
-      "evidence_count": 1,
-      "episodes": [
-        "episode-2026-07-15-session-3042"
-      ],
-      "created": "2026-07-15T19:13:40.609101+00:00"
     },
     {
       "source": "ca97b9c4bc1b",
