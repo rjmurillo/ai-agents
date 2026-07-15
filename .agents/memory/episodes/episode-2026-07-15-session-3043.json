@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. scripts/validation/pre_pr.py completed with 29 passed, 0 failed, and 4 skipped.",
+      "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 skipped.",
       "caused_by": [],
       "leads_to": []
     },
@@ -42,7 +42,7 @@
       "id": "e005",
       "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "test",
-      "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. scripts/validation/pre_pr.py completed with 29 passed, 0 failed, and 4 skipped.",
+      "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 skipped.",
       "caused_by": [],
       "leads_to": []
     },
@@ -50,7 +50,7 @@
       "id": "e006",
       "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran the full /review gate at Tier 1. Spec compliance and all 14 remaining canonical and local axes returned PASS.",
+      "content": "The first /review passed all 15 axes at config-only tip fe12b3bfeccb07064d2f530cad7c79fc94ac5fcd. That result became stale when session artifacts were committed.",
       "caused_by": [],
       "leads_to": []
     },
@@ -65,8 +65,8 @@
     {
       "id": "e008",
       "timestamp": "2026-07-15T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: c5bb88e0d175b94c767cc1dc77c5b0414b8456d4",
+      "type": "milestone",
+      "content": "Corrected the session source record after reliability review. Final branch scope: 3 files changed.",
       "caused_by": [],
       "leads_to": []
     },
@@ -74,71 +74,31 @@
       "id": "e009",
       "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "milestone",
-      "content": "The first /review passed all 15 axes at config-only tip fe12b3bfe. That result became stale when session artifacts were committed.",
+      "content": "Re-ran pre-PR validation through its reproducible module entry point after QA review identified ambiguous command evidence.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e010",
       "timestamp": "2026-07-15T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Corrected the session source record after reliability review. Final branch scope: 3 files changed.",
+      "type": "commit",
+      "content": "Commit: 6b84291e6",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e011",
       "timestamp": "2026-07-15T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 55468a211",
+      "type": "milestone",
+      "content": "Regenerated the episode from the corrected session source so stale preserved events no longer inflated the commit metric.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e012",
       "timestamp": "2026-07-15T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 skipped.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-07-15T00:00:00+00:00",
-      "type": "test",
-      "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 skipped.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e014",
-      "timestamp": "2026-07-15T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Re-ran pre-PR validation through its reproducible module entry point after QA review identified ambiguous command evidence.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: b6e86509e",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-07-15T00:00:00+00:00",
-      "type": "milestone",
-      "content": "The first /review passed all 15 axes at config-only tip fe12b3bfeccb07064d2f530cad7c79fc94ac5fcd. That result became stale when session artifacts were committed.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-07-15T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 6b84291e6",
+      "content": "Commit: 3e22a0158",
       "caused_by": [],
       "leads_to": []
     }
@@ -148,7 +108,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 3,
     "files_changed": 3
   },
   "lessons": []

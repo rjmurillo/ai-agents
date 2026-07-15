@@ -145,8 +145,12 @@
     {
       "time": "T7",
       "entry": "Re-ran pre-PR validation through its reproducible module entry point after QA review identified ambiguous command evidence."
+    },
+    {
+      "time": "T8",
+      "entry": "Regenerated the episode from the corrected session source so stale preserved events no longer inflated the commit metric."
     }
   ],
-  "endingCommit": "6b84291e6",
+  "endingCommit": "3e22a0158",
   "nextSteps": []
 }
