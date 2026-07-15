@@ -133,8 +133,12 @@
     {
       "time": "T4",
       "entry": "The pre-commit episode hook also generated a causal-graph update outside the approved three-file scope. Restored that graph to origin/main, recorded content commit c2a732cee, and kept the source-derived episode authoritative."
+    },
+    {
+      "time": "T5",
+      "entry": "Cursor review found the generated episode undercounted the final branch scope. Final branch scope: 3 files changed. Regenerated the episode from this source entry without preserve mode."
     }
   ],
-  "endingCommit": "c2a732cee",
+  "endingCommit": "5fab43559",
   "nextSteps": []
 }

@@ -57,8 +57,16 @@
     {
       "id": "e007",
       "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cursor review found the generated episode undercounted the final branch scope. Final branch scope: 3 files changed. Regenerated the episode from this source entry without preserve mode.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: c2a732cee",
+      "content": "Commit: 5fab43559",
       "caused_by": [],
       "leads_to": []
     }
@@ -68,8 +76,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 2
+    "commits": 5,
+    "files_changed": 3
   },
   "lessons": []
 }
