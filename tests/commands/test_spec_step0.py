@@ -376,7 +376,9 @@ class TestHedgeMatch:
         """`eventually consistent` is a load-bearing technical term, not a hedge."""
         assert hedge_match("Storage is eventually consistent.", hedge_phrases) is None
 
-    def test_eventually_consistent_hyphenated_is_technical_term(self, hedge_phrases: list[str]) -> None:
+    def test_eventually_consistent_hyphenated_is_technical_term(
+        self, hedge_phrases: list[str]
+    ) -> None:
         """`eventually-consistent` (hyphenated form) must also be exempt.
         Per cursor PR #1931 comment 3213964377: hyphen is a non-word boundary
         for `\\b...\\b`, so the regex matches `eventually` inside
@@ -416,7 +418,8 @@ class TestQ1Aspirational:
         entities. The regex now matches `[A-Z][a-zA-Z]*` to accept any
         capitalized identifier. Three required to pass the >= 3 rule."""
         assert not q1_aspirational(
-            "KeyVault team escalated #1700; RPCEngine service filed #1820; the SRE rotation noted #1850."
+            "KeyVault team escalated #1700; RPCEngine service filed #1820; "
+            "the SRE rotation noted #1850."
         )
 
     def test_ticket_only_passes(self) -> None:
@@ -475,7 +478,9 @@ class TestQ3Specific:
         assert q3_specific("the auth service in prod-east times out.")
 
     def test_file_path_passes(self) -> None:
-        assert q3_specific("the GraphQL pagination in `get_pr_review_threads.py` is the bottleneck.")
+        assert q3_specific(
+            "the GraphQL pagination in `get_pr_review_threads.py` is the bottleneck."
+        )
 
     def test_generic_users_fails(self) -> None:
         assert not q3_specific("users")
@@ -513,7 +518,13 @@ class TestParseHedgePhrases:
 
     def test_required_phrases_present(self, spec_text: str) -> None:
         phrases = parse_hedge_phrases(spec_text)
-        for required in ["would be nice", "we believe", "stakeholders want", "probably", "eventually"]:
+        for required in [
+            "would be nice",
+            "we believe",
+            "stakeholders want",
+            "probably",
+            "eventually",
+        ]:
             assert required in phrases
 
     def test_no_standalone_words(self, spec_text: str) -> None:
