@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "milestone",
-      "content": "Applied the valid subset of missed commit c9789e87d, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone.",
+      "content": "Applied the missed session evidence correction, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone.",
       "caused_by": [],
       "leads_to": []
     },
@@ -57,6 +57,14 @@
     {
       "id": "e007",
       "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Critic review tightened the per-thread handoff map and aligned the generated commit metric with the single deliverable commit; causal-graph dry runs reported zero changes for both corrected episodes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 7f2bd0f992e535e028f61ef4693462beabcb28e2",
       "caused_by": [],
@@ -68,8 +76,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 3
+    "commits": 1,
+    "files_changed": 4
   },
   "lessons": []
 }

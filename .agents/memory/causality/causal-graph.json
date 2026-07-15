@@ -12854,6 +12854,24 @@
         "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
       ],
       "created": "2026-07-15T19:16:52.664384+00:00"
+    },
+    {
+      "id": "791026181c56",
+      "type": "milestone",
+      "label": "milestone: Applied the missed session evidence correction, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:27:18.056075+00:00"
+    },
+    {
+      "id": "a80622ec4e7d",
+      "type": "milestone",
+      "label": "milestone: Critic review tightened the per-thread handoff map and aligned the generated commit metric with the single deliverable commit; causal-graph dry runs reported zero changes for both corrected episodes.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:27:18.056215+00:00"
     }
   ],
   "patterns": [

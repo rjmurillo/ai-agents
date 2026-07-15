@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Artifact assertions, both session validators, memory index validation, 117 episode-generator tests, QA verification, and all 27 active quick pre-PR checks passed."
+        "Evidence": "Artifact assertions, both session validators, memory index validation, 117 episode-generator tests, QA verification, 27 active quick pre-PR checks, and two zero-change causal-graph dry runs passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -128,7 +128,7 @@
     },
     {
       "time": "T3",
-      "entry": "Applied the valid subset of missed commit c9789e87d, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone."
+      "entry": "Applied the missed session evidence correction, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone."
     },
     {
       "time": "T4",
@@ -137,6 +137,10 @@
     {
       "time": "T5",
       "entry": "Validated both source-derived episodes, both session records, memory indexing, 117 generator tests, and all 27 active quick pre-PR checks with no failures."
+    },
+    {
+      "time": "T6",
+      "entry": "Critic review tightened the per-thread handoff map and aligned the generated commit metric with the single deliverable commit; causal-graph dry runs reported zero changes for both corrected episodes."
     }
   ],
   "endingCommit": "7f2bd0f992e535e028f61ef4693462beabcb28e2",
