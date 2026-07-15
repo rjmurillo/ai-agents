@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3044,
+    "date": "2026-07-15",
+    "branch": "chore/3078-serena-schema-cb38f6f",
+    "startingCommit": "bd9355362",
+    "objective": "Refresh Serena project schema from upstream cb38f6f"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools were active for the repository at session start."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions before implementation."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and preserved its read-only status. No issue 3078 handoff existed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file was created through the session-init skill."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed GitHub skill scripts and used issue creation and claim scripts for issue 3078."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage-mandatory and used skill scripts instead of raw gh."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md, root instructions, path rules, and binding ADRs before implementation."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index plus GitHub, validation, implementation, worktree, Chesterton's Fence, Hyrum's Law, contract, TDD, and agentic security memories."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/3078-serena-schema-cb38f6f"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/3078-serena-schema-cb38f6f"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Created the branch from fetched origin/main before adding this new session log."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "bd9355362"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items are complete for the three-file change set."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remains unchanged from origin/main."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The source-derived episode is .agents/memory/episodes/episode-2026-07-15-session-3044-refresh-serena-project-schema-upstream.json."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed in this branch."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The atomic content commit records only the generated config, this session log, and its source-derived episode."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pinned Serena 1.5.4.dev0 generation, semantic config checks, stable second-run SHA-256, security detection, session validation, and pre-PR validation passed. Pre-PR summary: 29 passed, 0 failed, 4 expected skips."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Created and claimed issue 3078 for this follow-up to merged PR 3077."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped: this Tier 1 generated configuration refresh introduced no new implementation behavior."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "PR 3077 merged before upstream commit cb38f6f82aac111971e0bc96c542dbcd30eef946 was captured. Created and claimed issue 3078, fetched origin/main, and created fresh branch chore/3078-serena-schema-cb38f6f from bd9355362."
+    },
+    {
+      "time": "T1",
+      "entry": "Serena commit cb38f6f82aac111971e0bc96c542dbcd30eef946 reported version 1.5.4.dev0. Regenerated .serena/project.yml through its project create command with the existing eight languages specified explicitly."
+    },
+    {
+      "time": "T2",
+      "entry": "A second pinned Serena invocation activated the generated config without changing SHA-256 e45c1cf5e216bb1ff23eb50afe0af7383971d3ec1e676514133f1ef0dfc71abf. Semantic checks passed for 22 keys, and security detection reported zero findings across the three-file scope."
+    },
+    {
+      "time": "T3",
+      "entry": "Validated the session log and source-only episode. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 expected skips; the pre-commit review-marker advisory remains expected until the content commit is reviewed."
+    }
+  ],
+  "endingCommit": "bd9355362",
+  "nextSteps": []
+}

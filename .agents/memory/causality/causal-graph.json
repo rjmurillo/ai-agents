@@ -12629,6 +12629,69 @@
         "episode-2026-07-13-session-3041-frontier-model"
       ],
       "created": "2026-07-14T04:09:24.920948+00:00"
+    },
+    {
+      "id": "39c24905d5c0",
+      "type": "milestone",
+      "label": "milestone: PR 3077 merged before upstream commit cb38f6f82aac111971e0bc96c542dbcd30eef946 was captured. Created and claimed issue 3078, fetched origin/main, and created fresh branch chore/3078-serena-schema-cb38f6f from bd9355362.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-refresh-serena-project-schema-upstream"
+      ],
+      "created": "2026-07-15T19:15:42.025380+00:00"
+    },
+    {
+      "id": "4b3f27340b15",
+      "type": "milestone",
+      "label": "milestone: Serena commit cb38f6f82aac111971e0bc96c542dbcd30eef946 reported version 1.5.4.dev0. Regenerated .serena/project.yml through its project create command with the existing eight languages specified explicitly.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-refresh-serena-project-schema-upstream"
+      ],
+      "created": "2026-07-15T19:15:42.025435+00:00"
+    },
+    {
+      "id": "dec54b4ed3be",
+      "type": "milestone",
+      "label": "milestone: A second pinned Serena invocation activated the generated config without changing SHA-256 e45c1cf5e216bb1ff23eb50afe0af7383971d3ec1e676514133f1ef0dfc71abf. Semantic checks passed for 22 keys, and security detection reported zero findings across the three-file scope.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-refresh-serena-project-schema-upstream"
+      ],
+      "created": "2026-07-15T19:15:42.025485+00:00"
+    },
+    {
+      "id": "d79874c1adff",
+      "type": "milestone",
+      "label": "milestone: Validated the session log and source-only episode. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 expected skips; the pre-commit review-marker advisory remains expected until the content commit is reviewed.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-refresh-serena-project-schema-upstream"
+      ],
+      "created": "2026-07-15T19:15:42.025530+00:00"
+    },
+    {
+      "id": "c7bfb0a1d7d8",
+      "type": "test",
+      "label": "test: Validated the session log and source-only episode. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 expected skips; the pre-commit review-marker advisory remains expected until the content commit is reviewed.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-refresh-serena-project-schema-upstream"
+      ],
+      "created": "2026-07-15T19:15:42.025574+00:00"
+    },
+    {
+      "id": "947a512445e8",
+      "type": "commit",
+      "label": "commit: Commit: bd9355362",
+      "episodes": [
+        "episode-2026-07-15-session-3044-refresh-serena-project-schema-upstream"
+      ],
+      "created": "2026-07-15T19:15:42.025618+00:00"
+    },
+    {
+      "id": "96a200270efa",
+      "type": "outcome",
+      "label": "Outcome: success - Refresh Serena project schema from upstream cb38f6f",
+      "episodes": [
+        "episode-2026-07-15-session-3044-refresh-serena-project-schema-upstream"
+      ],
+      "created": "2026-07-15T19:15:42.025669+00:00"
     }
   ],
   "patterns": [
