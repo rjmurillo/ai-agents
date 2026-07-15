@@ -80,10 +80,15 @@ def _run(diff_stdout, find_violations_fake, tmp_path):
         # rev-parse @{push} -> rc 0 so the guard picks "@{push}" as the base.
         return _ok("")
 
-    with patch("subprocess.run", side_effect=_git_side_effect), \
-         patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
-         patch("invoke_plugin_version_bump_guard.get_project_directory", return_value=str(tmp_path)), \
-         patch.dict(sys.modules, {"validate_plugin_version_bump": fake}):
+    with (
+        patch("subprocess.run", side_effect=_git_side_effect),
+        patch("push_guard_base.get_project_directory", return_value=str(tmp_path)),
+        patch(
+            "invoke_plugin_version_bump_guard.get_project_directory",
+            return_value=str(tmp_path),
+        ),
+        patch.dict(sys.modules, {"validate_plugin_version_bump": fake}),
+    ):
         return guard.main()
 
 
