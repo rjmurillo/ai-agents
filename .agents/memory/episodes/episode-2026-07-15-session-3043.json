@@ -69,6 +69,22 @@
       "content": "Commit: c5bb88e0d175b94c767cc1dc77c5b0414b8456d4",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The first /review passed all 15 axes at config-only tip fe12b3bfe. That result became stale when session artifacts were committed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the session source record after reliability review. Final branch scope: 3 files changed.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -76,8 +92,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 2
+    "commits": 3,
+    "files_changed": 3
   },
   "lessons": []
 }

@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "The worktree contains only .serena/project.yml and this session log."
+        "Evidence": "The final branch scope contains .serena/project.yml, this session log, and its generated episode."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No new memory file was needed. Issue #3070 and .serena/project.yml are the authoritative record for this schema refresh."
+        "Evidence": "Pre-commit generated .agents/memory/episodes/episode-2026-07-15-session-3043.json as a derived memory record from this session log."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit fe12b3bfeccb07064d2f530cad7c79fc94ac5fcd and review marker c5bb88e0d175b94c767cc1dc77c5b0414b8456d4."
+        "Evidence": "Git history records the Serena content change and its session artifacts before the final SHA-bound review."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena loaded the config without rewriting it. Security detection found no sensitive paths. pre_pr.py reported 29 passed with four expected skips. All 15 review axes passed. Review marker validation passed."
+        "Evidence": "Serena loaded the config without rewriting it. Security detection found no sensitive paths. pre_pr.py reported 29 passed with four expected skips. The final SHA-bound /review rerun remains the shipping gate."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -132,11 +132,15 @@
     },
     {
       "time": "T4",
-      "entry": "Ran the full /review gate at Tier 1. Spec compliance and all 14 remaining canonical and local axes returned PASS."
+      "entry": "The first /review passed all 15 axes at config-only tip fe12b3bfe. That result became stale when session artifacts were committed."
     },
     {
       "time": "T5",
       "entry": "Created and validated SHA-bound review marker c5bb88e0d175b94c767cc1dc77c5b0414b8456d4 for content commit fe12b3bfeccb07064d2f530cad7c79fc94ac5fcd."
+    },
+    {
+      "time": "T6",
+      "entry": "Corrected the session source record after reliability review. Final branch scope: 3 files changed."
     }
   ],
   "endingCommit": "c5bb88e0d175b94c767cc1dc77c5b0414b8456d4",
