@@ -17,12 +17,6 @@
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_correction_applier.py",
-            "timeout": 3,
-            "statusMessage": "Checking correction memories (Self-Improving Agent)"
-          },
-          {
-            "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_false_completion_gate.py",
             "timeout": 5,
             "statusMessage": "Checking for false completion claims without verification (#1703)"
@@ -89,12 +83,6 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_security_gate.py",
             "statusMessage": "Checking security gate for auth files (ADR-033)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_topical_memory_injection.py",
-            "timeout": 2,
-            "statusMessage": "Surfacing topical memories (advisory, issue #2005)"
           }
         ]
       },

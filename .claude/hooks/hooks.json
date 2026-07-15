@@ -18,12 +18,6 @@
           },
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_correction_applier.py\"",
-            "timeout": 3,
-            "statusMessage": "Checking correction memories (Self-Improving Agent)"
-          },
-          {
-            "type": "command",
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py\"",
             "timeout": 5,
             "statusMessage": "Enforcing LSP-first over bash grep on code symbols (ADR-062, conditional)"
@@ -84,12 +78,6 @@
             "type": "command",
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_security_gate.py\"",
             "statusMessage": "Checking security gate for auth files (ADR-033)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_topical_memory_injection.py\"",
-            "timeout": 2,
-            "statusMessage": "Surfacing topical memories (advisory, issue #2005)"
           }
         ]
       },

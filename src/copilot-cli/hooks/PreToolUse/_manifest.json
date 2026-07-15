@@ -4,7 +4,6 @@
   "shims": [
     "invoke_routing_gates__Bash_f620ca.py",
     "invoke_skill_first_guard__Bash_f620ca.py",
-    "invoke_correction_applier__Bash_f620ca.py",
     "invoke_false_completion_gate__Bash_f620ca.py",
     "invoke_lsp_bash_grep_guard__Bash_f620ca.py",
     "invoke_session_log_guard__Bash_git_commit_git_ci_fb3f5a.py",
@@ -15,7 +14,6 @@
     "invoke_prompt_eval_gate__Bash_git_commit_git_ci_fb3f5a.py",
     "invoke_session_log_guard__Bash_gh_pr_create_be117f.py",
     "invoke_security_gate__Write_Edit_c39898.py",
-    "invoke_topical_memory_injection__Write_Edit_c39898.py",
     "invoke_branch_context_guard__Bash_git_push_0e93bf.py",
     "invoke_branch_protection_guard__Bash_git_push_0e93bf.py",
     "invoke_retrospective_gate__Bash_git_push_0e93bf.py",
@@ -35,7 +33,6 @@
   "timeouts": {
     "invoke_routing_gates__Bash_f620ca.py": 5,
     "invoke_skill_first_guard__Bash_f620ca.py": 30,
-    "invoke_correction_applier__Bash_f620ca.py": 3,
     "invoke_false_completion_gate__Bash_f620ca.py": 5,
     "invoke_lsp_bash_grep_guard__Bash_f620ca.py": 5,
     "invoke_session_log_guard__Bash_git_commit_git_ci_fb3f5a.py": 30,
@@ -46,7 +43,6 @@
     "invoke_prompt_eval_gate__Bash_git_commit_git_ci_fb3f5a.py": 10,
     "invoke_session_log_guard__Bash_gh_pr_create_be117f.py": 30,
     "invoke_security_gate__Write_Edit_c39898.py": 30,
-    "invoke_topical_memory_injection__Write_Edit_c39898.py": 2,
     "invoke_branch_context_guard__Bash_git_push_0e93bf.py": 30,
     "invoke_branch_protection_guard__Bash_git_push_0e93bf.py": 30,
     "invoke_retrospective_gate__Bash_git_push_0e93bf.py": 30,
