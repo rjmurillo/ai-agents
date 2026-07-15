@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3042,
+    "date": "2026-07-14",
+    "branch": "perf/batch-claude-hooks",
+    "startingCommit": "1f945caf",
+    "objective": "Audit hook performance and outcome value on Windows, reject unsafe batching, and identify a supported performance configuration for different model tiers."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "The harness exposed serena-initial_instructions but no activate_project tool after compaction. No activation claim is made."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual after compaction."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and preserved its read-only status."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session log renamed to the next sequential path, .agents/sessions/2026-07-14-session-3042.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git rev-parse --abbrev-ref HEAD returned perf/batch-claude-hooks."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All work used the dedicated perf/batch-claude-hooks worktree. The dirty main worktree was not modified."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Inspected branch status before probes and tracked probe-created files separately from intended artifacts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md skill usage rules. No GitHub operation was required."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and ADR-068 evidence."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read copilot-hooks-observations.md and root-cause-pretooluse-bash-hook-wedge.md."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Starting commit recorded as 1f945caf, the origin/main base used for this worktree."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Pending final review and validation."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read and not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Created .serena/memories/copilot-disable-all-hooks-windows.md with the verified CLI 1.0.70 behavior."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --no-globs linted the analysis and memory files: 0 errors."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Investigation-only documentation validated through controlled hook probes and artifact checks; no runtime code changed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Audit analysis and Serena memory committed at 387eb01f."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Dash and banned-word checks: 0 findings. markdownlint: 0 errors. py -3 scripts/validate_session_json.py .agents/sessions/2026-07-14-session-3042.json: PASSED."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Pending closure of the audit todos."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The rejected dispatcher and its failed verification loop are documented in the analysis artifact. Auto-retrospective skeleton side effects were preserved outside the worktree."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Mapped .claude/settings.json and generated Copilot hook manifests. Counted 53 Claude command registrations and 49 Copilot dispatcher shim entries."
+    },
+    {
+      "time": "T1",
+      "entry": "Measured Windows Python process-start cost and reviewed ADR-068 history, including the prior 246 ms cold-start measurement and timeout wedges."
+    },
+    {
+      "time": "T2",
+      "entry": "Built a Claude-side dispatcher, then reverted it after independent review found invalid JSON output, changed blocking behavior, serial timeout drift, recursion risk, and missing generator ownership."
+    },
+    {
+      "time": "T3",
+      "entry": "Read GitHub hook and configuration references. Confirmed disableAllHooks is the supported kill switch and policy hooks are exempt."
+    },
+    {
+      "time": "T4",
+      "entry": "Ran a trusted-worktree marker probe on Copilot CLI 1.0.70. Hooks enabled: 71,742 ms total, repository marker executed, 20 hook output lines. disableAllHooks: 26,994 ms total, marker absent, zero hook output."
+    },
+    {
+      "time": "T5",
+      "entry": "Ran a second disabled real-tool probe. Copilot logged five policy hooks and twelve hooks from three plugins as loaded, but emitted zero hook output. Plugin hook metadata loaded while plugin hook commands did not execute."
+    },
+    {
+      "time": "T6",
+      "entry": "Recorded Windows hook defects: character-map encoding failure, project-root mismatch, missing skill_pattern_loader import, repeated session guidance, and retrospective tree mutation during a probe."
+    },
+    {
+      "time": "T7",
+      "entry": "Rewrote the determination around a frontier minimal profile, explicit tradeoffs, and measured evidence. Model-tier effectiveness remains qualitative because no cross-model A/B suite was run."
+    }
+  ],
+  "endingCommit": "387eb01f",
+  "nextSteps": [
+    "Document disableAllHooks as a version-specific Windows kill switch, including that Copilot CLI 1.0.70 also stopped plugin hook execution in the controlled probe.",
+    "Add explicit minimal, balanced, and full profiles inside the Copilot dispatcher before changing repository enforcement defaults.",
+    "Fix the Windows encoding, project-root validation, import, and duplicate session-guidance defects.",
+    "Measure task success, false denials, hook wall time, process count, and token injection across GPT-5.6 Sol, Opus 4.8, Sonnet, Terra, Luna, and Haiku."
+  ]
+}
