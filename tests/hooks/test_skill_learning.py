@@ -203,69 +203,113 @@ class TestPrivacyDefaultsM7T6:
 
 
 class TestSafeBaseDirM7T5:
-    """M7-T5: SAFE_BASE_DIR derives from runtime env, not __file__ ancestors.
+    """The runtime worktree comes from Git at cwd, never the installed hook."""
 
-    The function honors ``CLAUDE_PROJECT_DIR`` when it contains the live
-    hook script (CWE-22 containment guard added by commit be11bd53). When
-    the env var is set but does not contain the script, it falls through
-    to the git walk-up, refusing to trust an attacker-controlled env that
-    points outside the script's true repository.
-    """
+    @staticmethod
+    def _git_result(root: Path, returncode: int = 0) -> MagicMock:
+        result = MagicMock()
+        result.returncode = returncode
+        result.stdout = str(root) if returncode == 0 else ""
+        result.stderr = "git failure" if returncode else ""
+        return result
 
-    def test_safe_base_dir_honors_claude_project_dir_when_contains_script(
+    def test_accepts_exact_project_dir_corroboration(self, monkeypatch, tmp_path):
+        worktree = tmp_path / "worktree"
+        child = worktree / "subdir"
+        child.mkdir(parents=True)
+        monkeypatch.chdir(child)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(worktree))
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            lambda *_args, **_kwargs: self._git_result(worktree),
+        )
+
+        result = invoke_skill_learning._detect_safe_base_dir()
+
+        assert result == worktree.resolve()
+
+    def test_uses_cwd_git_worktree_when_project_dir_unset(self, monkeypatch, tmp_path):
+        worktree = tmp_path / "worktree"
+        child = worktree / "subdir"
+        child.mkdir(parents=True)
+        monkeypatch.chdir(child)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            lambda *_args, **_kwargs: self._git_result(worktree),
+        )
+
+        result = invoke_skill_learning._detect_safe_base_dir()
+
+        assert result == worktree.resolve()
+
+    def test_rejects_mismatched_project_dir(self, monkeypatch, tmp_path, caplog):
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+        arbitrary = tmp_path / "arbitrary"
+        arbitrary.mkdir()
+        monkeypatch.chdir(worktree)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(arbitrary))
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            lambda *_args, **_kwargs: self._git_result(worktree),
+        )
+
+        result = invoke_skill_learning._detect_safe_base_dir()
+
+        assert result == invoke_skill_learning._FAILED_PROJECT_ROOT
+        assert any(
+            getattr(record, "code", "") == "E_CWE22_PROJECT_DIR_MISMATCH"
+            for record in caplog.records
+        )
+
+    def test_rejects_malformed_project_dir(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path) + "\nevil")
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            lambda *_args, **_kwargs: self._git_result(tmp_path),
+        )
+
+        result = invoke_skill_learning._detect_safe_base_dir()
+
+        assert result == invoke_skill_learning._FAILED_PROJECT_ROOT
+
+    def test_rejects_git_failure_without_falling_back(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            lambda *_args, **_kwargs: self._git_result(tmp_path, returncode=128),
+        )
+
+        result = invoke_skill_learning._detect_safe_base_dir()
+
+        assert result == invoke_skill_learning._FAILED_PROJECT_ROOT
+
+    def test_rejects_arbitrary_git_root_that_does_not_contain_cwd(
         self, monkeypatch, tmp_path
     ):
-        # Use the actual repo root (which DOES contain the hook script) to
-        # exercise the trusted-env path. The repo root is two parents above
-        # tests/hooks/.
-        repo_root = Path(__file__).resolve().parents[2]
-        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo_root))
-        result = invoke_skill_learning._detect_safe_base_dir()
-        assert result == repo_root.resolve()
-
-    def test_safe_base_dir_refuses_env_outside_script_falls_through_to_git(
-        self, tmp_path, monkeypatch
-    ):
-        """CWE-22 guard: env that does not contain the script is rejected;
-        fall through to git walk-up."""
-        # Build a fake project with .git so the git walk-up succeeds.
-        proj = tmp_path / "project"
-        (proj / ".git").mkdir(parents=True)
-        sub = proj / "sub" / "dir"
-        sub.mkdir(parents=True)
-        # Env points at tmp_path which does NOT contain the script.
-        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
-        monkeypatch.chdir(sub)
-        result = invoke_skill_learning._detect_safe_base_dir()
-        # MUST NOT be tmp_path; MUST be the git root from cwd walk-up.
-        assert result != tmp_path.resolve()
-        assert result == proj.resolve()
-
-    def test_safe_base_dir_walks_up_to_git_when_env_unset(self, tmp_path, monkeypatch):
-        proj = tmp_path / "project"
-        (proj / ".git").mkdir(parents=True)
-        sub = proj / "sub" / "dir"
-        sub.mkdir(parents=True)
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        arbitrary = tmp_path / "arbitrary"
+        arbitrary.mkdir()
+        monkeypatch.chdir(cwd)
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
-        monkeypatch.chdir(sub)
-        result = invoke_skill_learning._detect_safe_base_dir()
-        assert result == proj.resolve()
+        monkeypatch.setattr(
+            invoke_skill_learning.subprocess,
+            "run",
+            lambda *_args, **_kwargs: self._git_result(arbitrary),
+        )
 
-    def test_safe_base_dir_falls_back_to_sentinel_when_no_git(
-        self, tmp_path, monkeypatch
-    ):
-        """When walk-up exhausts without finding .git, fall back to a
-        non-existent sentinel path so every downstream containment check
-        fails closed. Returning a real directory (cwd, /tmp, $HOME) would
-        silently disable CWE-22 containment if the walk-up exhausts.
-        """
-        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
-        # tmp_path is below /tmp; walk-up from /tmp/pytest-of-X/... will
-        # never find a .git ancestor inside the test sandbox, so the
-        # fallback path runs.
-        monkeypatch.chdir(tmp_path)
         result = invoke_skill_learning._detect_safe_base_dir()
-        assert result == Path("/__nonexistent_containment_sentinel__")
+
+        assert result == invoke_skill_learning._FAILED_PROJECT_ROOT
 
 
 class TestWriteLearningNotification:

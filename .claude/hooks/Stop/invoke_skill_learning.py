@@ -44,6 +44,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from datetime import datetime
@@ -113,77 +114,89 @@ def _atomic_write_text(path: Path, content: str) -> None:
 
 
 # Base directory for all project operations (path traversal floor / arbitrary
-# write blocker).
-#
-# M7-T5: was ``Path(__file__).resolve().parents[3]``, which assumed a specific
-# source-layout depth. After the REQ-003-007 hook generator copies this script
-# to ``src/copilot-cli/hooks/sessionEnd/<name>.py`` (one extra level deep),
-# ``parents[3]`` lands at ``.../src``, not the repo root. Pattern loading,
-# session lookup, and memory writes then resolve under non-existent
-# ``src/.claude``, ``src/.agents``, ``src/.serena`` paths.
-#
-# Fix: derive the safe base from the runtime environment. ``CLAUDE_PROJECT_DIR``
-# is set per-invocation; falling back to a walk-up from cwd looking for ``.git``
-# matches what every other hook in the codebase does. Either source is the
-# user's actual project root, regardless of where this script's file lives.
-def _detect_safe_base_dir() -> Path:
-    """Detect the safe base directory for path containment.
+# write blocker). The sentinel is deliberately outside any expected worktree.
+_FAILED_PROJECT_ROOT = Path("/__nonexistent_containment_sentinel__")
 
-    CWE-22 containment guard: When CLAUDE_PROJECT_DIR is set, verify that
-    this hook script resides under that directory before trusting it.
-    Without this guard, an attacker who can set the env var to '/' would
-    defeat every write-path guard in this file. Mirrors the pattern in
-    ``invoke_observation_sync._get_repo_root``.
 
-    Returns a non-existent sentinel path on failure to ensure all containment
-    checks fail rather than allowing writes to world-writable directories.
-    """
-    # Sentinel path that should never exist. When returned, all _is_relative_to
-    # checks will fail, ensuring no writes are permitted in degenerate cases.
-    # Using /tmp would effectively disable containment since any path under
-    # /tmp would pass validation.
-    sentinel = Path("/__nonexistent_containment_sentinel__")
+def _reject_project_root(reason: str, env_dir: str = "") -> Path:
+    """Log the existing CWE-22 diagnostic and return the fail-closed sentinel."""
+    _SECURITY_LOG.warning(
+        reason,
+        extra={
+            "code": "E_CWE22_PROJECT_DIR_MISMATCH",
+            "env_dir": env_dir,
+            "cwe": "CWE-22",
+            "hook": "skill-learning",
+        },
+    )
+    return _FAILED_PROJECT_ROOT
 
-    script_dir = str(Path(__file__).resolve().parent)
-    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
-    if env_dir:
-        try:
-            resolved_script = os.path.realpath(script_dir)
-            resolved_root = os.path.realpath(env_dir)
-            if not resolved_script.startswith(resolved_root + os.sep):
-                _SECURITY_LOG.warning(
-                    "CLAUDE_PROJECT_DIR does not contain hook script -- refusing",
-                    extra={
-                        "code": "E_CWE22_PROJECT_DIR_MISMATCH",
-                        "env_dir": env_dir,
-                        "script_dir": script_dir,
-                        "cwe": "CWE-22",
-                        "hook": "skill-learning",
-                    },
-                )
-                # Fall through to git-based detection instead of trusting env
-            else:
-                return Path(env_dir).resolve(strict=False)
-        except OSError:
-            pass
+
+def _git_worktree_root_from_cwd() -> Path | None:
+    """Return Git's worktree root for cwd only when cwd is contained by it."""
     try:
-        cur = Path.cwd().resolve()
+        cwd = Path.cwd().resolve(strict=True)
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(cwd),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+
+    raw_root = result.stdout.strip()
+    if _validate_path_string(raw_root) is None:
+        return None
+    try:
+        candidate = Path(raw_root).expanduser()
+        if not candidate.is_absolute():
+            return None
+        root = candidate.resolve(strict=True)
+        cwd.relative_to(root)
+    except (OSError, ValueError):
+        return None
+    return root
+
+
+def _detect_safe_base_dir() -> Path:
+    """Derive the worktree from cwd and validate any project-dir corroboration."""
+    worktree_root = _git_worktree_root_from_cwd()
+    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "")
+    if worktree_root is None:
+        return _reject_project_root(
+            "Cannot derive a contained Git worktree from cwd -- refusing", env_dir
+        )
+    if not env_dir:
+        return worktree_root
+
+    validated_env = _validate_path_string(env_dir)
+    if validated_env is None:
+        return _reject_project_root(
+            "CLAUDE_PROJECT_DIR is malformed -- refusing", env_dir
+        )
+    try:
+        candidate = Path(validated_env).expanduser()
+        if not candidate.is_absolute():
+            return _reject_project_root(
+                "CLAUDE_PROJECT_DIR is not absolute -- refusing", env_dir
+            )
+        corroborated_root = candidate.resolve(strict=True)
     except OSError:
-        # cwd may have been deleted; return sentinel to fail all containment checks
-        return sentinel
-    while True:
-        if (cur / ".git").exists():
-            return cur
-        parent = cur.parent
-        if parent == cur:
-            # No .git found; return sentinel to fail all containment checks
-            return sentinel
-        cur = parent
-
-
-SAFE_BASE_DIR = _detect_safe_base_dir()
-OBSERVATIONS_SUFFIX = "-observations.md"
-PROJECT_DIR: Path | None = None
+        return _reject_project_root(
+            "CLAUDE_PROJECT_DIR cannot be resolved -- refusing", env_dir
+        )
+    if corroborated_root != worktree_root:
+        return _reject_project_root(
+            "CLAUDE_PROJECT_DIR does not match the cwd Git worktree -- refusing",
+            env_dir,
+        )
+    return worktree_root
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:
@@ -233,6 +246,11 @@ def _validate_path_string(path_str: str) -> str | None:
         return None
 
     return path_str
+
+
+SAFE_BASE_DIR = _detect_safe_base_dir()
+OBSERVATIONS_SUFFIX = "-observations.md"
+PROJECT_DIR: Path | None = None
 
 
 def _get_safe_root_from_env(env_value: str) -> Path:
@@ -344,68 +362,9 @@ def write_learning_notification(skill_name: str, high_count: int, med_count: int
         )
 
 
-def get_project_directory(hook_input: dict) -> str:
-    """Get a validated project directory from environment or hook input.
-
-    The resulting path is:
-      * absolute
-      * normalized
-      * contained within SAFE_BASE_DIR
-    If validation fails, SAFE_BASE_DIR is returned.
-    """
-    raw_dir = None
-
-    env_dir = os.getenv("CLAUDE_PROJECT_DIR")
-    if env_dir:
-        raw_dir = env_dir
-    elif isinstance(hook_input, dict):
-        cwd_val = hook_input.get("cwd")
-        if isinstance(cwd_val, str) and cwd_val.strip():
-            raw_dir = cwd_val
-
-    if not raw_dir:
-        raw_dir = os.getcwd()
-
-    # Validate and sanitize path string BEFORE Path() construction (CodeQL CWE-22)
-    validated_dir = _validate_path_string(raw_dir)
-    if validated_dir is None:
-        return str(SAFE_BASE_DIR)
-
-    try:
-        # Security note: path validation precedes resolution
-        # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
-        #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns
-        #   2. ROOT ANCHORING: All user input is interpreted under SAFE_BASE_DIR
-        #   3. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary
-        #   4. FALLBACK: Returns SAFE_BASE_DIR on any validation failure
-        # See: .github/codeql/suppressions.yml and
-        # .agents/analysis/908-codeql-path-traversal-analysis.md
-
-        base_path = SAFE_BASE_DIR
-
-        # Treat validated_dir as relative to SAFE_BASE_DIR when possible.
-        # If an absolute path is provided, normalize it but only use it if it
-        # still falls under SAFE_BASE_DIR after resolution.
-        user_path = Path(validated_dir).expanduser()
-        if user_path.is_absolute():
-            candidate = user_path.resolve(strict=False)  # Path validated before resolution
-        else:
-            candidate = (base_path / user_path).resolve(
-                strict=False
-            )  # Path validated before resolution
-    except Exception:
-        # Fall back to safe base directory on any resolution error
-        return str(SAFE_BASE_DIR)
-
-    # Enforce that the project directory is absolute and within SAFE_BASE_DIR
-    if not candidate.is_absolute():
-        return str(SAFE_BASE_DIR)
-
-    if not _is_relative_to(candidate, SAFE_BASE_DIR):
-        # Reject directories outside the allowed tree
-        return str(SAFE_BASE_DIR)
-
-    return str(candidate)
+def get_project_directory(_hook_input: dict) -> str:
+    """Return the validated cwd worktree root or the fail-closed sentinel."""
+    return str(SAFE_BASE_DIR)
 
 
 def get_safe_project_path(project_dir: str) -> Path | None:
@@ -415,9 +374,11 @@ def get_safe_project_path(project_dir: str) -> Path | None:
     This prevents path traversal or escaping the expected project tree when
     CLAUDE_PROJECT_DIR or hook-provided cwd are influenced by external input.
     """
+    if SAFE_BASE_DIR == _FAILED_PROJECT_ROOT:
+        return None
     try:
-        # Determine candidate safe root from environment or current working directory
-        root_raw = os.getenv("CLAUDE_PROJECT_ROOT", os.getcwd())
+        # Determine candidate safe root from the validated worktree.
+        root_raw = os.getenv("CLAUDE_PROJECT_ROOT", str(SAFE_BASE_DIR))
 
         # Convert environment-provided root to a safe root within SAFE_BASE_DIR.
         # This encapsulates all handling of potentially tainted path strings.
