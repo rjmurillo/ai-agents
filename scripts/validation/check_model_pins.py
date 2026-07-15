@@ -30,7 +30,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -174,8 +174,6 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     except OSError:
         return None
     parsed = parse_frontmatter(content)
-    if parsed.errors:
-        return None
     fm = parsed.frontmatter
     model = fm.get("model")
     rationale = fm.get("model-rationale")
@@ -329,7 +327,7 @@ def run_check(
     unchanged. This is the draining ratchet: existing debt is reported, never
     fails CI, and new debt is blocked so the baseline can only shrink.
     """
-    resolved_today = today or datetime.now(UTC).date()
+    resolved_today = today or datetime.now(timezone.utc).date()  # noqa: UP017
     units = scan_units(repo_root)
     manifest = load_manifest(manifest_path)
     baseline = load_baseline(baseline_path)
