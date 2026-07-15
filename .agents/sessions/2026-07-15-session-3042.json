@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content commit: 23835075de286d5ac27bc466f545bf9584596c7c."
+        "Evidence": "Content commits: 23835075de286d5ac27bc466f545bf9584596c7c and 8215ffd80596f9f73534a88b1e3c86694561f050."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "memory_index.py --ci exited 0; security detection found no sensitive paths; pre_pr.py passed all 29 active validations."
+        "Evidence": "memory_index.py --ci exited 0; security detection found no sensitive paths; pre_pr.py passed all 29 active validations before and after the review correction."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -132,7 +132,7 @@
     },
     {
       "time": "T4",
-      "entry": "Created and claimed issue #3054, then created docs/3054-memory-backfill from current origin/main for one five-file atomic PR."
+      "entry": "Created and claimed issue #3054, then created docs/3054-memory-backfill from current origin/main for one atomic PR with five manually authored files plus the required generated episode."
     },
     {
       "time": "T5",
@@ -145,8 +145,12 @@
     {
       "time": "T7",
       "entry": "Committed the four memory records as 23835075de286d5ac27bc466f545bf9584596c7c, preserving the four-file atomic boundary."
+    },
+    {
+      "time": "T8",
+      "entry": "The SHA-bound review found stale merged-state claims in the LSP memory. Verified PR #2168 merge commit 96aafb4fa, added the read tracker, and corrected both landed plugin versions in commit 8215ffd80596f9f73534a88b1e3c86694561f050."
     }
   ],
-  "endingCommit": "23835075de286d5ac27bc466f545bf9584596c7c",
+  "endingCommit": "8215ffd80596f9f73534a88b1e3c86694561f050",
   "nextSteps": []
 }

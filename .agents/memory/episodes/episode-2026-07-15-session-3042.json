@@ -88,6 +88,30 @@
       "content": "Commit: 23835075de286d5ac27bc466f545bf9584596c7c",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created and claimed issue #3054, then created docs/3054-memory-backfill from current origin/main for one atomic PR with five manually authored files plus the required generated episode.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The SHA-bound review found stale merged-state claims in the LSP memory. Verified PR #2168 merge commit 96aafb4fa, added the read tracker, and corrected both landed plugin versions in commit 8215ffd80596f9f73534a88b1e3c86694561f050.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8215ffd80596f9f73534a88b1e3c86694561f050",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -95,7 +119,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 3,
     "files_changed": 2
   },
   "lessons": []
