@@ -763,24 +763,17 @@ def test_generated_skill_owner_imports_companion_portably(tmp_path: Path) -> Non
     assert process.stdout.strip() == "portable-import"
 
 
-def test_generated_skill_owner_degrades_when_loader_absent(tmp_path: Path) -> None:
+def test_generator_fails_when_declared_skill_loader_is_absent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     cfg = _setup_skill_companion_fixture(tmp_path, include_loader=False)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+    captured = capsys.readouterr()
 
-    process = subprocess.run(
-        [sys.executable, str(owner)],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert rc == 0
-    assert not (owner.parent / "skill_pattern_loader.py").exists()
-    assert process.returncode == 0
-    assert process.stdout.strip() == "fallback"
-
+    assert rc == 2
+    assert "declared runtime companion is missing" in captured.err
+    assert "skill_pattern_loader.py" in captured.err
+    assert not (tmp_path / "out" / "hooks.json").exists()
 
 def test_generator_does_not_copy_unowned_skill_loader(tmp_path: Path) -> None:
     cfg = _setup_skill_companion_fixture(tmp_path, include_owner=False)

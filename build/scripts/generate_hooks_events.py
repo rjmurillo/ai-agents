@@ -231,7 +231,10 @@ def _copy_companions(
     for companion_name in companion_names:
         companion_source = owner_source.with_name(companion_name)
         if not companion_source.is_file():
-            continue
+            raise GenerateHooksError(
+                "declared runtime companion is missing for "
+                f"{owner_relative_path.as_posix()}: {companion_source}"
+            )
         _copy_script(
             companion_source,
             target_directory / companion_name,
