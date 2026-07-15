@@ -11,7 +11,7 @@ Conditional, availability-gated LSP-first navigation enforcement. Prefer Serena 
 - Shared lib (`scripts/hook_utilities/`, synced to `.claude/lib/hook_utilities/` via `scripts/sync_plugin_lib.py`):
   - `lsp_provider.py`: `detect_providers(file_path, capability, project_dir)`, pure config check (no probe). Capability split is load-bearing: `SYMBOL_NAVIGATION` -> programming languages only (py/ts/bash/powershell); `SYMBOLS_OVERVIEW` -> all 8 `.serena/project.yml` languages incl md/json/yaml/toml.
   - `lsp_symbols.py`: `is_code_symbol` (verbatim kit port), grep-command parsing, git-grep allow.
-  - `lsp_gate_state.py`: SoR for gate-state. State OUTSIDE working tree: `$XDG_STATE_HOME or ~/.cache /ai-agents-lsp-gate/lsp-gate-<sha256(cwd)[:16]>.json`. NAV_REQUIRED=2, FREE_READS=2, WARN_AT=3.
+  - `lsp_gate_state.py`: SoR for gate-state. State OUTSIDE working tree: `$XDG_STATE_HOME/ai-agents-lsp-gate` or `~/.cache/ai-agents-lsp-gate` (file `lsp-gate-<sha256(cwd)[:16]>.json`). NAV_REQUIRED=2, FREE_READS=2, WARN_AT=3.
 - 8 hooks: PreToolUse `invoke_lsp_{grep,bash_grep,glob,read,pre_delegation}_guard.py`; PostToolUse `invoke_lsp_usage_tracker.py` and `invoke_lsp_read_tracker.py`; SessionStart `invoke_lsp_session_reset.py`.
 
 ## Key invariants
