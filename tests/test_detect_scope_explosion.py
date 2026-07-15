@@ -24,8 +24,8 @@ from scripts.detect_scope_explosion import (
     get_changed_files,
     get_current_branch,
     get_index_files_against_ref,
-    get_merge_head_commit,
     get_merge_base,
+    get_merge_head_commit,
     get_ref_commit,
     get_staged_new_files,
     main,
@@ -65,7 +65,14 @@ class TestScopeResult:
             files=("a.py", "b.py"),
         )
         with pytest.raises(AttributeError):
-            setattr(result, "file_count", 10)
+            # ruff B010 wants `result.file_count = 10` here, but ScopeResult is a
+            # frozen dataclass, so file_count is a read-only field. mypy reports
+            # the direct assignment as "Property ... is read-only" and rejects it
+            # statically, which defeats a test that must reach runtime to assert
+            # the AttributeError. setattr is the intended form: it exercises the
+            # runtime frozen-instance enforcement without tripping the static
+            # check.
+            setattr(result, "file_count", 10)  # noqa: B010
 
 
 class TestFormatBar:
