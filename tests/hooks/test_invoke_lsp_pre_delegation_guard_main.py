@@ -374,7 +374,9 @@ class TestEmitHelpers:
 # ---------------------------------------------------------------------------
 
 
-def _run_hook(stdin: str, env_extra: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def _run_hook(
+    stdin: str, env_extra: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     import os
 
     env = dict(os.environ)

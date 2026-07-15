@@ -122,10 +122,12 @@ def test_co_change_checklist_concrete_example_present(step_6_region: str) -> Non
         # the section-name form of `{line_or_section}`, and the imperative
         # phrase shape. Points at the real verdict module so the worked
         # example does not push spec authors toward nonexistent paths.
-        'scripts/ai_review_common/verdict.py:"_KNOWN_VERDICT_TOKENS" -- add NEEDS_REVISION to the frozenset',
+        'scripts/ai_review_common/verdict.py:"_KNOWN_VERDICT_TOKENS" -- '
+        "add NEEDS_REVISION to the frozenset",
         # A second entry that exercises a second section-name variant of
         # `{line_or_section}` so both fragments pin distinct symbols.
-        'scripts/ai_review_common/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- extend regex alternation',
+        'scripts/ai_review_common/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- '
+        "extend regex alternation",
     ]
     for fragment in distinctive_fragments:
         assert fragment in step_6_region, (
