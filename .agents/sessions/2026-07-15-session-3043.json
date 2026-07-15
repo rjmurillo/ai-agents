@@ -149,8 +149,12 @@
     {
       "time": "T8",
       "entry": "Regenerated the episode from the corrected session source so stale preserved events no longer inflated the commit metric."
+    },
+    {
+      "time": "T9",
+      "entry": "Verified source-only extraction removes the stale 6b84291e6 event, then rebuilt the episode without preserve-mode history."
     }
   ],
-  "endingCommit": "3e22a0158",
+  "endingCommit": "bc39fe416",
   "nextSteps": []
 }
