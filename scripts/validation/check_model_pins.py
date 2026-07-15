@@ -290,12 +290,25 @@ def _unit_rule_failure(
     return _manifest_entry_valid(entry, unit, repo_root, today, default_model)
 
 
-def load_baseline(baseline_path: Path = _BASELINE_PATH) -> dict[str, str]:
+def load_baseline(baseline_path: Path = _BASELINE_PATH) -> tuple[dict[str, str], int]:
+    """Load baseline pins and the frozen count.
+
+    Returns (pins_dict, frozen_count). The frozen count is the maximum number
+    of pins allowed in the baseline; exceeding it is a hard violation (draining
+    ratchet). When the baseline file doesn't contain an explicit frozen_count,
+    the count of pins in the file is used for backwards compatibility.
+    """
     if not baseline_path.is_file():
-        return {}
+        return {}, 0
     data = json.loads(baseline_path.read_text(encoding="utf-8"))
-    pins = data.get("pins", data) if isinstance(data, dict) else {}
-    return {str(k): str(v) for k, v in pins.items()} if isinstance(pins, dict) else {}
+    if not isinstance(data, dict):
+        return {}, 0
+    pins_data = data.get("pins", data)
+    pins = {str(k): str(v) for k, v in pins_data.items()} if isinstance(pins_data, dict) else {}
+    frozen_count = data.get("frozen_count")
+    if isinstance(frozen_count, int):
+        return pins, frozen_count
+    return pins, len(pins)
 
 
 def load_manifest(manifest_path: Path = _MANIFEST_PATH) -> dict[str, dict[str, object]]:
@@ -330,10 +343,18 @@ def run_check(
     resolved_today = today or datetime.now(timezone.utc).date()  # noqa: UP017
     units = scan_units(repo_root)
     manifest = load_manifest(manifest_path)
-    baseline = load_baseline(baseline_path)
+    baseline, frozen_count = load_baseline(baseline_path)
     tier_map = load_tier_map(tiers_path)
 
     report = CheckReport(scanned=len(units))
+
+    if len(baseline) > frozen_count:
+        report.fail(
+            str(baseline_path),
+            f"[baseline growth] baseline has {len(baseline)} pins but frozen count "
+            f"is {frozen_count}; the draining ratchet allows only shrinking",
+        )
+
     for unit in units:
         failure = _unit_rule_failure(
             unit, manifest, tier_map, repo_root, resolved_today, default_model
@@ -343,7 +364,7 @@ def run_check(
         model = unit.model or ""
         if unit.path not in baseline:
             report.fail(unit.path, f"[new pin] {failure}")
-        elif baseline[unit.path] != model:
+        elif _normalize_id(baseline[unit.path]) != _normalize_id(model):
             report.fail(
                 unit.path,
                 f"[changed pin] was '{baseline[unit.path]}', now '{model}' without "
@@ -355,14 +376,24 @@ def run_check(
 
 
 def write_baseline(units: list[Unit], baseline_path: Path = _BASELINE_PATH) -> int:
-    """Freeze the current pins as the baseline. Returns the entry count."""
+    """Freeze the current pins as the baseline. Returns the entry count.
+
+    Preserves the existing frozen_count if present to prevent baseline growth.
+    On first write (no existing baseline), sets frozen_count to current count.
+    """
+    _, existing_frozen_count = load_baseline(baseline_path)
+
     pins = {u.path: (u.model or "") for u in sorted(units, key=lambda u: u.path)}
+
+    frozen_count = existing_frozen_count if existing_frozen_count > 0 else len(pins)
+
     payload = {
         "schema_version": "1",
         "description": (
             "Frozen ADR-080 model-pin baseline. Draining ratchet: this count "
             "must never grow and should shrink each release until empty."
         ),
+        "frozen_count": frozen_count,
         "pins": pins,
     }
     baseline_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
