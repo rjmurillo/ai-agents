@@ -298,6 +298,7 @@ def _atomic_json_write(path: Path, data: dict) -> None:
     except Exception:
         with _suppress_os_error():
             os.unlink(tmp_path)
+        raise
 
 
 def _write_cache(
@@ -339,31 +340,26 @@ def load_skill_patterns(
     3. Otherwise: parse all SKILL.md files, build maps, write cache
     4. Return (skill_patterns, command_to_skill)
 
-    Returns empty dicts on any error (graceful degradation).
+    A project with no skills returns empty dicts. Unexpected loader errors
+    propagate so the owning hook can report non-success.
     """
-    try:
-        skill_files = scan_skill_directories(project_dir)
+    skill_files = scan_skill_directories(project_dir)
 
-        if not skill_files:
-            return {}, {}
-
-        cache_path = _get_cache_path(project_dir)
-        cache_data = _read_cache(cache_path)
-
-        if cache_data and _check_cache_freshness(cache_data, skill_files):
-            return (
-                cache_data["skill_patterns"],
-                cache_data["command_to_skill"],
-            )
-
-        # Cache miss: parse all SKILL.md files
-        parsed_skills = [parse_skill_triggers(f) for f in skill_files]
-        skill_patterns, command_to_skill = build_detection_maps(parsed_skills)
-
-        _write_cache(cache_path, skill_files, skill_patterns, command_to_skill)
-
-        return skill_patterns, command_to_skill
-
-    except Exception as exc:
-        print(f"Skill pattern loading error: {exc}", file=sys.stderr)
+    if not skill_files:
         return {}, {}
+
+    cache_path = _get_cache_path(project_dir)
+    cache_data = _read_cache(cache_path)
+
+    if cache_data and _check_cache_freshness(cache_data, skill_files):
+        return (
+            cache_data["skill_patterns"],
+            cache_data["command_to_skill"],
+        )
+
+    parsed_skills = [parse_skill_triggers(f) for f in skill_files]
+    skill_patterns, command_to_skill = build_detection_maps(parsed_skills)
+
+    _write_cache(cache_path, skill_files, skill_patterns, command_to_skill)
+
+    return skill_patterns, command_to_skill

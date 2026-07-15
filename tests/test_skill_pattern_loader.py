@@ -12,6 +12,7 @@ Tests cover:
 Run with: python3 -m pytest tests/test_skill_pattern_loader.py -v
 """
 
+import io
 import json
 import sys
 import tempfile
@@ -492,6 +493,15 @@ class TestLoadSkillPatterns(unittest.TestCase):
             cache_path = _get_cache_path(project)
             self.assertTrue(cache_path.exists())
 
+    def test_unexpected_scan_error_propagates(self):
+        """A broken required loader must not look like an empty project."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch(
+                "skill_pattern_loader.scan_skill_directories",
+                side_effect=RuntimeError("scan broke"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "scan broke"):
+                    load_skill_patterns(Path(tmpdir))
     def test_empty_project_returns_empty_dicts(self):
         """Project with no skills returns empty dicts when user dirs also empty."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -649,6 +659,21 @@ class TestAtomicCacheWrite(unittest.TestCase):
             data = json.loads(cache_path.read_text(encoding="utf-8"))
             self.assertEqual(data["skill_patterns"], {"a": ["b"]})
 
+    def test_write_error_reaches_warning_boundary(self):
+        """Atomic replacement errors are warned by _write_cache."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_path = Path(tmpdir) / "cache.json"
+            skill_file = Path(tmpdir) / "test.md"
+            skill_file.write_text("content", encoding="utf-8")
+
+            with patch(
+                "skill_pattern_loader.os.replace",
+                side_effect=OSError("disk full"),
+            ), patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                _write_cache(cache_path, [skill_file], {}, {})
+
+            self.assertIn("Warning: Failed to write skill cache: disk full", stderr.getvalue())
+            self.assertEqual(list(Path(tmpdir).glob("*.tmp")), [])
     def test_no_temp_files_left_on_success(self):
         """No .tmp files remain after successful cache write."""
         with tempfile.TemporaryDirectory() as tmpdir:
