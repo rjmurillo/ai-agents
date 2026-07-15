@@ -11,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -60,6 +61,37 @@ class TestReadFileTruncated:
             tmp_path / "nonexistent.md", 1000
         )
         assert result is None
+
+
+class TestUtf8ProtocolOutput:
+    """The SessionStart protocol must survive Windows console encodings."""
+
+    PROTOCOL_TEXT = "## 🔄 Context Loader: Session Start Auto-Injection"
+
+    def test_reconfigures_cp1252_stdout_to_utf8(self, monkeypatch) -> None:
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="cp1252")
+        monkeypatch.setattr(sys, "stdout", stream)
+
+        invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
+        stream.flush()
+
+        assert raw.getvalue().decode("utf-8") == self.PROTOCOL_TEXT + "\n"
+
+    def test_uses_binary_buffer_when_stdout_cannot_reconfigure(self, monkeypatch) -> None:
+        class NonReconfigurableStream:
+            def __init__(self) -> None:
+                self.buffer = io.BytesIO()
+
+            def reconfigure(self, **_kwargs: object) -> None:
+                raise io.UnsupportedOperation("fixed encoding")
+
+        stream = NonReconfigurableStream()
+        monkeypatch.setattr(sys, "stdout", stream)
+
+        invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
+
+        assert stream.buffer.getvalue() == (self.PROTOCOL_TEXT + "\n").encode("utf-8")
 
 
 class TestFindLatestRetrospective:
