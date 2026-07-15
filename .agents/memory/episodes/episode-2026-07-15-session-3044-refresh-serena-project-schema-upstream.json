@@ -49,8 +49,16 @@
     {
       "id": "e006",
       "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The pre-commit episode hook also generated a causal-graph update outside the approved three-file scope. Restored that graph to origin/main, recorded content commit c2a732cee, and kept the source-derived episode authoritative.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-15T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: bd9355362",
+      "content": "Commit: c2a732cee",
       "caused_by": [],
       "leads_to": []
     }
@@ -60,8 +68,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 3
+    "commits": 4,
+    "files_changed": 2
   },
   "lessons": []
 }

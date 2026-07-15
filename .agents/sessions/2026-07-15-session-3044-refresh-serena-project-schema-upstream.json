@@ -129,8 +129,12 @@
     {
       "time": "T3",
       "entry": "Validated the session log and source-only episode. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 expected skips; the pre-commit review-marker advisory remains expected until the content commit is reviewed."
+    },
+    {
+      "time": "T4",
+      "entry": "The pre-commit episode hook also generated a causal-graph update outside the approved three-file scope. Restored that graph to origin/main, recorded content commit c2a732cee, and kept the source-derived episode authoritative."
     }
   ],
-  "endingCommit": "bd9355362",
+  "endingCommit": "c2a732cee",
   "nextSteps": []
 }
