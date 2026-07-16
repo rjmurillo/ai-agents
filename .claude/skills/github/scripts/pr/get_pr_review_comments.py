@@ -627,7 +627,7 @@ def main(argv: list[str] | None = None) -> int:
         if isinstance(result, list):
             count: object = len(result)
         elif isinstance(result, dict):
-            count = result.get("count", len(result.get("comments", [])))
+            count = result.get("TotalComments", len(result.get("Comments", [])))
         else:
             count = "?"
         print(f"PR #{args.pull_request}: {count} review comment(s)")
