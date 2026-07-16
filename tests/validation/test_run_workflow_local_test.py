@@ -121,7 +121,11 @@ def test_select_workflow_files_keeps_only_workflows(tmp_path):
 
 
 def test_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
+    # On a normal (non-container) box a missing actionlint is a real tool gap and
+    # blocks at exit 3. The container-downgrade seam is pinned off so the test is
+    # deterministic regardless of the host env (Issue #3064).
     monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
@@ -234,8 +238,11 @@ def test_plain_docker_marker_does_not_downgrade(monkeypatch, tmp_path):
 
 def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
     # Dry-run passes (no daemon needed); the full stage needs Docker -> exit 3.
-    # docker is installed but the daemon is down -> "not running" note.
+    # docker is installed but the daemon is down -> "not running" note. The
+    # container-downgrade seam is pinned off so the exit-3 assertion is
+    # deterministic regardless of the host env (Issue #3064).
     monkeypatch.setattr(w, "_docker_ready", lambda: False)
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     r = w.run_local_test([WF], tmp_path)
@@ -245,9 +252,11 @@ def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
 
 def test_docker_not_installed_is_exit_3_with_distinct_note(monkeypatch, tmp_path):
     # docker binary absent -> "not installed" note, distinct from daemon-down.
+    # The container-downgrade seam is pinned off (Issue #3064).
     monkeypatch.setattr(w, "_have", lambda tool: tool != "docker")
     monkeypatch.setattr(w, "_gh_act_available", lambda: True)
     monkeypatch.setattr(w, "_docker_ready", lambda: False)
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
@@ -440,8 +449,11 @@ def test_all_secret_blocked_lints_before_skipping(monkeypatch, tmp_path):
 
 def test_all_secret_blocked_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
     # actionlint is required for every changed workflow; its absence blocks
-    # (exit 3) even when every workflow is secret-blocked.
+    # (exit 3) even when every workflow is secret-blocked. Pin the
+    # container-downgrade seam off so the exit-3 assertion holds regardless of
+    # the host env (Issue #3064).
     monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     r = w.run_local_test([WF], tmp_path)
