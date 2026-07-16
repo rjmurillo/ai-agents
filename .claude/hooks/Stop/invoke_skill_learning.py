@@ -259,41 +259,6 @@ OBSERVATIONS_SUFFIX = "-observations.md"
 PROJECT_DIR: Path | None = None
 
 
-def _get_safe_root_from_env(env_value: str) -> Path:
-    """
-    Convert an environment-provided root path into a safe project root.
-
-    This function encapsulates all handling of potentially tainted path strings:
-      1. String-level validation via _validate_path_string.
-      2. Conversion to Path with expanduser/resolve.
-      3. Enforcement that the result is absolute and within SAFE_BASE_DIR.
-
-    On any validation failure, SAFE_BASE_DIR is returned.
-    """
-    # Step 1: String-level validation
-    validated_root = _validate_path_string(env_value)
-    if validated_root is None:
-        return SAFE_BASE_DIR
-
-    try:
-        # Step 2: Safely construct and normalize a Path from the validated string.
-        # Security note: path validation precedes resolution
-        # JUSTIFICATION: Input has passed _validate_path_string, and the resulting
-        # Path is immediately constrained to SAFE_BASE_DIR via _is_relative_to.
-        candidate_root = Path(validated_root).expanduser().resolve(
-            strict=False
-        )  # Path validated before resolution
-    except Exception:
-        # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
-        return SAFE_BASE_DIR
-
-    # Step 3: Enforce absolute path within SAFE_BASE_DIR
-    if not candidate_root.is_absolute() or not _is_relative_to(candidate_root, SAFE_BASE_DIR):
-        return SAFE_BASE_DIR
-
-    return candidate_root
-
-
 # =============================================================================
 # SKILL PATTERN DEFINITIONS (Dynamically loaded from SKILL.md files)
 # =============================================================================
