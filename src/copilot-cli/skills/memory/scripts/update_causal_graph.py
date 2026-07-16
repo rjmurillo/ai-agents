@@ -644,7 +644,26 @@ def main(argv: list[str] | None = None) -> int:
         # retract only the items the episode used to support but no longer does.
         # An episode edited to drop a chain thus loses exactly that chain; an
         # unchanged episode changes nothing.
-        old = None if args.dry_run else _episode_membership(graph, episode_id)
+        #
+        # Handle id renames: if the JSON `id` field differs from the filename
+        # stem, the graph may still have contributions under the stem. Merge
+        # that membership into `old` so those entries are retracted (#3039 fix).
+        old = _episode_membership(graph, episode_id)
+        stem_id = file_path.stem
+        if stem_id != episode_id:
+            stem_old = _episode_membership(graph, stem_id)
+            old = {
+                "nodes": old["nodes"] | stem_old["nodes"],
+                "edges": old["edges"] | stem_old["edges"],
+                "patterns": old["patterns"] | stem_old["patterns"],
+            }
+            # Retract contributions under the old (stem) id immediately since
+            # they will be re-added under the new id below.
+            if not args.dry_run:
+                removed = remove_episode_contributions(graph, stem_id)
+                stats["nodes_removed"] += removed["nodes"]
+                stats["edges_removed"] += removed["edges"]
+                stats["patterns_removed"] += removed["patterns"]
         touched_nodes: set[str] = set()
         touched_edges: set[tuple[str, str]] = set()
         touched_patterns: set[str] = set()
