@@ -89,12 +89,12 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "1 files linted"
+        "Evidence": "Scoped markdown lint passed for the committed handoff and memory files; repository exclusions yielded zero lint targets."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation changes are committed through 53afb0f25; the session log, memory, and PR handoff form the closeout commit. Pre-existing retrospective and graph artifacts remain outside this session scope."
+        "Evidence": "Implementation changes are committed through 53afb0f25; session, memory, and PR handoff evidence is committed in b8cd47432. Pre-existing tool artifacts remain outside this session scope."
       },
       "validationPassed": {
         "level": "MUST",
@@ -113,7 +113,8 @@
       },
       "reworkWarning": {
         "Evidence": [
-          "rework-warning: none"
+          "rework-warning: tests/build_scripts/test_copilot_dispatcher_artifact.py edited 6 times",
+          "rework-warning: tests/build_scripts/test_generate_hooks.py edited 6 times"
         ]
       }
     }
@@ -164,7 +165,7 @@
       "entry": "Moved published stale-shim deletion into HookGenerationTransaction with POSIX and Windows rollback behavior, preserved the immutable first backup across publish-then-delete sequences, and added successful cleanup, NO-REGEN, rollback, missing-target, duplicate-target, and partial-failure tests. The generator and dispatcher suites passed 171 tests with 1 platform skip; runtime-contract suites passed 7 tests; Ruff, CWE-78 scanning, regeneration, and drift checks passed."
     }
   ],
-  "endingCommit": "53afb0f25",
+  "endingCommit": "b8cd47432",
   "nextSteps": [
     "Push the reconciled branch without force and resolve the final stale-cleanup review thread.",
     "Verify a stable zero unresolved-thread count and green required checks, then merge PR 3076."
