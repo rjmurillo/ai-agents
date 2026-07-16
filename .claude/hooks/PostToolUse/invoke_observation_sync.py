@@ -97,7 +97,7 @@ def _validated_absolute_path(raw_path: str) -> Path | None:
 
 def _get_repo_root() -> str | None:
     """Return the cwd Git worktree when project-dir input exactly corroborates it."""
-    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "")
+    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     try:
         cwd = Path.cwd().resolve(strict=True)
         result = subprocess.run(
