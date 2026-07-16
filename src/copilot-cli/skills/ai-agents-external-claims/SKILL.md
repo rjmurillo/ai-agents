@@ -122,7 +122,7 @@ Grounding sources, verified against the working tree:
 | Same-pass claim verification, stake-holding sources, round-number tells | gstack `claim-verification-before-ingest` skill | Read the skill's "When this skill fires" section |
 | Reporting-without-acting reward-bias root cause | `.claude/skills/avoiding-manufactured-work/SKILL.md` | `grep -n "Reporting\|reward" .claude/skills/avoiding-manufactured-work/SKILL.md` |
 | Flag-with-a-hypothesis provenance discipline | `.claude/rules/voice.md`, "Ownership: See Something, Say Something" | `grep -n "See Something" .claude/rules/voice.md` |
-| Verbatim-quote requirement for mirrored claims (FM-9) | `.claude/rules/canonical-source-mirror.md` | `grep -n "verbatim\|FM-9\|1887" .claude/rules/canonical-source-mirror.md` |
+| Verbatim-quote requirement for mirrored claims (FM-9) | `.agents/governance/FAILURE-MODES.md` (enforced by `.claude/rules/canonical-source-mirror.md`) | `grep -n "character-for-character\|verbatim" .agents/governance/FAILURE-MODES.md` |
 | Vendor docs are not runtime truth (#2205, #2290) | `.claude/skills/ai-agents-research-methodology/SKILL.md` | `grep -n "vendor docs\|2205\|2290" .claude/skills/ai-agents-research-methodology/SKILL.md` |
 | Sibling set and issue | Issue #3068; PR #2831 | Repo issue and PR history |
 
