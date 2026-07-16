@@ -1,5 +1,5 @@
 {
-  "description": "Claude Code hook-group manifest consumed by dispatch_claude.py (one process per (event, matcher) group) and expanded by build/scripts/generate_hooks_events.py back to per-hook entries so the generated Copilot tree is unchanged. 'file' is relative to .claude/hooks/. 'timeout'/'statusMessage' preserve the pre-consolidation per-hook registration values for generator fidelity. 'copilotMatcher' overrides the group matcher for Copilot shim generation only (regex-equivalent alternations kept verbatim so generated shim filenames do not churn).",
+  "description": "Claude Code hook-group manifest consumed by invoke_dispatch_claude.py (one process per (event, matcher) group) and expanded by build/scripts/generate_hooks_events.py back to per-hook entries so the generated Copilot tree is unchanged. 'file' is relative to .claude/hooks/. 'timeout'/'statusMessage' preserve the pre-consolidation per-hook registration values for generator fidelity. 'copilotMatcher' overrides the group matcher for Copilot shim generation only (regex-equivalent alternations kept verbatim so generated shim filenames do not churn).",
   "groups": {
     "pretooluse-bash": {
       "event": "PreToolUse",

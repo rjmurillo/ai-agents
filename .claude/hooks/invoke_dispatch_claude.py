@@ -3,7 +3,7 @@
 Registered in ``.claude/settings.json`` (project) and ``hooks.json``
 (project-toolkit plugin) as e.g.::
 
-    python3 -u .claude/hooks/dispatch_claude.py --group pretooluse-bash
+    python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-bash
 
 Group membership lives in ``dispatch_groups.json`` next to this file; the
 runner semantics live in ``.claude/lib/claude_hook_dispatch.py`` (which
@@ -72,6 +72,9 @@ def _project_self_hosts_plugin() -> bool:
     own_name = _plugin_name(Path(plugin_root))
     if own_name is None:
         return False
+    # Fallback to cwd: Claude Code sets CLAUDE_PROJECT_DIR in normal
+    # operation. A wrong cwd yields a name mismatch, which fails safe
+    # (no bail; the group still runs).
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip() or os.getcwd()
     project_name = _plugin_name(Path(project_dir) / ".claude")
     return project_name == own_name

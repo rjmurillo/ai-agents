@@ -51,7 +51,7 @@ neutral in this ADR; only the publishing repo takes prunes.
 
 1. **One process per (event, matcher) group on the Claude side.**
    `.claude/settings.json` and the plugin `hooks.json` register
-   `python3 -u .claude/hooks/dispatch_claude.py --group <id>` once per
+   `python3 -u .claude/hooks/invoke_dispatch_claude.py --group <id>` once per
    group. Membership lives in `.claude/hooks/dispatch_groups.json`.
    `.claude/lib/claude_hook_dispatch.py` runs each member in-process via
    `runpy`, reusing ADR-068's `hook_dispatch.py` helpers (stdin replay,
@@ -132,9 +132,12 @@ Negative, accepted:
   are trusted first-party code.
 - Gate mode reports the first block only; the host previously ran hooks
   concurrently and surfaced every denial. Matches ADR-068 gate mode.
-- A context-only JSON document's `suppressOutput`/`systemMessage` fields
-  are dropped during merge; a `gate_all` shim that blocks and also emits a
-  decision document has the document logged to stderr, not merged.
+- A standalone `{"systemMessage": ...}` document (the LSP guards' warn
+  path) merges as context and never terminates a gate group; a
+  `suppressOutput` flag riding on a context-only document is dropped
+  during merge. A `gate_all` shim that blocks and also emits a decision
+  document has the document logged to stderr, not merged. JSON with no
+  recognized protocol keys passes through verbatim with a stderr warning.
 - The self-host bail keys on plugin-name equality. A fork keeping the name
   `project-toolkit` with divergent settings would silently lose plugin
   hooks; the coverage-invariant test protects this repo, not forks.

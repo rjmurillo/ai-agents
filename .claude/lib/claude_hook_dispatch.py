@@ -99,6 +99,7 @@ class _ShimOutcome:
     raw_stdout: str
     context: str | None = None
     decision: str | None = None
+    recognized: bool = True
 
 
 @dataclass
@@ -110,32 +111,46 @@ class _RunState:
     first_block: int = ALLOW_EXIT
 
 
-def _classify_stdout(text: str) -> tuple[str | None, str | None]:
-    """Return ``(context, decision)`` for one shim's captured stdout."""
+def _classify_stdout(text: str) -> tuple[str | None, str | None, bool]:
+    """Return ``(context, decision, recognized)`` for one shim's stdout.
+
+    ``recognized`` is False only for the protocol-transparent fallthrough
+    (a JSON object with no known protocol keys); callers warn on stderr so
+    an accidental debug document terminating a gate group is observable.
+    """
     stripped = text.strip()
     if not stripped:
-        return None, None
+        return None, None, True
     try:
         doc = json.loads(stripped)
     except ValueError:
-        return stripped, None
+        return stripped, None, True
     if not isinstance(doc, dict):
-        return stripped, None
+        return stripped, None, True
     if _DECISION_KEYS & doc.keys():
-        return None, stripped
+        return None, stripped, True
     hso = doc.get("hookSpecificOutput")
     if isinstance(hso, dict):
         extra_keys = set(hso.keys()) - {"hookEventName", "additionalContext"}
         top_keys = set(doc.keys()) - {"hookSpecificOutput", "suppressOutput", "systemMessage"}
         if extra_keys or top_keys:
-            return None, stripped
+            return None, stripped, True
         context = hso.get("additionalContext")
         if isinstance(context, str) and context.strip():
-            return context, None
-        return None, None
+            return context, None, True
+        return None, None, True
+    # Advisory-only documents (the LSP guards emit standalone
+    # {"systemMessage": ...} on their warn path) must never terminate a
+    # gate group: surface the message as context and keep running.
+    if set(doc.keys()) <= {"systemMessage", "suppressOutput"}:
+        message = doc.get("systemMessage")
+        if isinstance(message, str) and message.strip():
+            return message, None, True
+        return None, None, True
     # A JSON object with no recognized protocol keys: pass through as a
-    # decision document rather than re-wrapping it (protocol-transparent).
-    return None, stripped
+    # decision document rather than re-wrapping it (protocol-transparent),
+    # flagged unrecognized so the caller logs it.
+    return None, stripped, False
 
 
 def _run_one(shim_path: Path, name: str, raw_stdin: bytes) -> _ShimOutcome:
@@ -161,8 +176,14 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes) -> _ShimOutcome:
         sys.stdout = saved_stdout
     capture.flush()
     raw = capture.buffer.getvalue().decode("utf-8", errors="replace")  # type: ignore[attr-defined]
-    context, decision = _classify_stdout(raw)
-    return _ShimOutcome(exit_code=code, raw_stdout=raw, context=context, decision=decision)
+    context, decision, recognized = _classify_stdout(raw)
+    return _ShimOutcome(
+        exit_code=code,
+        raw_stdout=raw,
+        context=context,
+        decision=decision,
+        recognized=recognized,
+    )
 
 
 def _emit_merged_output(event: str, state: _RunState) -> None:
@@ -239,9 +260,25 @@ def run_group(
                         state.first_block = outcome.exit_code
                     if outcome.context is not None:
                         state.context_parts.append(outcome.context)
+                    if outcome.decision is not None:
+                        # The block already propagates via the exit code;
+                        # surface the structured reason instead of dropping
+                        # it (ADR-082 consequence).
+                        print(
+                            f"claude-hook-dispatch: blocking shim {name} "
+                            f"decision document: {outcome.decision}",
+                            file=sys.stderr,
+                        )
                 continue
 
             if outcome.decision is not None:
+                if not outcome.recognized:
+                    print(
+                        f"claude-hook-dispatch: shim {name} emitted JSON with "
+                        "no recognized protocol keys; passing through as a "
+                        "decision document",
+                        file=sys.stderr,
+                    )
                 if state.decision is None:
                     state.decision = outcome.decision
                 else:

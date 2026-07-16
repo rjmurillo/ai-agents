@@ -138,6 +138,11 @@
       "timestamp": "2026-07-16T06:45:00Z",
       "summary": "adr-review executed for ADR-082: architect gate (APPROVE-WITH-CHANGES) plus 5-agent debate workflow wf_b7a28376-2dd (critic, independent-thinker, security, analyst, high-level-advisor; no REJECT). Two major findings fixed in claude_hook_dispatch.py with pinning tests.",
       "evidence": "Debate log .agents/analysis/2026-07-16-adr-082-debate.md; architect verdict .agents/analysis/2026-07-16-adr-082-architect-review.md"
+    },
+    {
+      "timestamp": "2026-07-16T07:05:00Z",
+      "summary": "Renamed dispatcher entry to invoke_dispatch_claude.py for the hook naming lint; swept all references; live-session hooks verified working through the renamed dispatcher after a brief fail-closed wedge (settings pointed at the old path mid-rename).",
+      "evidence": "871 tests pass; taste lint 0 errors; regen deterministic (no src/copilot-cli diff)"
     }
   ],
   "endingCommit": "",

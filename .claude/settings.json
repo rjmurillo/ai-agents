@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/dispatch_claude.py --group pretooluse-bash",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-bash",
             "timeout": 60,
             "statusMessage": "Running Bash pre-tool gates (grouped, #3075)"
           }
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/dispatch_claude.py --group git-commit",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group git-commit",
             "timeout": 120,
             "statusMessage": "Running commit gates (grouped, #3075)"
           }
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/dispatch_claude.py --group write-edit-pre",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group write-edit-pre",
             "timeout": 60,
             "statusMessage": "Running Write/Edit pre-tool gates (grouped, #3075)"
           }
@@ -52,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/dispatch_claude.py --group git-push",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group git-push",
             "timeout": 300,
             "statusMessage": "Running push gates (grouped, #3075)"
           }
@@ -129,7 +129,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/dispatch_claude.py --group sessionstart",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart",
             "timeout": 120,
             "statusMessage": "Running session-start hooks (grouped, #3075)"
           }
@@ -141,7 +141,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/dispatch_claude.py --group userpromptsubmit",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group userpromptsubmit",
             "timeout": 30,
             "statusMessage": "Running prompt-submit hooks (grouped, #3075)"
           }
@@ -154,7 +154,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/dispatch_claude.py --group posttooluse-write-edit",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group posttooluse-write-edit",
             "timeout": 120,
             "statusMessage": "Running Write/Edit post-tool hooks (grouped, #3075)"
           }
@@ -199,7 +199,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/dispatch_claude.py --group stop",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group stop",
             "timeout": 300,
             "statusMessage": "Running stop hooks (grouped, #3075)"
           }

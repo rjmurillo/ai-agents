@@ -1,5 +1,5 @@
 {
-  "description": "Plugin hooks for project-toolkit. Each (event, matcher) group registers ONE dispatch_claude.py process that runs the group's existing hook bodies in-process (issue #3075); group membership is unchanged from the previous per-hook registrations and lives in dispatch_groups.json (plugin-* groups). Inside a checkout of the repo that publishes this plugin, the dispatcher exits immediately so hooks do not double-fire with .claude/settings.json.",
+  "description": "Plugin hooks for project-toolkit. Each (event, matcher) group registers ONE invoke_dispatch_claude.py process that runs the group's existing hook bodies in-process (issue #3075); group membership is unchanged from the previous per-hook registrations and lives in dispatch_groups.json (plugin-* groups). Inside a checkout of the repo that publishes this plugin, the dispatcher exits immediately so hooks do not double-fire with .claude/settings.json.",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-pretooluse-bash",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-bash",
             "timeout": 60,
             "statusMessage": "Running Bash pre-tool gates (grouped, #3075)"
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-git-commit",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-git-commit",
             "timeout": 120,
             "statusMessage": "Running commit gates (grouped, #3075)"
           }
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-gh-pr-create",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-gh-pr-create",
             "statusMessage": "Verifying session log exists before PR creation (BLOCKING)"
           }
         ]
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-write-edit-pre",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-write-edit-pre",
             "timeout": 60,
             "statusMessage": "Running Write/Edit pre-tool gates (grouped, #3075)"
           }
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-git-push",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-git-push",
             "timeout": 300,
             "statusMessage": "Running push gates (grouped, #3075)"
           }
@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-grep",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-lsp-grep",
             "timeout": 5,
             "statusMessage": "Enforcing LSP-first over Grep on code symbols (ADR-062, conditional)"
           }
@@ -72,7 +72,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-glob",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-lsp-glob",
             "timeout": 5,
             "statusMessage": "Enforcing LSP-first over symbol-shaped Glob (ADR-062, conditional)"
           }
@@ -83,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-read",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-lsp-read",
             "timeout": 5,
             "statusMessage": "Enforcing LSP-first navigation before code Read (ADR-062, graduated)"
           }
@@ -94,7 +94,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-agent",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-lsp-agent",
             "timeout": 5,
             "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
           }
@@ -105,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-task",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-lsp-task",
             "timeout": 5,
             "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
           }
@@ -117,7 +117,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-sessionstart",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-sessionstart",
             "timeout": 120,
             "statusMessage": "Running session-start hooks (grouped, #3075)"
           }
@@ -129,7 +129,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-userpromptsubmit",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-userpromptsubmit",
             "timeout": 30,
             "statusMessage": "Running prompt-submit hooks (grouped, #3075)"
           }
@@ -142,7 +142,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-posttooluse-write-edit",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-write-edit",
             "timeout": 120,
             "statusMessage": "Running Write/Edit post-tool hooks (grouped, #3075)"
           }
@@ -153,7 +153,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-posttooluse-bash",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-bash",
             "statusMessage": "Checking for ADR changes"
           }
         ]
@@ -163,7 +163,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-observation-sync",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-observation-sync",
             "timeout": 30,
             "statusMessage": "Syncing observation memories to Forgetful"
           }
@@ -174,7 +174,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-usage-tracker",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-lsp-usage-tracker",
             "timeout": 5,
             "statusMessage": "Tracking LSP navigation calls for the LSP-first gate (ADR-062)"
           }
@@ -185,7 +185,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-read-tracker",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-lsp-read-tracker",
             "timeout": 5,
             "statusMessage": "Tracking Read operations for the LSP-first gate (ADR-062)"
           }
@@ -197,7 +197,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-stop",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-stop",
             "timeout": 300,
             "statusMessage": "Running stop hooks (grouped, #3075)"
           }
@@ -209,7 +209,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-subagentstop",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-subagentstop",
             "statusMessage": "Validating QA agent output"
           }
         ]
@@ -221,7 +221,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-permissionrequest",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-permissionrequest",
             "statusMessage": "Auto-approving test execution"
           }
         ]

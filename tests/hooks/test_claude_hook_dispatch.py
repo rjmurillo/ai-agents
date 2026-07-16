@@ -251,16 +251,70 @@ def test_stdin_restored_after_run(tmp_path, capsys):
             None,
         ),
         ("[1, 2]", "[1, 2]", None),
+        ('{"systemMessage": "warn text"}', "warn text", None),
+        ('{"suppressOutput": true}', None, None),
+        ('{"systemMessage": "warn", "suppressOutput": true}', "warn", None),
     ],
 )
 def test_classify_stdout(stdout_text, expected_context, expected_decision):
-    context, decision = chd._classify_stdout(stdout_text)
+    context, decision, _recognized = chd._classify_stdout(stdout_text)
     assert context == expected_context
     if expected_decision is None:
         assert decision is None
     else:
         assert decision is not None
         assert json.loads(decision) == json.loads(expected_decision)
+
+
+def test_standalone_system_message_does_not_terminate_gate_group(tmp_path, capsys):
+    # The LSP guards emit {"systemMessage": ...} on their warn path; that
+    # advisory document must never skip later gates in the group.
+    marker = tmp_path / "later-ran"
+    shims = [
+        _write_shim(
+            tmp_path,
+            "warn.py",
+            "import json\nprint(json.dumps({'systemMessage': 'lsp warn'}))\n",
+        ),
+        _write_shim(
+            tmp_path,
+            "later.py",
+            f"from pathlib import Path\nPath({str(marker)!r}).write_text('x')\n",
+        ),
+    ]
+    code, out, _ = _run(capsys, tmp_path, "PreToolUse", chd.GATE, shims)
+    assert code == 0
+    assert marker.exists()
+    assert "lsp warn" in json.loads(out)["hookSpecificOutput"]["additionalContext"]
+
+
+def test_unrecognized_json_is_terminal_but_warned(tmp_path, capsys):
+    shims = [
+        _write_shim(
+            tmp_path,
+            "debug.py",
+            "import json\nprint(json.dumps({'error': 'timeout'}))\n",
+        ),
+    ]
+    code, out, err = _run(capsys, tmp_path, "PreToolUse", chd.GATE, shims)
+    assert code == 0
+    assert json.loads(out) == {"error": "timeout"}
+    assert "no recognized protocol keys" in err
+
+
+def test_gate_all_blocking_shim_decision_document_logged_to_stderr(tmp_path, capsys):
+    shims = [
+        _write_shim(
+            tmp_path,
+            "blockdoc.py",
+            "import json, sys\nprint(json.dumps({'decision': 'block', 'reason': 'r'}))\n"
+            "sys.exit(2)\n",
+        ),
+    ]
+    code, out, err = _run(capsys, tmp_path, "Stop", chd.GATE_ALL, shims)
+    assert code == 2
+    assert '"decision"' not in out
+    assert "decision document" in err and "block" in err
 
 
 # --- dispatch_claude.py entry ----------------------------------------------
