@@ -1,0 +1,422 @@
+{
+  "description": "Claude Code hook-group manifest consumed by dispatch_claude.py (one process per (event, matcher) group) and expanded by build/scripts/generate_hooks_events.py back to per-hook entries so the generated Copilot tree is unchanged. 'file' is relative to .claude/hooks/. 'timeout'/'statusMessage' preserve the pre-consolidation per-hook registration values for generator fidelity. 'copilotMatcher' overrides the group matcher for Copilot shim generation only (regex-equivalent alternations kept verbatim so generated shim filenames do not churn).",
+  "groups": {
+    "pretooluse-bash": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Bash",
+      "shims": [
+        {
+          "file": "invoke_routing_gates.py",
+          "timeout": 5,
+          "statusMessage": "Checking routing-level gates (ADR-033)"
+        },
+        {
+          "file": "PreToolUse/invoke_skill_first_guard.py",
+          "statusMessage": "Enforcing skills-first policy for GitHub operations (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_false_completion_gate.py",
+          "timeout": 5,
+          "statusMessage": "Checking for false completion claims without verification (#1703)"
+        },
+        {
+          "file": "PreToolUse/invoke_lsp_bash_grep_guard.py",
+          "timeout": 5,
+          "statusMessage": "Enforcing LSP-first over bash grep on code symbols (ADR-062, conditional)"
+        }
+      ]
+    },
+    "git-commit": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Bash(git commit*|git ci*)",
+      "shims": [
+        {
+          "file": "PreToolUse/invoke_session_log_guard.py",
+          "statusMessage": "Verifying session log exists before commit (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_branch_context_guard.py",
+          "statusMessage": "Verifying branch matches session context (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_adr_review_guard.py",
+          "statusMessage": "Verifying ADR review completed (MUST requirement)"
+        },
+        {
+          "file": "PreToolUse/invoke_branch_protection_guard.py",
+          "statusMessage": "Verifying branch protection"
+        },
+        {
+          "file": "PreToolUse/invoke_security_commit_gate.py",
+          "timeout": 10,
+          "statusMessage": "Checking security gate for staged auth files (ADR-033)"
+        },
+        {
+          "file": "PreToolUse/invoke_prompt_eval_gate.py",
+          "timeout": 10,
+          "statusMessage": "Checking ADR-057 behavioral eval evidence for prompt changes"
+        }
+      ]
+    },
+    "git-push": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Bash(git push*)",
+      "shims": [
+        {
+          "file": "PreToolUse/invoke_branch_context_guard.py",
+          "statusMessage": "Verifying branch matches session context (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_branch_protection_guard.py",
+          "statusMessage": "Verifying branch protection"
+        },
+        {
+          "file": "PreToolUse/invoke_retrospective_gate.py",
+          "statusMessage": "Verifying retrospective evidence (ADR-033)"
+        },
+        {
+          "file": "PreToolUse/invoke_markdownlint_guard.py",
+          "timeout": 90,
+          "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_session_log_field_guard.py",
+          "statusMessage": "Checking session log placeholder values (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_pr_description_guard.py",
+          "timeout": 90,
+          "statusMessage": "Checking PR description vs diff (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_install_parity_guard.py",
+          "timeout": 30,
+          "statusMessage": "Checking install-copy parity for agents and rules (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_plugin_version_bump_guard.py",
+          "timeout": 30,
+          "statusMessage": "Checking plugin.json version bump on plugin source change (BLOCKING)"
+        },
+        {
+          "file": "PreToolUse/invoke_hook_drift_guard.py",
+          "timeout": 30,
+          "statusMessage": "Checking hook generator drift in src/copilot-cli/hooks/ (BLOCKING)"
+        }
+      ]
+    },
+    "write-edit-pre": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "^(Write|Edit)$",
+      "shims": [
+        {
+          "file": "PreToolUse/invoke_security_gate.py",
+          "statusMessage": "Checking security gate for auth files (ADR-033)"
+        },
+        {
+          "file": "PreToolUse/invoke_adr_architect_gate.py",
+          "copilotMatcher": "^(Edit|Write)$",
+          "statusMessage": "Verifying architect review for ADR files (BLOCKING)"
+        }
+      ]
+    },
+    "userpromptsubmit": {
+      "event": "UserPromptSubmit",
+      "mode": "gate_all",
+      "matcher": null,
+      "shims": [
+        {
+          "file": "UserPromptSubmit/invoke_serena_reassertion.py",
+          "timeout": 3,
+          "statusMessage": "Re-asserting Serena activation (issue #1993)"
+        },
+        {
+          "file": "UserPromptSubmit/invoke_autonomous_execution_detector.py",
+          "statusMessage": "Detecting autonomous execution patterns"
+        },
+        {
+          "file": "UserPromptSubmit/invoke_research_then_implement.py",
+          "timeout": 3,
+          "statusMessage": "Checking for research-before-implementation signals"
+        },
+        {
+          "file": "invoke_user_prompt_memory_check.py",
+          "statusMessage": "Checking memory-first compliance"
+        }
+      ]
+    },
+    "sessionstart": {
+      "event": "SessionStart",
+      "mode": "observe",
+      "matcher": null,
+      "shims": [
+        {
+          "file": "SessionStart/invoke_session_initialization_enforcer.py",
+          "statusMessage": "Enforcing session protocol initialization (BLOCKING)"
+        },
+        {
+          "file": "SessionStart/invoke_memory_first_enforcer.py",
+          "statusMessage": "Enforcing ADR-007 memory-first evidence (HYBRID)"
+        },
+        {
+          "file": "invoke_adr_change_detection.py",
+          "statusMessage": "Checking for ADR changes"
+        },
+        {
+          "file": "SessionStart/invoke_context_loader.py",
+          "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
+        },
+        {
+          "file": "SessionStart/invoke_lsp_session_reset.py",
+          "timeout": 5,
+          "statusMessage": "Resetting LSP-gate state for the new session (ADR-062)"
+        }
+      ]
+    },
+    "posttooluse-write-edit": {
+      "event": "PostToolUse",
+      "mode": "observe",
+      "matcher": "^(Write|Edit)$",
+      "shims": [
+        {
+          "file": "PostToolUse/invoke_markdown_auto_lint.py",
+          "statusMessage": "Auto-linting markdown files"
+        },
+        {
+          "file": "PostToolUse/invoke_adr_lifecycle_hook.py",
+          "statusMessage": "Checking for ADR changes"
+        },
+        {
+          "file": "PostToolUse/invoke_plan_state_sync.py",
+          "statusMessage": "Checkpointing plan/TODO state (#1703)"
+        }
+      ]
+    },
+    "stop": {
+      "event": "Stop",
+      "mode": "gate_all",
+      "matcher": null,
+      "shims": [
+        {
+          "file": "Stop/invoke_skill_learning.py",
+          "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
+        },
+        {
+          "file": "Stop/invoke_session_validator.py",
+          "statusMessage": "Validating session completeness"
+        },
+        {
+          "file": "Stop/invoke_auto_retrospective.py",
+          "statusMessage": "Auto-generating session retrospective (#1703)"
+        }
+      ]
+    },
+    "plugin-pretooluse-bash": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Bash",
+      "surface": "plugin",
+      "shims": [
+        {"file": "invoke_routing_gates.py", "timeout": 5},
+        {"file": "PreToolUse/invoke_skill_first_guard.py"},
+        {"file": "PreToolUse/invoke_lsp_bash_grep_guard.py", "timeout": 5}
+      ]
+    },
+    "plugin-git-commit": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Bash(git commit*)",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_session_log_guard.py"},
+        {"file": "PreToolUse/invoke_branch_context_guard.py"},
+        {"file": "PreToolUse/invoke_adr_review_guard.py"},
+        {"file": "PreToolUse/invoke_branch_protection_guard.py"},
+        {"file": "PreToolUse/invoke_security_commit_gate.py", "timeout": 10},
+        {"file": "PreToolUse/invoke_prompt_eval_gate.py", "timeout": 10}
+      ]
+    },
+    "plugin-write-edit-pre": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "^(Write|Edit)$",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_security_gate.py"},
+        {"file": "PreToolUse/invoke_adr_architect_gate.py"}
+      ]
+    },
+    "plugin-git-push": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Bash(git push*)",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_branch_context_guard.py"},
+        {"file": "PreToolUse/invoke_branch_protection_guard.py"},
+        {"file": "PreToolUse/invoke_retrospective_gate.py"},
+        {"file": "PreToolUse/invoke_markdownlint_guard.py", "timeout": 90},
+        {"file": "PreToolUse/invoke_session_log_field_guard.py"},
+        {"file": "PreToolUse/invoke_pr_description_guard.py", "timeout": 90},
+        {"file": "PreToolUse/invoke_plugin_version_bump_guard.py", "timeout": 30}
+      ]
+    },
+    "plugin-userpromptsubmit": {
+      "event": "UserPromptSubmit",
+      "mode": "gate_all",
+      "matcher": null,
+      "surface": "plugin",
+      "shims": [
+        {"file": "UserPromptSubmit/invoke_serena_reassertion.py", "timeout": 3},
+        {"file": "UserPromptSubmit/invoke_autonomous_execution_detector.py"},
+        {"file": "UserPromptSubmit/invoke_research_then_implement.py", "timeout": 3},
+        {"file": "invoke_user_prompt_memory_check.py"}
+      ]
+    },
+    "plugin-sessionstart": {
+      "event": "SessionStart",
+      "mode": "observe",
+      "matcher": null,
+      "surface": "plugin",
+      "shims": [
+        {"file": "SessionStart/invoke_session_initialization_enforcer.py"},
+        {"file": "SessionStart/invoke_memory_first_enforcer.py"},
+        {"file": "invoke_session_start_memory_first.py"},
+        {"file": "invoke_adr_change_detection.py"},
+        {"file": "SessionStart/invoke_lsp_session_reset.py", "timeout": 5}
+      ]
+    },
+    "plugin-posttooluse-write-edit": {
+      "event": "PostToolUse",
+      "mode": "observe",
+      "matcher": "^(Write|Edit)$",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PostToolUse/invoke_markdown_auto_lint.py"},
+        {"file": "PostToolUse/invoke_adr_lifecycle_hook.py"}
+      ]
+    },
+    "plugin-stop": {
+      "event": "Stop",
+      "mode": "gate_all",
+      "matcher": null,
+      "surface": "plugin",
+      "shims": [
+        {"file": "Stop/invoke_skill_learning.py"},
+        {"file": "Stop/invoke_session_validator.py"}
+      ]
+    },
+    "plugin-gh-pr-create": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Bash(gh pr create*)",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_session_log_guard.py"}
+      ]
+    },
+    "plugin-lsp-grep": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Grep",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_lsp_grep_guard.py", "timeout": 5}
+      ]
+    },
+    "plugin-lsp-glob": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Glob",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_lsp_glob_guard.py", "timeout": 5}
+      ]
+    },
+    "plugin-lsp-read": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Read",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_lsp_read_guard.py", "timeout": 5}
+      ]
+    },
+    "plugin-lsp-agent": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Agent",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_lsp_pre_delegation_guard.py", "timeout": 5}
+      ]
+    },
+    "plugin-lsp-task": {
+      "event": "PreToolUse",
+      "mode": "gate",
+      "matcher": "Task",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PreToolUse/invoke_lsp_pre_delegation_guard.py", "timeout": 5}
+      ]
+    },
+    "plugin-posttooluse-bash": {
+      "event": "PostToolUse",
+      "mode": "observe",
+      "matcher": "Bash",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PostToolUse/invoke_adr_lifecycle_hook.py"}
+      ]
+    },
+    "plugin-observation-sync": {
+      "event": "PostToolUse",
+      "mode": "observe",
+      "matcher": "mcp__serena__write_memory",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PostToolUse/invoke_observation_sync.py", "timeout": 30}
+      ]
+    },
+    "plugin-lsp-usage-tracker": {
+      "event": "PostToolUse",
+      "mode": "observe",
+      "matcher": "^(mcp__serena__(find_symbol|find_referencing_symbols|get_symbols_overview|find_implementations|get_diagnostics_for_file)|mcp__plugin_[^_]*serena[^_]*__(find_symbol|find_referencing_symbols|get_symbols_overview|find_implementations|get_diagnostics_for_file)|LSP)$",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PostToolUse/invoke_lsp_usage_tracker.py", "timeout": 5}
+      ]
+    },
+    "plugin-lsp-read-tracker": {
+      "event": "PostToolUse",
+      "mode": "observe",
+      "matcher": "Read",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PostToolUse/invoke_lsp_read_tracker.py", "timeout": 5}
+      ]
+    },
+    "plugin-subagentstop": {
+      "event": "SubagentStop",
+      "mode": "gate_all",
+      "matcher": null,
+      "surface": "plugin",
+      "shims": [
+        {"file": "SubagentStop/invoke_qa_agent_validator.py"}
+      ]
+    },
+    "plugin-permissionrequest": {
+      "event": "PermissionRequest",
+      "mode": "gate",
+      "matcher": "Bash(pwsh*Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python*pytest*|dotnet test*|mvn test*|gradle test*|go test*)",
+      "surface": "plugin",
+      "shims": [
+        {"file": "PermissionRequest/invoke_test_auto_approval.py"}
+      ]
+    }
+  }
+}
