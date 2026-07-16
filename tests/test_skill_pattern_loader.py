@@ -12,7 +12,6 @@ Tests cover:
 Run with: python3 -m pytest tests/test_skill_pattern_loader.py -v
 """
 
-import io
 import json
 import sys
 import tempfile
@@ -179,11 +178,25 @@ class TestParseSkillTriggers(unittest.TestCase):
 
         self.assertEqual(result["name"], "my-dir-name")
 
-    def test_nonexistent_file(self):
-        """Nonexistent file returns empty triggers with directory name."""
-        result = parse_skill_triggers(Path("/nonexistent/skill-x/SKILL.md"))
-        self.assertEqual(result["name"], "skill-x")  # parent directory name
-        self.assertEqual(result["triggers"], [])
+    def test_nonexistent_file_raises_with_path_context(self):
+        """A read failure propagates (with the failing path) instead of
+        silently returning empty triggers (#11). Only the oversize path is
+        allowed to return quietly; a missing file is a genuine failure."""
+        missing = Path("/nonexistent/skill-x/SKILL.md")
+        with self.assertRaises(OSError) as ctx:
+            parse_skill_triggers(missing)
+        self.assertIn(str(missing), str(ctx.exception))
+
+    def test_permission_error_propagates_with_context(self):
+        """A mid-read OSError (e.g. permission denied) also propagates (#11)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            skill_md = _create_skill_md(Path(tmpdir), "denied", "content")
+            with patch.object(
+                Path, "read_text", side_effect=PermissionError("denied")
+            ):
+                with self.assertRaises(OSError) as ctx:
+                    parse_skill_triggers(skill_md)
+        self.assertIn(str(skill_md), str(ctx.exception))
 
 
 class TestScanSkillDirectories(unittest.TestCase):
@@ -262,6 +275,34 @@ class TestScanSkillDirectories(unittest.TestCase):
 
         names = [p.parent.name for p in result]
         self.assertIn("copilot-skill", names)
+
+    def test_dedup_uses_parsed_name_not_directory_name(self):
+        """A lower-priority user skill in a differently-named directory must
+        not coexist with a same-parsed-name repository skill (#10).
+
+        Directory-name dedup would treat ``github`` (repo) and
+        ``github-clone`` (user) as distinct skills because their directory
+        names differ, even though both declare ``name: github`` in
+        frontmatter. Priority dedup must key on the parsed identity so the
+        higher-priority repo copy is the only one that survives.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir)
+            fake_home = Path(tmpdir) / "fakehome"
+            fake_home.mkdir()
+
+            _create_skill_md(project / ".claude" / "skills", "github", GITHUB_SKILL_MD)
+            # Same frontmatter `name: github`, but a DIFFERENT directory name.
+            _create_skill_md(
+                fake_home / ".claude" / "skills", "github-clone", GITHUB_SKILL_MD
+            )
+
+            with patch("skill_pattern_loader.Path.home", return_value=fake_home):
+                result = scan_skill_directories(project)
+
+        matching_dirs = [p.parent.name for p in result]
+        self.assertNotIn("github-clone", matching_dirs)
+        self.assertEqual(matching_dirs.count("github"), 1)
 
 
 class TestBuildDetectionMaps(unittest.TestCase):
@@ -445,6 +486,21 @@ class TestCacheRoundtrip(unittest.TestCase):
 class TestLoadSkillPatterns(unittest.TestCase):
     """Integration test: full load_skill_patterns flow."""
 
+    def setUp(self):
+        # Isolate Path.home() for every test in this class (#15). Each test
+        # calls load_skill_patterns, which consults Path.home() via
+        # scan_skill_directories; without this, a developer's real
+        # ~/.claude/skills or ~/.copilot/skills can leak into results and
+        # make these tests environment-dependent and flaky.
+        self._home_tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._home_tmp.cleanup)
+        patcher = patch(
+            "skill_pattern_loader.Path.home",
+            return_value=Path(self._home_tmp.name),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_loads_from_skill_md_files(self):
         """Patterns are loaded from real SKILL.md files in directory structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -506,11 +562,7 @@ class TestLoadSkillPatterns(unittest.TestCase):
         """Project with no skills returns empty dicts when user dirs also empty."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project = Path(tmpdir)
-            # Mock Path.home() to an empty dir so user-level skills aren't found
-            fake_home = Path(tmpdir) / "fakehome"
-            fake_home.mkdir()
-            with patch("skill_pattern_loader.Path.home", return_value=fake_home):
-                patterns, commands = load_skill_patterns(project)
+            patterns, commands = load_skill_patterns(project)
 
         self.assertEqual(patterns, {})
         self.assertEqual(commands, {})
@@ -659,8 +711,15 @@ class TestAtomicCacheWrite(unittest.TestCase):
             data = json.loads(cache_path.read_text(encoding="utf-8"))
             self.assertEqual(data["skill_patterns"], {"a": ["b"]})
 
-    def test_write_error_reaches_warning_boundary(self):
-        """Atomic replacement errors are warned by _write_cache."""
+    def test_write_error_propagates_to_owning_hook(self):
+        """Atomic replacement errors must propagate (#7, #16), not just warn.
+
+        A warning-then-success return would let the owning hook
+        (invoke_skill_learning.py) report the load as successful while the
+        cache silently never persisted. The full error contract at this
+        boundary is: raises OSError, with the original message preserved,
+        and leaves no temp file behind.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_path = Path(tmpdir) / "cache.json"
             skill_file = Path(tmpdir) / "test.md"
@@ -669,11 +728,13 @@ class TestAtomicCacheWrite(unittest.TestCase):
             with patch(
                 "skill_pattern_loader.os.replace",
                 side_effect=OSError("disk full"),
-            ), patch("sys.stderr", new_callable=io.StringIO) as stderr:
-                _write_cache(cache_path, [skill_file], {}, {})
+            ):
+                with self.assertRaisesRegex(OSError, "disk full"):
+                    _write_cache(cache_path, [skill_file], {}, {})
 
-            self.assertIn("Warning: Failed to write skill cache: disk full", stderr.getvalue())
+            self.assertFalse(cache_path.exists())
             self.assertEqual(list(Path(tmpdir).glob("*.tmp")), [])
+
     def test_no_temp_files_left_on_success(self):
         """No .tmp files remain after successful cache write."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -685,6 +746,36 @@ class TestAtomicCacheWrite(unittest.TestCase):
 
             tmp_files = list(Path(tmpdir).glob("*.tmp"))
             self.assertEqual(tmp_files, [])
+
+    def test_source_stat_error_propagates_instead_of_writing_partial_cache(self):
+        """A source-file stat() failure must reach the caller, not be swallowed.
+
+        Previously ``_write_cache`` caught ``OSError`` around each
+        ``f.stat()`` call, silently dropped that file from
+        ``source_mtimes``, and still wrote (and returned success for) an
+        incomplete cache. That incomplete ``source_mtimes`` map would make
+        ``_check_cache_freshness`` compare against fewer files than
+        actually exist on a later run, returning a false "fresh" verdict.
+        The corrected contract: the stat failure propagates as ``OSError``
+        so it reaches the owning hook (``invoke_skill_learning.py``) as
+        ADR-035 exit 3 ("External Error"), and no cache file is written.
+
+        Uses a genuinely vanished file (unlinked after being listed, before
+        the stat call) rather than mocking ``Path.stat`` globally, so the
+        unrelated ``cache_path.parent.is_dir()`` check earlier in
+        ``_write_cache`` is unaffected.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_path = Path(tmpdir) / "cache.json"
+            skill_file = Path(tmpdir) / "vanished.md"
+            skill_file.write_text("content", encoding="utf-8")
+            skill_file.unlink()  # simulate a source file vanishing mid-scan
+
+            with self.assertRaises(OSError):
+                _write_cache(cache_path, [skill_file], {"a": ["b"]}, {})
+
+            self.assertFalse(cache_path.exists())
+            self.assertEqual(list(Path(tmpdir).glob("*.tmp")), [])
 
 
 class TestGlobContainedSkills(unittest.TestCase):

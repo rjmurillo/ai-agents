@@ -28,7 +28,6 @@ import contextlib
 import json
 import os
 import re
-import sys
 import tempfile
 from pathlib import Path
 
@@ -66,10 +65,38 @@ def _glob_contained_skills(root: Path, filename: str) -> list[Path]:
     return results
 
 
+def _skill_identity(skill_md: Path) -> str:
+    """Return the skill's source-priority dedup identity.
+
+    Uses the parsed frontmatter ``name:`` field when present, falling back to
+    the containing directory name. Priority dedup in
+    :func:`scan_skill_directories` MUST key on this identity rather than the
+    directory name alone: a lower-priority user-level skill directory named
+    differently from a repository skill (e.g. ``github-clone``) but sharing
+    the same parsed frontmatter name (``name: github``) would otherwise slip
+    past directory-based dedup and coexist with, rather than lose to, the
+    higher-priority repository copy.
+
+    Read failures and oversized files fall back to the directory name here,
+    matching :func:`parse_skill_triggers`'s own oversize fallback. This
+    function only orders scan priority; it never raises. A genuine read
+    failure is surfaced loudly later, when :func:`parse_skill_triggers` reads
+    the same file for real (see its docstring).
+    """
+    default_name = skill_md.parent.name
+    try:
+        if skill_md.stat().st_size > _MAX_SKILL_FILE_BYTES:
+            return default_name.lower()
+        content = skill_md.read_text(encoding="utf-8")
+    except OSError:
+        return default_name.lower()
+    return _extract_frontmatter_name(content, default_name).lower()
+
+
 def scan_skill_directories(project_dir: Path) -> list[Path]:
     """Scan skill sources in priority order and return deduplicated SKILL.md paths.
 
-    Priority (lower wins for same skill name):
+    Priority (lower wins for same skill identity, see :func:`_skill_identity`):
     1. {project_dir}/.claude/skills/*/SKILL.md   (Claude Code repo)
     2. {project_dir}/.github/skills/*/SKILL.md   (Copilot/GitHub repo)
     3. ~/.claude/skills/*/SKILL.md                (Claude Code user)
@@ -94,7 +121,7 @@ def scan_skill_directories(project_dir: Path) -> list[Path]:
         # Case-insensitive: try SKILL.md then skill.md
         for filename in ("SKILL.md", "skill.md"):
             for skill_md in _glob_contained_skills(root, filename):
-                skill_name = skill_md.parent.name.lower()
+                skill_name = _skill_identity(skill_md)
                 if skill_name not in seen_names:
                     seen_names.add(skill_name)
                     result.append(skill_md)
@@ -169,6 +196,19 @@ def parse_skill_triggers(skill_md_path: Path) -> dict:
     - name: str (from frontmatter or directory name)
     - triggers: list[str] (backtick-wrapped phrases from Triggers tables)
     - slash_commands: list[str] (trigger phrases starting with /)
+
+    An oversized file (over ``_MAX_SKILL_FILE_BYTES``) is intentionally
+    treated as an empty skill: an enormous SKILL.md is a resource-exhaustion
+    concern, not a legitimate authoring mistake worth failing the whole
+    load, so this path returns quietly.
+
+    Any OTHER ``OSError`` (missing file, permission denied, mid-read I/O
+    failure) is a genuine read failure and MUST propagate, wrapped with the
+    failing path for context. :func:`load_skill_patterns` documents that
+    "unexpected loader errors propagate so the owning hook can report
+    non-success"; silently downgrading a read failure to an empty-pattern
+    result would make a broken skill source indistinguishable from a skill
+    that legitimately has no triggers.
     """
     default_name = skill_md_path.parent.name
     try:
@@ -176,8 +216,8 @@ def parse_skill_triggers(skill_md_path: Path) -> dict:
         if size > _MAX_SKILL_FILE_BYTES:
             return {"name": default_name, "triggers": [], "slash_commands": []}
         content = skill_md_path.read_text(encoding="utf-8")
-    except OSError:
-        return {"name": default_name, "triggers": [], "slash_commands": []}
+    except OSError as exc:
+        raise OSError(f"cannot read SKILL.md at {skill_md_path}: {exc}") from exc
 
     name = _extract_frontmatter_name(content, default_name)
     triggers, slash_commands = _extract_trigger_phrases(content)
@@ -307,15 +347,25 @@ def _write_cache(
     skill_patterns: dict[str, list[str]],
     command_to_skill: dict[str, str],
 ) -> None:
-    """Write cache only when the hook directory already exists."""
+    """Write cache only when the hook directory already exists.
+
+    Raises ``OSError`` when either the source-file ``stat()`` calls or the
+    atomic write fail. A cache-write failure (disk full, permission denied,
+    a source file vanishing mid-scan) must reach the owning hook
+    (``invoke_skill_learning.py``) as a real failure, not a stderr warning
+    paired with a success return: a warning-then-success here previously let
+    the hook report "loaded" while the cache silently never persisted (or
+    persisted with an incomplete ``source_mtimes`` map, which would make
+    :func:`_check_cache_freshness` compare against fewer files than actually
+    exist and return a false "fresh" verdict on the next run), masking the
+    exact class of failure ADR-035 exit 3 ("External Error") exists to
+    surface.
+    """
     if not cache_path.parent.is_dir():
         return
     source_mtimes: dict[str, float] = {}
     for f in skill_files:
-        try:
-            source_mtimes[str(f)] = f.stat().st_mtime
-        except OSError:
-            pass
+        source_mtimes[str(f)] = f.stat().st_mtime
 
     cache_data = {
         "version": CACHE_VERSION,
@@ -324,10 +374,7 @@ def _write_cache(
         "command_to_skill": command_to_skill,
     }
 
-    try:
-        _atomic_json_write(cache_path, cache_data)
-    except OSError as exc:
-        print(f"Warning: Failed to write skill cache: {exc}", file=sys.stderr)
+    _atomic_json_write(cache_path, cache_data)
 
 
 def load_skill_patterns(
