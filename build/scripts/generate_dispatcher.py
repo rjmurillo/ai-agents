@@ -38,6 +38,10 @@ import json
 import re
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 # Mirror contract from build/scripts/generate_hooks_emit.py::_build_copilot_entry:
 # bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
@@ -236,6 +240,64 @@ _GATE_EVENTS = ("PreToolUse", "preToolUse")
 _DEFAULT_TIMEOUT_SEC = 5
 _SCRIPT_RE = re.compile(r"/hooks/[^/]+/([^/\"']+\.py)(?!\.\w)")
 
+# Per-matcher shim filename contract, owned by
+# build/scripts/generate_hooks_emit.py: ``_relative_script_target`` joins the
+# source stem to the matcher suffix with a ``__`` separator, and
+# ``_matcher_suffix`` always ends the suffix with a 6-char lowercase SHA-1
+# digest ("<stem>__<sanitized>_<6hex>.py", or "<stem>__<6hex>.py" when the
+# sanitized part is empty). Only files matching this shape are prune
+# candidates: shared modules (``push_guard_base.py``) and non-matcher shims
+# never carry the ``__...<6hex>`` suffix, so they are never matched. Keep this
+# regex in sync with those two functions; the contract test in
+# tests/build_scripts/test_generate_dispatcher.py generates a name through the
+# real functions and asserts this regex matches, so drift fails loudly.
+_MATCHER_SHIM_RE = re.compile(r".+__.*[0-9a-f]{6}\.py$")
+
+# Files the dispatcher writes into every consolidated event dir that are NOT
+# per-matcher shims and must survive a prune. ``_dispatch.py`` (write_entrypoint)
+# and ``_bootstrap.py`` (_copy_bootstrap) are emitted here; ``_manifest.json`` is
+# excluded from prune scope by the ``*.py`` glob. ``__init__.py`` is listed
+# defensively in case a package marker is ever added. Shared modules such as
+# ``push_guard_base.py`` are protected by the naming pattern, not this set.
+_PROTECTED_SHIM_NAMES = frozenset({"_bootstrap.py", "_dispatch.py", "__init__.py"})
+
+
+def prune_orphan_shims(
+    event_dir: Path,
+    live_shim_names: Iterable[str],
+    protected: Iterable[str] = _PROTECTED_SHIM_NAMES,
+) -> list[str]:
+    """Delete stale per-matcher shim files left behind by earlier generations.
+
+    A matcher's hash-suffixed filename changes whenever its matcher pattern
+    changes, so the superseded shim lingers on disk unreferenced by the current
+    manifest (issue #3101). This removes any per-matcher shim in ``event_dir``
+    that is absent from ``live_shim_names`` and is not a protected/shared file.
+
+    Conservative by construction: it touches ONLY files whose names match the
+    generator's per-matcher shim pattern (``_MATCHER_SHIM_RE``, mirroring
+    ``generate_hooks_emit._relative_script_target`` and ``_matcher_suffix``).
+    Shared modules such as ``push_guard_base.py`` and non-matcher shims (e.g.
+    ``invoke_auto_retrospective.py``) never carry that suffix, so they are never
+    deleted even when absent from the manifest. Idempotent: a second run over an
+    already-pruned dir finds nothing to remove.
+
+    Returns the pruned filenames in sorted order.
+    """
+    if not event_dir.is_dir():
+        return []
+    keep = set(live_shim_names) | set(protected)
+    pruned: list[str] = []
+    for path in sorted(event_dir.glob("*.py")):
+        name = path.name
+        if name in keep:
+            continue
+        if not _MATCHER_SHIM_RE.match(name):
+            continue
+        path.unlink()
+        pruned.append(name)
+    return pruned
+
 
 def _mode_for_event(event: str) -> str:
     """Return ``"gate"`` for tool-gating events, ``"observe"`` for the rest."""
@@ -285,4 +347,10 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
                 mode=_mode_for_event(event),
             )
         ]
+        pruned = prune_orphan_shims(event_dir, shim_names)
+        if pruned:
+            print(
+                f"  Pruned {len(pruned)} orphan shim(s) from {event}/: "
+                + ", ".join(pruned)
+            )
     return new_out
