@@ -67,6 +67,8 @@ _REVIEWER_PRIORITY_BY_LOGIN: dict[str, str] = {
     "coderabbitai[bot]": "P2",
     "copilot": "P2",
     "github-copilot[bot]": "P2",  # bot-login variant of the Copilot reviewer
+    "copilot-pull-request-reviewer[bot]": "P2",  # production Copilot PR reviewer
+    "copilot-pull-request-reviewer": "P2",  # User-type variant
 }
 
 _REVIEWER_TIERS: tuple[str, ...] = ("P0", "P1", "P2", "Unknown")
@@ -79,12 +81,14 @@ def classify_reviewer_priority(author: str, author_type: str) -> str:
     Order per the pr-comment-responder SKILL.md Reviewer Priority table:
     P0 cursor[bot], P1 human reviewers, P2 named reviewer bots. An author that
     is a bot but not one of the named reviewer bots falls to the deterministic
-    "Unknown" tier.
+    "Unknown" tier. Ghost/deleted accounts (empty author) also fall to Unknown.
     """
-    mapped = _REVIEWER_PRIORITY_BY_LOGIN.get((author or "").lower())
+    if not author:
+        return "Unknown"
+    mapped = _REVIEWER_PRIORITY_BY_LOGIN.get(author.lower())
     if mapped is not None:
         return mapped
-    if not is_bot(author or "", author_type or None):
+    if not is_bot(author, author_type or None):
         return "P1"
     return "Unknown"
 
