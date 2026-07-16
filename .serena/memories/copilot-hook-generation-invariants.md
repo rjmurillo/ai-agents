@@ -25,6 +25,19 @@ the stale shim. On Windows, a fresh deletion moves the original file object
 into the journal to preserve metadata; a target already backed up in the same
 transaction is unlinked without replacing the immutable first backup.
 
+## Path safety
+
+Event names must be one path component before any staging directory is created.
+Stale cleanup uses `lstat()` to reject symlinked event directories and files,
+then resolves each candidate under the resolved hooks root before adding it to
+the deletion transaction. Windows compares active shim names with `casefold()`
+so a case-only rename cannot classify the active file as stale.
+
+`HookGenerationTransaction.delete_many` deduplicates targets and treats missing
+or repeated deletions as no-ops. If a Windows move creates the journal backup
+then raises, the transaction records the mutation so rollback restores the
+original file object.
+
 ## Cross-platform tests
 
 Windows publish simulations must initialize the hook-generation transaction
@@ -39,11 +52,12 @@ directory as verified.
 
 ## Evidence
 
-PR 3076 session 3045 covered the cleanup contract with positive, protected,
-filesystem-error, transaction rollback, and Windows journal cases. The final
-generator and dispatcher suites passed 171 tests with 1 platform skip, and the
-full suite passed 14,284 tests with 20 skips and 45 expected failures before
-the final scoped correction.
+PR 3076 sessions 3045 and 3046 covered positive, protected, filesystem-error,
+transaction rollback, symlink, path traversal, case-only Windows naming, and
+partial Windows move cases. Commit `4c83b4d7` passed all 817 build-script tests
+with 1 platform skip, focused Ruff, normal and Windows mypy, generated drift
+checks, a real POSIX symlink reproduction, and independent correctness and
+security reviews.
 
 ## Related
 
