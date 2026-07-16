@@ -43,11 +43,15 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
     from .path_utils import resolve_workspace_path
-except ImportError:  # pragma: no cover - script execution path
-    from path_utils import resolve_workspace_path
+else:
+    try:
+        from .path_utils import resolve_workspace_path
+    except ImportError:  # pragma: no cover - script execution path
+        from path_utils import resolve_workspace_path
 
 _SUMMARY_PATTERN = re.compile(r"passed|failed|error")
 _NO_SUMMARY = "No test summary available"

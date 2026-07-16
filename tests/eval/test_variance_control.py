@@ -161,17 +161,23 @@ class TestClassifyFinding:
     def test_bit_identical(self):
         text = vc.response_text_variance(["x", "x"])
         verdict = vc.verdict_distribution(["IDENTIFY", "IDENTIFY"])
-        assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith("responses-bit-identical")
+        assert vc.classify_finding(
+            text, verdict, reps_answered=2, reps_total=2
+        ).startswith("responses-bit-identical")
 
     def test_text_varies_verdict_stable(self):
         text = vc.response_text_variance(["a long answer", "a longer answer"])
         verdict = vc.verdict_distribution(["IDENTIFY", "IDENTIFY"])
-        assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith("text-varies-verdict-stable")
+        assert vc.classify_finding(
+            text, verdict, reps_answered=2, reps_total=2
+        ).startswith("text-varies-verdict-stable")
 
     def test_verdicts_vary(self):
         text = vc.response_text_variance(["a", "b"])
         verdict = vc.verdict_distribution(["IDENTIFY", "ESCALATE"])
-        assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith("verdicts-vary")
+        assert vc.classify_finding(
+            text, verdict, reps_answered=2, reps_total=2
+        ).startswith("verdicts-vary")
 
     def test_high_error_rate_odd_total(self):
         # 10 of 21 answered is fewer than half; must flag high-error-rate

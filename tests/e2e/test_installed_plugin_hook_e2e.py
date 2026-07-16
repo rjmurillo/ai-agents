@@ -61,7 +61,9 @@ def _rel_script(command: str) -> str | None:
     return m.group(1) if m else None
 
 
-def _run_shim(script: Path, payload: dict, cwd: Path, debug: bool = True) -> subprocess.CompletedProcess:
+def _run_shim(
+    script: Path, payload: dict, cwd: Path, debug: bool = True
+) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env["CLAUDE_PLUGIN_ROOT"] = str(_SCOPED_ROOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_SCOPED_ROOT)

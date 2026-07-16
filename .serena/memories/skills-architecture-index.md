@@ -9,3 +9,7 @@
 | deployment path validation reference source tree resolve broken context | [architecture/architecture-015-deployment-path-validation](architecture/architecture-015-deployment-path-validation.md) |
 | template variant claude copilot generate maintain separate dual update | [architecture/architecture-template-variant-maintenance](architecture/architecture-template-variant-maintenance.md) |
 | ADR number check collision parallel branch sequential numbering | [architecture/architecture-016-adr-number-check](architecture/architecture-016-adr-number-check.md) |
+| hook advisory PreToolUse additionalContext hookSpecificOutput decision block permissionDecision envelope injection dropped | [architecture/architecture-pretooluse-advisory-envelope](architecture/architecture-pretooluse-advisory-envelope.md) |
+| agent shared-body source-of-truth two-destination drift install-parity regenerate silent-failure-hunter catalog | [architecture/architecture-agent-mirror-two-pipeline](architecture/architecture-agent-mirror-two-pipeline.md) |
+| eval provider EVAL_PROVIDER openai github-models strategy transport anthropic urllib budget re-baseline symmetry | [architecture/architecture-eval-multiprovider-transport](architecture/architecture-eval-multiprovider-transport.md) |
+| lsp serena navigation enforcement conditional fail-open grep glob read-gate SKIP_LSP_GATE ADR-062 symbol | [architecture/architecture-lsp-first-enforcement](architecture/architecture-lsp-first-enforcement.md) |

@@ -41,11 +41,15 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
     from .path_utils import REPOSITORY_ROOT
-except ImportError:  # pragma: no cover - script execution path
-    from path_utils import REPOSITORY_ROOT
+else:
+    try:
+        from .path_utils import REPOSITORY_ROOT
+    except ImportError:  # pragma: no cover - script execution path
+        from path_utils import REPOSITORY_ROOT
 
 _WORKSPACE = REPOSITORY_ROOT
 sys.path.insert(0, str(_WORKSPACE))
@@ -53,6 +57,7 @@ _GITHUB_SCRIPTS = _WORKSPACE / ".github" / "scripts"
 sys.path.insert(0, str(_GITHUB_SCRIPTS))
 
 from quality_gate_agents import QUALITY_GATE_AGENTS, agent_env_name  # noqa: E402
+
 from scripts.external_signals import gate_aggregator  # noqa: E402
 
 # pytest_status -> gate_aggregator verdict token.

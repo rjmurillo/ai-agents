@@ -339,8 +339,8 @@ class JsonContractStdoutTest(unittest.TestCase):
 
     def _capture(self, argv: list[str]) -> tuple[int, str, str]:
         """Run main(argv) and return (exit_code, stdout, stderr)."""
-        import io
         import contextlib
+        import io
 
         out_buf = io.StringIO()
         err_buf = io.StringIO()

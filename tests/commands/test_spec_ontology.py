@@ -412,7 +412,10 @@ def test_completeness_check_treats_fragment_as_canonical_source(
     assert "cannot introduce an entity absent from the fragment" in normalized, (
         "REQ-local `## Ontology` sections must not mask fragment drift"
     )
-    assert "run entity coverage and decision-rule traceability only when an ontologyfragment exists" in normalized, (
+    assert (
+        "run entity coverage and decision-rule traceability only when an ontologyfragment exists"
+        in normalized
+    ), (
         "ontology checks must not fail degraded runs that lack a fragment"
     )
     assert "referenced anywhere in generated spec artifacts" in normalized, (
@@ -466,7 +469,10 @@ def test_empty_entity_vacuous_coverage_requires_no_requirement_entities(
 ) -> None:
     """Empty ontology coverage is vacuous only when REQs name no entities."""
     lowered = " ".join(completeness_text.lower().split())
-    assert "generated req, design, and task artifacts also reference no domain entities" in lowered, (
+    assert (
+        "generated req, design, and task artifacts also reference no domain entities"
+        in lowered
+    ), (
         "empty-entity ontology must require generated spec artifacts name no entities"
     )
     assert "critical entity-coverage gap" in lowered, (
@@ -500,7 +506,10 @@ def test_reference_fragment_exists_and_has_seven_sections() -> None:
 def test_reference_fragment_empty_entity_rule_matches_fail_closed_prompt() -> None:
     """The reference ontology records the same empty-entity guard as CI."""
     text = " ".join(REFERENCE_FRAGMENT.read_text(encoding="utf-8").lower().split())
-    assert "only when generated req, design, and task artifacts reference zero domain entities" in text, (
+    assert (
+        "only when generated req, design, and task artifacts reference zero domain entities"
+        in text
+    ), (
         "reference fragment must not allow O1=none to mask spec-artifact entities"
     )
     assert "ci completeness check" in text, (

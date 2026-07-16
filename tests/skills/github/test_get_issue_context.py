@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from test_helpers import make_completed_process
 
 # Ensure importability
@@ -165,7 +164,10 @@ class TestGetIssueContext:
         }
         with (
             patch("get_issue_context.assert_gh_authenticated"),
-            patch("get_issue_context.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch(
+                "get_issue_context.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
             patch("subprocess.run", return_value=make_completed_process(
                 stdout=json.dumps(issue_data)
             )),
