@@ -125,6 +125,30 @@
       "content": "Commit: b8cd47432",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "After all 16 pre-push checks passed, the push found two concurrent Cursor commits for the same stale-cleanup defect. Merged them without force, removed their redundant direct post-commit cleanup while preserving the remote history, and reran the generator and dispatcher suites with 171 passed and 1 platform skip.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "After all 16 pre-push checks passed, the push found two concurrent Cursor commits for the same stale-cleanup defect. Merged them without force, removed their redundant direct post-commit cleanup while preserving the remote history, and reran the generator and dispatcher suites with 171 passed and 1 platform skip.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 11ee2f9ef",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

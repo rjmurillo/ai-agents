@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation changes are committed through 53afb0f25; session, memory, and PR handoff evidence is committed in b8cd47432. Pre-existing tool artifacts remain outside this session scope."
+        "Evidence": "Implementation changes are committed through 11ee2f9ef; session, memory, and PR handoff evidence is committed in b8cd47432. Pre-existing tool artifacts remain outside this session scope."
       },
       "validationPassed": {
         "level": "MUST",
@@ -163,9 +163,13 @@
     {
       "time": "T10",
       "entry": "Moved published stale-shim deletion into HookGenerationTransaction with POSIX and Windows rollback behavior, preserved the immutable first backup across publish-then-delete sequences, and added successful cleanup, NO-REGEN, rollback, missing-target, duplicate-target, and partial-failure tests. The generator and dispatcher suites passed 171 tests with 1 platform skip; runtime-contract suites passed 7 tests; Ruff, CWE-78 scanning, regeneration, and drift checks passed."
+    },
+    {
+      "time": "T11",
+      "entry": "After all 16 pre-push checks passed, the push found two concurrent Cursor commits for the same stale-cleanup defect. Merged them without force, removed their redundant direct post-commit cleanup while preserving the remote history, and reran the generator and dispatcher suites with 171 passed and 1 platform skip."
     }
   ],
-  "endingCommit": "b8cd47432",
+  "endingCommit": "11ee2f9ef",
   "nextSteps": [
     "Push the reconciled branch without force and resolve the final stale-cleanup review thread.",
     "Verify a stable zero unresolved-thread count and green required checks, then merge PR 3076."
