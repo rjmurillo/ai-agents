@@ -169,7 +169,7 @@ def _git_worktree_root_from_cwd() -> Path | None:
 def _detect_safe_base_dir() -> Path:
     """Derive the worktree from cwd and validate any project-dir corroboration."""
     worktree_root = _git_worktree_root_from_cwd()
-    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "")
+    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if worktree_root is None:
         return _reject_project_root(
             "Cannot derive a contained Git worktree from cwd -- refusing", env_dir

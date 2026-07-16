@@ -3,19 +3,40 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash(*gh pr create*|*gh pr merge*)",
         "hooks": [
           {
             "type": "command",
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_routing_gates.py\"",
             "timeout": 5,
             "statusMessage": "Checking routing-level gates (ADR-033)"
-          },
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(*gh*)",
+        "hooks": [
           {
             "type": "command",
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_skill_first_guard.py\"",
             "statusMessage": "Enforcing skills-first policy for GitHub operations (BLOCKING)"
-          },
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(*git*commit*|*git*ci*|*gh*pr*create*|*gh*pr*merge*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_false_completion_gate.py\"",
+            "timeout": 5,
+            "statusMessage": "Checking for false completion claims without verification (#1703)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(*[gG][rR][eE][pP]*|*[rR][gG]*|*[aA][gG]*|*[aA][cC][kK]*)",
+        "hooks": [
           {
             "type": "command",
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py\"",
