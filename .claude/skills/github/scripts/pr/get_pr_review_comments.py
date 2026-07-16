@@ -52,7 +52,69 @@ from github_core.api import (  # noqa: E402
     gh_api_paginated,
     resolve_repo_params,
 )
+from github_core.bot_config import is_bot  # noqa: E402
 from github_core.comment_classification import classify_domain  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Reviewer-priority classification
+# ---------------------------------------------------------------------------
+# Source: pr-comment-responder SKILL.md "Reviewer Priority" table. The table
+# maps cursor[bot]=P0, human reviewers=P1, coderabbitai[bot]=P2, Copilot=P2.
+# A bot that is not one of those named reviewers falls to the deterministic
+# "Unknown" tier so no comment is dropped from triage.
+_REVIEWER_PRIORITY_BY_LOGIN: dict[str, str] = {
+    "cursor[bot]": "P0",
+    "coderabbitai[bot]": "P2",
+    "copilot": "P2",
+    "github-copilot[bot]": "P2",  # bot-login variant of the Copilot reviewer
+}
+
+_REVIEWER_TIERS: tuple[str, ...] = ("P0", "P1", "P2", "Unknown")
+_DOMAIN_GROUPS: tuple[str, ...] = ("Security", "Bug", "Style", "Summary", "General")
+
+
+def classify_reviewer_priority(author: str, author_type: str) -> str:
+    """Map a comment author to a reviewer-priority tier.
+
+    Order per the pr-comment-responder SKILL.md Reviewer Priority table:
+    P0 cursor[bot], P1 human reviewers, P2 named reviewer bots. An author that
+    is a bot but not one of the named reviewer bots falls to the deterministic
+    "Unknown" tier.
+    """
+    mapped = _REVIEWER_PRIORITY_BY_LOGIN.get((author or "").lower())
+    if mapped is not None:
+        return mapped
+    if not is_bot(author or "", author_type or None):
+        return "P1"
+    return "Unknown"
+
+
+def _group_comments_by_reviewer_priority(
+    comments: list[dict[str, Any]],
+    include_domain: bool,
+) -> dict[str, Any]:
+    """Bucket comments into reviewer-priority tiers, optionally nesting domains.
+
+    Tiers are inserted in P0, P1, P2, Unknown order. When include_domain is set,
+    each tier maps a domain group (Security, Bug, Style, Summary, General order)
+    to its comments; otherwise each tier maps to a flat list. Insertion order is
+    the processing order the skill consumes, so the output is deterministic.
+    """
+    grouped: dict[str, Any] = {
+        tier: ({d: [] for d in _DOMAIN_GROUPS} if include_domain else [])
+        for tier in _REVIEWER_TIERS
+    }
+    for comment in comments:
+        tier = classify_reviewer_priority(
+            comment.get("Author", ""), comment.get("AuthorType", "")
+        )
+        if include_domain:
+            domain = (comment.get("Domain") or "general").capitalize()
+            bucket = domain if domain in _DOMAIN_GROUPS else "General"
+            grouped[tier][bucket].append(comment)
+        else:
+            grouped[tier].append(comment)
+    return grouped
 
 # ---------------------------------------------------------------------------
 # Stale detection helpers
@@ -218,13 +280,13 @@ def test_diff_hunk_match(line: int, diff_hunk: str, content: str) -> bool:
 
 
 def get_staleness(
-    comment: dict,
+    comment: dict[str, Any],
     owner: str,
     repo: str,
     file_tree: list[str],
     content_cache: dict[str, str | None],
     head_sha: str | None,
-) -> dict:
+) -> dict[str, Any]:
     """Determine if a comment is stale."""
     comment_type = comment.get("CommentType", "")
     path = comment.get("Path")
@@ -267,9 +329,10 @@ def get_pr_review_comments(
     exclude_stale: bool = False,
     only_stale: bool = False,
     group_by_domain: bool = False,
+    group_by_reviewer_priority: bool = False,
     only_unaddressed: bool = False,
     bot_only: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Get all comments for a PR with optional filtering and classification."""
     # Initialize stale detection caches
     file_tree: list[str] = []
@@ -298,7 +361,7 @@ def get_pr_review_comments(
             3,
         )
 
-    processed_review: list[dict] = []
+    processed_review: list[dict[str, Any]] = []
     for comment in review_comments:
         login = comment.get("user", {}).get("login", "")
         if author and login != author:
@@ -307,7 +370,7 @@ def get_pr_review_comments(
         line = comment.get("line") or comment.get("original_line")
         diff_hunk = comment.get("diff_hunk", "")
 
-        stale_info: dict = {"Stale": None, "StaleReason": None}
+        stale_info: dict[str, Any] = {"Stale": None, "StaleReason": None}
         if detect_stale:
             stale_info = get_staleness(
                 {
@@ -342,7 +405,7 @@ def get_pr_review_comments(
         })
 
     # Fetch issue comments if requested
-    processed_issue: list[dict] = []
+    processed_issue: list[dict[str, Any]] = []
     if include_issue_comments:
         try:
             issue_comments = gh_api_paginated(
@@ -402,7 +465,7 @@ def get_pr_review_comments(
             if nodes and nodes[0] and nodes[0].get("databaseId"):
                 unresolved_ids.add(nodes[0]["databaseId"])
 
-        filtered: list[dict] = []
+        filtered: list[dict[str, Any]] = []
         for c in all_comments:
             if bot_only and c.get("AuthorType") != "Bot":
                 continue
@@ -441,6 +504,34 @@ def get_pr_review_comments(
     author_summary = [
         {"Author": a, "Count": cnt} for a, cnt in author_counter.items()
     ]
+
+    # Handle GroupByReviewerPriority output mode (composes with domain: reviewer
+    # priority is the outer key, domain the inner tiebreaker).
+    if group_by_reviewer_priority:
+        reviewer_grouped = _group_comments_by_reviewer_priority(
+            all_comments, group_by_domain
+        )
+        reviewer_counts: dict[str, int] = {}
+        for tier in _REVIEWER_TIERS:
+            value = reviewer_grouped[tier]
+            reviewer_counts[tier] = (
+                sum(len(v) for v in value.values()) if group_by_domain else len(value)
+            )
+
+        reviewer_grouped["TotalComments"] = len(all_comments)
+        reviewer_grouped["ReviewerPriorityCounts"] = reviewer_counts
+        if group_by_domain:
+            reviewer_grouped["DomainCounts"] = {
+                k.capitalize(): v for k, v in domain_counts.items()
+            }
+        reviewer_grouped["StaleCount"] = stale_count
+
+        tiers_summary = ", ".join(f"{t}({reviewer_counts[t]})" for t in _REVIEWER_TIERS)
+        print(
+            f"PR #{pr_number}: Grouped by reviewer priority: {tiers_summary}",
+            file=sys.stderr,
+        )
+        return reviewer_grouped
 
     # Handle GroupByDomain output mode
     if group_by_domain:
@@ -558,6 +649,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Group comments by domain instead of flat array",
     )
     parser.add_argument(
+        "--group-by-reviewer-priority", action="store_true",
+        help=(
+            "Group comments by reviewer priority (P0 cursor[bot], P1 human, "
+            "P2 bot, then Unknown); composes with --group-by-domain as the "
+            "inner tiebreaker"
+        ),
+    )
+    parser.add_argument(
         "--only-unaddressed", action="store_true",
         help="Filter to comments needing attention",
     )
@@ -614,6 +713,7 @@ def main(argv: list[str] | None = None) -> int:
         exclude_stale=args.exclude_stale,
         only_stale=args.only_stale,
         group_by_domain=args.group_by_domain,
+        group_by_reviewer_priority=args.group_by_reviewer_priority,
         only_unaddressed=args.only_unaddressed,
         bot_only=args.bot_only,
     )
