@@ -35,3 +35,10 @@ hooks while disabling repository hooks.
 
 Session 3042 recorded the controlled probe counts and timestamps in
 `.agents/analysis/2026-07-14-hook-batching-determination.md`.
+
+## Related
+
+- [copilot-agent-frontmatter-ci-enforcement](copilot-agent-frontmatter-ci-enforcement.md)
+- [copilot-agent-frontmatter-ci-review-fixes](copilot-agent-frontmatter-ci-review-fixes.md)
+- [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md)
+- [copilot-hooks-observations](copilot-hooks-observations.md)
