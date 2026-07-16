@@ -7,6 +7,7 @@ non-blocking exits, required-loader failure, path validation, consumer repo skip
 
 from __future__ import annotations
 
+import builtins
 import json
 import sys
 from pathlib import Path
@@ -364,27 +365,112 @@ class TestSafeBaseDirM7T5:
 
 
 class TestRequiredSkillPatternLoader:
-    def test_missing_loader_raises_and_does_not_mark_patterns_loaded(
+    def test_missing_loader_raises_companion_error_and_does_not_mark_loaded(
         self, monkeypatch, tmp_path
     ):
+        """A missing companion module is a config error, not a generic defect."""
         monkeypatch.setattr(invoke_skill_learning, "_patterns_loaded", False)
 
         with patch.dict(sys.modules, {"skill_pattern_loader": None}):
-            with pytest.raises(invoke_skill_learning.SkillPatternLoadError):
+            with pytest.raises(invoke_skill_learning.SkillPatternCompanionError):
                 invoke_skill_learning._ensure_patterns_loaded(tmp_path)
 
         assert invoke_skill_learning._patterns_loaded is False
 
-    def test_broken_loader_raises_and_does_not_mark_patterns_loaded(
+    def test_broken_loader_raises_base_error_and_does_not_mark_loaded(
         self, monkeypatch, tmp_path
     ):
+        """An unexpected non-OSError defect is the generic internal-defect class."""
         monkeypatch.setattr(invoke_skill_learning, "_patterns_loaded", False)
 
         with patch(
             "skill_pattern_loader.load_skill_patterns",
             side_effect=RuntimeError("loader broke"),
         ):
-            with pytest.raises(invoke_skill_learning.SkillPatternLoadError):
+            with pytest.raises(invoke_skill_learning.SkillPatternLoadError) as excinfo:
+                invoke_skill_learning._ensure_patterns_loaded(tmp_path)
+
+        assert not isinstance(
+            excinfo.value,
+            (
+                invoke_skill_learning.SkillPatternCompanionError,
+                invoke_skill_learning.SkillPatternExternalError,
+            ),
+        )
+        assert invoke_skill_learning._patterns_loaded is False
+
+    def test_external_io_failure_raises_external_error_and_does_not_mark_loaded(
+        self, monkeypatch, tmp_path
+    ):
+        """An OSError from the companion is an external failure, not a defect."""
+        monkeypatch.setattr(invoke_skill_learning, "_patterns_loaded", False)
+
+        with patch(
+            "skill_pattern_loader.load_skill_patterns",
+            side_effect=OSError("disk full"),
+        ):
+            with pytest.raises(invoke_skill_learning.SkillPatternExternalError):
+                invoke_skill_learning._ensure_patterns_loaded(tmp_path)
+
+        assert invoke_skill_learning._patterns_loaded is False
+
+    def test_import_syntax_error_raises_load_error_and_does_not_mark_loaded(
+        self, monkeypatch, tmp_path
+    ):
+        """A companion with a SyntaxError is a logic defect (ADR-035 exit 1).
+
+        Regression test: previously the import statement was wrapped only in
+        ``except ImportError``, so a ``SyntaxError`` raised while importing a
+        corrupted ``skill_pattern_loader.py`` fell through uncaught to
+        ``main()``'s generic ``except Exception: return 0``, reporting the
+        optional learning step as a success instead of surfacing the defect.
+        """
+        monkeypatch.setattr(invoke_skill_learning, "_patterns_loaded", False)
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "skill_pattern_loader":
+                raise SyntaxError("invalid syntax")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=fake_import):
+            with pytest.raises(invoke_skill_learning.SkillPatternLoadError) as excinfo:
+                invoke_skill_learning._ensure_patterns_loaded(tmp_path)
+
+        assert not isinstance(
+            excinfo.value,
+            (
+                invoke_skill_learning.SkillPatternCompanionError,
+                invoke_skill_learning.SkillPatternExternalError,
+            ),
+        )
+        assert invoke_skill_learning._patterns_loaded is False
+
+    def test_import_oserror_raises_external_error_and_does_not_mark_loaded(
+        self, monkeypatch, tmp_path
+    ):
+        """An import-time OSError is an external failure (ADR-035 exit 3).
+
+        Covers a local filesystem ``PermissionError`` (a subclass of
+        ``OSError``) raised while reading the companion module file during
+        import, e.g. restrictive file permissions or an antivirus lock.
+        Regression test: previously only ``ImportError`` was caught around
+        the import statement, so this fell through to ``main()``'s generic
+        ``except Exception: return 0`` instead of ADR-035 exit 3. This is
+        deliberately NOT mapped to ADR-035 exit 4 ("Auth Error"): exit 4 is
+        reserved for service auth/credential failures (token/session
+        expiry), not local filesystem permission errors.
+        """
+        monkeypatch.setattr(invoke_skill_learning, "_patterns_loaded", False)
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "skill_pattern_loader":
+                raise PermissionError("denied")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=fake_import):
+            with pytest.raises(invoke_skill_learning.SkillPatternExternalError):
                 invoke_skill_learning._ensure_patterns_loaded(tmp_path)
 
         assert invoke_skill_learning._patterns_loaded is False
@@ -495,6 +581,60 @@ class TestMain:
         assert result == 1
         assert captured.out == ""
         assert "loader broke" in captured.err
+
+    def test_returns_two_when_companion_missing(
+        self,
+        mock_stdin: Callable[[str], None],
+        tmp_path,
+        capsys,
+    ):
+        """A missing runtime companion is a Config Error (ADR-035 exit 2)."""
+        mock_stdin(json.dumps({"cwd": str(tmp_path), "messages": []}))
+        error = invoke_skill_learning.SkillPatternCompanionError("companion missing")
+
+        with patch.object(
+            invoke_skill_learning, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_skill_learning, "get_project_directory", return_value=str(tmp_path)
+        ), patch.object(
+            invoke_skill_learning, "get_safe_project_path", return_value=tmp_path
+        ), patch.object(
+            invoke_skill_learning, "_ensure_patterns_loaded", side_effect=error
+        ):
+            result = invoke_skill_learning.main()
+
+        captured = capsys.readouterr()
+
+        assert result == 2
+        assert captured.out == ""
+        assert "companion missing" in captured.err
+
+    def test_returns_three_when_external_io_fails(
+        self,
+        mock_stdin: Callable[[str], None],
+        tmp_path,
+        capsys,
+    ):
+        """An external I/O failure is an External Error (ADR-035 exit 3)."""
+        mock_stdin(json.dumps({"cwd": str(tmp_path), "messages": []}))
+        error = invoke_skill_learning.SkillPatternExternalError("disk full")
+
+        with patch.object(
+            invoke_skill_learning, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_skill_learning, "get_project_directory", return_value=str(tmp_path)
+        ), patch.object(
+            invoke_skill_learning, "get_safe_project_path", return_value=tmp_path
+        ), patch.object(
+            invoke_skill_learning, "_ensure_patterns_loaded", side_effect=error
+        ):
+            result = invoke_skill_learning.main()
+
+        captured = capsys.readouterr()
+
+        assert result == 3
+        assert captured.out == ""
+        assert "disk full" in captured.err
 
     @patch("invoke_skill_learning.skip_if_consumer_repo", return_value=False)
     def test_always_exits_0_on_exception(

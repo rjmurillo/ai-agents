@@ -32,9 +32,13 @@ Confidence Levels:
 - LOW (0.3-0.49): Repeated patterns, track for frequency
 
 Hook Type: Stop (non-blocking)
-Exit Codes:
-  0 = Normal completion or optional learning failure
-  1 = Required skill pattern loader unavailable or failed
+Exit Codes (ADR-035, see `.agents/architecture/ADR-035-exit-code-standardization.md`):
+  0 = Normal completion, or an optional (non-loader) learning step failed
+  1 = Internal skill pattern loader defect (SkillPatternLoadError; Logic Error)
+  2 = Required skill_pattern_loader companion missing/unimportable
+      (SkillPatternCompanionError; Config Error)
+  3 = Skill pattern loader hit an external I/O failure, e.g. disk or
+      permissions (SkillPatternExternalError; External Error)
 
 Related:
 - .claude/skills/reflect/SKILL.md
@@ -309,7 +313,44 @@ def _get_safe_root_from_env(env_value: str) -> Path:
 
 
 class SkillPatternLoadError(RuntimeError):
-    """Required skill-pattern loading failed."""
+    """Required skill-pattern loading failed (internal loader defect).
+
+    Base class for the three ADR-035 failure classes this hook distinguishes.
+    Catch the specific subclass first; this base class is the fallback for
+    an unexpected defect in the loader itself, including a ``SyntaxError``
+    raised while importing the companion module (a broken companion file is
+    a logic defect in that file, not a missing dependency or an external I/O
+    failure) (ADR-035 exit 1, "Logic Error"). See
+    `.agents/architecture/ADR-035-exit-code-standardization.md` lines 120-126
+    for the canonical exit-code table this mirrors verbatim: ``0=Success,
+    1=Logic Error, 2=Config Error, 3=External Error, 4=Auth Error``.
+    """
+
+
+class SkillPatternCompanionError(SkillPatternLoadError):
+    """The ``skill_pattern_loader`` companion module could not be imported.
+
+    Raised when the companion file declared in
+    ``build/scripts/generate_hooks_events.py``'s ``_COMPANIONS_BY_OWNER`` is
+    missing or fails to import. This is a missing-dependency/configuration
+    problem, not a logic bug in the loader (ADR-035 exit 2, "Config Error").
+    """
+
+
+class SkillPatternExternalError(SkillPatternLoadError):
+    """The skill pattern loader hit an external I/O failure.
+
+    Raised when either importing the ``skill_pattern_loader`` companion
+    module (e.g. a local filesystem ``PermissionError`` reading the module
+    file) or calling :func:`skill_pattern_loader.load_skill_patterns`
+    (scanning SKILL.md files or writing its stat cache) fails with an
+    ``OSError``: disk full, permission denied, or a filesystem race. This is
+    an external resource failure, not a defect in the loader's own logic and
+    not an authentication/authorization failure -- a local filesystem
+    ``PermissionError`` is a resource-access failure (ADR-035 exit 3,
+    "External Error"), distinct from the service auth/credential failures
+    ADR-035 exit 4 ("Auth Error") reserves for token/session expiry.
+    """
 
 
 SKILL_PATTERNS: dict[str, list[str]] = {}
@@ -321,15 +362,40 @@ def _ensure_patterns_loaded(project_dir: Path) -> None:
     """Lazy-load skill patterns from SKILL.md files on first use.
 
     Uses stat-based caching for performance (~2ms warm, ~40ms cold).
-    Raises SkillPatternLoadError when the required loader cannot run.
+
+    Raises (see the class docstrings for the ADR-035 exit each maps to):
+        SkillPatternCompanionError: the companion module cannot be imported
+            (``ImportError``, e.g. the file is missing).
+        SkillPatternExternalError: the companion import or the companion's
+            ``load_skill_patterns`` call hit an ``OSError`` (disk or
+            permission failure).
+        SkillPatternLoadError: the companion import hit a ``SyntaxError``
+            (a broken companion file), or ``load_skill_patterns`` raised any
+            other unexpected defect.
     """
     global SKILL_PATTERNS, COMMAND_TO_SKILL, _patterns_loaded
     if _patterns_loaded:
         return
     try:
         from skill_pattern_loader import load_skill_patterns
-
+    except ImportError as exc:
+        raise SkillPatternCompanionError(
+            f"required skill_pattern_loader companion is unavailable: {exc}"
+        ) from exc
+    except SyntaxError as exc:
+        raise SkillPatternLoadError(
+            f"skill_pattern_loader companion has invalid syntax: {exc}"
+        ) from exc
+    except OSError as exc:
+        raise SkillPatternExternalError(
+            f"skill_pattern_loader companion import hit an external I/O failure: {exc}"
+        ) from exc
+    try:
         loaded_patterns, loaded_commands = load_skill_patterns(project_dir)
+    except OSError as exc:
+        raise SkillPatternExternalError(
+            f"skill pattern loader hit an external I/O failure: {exc}"
+        ) from exc
     except Exception as exc:
         raise SkillPatternLoadError(
             f"required skill pattern loader failed: {exc}"
@@ -1186,7 +1252,16 @@ def main():
 
         return 0
 
+    except SkillPatternCompanionError as exc:
+        # Missing/misconfigured runtime companion: Config Error (ADR-035 exit 2).
+        print(f"Skill learning hook error: {exc}", file=sys.stderr)
+        return 2
+    except SkillPatternExternalError as exc:
+        # Disk/permission/filesystem failure: External Error (ADR-035 exit 3).
+        print(f"Skill learning hook error: {exc}", file=sys.stderr)
+        return 3
     except SkillPatternLoadError as exc:
+        # Unexpected defect in the loader itself: Logic Error (ADR-035 exit 1).
         print(f"Skill learning hook error: {exc}", file=sys.stderr)
         return 1
     except Exception as e:
