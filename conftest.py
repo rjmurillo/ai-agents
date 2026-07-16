@@ -68,17 +68,17 @@ def _real_repo_head_subject() -> str:
 
 
 def _reflog_contains_action(action: str) -> bool:
-    """Return whether the project reflogs contain this per-test action."""
+    """Return whether the project HEAD reflog contains this per-test action."""
     out = _run_git_capture(
         "reflog",
-        "--all",
+        "HEAD",
         "--format=%gs",
         f"--grep-reflog={action}",
         "-n",
         "1",
     )
     if out is None or out.returncode != 0:
-        raise OSError("could not read project reflogs")
+        raise OSError("could not read project HEAD reflog")
     return bool(out.stdout.strip())
 
 
@@ -124,14 +124,13 @@ def _symbolic_ref_mutates_head(args: list[str]) -> bool:
     return "--delete" in args or len(positional) >= 2
 
 
-def _update_ref_mutates_branch(args: list[str]) -> bool:
+def _update_ref_mutates_head(args: list[str]) -> bool:
     if "--stdin" in args:
-        return True
+        return False
     positional = _positional_args(args, {"-m"})
     if not positional:
         return False
-    ref_name = positional[0]
-    return ref_name == "HEAD" or ref_name.startswith("refs/heads/")
+    return positional[0] == "HEAD"
 
 
 def _record_trace_event(session: dict[str, object], event: dict[str, object]) -> None:
@@ -211,7 +210,7 @@ def _session_has_plumbing_mutation(session: dict[str, object]) -> bool:
     if command == "symbolic-ref":
         return _symbolic_ref_mutates_head(command_args)
     if command == "update-ref":
-        return _update_ref_mutates_branch(command_args)
+        return _update_ref_mutates_head(command_args)
     return False
 
 
