@@ -8,10 +8,13 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "build" / "scripts"))
 
 import generate_dispatcher as gd  # noqa: E402
+from generate_hooks_shim import _SHIM_BEGIN  # noqa: E402
 
 
 class TestDispatcherEntry:
@@ -47,8 +50,6 @@ class TestEmit:
         assert data["mode"] == "observe"
 
     def test_manifest_rejects_unknown_mode(self, tmp_path):
-        import pytest
-
         with pytest.raises(ValueError, match="mode must be"):
             gd.write_manifest(tmp_path, "postToolUse", ["a.py"], mode="bogus")
 
@@ -488,9 +489,12 @@ class TestConsolidate:
         event_dir.mkdir(parents=True)
         active = event_dir / "guard__Bash_git_commit_123abc.py"
         stale = event_dir / "guard__Bash_git_status_456def.py"
-        support = event_dir / "push_guard_base.py"
-        for path in (active, stale, support):
-            path.write_text("pass\n", encoding="utf-8")
+        support = event_dir / "support__helper.py"
+        package = event_dir / "__init__.py"
+        active.write_text("pass\n", encoding="utf-8")
+        stale.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        support.write_text("pass\n", encoding="utf-8")
+        package.write_text("pass\n", encoding="utf-8")
         out = {
             "PreToolUse": [
                 {
@@ -505,14 +509,22 @@ class TestConsolidate:
         assert active.is_file()
         assert not stale.exists()
         assert support.is_file()
+        assert package.is_file()
 
-    def test_consolidate_preserves_no_regen_stale_matcher_shim(self, tmp_path):
+    def test_consolidate_preserves_no_regen_stale_matcher_shim(
+        self, tmp_path, capsys
+    ):
         event_dir = tmp_path / "hooks" / "PreToolUse"
         event_dir.mkdir(parents=True)
         active = event_dir / "guard__Bash_git_commit_123abc.py"
-        protected = event_dir / "guard__Bash_git_status_456def.py"
+        inline = event_dir / "guard__Bash_git_status_456def.py"
+        sidecar = event_dir / "guard__Bash_git_push_789abc.py"
         active.write_text("pass\n", encoding="utf-8")
-        protected.write_text("# NO-REGEN\npass\n", encoding="utf-8")
+        inline.write_text(f"{_SHIM_BEGIN}\n# NO-REGEN\n", encoding="utf-8")
+        sidecar.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        sidecar.with_suffix(sidecar.suffix + ".noregen").write_text(
+            "preserve\n", encoding="utf-8"
+        )
         out = {
             "PreToolUse": [
                 {
@@ -524,7 +536,62 @@ class TestConsolidate:
 
         gd.consolidate(out, tmp_path / "hooks")
 
-        assert protected.is_file()
+        notice = capsys.readouterr().out
+        assert inline.is_file()
+        assert sidecar.is_file()
+        assert inline.name in notice
+        assert sidecar.name in notice
+        assert "NO-REGEN" in notice
+
+    @pytest.mark.parametrize("failure_site", ["scan", "read", "unlink"])
+    def test_consolidate_propagates_cleanup_filesystem_errors(
+        self, tmp_path, monkeypatch, failure_site
+    ):
+        event_dir = tmp_path / "hooks" / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        active = event_dir / "guard__Bash_git_commit_123abc.py"
+        stale = event_dir / "guard__Bash_git_status_456def.py"
+        active.write_text("pass\n", encoding="utf-8")
+        stale.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        out = {
+            "PreToolUse": [
+                {
+                    "bash": f'python3 -u "${{ROOT}}/hooks/PreToolUse/{active.name}"',
+                    "timeoutSec": 5,
+                },
+            ],
+        }
+
+        if failure_site == "scan":
+            original = Path.iterdir
+
+            def fail_scan(path):
+                if path == event_dir:
+                    raise OSError("scan failed")
+                return original(path)
+
+            monkeypatch.setattr(Path, "iterdir", fail_scan)
+        elif failure_site == "read":
+            original = Path.read_text
+
+            def fail_read(path, *args, **kwargs):
+                if path == stale:
+                    raise OSError("read failed")
+                return original(path, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "read_text", fail_read)
+        else:
+            original = Path.unlink
+
+            def fail_unlink(path, *args, **kwargs):
+                if path == stale:
+                    raise OSError("unlink failed")
+                return original(path, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "unlink", fail_unlink)
+
+        with pytest.raises(OSError, match=f"{failure_site} failed"):
+            gd.consolidate(out, tmp_path / "hooks")
 
     def test_consolidate_passes_through_event_with_no_shims(self, tmp_path):
         # An entry with no parseable shim path (e.g. a verbatim shell snippet)

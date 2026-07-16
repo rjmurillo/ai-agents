@@ -19,6 +19,11 @@ from pathlib import Path
 from typing import Any, cast
 
 _REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO / "build" / "scripts"))
+
+from generate_hooks_body import is_shimmed  # noqa: E402
+from regen_guard import detect_reason_strict  # noqa: E402
+
 _COPILOT = _REPO / "src" / "copilot-cli"
 _HOOKS_JSON = _COPILOT / "hooks" / "hooks.json"
 _GATING = "PreToolUse"
@@ -199,12 +204,14 @@ class TestDispatcherArtifacts:
                 (event_dir / "_manifest.json").read_text(encoding="utf-8")
             )
             registered = set(manifest["shims"])
-            stale = sorted(
-                path.name
-                for path in event_dir.glob("*__*.py")
-                if path.name not in registered
-            )
-            assert stale == [], f"{event}: unregistered matcher shims: {stale}"
+            stale = []
+            for path in event_dir.glob("*.py"):
+                if path.name in registered:
+                    continue
+                source = path.read_text(encoding="utf-8")
+                if is_shimmed(source) and detect_reason_strict(path) is None:
+                    stale.append(path.name)
+            assert sorted(stale) == [], f"{event}: unregistered matcher shims: {stale}"
 
     def test_session_end_skill_loader_is_shipped_but_not_dispatched(self):
         event_dir = _COPILOT / "hooks" / "SessionEnd"

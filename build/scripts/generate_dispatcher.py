@@ -40,7 +40,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from regen_guard import detect_reason as regen_detect_reason
+from generate_hooks_body import is_shimmed
+from regen_guard import detect_reason_strict as regen_detect_reason
 
 # Mirror contract from build/scripts/generate_hooks_emit.py::_build_copilot_entry:
 # bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
@@ -259,10 +260,15 @@ def _shim_basename(command: str) -> str | None:
 def _remove_stale_matcher_shims(event_dir: Path, shim_names: list[str]) -> None:
     """Remove generated matcher shims omitted from the authoritative manifest."""
     active_shims = set(shim_names)
-    for candidate in event_dir.glob("*__*.py"):
-        if candidate.name in active_shims:
+    for candidate in sorted(event_dir.iterdir()):
+        if candidate.suffix != ".py" or candidate.name in active_shims:
             continue
-        if regen_detect_reason(candidate) is not None:
+        source = candidate.read_text(encoding="utf-8")
+        if not is_shimmed(source):
+            continue
+        reason = regen_detect_reason(candidate)
+        if reason is not None:
+            print(f"  NOTICE: skipped {candidate} (NO-REGEN: {reason})")
             continue
         candidate.unlink()
 
