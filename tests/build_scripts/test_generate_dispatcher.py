@@ -483,6 +483,49 @@ class TestConsolidate:
         assert (hooks_dir / "SessionStart" / "_bootstrap.py").is_file()
         assert (hooks_dir / "SessionStart" / "_dispatch.py").is_file()
 
+    def test_consolidate_removes_unregistered_matcher_shims(self, tmp_path):
+        event_dir = tmp_path / "hooks" / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        active = event_dir / "guard__Bash_git_commit_123abc.py"
+        stale = event_dir / "guard__Bash_git_status_456def.py"
+        support = event_dir / "push_guard_base.py"
+        for path in (active, stale, support):
+            path.write_text("pass\n", encoding="utf-8")
+        out = {
+            "PreToolUse": [
+                {
+                    "bash": f'python3 -u "${{ROOT}}/hooks/PreToolUse/{active.name}"',
+                    "timeoutSec": 5,
+                },
+            ],
+        }
+
+        gd.consolidate(out, tmp_path / "hooks")
+
+        assert active.is_file()
+        assert not stale.exists()
+        assert support.is_file()
+
+    def test_consolidate_preserves_no_regen_stale_matcher_shim(self, tmp_path):
+        event_dir = tmp_path / "hooks" / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        active = event_dir / "guard__Bash_git_commit_123abc.py"
+        protected = event_dir / "guard__Bash_git_status_456def.py"
+        active.write_text("pass\n", encoding="utf-8")
+        protected.write_text("# NO-REGEN\npass\n", encoding="utf-8")
+        out = {
+            "PreToolUse": [
+                {
+                    "bash": f'python3 -u "${{ROOT}}/hooks/PreToolUse/{active.name}"',
+                    "timeoutSec": 5,
+                },
+            ],
+        }
+
+        gd.consolidate(out, tmp_path / "hooks")
+
+        assert protected.is_file()
+
     def test_consolidate_passes_through_event_with_no_shims(self, tmp_path):
         # An entry with no parseable shim path (e.g. a verbatim shell snippet)
         # is left untouched so consolidation never drops a non-shim entry.

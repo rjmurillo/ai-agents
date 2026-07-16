@@ -38,6 +38,9 @@ import json
 import re
 import shutil
 from pathlib import Path
+from typing import Any
+
+from regen_guard import detect_reason as regen_detect_reason
 
 # Mirror contract from build/scripts/generate_hooks_emit.py::_build_copilot_entry:
 # bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
@@ -134,7 +137,7 @@ sys.exit(_main())
 '''
 
 
-def dispatcher_entry(event: str, timeout_sec: int) -> dict:
+def dispatcher_entry(event: str, timeout_sec: int) -> dict[str, Any]:
     """Return the single hooks.json entry that registers the event dispatcher."""
     return {
         "bash": _BASH_TEMPLATE.format(event=event),
@@ -164,7 +167,11 @@ def write_manifest(
     if mode not in ("gate", "observe"):
         raise ValueError(f"mode must be 'gate' or 'observe', got {mode!r}")
     manifest_path = event_dir / "_manifest.json"
-    manifest: dict = {"event": event, "mode": mode, "shims": list(shim_names)}
+    manifest: dict[str, Any] = {
+        "event": event,
+        "mode": mode,
+        "shims": list(shim_names),
+    }
     if shim_timeouts is not None:
         manifest["timeouts"] = {
             name: int(shim_timeouts[name])
@@ -214,7 +221,7 @@ def emit_dispatcher(
     shim_timeouts: dict[str, int] | None = None,
     *,
     mode: str = "gate",
-) -> dict:
+) -> dict[str, Any]:
     """Write manifest + entrypoint + bootstrap and return the hooks.json entry.
 
     ``timeout_sec`` should be the sum of the per-shim timeouts the dispatcher
@@ -222,6 +229,7 @@ def emit_dispatcher(
     the separate host invocations. ``mode`` is ``"gate"`` (``PreToolUse``,
     fail-closed short-circuit) or ``"observe"`` (all shims run, never gate).
     """
+    _remove_stale_matcher_shims(event_dir, shim_names)
     write_manifest(event_dir, event, shim_names, shim_timeouts, mode=mode)
     write_entrypoint(event_dir)
     _copy_bootstrap(event_dir)
@@ -248,7 +256,20 @@ def _shim_basename(command: str) -> str | None:
     return match.group(1) if match else None
 
 
-def consolidate(out: dict, hooks_dir: Path) -> dict:
+def _remove_stale_matcher_shims(event_dir: Path, shim_names: list[str]) -> None:
+    """Remove generated matcher shims omitted from the authoritative manifest."""
+    active_shims = set(shim_names)
+    for candidate in event_dir.glob("*__*.py"):
+        if candidate.name in active_shims:
+            continue
+        if regen_detect_reason(candidate) is not None:
+            continue
+        candidate.unlink()
+
+
+def consolidate(
+    out: dict[str, list[dict[str, Any]]], hooks_dir: Path
+) -> dict[str, list[dict[str, Any]]]:
     """Collapse every event's per-shim entries to one dispatcher entry.
 
     ``out`` is the generator's ``{event: [entry, ...]}`` map. For each event
@@ -261,7 +282,7 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
     order is the registered hooks.json order (authoritative) and the
     consolidated ``timeoutSec`` is the sum of the per-shim timeouts.
     """
-    new_out: dict = {}
+    new_out: dict[str, list[dict[str, Any]]] = {}
     for event, entries in out.items():
         shim_entries = [
             (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))

@@ -192,6 +192,20 @@ class TestDispatcherArtifacts:
             for shim in manifest["shims"]:
                 assert (event_dir / shim).is_file(), f"{event}: manifest shim {shim} missing"
 
+    def test_no_unregistered_matcher_shims_are_shipped(self):
+        for event in _ALL_EVENTS:
+            event_dir = _COPILOT / "hooks" / event
+            manifest = json.loads(
+                (event_dir / "_manifest.json").read_text(encoding="utf-8")
+            )
+            registered = set(manifest["shims"])
+            stale = sorted(
+                path.name
+                for path in event_dir.glob("*__*.py")
+                if path.name not in registered
+            )
+            assert stale == [], f"{event}: unregistered matcher shims: {stale}"
+
     def test_session_end_skill_loader_is_shipped_but_not_dispatched(self):
         event_dir = _COPILOT / "hooks" / "SessionEnd"
         manifest = json.loads(
