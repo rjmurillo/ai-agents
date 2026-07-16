@@ -269,3 +269,4 @@ def test_windows_contract_jobs_fail_independently_and_run_for_action_changes():
     assert "- '.github/actions/ai-review/action.yml'" in workflow
     assert workflow.count("- name: Run pwsh hook contract tests") == 1
     assert workflow.count("- name: Run AI review output path contract tests") == 1
+    assert "    timeout-minutes: 15" in workflow

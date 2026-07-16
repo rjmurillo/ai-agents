@@ -281,6 +281,7 @@ jobs:
     needs: check-paths
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: windows-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
