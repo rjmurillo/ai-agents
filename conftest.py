@@ -19,7 +19,8 @@ _TRACE_ENV_NAMES = ("GIT_REFLOG_ACTION", "GIT_TRACE2_EVENT")
 
 
 def _git_env() -> dict[str, str]:
-    return {key: value for key, value in os.environ.items() if key not in _GIT_ENV_OVERRIDES}
+    blocked = _GIT_ENV_OVERRIDES | set(_TRACE_ENV_NAMES)
+    return {key: value for key, value in os.environ.items() if key not in blocked}
 
 
 def _project_git_dir() -> Path:
