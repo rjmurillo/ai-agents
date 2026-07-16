@@ -35,6 +35,7 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
 
 import generate_hooks  # noqa: E402
+import generate_hooks_events  # noqa: E402
 from generate_hooks import (  # noqa: E402
     _SHIM_BEGIN,
     _SHIM_END,
@@ -756,6 +757,7 @@ def test_generated_skill_owner_imports_companion_portably(tmp_path: Path) -> Non
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
     assert rc == 0
@@ -774,6 +776,55 @@ def test_generator_fails_when_declared_skill_loader_is_absent(
     assert "declared runtime companion is missing" in captured.err
     assert "skill_pattern_loader.py" in captured.err
     assert not (tmp_path / "out" / "hooks.json").exists()
+    # #9: validation must run BEFORE the owner is copied, so a missing
+    # companion never leaves a half-written owner script with no matching
+    # hooks.json.
+    assert not (tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py").exists()
+
+
+def test_generator_no_regen_owner_skip_validates_but_skips_companion_copy(
+    tmp_path: Path,
+) -> None:
+    """NO-REGEN on the owner must not create or overwrite its companion (#2)."""
+    cfg = _setup_skill_companion_fixture(tmp_path)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+
+    # Customer protects the owner and hand-edits the companion.
+    owner.write_text("# NO-REGEN\nprint('customer fix')\n", encoding="utf-8")
+    companion.write_text("TOKEN = 'customer-edit'\n", encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert owner.read_text().startswith("# NO-REGEN\n")
+    # Declaration was still validated (source companion exists), but the
+    # NO-REGEN-skipped owner must not trigger a companion (re)copy.
+    assert companion.read_text() == "TOKEN = 'customer-edit'\n"
+
+
+def test_generator_no_regen_owner_requires_existing_output_companion(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A protected owner cannot emit an entry without its runtime companion."""
+    cfg = _setup_skill_companion_fixture(tmp_path)
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+    owner.parent.mkdir(parents=True)
+    owner.write_text("# NO-REGEN\nprint('customer fix')\n", encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "NO-REGEN owner requires an existing runtime companion" in captured.err
+    assert "skill_pattern_loader.py" in captured.err
+    assert owner.read_text(encoding="utf-8").startswith("# NO-REGEN\n")
+    assert not (owner.parent / "skill_pattern_loader.py").exists()
+    assert not (tmp_path / "out" / "hooks.json").exists()
+
 
 def test_generator_does_not_copy_unowned_skill_loader(tmp_path: Path) -> None:
     cfg = _setup_skill_companion_fixture(tmp_path, include_owner=False)
@@ -782,6 +833,167 @@ def test_generator_does_not_copy_unowned_skill_loader(tmp_path: Path) -> None:
 
     assert rc == 0
     assert not (tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py").exists()
+
+
+def test_generator_two_owner_missing_companion_leaves_no_partial_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A later owner's missing companion must not let an earlier owner land (#9).
+
+    Regression for a QA probe finding: per-owner validation inside
+    ``_emit_one_hook`` only protected the owner it was currently
+    processing, so ``PostToolUse/early_owner.py`` (alphabetically first,
+    valid companion) was already copied to disk by the time
+    ``PreToolUse/late_owner.py``'s (alphabetically second) missing
+    companion aborted the run. The probe observed
+    ``early_owner_exists=True``, ``missing_companion_owner_exists=False``,
+    ``hooks_json_exists=False`` -- proof of a half-written output tree.
+
+    ``generate_hooks.generate_hooks`` now runs
+    ``generate_hooks_events._prevalidate_companions`` over BOTH owners
+    before either is copied, so this run must fail with NEITHER owner
+    NOR ``hooks.json`` on disk.
+    """
+    cfg = _write_config(tmp_path)
+    hooks_src = tmp_path / "hooks_src"
+
+    _write_script(hooks_src, "PostToolUse", "early_owner.py", "print('early')\n")
+    _write_script(hooks_src, "PostToolUse", "early_companion.py", "TOKEN = 1\n")
+    _write_script(hooks_src, "PreToolUse", "late_owner.py", "print('late')\n")
+    # late_companion.py is declared below but intentionally never written.
+
+    monkeypatch.setattr(
+        generate_hooks_events,
+        "_COMPANIONS_BY_OWNER",
+        {
+            "PostToolUse/early_owner.py": ("early_companion.py",),
+            "PreToolUse/late_owner.py": ("late_companion.py",),
+        },
+    )
+
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PostToolUse": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u .claude/hooks/PostToolUse/"
+                                "early_owner.py"
+                            ),
+                        }
+                    ]
+                }
+            ],
+            "PreToolUse": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u .claude/hooks/PreToolUse/late_owner.py"
+                            ),
+                        }
+                    ]
+                }
+            ],
+        },
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "declared runtime companion is missing" in captured.err
+    assert "late_companion.py" in captured.err
+    assert not (tmp_path / "out" / "hooks.json").exists()
+    assert not (tmp_path / "out" / "PostToolUse" / "early_owner.py").exists()
+    assert not (tmp_path / "out" / "PostToolUse" / "early_companion.py").exists()
+    assert not (tmp_path / "out" / "PreToolUse" / "late_owner.py").exists()
+
+
+def test_generator_prevalidate_skips_owner_with_empty_remap_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An ``eventRemap`` target of ``""`` must be skipped like ``_process_event``.
+
+    Regression for a QA probe finding: ``_prevalidate_companions``
+    originally checked only ``claude_event not in event_remap``, so an
+    event present as a key in ``event_remap`` but mapped to an empty
+    string (``eventRemap: {Empty: ""}``) was still walked, and its
+    declared companion's absence aborted the run with rc=2.
+
+    ``_process_event`` (the normal traversal) uses
+    ``event_remap.get(claude_event)`` and treats ANY falsey result
+    (missing key OR empty-string value) as an unknown event, routing it
+    to ``_handle_unknown_event`` and never reaching ``_emit_one_hook``
+    for it. Prevalidation must reach the identical conclusion for the
+    identical input: skip the event, and therefore never look at its
+    companion declaration. Before this fix, the probe observed rc=2
+    ("declared runtime companion is missing") for a configuration where
+    normal processing emits nothing for the affected event.
+    """
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  hooks:
+    settingsSource: "settings.json"
+    scriptSource: "hooks_src"
+    outputConfig: "out/hooks.json"
+    outputScripts: "out"
+    eventRemap:
+      Empty: ""
+    eventDrop: []
+    matcherPolicy: "inline-script-shim"
+    versionField: 1
+""",
+        encoding="utf-8",
+    )
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "Empty", "owner.py", "print('should not run')\n")
+    # companion.py is declared but intentionally never written to disk.
+    # If prevalidation still walked this event, it would abort with rc=2.
+
+    monkeypatch.setattr(
+        generate_hooks_events,
+        "_COMPANIONS_BY_OWNER",
+        {"Empty/owner.py": ("companion.py",)},
+    )
+
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "Empty": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/Empty/owner.py",
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+
+    rc, result = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert "declared runtime companion is missing" not in captured.err
+    assert result.dropped == 1
+    out = json.loads((tmp_path / "out" / "hooks.json").read_text())
+    assert out["hooks"] == {}
+    assert not (tmp_path / "out" / "Empty").exists()
 
 
 def test_generator_emits_version_one_wrapper(tmp_path: Path) -> None:
