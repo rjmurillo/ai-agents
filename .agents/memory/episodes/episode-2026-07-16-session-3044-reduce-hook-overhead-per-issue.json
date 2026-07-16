@@ -77,6 +77,22 @@
       "content": "Recorded ADR-082 debate log and decision memory.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Vendored claude_hook_dispatch.py into src/copilot-cli/lib via build_all; registration tests updated to resolve through dispatch groups.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest 18 passed on the two registration suites; build_all --check drift clears once vendored lib is committed",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

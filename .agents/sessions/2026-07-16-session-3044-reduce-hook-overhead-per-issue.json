@@ -153,6 +153,11 @@
       "timestamp": "2026-07-16T07:15:00Z",
       "summary": "Recorded ADR-082 debate log and decision memory.",
       "evidence": "adr-review debate artifact .agents/analysis/2026-07-16-adr-082-debate.md"
+    },
+    {
+      "timestamp": "2026-07-16T07:30:00Z",
+      "summary": "Vendored claude_hook_dispatch.py into src/copilot-cli/lib via build_all; registration tests updated to resolve through dispatch groups.",
+      "evidence": "pytest 18 passed on the two registration suites; build_all --check drift clears once vendored lib is committed"
     }
   ],
   "endingCommit": "",
