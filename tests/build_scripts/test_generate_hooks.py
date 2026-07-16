@@ -1213,7 +1213,6 @@ def test_transaction_repeated_windows_publish_keeps_original_backup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A second publication cannot overwrite the run's first backup."""
-    monkeypatch.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
     transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
     target = tmp_path / "target.py"
     target.write_text("old\n", encoding="utf-8")
@@ -1228,18 +1227,20 @@ def test_transaction_repeated_windows_publish_keeps_original_backup(
             replacement_target.replace(backup)
         source.replace(replacement_target)
 
-    monkeypatch.setattr(
-        generate_hooks_transaction,
-        "_replace_target",
-        replace_like_windows,
-    )
+    with monkeypatch.context() as windows:
+        windows.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
+        windows.setattr(
+            generate_hooks_transaction,
+            "_replace_target",
+            replace_like_windows,
+        )
 
-    first = transaction.new_stage_path(tmp_path)
-    first.write_text("first\n", encoding="utf-8")
-    transaction.publish_many([(first, target)])
-    second = transaction.new_stage_path(tmp_path)
-    second.write_text("second\n", encoding="utf-8")
-    transaction.publish_many([(second, target)])
+        first = transaction.new_stage_path(tmp_path)
+        first.write_text("first\n", encoding="utf-8")
+        transaction.publish_many([(first, target)])
+        second = transaction.new_stage_path(tmp_path)
+        second.write_text("second\n", encoding="utf-8")
+        transaction.publish_many([(second, target)])
 
     assert target.read_text(encoding="utf-8") == "second\n"
     assert transaction.rollback() == []
