@@ -652,8 +652,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--group-by-reviewer-priority", action="store_true",
         help=(
             "Group comments by reviewer priority (P0 cursor[bot], P1 human, "
-            "P2 bot, then Unknown); composes with --group-by-domain as the "
-            "inner tiebreaker"
+            "P2 CodeRabbit/Copilot, then Unknown); composes with "
+            "--group-by-domain as the inner tiebreaker"
         ),
     )
     parser.add_argument(

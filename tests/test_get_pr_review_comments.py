@@ -151,8 +151,11 @@ class TestBuildParser:
     def test_help_text_lists_reviewer_priority_flag(self, capsys):
         with pytest.raises(SystemExit) as exc:
             build_parser().parse_args(["--help"])
+
         assert exc.value.code == 0
-        assert "--group-by-reviewer-priority" in capsys.readouterr().out
+        help_text = capsys.readouterr().out
+        assert "--group-by-reviewer-priority" in help_text
+        assert "P2 CodeRabbit/Copilot, then Unknown" in help_text
 
 
 # ---------------------------------------------------------------------------
