@@ -40,18 +40,58 @@ PROJECT_SPECIFIC_HOOKS = [
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _configured_matcher(script_suffix: str) -> str:
-    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    for group in settings["hooks"]["PreToolUse"]:
-        for hook in group["hooks"]:
-            if hook["command"].endswith(script_suffix):
-                return group["matcher"]
-    raise AssertionError(f"No PreToolUse matcher found for {script_suffix}")
+def _configured_matchers(script_suffix: str, config_path: Path) -> list[str]:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    portable_suffix = script_suffix.removeprefix(".claude/")
+    matchers = [
+        group["matcher"]
+        for group in config["hooks"]["PreToolUse"]
+        if any(
+            hook["command"].strip().rstrip('"').endswith(
+                (script_suffix, portable_suffix)
+            )
+            for hook in group["hooks"]
+        )
+    ]
+    if not matchers:
+        raise AssertionError(f"No PreToolUse matcher found for {script_suffix}")
+    return matchers
+
+
+def _settings_matchers(script_suffix: str) -> list[str]:
+    return _configured_matchers(script_suffix, REPO_ROOT / ".claude" / "settings.json")
+
+
+def _plugin_matchers(script_suffix: str) -> list[str]:
+    return _configured_matchers(script_suffix, REPO_ROOT / ".claude" / "hooks" / "hooks.json")
 
 
 def _matches_bash_command(matcher: str, command: str) -> bool:
     assert matcher.startswith("Bash(") and matcher.endswith(")")
     return any(fnmatchcase(command, branch) for branch in matcher[5:-1].split("|"))
+
+
+def _matches_configured_command(script_suffix: str, command: str) -> bool:
+    return any(
+        _matches_bash_command(matcher, command) for matcher in _settings_matchers(script_suffix)
+    )
+
+
+_MATCHER_SCOPED_SCRIPTS = [
+    ".claude/hooks/invoke_routing_gates.py",
+    ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
+    ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
+    ".claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
+]
+
+_COMMIT_GATE_SCRIPTS = [
+    ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
+    ".claude/hooks/PreToolUse/invoke_branch_context_guard.py",
+    ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
+    ".claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
+    ".claude/hooks/PreToolUse/invoke_security_commit_gate.py",
+    ".claude/hooks/PreToolUse/invoke_prompt_eval_gate.py",
+]
 
 
 class TestShellHookMatcherScope:
@@ -60,15 +100,26 @@ class TestShellHookMatcherScope:
         [
             (
                 ".claude/hooks/invoke_routing_gates.py",
-                ["gh pr create --fill", r"C:\tools\bin\gh pr merge 42 --squash"],
+                [
+                    "gh pr create --fill",
+                    "echo ready && gh pr create --fill",
+                    r"C:\tools\bin\gh pr merge 42 --squash",
+                ],
             ),
             (
                 ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
-                ["echo ready && gh pr view 42", r"C:\tools\bin\gh issue list"],
+                [
+                    "echo ready && gh pr view 42",
+                    r"C:\tools\bin\gh issue list",
+                ],
             ),
             (
                 ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
-                ["git -C repo commit -m fix", "env gh pr create --fill"],
+                [
+                    "git -C repo commit -m fix",
+                    r"C:\tools\git.exe -C repo commit -m fix",
+                    "env gh pr create --fill",
+                ],
             ),
             (
                 ".claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
@@ -85,24 +136,61 @@ class TestShellHookMatcherScope:
     def test_matchers_preserve_guard_command_coverage(
         self, script_suffix: str, commands: list[str]
     ) -> None:
-        matcher = _configured_matcher(script_suffix)
-        assert all(_matches_bash_command(matcher, command) for command in commands)
+        assert all(_matches_configured_command(script_suffix, command) for command in commands)
 
     @pytest.mark.parametrize(
         "command",
-        ["Write-Output TRACE_TOOL_OK", "git status --short", "python -m pytest", "npm test"],
+        [
+            "Write-Output TRACE_TOOL_OK",
+            "git status --short",
+            "git log commit",
+            "echo git commit",
+            "python -m pytest",
+            "npm test",
+            "cargo test",
+            "docker tag image",
+            "echo org name",
+            "echo gh",
+            "echo though",
+            'echo "gh pr create"',
+        ],
     )
     def test_unrelated_shell_commands_start_no_direct_guard(self, command: str) -> None:
-        script_suffixes = [
-            ".claude/hooks/invoke_routing_gates.py",
-            ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
-            ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
-            ".claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
-        ]
         assert not any(
-            _matches_bash_command(_configured_matcher(script), command)
-            for script in script_suffixes
+            _matches_configured_command(script, command) for script in _MATCHER_SCOPED_SCRIPTS
         )
+
+    @pytest.mark.parametrize("script_suffix", _COMMIT_GATE_SCRIPTS)
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -C repo commit -m fix",
+            r"C:\tools\git.exe -C repo commit -m fix",
+        ],
+    )
+    def test_commit_hard_gates_cover_git_context_options(
+        self, script_suffix: str, command: str
+    ) -> None:
+        assert _matches_configured_command(script_suffix, command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh pr create --fill",
+            "echo ready && gh pr create --fill",
+            r"C:\tools\gh.exe pr create --fill",
+        ],
+    )
+    def test_session_log_guard_covers_pr_creation(self, command: str) -> None:
+        assert _matches_configured_command(
+            ".claude/hooks/PreToolUse/invoke_session_log_guard.py", command
+        )
+
+    @pytest.mark.parametrize(
+        "script_suffix", sorted(set(_MATCHER_SCOPED_SCRIPTS + _COMMIT_GATE_SCRIPTS))
+    )
+    def test_plugin_matchers_match_repository_settings(self, script_suffix: str) -> None:
+        assert _plugin_matchers(script_suffix) == _settings_matchers(script_suffix)
 
 
 class TestIsProjectRepo:

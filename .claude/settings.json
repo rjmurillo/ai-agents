@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash(*gh pr create*|*gh pr merge*)",
+        "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
         "hooks": [
           {
             "type": "command",
@@ -13,7 +13,7 @@
         ]
       },
       {
-        "matcher": "Bash(*gh*)",
+        "matcher": "Bash([gG][hH] *|*\\[gG][hH].exe *|*\\[gG][hH] *|*/[gG][hH] *|*&& [gG][hH] *|*; [gG][hH] *|[eE][nN][vV] [gG][hH] *|[eE][nN][vV] * [gG][hH] *|[sS][uU][dD][oO] * [gG][hH] *|[eE][xX][eE][cC] [gG][hH] *|[cC][oO][mM][mM][aA][nN][dD] [gG][hH] *)",
         "hooks": [
           {
             "type": "command",
@@ -23,7 +23,7 @@
         ]
       },
       {
-        "matcher": "Bash(*git*commit*|*git*ci*|*gh*pr*create*|*gh*pr*merge*)",
+        "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*|[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
         "hooks": [
           {
             "type": "command",
@@ -34,7 +34,7 @@
         ]
       },
       {
-        "matcher": "Bash(*[gG][rR][eE][pP]*|*[rR][gG]*|*[aA][gG]*|*[aA][cC][kK]*)",
+        "matcher": "Bash([gG][rR][eE][pP] *|[rR][gG] *|[aA][gG] *|[aA][cC][kK] *|*[ ][gG][rR][eE][pP][ ]*|*[ ][rR][gG][ ]*|*[ ][aA][gG][ ]*|*[ ][aA][cC][kK][ ]*|*\\[gG][rR][eE][pP].exe *|*\\[rR][gG].exe *|*\\[aA][gG].exe *|*\\[aA][cC][kK].exe *|*/[gG][rR][eE][pP] *|*/[rR][gG] *|*/[aA][gG] *|*/[aA][cC][kK] *)",
         "hooks": [
           {
             "type": "command",
@@ -45,7 +45,7 @@
         ]
       },
       {
-        "matcher": "Bash(git commit*|git ci*)",
+        "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
         "hooks": [
           {
             "type": "command",
@@ -82,7 +82,7 @@
         ]
       },
       {
-        "matcher": "Bash(gh pr create*)",
+        "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*)",
         "hooks": [
           {
             "type": "command",
