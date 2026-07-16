@@ -255,7 +255,7 @@ def _drain_stdin() -> None:
 
 
 def _emit_utf8(text: str) -> None:
-    """Write protocol text as UTF-8 regardless of ambient Windows encoding."""
+    """Prefer UTF-8 protocol output, with an ambient-encoding text fallback."""
     stream = sys.stdout
     reconfigure = getattr(stream, "reconfigure", None)
     if callable(reconfigure):
