@@ -192,6 +192,32 @@ class TestMain:
         assert output["Success"] is True
         assert output["TotalComments"] == 0
 
+    def test_review_comment_with_null_user_uses_empty_author(self, capsys):
+        review = _review_comment(100, "unused", "Deleted account comment")
+        review["user"] = None
+
+        rc = _run_main(["--pull-request", "42"], review=[review])
+
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Comments"][0]["Author"] == ""
+        assert output["Comments"][0]["AuthorType"] == ""
+
+    def test_issue_comment_with_null_user_uses_empty_author(self, capsys):
+        issue = _issue_comment(200, "unused", "Deleted account comment")
+        issue["user"] = None
+
+        rc = _run_main(
+            ["--pull-request", "42", "--include-issue-comments"],
+            review=[],
+            issue=[issue],
+        )
+
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Comments"][0]["Author"] == ""
+        assert output["Comments"][0]["AuthorType"] == ""
+
     def test_bot_comment_included(self, capsys):
         raw_comments = [
             {

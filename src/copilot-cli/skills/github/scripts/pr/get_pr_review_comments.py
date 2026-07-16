@@ -89,6 +89,12 @@ def classify_reviewer_priority(author: str, author_type: str) -> str:
     return "Unknown"
 
 
+def _comment_user(comment: dict[str, Any]) -> dict[str, Any]:
+    """Return the GitHub user payload, or an empty payload for ghost accounts."""
+    user = comment.get("user")
+    return user if isinstance(user, dict) else {}
+
+
 def _group_comments_by_reviewer_priority(
     comments: list[dict[str, Any]],
     include_domain: bool,
@@ -363,7 +369,8 @@ def get_pr_review_comments(
 
     processed_review: list[dict[str, Any]] = []
     for comment in review_comments:
-        login = comment.get("user", {}).get("login", "")
+        user = _comment_user(comment)
+        login = user.get("login", "")
         if author and login != author:
             continue
 
@@ -386,7 +393,7 @@ def get_pr_review_comments(
             "Id": comment.get("id"),
             "CommentType": "Review",
             "Author": login,
-            "AuthorType": comment.get("user", {}).get("type", ""),
+            "AuthorType": user.get("type", ""),
             "Path": comment.get("path"),
             "Line": line,
             "Side": comment.get("side"),
@@ -420,7 +427,8 @@ def get_pr_review_comments(
             )
 
         for comment in issue_comments:
-            login = comment.get("user", {}).get("login", "")
+            user = _comment_user(comment)
+            login = user.get("login", "")
             if author and login != author:
                 continue
 
@@ -428,7 +436,7 @@ def get_pr_review_comments(
                 "Id": comment.get("id"),
                 "CommentType": "Issue",
                 "Author": login,
-                "AuthorType": comment.get("user", {}).get("type", ""),
+                "AuthorType": user.get("type", ""),
                 "Path": None,
                 "Line": None,
                 "Side": None,
