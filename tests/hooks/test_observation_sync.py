@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -224,6 +225,51 @@ class TestRepoRoot:
         )
 
         assert _get_repo_root() is None
+
+    def test_timeout_expired_gets_a_distinct_timeout_diagnostic(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A slow git process must be distinguishable from a launch failure."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+        def _raise_timeout(*_args: object, **_kwargs: object) -> None:
+            raise subprocess.TimeoutExpired(cmd=["git", "rev-parse"], timeout=5)
+
+        monkeypatch.setattr(
+            "invoke_observation_sync.subprocess.run", _raise_timeout
+        )
+
+        with caplog.at_level("WARNING"):
+            assert _get_repo_root() is None
+
+        assert any("timed out" in record.message for record in caplog.records)
+        assert not any(
+            "failed to start" in record.message for record in caplog.records
+        )
+
+    def test_os_error_gets_a_distinct_launch_failure_diagnostic(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Git missing/unrunnable must be distinguishable from a timeout."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+        def _raise_os_error(*_args: object, **_kwargs: object) -> None:
+            raise FileNotFoundError("git executable not found")
+
+        monkeypatch.setattr(
+            "invoke_observation_sync.subprocess.run", _raise_os_error
+        )
+
+        with caplog.at_level("WARNING"):
+            assert _get_repo_root() is None
+
+        assert any(
+            "failed to start" in record.message and "FileNotFoundError" in record.message
+            for record in caplog.records
+        )
+        assert not any("timed out" in record.message for record in caplog.records)
 
 
 class TestMainHook:

@@ -116,6 +116,33 @@ class TestUtf8ProtocolOutput:
 
         assert stream.buffer.getvalue() == (self.PROTOCOL_TEXT + "\n").encode("utf-8")
 
+    def test_text_only_fallback_when_no_reconfigure_or_buffer(self, monkeypatch) -> None:
+        """A stream lacking BOTH reconfigure and buffer must still get the
+        exact protocol text plus one trailing LF via the plain str write
+        path (the third and last fallback branch in _emit_utf8; #14)."""
+
+        class TextOnlyStream:
+            def __init__(self) -> None:
+                self.written: list[str] = []
+                self.flushed = False
+
+            def write(self, data: str) -> int:
+                self.written.append(data)
+                return len(data)
+
+            def flush(self) -> None:
+                self.flushed = True
+
+        stream = TextOnlyStream()
+        assert not hasattr(stream, "reconfigure")
+        assert not hasattr(stream, "buffer")
+        monkeypatch.setattr(sys, "stdout", stream)
+
+        invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
+
+        assert stream.written == [self.PROTOCOL_TEXT + "\n"]
+        assert stream.flushed is True
+
 
 class TestFindLatestRetrospective:
     """Test _find_latest_retrospective helper."""

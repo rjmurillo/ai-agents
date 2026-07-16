@@ -109,9 +109,16 @@ def _get_repo_root() -> str | None:
             check=False,
             timeout=5,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except subprocess.TimeoutExpired:
         _emit_project_root_rejection(
-            "Cannot derive the cwd Git worktree -- refusing", env_dir
+            "git rev-parse timed out deriving the cwd worktree -- refusing",
+            env_dir,
+        )
+        return None
+    except OSError as exc:
+        _emit_project_root_rejection(
+            f"git rev-parse failed to start ({type(exc).__name__}) -- refusing",
+            env_dir,
         )
         return None
     if result.returncode != 0:
