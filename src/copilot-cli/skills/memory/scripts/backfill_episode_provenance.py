@@ -124,12 +124,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Backfill episodes[] provenance on legacy causal-graph items.",
     )
     parser.add_argument(
-        "--graph-path", type=Path, default=None,
-        help="Path to causal graph JSON file",
+        "--graph-path", type=Path, required=True,
+        help="Path to the causal graph JSON file to backfill",
     )
     parser.add_argument(
-        "--episode-path", type=Path, default=None,
-        help="Path to episode file or directory (default: .agents/memory/episodes/)",
+        "--episode-path", type=Path, required=True,
+        help="Path to the episode file or directory to attribute from",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -138,10 +138,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve_path(candidate: Path | None, default: Path) -> Path | None:
+def _resolve_path(candidate: Path) -> Path | None:
     """Resolve a CLI path, rejecting traversal. Returns None on traversal."""
-    if candidate is None:
-        return default
     if ".." in candidate.parts:
         return None
     return candidate.resolve()
@@ -150,12 +148,8 @@ def _resolve_path(candidate: Path | None, default: Path) -> Path | None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    base_path = _SCRIPT_DIR.parent.parent.parent.parent
-    default_graph = base_path / ".agents" / "memory" / "causality" / "causal-graph.json"
-    default_episodes = base_path / ".agents" / "memory" / "episodes"
-
-    graph_path = _resolve_path(args.graph_path, default_graph)
-    episode_path = _resolve_path(args.episode_path, default_episodes)
+    graph_path = _resolve_path(args.graph_path)
+    episode_path = _resolve_path(args.episode_path)
     if graph_path is None or episode_path is None:
         print("Security: path must not contain traversal sequences.", file=sys.stderr)
         return 2

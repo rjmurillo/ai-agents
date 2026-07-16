@@ -222,7 +222,9 @@ class TestBackfillCli:
         assert graph_path.read_text(encoding="utf-8") == original
 
     def test_path_traversal_rejected(self, tmp_path: Path) -> None:
-        assert main(["--graph-path", "../evil.json"]) == 2
+        assert main(
+            ["--graph-path", "../evil.json", "--episode-path", str(tmp_path)],
+        ) == 2
 
 
 class TestSortedUnion:
