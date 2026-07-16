@@ -83,6 +83,10 @@ def test_render_output_file_matches_inline_block():
 # ---------------------------------------------------------------------------
 
 
+def test_module_has_no_hard_coded_output_path():
+    assert "/tmp/ai-review-output.txt" not in _MODULE_PATH.read_text(encoding="utf-8")
+
+
 def test_resolve_output_file_prefers_explicit_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
