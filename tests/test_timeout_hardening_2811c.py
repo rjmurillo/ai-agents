@@ -51,19 +51,19 @@ def test_observation_sync_passes_timeout() -> None:
     assert run.call_args.kwargs.get("timeout") == 5
 
 
-def test_observation_sync_timeout_degrades_to_cwd() -> None:
+def test_observation_sync_timeout_refuses_unverified_cwd() -> None:
     timeout = subprocess.TimeoutExpired(cmd="git", timeout=5)
     with (
         patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}),
         patch.object(_obs.subprocess, "run", side_effect=timeout),
     ):
         result = _obs._get_repo_root()
-    assert result == _obs.os.getcwd()
+    assert result is None
 
 
-def test_observation_sync_missing_git_degrades_to_cwd() -> None:
+def test_observation_sync_missing_git_refuses_unverified_cwd() -> None:
     # git binary absent: subprocess.run raises FileNotFoundError (an OSError).
-    # The helper must degrade to cwd, not surface the OSError to the hook.
+    # The helper must refuse an unverified cwd without surfacing the OSError.
     with (
         patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}),
         patch.object(
@@ -71,7 +71,7 @@ def test_observation_sync_missing_git_degrades_to_cwd() -> None:
         ),
     ):
         result = _obs._get_repo_root()
-    assert result == _obs.os.getcwd()
+    assert result is None
 
 
 # --- adr_review_guard.get_staged_adr_changes ------------------------------

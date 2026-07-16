@@ -32,7 +32,13 @@ Confidence Levels:
 - LOW (0.3-0.49): Repeated patterns, track for frequency
 
 Hook Type: Stop (non-blocking)
-Exit Codes: Always 0 (silent background learning)
+Exit Codes (ADR-035, see `.agents/architecture/ADR-035-exit-code-standardization.md`):
+  0 = Normal completion, or an optional (non-loader) learning step failed
+  1 = Internal skill pattern loader defect (SkillPatternLoadError; Logic Error)
+  2 = Required skill_pattern_loader companion missing/unimportable
+      (SkillPatternCompanionError; Config Error)
+  3 = Skill pattern loader hit an external I/O failure, e.g. disk or
+      permissions (SkillPatternExternalError; External Error)
 
 Related:
 - .claude/skills/reflect/SKILL.md
@@ -44,6 +50,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from datetime import datetime
@@ -113,77 +120,89 @@ def _atomic_write_text(path: Path, content: str) -> None:
 
 
 # Base directory for all project operations (path traversal floor / arbitrary
-# write blocker).
-#
-# M7-T5: was ``Path(__file__).resolve().parents[3]``, which assumed a specific
-# source-layout depth. After the REQ-003-007 hook generator copies this script
-# to ``src/copilot-cli/hooks/sessionEnd/<name>.py`` (one extra level deep),
-# ``parents[3]`` lands at ``.../src``, not the repo root. Pattern loading,
-# session lookup, and memory writes then resolve under non-existent
-# ``src/.claude``, ``src/.agents``, ``src/.serena`` paths.
-#
-# Fix: derive the safe base from the runtime environment. ``CLAUDE_PROJECT_DIR``
-# is set per-invocation; falling back to a walk-up from cwd looking for ``.git``
-# matches what every other hook in the codebase does. Either source is the
-# user's actual project root, regardless of where this script's file lives.
-def _detect_safe_base_dir() -> Path:
-    """Detect the safe base directory for path containment.
+# write blocker). The sentinel is deliberately outside any expected worktree.
+_FAILED_PROJECT_ROOT = Path("/__nonexistent_containment_sentinel__")
 
-    CWE-22 containment guard: When CLAUDE_PROJECT_DIR is set, verify that
-    this hook script resides under that directory before trusting it.
-    Without this guard, an attacker who can set the env var to '/' would
-    defeat every write-path guard in this file. Mirrors the pattern in
-    ``invoke_observation_sync._get_repo_root``.
 
-    Returns a non-existent sentinel path on failure to ensure all containment
-    checks fail rather than allowing writes to world-writable directories.
-    """
-    # Sentinel path that should never exist. When returned, all _is_relative_to
-    # checks will fail, ensuring no writes are permitted in degenerate cases.
-    # Using /tmp would effectively disable containment since any path under
-    # /tmp would pass validation.
-    sentinel = Path("/__nonexistent_containment_sentinel__")
+def _reject_project_root(reason: str, env_dir: str = "") -> Path:
+    """Log the existing CWE-22 diagnostic and return the fail-closed sentinel."""
+    _SECURITY_LOG.warning(
+        reason,
+        extra={
+            "code": "E_CWE22_PROJECT_DIR_MISMATCH",
+            "env_dir": env_dir,
+            "cwe": "CWE-22",
+            "hook": "skill-learning",
+        },
+    )
+    return _FAILED_PROJECT_ROOT
 
-    script_dir = str(Path(__file__).resolve().parent)
-    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
-    if env_dir:
-        try:
-            resolved_script = os.path.realpath(script_dir)
-            resolved_root = os.path.realpath(env_dir)
-            if not resolved_script.startswith(resolved_root + os.sep):
-                _SECURITY_LOG.warning(
-                    "CLAUDE_PROJECT_DIR does not contain hook script -- refusing",
-                    extra={
-                        "code": "E_CWE22_PROJECT_DIR_MISMATCH",
-                        "env_dir": env_dir,
-                        "script_dir": script_dir,
-                        "cwe": "CWE-22",
-                        "hook": "skill-learning",
-                    },
-                )
-                # Fall through to git-based detection instead of trusting env
-            else:
-                return Path(env_dir).resolve(strict=False)
-        except OSError:
-            pass
+
+def _git_worktree_root_from_cwd() -> Path | None:
+    """Return Git's worktree root for cwd only when cwd is contained by it."""
     try:
-        cur = Path.cwd().resolve()
+        cwd = Path.cwd().resolve(strict=True)
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(cwd),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+
+    raw_root = result.stdout.strip()
+    if _validate_path_string(raw_root) is None:
+        return None
+    try:
+        candidate = Path(raw_root).expanduser()
+        if not candidate.is_absolute():
+            return None
+        root = candidate.resolve(strict=True)
+        cwd.relative_to(root)
+    except (OSError, ValueError):
+        return None
+    return root
+
+
+def _detect_safe_base_dir() -> Path:
+    """Derive the worktree from cwd and validate any project-dir corroboration."""
+    worktree_root = _git_worktree_root_from_cwd()
+    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    if worktree_root is None:
+        return _reject_project_root(
+            "Cannot derive a contained Git worktree from cwd -- refusing", env_dir
+        )
+    if not env_dir:
+        return worktree_root
+
+    validated_env = _validate_path_string(env_dir)
+    if validated_env is None:
+        return _reject_project_root(
+            "CLAUDE_PROJECT_DIR is malformed -- refusing", env_dir
+        )
+    try:
+        candidate = Path(validated_env).expanduser()
+        if not candidate.is_absolute():
+            return _reject_project_root(
+                "CLAUDE_PROJECT_DIR is not absolute -- refusing", env_dir
+            )
+        corroborated_root = candidate.resolve(strict=True)
     except OSError:
-        # cwd may have been deleted; return sentinel to fail all containment checks
-        return sentinel
-    while True:
-        if (cur / ".git").exists():
-            return cur
-        parent = cur.parent
-        if parent == cur:
-            # No .git found; return sentinel to fail all containment checks
-            return sentinel
-        cur = parent
-
-
-SAFE_BASE_DIR = _detect_safe_base_dir()
-OBSERVATIONS_SUFFIX = "-observations.md"
-PROJECT_DIR: Path | None = None
+        return _reject_project_root(
+            "CLAUDE_PROJECT_DIR cannot be resolved -- refusing", env_dir
+        )
+    if corroborated_root != worktree_root:
+        return _reject_project_root(
+            "CLAUDE_PROJECT_DIR does not match the cwd Git worktree -- refusing",
+            env_dir,
+        )
+    return worktree_root
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:
@@ -235,39 +254,9 @@ def _validate_path_string(path_str: str) -> str | None:
     return path_str
 
 
-def _get_safe_root_from_env(env_value: str) -> Path:
-    """
-    Convert an environment-provided root path into a safe project root.
-
-    This function encapsulates all handling of potentially tainted path strings:
-      1. String-level validation via _validate_path_string.
-      2. Conversion to Path with expanduser/resolve.
-      3. Enforcement that the result is absolute and within SAFE_BASE_DIR.
-
-    On any validation failure, SAFE_BASE_DIR is returned.
-    """
-    # Step 1: String-level validation
-    validated_root = _validate_path_string(env_value)
-    if validated_root is None:
-        return SAFE_BASE_DIR
-
-    try:
-        # Step 2: Safely construct and normalize a Path from the validated string.
-        # Security note: path validation precedes resolution
-        # JUSTIFICATION: Input has passed _validate_path_string, and the resulting
-        # Path is immediately constrained to SAFE_BASE_DIR via _is_relative_to.
-        candidate_root = Path(validated_root).expanduser().resolve(
-            strict=False
-        )  # Path validated before resolution
-    except Exception:
-        # If the environment value cannot be parsed as a path, fall back to SAFE_BASE_DIR
-        return SAFE_BASE_DIR
-
-    # Step 3: Enforce absolute path within SAFE_BASE_DIR
-    if not candidate_root.is_absolute() or not _is_relative_to(candidate_root, SAFE_BASE_DIR):
-        return SAFE_BASE_DIR
-
-    return candidate_root
+SAFE_BASE_DIR = _detect_safe_base_dir()
+OBSERVATIONS_SUFFIX = "-observations.md"
+PROJECT_DIR: Path | None = None
 
 
 # =============================================================================
@@ -283,9 +272,51 @@ def _get_safe_root_from_env(env_value: str) -> Path:
 #   3. ~/.claude/skills/*/SKILL.md          (Claude Code user)
 #   4. ~/.copilot/skills/*/SKILL.md         (Copilot CLI user)
 #
-# Graceful degradation: if loading fails, regex-based detection
-# (skill path patterns, slash commands) still works with empty dicts.
+# The loader is a required runtime companion. Import or execution failure must
+# leave this hook non-successful instead of reporting an empty-pattern success.
 # =============================================================================
+
+
+class SkillPatternLoadError(RuntimeError):
+    """Required skill-pattern loading failed (internal loader defect).
+
+    Base class for the three ADR-035 failure classes this hook distinguishes.
+    Catch the specific subclass first; this base class is the fallback for
+    an unexpected defect in the loader itself, including a ``SyntaxError``
+    raised while importing the companion module (a broken companion file is
+    a logic defect in that file, not a missing dependency or an external I/O
+    failure) (ADR-035 exit 1, "Logic Error"). See
+    `.agents/architecture/ADR-035-exit-code-standardization.md` lines 120-126
+    for the canonical exit-code table this mirrors verbatim: ``0=Success,
+    1=Logic Error, 2=Config Error, 3=External Error, 4=Auth Error``.
+    """
+
+
+class SkillPatternCompanionError(SkillPatternLoadError):
+    """The ``skill_pattern_loader`` companion module could not be imported.
+
+    Raised when the companion file declared in
+    ``build/scripts/generate_hooks_events.py``'s ``_COMPANIONS_BY_OWNER`` is
+    missing or fails to import. This is a missing-dependency/configuration
+    problem, not a logic bug in the loader (ADR-035 exit 2, "Config Error").
+    """
+
+
+class SkillPatternExternalError(SkillPatternLoadError):
+    """The skill pattern loader hit an external I/O failure.
+
+    Raised when either importing the ``skill_pattern_loader`` companion
+    module (e.g. a local filesystem ``PermissionError`` reading the module
+    file) or calling :func:`skill_pattern_loader.load_skill_patterns`
+    (scanning SKILL.md files or writing its stat cache) fails with an
+    ``OSError``: disk full, permission denied, or a filesystem race. This is
+    an external resource failure, not a defect in the loader's own logic and
+    not an authentication/authorization failure -- a local filesystem
+    ``PermissionError`` is a resource-access failure (ADR-035 exit 3,
+    "External Error"), distinct from the service auth/credential failures
+    ADR-035 exit 4 ("Auth Error") reserves for token/session expiry.
+    """
+
 
 SKILL_PATTERNS: dict[str, list[str]] = {}
 COMMAND_TO_SKILL: dict[str, str] = {}
@@ -296,21 +327,50 @@ def _ensure_patterns_loaded(project_dir: Path) -> None:
     """Lazy-load skill patterns from SKILL.md files on first use.
 
     Uses stat-based caching for performance (~2ms warm, ~40ms cold).
-    Falls back silently to empty dicts if loading fails.
+
+    Raises (see the class docstrings for the ADR-035 exit each maps to):
+        SkillPatternCompanionError: the companion module cannot be imported
+            (``ImportError``, e.g. the file is missing).
+        SkillPatternExternalError: the companion import or the companion's
+            ``load_skill_patterns`` call hit an ``OSError`` (disk or
+            permission failure).
+        SkillPatternLoadError: the companion import hit a ``SyntaxError``
+            (a broken companion file), or ``load_skill_patterns`` raised any
+            other unexpected defect.
     """
     global SKILL_PATTERNS, COMMAND_TO_SKILL, _patterns_loaded
     if _patterns_loaded:
         return
     try:
         from skill_pattern_loader import load_skill_patterns
+    except ImportError as exc:
+        raise SkillPatternCompanionError(
+            f"required skill_pattern_loader companion is unavailable: {exc}"
+        ) from exc
+    except SyntaxError as exc:
+        raise SkillPatternLoadError(
+            f"skill_pattern_loader companion has invalid syntax: {exc}"
+        ) from exc
+    except OSError as exc:
+        raise SkillPatternExternalError(
+            f"skill_pattern_loader companion import hit an external I/O failure: {exc}"
+        ) from exc
+    try:
         loaded_patterns, loaded_commands = load_skill_patterns(project_dir)
-        if loaded_patterns:
-            SKILL_PATTERNS = loaded_patterns
-        if loaded_commands:
-            COMMAND_TO_SKILL = loaded_commands
+    except OSError as exc:
+        raise SkillPatternExternalError(
+            f"skill pattern loader hit an external I/O failure: {exc}"
+        ) from exc
     except Exception as exc:
-        print(f"Warning: Failed to load skill patterns: {exc}", file=sys.stderr)
+        raise SkillPatternLoadError(
+            f"required skill pattern loader failed: {exc}"
+        ) from exc
+    if loaded_patterns:
+        SKILL_PATTERNS = loaded_patterns
+    if loaded_commands:
+        COMMAND_TO_SKILL = loaded_commands
     _patterns_loaded = True
+
 
 # LLM fallback configuration
 CONFIDENCE_THRESHOLD = float(os.getenv("SKILL_LEARNING_CONFIDENCE_THRESHOLD", "0.7"))
@@ -344,68 +404,9 @@ def write_learning_notification(skill_name: str, high_count: int, med_count: int
         )
 
 
-def get_project_directory(hook_input: dict) -> str:
-    """Get a validated project directory from environment or hook input.
-
-    The resulting path is:
-      * absolute
-      * normalized
-      * contained within SAFE_BASE_DIR
-    If validation fails, SAFE_BASE_DIR is returned.
-    """
-    raw_dir = None
-
-    env_dir = os.getenv("CLAUDE_PROJECT_DIR")
-    if env_dir:
-        raw_dir = env_dir
-    elif isinstance(hook_input, dict):
-        cwd_val = hook_input.get("cwd")
-        if isinstance(cwd_val, str) and cwd_val.strip():
-            raw_dir = cwd_val
-
-    if not raw_dir:
-        raw_dir = os.getcwd()
-
-    # Validate and sanitize path string BEFORE Path() construction (CodeQL CWE-22)
-    validated_dir = _validate_path_string(raw_dir)
-    if validated_dir is None:
-        return str(SAFE_BASE_DIR)
-
-    try:
-        # Security note: path validation precedes resolution
-        # JUSTIFICATION: Defense-in-depth path validation prevents traversal:
-        #   1. PRE-VALIDATION: _validate_path_string() rejects malicious patterns
-        #   2. ROOT ANCHORING: All user input is interpreted under SAFE_BASE_DIR
-        #   3. POST-VALIDATION: _is_relative_to() enforces SAFE_BASE_DIR boundary
-        #   4. FALLBACK: Returns SAFE_BASE_DIR on any validation failure
-        # See: .github/codeql/suppressions.yml and
-        # .agents/analysis/908-codeql-path-traversal-analysis.md
-
-        base_path = SAFE_BASE_DIR
-
-        # Treat validated_dir as relative to SAFE_BASE_DIR when possible.
-        # If an absolute path is provided, normalize it but only use it if it
-        # still falls under SAFE_BASE_DIR after resolution.
-        user_path = Path(validated_dir).expanduser()
-        if user_path.is_absolute():
-            candidate = user_path.resolve(strict=False)  # Path validated before resolution
-        else:
-            candidate = (base_path / user_path).resolve(
-                strict=False
-            )  # Path validated before resolution
-    except Exception:
-        # Fall back to safe base directory on any resolution error
-        return str(SAFE_BASE_DIR)
-
-    # Enforce that the project directory is absolute and within SAFE_BASE_DIR
-    if not candidate.is_absolute():
-        return str(SAFE_BASE_DIR)
-
-    if not _is_relative_to(candidate, SAFE_BASE_DIR):
-        # Reject directories outside the allowed tree
-        return str(SAFE_BASE_DIR)
-
-    return str(candidate)
+def get_project_directory(_hook_input: dict) -> str:
+    """Return the validated cwd worktree root or the fail-closed sentinel."""
+    return str(SAFE_BASE_DIR)
 
 
 def get_safe_project_path(project_dir: str) -> Path | None:
@@ -415,26 +416,23 @@ def get_safe_project_path(project_dir: str) -> Path | None:
     This prevents path traversal or escaping the expected project tree when
     CLAUDE_PROJECT_DIR or hook-provided cwd are influenced by external input.
     """
+    if SAFE_BASE_DIR == _FAILED_PROJECT_ROOT:
+        return None
     try:
-        # Determine candidate safe root from environment or current working directory
-        root_raw = os.getenv("CLAUDE_PROJECT_ROOT", os.getcwd())
-
-        # Convert environment-provided root to a safe root within SAFE_BASE_DIR.
-        # This encapsulates all handling of potentially tainted path strings.
-        safe_root = _get_safe_root_from_env(root_raw)
-
         resolved_project = Path(project_dir).resolve()
     except OSError:
         # If resolution fails for any reason, treat as unsafe
         return None
 
-    # Python 3.9+ has is_relative_to; fall back to relative_to otherwise
+    # Validate project_dir is within SAFE_BASE_DIR (the Git worktree root).
+    # Previously this used CLAUDE_PROJECT_ROOT which could be a subdirectory,
+    # causing the check to fail when project_dir was the worktree root itself.
     if hasattr(resolved_project, "is_relative_to"):
-        if not resolved_project.is_relative_to(safe_root):
+        if not resolved_project.is_relative_to(SAFE_BASE_DIR):
             return None
     else:
         try:
-            resolved_project.relative_to(safe_root)
+            resolved_project.relative_to(SAFE_BASE_DIR)
         except ValueError:
             return None
 
@@ -1214,8 +1212,20 @@ def main():
 
         return 0
 
+    except SkillPatternCompanionError as exc:
+        # Missing/misconfigured runtime companion: Config Error (ADR-035 exit 2).
+        print(f"Skill learning hook error: {exc}", file=sys.stderr)
+        return 2
+    except SkillPatternExternalError as exc:
+        # Disk/permission/filesystem failure: External Error (ADR-035 exit 3).
+        print(f"Skill learning hook error: {exc}", file=sys.stderr)
+        return 3
+    except SkillPatternLoadError as exc:
+        # Unexpected defect in the loader itself: Logic Error (ADR-035 exit 1).
+        print(f"Skill learning hook error: {exc}", file=sys.stderr)
+        return 1
     except Exception as e:
-        # Silent failure - don't block session end
+        # Optional background learning failures do not block session end.
         print(f"Skill learning hook error: {e}", file=sys.stderr)
         return 0
 

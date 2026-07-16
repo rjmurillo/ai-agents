@@ -24,13 +24,18 @@ block with an actionable message. A documented bypass exists for workflows that
 genuinely cannot run under act (secrets, ARM-only runners): set
 ``SKIP_WORKFLOW_LOCAL_TEST=true``; the bypass is logged, not hidden.
 
-One gap degrades instead of blocking: when ``gh`` or the ``gh act`` extension is
-unavailable inside a managed remote container (Claude web containers or GitHub
-Codespaces, detected by env markers), the gate returns exit 0 with
-``degraded=True`` and a logged warning. Such an environment may not be able to
-provision ``gh act``, so blocking every workflow-touching push there is friction,
-not safety. A truthy ``CI`` marker overrides the managed-container signal, so CI,
-where ``gh act`` is provisioned, keeps the hard exit 3 (Issue #2548, item 3).
+Tool gaps degrade instead of blocking inside a managed remote container: when
+actionlint, ``gh``, the ``gh act`` extension, or the Docker daemon is
+unavailable inside a Claude web container or a GitHub Codespace (detected by env
+markers), the gate returns exit 0 with ``degraded=True`` and a logged warning.
+Such an environment may not be able to provision those tools, so blocking every
+workflow-touching push there is friction, not safety. A truthy ``CI`` marker
+overrides the managed-container signal, so CI, where the tools are provisioned,
+keeps the hard exit 3. On a dev laptop (no container marker) the gap also stays
+exit 3, so the local-run requirement is unchanged there. Issue #2548 item 3
+introduced this degrade for the ``gh``/``gh act`` gap; Issue #3064 extended it to
+the actionlint and Docker gaps so a container without those tools can still push
+a workflow edit.
 
 CLI
 ---
@@ -47,7 +52,10 @@ EXIT CODES (per ADR-035, exit-code contract in AGENTS.md)
 0 - all stages passed (or no workflow files, or bypassed)
 1 - a stage ran and failed (block the push)
 2 - configuration error (bad args, repo root absent)
-3 - a required tool is unavailable (actionlint, gh act, or Docker)
+3 - a required tool is unavailable (actionlint, gh act, or Docker). Inside a
+    managed remote container this gap degrades to exit 0 (degraded=True)
+    instead, because the tool cannot be provisioned there; CI and dev laptops
+    keep the hard exit 3 (Issue #3064)
 4 - unrunnable locally: actionlint passed but every changed workflow
     references a secret absent from this environment, so act has nothing to
     supply (auth per ADR-035). Skipped the act run audibly; CI runs it with the
@@ -565,26 +573,35 @@ def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 # --- Orchestration -------------------------------------------------------
 
 
-def _gh_act_gap_report(report: Report, tool_note: str) -> Report:
-    """Resolve a missing-``gh``/``gh act`` gap into a blocking or degraded Report.
+def _tool_gap_report(report: Report, note: str) -> Report:
+    """Resolve a missing-tool gap into a blocking or degraded Report.
 
-    In a remote container (see :func:`_is_remote_container`) the gap is an
-    environment limitation, not a code defect, so the gate degrades to a logged
-    warning (exit 0, ``degraded=True``) and the push proceeds. Everywhere else
-    the gap stays a blocking tool-unavailable failure (exit 3). The bypass hint
-    in ``tool_note`` is preserved either way (Issue #2548, item 3).
+    A tool gap is a missing actionlint, ``gh``, ``gh act`` extension, or Docker
+    daemon: the local run cannot proceed, but the workflow itself is not proven
+    broken. In a remote container (see :func:`_is_remote_container`) the gap is
+    an environment limitation, not a code defect, so the gate degrades to a
+    logged warning (exit 0, ``degraded=True``) and the push proceeds. Everywhere
+    else (a dev laptop, or CI where the tools are provisioned) the gap stays a
+    blocking tool-unavailable failure (exit 3). The install hint in ``note`` is
+    preserved either way.
+
+    Issue #2548 item 3 introduced this degrade for the ``gh``/``gh act`` gap;
+    Issue #3064 makes it the single DRY degrade path for every tool gap
+    (actionlint and Docker included), so a container that cannot provision
+    Docker or actionlint can still push a workflow edit while CI keeps the hard
+    exit 3.
     """
     if _is_remote_container():
         report.exit_code = 0
         report.degraded = True
         report.note = (
-            f"{tool_note} Remote container detected; gh act cannot be "
+            f"{note} Remote container detected; the missing tool cannot be "
             "provisioned here, so this gate is downgraded to a warning. CI "
             "still runs the full workflow check."
         )
         return report
     report.exit_code = 3
-    report.note = tool_note
+    report.note = note
     return report
 
 
@@ -654,13 +671,12 @@ def run_local_test(
     # with a real syntax error must still be caught here; linting only the
     # runnable subset would let that error bypass the gate (Issue #2841 review).
     if not _have("actionlint"):
-        report.exit_code = 3
-        report.note = (
+        return _tool_gap_report(
+            report,
             "actionlint not installed. Install it "
             "(https://github.com/rhysd/actionlint) or set "
-            f"{_BYPASS_ENV}=true to bypass for an unrunnable workflow."
+            f"{_BYPASS_ENV}=true to bypass for an unrunnable workflow.",
         )
-        return report
     s1 = _actionlint_stage(files, repo_root)
     report.stages.append(s1)
     if not s1.ok:
@@ -686,12 +702,12 @@ def run_local_test(
     # Stage 2 (dry-run) needs gh act but not a running Docker daemon: act -n
     # only plans the run.
     if not _have("gh"):
-        return _gh_act_gap_report(
+        return _tool_gap_report(
             report,
             f"gh CLI not installed. Install it or set {_BYPASS_ENV}=true.",
         )
     if not _gh_act_available():
-        return _gh_act_gap_report(
+        return _tool_gap_report(
             report,
             "gh act extension not installed. Install it via "
             f"'gh extension install nektos/gh-act' or set {_BYPASS_ENV}=true.",
@@ -712,17 +728,16 @@ def run_local_test(
     # Stage 3 (full run) executes in Docker, so it needs a live daemon.
     if full:
         if not _docker_ready():
-            report.exit_code = 3
             if not _have("docker"):
                 cause = "Docker is not installed"
             else:
                 cause = "the Docker daemon is not running"
-            report.note = (
+            note = (
                 f"{cause}; the full gh act run cannot execute. Install/start "
                 f"Docker or set {_BYPASS_ENV}=true to bypass an unrunnable "
                 "workflow (or pass --no-full for the lint+dry-run tier)."
             )
-            return report
+            return _tool_gap_report(report, note)
         s3 = _act_full_stage(runnable, repo_root)
         report.stages.append(s3)
         if not s3.ok:

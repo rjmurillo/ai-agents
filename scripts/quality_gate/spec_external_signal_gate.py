@@ -52,11 +52,15 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
     from .path_utils import REPOSITORY_ROOT
-except ImportError:  # pragma: no cover - script execution path
-    from path_utils import REPOSITORY_ROOT
+else:
+    try:
+        from .path_utils import REPOSITORY_ROOT
+    except ImportError:  # pragma: no cover - script execution path
+        from path_utils import REPOSITORY_ROOT
 
 _WORKSPACE = REPOSITORY_ROOT
 sys.path.insert(0, str(_WORKSPACE))
