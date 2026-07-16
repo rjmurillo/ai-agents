@@ -88,7 +88,7 @@ def _skill_identity(skill_md: Path) -> str:
         if skill_md.stat().st_size > _MAX_SKILL_FILE_BYTES:
             return default_name.lower()
         content = skill_md.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeError):
         return default_name.lower()
     return _extract_frontmatter_name(content, default_name).lower()
 
@@ -216,7 +216,7 @@ def parse_skill_triggers(skill_md_path: Path) -> dict:
         if size > _MAX_SKILL_FILE_BYTES:
             return {"name": default_name, "triggers": [], "slash_commands": []}
         content = skill_md_path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         raise OSError(f"cannot read SKILL.md at {skill_md_path}: {exc}") from exc
 
     name = _extract_frontmatter_name(content, default_name)

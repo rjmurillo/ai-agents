@@ -32,6 +32,7 @@ from skill_pattern_loader import (
     _get_cache_path,
     _glob_contained_skills,
     _read_cache,
+    _skill_identity,
     _update_section_state,
     _write_cache,
     build_detection_maps,
@@ -179,13 +180,36 @@ class TestParseSkillTriggers(unittest.TestCase):
         self.assertEqual(result["name"], "my-dir-name")
 
     def test_nonexistent_file_raises_with_path_context(self):
-        """A read failure propagates (with the failing path) instead of
-        silently returning empty triggers (#11). Only the oversize path is
-        allowed to return quietly; a missing file is a genuine failure."""
-        missing = Path("/nonexistent/skill-x/SKILL.md")
-        with self.assertRaises(OSError) as ctx:
-            parse_skill_triggers(missing)
+        """A missing file propagates with its guaranteed-missing path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing = Path(tmpdir) / "missing" / "SKILL.md"
+            with self.assertRaises(OSError) as ctx:
+                parse_skill_triggers(missing)
+
         self.assertIn(str(missing), str(ctx.exception))
+
+    def test_invalid_utf8_identity_falls_back_to_directory(self):
+        """Priority scanning falls back when a skill is not valid UTF-8."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            skill_dir = Path(tmpdir) / "fallback"
+            skill_dir.mkdir()
+            skill_md = skill_dir / "SKILL.md"
+            skill_md.write_bytes(b"\xff")
+
+            self.assertEqual(_skill_identity(skill_md), "fallback")
+
+    def test_invalid_utf8_raises_with_path_context(self):
+        """Trigger parsing wraps invalid UTF-8 with the failing path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            skill_md = Path(tmpdir) / "invalid" / "SKILL.md"
+            skill_md.parent.mkdir()
+            skill_md.write_bytes(b"\xff")
+
+            with self.assertRaises(OSError) as ctx:
+                parse_skill_triggers(skill_md)
+
+        self.assertIn(str(skill_md), str(ctx.exception))
+        self.assertIsInstance(ctx.exception.__cause__, UnicodeDecodeError)
 
     def test_permission_error_propagates_with_context(self):
         """A mid-read OSError (e.g. permission denied) also propagates (#11)."""
