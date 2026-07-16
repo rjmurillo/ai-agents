@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and follow-up changes are committed through 324e8811."
+        "Evidence": "Implementation and matcher-rescope changes are committed through 223151e0."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "scripts/validate_session_json.py completed successfully after this update."
+        "Evidence": "scripts/validate_session_json.py completed successfully after the T18 evidence update."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -185,12 +185,16 @@
     {
       "time": "T17",
       "entry": "Final review found no runtime correctness blocker. Advisory warnings cover two pre-existing skill model fields, a 506-line test module, and a size-based quality score decrease caused by the added security checks; these do not change shipped behavior."
+    },
+    {
+      "time": "T18",
+      "entry": "Rescoped four broad shell matchers to their existing command families and regenerated Copilot shims. Validation: pytest matcher and generator suites, 195 passed; Ruff and mypy passed; build_all --check, manifest parity, and plugin version bump passed. Two final Windows Job Object traces started 334 and 332 processes, zero direct shell wrappers, and two plugin dispatchers; both returned TRACE_TOOL_OK and TRACE_SESSION_OK."
     }
   ],
-  "endingCommit": "324e881192dd72e2676f99cdf3034759f161e30d",
+  "endingCommit": "223151e00df66ad1fe6fa5fa30e4dacfb61b8b32",
   "nextSteps": [
-    "Push the implementation commits to origin/perf/batch-claude-hooks.",
-    "Update PR #3076 title and body with implementation scope and exact validation evidence.",
+    "Push the final matcher-rescope commits to origin/perf/batch-claude-hooks.",
+    "Update PR #3076 with the controlled enabled-hook process evidence.",
     "Monitor required checks and address review feedback before merge."
   ]
 }
