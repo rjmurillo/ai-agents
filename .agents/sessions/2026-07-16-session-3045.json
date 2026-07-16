@@ -122,7 +122,7 @@
     "Committed docs change with Fixes #3045",
     "uv run pytest tests/ -x -q: 14173 passed, 19 skipped, 45 xfailed, 3 warnings in 123.89s (full suite, unaffected by this docs-only change)"
   ],
-  "endingCommit": "",
+  "endingCommit": "bb8ca086",
   "nextSteps": [
     "Open PR via .claude/skills/github/scripts/pr/new_pr.py",
     "Post decision comment on issue #3045 referencing the PR"
