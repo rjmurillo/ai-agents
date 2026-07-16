@@ -2,15 +2,20 @@
 """Regression guard for issue #3083 (Copilot host-versus-direct-replay code 1).
 
 On Windows the Copilot CLI host reported ``Hook command failed with code 1`` on a
-small (about 1,659 UTF-8 bytes) ``apply_patch`` PreToolUse payload, yet a direct
-replay of the exact payload through ``_dispatch.py`` returned exit 0. The
-generated dispatcher only ever returns 0 (allow) or 2 (deny, fail-closed), so the
-exit code 1 originates in the Windows ``py -3`` host or launcher, NOT in the
-dispatcher. That host bug is external and stays open on #3083; we cannot fix a
+small ``apply_patch`` PreToolUse payload, yet a direct replay of the same payload
+class through ``_dispatch.py`` returned exit 0. No PreToolUse shim matches
+``apply_patch`` (the manifest carries Bash, Write/Edit, Grep, Glob, Read, Task,
+and Agent shims), so on this payload every shim skips and the dispatcher returns
+0. The dispatcher is not limited to {0, 2} in general: ``hook_dispatch.run_dispatch``
+propagates a matching shim's first non-zero exit code, so a registered shim that
+exited 1 would surface 1. It is the ABSENCE of an ``apply_patch`` matcher, not a
+structural limit, that makes exit 1 impossible for THIS payload. The exit-1 the
+host reported therefore originates in the Windows ``py -3`` host or launcher, not
+the dispatcher. That host bug is external and stays open on #3083; we cannot fix a
 Windows launcher from this repo.
 
-What this preserves: the in-repo half of that discrepancy. It replays a faithful
-small ``apply_patch`` payload through the SHIPPED, committed
+What this preserves: the in-repo half of that discrepancy. It replays a small
+``apply_patch`` payload through the SHIPPED, committed
 ``src/copilot-cli/hooks/PreToolUse/_dispatch.py`` under the verified plugin-root
 contract and asserts exit 0. No registered PreToolUse shim matches
 ``apply_patch`` (the manifest carries Bash, Write/Edit, Grep, Glob, Read, Task,
@@ -40,8 +45,10 @@ _DISPATCH = _PLUGIN_ROOT / "hooks" / "PreToolUse" / "_dispatch.py"
 
 _MAX_STDIN_BYTES = 2 * 1024 * 1024
 
-# Faithful reconstruction of the small apply_patch payload issue #3074 recorded
-# (serialized data.input about 1,659 UTF-8 bytes, well under the 2 MiB cap). This
+# A small representative apply_patch payload, well under the 2 MiB stdin cap (the
+# #3074 recording was about 1,659 bytes; this fixture is smaller and not a
+# byte-exact copy, which does not matter: any sub-cap payload with no matching
+# shim returns 0). This
 # is the Copilot host event shape: sessionId, cwd, and a toolCalls entry whose
 # name is apply_patch. It carries no top-level tool_name, exactly as the recorded
 # data.input did, so every matcher shim skips it.
