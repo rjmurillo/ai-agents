@@ -50,6 +50,16 @@ Repository-root discovery for observation sync is fail closed. A timeout or
 missing Git executable returns no root instead of treating the current working
 directory as verified.
 
+## Transaction lock reliability
+
+Hook generation lock acquisition must terminate on both Windows and POSIX.
+Use nonblocking platform operations under one bounded deadline. Retry only
+contention errors (`EACCES`, `EAGAIN`, and `EDEADLK`), propagate unrelated
+`OSError` values immediately, and retain the last contention error as the
+`TimeoutError` cause. The process-serialization test proves normal waiting;
+platform fakes cover retry, timeout, and non-contention branches without a
+real ten-second delay.
+
 ## Protocol encoding
 
 Session-start context output is a UTF-8 protocol. The canonical context loader
@@ -64,7 +74,10 @@ transaction rollback, symlink, path traversal, case-only Windows naming, and
 partial Windows move cases. Commit `4c83b4d7` passed all 817 build-script tests
 with 1 platform skip, focused Ruff, normal and Windows mypy, generated drift
 checks, a real POSIX symlink reproduction, and independent correctness and
-security reviews.
+security reviews. Session 3048 bounded transaction lock waits on both platforms;
+commit `11b334d5` passed 820 build-script tests with 1 platform skip, focused
+Ruff, Windows-platform and test-file mypy, generation drift checks, and an
+independent code review.
 
 ## Related
 
