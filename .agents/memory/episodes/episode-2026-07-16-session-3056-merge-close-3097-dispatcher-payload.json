@@ -1,0 +1,99 @@
+{
+  "id": "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload",
+  "session": "2026-07-16-session-3056-merge-close-3097-dispatcher-payload",
+  "timestamp": "2026-07-16T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Merge and close PR 3097 dispatcher payload ceiling",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main and resolved dispatcher conflicts",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened dispatcher boundary coverage",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated and validated owned artifacts",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "Regenerated and validated owned artifacts      Build scripts 828 passed and 1 skipped; generation, manifest parity, Ruff, mypy, and pre_pr.py passed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran live plugin, code, and security reviews",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed full-suite failures during MERGE_HEAD",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "error",
+      "content": "Diagnosed full-suite failures during MERGE_HEAD      14407 tests passed; 16 failures reproduced as live git-state test isolation defects and passed on detached current main; GitHub authentication expired before the issues could be filed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed the merge and reran the full suite without MERGE_HEAD",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "Committed the merge and reran the full suite without MERGE_HEAD      Merge commit 37cad6f6c completed; 14423 passed, 21 skipped, and 45 expected failures",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 37cad6f6c46e8468926b473b21c8564209fce6f5",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 16,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 2
+  },
+  "lessons": []
+}

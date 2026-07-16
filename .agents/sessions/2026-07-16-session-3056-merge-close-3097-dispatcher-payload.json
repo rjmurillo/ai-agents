@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The merge commit transaction includes all staged implementation, generated, test, memory, and session changes"
+        "Evidence": "Merge commit 37cad6f6c46e8468926b473b21c8564209fce6f5 includes the implementation, generated artifacts, tests, memory, and initial session record"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py passed 29 checks; build scripts passed 828 tests; Ruff and mypy passed; live Copilot hook smoke passed; code and security reviews approved"
+        "Evidence": "Full suite passed 14423 tests with 21 skipped and 45 expected failures; pre_pr.py, Ruff, mypy, generation checks, live Copilot hook smoke, code review, and security review passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -137,13 +137,18 @@
     {
       "timestamp": "2026-07-16T22:24:00Z",
       "action": "Diagnosed full-suite failures during MERGE_HEAD",
-      "result": "14407 tests passed; 16 failures reproduced as live git-state test isolation defects and passed on detached current main"
+      "result": "14407 tests passed; 16 failures reproduced as live git-state test isolation defects and passed on detached current main; GitHub authentication expired before the issues could be filed"
+    },
+    {
+      "timestamp": "2026-07-16T22:29:00Z",
+      "action": "Committed the merge and reran the full suite without MERGE_HEAD",
+      "result": "Merge commit 37cad6f6c completed; 14423 passed, 21 skipped, and 45 expected failures"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "37cad6f6c46e8468926b473b21c8564209fce6f5",
   "nextSteps": [
-    "Commit the resolved merge and rerun the full suite without MERGE_HEAD",
     "Push PR #3097 after GitHub authentication is restored",
+    "File the two live git-state test isolation issues after GitHub authentication is restored",
     "Correct the PR body wording and resolve both review threads",
     "Wait for stable CI, run completion gates, squash merge, and release the lease"
   ]
