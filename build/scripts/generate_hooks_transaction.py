@@ -80,6 +80,33 @@ class HookGenerationTransaction:
                 raise
             self._mark_mutated(target)
 
+    def delete_many(self, targets: Iterable[Path]) -> None:
+        """Delete files only after every existing target has a backup."""
+        delete_order = list(dict.fromkeys(targets))
+        already_backed_up = {
+            target: target in self._backups for target in delete_order
+        }
+        for target in delete_order:
+            self._backup_target(target)
+        for target in delete_order:
+            backup = self._backups[target]
+            if not target.is_file():
+                continue
+            try:
+                if (
+                    _IS_WINDOWS
+                    and not already_backed_up[target]
+                    and backup is not None
+                ):
+                    os.replace(target, backup)
+                else:
+                    target.unlink()
+            except OSError:
+                if not target.is_file():
+                    self._mark_mutated(target)
+                raise
+            self._mark_mutated(target)
+
     def rollback(self) -> list[str]:
         """Restore every target changed during this generation run."""
         errors: list[str] = []

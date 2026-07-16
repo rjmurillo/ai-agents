@@ -257,9 +257,12 @@ def _shim_basename(command: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _remove_stale_matcher_shims(event_dir: Path, shim_names: list[str]) -> None:
-    """Remove generated matcher shims omitted from the authoritative manifest."""
+def find_stale_matcher_shims(
+    event_dir: Path, shim_names: list[str]
+) -> list[Path]:
+    """Return removable generated shims omitted from the manifest."""
     active_shims = set(shim_names)
+    stale_shims: list[Path] = []
     for candidate in sorted(event_dir.iterdir()):
         if candidate.suffix != ".py" or candidate.name in active_shims:
             continue
@@ -270,6 +273,13 @@ def _remove_stale_matcher_shims(event_dir: Path, shim_names: list[str]) -> None:
         if reason is not None:
             print(f"  NOTICE: skipped {candidate} (NO-REGEN: {reason})")
             continue
+        stale_shims.append(candidate)
+    return stale_shims
+
+
+def _remove_stale_matcher_shims(event_dir: Path, shim_names: list[str]) -> None:
+    """Remove generated matcher shims omitted from the authoritative manifest."""
+    for candidate in find_stale_matcher_shims(event_dir, shim_names):
         candidate.unlink()
 
 

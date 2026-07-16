@@ -623,6 +623,27 @@ def _stage_dispatcher_artifacts(
     for event in out:
         (stage_root / event).mkdir(parents=True, exist_ok=True)
     consolidated = generate_dispatcher.consolidate(out, stage_root)
+    stale_targets: list[Path] = []
+    for event in sorted(out):
+        manifest_path = stage_root / event / "_manifest.json"
+        if not manifest_path.is_file():
+            continue
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        shim_names = manifest.get("shims")
+        if not isinstance(shim_names, list) or not all(
+            isinstance(name, str) for name in shim_names
+        ):
+            raise GenerateHooksError(
+                f"generated dispatcher manifest has invalid shims: {manifest_path}"
+            )
+        published_event_dir = output_scripts / event
+        if published_event_dir.is_dir():
+            stale_targets.extend(
+                generate_dispatcher.find_stale_matcher_shims(
+                    published_event_dir,
+                    shim_names,
+                )
+            )
     publish_pairs: list[tuple[Path, Path]] = []
     for generated in _dispatcher_artifact_targets(consolidated, stage_root):
         if not generated.is_file():
@@ -631,6 +652,7 @@ def _stage_dispatcher_artifacts(
         staged = transaction.new_stage_path(target.parent)
         shutil.copy2(generated, staged)
         publish_pairs.append((staged, target))
+    transaction.delete_many(stale_targets)
     transaction.publish_many(publish_pairs)
     return cast(dict[str, list[dict[str, Any]]], consolidated)
 

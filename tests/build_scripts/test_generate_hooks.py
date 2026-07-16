@@ -1066,6 +1066,141 @@ def test_generator_dispatcher_ignores_protected_shell_only_event(
     assert generated["hooks"] == {}
 
 
+def _setup_dispatcher_matcher_fixture(tmp_path: Path, matcher: str) -> Path:
+    cfg = _write_config(
+        tmp_path,
+        hooks_stanza_overrides={"dispatcher": True},
+    )
+    _write_script(
+        tmp_path / "hooks_src",
+        "PreToolUse",
+        "owner.py",
+        "print('owner')\n",
+    )
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PreToolUse": [
+                {
+                    "matcher": matcher,
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u .claude/hooks/PreToolUse/owner.py"
+                            ),
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    return cfg
+
+
+def _set_dispatcher_matcher(tmp_path: Path, matcher: str) -> None:
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["matcher"] = matcher
+    settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+
+def _generated_owner_shims(tmp_path: Path) -> list[Path]:
+    event_dir = tmp_path / "out" / "PreToolUse"
+    return [
+        candidate
+        for candidate in sorted(event_dir.glob("owner*.py"))
+        if is_shimmed(candidate.read_text(encoding="utf-8"))
+    ]
+
+
+def test_generator_dispatcher_removes_published_stale_matcher_shim(
+    tmp_path: Path,
+) -> None:
+    cfg = _setup_dispatcher_matcher_fixture(tmp_path, "Bash(git status*)")
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    stale = _generated_owner_shims(tmp_path)
+    assert len(stale) == 1
+
+    _set_dispatcher_matcher(tmp_path, "Bash(git commit*)")
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    current = _generated_owner_shims(tmp_path)
+    assert len(current) == 1
+    assert current[0] != stale[0]
+    assert not stale[0].exists()
+
+
+def test_generator_dispatcher_preserves_protected_published_stale_shim(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg = _setup_dispatcher_matcher_fixture(tmp_path, "Bash(git status*)")
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    stale = _generated_owner_shims(tmp_path)
+    assert len(stale) == 1
+    stale[0].with_suffix(stale[0].suffix + ".noregen").write_text(
+        "preserve\n",
+        encoding="utf-8",
+    )
+    capsys.readouterr()
+
+    _set_dispatcher_matcher(tmp_path, "Bash(git commit*)")
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert stale[0].is_file()
+    assert stale[0].name in captured.out
+    assert "NO-REGEN" in captured.out
+
+
+def test_generator_dispatcher_rollback_restores_deleted_stale_shim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg = _setup_dispatcher_matcher_fixture(tmp_path, "Bash(git status*)")
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    stale = _generated_owner_shims(tmp_path)
+    assert len(stale) == 1
+    stale_bytes = stale[0].read_bytes()
+    _set_dispatcher_matcher(tmp_path, "Bash(git commit*)")
+    real_publish_many = (
+        generate_hooks_transaction.HookGenerationTransaction.publish_many
+    )
+
+    def fail_dispatcher_publish(
+        transaction: generate_hooks_transaction.HookGenerationTransaction,
+        pairs: Any,
+    ) -> None:
+        publish_pairs = list(pairs)
+        if any(
+            target.name == "_dispatch.py"
+            for _staged, target in publish_pairs
+        ):
+            raise OSError("simulated dispatcher publish failure")
+        real_publish_many(transaction, publish_pairs)
+
+    monkeypatch.setattr(
+        generate_hooks_transaction.HookGenerationTransaction,
+        "publish_many",
+        fail_dispatcher_publish,
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 1
+    assert "simulated dispatcher publish failure" in captured.err
+    assert stale[0].read_bytes() == stale_bytes
+    assert _generated_owner_shims(tmp_path) == stale
+
+
 def test_generator_dispatcher_staging_failure_restores_earlier_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1246,6 +1381,109 @@ def test_transaction_repeated_windows_publish_keeps_original_backup(
     assert transaction.rollback() == []
     assert target.read_text(encoding="utf-8") == "old\n"
     assert not list(tmp_path.glob(".hook-stage-*"))
+
+
+def test_transaction_windows_delete_rollback_restores_original(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows deletion moves the original file object into the journal."""
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+    target = tmp_path / "target.py"
+    target.write_text("old\n", encoding="utf-8")
+
+    with monkeypatch.context() as windows:
+        windows.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
+        transaction.delete_many([target])
+
+    assert not target.exists()
+    assert transaction.rollback() == []
+    assert target.read_text(encoding="utf-8") == "old\n"
+
+
+def test_transaction_windows_publish_then_delete_keeps_original_backup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+    target = tmp_path / "target.py"
+    target.write_text("old\n", encoding="utf-8")
+
+    def replace_like_windows(
+        source: Path,
+        replacement_target: Path,
+        backup: Path | None = None,
+    ) -> None:
+        if backup is not None:
+            replacement_target.replace(backup)
+        source.replace(replacement_target)
+
+    with monkeypatch.context() as windows:
+        windows.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
+        windows.setattr(
+            generate_hooks_transaction,
+            "_replace_target",
+            replace_like_windows,
+        )
+        staged = transaction.new_stage_path(tmp_path)
+        staged.write_text("new\n", encoding="utf-8")
+        transaction.publish_many([(staged, target)])
+        transaction.delete_many([target, target])
+
+    assert not target.exists()
+    assert transaction.rollback() == []
+    assert target.read_text(encoding="utf-8") == "old\n"
+
+
+def test_transaction_windows_delete_after_creating_target_restores_absence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+    target = tmp_path / "target.py"
+    staged = transaction.new_stage_path(tmp_path)
+    staged.write_text("new\n", encoding="utf-8")
+
+    with monkeypatch.context() as windows:
+        windows.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
+        transaction.publish_many([(staged, target)])
+        transaction.delete_many([target])
+
+    assert not target.exists()
+    assert transaction.rollback() == []
+    assert not target.exists()
+
+
+def test_transaction_delete_many_ignores_missing_target(tmp_path: Path) -> None:
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+
+    transaction.delete_many([tmp_path / "missing.py"])
+
+    assert transaction.commit() == []
+
+
+def test_transaction_rolls_back_partial_windows_delete_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+    target = tmp_path / "target.py"
+    target.write_text("old\n", encoding="utf-8")
+    real_replace = os.replace
+
+    def fail_after_moving_target(source: Path, destination: Path) -> None:
+        real_replace(source, destination)
+        raise OSError("simulated partial delete failure")
+
+    with monkeypatch.context() as windows:
+        windows.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
+        windows.setattr(os, "replace", fail_after_moving_target)
+        with pytest.raises(OSError, match="partial delete failure"):
+            transaction.delete_many([target])
+
+    assert transaction.rollback() == []
+    assert target.read_text(encoding="utf-8") == "old\n"
+
 
 def test_transaction_rolls_back_partial_windows_replace_failure(
     tmp_path: Path,
