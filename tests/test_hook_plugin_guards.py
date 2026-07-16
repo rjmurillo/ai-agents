@@ -193,6 +193,17 @@ class TestShellHookMatcherScope:
         assert _plugin_matchers(script_suffix) == _settings_matchers(script_suffix)
 
 
+def test_copilot_pretooluse_has_no_unregistered_matcher_shims() -> None:
+    """The distributed plugin contains only manifest-addressable shims."""
+    event_directory = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse"
+    manifest = json.loads(
+        (event_directory / "_manifest.json").read_text(encoding="utf-8")
+    )
+    registered = set(manifest["shims"])
+    generated = {path.name for path in event_directory.glob("*__*.py")}
+
+    assert generated == registered
+
 class TestIsProjectRepo:
     """is_project_repo resolves identity from the env override or git remote (#2610)."""
 
