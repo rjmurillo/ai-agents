@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import yaml
 
@@ -14,9 +14,15 @@ _COMMAND = "uv run pytest tests/test_pytest_head_guard.py -v"
 
 def _windows_steps() -> list[dict[str, Any]]:
     with _WORKFLOW.open(encoding="utf-8") as handle:
-        workflow = cast(dict[str, Any], yaml.safe_load(handle))
-    job = workflow["jobs"][_JOB_NAME]
-    return [step for step in job["steps"] if isinstance(step, dict)]
+        workflow = yaml.safe_load(handle)
+    assert isinstance(workflow, dict), f"expected {_WORKFLOW} to parse as a mapping"
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict), "expected workflow jobs to be a mapping"
+    job = jobs.get(_JOB_NAME)
+    assert isinstance(job, dict), f"expected {_JOB_NAME} job to be a mapping"
+    steps = job.get("steps")
+    assert isinstance(steps, list), f"expected {_JOB_NAME} steps to be a list"
+    return [step for step in steps if isinstance(step, dict)]
 
 
 def _head_guard_step() -> dict[str, Any] | None:

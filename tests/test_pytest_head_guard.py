@@ -36,6 +36,8 @@ def test_real_repo_head_unsets_git_environment_overrides(monkeypatch):
     monkeypatch.setenv("GIT_WORK_TREE", "wrong")
     monkeypatch.setenv("GIT_INDEX_FILE", "wrong")
     monkeypatch.setenv("GIT_COMMON_DIR", "wrong")
+    monkeypatch.setenv("GIT_REFLOG_ACTION", "caller-action")
+    monkeypatch.setenv("GIT_TRACE2_EVENT", "caller-trace.json")
     monkeypatch.setenv("GIT_AUTHOR_NAME", "kept")
 
     def fake_run(*_args, **kwargs):
@@ -52,7 +54,7 @@ def test_real_repo_head_unsets_git_environment_overrides(monkeypatch):
     assert module._real_repo_head() == "abc123"
     kwargs = captured["kwargs"]
     assert kwargs["env"]["GIT_AUTHOR_NAME"] == "kept"
-    for key in module._GIT_ENV_OVERRIDES:
+    for key in module._GIT_ENV_OVERRIDES | set(module._TRACE_ENV_NAMES):
         assert key not in kwargs["env"]
     assert kwargs["encoding"] == "utf-8"
     assert kwargs["errors"] == "replace"
