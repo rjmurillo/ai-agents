@@ -134,6 +134,10 @@
     {
       "time": "T3",
       "entry": "Verification: uv run pytest tests/build_scripts -q completed with 820 passed, 1 skipped. Focused Ruff passed. Windows-platform mypy for the transaction module passed. Test-file mypy passed. build_all.py --check passed. Independent code review found no actionable defect."
+    },
+    {
+      "time": "T4",
+      "entry": "The session-init JSON entrypoint created this data file with executable mode 100755 because os.open omitted its mode argument. Filed issue #3114 with a deterministic umask repro and normalized this log to 100644."
     }
   ],
   "endingCommit": "11b334d5",
