@@ -92,7 +92,8 @@ scripts under `scripts/pr/` with bare `python3`, not `uv run`.
 `uv run <script>` resolves the whole project environment first, which downloads
 `anthropic==0.116.0` (a core dependency in `pyproject.toml`) from PyPI and times
 out with no network. The read-only PR scripts never import the anthropic SDK.
-They import only `github_core`, which needs PyYAML.
+They import only `github_core`, which parses YAML with a vendored fallback when
+PyYAML is absent (issue #1844), so no third-party import is required.
 
 ```bash
 # No PyPI round trip. Runs read-only PR status offline.
@@ -103,10 +104,12 @@ python3 "$SCRIPTS_DIR/get_pr_context.py" --pr <N>
 python3 "$SCRIPTS_DIR/get_pr_checks.py" --pr <N>
 ```
 
-Precondition: the `python3` interpreter must have PyYAML importable. The
-interpreter provisioned by `scripts/bootstrap-vm.sh` satisfies this; if a project
-venv exists, `.venv/bin/python3` works the same. Do not use `uv run` for
-read-only triage offline; it forces the resolve that fetches anthropic.
+Any `python3` works: `github_core` falls back to a vendored YAML parser when
+PyYAML is absent (issue #1844), confirmed by running these scripts with both
+PyYAML and the anthropic SDK blocked. The interpreter from
+`scripts/bootstrap-vm.sh` and a project `.venv/bin/python3` both ship PyYAML for
+the faster path. Do not use `uv run` for read-only triage offline; it forces the
+resolve that fetches anthropic.
 
 The regression guard `tests/test_pr_scripts_offline.py` asserts the read-only PR
 scripts and `github_core` import with the anthropic SDK blocked.
