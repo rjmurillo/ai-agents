@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-07-16-session-3045",
+  "session": "2026-07-16-session-3045",
+  "timestamp": "2026-07-16T00:00:00+00:00",
+  "outcome": "success",
+  "task": "docs(agents): document how to notice running below the calibrated model floor (issue #3045)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Located frontier-model operating-assumption doc via grep: .agents/governance/agent-design-principles.md (not templates/agents/ as initially assumed; corrected via search-first)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed issue #3045 scope via get_issue_context.py: decision is docs-only, eval-derived floor deferred to #3042",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked ADR-080 for existing capability-floor open-item reference: none found, so ADR-080 left untouched per task's conditional instruction",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 'Noticing You Are Below the Calibrated Floor' subsection to agent-design-principles.md under 'Operating Assumption: Frontier-Model Execution', citing #3041 and #3042",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified zero em/en dashes in added lines via byte-level python check",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed docs change with Fixes #3045",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "uv run pytest tests/ -x -q: 14173 passed, 19 skipped, 45 xfailed, 3 warnings in 123.89s (full suite, unaffected by this docs-only change)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/ -x -q: 14173 passed, 19 skipped, 45 xfailed, 3 warnings in 123.89s (full suite, unaffected by this docs-only change)",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3045,
+    "date": "2026-07-16",
+    "branch": "docs/3045-capability-floor-docs",
+    "startingCommit": "2435adcf",
+    "objective": "docs(agents): document how to notice running below the calibrated model floor (issue #3045)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena already active in session context; list_memories and read_memory calls succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called mcp__serena__initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; file is read-only legacy per 2025-12-22 protocol change, superseded by session logs"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/issue and .claude/skills/session-init/scripts, .claude/skills/session-end/scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read mcp__serena__read_memory('usage-mandatory')"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md (Language, Skill Usage sections)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories(topic='governance') returned 10 memories; read usage-mandatory"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/3045-capability-floor-docs"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/3045-capability-floor-docs"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short run before and after branch checkout"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "2435adcf"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart and sessionEnd items completed with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not edited (read-only per 2025-12-22 protocol change)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__write_memory('governance/issue-3045-capability-floor-docs-decision')"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 run (file excluded by .agents/** glob); pre_pr.py Markdown Linting check: PASS"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit created on docs/3045-capability-floor-docs; SHA recorded in endingCommit below"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py: 1 pre-existing failure (Skill Markdown Portability, ModuleNotFoundError in check_skill_md_portability.py) confirmed unrelated via git stash test against origin/main tip 2435adcf; all other 32 checks PASS/SKIP"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No external task tracker for this docs-only task; tracked via this session log and issue #3045"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-file docs change with a pre-made decision; not warranted"
+      }
+    }
+  },
+  "workLog": [
+    "Located frontier-model operating-assumption doc via grep: .agents/governance/agent-design-principles.md (not templates/agents/ as initially assumed; corrected via search-first)",
+    "Confirmed issue #3045 scope via get_issue_context.py: decision is docs-only, eval-derived floor deferred to #3042",
+    "Checked ADR-080 for existing capability-floor open-item reference: none found, so ADR-080 left untouched per task's conditional instruction",
+    "Added 'Noticing You Are Below the Calibrated Floor' subsection to agent-design-principles.md under 'Operating Assumption: Frontier-Model Execution', citing #3041 and #3042",
+    "Verified zero em/en dashes in added lines via byte-level python check",
+    "Committed docs change with Fixes #3045",
+    "uv run pytest tests/ -x -q: 14173 passed, 19 skipped, 45 xfailed, 3 warnings in 123.89s (full suite, unaffected by this docs-only change)"
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR via .claude/skills/github/scripts/pr/new_pr.py",
+    "Post decision comment on issue #3045 referencing the PR"
+  ]
+}
