@@ -128,6 +128,16 @@
       "timestamp": "2026-07-16T05:40:00Z",
       "summary": "Filed tool defects found during the work: issues 3089 (false-completion gate -F -), 3091 (LSP pre-delegation guard false positive), 3092 (get_pr_review_comments --output-format). machine-config PR 48 opened for Windows Search indexer exclusions and Dev Drive guidance.",
       "evidence": "https://github.com/rjmurillo/ai-agents/issues/3091 https://github.com/rjmurillo/ai-agents/issues/3092 https://github.com/rjmurillo/ubuntu-machine-config/pull/48"
+    },
+    {
+      "timestamp": "2026-07-16T06:20:00Z",
+      "summary": "Regenerated remaining Copilot dispatch entrypoints after entrypoint-template split.",
+      "evidence": "build/scripts/generate_hooks.py run; 865 tests pass"
+    },
+    {
+      "timestamp": "2026-07-16T06:45:00Z",
+      "summary": "adr-review executed for ADR-082: architect gate (APPROVE-WITH-CHANGES) plus 5-agent debate workflow wf_b7a28376-2dd (critic, independent-thinker, security, analyst, high-level-advisor; no REJECT). Two major findings fixed in claude_hook_dispatch.py with pinning tests.",
+      "evidence": "Debate log .agents/analysis/2026-07-16-adr-082-debate.md; architect verdict .agents/analysis/2026-07-16-adr-082-architect-review.md"
     }
   ],
   "endingCommit": "",

@@ -29,6 +29,22 @@
       "content": "Filed tool defects found during the work: issues 3089 (false-completion gate -F -), 3091 (LSP pre-delegation guard false positive), 3092 (get_pr_review_comments --output-format). machine-config PR 48 opened for Windows Search indexer exclusions and Dev Drive guidance.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated remaining Copilot dispatch entrypoints after entrypoint-template split.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "adr-review executed for ADR-082: architect gate (APPROVE-WITH-CHANGES) plus 5-agent debate workflow wf_b7a28376-2dd (critic, independent-thinker, security, analyst, high-level-advisor; no REJECT). Two major findings fixed in claude_hook_dispatch.py with pinning tests.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

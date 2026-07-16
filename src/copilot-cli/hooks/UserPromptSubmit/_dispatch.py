@@ -15,6 +15,41 @@ _MAX_STDIN_BYTES = 2 * 1024 * 1024
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
 
 
+def _validated_mode(manifest: dict, event: str) -> str:
+    # mode selects gate (short_circuit, fail-closed) vs observe (run all,
+    # never gate). Default to gate when absent so an older manifest fails
+    # closed (ADR-066) rather than silently dropping a guard.
+    mode = manifest.get("mode", "gate")
+    if mode not in ("gate", "observe"):
+        raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
+    expected_mode = "gate" if event in _GATE_EVENTS else "observe"
+    if mode != expected_mode:
+        raise ValueError(
+            f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
+        )
+    return mode
+
+
+def _validated_timeouts(manifest: dict, shims: list) -> dict:
+    # Validate timeout metadata so malformed manifests fail closed. Do not
+    # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
+    # timed-out thread, and the host already owns this process timeout.
+    timeouts = manifest.get("timeouts", {})
+    if not isinstance(timeouts, dict):
+        raise TypeError("manifest field 'timeouts' must be a dict when present")
+    shim_timeouts = {}
+    for shim in shims:
+        if not isinstance(shim, str):
+            raise TypeError("manifest field 'shims' must contain strings")
+        if shim not in timeouts:
+            continue
+        timeout_sec = int(timeouts[shim])
+        if timeout_sec <= 0:
+            raise ValueError(f"manifest timeout for {shim} must be positive")
+        shim_timeouts[shim] = timeout_sec
+    return shim_timeouts
+
+
 def _main() -> int:
     try:
         ensure_plugin_paths()
@@ -28,34 +63,8 @@ def _main() -> int:
         shims = manifest["shims"]
         if not isinstance(shims, list):
             raise TypeError("manifest field 'shims' must be a list")
-        # mode selects gate (short_circuit, fail-closed) vs observe (run all,
-        # never gate). Default to gate when absent so an older manifest fails
-        # closed (ADR-066) rather than silently dropping a guard.
-        mode = manifest.get("mode", "gate")
-        if mode not in ("gate", "observe"):
-            raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
-        expected_mode = "gate" if event in _GATE_EVENTS else "observe"
-        if mode != expected_mode:
-            raise ValueError(
-                f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
-            )
-        short_circuit = mode == "gate"
-        # Validate timeout metadata so malformed manifests fail closed. Do not
-        # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
-        # timed-out thread, and the host already owns this process timeout.
-        timeouts = manifest.get("timeouts", {})
-        if not isinstance(timeouts, dict):
-            raise TypeError("manifest field 'timeouts' must be a dict when present")
-        shim_timeouts = {}
-        for shim in shims:
-            if not isinstance(shim, str):
-                raise TypeError("manifest field 'shims' must contain strings")
-            if shim not in timeouts:
-                continue
-            timeout_sec = int(timeouts[shim])
-            if timeout_sec <= 0:
-                raise ValueError(f"manifest timeout for {shim} must be positive")
-            shim_timeouts[shim] = timeout_sec
+        short_circuit = _validated_mode(manifest, event) == "gate"
+        shim_timeouts = _validated_timeouts(manifest, shims)
         raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
         if len(raw) > _MAX_STDIN_BYTES:
             raise ValueError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")

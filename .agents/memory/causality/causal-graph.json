@@ -12631,139 +12631,58 @@
       "created": "2026-07-14T04:09:24.920948+00:00"
     },
     {
-      "id": "330eb6adcd35",
+      "id": "1c30982dce31",
       "type": "milestone",
-      "label": "milestone: Refreshed PR 3103, merged origin/main, confirmed the live-state gate returned ACT, and acquired the pr-autofix lease.",
+      "label": "milestone: Hook value audit via 8-agent workflow wf_52330499-ada; session JSON validated with scripts/validate_session_json.py (exit 0).",
       "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
+        "episode-2026-07-16-session-3044-reduce-hook-overhead-per-issue"
       ],
-      "created": "2026-07-16T13:23:02.603089+00:00"
+      "created": "2026-07-16T05:07:26.652628+00:00"
     },
     {
-      "id": "52b331b15739",
-      "type": "milestone",
-      "label": "milestone: Triaged two unresolved review threads: Windows Python and Git Bash used different /tmp files, and the extracted gate omitted infrastructure_failure=true.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603147+00:00"
-    },
-    {
-      "id": "36e111cb22bd",
-      "type": "milestone",
-      "label": "milestone: Made the gate own one output path using AI_REVIEW_OUTPUT_FILE, RUNNER_TEMP, or tempfile.gettempdir. The action invoke and parse steps now consume the published output_file value.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603193+00:00"
-    },
-    {
-      "id": "2ce0080e079c",
-      "type": "milestone",
-      "label": "milestone: Restored infrastructure_failure=true on the skip path and routed the composite action output through the gate result.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603238+00:00"
-    },
-    {
-      "id": "d243e3beb88f",
-      "type": "milestone",
-      "label": "milestone: Added positive, negative, edge, sink, CLI, action-wiring, Linux Bash, and Windows job coverage. Code review found and fixed masked PowerShell failures plus an action-only path-filter gap.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603282+00:00"
-    },
-    {
-      "id": "a08d452b6be1",
-      "type": "milestone",
-      "label": "milestone: Committed the primary review fixes as e07f40f69. Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603329+00:00"
-    },
-    {
-      "id": "705a676ae443",
-      "type": "test",
-      "label": "test: Committed the primary review fixes as e07f40f69. Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603375+00:00"
-    },
-    {
-      "id": "832931f0d915",
-      "type": "commit",
-      "label": "commit: Commit: e07f40f69",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603421+00:00"
-    },
-    {
-      "id": "fe44021cb122",
-      "type": "milestone",
-      "label": "milestone: CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout in 45576b6f9, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603465+00:00"
-    },
-    {
-      "id": "73cf93645069",
-      "type": "test",
-      "label": "test: CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout in 45576b6f9, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603509+00:00"
-    },
-    {
-      "id": "6a52f3577e3f",
-      "type": "commit",
-      "label": "commit: Commit: 45576b6f9",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603553+00:00"
-    },
-    {
-      "id": "9225e25110d5",
-      "type": "milestone",
-      "label": "milestone: Copilot found the module docstring still duplicated the retired /tmp path. Made the module the sole path contract, removed the stale shell excerpt, added a hard-coded-path regression test, and verified 25 passed plus Ruff, mypy, and the Python 3.10 syntax gate.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603597+00:00"
-    },
-    {
-      "id": "9cc05d3a4703",
-      "type": "test",
-      "label": "test: Copilot found the module docstring still duplicated the retired /tmp path. Made the module the sole path contract, removed the stale shell excerpt, added a hard-coded-path regression test, and verified 25 passed plus Ruff, mypy, and the Python 3.10 syntax gate.",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603650+00:00"
-    },
-    {
-      "id": "a58a49ac5727",
-      "type": "commit",
-      "label": "commit: Commit: 24da6b203",
-      "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
-      ],
-      "created": "2026-07-16T13:23:02.603694+00:00"
-    },
-    {
-      "id": "c1f49da5bbf1",
+      "id": "45e3f5dffc28",
       "type": "outcome",
-      "label": "Outcome: success - Close PR 3103 review findings",
+      "label": "Outcome: success - Reduce hook overhead per issue 3075: hook value audit, consolidation, spawn reduction, machine-config Windows perf",
       "episodes": [
-        "episode-2026-07-16-session-3049-close-3103-review-findings"
+        "episode-2026-07-16-session-3044-reduce-hook-overhead-per-issue"
       ],
-      "created": "2026-07-16T13:23:02.603739+00:00"
+      "created": "2026-07-16T05:07:26.652689+00:00"
+    },
+    {
+      "id": "608010475030",
+      "type": "milestone",
+      "label": "milestone: Claude-side hook group dispatcher implemented: claude_hook_dispatch.py lib, dispatch_claude.py entry, dispatch_groups.json manifest; settings.json and plugin hooks.json register one process per (event, matcher) group; generator expands groups so Copilot tree unchanged.",
+      "episodes": [
+        "episode-2026-07-16-session-3044-reduce-hook-overhead-per-issue"
+      ],
+      "created": "2026-07-16T06:04:44.782870+00:00"
+    },
+    {
+      "id": "f18fe96cd578",
+      "type": "milestone",
+      "label": "milestone: Filed tool defects found during the work: issues 3089 (false-completion gate -F -), 3091 (LSP pre-delegation guard false positive), 3092 (get_pr_review_comments --output-format). machine-config PR 48 opened for Windows Search indexer exclusions and Dev Drive guidance.",
+      "episodes": [
+        "episode-2026-07-16-session-3044-reduce-hook-overhead-per-issue"
+      ],
+      "created": "2026-07-16T06:04:44.782924+00:00"
+    },
+    {
+      "id": "b9de2b9fa34f",
+      "type": "milestone",
+      "label": "milestone: Regenerated remaining Copilot dispatch entrypoints after entrypoint-template split.",
+      "episodes": [
+        "episode-2026-07-16-session-3044-reduce-hook-overhead-per-issue"
+      ],
+      "created": "2026-07-16T06:04:44.782970+00:00"
+    },
+    {
+      "id": "dbfcbf067f04",
+      "type": "milestone",
+      "label": "milestone: adr-review executed for ADR-082: architect gate (APPROVE-WITH-CHANGES) plus 5-agent debate workflow wf_b7a28376-2dd (critic, independent-thinker, security, analyst, high-level-advisor; no REJECT). Two major findings fixed in claude_hook_dispatch.py with pinning tests.",
+      "episodes": [
+        "episode-2026-07-16-session-3044-reduce-hook-overhead-per-issue"
+      ],
+      "created": "2026-07-16T08:16:43.730609+00:00"
     }
   ],
   "patterns": [
