@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import warnings
 from pathlib import Path
 
@@ -587,3 +588,20 @@ def test_guard_fixture_removes_new_trace_settings(monkeypatch):
         next(generator)
     assert "GIT_REFLOG_ACTION" not in os.environ
     assert "GIT_TRACE2_EVENT" not in os.environ
+
+
+def test_guard_fixture_uses_shared_temp_directory_and_removes_trace_file(monkeypatch):
+    module = _load_root_conftest()
+    heads = iter([BEFORE_SHA, BEFORE_SHA])
+    monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
+
+    generator = module._guard_real_repo_head.__wrapped__()
+    next(generator)
+    trace_path = Path(os.environ["GIT_TRACE2_EVENT"])
+
+    assert trace_path.parent == Path(tempfile.gettempdir())
+    assert ":" not in trace_path.name
+    trace_path.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(StopIteration):
+        next(generator)
+    assert not trace_path.exists()

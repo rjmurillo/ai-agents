@@ -278,22 +278,25 @@ def _guard_real_repo_head() -> Iterator[None]:
     """Attribute project HEAD movement without blaming concurrent commits."""
     before = _real_repo_head()
     previous_env = {name: os.environ.get(name) for name in _TRACE_ENV_NAMES}
-    reflog_action = f"pytest-head-guard:{uuid.uuid4().hex}"
-    with tempfile.TemporaryDirectory(prefix="pytest-head-guard-") as trace_dir:
-        trace_path = Path(trace_dir) / "git-trace2.json"
-        os.environ["GIT_REFLOG_ACTION"] = reflog_action
-        os.environ["GIT_TRACE2_EVENT"] = str(trace_path)
-        try:
-            yield
-        finally:
-            for name, value in previous_env.items():
-                if value is None:
-                    os.environ.pop(name, None)
-                else:
-                    os.environ[name] = value
+    attribution_token = uuid.uuid4().hex
+    reflog_action = f"pytest-head-guard:{attribution_token}"
+    trace_path = Path(tempfile.gettempdir()) / f"pytest-head-guard-{attribution_token}.json"
+    os.environ["GIT_REFLOG_ACTION"] = reflog_action
+    os.environ["GIT_TRACE2_EVENT"] = str(trace_path)
+    try:
+        yield
+    finally:
+        for name, value in previous_env.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+    try:
         _check_head_change(
             before,
             _real_repo_head(),
             reflog_action,
             trace_path,
         )
+    finally:
+        trace_path.unlink(missing_ok=True)
