@@ -20,6 +20,7 @@ metadata:
   generator:
     keep_headings:
       - Decision Tree
+      - Offline Invocation
       - Script Reference
       - Output Format
       - See Also
@@ -80,6 +81,35 @@ Need GitHub data?
    ├─ Close PR → close_pr.py
    └─ Merge PR → merge_pr.py
 ```
+
+---
+
+## Offline Invocation
+
+In a network-restricted sandbox (triage, PR status checks), run read-only PR
+scripts under `scripts/pr/` with bare `python3`, not `uv run`.
+
+`uv run <script>` resolves the whole project environment first, which downloads
+`anthropic==0.116.0` (a core dependency in `pyproject.toml`) from PyPI and times
+out with no network. The read-only PR scripts never import the anthropic SDK.
+They import only `github_core`, which needs PyYAML.
+
+```bash
+# No PyPI round trip. Runs read-only PR status offline.
+# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr"
+python3 "$SCRIPTS_DIR/get_pull_requests.py" --state open
+python3 "$SCRIPTS_DIR/get_pr_context.py" --pr <N>
+python3 "$SCRIPTS_DIR/get_pr_checks.py" --pr <N>
+```
+
+Precondition: the `python3` interpreter must have PyYAML importable. The
+interpreter provisioned by `scripts/bootstrap-vm.sh` satisfies this; if a project
+venv exists, `.venv/bin/python3` works the same. Do not use `uv run` for
+read-only triage offline; it forces the resolve that fetches anthropic.
+
+The regression guard `tests/test_pr_scripts_offline.py` asserts the read-only PR
+scripts and `github_core` import with the anthropic SDK blocked.
 
 ---
 
