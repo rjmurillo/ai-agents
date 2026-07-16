@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 import uuid
@@ -15,7 +16,15 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 _GIT_ENV_OVERRIDES = {"GIT_COMMON_DIR", "GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"}
-_TRACE_ENV_NAMES = ("GIT_REFLOG_ACTION", "GIT_TRACE2_EVENT")
+_TRACE_FILE_ENV_NAMES = ("GIT_TRACE2_EVENT", "GIT_TRACE_REFS", "GIT_TRACE_SETUP")
+_TRACE_ENV_NAMES = ("GIT_REFLOG_ACTION", *_TRACE_FILE_ENV_NAMES)
+_TRACE_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}:\d{2}\.\d{6}\s+\S+:\d+\s+(?P<message>.*)$")
+_HEAD_TRANSACTION_PATTERN = re.compile(r"^\d+:\s+HEAD\s+[0-9a-f]+\s+->\s+[0-9a-f]+\b")
+_HEAD_SYMREF_PATTERN = re.compile(r'^create_symref:\s+HEAD\s+->\s+\S+\s+".*":\s+0$')
+_TRANSACTION_FINISH_PATTERN = re.compile(r"^finish:\s+(-?\d+)$")
+_REFLOG_EXPIRY_CONTINUATION_PATTERN = re.compile(r"^ \d+: -?\d+$")
+_SETUP_GIT_DIR_PREFIX = "setup: git_dir: "
+_SETUP_CWD_PREFIX = "setup: cwd: "
 
 
 def _git_env() -> dict[str, str]:
@@ -82,57 +91,6 @@ def _reflog_contains_action(action: str) -> bool:
     return bool(out.stdout.strip())
 
 
-def _command_args(argv: list[str], command: str) -> list[str]:
-    executable = argv[0].replace("\\", "/").rsplit("/", 1)[-1].casefold() if argv else ""
-    for suffix in (".exe", ".cmd", ".bat"):
-        if executable.endswith(suffix):
-            executable = executable[: -len(suffix)]
-            break
-    if executable == f"git-{command}".casefold():
-        return argv[1:]
-    command_name = command.casefold()
-    for index, argument in enumerate(argv):
-        if argument.casefold() == command_name:
-            return argv[index + 1 :]
-    return []
-
-
-def _positional_args(args: list[str], options_with_values: set[str]) -> list[str]:
-    positional: list[str] = []
-    skip_next = False
-    options_ended = False
-    for argument in args:
-        if skip_next:
-            skip_next = False
-            continue
-        if not options_ended and argument in options_with_values:
-            skip_next = True
-            continue
-        if not options_ended and argument == "--":
-            options_ended = True
-            continue
-        if not options_ended and argument.startswith("-"):
-            continue
-        positional.append(argument)
-    return positional
-
-
-def _symbolic_ref_mutates_head(args: list[str]) -> bool:
-    positional = _positional_args(args, {"-m"})
-    if not positional or positional[0] != "HEAD":
-        return False
-    return "--delete" in args or len(positional) >= 2
-
-
-def _update_ref_mutates_head(args: list[str]) -> bool:
-    if "--stdin" in args:
-        return False
-    positional = _positional_args(args, {"-m"})
-    if not positional:
-        return False
-    return positional[0] == "HEAD"
-
-
 def _record_trace_event(session: dict[str, object], event: dict[str, object]) -> None:
     event_type = event.get("event")
     if event_type == "start":
@@ -156,18 +114,79 @@ def _record_trace_event(session: dict[str, object], event: dict[str, object]) ->
         session["exit_code"] = exit_code
 
 
+def _decode_trace_path(value: str) -> str:
+    decoded: list[str] = []
+    index = 0
+    escapes = {"\\": "\\", "n": "\n", "r": "\r"}
+    while index < len(value):
+        character = value[index]
+        if character != "\\" or index + 1 == len(value):
+            decoded.append(character)
+            index += 1
+            continue
+        next_character = value[index + 1]
+        decoded.append(escapes.get(next_character, f"\\{next_character}"))
+        index += 2
+    return "".join(decoded)
+
+
+def _record_ref_trace_line(session: dict[str, object], line: str) -> None:
+    match = _TRACE_LINE_PATTERN.fullmatch(line)
+    if match is None:
+        raise ValueError("Git ref trace line has an unknown format")
+    message = match.group("message")
+
+    if message.startswith(_SETUP_GIT_DIR_PREFIX):
+        session["git_dir"] = _decode_trace_path(message[len(_SETUP_GIT_DIR_PREFIX) :])
+        return
+    if message.startswith(_SETUP_CWD_PREFIX):
+        session["cwd"] = _decode_trace_path(message[len(_SETUP_CWD_PREFIX) :])
+        return
+    if message == "transaction {":
+        session["transaction_active"] = True
+        session["transaction_updates_head"] = False
+        return
+    if session.get("transaction_active") is True and _HEAD_TRANSACTION_PATTERN.match(message):
+        session["transaction_updates_head"] = True
+        return
+
+    finish_match = _TRANSACTION_FINISH_PATTERN.fullmatch(message)
+    if finish_match is not None:
+        if (
+            session.get("transaction_active") is True
+            and session.get("transaction_updates_head") is True
+            and int(finish_match.group(1)) == 0
+        ):
+            session["head_mutated"] = True
+        session.pop("transaction_active", None)
+        session.pop("transaction_updates_head", None)
+        return
+
+    if _HEAD_SYMREF_PATTERN.fullmatch(message):
+        session["head_mutated"] = True
+
+
 def _read_trace_sessions(trace_path: Path) -> dict[str, dict[str, object]]:
     sessions: dict[str, dict[str, object]] = {}
+    current_session_id: str | None = None
     for line in trace_path.read_text(encoding="utf-8", errors="replace").splitlines():
         if not line:
             continue
-        event = json.loads(line)
-        if not isinstance(event, dict):
-            raise ValueError("Git Trace2 event is not an object")
-        session_id = event.get("sid")
-        if not isinstance(session_id, str):
-            raise ValueError("Git Trace2 event has no session id")
-        _record_trace_event(sessions.setdefault(session_id, {}), event)
+        if line.startswith("{"):
+            event = json.loads(line)
+            if not isinstance(event, dict):
+                raise ValueError("Git Trace2 event is not an object")
+            session_id = event.get("sid")
+            if not isinstance(session_id, str):
+                raise ValueError("Git Trace2 event has no session id")
+            current_session_id = session_id
+            _record_trace_event(sessions.setdefault(session_id, {}), event)
+            continue
+        if _REFLOG_EXPIRY_CONTINUATION_PATTERN.fullmatch(line):
+            continue
+        if current_session_id is None:
+            raise ValueError("Git ref trace line has no Trace2 session")
+        _record_ref_trace_line(sessions[current_session_id], line)
     return sessions
 
 
@@ -186,6 +205,15 @@ def _session_targets_project(session: dict[str, object]) -> bool:
     project_root = PROJECT_ROOT.resolve()
     if isinstance(worktree, str) and Path(worktree).resolve() == project_root:
         return True
+    setup_git_dir = session.get("git_dir")
+    if isinstance(setup_git_dir, str):
+        git_dir = Path(setup_git_dir)
+        if not git_dir.is_absolute():
+            cwd = session.get("cwd")
+            base = Path(cwd) if isinstance(cwd, str) else PROJECT_ROOT
+            git_dir = base / git_dir
+        if git_dir.resolve() == _project_git_dir():
+            return True
     if not isinstance(argv, list):
         return False
     git_dir_argument = _git_dir_argument(argv)
@@ -198,29 +226,13 @@ def _session_targets_project(session: dict[str, object]) -> bool:
     return git_dir.resolve() == _project_git_dir()
 
 
-def _session_has_plumbing_mutation(session: dict[str, object]) -> bool:
-    exit_code = session.get("exit_code")
-    if isinstance(exit_code, int) and exit_code != 0:
-        return False
-    command = session.get("command")
-    argv = session.get("argv")
-    if not isinstance(command, str) or not isinstance(argv, list):
-        return False
-    command_args = _command_args(argv, command)
-    if command == "symbolic-ref":
-        return _symbolic_ref_mutates_head(command_args)
-    if command == "update-ref":
-        return _update_ref_mutates_head(command_args)
-    return False
-
-
-def _trace_has_project_plumbing_mutation(trace_path: Path) -> bool:
-    """Detect project ref writes from plumbing commands that ignore reflog actions."""
+def _trace_has_project_head_mutation(trace_path: Path) -> bool:
+    """Detect successful test-launched ref transactions that changed project HEAD."""
     if not trace_path.exists():
         return False
 
     for session in _read_trace_sessions(trace_path).values():
-        if _session_targets_project(session) and _session_has_plumbing_mutation(session):
+        if _session_targets_project(session) and session.get("head_mutated") is True:
             return True
     return False
 
@@ -243,28 +255,20 @@ def _check_head_change(
 
     try:
         action_found = bool(reflog_action and _reflog_contains_action(reflog_action))
-        plumbing_found = bool(trace_path and _trace_has_project_plumbing_mutation(trace_path))
+        trace_found = bool(trace_path and _trace_has_project_head_mutation(trace_path))
     except (OSError, ValueError) as exc:
         pytest.fail(
             f"#2316: real repo HEAD changed ({before[:8]} -> {after[:8]}), "
             f"but the guard could not attribute the Git activity: {exc}",
             pytrace=False,
         )
-    if action_found:
+    if action_found or trace_found:
         pytest.fail(
             f"#2316: a test-launched Git command changed the REAL repo HEAD "
             f"({before[:8]} -> {after[:8]}). Run mutating Git commands only "
             "inside a repository created under tmp_path.",
             pytrace=False,
         )
-    if plumbing_found:
-        pytest.fail(
-            f"#2316: a test-launched Git plumbing command changed the REAL repo "
-            f"HEAD ({before[:8]} -> {after[:8]}). Run mutating Git commands only "
-            "inside a repository created under tmp_path.",
-            pytrace=False,
-        )
-
     subject = _real_repo_head_subject()
     warnings.warn(
         f"#3109: real repo HEAD changed during this test's window "
@@ -282,9 +286,10 @@ def _guard_real_repo_head() -> Iterator[None]:
     previous_env = {name: os.environ.get(name) for name in _TRACE_ENV_NAMES}
     attribution_token = uuid.uuid4().hex
     reflog_action = f"pytest-head-guard:{attribution_token}"
-    trace_path = Path(tempfile.gettempdir()) / f"pytest-head-guard-{attribution_token}.json"
+    trace_path = Path(tempfile.gettempdir()) / f"pytest-head-guard-{attribution_token}.log"
     os.environ["GIT_REFLOG_ACTION"] = reflog_action
-    os.environ["GIT_TRACE2_EVENT"] = str(trace_path)
+    for name in _TRACE_FILE_ENV_NAMES:
+        os.environ[name] = str(trace_path)
     try:
         yield
     finally:
