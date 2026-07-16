@@ -10,7 +10,7 @@
       "id": "e001",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "milestone",
-      "content": "Refreshed PR 3103, merged origin/main at b31cb2912, confirmed the live-state gate returned ACT, and acquired the pr-autofix lease.",
+      "content": "Refreshed PR 3103, merged origin/main, confirmed the live-state gate returned ACT, and acquired the pr-autofix lease.",
       "caused_by": [],
       "leads_to": []
     },
@@ -50,7 +50,7 @@
       "id": "e006",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "milestone",
-      "content": "Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed.",
+      "content": "Committed the primary review fixes as e07f40f69. Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed.",
       "caused_by": [],
       "leads_to": []
     },
@@ -58,7 +58,7 @@
       "id": "e007",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
-      "content": "Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed.",
+      "content": "Committed the primary review fixes as e07f40f69. Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed.",
       "caused_by": [],
       "leads_to": []
     },
@@ -74,7 +74,7 @@
       "id": "e009",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "milestone",
-      "content": "CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing.",
+      "content": "CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout in 45576b6f9, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing.",
       "caused_by": [],
       "leads_to": []
     },
@@ -82,7 +82,7 @@
       "id": "e010",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "test",
-      "content": "CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing.",
+      "content": "CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout in 45576b6f9, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing.",
       "caused_by": [],
       "leads_to": []
     },
@@ -124,7 +124,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 3
   },
   "lessons": []

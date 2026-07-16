@@ -116,7 +116,7 @@
   "workLog": [
     {
       "time": "T0",
-      "entry": "Refreshed PR 3103, merged origin/main at b31cb2912, confirmed the live-state gate returned ACT, and acquired the pr-autofix lease."
+      "entry": "Refreshed PR 3103, merged origin/main, confirmed the live-state gate returned ACT, and acquired the pr-autofix lease."
     },
     {
       "time": "T1",
@@ -136,11 +136,11 @@
     },
     {
       "time": "T5",
-      "entry": "Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed."
+      "entry": "Committed the primary review fixes as e07f40f69. Verification: uv run pytest reported 41 passed; the focused suite reached 98% module coverage; Ruff, mypy, Python 3.10 syntax, actionlint, gh act dry-run, YAML parsing, CWE-78 scan, pre_pr.py, security review, QA review, and final code review passed."
     },
     {
       "time": "T6",
-      "entry": "CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing."
+      "entry": "CodeRabbit opened a late timeout finding after CI completed. Added a 15-minute Windows contract job timeout in 45576b6f9, extended the wiring regression test, and verified 24 passed plus Ruff, mypy, actionlint, and YAML parsing."
     },
     {
       "time": "T7",
