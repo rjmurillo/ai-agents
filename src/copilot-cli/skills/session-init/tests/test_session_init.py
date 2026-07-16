@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -545,3 +546,101 @@ class TestNewSessionLogJson:
         data = json.loads(json_files[0].read_text())
         assert data["session"]["number"] == 5
         assert data["session"]["objective"] == "JSON test"
+
+    def test_json_created_with_explicit_0644_mode(self, tmp_path):
+        """os.open receives an explicit 0o644 mode for the JSON data file.
+
+        Regression for #3114. The call omitted the mode argument, so os.open
+        defaulted to 0o777 and the JSON session log landed executable (0o775
+        under a 0002 umask). The file is data, not a program.
+        """
+        sessions_dir = _sessions_dir(tmp_path)
+        sessions_dir.mkdir(parents=True)
+
+        script = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "scripts",
+            "new_session_log_json.py",
+        )
+
+        def mock_run(cmd, **kwargs):
+            if cmd[0] == "git":
+                git_args = tuple(cmd[1:])
+                results = {
+                    ("branch", "--show-current"): "feat/mode",
+                    ("rev-parse", "--short", "HEAD"): "abc1234",
+                    ("rev-parse", "--show-toplevel"): str(tmp_path),
+                }
+                return subprocess.CompletedProcess(
+                    cmd, 0, stdout=results.get(git_args, ""), stderr=""
+                )
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        import importlib
+
+        spec = importlib.util.spec_from_file_location("new_session_log_json", script)
+        mod = importlib.util.module_from_spec(spec)
+        scripts_path = os.path.join(os.path.dirname(__file__), "..", "scripts")
+
+        real_open = os.open
+        recorded_modes: list[int] = []
+
+        def recording_open(path, flags, *args):
+            if str(path).endswith(".json"):
+                # mode is the third positional arg; absent before the #3114 fix
+                recorded_modes.append(args[0] if args else -1)
+            return real_open(path, flags, *args)
+
+        with mock.patch("subprocess.run", side_effect=mock_run), pytest.MonkeyPatch.context() as mp:
+            mp.syspath_prepend(scripts_path)
+            spec.loader.exec_module(mod)
+            with mock.patch("os.open", side_effect=recording_open):
+                result = mod.main(["--session-number", "5", "--objective", "mode test"])
+
+        assert result == 0
+        assert recorded_modes == [0o644]
+
+    @pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits are not meaningful on Windows")
+    def test_json_file_not_executable_under_umask_0002(self, tmp_path):
+        """The created JSON log carries no execute bits under a 0002 umask.
+
+        Regression for #3114. Exercises the real script end to end: before the
+        fix, the os.open default (0o777) produced 0o775 under umask 0002,
+        giving the data file user and group execute bits.
+        """
+        sessions_dir = _sessions_dir(tmp_path)
+        sessions_dir.mkdir(parents=True)
+
+        script = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "scripts",
+            "new_session_log_json.py",
+        )
+        env = dict(os.environ)
+        env["GITHUB_WORKSPACE"] = str(tmp_path)
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                script,
+                "--session-number",
+                "5",
+                "--objective",
+                "mode test",
+            ],
+            cwd=str(tmp_path),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            preexec_fn=lambda: os.umask(0o002),  # noqa: PLW1509
+        )
+
+        assert proc.returncode == 0, proc.stderr
+        created_path = Path(proc.stdout.strip().splitlines()[-1])
+        # Guard: the log must land under tmp, never the real repo.
+        assert str(created_path).startswith(str(tmp_path)), created_path
+        mode = created_path.stat().st_mode
+        assert mode & 0o111 == 0, f"unexpected execute bits: {oct(mode)}"
