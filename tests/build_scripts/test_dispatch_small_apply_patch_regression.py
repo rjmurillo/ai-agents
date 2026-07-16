@@ -82,9 +82,10 @@ def _run_dispatch(
 ) -> subprocess.CompletedProcess[bytes]:
     """Run the committed PreToolUse dispatcher under the plugin-root contract.
 
-    Copilot launches a plugin hook from the user's cwd (not the plugin dir) and
-    exports COPILOT_PLUGIN_ROOT plus a CLAUDE_PLUGIN_ROOT alias pointing at the
-    install dir. This reproduces that contract so the run matches production.
+    Copilot launches a plugin hook from the user's cwd, not the plugin dir.
+    The launcher chooses COPILOT_PLUGIN_ROOT with CLAUDE_PLUGIN_ROOT as its
+    fallback, while the Python bootstrap consumes CLAUDE_PLUGIN_ROOT. Set both
+    to the same install directory so this test covers either launcher input.
     """
     env = dict(os.environ)
     env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
@@ -113,7 +114,8 @@ def test_small_apply_patch_payload_allows(payload: dict[str, object], tmp_path: 
     assert proc.returncode == 0, (
         f"the committed dispatcher denied a benign small apply_patch payload "
         f"(rc={proc.returncode}). The dispatcher must allow; the Windows host's "
-        f"exit 1 is external (issue #3083).\n{proc.stderr.decode()[:600]}"
+        f"exit 1 is external (issue #3083).\n"
+        f"{proc.stderr.decode('utf-8', errors='replace')[:600]}"
     )
 
 
