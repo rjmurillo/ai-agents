@@ -1,93 +1,35 @@
 {
-  "description": "Plugin hooks for project-toolkit (PreToolUse routing, session gates, ADR enforcement, post-PR retro). Ported from .claude/settings.json with ${CLAUDE_PLUGIN_ROOT} for portability.",
+  "description": "Plugin hooks for project-toolkit. Each (event, matcher) group registers ONE dispatch_claude.py process that runs the group's existing hook bodies in-process (issue #3075); group membership is unchanged from the previous per-hook registrations and lives in dispatch_groups.json (plugin-* groups). Inside a checkout of the repo that publishes this plugin, the dispatcher exits immediately so hooks do not double-fire with .claude/settings.json.",
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_routing_gates.py\"",
-            "timeout": 5,
-            "statusMessage": "Checking routing-level gates (ADR-033)"
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-pretooluse-bash",
+            "timeout": 60,
+            "statusMessage": "Running Bash pre-tool gates (grouped, #3075)"
           }
         ]
       },
       {
-        "matcher": "Bash([gG][hH] *|*\\[gG][hH].exe *|*\\[gG][hH] *|*/[gG][hH] *|*&& [gG][hH] *|*; [gG][hH] *|[eE][nN][vV] [gG][hH] *|[eE][nN][vV] * [gG][hH] *|[sS][uU][dD][oO] * [gG][hH] *|[eE][xX][eE][cC] [gG][hH] *|[cC][oO][mM][mM][aA][nN][dD] [gG][hH] *)",
+        "matcher": "Bash(git commit*)",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_skill_first_guard.py\"",
-            "statusMessage": "Enforcing skills-first policy for GitHub operations (BLOCKING)"
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-git-commit",
+            "timeout": 120,
+            "statusMessage": "Running commit gates (grouped, #3075)"
           }
         ]
       },
       {
-        "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*|[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
+        "matcher": "Bash(gh pr create*)",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_false_completion_gate.py\"",
-            "timeout": 5,
-            "statusMessage": "Checking for false completion claims without verification (#1703)"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash([gG][rR][eE][pP] *|[rR][gG] *|[aA][gG] *|[aA][cC][kK] *|*[ ][gG][rR][eE][pP][ ]*|*[ ][rR][gG][ ]*|*[ ][aA][gG][ ]*|*[ ][aA][cC][kK][ ]*|*\\[gG][rR][eE][pP].exe *|*\\[rR][gG].exe *|*\\[aA][gG].exe *|*\\[aA][cC][kK].exe *|*/[gG][rR][eE][pP] *|*/[rR][gG] *|*/[aA][gG] *|*/[aA][cC][kK] *)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py\"",
-            "timeout": 5,
-            "statusMessage": "Enforcing LSP-first over bash grep on code symbols (ADR-062, conditional)"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_session_log_guard.py\"",
-            "statusMessage": "Verifying session log exists before commit (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_branch_context_guard.py\"",
-            "statusMessage": "Verifying branch matches session context (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_adr_review_guard.py\"",
-            "statusMessage": "Verifying ADR review completed (MUST requirement)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_branch_protection_guard.py\"",
-            "statusMessage": "Verifying branch protection"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_security_commit_gate.py\"",
-            "timeout": 10,
-            "statusMessage": "Checking security gate for staged auth files (ADR-033)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_prompt_eval_gate.py\"",
-            "timeout": 10,
-            "statusMessage": "Checking ADR-057 behavioral eval evidence for prompt changes"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_session_log_guard.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-gh-pr-create",
             "statusMessage": "Verifying session log exists before PR creation (BLOCKING)"
           }
         ]
@@ -97,8 +39,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_security_gate.py\"",
-            "statusMessage": "Checking security gate for auth files (ADR-033)"
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-write-edit-pre",
+            "timeout": 60,
+            "statusMessage": "Running Write/Edit pre-tool gates (grouped, #3075)"
           }
         ]
       },
@@ -107,51 +50,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_branch_context_guard.py\"",
-            "statusMessage": "Verifying branch matches session context (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_branch_protection_guard.py\"",
-            "statusMessage": "Verifying branch protection"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_retrospective_gate.py\"",
-            "statusMessage": "Verifying retrospective evidence (ADR-033)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_markdownlint_guard.py\"",
-            "timeout": 90,
-            "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_session_log_field_guard.py\"",
-            "statusMessage": "Checking session log placeholder values (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_pr_description_guard.py\"",
-            "timeout": 90,
-            "statusMessage": "Checking PR description vs diff (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_plugin_version_bump_guard.py\"",
-            "timeout": 30,
-            "statusMessage": "Checking plugin.json version bump on plugin source changes (BLOCKING)"
-          }
-        ]
-      },
-      {
-        "matcher": "^(Edit|Write)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_adr_architect_gate.py\"",
-            "statusMessage": "Verifying architect review for ADR files (BLOCKING)"
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-git-push",
+            "timeout": 300,
+            "statusMessage": "Running push gates (grouped, #3075)"
           }
         ]
       },
@@ -160,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_lsp_grep_guard.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-grep",
             "timeout": 5,
             "statusMessage": "Enforcing LSP-first over Grep on code symbols (ADR-062, conditional)"
           }
@@ -171,7 +72,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_lsp_glob_guard.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-glob",
             "timeout": 5,
             "statusMessage": "Enforcing LSP-first over symbol-shaped Glob (ADR-062, conditional)"
           }
@@ -182,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_lsp_read_guard.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-read",
             "timeout": 5,
             "statusMessage": "Enforcing LSP-first navigation before code Read (ADR-062, graduated)"
           }
@@ -193,7 +94,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_lsp_pre_delegation_guard.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-agent",
             "timeout": 5,
             "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
           }
@@ -204,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_lsp_pre_delegation_guard.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-task",
             "timeout": 5,
             "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
           }
@@ -216,29 +117,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/SessionStart/invoke_session_initialization_enforcer.py\"",
-            "statusMessage": "Enforcing session protocol initialization (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/SessionStart/invoke_memory_first_enforcer.py\"",
-            "statusMessage": "Enforcing ADR-007 memory-first evidence (HYBRID)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_session_start_memory_first.py\"",
-            "statusMessage": "Enforcing ADR-007 memory-first requirements"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_adr_change_detection.py\"",
-            "statusMessage": "Checking for ADR changes"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/SessionStart/invoke_lsp_session_reset.py\"",
-            "timeout": 5,
-            "statusMessage": "Resetting LSP-gate state for the new session (ADR-062)"
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-sessionstart",
+            "timeout": 120,
+            "statusMessage": "Running session-start hooks (grouped, #3075)"
           }
         ]
       }
@@ -248,25 +129,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/invoke_serena_reassertion.py\"",
-            "timeout": 3,
-            "statusMessage": "Re-asserting Serena activation (issue #1993)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py\"",
-            "statusMessage": "Detecting autonomous execution patterns"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/invoke_research_then_implement.py\"",
-            "timeout": 3,
-            "statusMessage": "Checking for research-before-implementation signals"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_user_prompt_memory_check.py\"",
-            "statusMessage": "Checking memory-first compliance"
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-userpromptsubmit",
+            "timeout": 30,
+            "statusMessage": "Running prompt-submit hooks (grouped, #3075)"
           }
         ]
       }
@@ -277,13 +142,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PostToolUse/invoke_markdown_auto_lint.py\"",
-            "statusMessage": "Auto-linting markdown files"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PostToolUse/invoke_adr_lifecycle_hook.py\"",
-            "statusMessage": "Checking for ADR changes"
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-posttooluse-write-edit",
+            "timeout": 120,
+            "statusMessage": "Running Write/Edit post-tool hooks (grouped, #3075)"
           }
         ]
       },
@@ -292,7 +153,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PostToolUse/invoke_adr_lifecycle_hook.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-posttooluse-bash",
             "statusMessage": "Checking for ADR changes"
           }
         ]
@@ -302,7 +163,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PostToolUse/invoke_observation_sync.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-observation-sync",
             "timeout": 30,
             "statusMessage": "Syncing observation memories to Forgetful"
           }
@@ -313,7 +174,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PostToolUse/invoke_lsp_usage_tracker.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-usage-tracker",
             "timeout": 5,
             "statusMessage": "Tracking LSP navigation calls for the LSP-first gate (ADR-062)"
           }
@@ -324,7 +185,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PostToolUse/invoke_lsp_read_tracker.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-lsp-read-tracker",
             "timeout": 5,
             "statusMessage": "Tracking Read operations for the LSP-first gate (ADR-062)"
           }
@@ -336,13 +197,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/Stop/invoke_skill_learning.py\"",
-            "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/Stop/invoke_session_validator.py\"",
-            "statusMessage": "Validating session completeness"
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-stop",
+            "timeout": 300,
+            "statusMessage": "Running stop hooks (grouped, #3075)"
           }
         ]
       }
@@ -352,7 +209,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/SubagentStop/invoke_qa_agent_validator.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-subagentstop",
             "statusMessage": "Validating QA agent output"
           }
         ]
@@ -364,7 +221,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PermissionRequest/invoke_test_auto_approval.py\"",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch_claude.py\" --group plugin-permissionrequest",
             "statusMessage": "Auto-approving test execution"
           }
         ]
