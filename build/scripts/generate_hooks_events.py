@@ -632,6 +632,23 @@ def _stage_dispatcher_artifacts(
         shutil.copy2(generated, staged)
         publish_pairs.append((staged, target))
     transaction.publish_many(publish_pairs)
+
+    # Clean up stale matcher shims from the actual output directories.
+    # Consolidation runs on an empty staging tree, so _remove_stale_matcher_shims
+    # inside emit_dispatcher only scans the staging directories. We must run
+    # cleanup on the published output tree where stale shims actually live.
+    for event, entries in out.items():
+        shim_names = [
+            name
+            for entry in entries
+            if (name := generate_dispatcher._shim_basename(entry.get("bash", "")))
+        ]
+        if not shim_names:
+            continue
+        event_dir = output_scripts / event
+        if event_dir.is_dir():
+            generate_dispatcher._remove_stale_matcher_shims(event_dir, shim_names)
+
     return cast(dict[str, list[dict[str, Any]]], consolidated)
 
 
