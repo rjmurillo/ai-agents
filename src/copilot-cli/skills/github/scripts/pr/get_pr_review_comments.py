@@ -58,8 +58,8 @@ from github_core.comment_classification import classify_domain  # noqa: E402
 # ---------------------------------------------------------------------------
 # Reviewer-priority classification
 # ---------------------------------------------------------------------------
-# Source: pr-comment-responder SKILL.md "Reviewer Priority" table. The table
-# maps cursor[bot]=P0, human reviewers=P1, coderabbitai[bot]=P2, Copilot=P2.
+# Contract: .claude/skills/pr-comment-responder/SKILL.md, "Reviewer Priority".
+# The table maps cursor[bot]=P0, humans=P1, coderabbitai[bot]=P2, Copilot=P2.
 # A bot that is not one of those named reviewers falls to the deterministic
 # "Unknown" tier so no comment is dropped from triage.
 _REVIEWER_PRIORITY_BY_LOGIN: dict[str, str] = {
