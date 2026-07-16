@@ -492,3 +492,141 @@ class TestConsolidate:
     def test_consolidate_handles_empty_event(self, tmp_path):
         out = {"PreToolUse": []}
         assert gd.consolidate(out, tmp_path) == {"PreToolUse": []}
+
+
+class TestMatcherShimContract:
+    """Bind ``_MATCHER_SHIM_RE`` to the naming contract it mirrors.
+
+    The prune pattern duplicates knowledge owned by
+    ``generate_hooks_emit._relative_script_target`` (the ``__`` separator) and
+    ``_matcher_suffix`` (the 6-char SHA-1 digest). Generate real names through
+    those functions so a change to the digest length or separator fails here
+    loudly instead of silently letting orphans accumulate.
+    """
+
+    def test_regex_matches_sanitized_suffix_name(self):
+        from generate_hooks_emit import _relative_script_target
+
+        name = _relative_script_target(
+            Path("out"), "PreToolUse", "invoke_foo.py", matcher="Bash(git commit*)"
+        ).name
+
+        assert "__" in name
+        assert gd._MATCHER_SHIM_RE.match(name)
+
+    def test_regex_matches_empty_sanitized_suffix_name(self):
+        from generate_hooks_emit import _relative_script_target
+
+        # "^$" sanitizes to empty, so the suffix is the bare 6-hex digest:
+        # "<stem>__<6hex>.py".
+        name = _relative_script_target(
+            Path("out"), "PreToolUse", "invoke_foo.py", matcher="^$"
+        ).name
+
+        assert name.count("__") >= 1
+        assert gd._MATCHER_SHIM_RE.match(name)
+
+    def test_regex_ignores_non_matcher_and_shared_names(self):
+        for name in (
+            "invoke_auto_retrospective.py",  # non-matcher shim (verbatim copy)
+            "push_guard_base.py",  # shared module
+            "_bootstrap.py",
+            "_dispatch.py",
+            "__init__.py",
+        ):
+            assert not gd._MATCHER_SHIM_RE.match(name), name
+
+
+class TestPruneOrphanShims:
+    def _write(self, directory: Path, *names: str) -> None:
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            (directory / name).write_text("# shim\n", encoding="utf-8")
+
+    def test_removes_orphan_matcher_shim_keeps_live(self, tmp_path):
+        live = "invoke_guard__Bash_git_commit_git_ci_fb3f5a.py"
+        orphan = "invoke_guard__Bash_git_commit_442774.py"
+        self._write(tmp_path, live, orphan)
+
+        pruned = gd.prune_orphan_shims(tmp_path, [live])
+
+        assert pruned == [orphan]
+        assert (tmp_path / live).is_file()
+        assert not (tmp_path / orphan).exists()
+
+    def test_keeps_protected_files_even_when_absent_from_manifest(self, tmp_path):
+        # Negative control: generator-emitted infra files are never per-matcher
+        # shims and must survive even though they are not in the live set.
+        self._write(tmp_path, "_bootstrap.py", "_dispatch.py", "__init__.py")
+
+        pruned = gd.prune_orphan_shims(tmp_path, [])
+
+        assert pruned == []
+        for name in ("_bootstrap.py", "_dispatch.py", "__init__.py"):
+            assert (tmp_path / name).is_file()
+
+    def test_keeps_shared_module_not_in_manifest(self, tmp_path):
+        # Negative control: push_guard_base.py is a shared module this generator
+        # does not emit and does not list; the naming pattern (not a hardcoded
+        # allowlist) is what protects it.
+        self._write(tmp_path, "push_guard_base.py")
+
+        pruned = gd.prune_orphan_shims(tmp_path, [])
+
+        assert pruned == []
+        assert (tmp_path / "push_guard_base.py").is_file()
+
+    def test_keeps_non_matcher_orphan_shim(self, tmp_path):
+        # Conservative scope: a non-matcher shim (no __<hash> suffix) that is
+        # absent from the manifest does NOT match the pattern and is left alone.
+        self._write(tmp_path, "invoke_old_observer.py")
+
+        pruned = gd.prune_orphan_shims(tmp_path, [])
+
+        assert pruned == []
+        assert (tmp_path / "invoke_old_observer.py").is_file()
+
+    def test_is_idempotent(self, tmp_path):
+        live = "invoke_guard__Bash_git_push_0e93bf.py"
+        orphan = "invoke_guard__Bash_git_commit_442774.py"
+        self._write(tmp_path, live, orphan, "_bootstrap.py")
+
+        first = gd.prune_orphan_shims(tmp_path, [live])
+        second = gd.prune_orphan_shims(tmp_path, [live])
+
+        assert first == [orphan]
+        assert second == []
+        assert (tmp_path / live).is_file()
+        assert (tmp_path / "_bootstrap.py").is_file()
+
+    def test_returns_empty_for_missing_dir(self, tmp_path):
+        assert gd.prune_orphan_shims(tmp_path / "nope", ["a.py"]) == []
+
+    def test_consolidate_prunes_preexisting_orphan(self, tmp_path):
+        hooks_dir = tmp_path / "hooks"
+        event_dir = hooks_dir / "PreToolUse"
+        orphan = "invoke_guard__Bash_git_commit_442774.py"
+        self._write(event_dir, orphan)
+        out = {
+            "PreToolUse": [
+                {
+                    "bash": 'python3 -u "${ROOT}/hooks/PreToolUse/'
+                    'invoke_guard__Bash_git_commit_git_ci_fb3f5a.py"',
+                    "timeoutSec": 5,
+                },
+            ],
+        }
+
+        gd.consolidate(out, hooks_dir)
+
+        # consolidate writes only the manifest, dispatcher, and bootstrap; the
+        # live shim bodies are written earlier by the emit phase, so here the
+        # observable effect is that the stale orphan is removed while the fresh
+        # manifest lists only the live shim and the infra files survive.
+        assert not (event_dir / orphan).exists()
+        manifest = json.loads((event_dir / "_manifest.json").read_text())
+        assert manifest["shims"] == [
+            "invoke_guard__Bash_git_commit_git_ci_fb3f5a.py"
+        ]
+        assert (event_dir / "_bootstrap.py").is_file()
+        assert (event_dir / "_dispatch.py").is_file()
