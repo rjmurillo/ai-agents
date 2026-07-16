@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-07-16-session-3044-reduce-hook-overhead-per-issue",
+  "session": "2026-07-16-session-3044-reduce-hook-overhead-per-issue",
+  "timestamp": "2026-07-16T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Reduce hook overhead per issue 3075: hook value audit, consolidation, spawn reduction, machine-config Windows perf",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hook value audit via 8-agent workflow wf_52330499-ada; session JSON validated with scripts/validate_session_json.py (exit 0).",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
