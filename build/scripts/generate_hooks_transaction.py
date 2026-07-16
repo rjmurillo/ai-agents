@@ -14,14 +14,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
     from typing import BinaryIO
 
 _IS_WINDOWS = os.name == "nt"
+_LOCK_TIMEOUT_SECONDS = 10.0
+_LOCK_RETRY_INTERVAL_SECONDS = 0.05
+_RETRYABLE_LOCK_ERRNOS = frozenset({errno.EACCES, errno.EAGAIN, errno.EDEADLK})
 
 
 class _FcntlModule(Protocol):
     LOCK_EX: int
+    LOCK_NB: int
     LOCK_UN: int
 
     def flock(self, file_descriptor: int, operation: int) -> None: ...
@@ -250,22 +254,44 @@ def _lock_directory() -> Path:
     return directory
 
 
-def _lock_file(handle: BinaryIO) -> None:
+def _lock_file(
+    handle: BinaryIO,
+    timeout_seconds: float = _LOCK_TIMEOUT_SECONDS,
+) -> None:
     handle.seek(0)
     if _IS_WINDOWS:
         import msvcrt
 
-        while True:
-            try:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-                return
-            except OSError as exc:
-                if exc.errno not in (errno.EACCES, errno.EDEADLK):
-                    raise
-                time.sleep(0.05)
+        def acquire() -> None:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+
     else:
         fcntl = cast(_FcntlModule, importlib.import_module("fcntl"))
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+
+        def acquire() -> None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    _retry_file_lock(acquire, timeout_seconds)
+
+
+def _retry_file_lock(
+    acquire: Callable[[], None],
+    timeout_seconds: float,
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        try:
+            acquire()
+            return
+        except OSError as exc:
+            if exc.errno not in _RETRYABLE_LOCK_ERRNOS:
+                raise
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"timed out acquiring hook generation lock after {timeout_seconds:g} seconds"
+                ) from exc
+            time.sleep(min(_LOCK_RETRY_INTERVAL_SECONDS, remaining))
 
 
 def _unlock_file(handle: BinaryIO) -> None:

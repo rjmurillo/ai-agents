@@ -19,6 +19,7 @@ Coverage matrix (positive AND negative for every behavior branch):
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import re
@@ -1355,6 +1356,102 @@ def test_transaction_lock_serializes_processes(tmp_path: Path) -> None:
     stdout, stderr = process.communicate(timeout=10)
     assert process.returncode == 0, stdout + stderr
     assert acquired.exists()
+
+
+def test_transaction_windows_lock_retries_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ContendedMsvcrt:
+        LK_NBLCK = 1
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def locking(
+            self,
+            _file_descriptor: int,
+            _operation: int,
+            _length: int,
+        ) -> None:
+            self.calls += 1
+            if self.calls == 1:
+                raise OSError(errno.EDEADLK, "busy")
+
+    contended = ContendedMsvcrt()
+    sleeps: list[float] = []
+    monkeypatch.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
+    monkeypatch.setitem(sys.modules, "msvcrt", contended)
+    monkeypatch.setattr(generate_hooks_transaction.time, "sleep", sleeps.append)
+
+    with tempfile.TemporaryFile("w+b") as handle:
+        generate_hooks_transaction._lock_file(handle, timeout_seconds=1)
+
+    assert contended.calls == 2
+    assert sleeps == [generate_hooks_transaction._LOCK_RETRY_INTERVAL_SECONDS]
+
+
+def test_transaction_lock_propagates_non_contention_error() -> None:
+    error = OSError(errno.EBADF, "invalid file descriptor")
+
+    def fail() -> None:
+        raise error
+
+    with pytest.raises(OSError) as exc_info:
+        generate_hooks_transaction._retry_file_lock(fail, timeout_seconds=1)
+
+    assert exc_info.value is error
+
+
+def test_transaction_windows_lock_timeout_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BusyMsvcrt:
+        LK_NBLCK = 1
+
+        @staticmethod
+        def locking(
+            _file_descriptor: int,
+            _operation: int,
+            _length: int,
+        ) -> None:
+            raise OSError(errno.EACCES, "busy")
+
+    monkeypatch.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
+    monkeypatch.setitem(sys.modules, "msvcrt", BusyMsvcrt())
+
+    with tempfile.TemporaryFile("w+b") as handle:
+        with pytest.raises(TimeoutError, match="after 0 seconds") as exc_info:
+            generate_hooks_transaction._lock_file(handle, timeout_seconds=0)
+
+    assert isinstance(exc_info.value.__cause__, OSError)
+    assert exc_info.value.__cause__.errno == errno.EACCES
+
+
+def test_transaction_posix_lock_timeout_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BusyFcntl:
+        LOCK_EX = 1
+        LOCK_NB = 4
+        LOCK_UN = 8
+
+        def __init__(self) -> None:
+            self.operations: list[int] = []
+
+        def flock(self, _file_descriptor: int, operation: int) -> None:
+            self.operations.append(operation)
+            raise OSError(errno.EAGAIN, "busy")
+
+    busy = BusyFcntl()
+    monkeypatch.setattr(generate_hooks_transaction, "_IS_WINDOWS", False)
+    monkeypatch.setitem(sys.modules, "fcntl", busy)
+
+    with tempfile.TemporaryFile("w+b") as handle:
+        with pytest.raises(TimeoutError, match="after 0 seconds"):
+            generate_hooks_transaction._lock_file(handle, timeout_seconds=0)
+
+    assert busy.operations == [busy.LOCK_EX | busy.LOCK_NB]
+
 
 @pytest.mark.skipif(os.name != "nt", reason="NTFS alternate data streams only")
 def test_transaction_windows_rollback_preserves_named_stream(
