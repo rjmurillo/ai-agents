@@ -170,7 +170,7 @@ class TestDispatcherArtifacts:
             timeout=15,
         )
 
-        assert process.returncode == 0, process.stderr.decode()
+        assert process.returncode == 0, process.stderr.decode(errors="replace")
         assert process.stdout.count(b"Branch: `") == 1
         assert process.stdout.count(b" | Session: ") == 1
 
