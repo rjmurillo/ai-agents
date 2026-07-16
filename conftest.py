@@ -124,7 +124,7 @@ def _symbolic_ref_mutates_head(args: list[str]) -> bool:
 
 def _update_ref_mutates_branch(args: list[str]) -> bool:
     if "--stdin" in args:
-        return False
+        return True
     positional = _positional_args(args, {"-m"})
     if not positional:
         return False
