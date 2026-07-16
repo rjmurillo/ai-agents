@@ -1534,6 +1534,42 @@ if [ -n "$STAGED_EPISODE_FILES" ] || [ -n "$STAGED_DELETED_EPISODES" ]; then
                 if [ "$_can_update" -eq 0 ]; then
                     echo_warning "Could not snapshot the causal graph; skipping update (non-blocking)."
                 else
+                    # Prune deleted episodes FIRST (#3039). Run prune before
+                    # processing staged episodes so that renames (delete old +
+                    # add new with same JSON id) do not lose contributions:
+                    # prune removes old state, then staged processing re-adds.
+                    # Read the id from the last committed version (HEAD) since
+                    # it may differ from the filename stem if hand-edited; fall
+                    # back to the stem when HEAD read fails. A nonexistent
+                    # --episode-path ensures no episode is reprocessed; only the
+                    # prune runs.
+                    if [ -n "$STAGED_DELETED_EPISODES" ]; then
+                        _prune_ids=""
+                        while IFS= read -r _del_ep; do
+                            [ -z "$_del_ep" ] && continue
+                            _del_base=${_del_ep##*/}
+                            _del_stem=${_del_base%.json}
+                            # Extract the "id" field from the last committed version.
+                            _del_id=$(git show "HEAD:$_del_ep" 2>/dev/null | "${PYTHON_CMD[@]}" -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null) || _del_id=""
+                            # Fall back to filename stem if extraction failed.
+                            [ -z "$_del_id" ] && _del_id="$_del_stem"
+                            if [ -n "$_prune_ids" ]; then
+                                _prune_ids="${_prune_ids},${_del_id}"
+                            else
+                                _prune_ids="$_del_id"
+                            fi
+                        done <<< "$STAGED_DELETED_EPISODES"
+                        if [ -n "$_prune_ids" ]; then
+                            _prune_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --prune-episode-ids "$_prune_ids" --episode-path "$REPO_ROOT/.agents/memory/episodes/__prune_only__" --graph-path "$CAUSAL_GRAPH_FILE" 2>&1) && _prc=0 || _prc=$?
+                            UPDATE_OUTPUT="${UPDATE_OUTPUT}${_prune_out}
+"
+                            if [ "$_prc" -ne 0 ]; then
+                                UPDATE_EXIT=$_prc
+                            fi
+                        fi
+                    fi
+
+                    # Process staged episodes after prune completes.
                     while IFS= read -r _episode; do
                         [ -z "$_episode" ] && continue
                         # Reject symlinks (MEDIUM-002).
@@ -1560,39 +1596,6 @@ if [ -n "$STAGED_EPISODE_FILES" ] || [ -n "$STAGED_DELETED_EPISODES" ]; then
                         fi
                         rm -f "$_staged_tmp"
                     done <<< "$STAGED_EPISODE_FILES"
-
-                    # Prune deleted episodes (#3039). Their contributions cannot
-                    # be reached by reprocessing (the file is gone), so pass the
-                    # deleted ids explicitly. Read the id from the last committed
-                    # version (HEAD) since it may differ from the filename stem
-                    # if hand-edited; fall back to the stem when HEAD read fails.
-                    # A nonexistent --episode-path ensures no episode is
-                    # reprocessed; only the prune runs.
-                    if [ -n "$STAGED_DELETED_EPISODES" ]; then
-                        _prune_ids=""
-                        while IFS= read -r _del_ep; do
-                            [ -z "$_del_ep" ] && continue
-                            _del_base=${_del_ep##*/}
-                            _del_stem=${_del_base%.json}
-                            # Extract the "id" field from the last committed version.
-                            _del_id=$(git show "HEAD:$_del_ep" 2>/dev/null | "${PYTHON_CMD[@]}" -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null) || _del_id=""
-                            # Fall back to filename stem if extraction failed.
-                            [ -z "$_del_id" ] && _del_id="$_del_stem"
-                            if [ -n "$_prune_ids" ]; then
-                                _prune_ids="${_prune_ids},${_del_id}"
-                            else
-                                _prune_ids="$_del_id"
-                            fi
-                        done <<< "$STAGED_DELETED_EPISODES"
-                        if [ -n "$_prune_ids" ]; then
-                            _prune_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --prune-episode-ids "$_prune_ids" --episode-path "$REPO_ROOT/.agents/memory/episodes/__prune_only__" --graph-path "$CAUSAL_GRAPH_FILE" 2>&1) && _prc=0 || _prc=$?
-                            UPDATE_OUTPUT="${UPDATE_OUTPUT}${_prune_out}
-"
-                            if [ "$_prc" -ne 0 ]; then
-                                UPDATE_EXIT=$_prc
-                            fi
-                        fi
-                    fi
                 fi
 
                 if [ "$_can_update" -eq 0 ]; then

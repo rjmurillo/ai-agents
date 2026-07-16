@@ -671,38 +671,45 @@ def main(argv: list[str] | None = None) -> int:
         # Add decision nodes
         for decision in episode.get("decisions", []):
             node_label = f"{decision.get('type', 'unknown')}: {decision.get('chosen', '')}"
+            node_id = generate_node_id("decision", node_label)
+            touched_nodes.add(node_id)
             if not args.dry_run:
                 node = add_causal_node(graph, "decision", node_label, episode_id)
                 if node:
-                    touched_nodes.add(node["id"])
                     stats["nodes_added"] += 1
             else:
                 print(f"  [DRY] Would add node: {node_label}", file=sys.stderr)
 
         # Add event nodes
         for event in episode.get("events", []):
-            node_label = f"{event.get('type', 'unknown')}: {event.get('content', '')}"
+            node_type = event.get("type", "unknown")
+            node_label = f"{node_type}: {event.get('content', '')}"
+            node_id = generate_node_id(node_type, node_label)
+            touched_nodes.add(node_id)
             if not args.dry_run:
-                node = add_causal_node(
-                    graph, event.get("type", "unknown"), node_label, episode_id,
-                )
+                node = add_causal_node(graph, node_type, node_label, episode_id)
                 if node:
-                    touched_nodes.add(node["id"])
                     stats["nodes_added"] += 1
             else:
                 print(f"  [DRY] Would add node: {node_label}", file=sys.stderr)
 
         # Add outcome node
         outcome_label = f"Outcome: {episode.get('outcome', 'unknown')} - {episode.get('task', '')}"
+        outcome_id = generate_node_id("outcome", outcome_label)
+        touched_nodes.add(outcome_id)
         if not args.dry_run:
             outcome_node = add_causal_node(graph, "outcome", outcome_label, episode_id)
             if outcome_node:
-                touched_nodes.add(outcome_node["id"])
                 stats["nodes_added"] += 1
 
         # Build and add causal chains
         chains = build_causal_chains(episode)
         for chain in chains:
+            from_id = generate_node_id(chain["from_type"], chain["from_label"])
+            to_id = generate_node_id(chain["to_type"], chain["to_label"])
+            touched_nodes.add(from_id)
+            touched_nodes.add(to_id)
+            touched_edges.add((from_id, to_id))
             if not args.dry_run:
                 from_node = add_causal_node(
                     graph, chain["from_type"], chain["from_label"], episode_id,
@@ -711,9 +718,6 @@ def main(argv: list[str] | None = None) -> int:
                     graph, chain["to_type"], chain["to_label"], episode_id,
                 )
                 if from_node and to_node:
-                    touched_nodes.add(from_node["id"])
-                    touched_nodes.add(to_node["id"])
-                    touched_edges.add((from_node["id"], to_node["id"]))
                     edge = add_causal_edge(
                         graph, from_node["id"], to_node["id"],
                         chain["edge_type"], chain["weight"], episode_id,
@@ -731,8 +735,8 @@ def main(argv: list[str] | None = None) -> int:
         patterns = get_decision_patterns(episode)
         for pat in patterns:
             success_rate = 1.0 if pat["success"] else 0.0
+            touched_patterns.add(pat["name"])
             if not args.dry_run:
-                touched_patterns.add(pat["name"])
                 p = add_pattern(
                     graph, pat["name"], pat["description"],
                     pat["trigger"], pat["action"], success_rate, episode_id,
@@ -746,12 +750,23 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
         # Retract contributions this episode no longer makes (edit-shrink).
-        if not args.dry_run and old is not None:
-            touched: dict[str, set[Any]] = {
-                "nodes": touched_nodes,
-                "edges": touched_edges,
-                "patterns": touched_patterns,
-            }
+        touched: dict[str, set[Any]] = {
+            "nodes": touched_nodes,
+            "edges": touched_edges,
+            "patterns": touched_patterns,
+        }
+        if args.dry_run:
+            # Preview removals: compute what would be retracted without mutating.
+            stale_nodes = old["nodes"] - touched["nodes"]
+            stale_edges = old["edges"] - touched["edges"]
+            stale_patterns = old["patterns"] - touched["patterns"]
+            for nid in stale_nodes:
+                print(f"  [DRY] Would retract node: {nid}", file=sys.stderr)
+            for src, tgt in stale_edges:
+                print(f"  [DRY] Would retract edge: {src} -> {tgt}", file=sys.stderr)
+            for pname in stale_patterns:
+                print(f"  [DRY] Would retract pattern: {pname}", file=sys.stderr)
+        else:
             removed = _retract_stale(graph, episode_id, old, touched)
             stats["nodes_removed"] += removed["nodes"]
             stats["edges_removed"] += removed["edges"]
