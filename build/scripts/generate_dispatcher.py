@@ -35,8 +35,10 @@ order, the authoritative registered set, NOT a directory listing), it produces:
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -244,6 +246,7 @@ def emit_dispatcher(
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
 _DEFAULT_TIMEOUT_SEC = 5
 _SCRIPT_RE = re.compile(r"/hooks/[^/]+/([^/\"']+\.py)(?!\.\w)")
+_CASE_INSENSITIVE_SHIM_NAMES = os.name == "nt"
 
 
 def _mode_for_event(event: str) -> str:
@@ -257,14 +260,82 @@ def _shim_basename(command: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _dispatcher_shim_entries(
+    entries: list[dict[str, Any]],
+) -> list[tuple[str, int]]:
+    """Return generated shim names and their timeout budgets."""
+    return [
+        (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))
+        for entry in entries
+        if (name := _shim_basename(entry.get("bash", "")))
+    ]
+
+
+def _shim_name_key(name: str) -> str:
+    if _CASE_INSENSITIVE_SHIM_NAMES:
+        return name.casefold()
+    return name
+
+
+def validate_event_name(event: str) -> None:
+    """Reject hook event names that can escape their output directory."""
+    if (
+        not event
+        or event in {".", ".."}
+        or "/" in event
+        or "\\" in event
+        or "\x00" in event
+    ):
+        raise ValueError(
+            f"invalid hook event {event!r}: expected a single path component"
+        )
+
+
+def _resolve_within(path: Path, root: Path, label: str) -> Path:
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f"could not resolve {label} {path}: {exc}") from exc
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{label} escapes hooks root: {path}") from exc
+    return resolved
+
+
 def find_stale_matcher_shims(
-    event_dir: Path, shim_names: list[str]
+    event_dir: Path,
+    shim_names: list[str],
+    *,
+    hooks_root: Path | None = None,
 ) -> list[Path]:
     """Return removable generated shims omitted from the manifest."""
-    active_shims = set(shim_names)
+    try:
+        event_stat = event_dir.lstat()
+    except FileNotFoundError:
+        return []
+    if stat.S_ISLNK(event_stat.st_mode):
+        raise ValueError(f"refusing symlinked event directory: {event_dir}")
+    if not stat.S_ISDIR(event_stat.st_mode):
+        raise ValueError(f"hook event path is not a directory: {event_dir}")
+
+    try:
+        root_path = hooks_root or event_dir.parent.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f"could not resolve hooks root for {event_dir}: {exc}") from exc
+    resolved_event = _resolve_within(event_dir, root_path, "hook event directory")
+    active_shims = {_shim_name_key(name) for name in shim_names}
     stale_shims: list[Path] = []
     for candidate in sorted(event_dir.iterdir()):
-        if candidate.suffix != ".py" or candidate.name in active_shims:
+        candidate_stat = candidate.lstat()
+        if stat.S_ISLNK(candidate_stat.st_mode):
+            raise ValueError(f"refusing symlinked hook candidate: {candidate}")
+        if not stat.S_ISREG(candidate_stat.st_mode):
+            continue
+        _resolve_within(candidate, resolved_event, "hook candidate")
+        if candidate.suffix != ".py":
+            continue
+        if _shim_name_key(candidate.name) in active_shims:
             continue
         source = candidate.read_text(encoding="utf-8")
         if not is_shimmed(source):
@@ -300,11 +371,8 @@ def consolidate(
     """
     new_out: dict[str, list[dict[str, Any]]] = {}
     for event, entries in out.items():
-        shim_entries = [
-            (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))
-            for entry in entries
-            if (name := _shim_basename(entry.get("bash", "")))
-        ]
+        validate_event_name(event)
+        shim_entries = _dispatcher_shim_entries(entries)
         if not shim_entries:
             new_out[event] = entries
             continue

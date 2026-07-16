@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 import subprocess
 import sys
 import time
@@ -542,6 +544,90 @@ class TestConsolidate:
         assert inline.name in notice
         assert sidecar.name in notice
         assert "NO-REGEN" in notice
+
+    def test_stale_scan_rejects_parent_event_path(self, tmp_path):
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        out = {
+            "../outside": [
+                {
+                    "bash": "python3 -u /hooks/outside/guard.py",
+                    "timeoutSec": 5,
+                }
+            ]
+        }
+
+        with pytest.raises(ValueError, match="single path component"):
+            gd.consolidate(out, hooks_dir)
+        assert not (tmp_path / "outside").exists()
+
+    def test_stale_scan_rejects_symlinked_event_directory(self, tmp_path, monkeypatch):
+        hooks_dir = tmp_path / "hooks"
+        event_dir = hooks_dir / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        real_lstat = Path.lstat
+        symlink_stat = os.stat_result(
+            (stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        )
+
+        def fake_lstat(path):
+            if path == event_dir:
+                return symlink_stat
+            return real_lstat(path)
+
+        monkeypatch.setattr(Path, "lstat", fake_lstat)
+
+        with pytest.raises(ValueError, match="symlinked event directory"):
+            gd.find_stale_matcher_shims(
+                event_dir,
+                ["guard.py"],
+                hooks_root=hooks_dir.resolve(),
+            )
+
+    def test_stale_scan_rejects_symlinked_candidate(self, tmp_path, monkeypatch):
+        hooks_dir = tmp_path / "hooks"
+        event_dir = hooks_dir / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        candidate = event_dir / "guard__Bash_git_status_deadbeef.py"
+        candidate.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        real_lstat = Path.lstat
+        symlink_stat = os.stat_result(
+            (stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        )
+
+        def fake_lstat(path):
+            if path == candidate:
+                return symlink_stat
+            return real_lstat(path)
+
+        monkeypatch.setattr(Path, "lstat", fake_lstat)
+
+        with pytest.raises(ValueError, match="symlinked hook candidate"):
+            gd.find_stale_matcher_shims(
+                event_dir,
+                ["guard.py"],
+                hooks_root=hooks_dir.resolve(),
+            )
+
+    def test_stale_scan_preserves_case_only_active_name(
+        self, tmp_path, monkeypatch
+    ):
+        hooks_dir = tmp_path / "hooks"
+        event_dir = hooks_dir / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        active = event_dir / "Guard__Bash_git_commit_123abc.py"
+        active.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        monkeypatch.setattr(gd, "_CASE_INSENSITIVE_SHIM_NAMES", True)
+
+        assert (
+            gd.find_stale_matcher_shims(
+                event_dir,
+                ["guard__Bash_git_commit_123abc.py"],
+                hooks_root=hooks_dir.resolve(),
+            )
+            == []
+        )
+        assert active.is_file()
 
     @pytest.mark.parametrize("failure_site", ["scan", "read", "unlink"])
     def test_consolidate_propagates_cleanup_filesystem_errors(

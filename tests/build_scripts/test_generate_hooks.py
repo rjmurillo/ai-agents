@@ -1201,6 +1201,39 @@ def test_generator_dispatcher_rollback_restores_deleted_stale_shim(
     assert _generated_owner_shims(tmp_path) == stale
 
 
+def test_generator_dispatcher_cleanup_path_failure_is_config_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg = _setup_dispatcher_matcher_fixture(tmp_path, "Bash(git status*)")
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    stale = _generated_owner_shims(tmp_path)
+    assert len(stale) == 1
+    event_dir = stale[0].parent
+    _set_dispatcher_matcher(tmp_path, "Bash(git commit*)")
+    real_lstat = Path.lstat
+    symlink_stat = os.stat_result(
+        (stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    )
+
+    def fake_lstat(path: Path) -> os.stat_result:
+        if path == event_dir:
+            return symlink_stat
+        return real_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fake_lstat)
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "dispatcher cleanup path validation failed" in captured.err
+    assert stale[0].is_file()
+
+
 def test_generator_dispatcher_staging_failure_restores_earlier_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1460,6 +1493,22 @@ def test_transaction_delete_many_ignores_missing_target(tmp_path: Path) -> None:
     transaction.delete_many([tmp_path / "missing.py"])
 
     assert transaction.commit() == []
+
+
+def test_transaction_delete_many_is_idempotent_after_removal(
+    tmp_path: Path,
+) -> None:
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+    target = tmp_path / "stale.py"
+    missing = tmp_path / "missing.py"
+    target.write_text("old\n", encoding="utf-8")
+
+    transaction.delete_many([target, target, missing])
+    transaction.delete_many([target, missing])
+
+    assert not target.exists()
+    assert transaction.rollback() == []
+    assert target.read_text(encoding="utf-8") == "old\n"
 
 
 def test_transaction_rolls_back_partial_windows_delete_failure(

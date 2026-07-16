@@ -621,8 +621,20 @@ def _stage_dispatcher_artifacts(
 
     stage_root = transaction.new_stage_directory(output_scripts.parent)
     for event in out:
+        try:
+            generate_dispatcher.validate_event_name(event)
+        except ValueError as exc:
+            raise GenerateHooksError(
+                f"dispatcher event path validation failed: {exc}"
+            ) from exc
         (stage_root / event).mkdir(parents=True, exist_ok=True)
     consolidated = generate_dispatcher.consolidate(out, stage_root)
+    try:
+        hooks_root = output_scripts.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise GenerateHooksError(
+            f"dispatcher cleanup path validation failed: {exc}"
+        ) from exc
     stale_targets: list[Path] = []
     for event in sorted(out):
         manifest_path = stage_root / event / "_manifest.json"
@@ -637,13 +649,18 @@ def _stage_dispatcher_artifacts(
                 f"generated dispatcher manifest has invalid shims: {manifest_path}"
             )
         published_event_dir = output_scripts / event
-        if published_event_dir.is_dir():
+        try:
             stale_targets.extend(
                 generate_dispatcher.find_stale_matcher_shims(
                     published_event_dir,
                     shim_names,
+                    hooks_root=hooks_root,
                 )
             )
+        except ValueError as exc:
+            raise GenerateHooksError(
+                f"dispatcher cleanup path validation failed: {exc}"
+            ) from exc
     publish_pairs: list[tuple[Path, Path]] = []
     for generated in _dispatcher_artifact_targets(consolidated, stage_root):
         if not generated.is_file():
