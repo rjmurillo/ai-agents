@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena memory update scheduled at session close; hook audit findings recorded in workflow journal wf_52330499-ada."
+        "Evidence": "Serena memory write scheduled before push (hook consolidation decision + audit findings)."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session log is the first commit on perf/claude-hook-dispatch."
+        "Evidence": "Commits 61de2118, dispatcher core, tests, registrations d7cb3de8, regen b808e074 on perf/claude-hook-dispatch."
       },
       "validationPassed": {
         "level": "MUST",
@@ -118,6 +118,16 @@
       "timestamp": "2026-07-16T05:20:00Z",
       "summary": "Hook value audit via 8-agent workflow wf_52330499-ada; session JSON validated with scripts/validate_session_json.py (exit 0).",
       "evidence": "validate_session_json.py PASS; workflow journal at subagents/workflows/wf_52330499-ada/journal.jsonl"
+    },
+    {
+      "timestamp": "2026-07-16T05:30:00Z",
+      "summary": "Claude-side hook group dispatcher implemented: claude_hook_dispatch.py lib, dispatch_claude.py entry, dispatch_groups.json manifest; settings.json and plugin hooks.json register one process per (event, matcher) group; generator expands groups so Copilot tree unchanged.",
+      "evidence": "908 tests pass (uv run pytest tests/build_scripts tests/hooks/test_claude_hook_dispatch.py tests/hooks/test_dispatch_groups_parity.py tests/hooks/test_hook_contracts.py); ruff and mypy clean on changed files; timing probe 202ms to 81ms per Bash pre-gate group on Linux"
+    },
+    {
+      "timestamp": "2026-07-16T05:40:00Z",
+      "summary": "Filed tool defects found during the work: issues 3089 (false-completion gate -F -), 3091 (LSP pre-delegation guard false positive), 3092 (get_pr_review_comments --output-format). machine-config PR 48 opened for Windows Search indexer exclusions and Dev Drive guidance.",
+      "evidence": "https://github.com/rjmurillo/ai-agents/issues/3091 https://github.com/rjmurillo/ai-agents/issues/3092 https://github.com/rjmurillo/ubuntu-machine-config/pull/48"
     }
   ],
   "endingCommit": "",

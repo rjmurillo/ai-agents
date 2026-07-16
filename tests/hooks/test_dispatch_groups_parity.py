@@ -100,6 +100,42 @@ def test_modes_are_valid_and_event_appropriate():
             )
 
 
+def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
+    # The self-host bail (dispatch_claude.py exiting 0 for plugin
+    # invocations inside this repo) is only safe when repo settings run
+    # every hook the plugin would have run, minus the prunes this repo
+    # deliberately made. A plugin shim missing here would silently never
+    # run during this repo's own sessions (the 19-day dead-hook class).
+    PRUNED = {
+        # Duplicate ADR-007 guidance; invoke_memory_first_enforcer.py stays.
+        "invoke_session_start_memory_first.py",
+    }
+    plugin_shims = {
+        shim["file"].split("/")[-1]
+        for spec in MANIFEST["groups"].values()
+        if spec.get("surface") == "plugin"
+        for shim in spec["shims"]
+    }
+    repo_group_shims = {
+        shim["file"].split("/")[-1]
+        for spec in MANIFEST["groups"].values()
+        if spec.get("surface") != "plugin"
+        for shim in spec["shims"]
+    }
+    repo_direct_shims = {
+        (hook.get("command") or "").rsplit("/", 1)[-1]
+        for groups in SETTINGS["hooks"].values()
+        for group in groups
+        for hook in group.get("hooks", [])
+        if "dispatch_claude.py" not in (hook.get("command") or "")
+    }
+    uncovered = plugin_shims - repo_group_shims - repo_direct_shims
+    assert uncovered == PRUNED, (
+        f"plugin shims not covered by repo settings (and not documented prunes): "
+        f"{sorted(uncovered - PRUNED)}; stale prune entries: {sorted(PRUNED - uncovered)}"
+    )
+
+
 def test_plugin_registrations_are_dispatcher_only():
     # Every plugin hook command must route through the dispatcher so the
     # self-host bail applies to the whole plugin surface (no double-fire

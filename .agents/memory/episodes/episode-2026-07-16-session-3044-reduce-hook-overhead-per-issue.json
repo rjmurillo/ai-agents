@@ -13,6 +13,22 @@
       "content": "Hook value audit via 8-agent workflow wf_52330499-ada; session JSON validated with scripts/validate_session_json.py (exit 0).",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Claude-side hook group dispatcher implemented: claude_hook_dispatch.py lib, dispatch_claude.py entry, dispatch_groups.json manifest; settings.json and plugin hooks.json register one process per (event, matcher) group; generator expands groups so Copilot tree unchanged.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed tool defects found during the work: issues 3089 (false-completion gate -F -), 3091 (LSP pre-delegation guard false positive), 3092 (get_pr_review_comments --output-format). machine-config PR 48 opened for Windows Search indexer exclusions and Dev Drive guidance.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -21,7 +37,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 0,
-    "files_changed": 2
+    "files_changed": 10
   },
   "lessons": []
 }
