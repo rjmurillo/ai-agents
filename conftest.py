@@ -99,16 +99,18 @@ def _command_args(argv: list[str], command: str) -> list[str]:
 def _positional_args(args: list[str], options_with_values: set[str]) -> list[str]:
     positional: list[str] = []
     skip_next = False
+    options_ended = False
     for argument in args:
         if skip_next:
             skip_next = False
             continue
-        if argument in options_with_values:
+        if not options_ended and argument in options_with_values:
             skip_next = True
             continue
-        if argument == "--":
+        if not options_ended and argument == "--":
+            options_ended = True
             continue
-        if argument.startswith("-"):
+        if not options_ended and argument.startswith("-"):
             continue
         positional.append(argument)
     return positional

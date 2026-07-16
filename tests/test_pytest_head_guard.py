@@ -315,6 +315,15 @@ def test_reflog_action_ignores_unmarked_external_commit(tmp_path, monkeypatch):
     assert not module._reflog_contains_action("pytest-head-guard:not-present")
 
 
+def test_positional_args_honors_end_of_options_marker():
+    module = _load_root_conftest()
+
+    assert module._positional_args(
+        ["HEAD", "--", "-refs/heads/other"],
+        {"-m"},
+    ) == ["HEAD", "-refs/heads/other"]
+
+
 def test_trace_ignores_read_only_symbolic_ref(tmp_path):
     module = _load_root_conftest()
     trace_path = tmp_path / "git-trace.json"

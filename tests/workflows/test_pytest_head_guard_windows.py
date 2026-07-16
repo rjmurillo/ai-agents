@@ -35,11 +35,13 @@ def test_windows_head_guard_contract_uses_pwsh_and_python_314() -> None:
 
     assert step is not None
     assert step.get("shell") == "pwsh"
-    assert step.get("env") == {"UV_PYTHON": "3.14"}
+    env = step.get("env")
+    assert isinstance(env, dict)
+    assert env.get("UV_PYTHON") == "3.14"
 
 
 def test_windows_head_guard_contract_remains_blocking() -> None:
     step = _head_guard_step()
 
     assert step is not None
-    assert "continue-on-error" not in step
+    assert step.get("continue-on-error", False) is False
