@@ -69,6 +69,14 @@
       "content": "pytest 871 passed",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded ADR-082 debate log and decision memory.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

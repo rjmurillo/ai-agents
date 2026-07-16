@@ -148,6 +148,11 @@
       "timestamp": "2026-07-16T07:12:00Z",
       "summary": "Rename reference sweep across generator expansion module and test files.",
       "evidence": "pytest 871 passed"
+    },
+    {
+      "timestamp": "2026-07-16T07:15:00Z",
+      "summary": "Recorded ADR-082 debate log and decision memory.",
+      "evidence": "adr-review debate artifact .agents/analysis/2026-07-16-adr-082-debate.md"
     }
   ],
   "endingCommit": "",
