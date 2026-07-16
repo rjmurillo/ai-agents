@@ -325,6 +325,52 @@ class TestRemoveEpisodeContributions:
         assert graph["edges"][0]["evidence_count"] == 3
         assert graph["edges"][0]["episodes"] == []
 
+    def test_orphan_node_survives_unrelated_prune(self):
+        # Data-loss regression (#3039): a node the pruned episode never
+        # referenced, whose provenance is empty or absent, must survive the
+        # prune and must not be counted as removed. Pre-fix, the node loop
+        # filtered every node and deleted any that ended up empty, vacuuming
+        # unrelated orphans on any prune.
+        graph = {
+            "nodes": [
+                {"id": "n001", "type": "decision", "label": "orphan-empty",
+                 "episodes": []},
+                {"id": "n002", "type": "decision", "label": "orphan-absent"},
+                {"id": "n003", "type": "decision", "label": "other-ep",
+                 "episodes": ["ep-keep"]},
+            ],
+            "edges": [],
+            "patterns": [],
+        }
+        removed = update_causal_graph.remove_episode_contributions(
+            graph, "ep-does-not-exist"
+        )
+        surviving = {n["id"] for n in graph["nodes"]}
+        assert surviving == {"n001", "n002", "n003"}
+        assert removed["nodes"] == 0
+
+    def test_node_solely_supported_by_pruned_episode_is_removed(self):
+        # Positive control: the fix must not disable the correct deletion. A
+        # node supported only by the pruned episode is dropped; a node that
+        # also has another supporter keeps that supporter.
+        graph = {
+            "nodes": [
+                {"id": "n001", "type": "decision", "label": "sole",
+                 "episodes": ["ep-gone"]},
+                {"id": "n002", "type": "decision", "label": "shared",
+                 "episodes": ["ep-gone", "ep-keep"]},
+            ],
+            "edges": [],
+            "patterns": [],
+        }
+        removed = update_causal_graph.remove_episode_contributions(
+            graph, "ep-gone"
+        )
+        surviving = {n["id"] for n in graph["nodes"]}
+        assert surviving == {"n002"}
+        assert graph["nodes"][0]["episodes"] == ["ep-keep"]
+        assert removed["nodes"] == 1
+
 
 class TestReplaceSemanticsOnEdit:
     """Issue #3039: editing an episode to shrink it retracts stale content."""

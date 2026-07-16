@@ -253,9 +253,11 @@ def remove_episode_contributions(
     This is the missing inverse of the additive merge (#3039). Editing an
     episode to drop a chain, or deleting the episode file, must retract the
     nodes, edges, and patterns that episode alone supported and recompute the
-    weight of any it shared. A node is dropped when no episode references it; an
-    edge or pattern is dropped when its last contribution is removed, else its
-    mean is recomputed from the survivors. Returns a count of what was removed.
+    weight of any it shared. A node is dropped only when removing this episode
+    empties its provenance; a node this episode never referenced is left
+    untouched. An edge or pattern is dropped when its last contribution is
+    removed, else its mean is recomputed from the survivors. Returns a count of
+    what was removed.
 
     Legacy edges/patterns (no ``contributions`` map) are backfilled from their
     ``episodes`` list first, so removal is exact for them too from this point on.
@@ -264,11 +266,12 @@ def remove_episode_contributions(
 
     kept_nodes = []
     for node in graph.get("nodes", []):
-        episodes = [ep for ep in node.get("episodes", []) if ep != episode_id]
-        if not episodes:
-            removed["nodes"] += 1
-            continue
-        node["episodes"] = episodes
+        if episode_id in node.get("episodes", []):
+            remaining = [ep for ep in node["episodes"] if ep != episode_id]
+            if not remaining:
+                removed["nodes"] += 1
+                continue
+            node["episodes"] = remaining
         kept_nodes.append(node)
     graph["nodes"] = kept_nodes
 
