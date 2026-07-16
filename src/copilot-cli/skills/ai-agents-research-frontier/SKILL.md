@@ -50,7 +50,7 @@ issue, or write-up. All commands run from the repo root.
 | 7 rule scenario fixtures | `ls tests/evals/rule-scenarios/` |
 | Corpus size (92 skills, 30 rules, 95 retros, 122 memories) | `ls -d .claude/skills/*/ \| wc -l; ls .claude/rules/*.md \| wc -l; ls .agents/retrospective/ \| wc -l; ls .serena/memories/ \| wc -l` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
-| Apply-step hook registered | `grep -n correction_applier .claude/settings.json` |
+| Apply-step hooks unregistered | `uv run pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |
 
 ### Phase 2: Pick a program
 
@@ -204,12 +204,14 @@ generated output or a contract row that cannot be expressed in the spec.
 
 ### This repo's asset
 
-- The Detect-Log-Graduate-Apply loop is partially live (verified 2026-07-03):
-  Detect via the `reflect` skill and the Stop hook
-  (`.claude/hooks/Stop/invoke_skill_learning.py`), Log via Serena observation
-  memories, Graduate via the skillbook agent, Apply via
-  `.claude/hooks/PreToolUse/invoke_correction_applier.py`, which surfaces HIGH
-  confidence corrections before Bash execution (docstring cites issue #1345).
+- The Detect-Log-Graduate loop is live: Detect via the `reflect` skill and the
+  Stop hook (`.claude/hooks/Stop/invoke_skill_learning.py`), Log via Serena
+  observation memories, and Graduate via the skillbook agent. The retained
+  `invoke_correction_applier.py` and `invoke_topical_memory_injection.py` files
+  are unregistered. Retrieve corrections and topical memories explicitly through
+  the `memory` or `memory-search` skill. The registration-state test named in
+  Phase 1 guards their absence from both Claude source manifests and the generated
+  Copilot manifest.
 - Guard telemetry exists at the emitter: `push_guard_base.py` writes a
   machine-parseable `EVENT={...}` line to stderr on every block and fail-open
   (`.claude/hooks/PreToolUse/push_guard_base.py:19`).
@@ -294,7 +296,7 @@ Sources and re-verification:
 - ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `grep -n "197\|246" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
-- Detect-Log-Graduate-Apply and issue #1345: `.claude/hooks/PreToolUse/invoke_correction_applier.py:4-14`. Re-verify: `sed -n '1,20p' .claude/hooks/PreToolUse/invoke_correction_applier.py`.
+- Detect-Log-Graduate and explicit retrieval: `.claude/hooks/Stop/invoke_skill_learning.py`, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the unregistered retained hooks with the Phase 1 test command.
 - EVENT telemetry emitter: `.claude/hooks/PreToolUse/push_guard_base.py:19`. Re-verify: `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py`.
 - Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:46-57`. Re-verify: `grep -n "Harmful\|Proficient\|Inert" .claude/skills/guard-maturity/SKILL.md`.
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls` both paths.

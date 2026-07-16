@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,170 @@ PROJECT_SPECIFIC_HOOKS = [
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+
+def _configured_matchers(script_suffix: str, config_path: Path) -> list[str]:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    portable_suffix = script_suffix.removeprefix(".claude/")
+    matchers = [
+        group["matcher"]
+        for group in config["hooks"]["PreToolUse"]
+        if any(
+            hook["command"].strip().rstrip('"').endswith(
+                (script_suffix, portable_suffix)
+            )
+            for hook in group["hooks"]
+        )
+    ]
+    if not matchers:
+        raise AssertionError(f"No PreToolUse matcher found for {script_suffix}")
+    return matchers
+
+
+def _settings_matchers(script_suffix: str) -> list[str]:
+    return _configured_matchers(script_suffix, REPO_ROOT / ".claude" / "settings.json")
+
+
+def _plugin_matchers(script_suffix: str) -> list[str]:
+    return _configured_matchers(script_suffix, REPO_ROOT / ".claude" / "hooks" / "hooks.json")
+
+
+def _matches_bash_command(matcher: str, command: str) -> bool:
+    assert matcher.startswith("Bash(") and matcher.endswith(")")
+    return any(fnmatchcase(command, branch) for branch in matcher[5:-1].split("|"))
+
+
+def _matches_configured_command(script_suffix: str, command: str) -> bool:
+    return any(
+        _matches_bash_command(matcher, command) for matcher in _settings_matchers(script_suffix)
+    )
+
+
+_MATCHER_SCOPED_SCRIPTS = [
+    ".claude/hooks/invoke_routing_gates.py",
+    ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
+    ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
+    ".claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
+]
+
+_COMMIT_GATE_SCRIPTS = [
+    ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
+    ".claude/hooks/PreToolUse/invoke_branch_context_guard.py",
+    ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
+    ".claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
+    ".claude/hooks/PreToolUse/invoke_security_commit_gate.py",
+    ".claude/hooks/PreToolUse/invoke_prompt_eval_gate.py",
+]
+
+
+class TestShellHookMatcherScope:
+    @pytest.mark.parametrize(
+        "script_suffix,commands",
+        [
+            (
+                ".claude/hooks/invoke_routing_gates.py",
+                [
+                    "gh pr create --fill",
+                    "echo ready && gh pr create --fill",
+                    r"C:\tools\bin\gh pr merge 42 --squash",
+                ],
+            ),
+            (
+                ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
+                [
+                    "echo ready && gh pr view 42",
+                    r"C:\tools\bin\gh issue list",
+                ],
+            ),
+            (
+                ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
+                [
+                    "git -C repo commit -m fix",
+                    r"C:\tools\git.exe -C repo commit -m fix",
+                    "env gh pr create --fill",
+                ],
+            ),
+            (
+                ".claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
+                [
+                    "echo x | grep parseConfig",
+                    r"C:\tools\rg.exe parseConfig src",
+                    "GREP parseConfig",
+                    "Rg parseConfig",
+                    "aCk parseConfig",
+                ],
+            ),
+        ],
+    )
+    def test_matchers_preserve_guard_command_coverage(
+        self, script_suffix: str, commands: list[str]
+    ) -> None:
+        assert all(_matches_configured_command(script_suffix, command) for command in commands)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "Write-Output TRACE_TOOL_OK",
+            "git status --short",
+            "git log commit",
+            "echo git commit",
+            "python -m pytest",
+            "npm test",
+            "cargo test",
+            "docker tag image",
+            "echo org name",
+            "echo gh",
+            "echo though",
+            'echo "gh pr create"',
+        ],
+    )
+    def test_unrelated_shell_commands_start_no_direct_guard(self, command: str) -> None:
+        assert not any(
+            _matches_configured_command(script, command) for script in _MATCHER_SCOPED_SCRIPTS
+        )
+
+    @pytest.mark.parametrize("script_suffix", _COMMIT_GATE_SCRIPTS)
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -C repo commit -m fix",
+            r"C:\tools\git.exe -C repo commit -m fix",
+        ],
+    )
+    def test_commit_hard_gates_cover_git_context_options(
+        self, script_suffix: str, command: str
+    ) -> None:
+        assert _matches_configured_command(script_suffix, command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh pr create --fill",
+            "echo ready && gh pr create --fill",
+            r"C:\tools\gh.exe pr create --fill",
+        ],
+    )
+    def test_session_log_guard_covers_pr_creation(self, command: str) -> None:
+        assert _matches_configured_command(
+            ".claude/hooks/PreToolUse/invoke_session_log_guard.py", command
+        )
+
+    @pytest.mark.parametrize(
+        "script_suffix", sorted(set(_MATCHER_SCOPED_SCRIPTS + _COMMIT_GATE_SCRIPTS))
+    )
+    def test_plugin_matchers_match_repository_settings(self, script_suffix: str) -> None:
+        assert _plugin_matchers(script_suffix) == _settings_matchers(script_suffix)
+
+
+def test_copilot_pretooluse_has_no_unregistered_matcher_shims() -> None:
+    """The distributed plugin contains only manifest-addressable shims."""
+    event_directory = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse"
+    manifest = json.loads(
+        (event_directory / "_manifest.json").read_text(encoding="utf-8")
+    )
+    registered = set(manifest["shims"])
+    generated = {path.name for path in event_directory.glob("*__*.py")}
+
+    assert generated == registered
 
 class TestIsProjectRepo:
     """is_project_repo resolves identity from the env override or git remote (#2610)."""
@@ -108,9 +273,7 @@ class TestRemoteRepoName:
         monkeypatch.setattr(guards.subprocess, "run", raise_no_origin)
         assert guards._remote_repo_name("/repo") is None
 
-    def test_origin_lookup_uses_utf8_and_check_true(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_origin_lookup_uses_utf8_and_check_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_kwargs: dict[str, object] = {}
 
         def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -130,9 +293,7 @@ class TestRemoteRepoName:
         assert captured_kwargs["errors"] == "replace"
         assert captured_kwargs["check"] is True
 
-    def test_origin_lookup_timeout_under_host_budget(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_origin_lookup_timeout_under_host_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The per-tool-call git lookup must finish inside the tightest host timeout.
 
         ``skip_if_consumer_repo`` calls ``_remote_repo_name`` on every tool use,
@@ -223,9 +384,7 @@ class TestHookSkipsInConsumerRepo:
         return tmp_path
 
     @pytest.mark.parametrize("hook_path", PROJECT_SPECIFIC_HOOKS, ids=lambda p: Path(p).stem)
-    def test_hook_exits_zero_in_consumer_repo(
-        self, hook_path: str, consumer_dir: Path
-    ) -> None:
+    def test_hook_exits_zero_in_consumer_repo(self, hook_path: str, consumer_dir: Path) -> None:
         full_path = REPO_ROOT / hook_path
         if not full_path.exists():
             pytest.skip(f"Hook not found: {hook_path}")
@@ -310,7 +469,9 @@ class TestSyncPluginLib:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
             changes, had_errors = sync_mod.sync_file(
-                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+                "scripts/pkg/mod.py",
+                ".claude/lib/mod.py",
+                check_only=False,
             )
 
         assert had_errors is False, changes
@@ -358,9 +519,7 @@ class TestSyncPluginLib:
             'from importlib import import_module\nq = import_module("scripts.pkg")',
         ],
     )
-    def test_sync_file_rejects_scripts_import(
-        self, tmp_path: Path, import_line: str
-    ) -> None:
+    def test_sync_file_rejects_scripts_import(self, tmp_path: Path, import_line: str) -> None:
         """Any scripts-package import is rejected (a byte copy cannot rewrite it)."""
         import scripts.sync_plugin_lib as sync_mod
 
@@ -374,7 +533,9 @@ class TestSyncPluginLib:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
             changes, had_errors = sync_mod.sync_file(
-                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+                "scripts/pkg/mod.py",
+                ".claude/lib/mod.py",
+                check_only=False,
             )
 
         assert had_errors is True
@@ -391,9 +552,7 @@ class TestSyncPluginLib:
             'import importlib\ny = importlib.import_module("other.pkg")',
         ],
     )
-    def test_sync_file_allows_lookalike_module(
-        self, tmp_path: Path, import_line: str
-    ) -> None:
+    def test_sync_file_allows_lookalike_module(self, tmp_path: Path, import_line: str) -> None:
         """Modules whose name merely starts with 'scripts' are not the scripts pkg."""
         import scripts.sync_plugin_lib as sync_mod
 
@@ -407,7 +566,9 @@ class TestSyncPluginLib:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
             changes, had_errors = sync_mod.sync_file(
-                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+                "scripts/pkg/mod.py",
+                ".claude/lib/mod.py",
+                check_only=False,
             )
 
         assert had_errors is False, changes
@@ -431,9 +592,7 @@ class TestSyncPluginLib:
         assert any("Registered source file missing" in c for c in changes), changes
         assert not (tmp_path / ".claude" / "lib" / "missing.py").exists()
 
-    def test_sync_file_preserves_bytes_and_detects_newline_drift(
-        self, tmp_path: Path
-    ) -> None:
+    def test_sync_file_preserves_bytes_and_detects_newline_drift(self, tmp_path: Path) -> None:
         """Copy preserves exact bytes; CRLF-vs-LF is drift, not silent normalization."""
         import scripts.sync_plugin_lib as sync_mod
 
@@ -449,7 +608,9 @@ class TestSyncPluginLib:
             mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
             # --check must flag the byte drift even though text decodes equal.
             check_changes, check_errors = sync_mod.sync_file(
-                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=True,
+                "scripts/pkg/mod.py",
+                ".claude/lib/mod.py",
+                check_only=True,
             )
             assert check_errors is False, check_changes
             assert check_changes, "CRLF/LF byte drift should be detected"
@@ -459,7 +620,9 @@ class TestSyncPluginLib:
 
             # Real sync writes the source bytes verbatim (CRLF preserved).
             sync_mod.sync_file(
-                "scripts/pkg/mod.py", ".claude/lib/mod.py", check_only=False,
+                "scripts/pkg/mod.py",
+                ".claude/lib/mod.py",
+                check_only=False,
             )
 
         assert dst.read_bytes() == b'"""Canonical."""\r\nX = 1\r\n'
@@ -477,7 +640,7 @@ class TestSyncPluginLib:
 
 def _parse_events(stderr_text: str) -> list[dict[str, Any]]:
     return [
-        json.loads(line[len("EVENT="):])
+        json.loads(line[len("EVENT=") :])
         for line in stderr_text.splitlines()
         if line.startswith("EVENT=")
     ]
@@ -488,9 +651,7 @@ class TestUnknownIdentityCorroboration:
     identity via pyproject [project].name before skipping every guard, and emit a
     structured fail_open EVENT when the whole-surface skip still happens."""
 
-    def _force_unknown(
-        self, monkeypatch: pytest.MonkeyPatch, project_dir: Path
-    ) -> None:
+    def _force_unknown(self, monkeypatch: pytest.MonkeyPatch, project_dir: Path) -> None:
         monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
         guards._origin_repo_cache.clear()
         monkeypatch.setattr(guards, "get_project_directory", lambda: str(project_dir))

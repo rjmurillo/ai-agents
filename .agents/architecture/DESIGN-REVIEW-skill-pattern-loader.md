@@ -380,7 +380,7 @@ Loader is stateless. No cross-session memory needed.
 _ensure_patterns_loaded(safe_project_path)
 ```
 
-`safe_project_path` is sanitized via `_get_safe_root_from_env()` before passing to loader.
+`safe_project_path` is sanitized via `get_safe_project_path()` which validates against `SAFE_BASE_DIR` (the Git worktree root) before passing to loader.
 
 ### SKILL.md Content Injection
 

@@ -78,7 +78,7 @@ git cherry-pick abc123
 
 ```bash
 git show --name-only abc123
-git restore --source=abc123 -- path/to/file1.py path/to/file2.py
+git restore --staged --worktree --source=abc123 -- path/to/file1.py path/to/file2.py  # --staged stages the changes so the following commit captures them
 git commit -m "cherry-pick: apply specific changes from abc123"
 ```
 
