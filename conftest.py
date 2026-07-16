@@ -26,7 +26,6 @@ _REFLOG_EXPIRY_CONTINUATION_PATTERN = re.compile(r"^ \d+: -?\d+$")
 _SETUP_GIT_DIR_PREFIX = "setup: git_dir: "
 _SETUP_CWD_PREFIX = "setup: cwd: "
 
-
 def _git_env() -> dict[str, str]:
     blocked = _GIT_ENV_OVERRIDES | set(_TRACE_ENV_NAMES)
     return {key: value for key, value in os.environ.items() if key not in blocked}
@@ -199,6 +198,71 @@ def _git_dir_argument(argv: list[str]) -> str | None:
     return None
 
 
+def _symbolic_ref_arguments(argv: list[str]) -> list[str]:
+    """Return argv entries after the symbolic-ref subcommand token.
+
+    Falls back to skipping only argv[0] when Git dispatches directly to a
+    plumbing executable (e.g. Windows' git-symbolic-ref.exe) without a
+    separate "symbolic-ref" token.
+    """
+    try:
+        command_index = argv.index("symbolic-ref")
+    except ValueError:
+        return argv[1:]
+    return argv[command_index + 1 :]
+
+
+def _symbolic_ref_short_option_width(argument: str) -> int | None:
+    if not argument.startswith("-") or argument.startswith("--") or len(argument) == 1:
+        return None
+    for index, flag in enumerate(argument[1:]):
+        if flag in {"q", "d"}:
+            continue
+        if flag == "m":
+            return 1 if index + 2 < len(argument) else 2
+        return None
+    return 1
+
+
+def _parse_symbolic_ref_positionals(arguments: list[str]) -> list[str] | None:
+    """Return symbolic-ref positionals, or None for an unsupported argv shape."""
+    positionals: list[str] = []
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument in {"--", "--end-of-options"}:
+            positionals.extend(arguments[index + 1 :])
+            break
+        if argument.startswith("--"):
+            index += 1
+            continue
+        if argument.startswith("-"):
+            width = _symbolic_ref_short_option_width(argument)
+            if width is None or index + width > len(arguments):
+                return None
+            index += width
+            continue
+        positionals.append(argument)
+        index += 1
+    return positionals
+
+
+def _successful_symbolic_ref_updates_head(session: dict[str, object]) -> bool:
+    """Detect a successful `symbolic-ref` write that repoints project HEAD.
+
+    Git 2.55 can omit the ref-transaction trace lines for symbolic-ref, so
+    this inspects argv directly instead of relying on _record_ref_trace_line.
+    """
+    if session.get("command") != "symbolic-ref" or session.get("exit_code") != 0:
+        return False
+    argv = session.get("argv")
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv):
+        return False
+
+    positionals = _parse_symbolic_ref_positionals(_symbolic_ref_arguments(argv))
+    return positionals is not None and len(positionals) == 2 and positionals[0] == "HEAD"
+
+
 def _session_targets_project(session: dict[str, object]) -> bool:
     worktree = session.get("worktree")
     argv = session.get("argv")
@@ -232,7 +296,9 @@ def _trace_has_project_head_mutation(trace_path: Path) -> bool:
         return False
 
     for session in _read_trace_sessions(trace_path).values():
-        if _session_targets_project(session) and session.get("head_mutated") is True:
+        if not _session_targets_project(session):
+            continue
+        if session.get("head_mutated") is True or _successful_symbolic_ref_updates_head(session):
             return True
     return False
 

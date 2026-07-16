@@ -391,6 +391,50 @@ def test_trace_detects_symbolic_ref_write(tmp_path):
     assert module._trace_has_project_head_mutation(trace_path)
 
 
+def test_trace_detects_successful_symbolic_ref_write_without_ref_transaction(tmp_path):
+    module = _load_root_conftest()
+    trace_path = tmp_path / "git-trace.json"
+    _write_trace2(
+        trace_path,
+        "symbolic-ref",
+        ["git", "symbolic-ref", "HEAD", "refs/heads/other"],
+        module.PROJECT_ROOT,
+    )
+
+    assert module._trace_has_project_head_mutation(trace_path)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["git", "symbolic-ref", "--end-of-options", "HEAD", "refs/heads/other"],
+        ["git", "symbolic-ref", "--no-delete", "HEAD", "refs/heads/other"],
+        ["git", "symbolic-ref", "--no-rec", "HEAD", "refs/heads/other"],
+        ["git", "symbolic-ref", "-qmreason", "HEAD", "refs/heads/other"],
+        ["git-symbolic-ref.exe", "HEAD", "refs/heads/other"],
+    ],
+)
+def test_trace_detects_supported_symbolic_ref_write_forms(tmp_path, argv):
+    module = _load_root_conftest()
+    trace_path = tmp_path / "git-trace.json"
+    _write_trace2(trace_path, "symbolic-ref", argv, module.PROJECT_ROOT)
+
+    assert module._trace_has_project_head_mutation(trace_path)
+
+
+def test_trace_ignores_symbolic_ref_write_to_unrelated_ref(tmp_path):
+    module = _load_root_conftest()
+    trace_path = tmp_path / "git-trace.json"
+    _write_trace2(
+        trace_path,
+        "symbolic-ref",
+        ["git", "symbolic-ref", "refs/meta/current", "refs/heads/other"],
+        module.PROJECT_ROOT,
+    )
+
+    assert not module._trace_has_project_head_mutation(trace_path)
+
+
 def test_trace_parses_actual_symbolic_ref_write(tmp_path, monkeypatch):
     module = _load_root_conftest()
     repo = tmp_path / "repo"
@@ -568,8 +612,7 @@ def test_trace_detects_update_ref_stdin_write_to_checked_out_branch(
         ["git", "update-ref", "--stdin"],
         cwd=repo,
         check=True,
-        input=f"update {branch_ref} {second}\n",
-        encoding="utf-8",
+        input=f"update {branch_ref} {second}\n".encode(),
         env=_git_trace_env(trace_path),
         timeout=10,
     )
@@ -604,8 +647,7 @@ def test_check_head_change_warns_when_unrelated_branch_write_coincides_with_comm
         ["git", "update-ref", "--stdin"],
         cwd=repo,
         check=True,
-        input=f"update refs/heads/other {second}\n",
-        encoding="utf-8",
+        input=f"update refs/heads/other {second}\n".encode(),
         env=_git_trace_env(trace_path),
         timeout=10,
     )
