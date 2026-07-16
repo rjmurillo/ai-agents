@@ -21,10 +21,11 @@ through ``generate_hooks`` so the public names stay importable from there.
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -40,12 +41,14 @@ from generate_hooks_emit import (  # noqa: E402
     HookAuditEntry,
     _build_copilot_entry,
     _copy_script,
+    _ensure_exact_case_dir,
     _load_claude_settings,
     _read_stanza,
     _relative_script_target,
     _resolve_paths,
     _resolve_script_path,
 )
+from generate_hooks_transaction import HookGenerationTransaction  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError  # noqa: E402
 
@@ -53,6 +56,7 @@ from yaml_loader import ConfigError  # noqa: E402
 _COMPANIONS_BY_OWNER = {
     "Stop/invoke_skill_learning.py": ("skill_pattern_loader.py",),
 }
+_DISPATCHER_ARTIFACT_NAMES = ("_manifest.json", "_dispatch.py", "_bootstrap.py")
 
 
 # --- Driver ---------------------------------------------------------------
@@ -147,6 +151,7 @@ def _emit_one_hook(
     hook: dict[str, Any],
     script_source: Path,
     output_scripts: Path,
+    transaction: HookGenerationTransaction,
     what_if: bool,
     result: GenerateHooksResult,
 ) -> tuple[str, dict[str, Any]] | None:
@@ -184,23 +189,18 @@ def _emit_one_hook(
     )
     script_name = target.name  # post-suffix name used by Copilot entry
 
-    # Companion existence is NOT re-checked here. :func:`generate_hooks`
-    # validates source companions and protected output companions across
-    # every event before writing the first owner or hooks.json.
-    written, reason = _copy_script(
-        src, target, matcher=matcher_str, what_if=what_if
+    # Source companions and protected output companions were prevalidated
+    # across every event before the first write. Stage this owner and its
+    # companions together so a copy failure cannot publish only part of the
+    # runtime unit.
+    written, reason = _copy_hook_group(
+        src,
+        script_rel,
+        target,
+        transaction=transaction,
+        matcher=matcher_str,
+        what_if=what_if,
     )
-    if written:
-        # Companions are (re)materialized only alongside a freshly written
-        # owner. When the owner copy is NO-REGEN-skipped below, the customer
-        # owns that file tree; prevalidation confirmed the existing companion,
-        # but the companion itself must NOT be created or overwritten (#2).
-        _copy_companions(
-            src,
-            script_rel,
-            target.parent,
-            what_if=what_if,
-        )
     entry = _build_copilot_entry(target_event, script_name, timeout_sec=timeout)
     if not written:
         # NO-REGEN: keep customer-owned script untouched but still emit
@@ -284,6 +284,39 @@ def _validate_no_regen_output_companions(
             )
 
 
+def _companion_output_targets(
+    owner_relative_path: Path,
+    owner_source: Path,
+    target_directory: Path,
+) -> list[tuple[Path, Path]]:
+    """Return source and output paths for one owner's companions."""
+    return [
+        (companion_source, target_directory / companion_name)
+        for companion_name, companion_source in _iter_companions(
+            owner_relative_path,
+            owner_source,
+        )
+    ]
+
+
+def _validate_writable_owner_output_companions(
+    owner_relative_path: Path,
+    owner_source: Path,
+    target_directory: Path,
+) -> None:
+    """Reject a protected companion whose owner remains writable."""
+    for _companion_source, companion_target in _companion_output_targets(
+        owner_relative_path,
+        owner_source,
+        target_directory,
+    ):
+        companion_reason = regen_detect_reason(companion_target)
+        if companion_reason is not None:
+            raise GenerateHooksError(
+                "runtime companion target is NO-REGEN protected while its "
+                f"owner is writable: {companion_target} ({companion_reason})"
+            )
+
 def _prevalidate_companions(
     hooks_map: dict[str, Any],
     *,
@@ -348,39 +381,100 @@ def _prevalidate_companions(
                 src.name,
                 matcher=matcher_str,
             )
-            if regen_detect_reason(target) is not None:
+            owner_reason = regen_detect_reason(target)
+            if owner_reason is not None:
                 _validate_no_regen_output_companions(
+                    script_rel,
+                    src,
+                    target.parent,
+                )
+            else:
+                _validate_writable_owner_output_companions(
                     script_rel,
                     src,
                     target.parent,
                 )
 
 
-def _copy_companions(
+def _stage_script(
+    source: Path,
+    target_directory: Path,
+    transaction: HookGenerationTransaction,
+    *,
+    matcher: str | None,
+) -> Path:
+    """Render one script to a sibling stage file without publishing it."""
+    staged: Path = transaction.new_stage_path(target_directory)
+    written, reason = _copy_script(
+        source,
+        staged,
+        matcher=matcher,
+        what_if=False,
+    )
+    if not written:
+        raise GenerateHooksError(
+            f"unexpected NO-REGEN sentinel in staging path: {staged} ({reason})"
+        )
+    shutil.copystat(source, staged, follow_symlinks=False)
+    return staged
+
+
+def _copy_hook_group(
     owner_source: Path,
     owner_relative_path: Path,
-    target_directory: Path,
+    owner_target: Path,
+    transaction: HookGenerationTransaction,
     *,
+    matcher: str | None,
     what_if: bool,
-) -> None:
-    """Copy already-validated runtime companions without dispatch entries.
+) -> tuple[bool, str]:
+    """Stage one owner group and publish it through the run transaction."""
+    owner_reason = regen_detect_reason(owner_target)
+    if owner_reason is not None:
+        return False, f"NO-REGEN: {owner_reason}"
 
-    Callers MUST call :func:`_validate_companions` first (in practice,
-    :func:`_prevalidate_companions` already did so for every owner before
-    the write loop started); this function does not re-check existence
-    and only runs when the owner itself was actually (re)written (see
-    :func:`_emit_one_hook`).
-    """
-    for companion_name, companion_source in _iter_companions(
-        owner_relative_path, owner_source
-    ):
-        _copy_script(
-            companion_source,
-            target_directory / companion_name,
-            matcher=None,
-            what_if=what_if,
+    companion_targets = _companion_output_targets(
+        owner_relative_path,
+        owner_source,
+        owner_target.parent,
+    )
+    _validate_writable_owner_output_companions(
+        owner_relative_path,
+        owner_source,
+        owner_target.parent,
+    )
+    if what_if:
+        return True, ""
+
+    _ensure_exact_case_dir(owner_target.parent)
+    try:
+        staged_owner = _stage_script(
+            owner_source,
+            owner_target.parent,
+            transaction,
+            matcher=matcher,
         )
-
+        staged_companions = [
+            (
+                _stage_script(
+                    companion_source,
+                    owner_target.parent,
+                    transaction,
+                    matcher=None,
+                ),
+                companion_target,
+            )
+            for companion_source, companion_target in companion_targets
+        ]
+        transaction.publish_many(
+            [*staged_companions, (staged_owner, owner_target)]
+        )
+    except OSError as exc:
+        raise GenerateHooksError(
+            f"failed to stage or publish hook group for "
+            f"{owner_relative_path}: {exc}"
+        ) from exc
+    return True, ""
 
 def _process_event(
     claude_event: str,
@@ -390,6 +484,7 @@ def _process_event(
     event_drop: set[str],
     script_source: Path,
     output_scripts: Path,
+    transaction: HookGenerationTransaction,
     what_if: bool,
     result: GenerateHooksResult,
 ) -> list[tuple[str, dict[str, Any]]]:
@@ -421,6 +516,7 @@ def _process_event(
             hook=hook,
             script_source=script_source,
             output_scripts=output_scripts,
+            transaction=transaction,
             what_if=what_if,
             result=result,
         )
@@ -450,6 +546,93 @@ def _int_field_or_default(
     if parsed <= 0:
         raise GenerateHooksError(f"{field_name} must be a positive integer")
     return parsed
+
+
+def _dispatcher_artifact_targets(
+    out: dict[str, list[dict[str, Any]]],
+    output_scripts: Path,
+) -> list[Path]:
+    """Return every file the dispatcher consolidation may overwrite."""
+    return [
+        output_scripts / event / name
+        for event in out
+        for name in _DISPATCHER_ARTIFACT_NAMES
+    ]
+
+
+def _has_dispatchable_hook(
+    groups: list[Any],
+    script_source: Path,
+    claude_event: str,
+) -> bool:
+    """Return whether normal emission would produce a Python hook entry."""
+    return any(
+        _resolve_script_path(
+            script_source,
+            hook.get("command", "") or "",
+            claude_event,
+        )
+        is not None
+        for _group, hook in _iter_hooks(groups)
+    )
+
+
+def _dispatcher_candidate_artifact_targets(
+    hooks_map: dict[str, Any],
+    *,
+    event_remap: dict[str, str],
+    event_drop: set[str],
+    script_source: Path,
+    output_scripts: Path,
+) -> list[Path]:
+    """Return dispatcher targets that valid event processing may produce."""
+    target_events = {
+        target_event
+        for claude_event, groups in hooks_map.items()
+        if claude_event not in event_drop
+        if (target_event := event_remap.get(claude_event))
+        if isinstance(groups, list)
+        if _has_dispatchable_hook(groups, script_source, claude_event)
+    }
+    return [
+        output_scripts / event / name
+        for event in sorted(target_events)
+        for name in _DISPATCHER_ARTIFACT_NAMES
+    ]
+
+
+def _validate_dispatcher_artifact_targets(targets: Iterable[Path]) -> None:
+    """Reject dispatcher generation when any output is NO-REGEN protected."""
+    for target in targets:
+        reason = regen_detect_reason(target)
+        if reason is not None:
+            raise GenerateHooksError(
+                f"dispatcher artifact is NO-REGEN protected: {target} ({reason})"
+            )
+
+
+def _stage_dispatcher_artifacts(
+    out: dict[str, list[dict[str, Any]]],
+    output_scripts: Path,
+    transaction: HookGenerationTransaction,
+) -> dict[str, list[dict[str, Any]]]:
+    """Generate dispatcher files off-tree, then publish them transactionally."""
+    import generate_dispatcher
+
+    stage_root = transaction.new_stage_directory(output_scripts.parent)
+    for event in out:
+        (stage_root / event).mkdir(parents=True, exist_ok=True)
+    consolidated = generate_dispatcher.consolidate(out, stage_root)
+    publish_pairs: list[tuple[Path, Path]] = []
+    for generated in _dispatcher_artifact_targets(consolidated, stage_root):
+        if not generated.is_file():
+            continue
+        target = output_scripts / generated.relative_to(stage_root)
+        staged = transaction.new_stage_path(target.parent)
+        shutil.copy2(generated, staged)
+        publish_pairs.append((staged, target))
+    transaction.publish_many(publish_pairs)
+    return cast(dict[str, list[dict[str, Any]]], consolidated)
 
 
 def generate_hooks(
@@ -536,65 +719,123 @@ def generate_hooks(
     except GenerateHooksError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2, result
-
-    start = time.monotonic()
-    print(f"Found {len(hooks_map)} Claude event(s) in {settings_source}")
-
-    # Stable iteration order: alphabetical by Claude event name. Output
-    # ordering is independent of dict insertion order.
-    out: dict[str, list[dict[str, Any]]] = {}
-    for claude_event in sorted(hooks_map.keys()):
-        groups = hooks_map.get(claude_event)
-        if not isinstance(groups, list):
-            print(
-                f"  WARN: {claude_event} value is not a list; skipping",
-                file=sys.stderr,
-            )
-            continue
+    if dispatcher_mode and not what_if:
         try:
-            emitted = _process_event(
-                claude_event,
-                groups,
-                event_remap=event_remap,
-                event_drop=event_drop,
-                script_source=script_source,
-                output_scripts=output_scripts,
-                what_if=what_if,
-                result=result,
+            _validate_dispatcher_artifact_targets(
+                _dispatcher_candidate_artifact_targets(
+                    hooks_map,
+                    event_remap=event_remap,
+                    event_drop=event_drop,
+                    script_source=script_source,
+                    output_scripts=output_scripts,
+                )
             )
         except GenerateHooksError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 2, result
-        for target_event, entry in emitted:
-            out.setdefault(target_event, []).append(entry)
 
-    # ADR-068 / #2295: consolidate the tool-gating event to one dispatcher
-    # entry, emitting _manifest.json + _dispatch.py next to the shims. The
-    # shims stay on disk (the dispatcher runs them in-process); only the
-    # hooks.json registration changes.
-    if dispatcher_mode and not what_if:
-        import generate_dispatcher
+    start = time.monotonic()
+    print(f"Found {len(hooks_map)} Claude event(s) in {settings_source}")
 
-        out = generate_dispatcher.consolidate(out, output_scripts)
+    try:
+        transaction = HookGenerationTransaction(output_scripts)
+    except OSError as exc:
+        print(f"Error: could not acquire hook generation lock: {exc}", file=sys.stderr)
+        return 1, result
+    committed = False
+    try:
+        # Stable iteration order: alphabetical by Claude event name. Output
+        # ordering is independent of dict insertion order.
+        out: dict[str, list[dict[str, Any]]] = {}
+        for claude_event in sorted(hooks_map.keys()):
+            groups = hooks_map.get(claude_event)
+            if not isinstance(groups, list):
+                print(
+                    f"  WARN: {claude_event} value is not a list; skipping",
+                    file=sys.stderr,
+                )
+                continue
+            try:
+                emitted = _process_event(
+                    claude_event,
+                    groups,
+                    event_remap=event_remap,
+                    event_drop=event_drop,
+                    script_source=script_source,
+                    output_scripts=output_scripts,
+                    transaction=transaction,
+                    what_if=what_if,
+                    result=result,
+                )
+            except GenerateHooksError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                return 2, result
+            for target_event, entry in emitted:
+                out.setdefault(target_event, []).append(entry)
 
-    # Write hooks.json (overwrite). NO-REGEN on the config file itself
-    # protects manual customer edits.
-    config_reason = regen_detect_reason(output_config)
-    if config_reason is not None:
-        print(
-            f"  NOTICE: skipped {output_config} (NO-REGEN: {config_reason})"
-        )
-    else:
-        wrapped = {"version": version_field, "hooks": out}
-        if not what_if:
-            output_config.parent.mkdir(parents=True, exist_ok=True)
-            output_config.write_text(
-                json.dumps(wrapped, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
+        # ADR-068 / #2295: consolidate the tool-gating event to one dispatcher
+        # entry, emitting _manifest.json + _dispatch.py next to the shims. The
+        # shims stay on disk (the dispatcher runs them in-process); only the
+        # hooks.json registration changes.
+        if dispatcher_mode and not what_if:
+            try:
+                _validate_dispatcher_artifact_targets(
+                    _dispatcher_artifact_targets(out, output_scripts)
+                )
+                out = _stage_dispatcher_artifacts(
+                    out,
+                    output_scripts,
+                    transaction,
+                )
+            except GenerateHooksError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                return 2, result
+            except OSError as exc:
+                print(
+                    f"Error: dispatcher generation failed: {exc}",
+                    file=sys.stderr,
+                )
+                return 1, result
+
+        # Write hooks.json through the same transaction as every generated
+        # script. NO-REGEN on the config file itself protects customer edits.
+        config_reason = regen_detect_reason(output_config)
+        if config_reason is not None:
+            print(
+                f"  NOTICE: skipped {output_config} (NO-REGEN: {config_reason})"
             )
         else:
-            print(f"  Would write: {output_config}")
+            wrapped = {"version": version_field, "hooks": out}
+            if not what_if:
+                output_config.parent.mkdir(parents=True, exist_ok=True)
+                staged_config = transaction.new_stage_path(output_config.parent)
+                try:
+                    staged_config.write_text(
+                        json.dumps(wrapped, indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8",
+                    )
+                    staged_config.chmod(0o644)
+                    transaction.publish_many([(staged_config, output_config)])
+                except OSError as exc:
+                    print(
+                        f"Error: hooks.json generation failed: {exc}",
+                        file=sys.stderr,
+                    )
+                    return 1, result
+            else:
+                print(f"  Would write: {output_config}")
 
+        cleanup_errors = transaction.commit()
+        committed = True
+        for cleanup_error in cleanup_errors:
+            print(f"  WARN: {cleanup_error}", file=sys.stderr)
+    finally:
+        if not committed:
+            for rollback_error in transaction.rollback():
+                print(
+                    f"  WARN: generation rollback failed: {rollback_error}",
+                    file=sys.stderr,
+                )
     duration = time.monotonic() - start
 
     print()

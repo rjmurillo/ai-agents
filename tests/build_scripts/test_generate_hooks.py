@@ -22,9 +22,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -34,8 +36,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
 
+import generate_dispatcher  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_hooks_events  # noqa: E402
+import generate_hooks_transaction  # noqa: E402
 from generate_hooks import (  # noqa: E402
     _SHIM_BEGIN,
     _SHIM_END,
@@ -137,6 +141,9 @@ artifacts:
     matcherPolicy: "inline-script-shim"
     versionField: 1
 """
+    if hooks_stanza_overrides:
+        for key, value in hooks_stanza_overrides.items():
+            body += f"    {key}: {json.dumps(value)}\n"
     cfg.write_text(body, encoding="utf-8")
     return cfg
 
@@ -824,6 +831,517 @@ def test_generator_no_regen_owner_requires_existing_output_companion(
     assert owner.read_text(encoding="utf-8").startswith("# NO-REGEN\n")
     assert not (owner.parent / "skill_pattern_loader.py").exists()
     assert not (tmp_path / "out" / "hooks.json").exists()
+
+
+def test_generator_companion_only_no_regen_preserves_runtime_group(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A protected companion blocks all owner replacement before any write."""
+    cfg = _setup_skill_companion_fixture(tmp_path)
+    hooks_source = tmp_path / "hooks_src"
+    early_source = _write_script(
+        hooks_source,
+        "PostToolUse",
+        "early_owner.py",
+        "print('old early owner')\n",
+    )
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))["hooks"]
+    settings["PostToolUse"] = [
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": (
+                        "python3 -u .claude/hooks/PostToolUse/early_owner.py"
+                    ),
+                }
+            ]
+        }
+    ]
+    _write_settings(settings_path, settings)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    early_target = tmp_path / "out" / "PostToolUse" / "early_owner.py"
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    hooks_json = tmp_path / "out" / "hooks.json"
+    original_early = early_target.read_bytes()
+    original_owner = owner.read_bytes()
+    original_hooks = hooks_json.read_bytes()
+    companion.write_text(
+        "# NO-REGEN\nTOKEN = 'customer-edit'\n",
+        encoding="utf-8",
+    )
+    protected_companion = companion.read_bytes()
+    early_source.write_text("print('new early owner')\n", encoding="utf-8")
+    source_owner = (
+        tmp_path / "hooks_src" / "Stop" / "invoke_skill_learning.py"
+    )
+    source_owner.write_text("print('new owner')\n", encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "runtime companion target is NO-REGEN protected" in captured.err
+    assert early_target.read_bytes() == original_early
+    assert owner.read_bytes() == original_owner
+    assert companion.read_bytes() == protected_companion
+    assert hooks_json.read_bytes() == original_hooks
+
+
+def test_generator_companion_copy_failure_restores_earlier_events(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A later staging failure rolls back an earlier published event."""
+    cfg = _setup_skill_companion_fixture(tmp_path)
+    hooks_source = tmp_path / "hooks_src"
+    early_source = _write_script(
+        hooks_source,
+        "PostToolUse",
+        "early_owner.py",
+        "print('old early owner')\n",
+    )
+    settings_path = tmp_path / "settings.json"
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))["hooks"]
+    settings["PostToolUse"] = [
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": (
+                        "python3 -u .claude/hooks/PostToolUse/early_owner.py"
+                    ),
+                }
+            ]
+        }
+    ]
+    _write_settings(settings_path, settings)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    early_target = tmp_path / "out" / "PostToolUse" / "early_owner.py"
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    hooks_json = tmp_path / "out" / "hooks.json"
+    original_early = early_target.read_bytes()
+    original_owner = owner.read_bytes()
+    original_companion = companion.read_bytes()
+    original_hooks = hooks_json.read_bytes()
+    early_source.write_text("print('new early owner')\n", encoding="utf-8")
+    source_owner = (
+        tmp_path / "hooks_src" / "Stop" / "invoke_skill_learning.py"
+    )
+    source_companion = (
+        tmp_path / "hooks_src" / "Stop" / "skill_pattern_loader.py"
+    )
+    source_owner.write_text("print('new owner')\n", encoding="utf-8")
+    source_companion.write_text("TOKEN = 'new'\n", encoding="utf-8")
+    real_copy_script = generate_hooks_events._copy_script
+
+    def fail_companion_copy(
+        source: Path,
+        target: Path,
+        *,
+        matcher: str | None,
+        what_if: bool,
+    ) -> tuple[bool, str]:
+        if source.name == "skill_pattern_loader.py":
+            raise OSError("simulated companion copy failure")
+        return real_copy_script(
+            source,
+            target,
+            matcher=matcher,
+            what_if=what_if,
+        )
+
+    monkeypatch.setattr(
+        generate_hooks_events,
+        "_copy_script",
+        fail_companion_copy,
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "failed to stage or publish hook group" in captured.err
+    assert "simulated companion copy failure" in captured.err
+    assert early_target.read_bytes() == original_early
+    assert owner.read_bytes() == original_owner
+    assert companion.read_bytes() == original_companion
+    assert hooks_json.read_bytes() == original_hooks
+    assert not list(tmp_path.rglob(".hook-stage-*.tmp"))
+
+
+@pytest.mark.parametrize(
+    "artifact_name",
+    ("_manifest.json", "_dispatch.py", "_bootstrap.py"),
+)
+def test_generator_dispatcher_no_regen_fails_before_any_write(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    artifact_name: str,
+) -> None:
+    """Every protected dispatcher artifact aborts before owner publication."""
+    cfg = _write_config(
+        tmp_path,
+        hooks_stanza_overrides={"dispatcher": True},
+    )
+    _write_script(
+        tmp_path / "hooks_src",
+        "PreToolUse",
+        "owner.py",
+        "print('owner')\n",
+    )
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PreToolUse": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u .claude/hooks/PreToolUse/owner.py"
+                            ),
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+    protected = tmp_path / "out" / "PreToolUse" / artifact_name
+    protected.parent.mkdir(parents=True, exist_ok=True)
+    protected_bytes = b"# NO-REGEN\ncustomer-owned\n"
+    protected.write_bytes(protected_bytes)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "dispatcher artifact is NO-REGEN protected" in captured.err
+    assert protected.read_bytes() == protected_bytes
+    assert not (tmp_path / "out" / "PreToolUse" / "owner.py").exists()
+    assert not (tmp_path / "out" / "hooks.json").exists()
+
+
+def test_generator_dispatcher_ignores_protected_shell_only_event(
+    tmp_path: Path,
+) -> None:
+    """A stale protected artifact is allowed when no Python hook emits."""
+    cfg = _write_config(
+        tmp_path,
+        hooks_stanza_overrides={"dispatcher": True},
+    )
+    (tmp_path / "hooks_src").mkdir()
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PreToolUse": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "echo shell-only hook",
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+    protected = tmp_path / "out" / "PreToolUse" / "_manifest.json"
+    protected.parent.mkdir(parents=True, exist_ok=True)
+    protected_bytes = b"# NO-REGEN\ncustomer-owned\n"
+    protected.write_bytes(protected_bytes)
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert protected.read_bytes() == protected_bytes
+    generated = json.loads((tmp_path / "out" / "hooks.json").read_text())
+    assert generated["hooks"] == {}
+
+
+def test_generator_dispatcher_staging_failure_restores_earlier_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A partial dispatcher stage cannot mutate live artifacts or owners."""
+    cfg = _write_config(
+        tmp_path,
+        hooks_stanza_overrides={"dispatcher": True},
+    )
+    source = _write_script(
+        tmp_path / "hooks_src",
+        "PreToolUse",
+        "owner.py",
+        "print('old owner')\n",
+    )
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PreToolUse": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u .claude/hooks/PreToolUse/owner.py"
+                            ),
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    owner = tmp_path / "out" / "PreToolUse" / "owner.py"
+    dispatcher_paths = [
+        tmp_path / "out" / "PreToolUse" / name
+        for name in ("_manifest.json", "_dispatch.py", "_bootstrap.py")
+    ]
+    hooks_json = tmp_path / "out" / "hooks.json"
+    originals = {
+        path: path.read_bytes()
+        for path in [owner, *dispatcher_paths, hooks_json]
+    }
+    source.write_text("print('new owner')\n", encoding="utf-8")
+
+    def fail_entrypoint(_event_dir: Path) -> Path:
+        raise OSError("simulated dispatcher staging failure")
+
+    monkeypatch.setattr(
+        generate_dispatcher,
+        "write_entrypoint",
+        fail_entrypoint,
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 1
+    assert "simulated dispatcher staging failure" in captured.err
+    for path, original in originals.items():
+        assert path.read_bytes() == original
+    assert not list(tmp_path.rglob(".hook-stage-*"))
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permissions only")
+def test_transaction_lock_directory_is_private(tmp_path: Path) -> None:
+    """Shared temp storage cannot expose one user's lock directory."""
+    lock_directory = generate_hooks_transaction._lock_path(tmp_path).parent
+
+    assert stat.S_IMODE(lock_directory.stat().st_mode) == 0o700
+
+def test_transaction_lock_serializes_processes(tmp_path: Path) -> None:
+    """A second process waits until the first transaction releases its lock."""
+    lock_target = tmp_path / "out"
+    first = generate_hooks_transaction.HookGenerationTransaction(lock_target)
+    started = tmp_path / "started"
+    acquired = tmp_path / "acquired"
+    child_code = "\n".join(
+        (
+            "import sys",
+            "from pathlib import Path",
+            "sys.path.insert(0, sys.argv[1])",
+            "from generate_hooks_transaction import HookGenerationTransaction",
+            "Path(sys.argv[3]).write_text('started', encoding='utf-8')",
+            "transaction = HookGenerationTransaction(Path(sys.argv[2]))",
+            "Path(sys.argv[4]).write_text('acquired', encoding='utf-8')",
+            "raise SystemExit(bool(transaction.commit()))",
+        )
+    )
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            child_code,
+            str(REPO_ROOT / "build" / "scripts"),
+            str(lock_target),
+            str(started),
+            str(acquired),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not started.exists() and time.monotonic() < deadline:
+            if process.poll() is not None:
+                break
+            time.sleep(0.05)
+        assert started.exists()
+        with pytest.raises(subprocess.TimeoutExpired):
+            process.wait(timeout=0.5)
+        assert not acquired.exists()
+    finally:
+        assert first.commit() == []
+
+    stdout, stderr = process.communicate(timeout=10)
+    assert process.returncode == 0, stdout + stderr
+    assert acquired.exists()
+
+@pytest.mark.skipif(os.name != "nt", reason="NTFS alternate data streams only")
+def test_transaction_windows_rollback_preserves_named_stream(
+    tmp_path: Path,
+) -> None:
+    """ReplaceFileW journals the complete original Windows file object."""
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+    target = tmp_path / "target.py"
+    target.write_text("old\n", encoding="utf-8")
+    named_stream = Path(f"{target}:transaction-metadata")
+    named_stream.write_text("preserved\n", encoding="utf-8")
+    staged = transaction.new_stage_path(tmp_path)
+    staged.write_text("new\n", encoding="utf-8")
+
+    transaction.publish_many([(staged, target)])
+
+    assert named_stream.read_text(encoding="utf-8") == "preserved\n"
+    assert transaction.rollback() == []
+    assert target.read_text(encoding="utf-8") == "old\n"
+    assert named_stream.read_text(encoding="utf-8") == "preserved\n"
+
+def test_transaction_repeated_windows_publish_keeps_original_backup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second publication cannot overwrite the run's first backup."""
+    monkeypatch.setattr(generate_hooks_transaction, "_IS_WINDOWS", True)
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+    target = tmp_path / "target.py"
+    target.write_text("old\n", encoding="utf-8")
+
+    def replace_like_windows(
+        source: Path,
+        replacement_target: Path,
+        backup: Path | None = None,
+    ) -> None:
+        if backup is not None:
+            backup.unlink(missing_ok=True)
+            replacement_target.replace(backup)
+        source.replace(replacement_target)
+
+    monkeypatch.setattr(
+        generate_hooks_transaction,
+        "_replace_target",
+        replace_like_windows,
+    )
+
+    first = transaction.new_stage_path(tmp_path)
+    first.write_text("first\n", encoding="utf-8")
+    transaction.publish_many([(first, target)])
+    second = transaction.new_stage_path(tmp_path)
+    second.write_text("second\n", encoding="utf-8")
+    transaction.publish_many([(second, target)])
+
+    assert target.read_text(encoding="utf-8") == "second\n"
+    assert transaction.rollback() == []
+    assert target.read_text(encoding="utf-8") == "old\n"
+    assert not list(tmp_path.glob(".hook-stage-*"))
+
+def test_transaction_rolls_back_partial_windows_replace_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ReplaceFileW partial failure is journaled before cleanup."""
+    transaction = generate_hooks_transaction.HookGenerationTransaction(tmp_path)
+    target = tmp_path / "target.py"
+    target.write_text("old\n", encoding="utf-8")
+    staged = transaction.new_stage_path(tmp_path)
+    staged.write_text("new\n", encoding="utf-8")
+
+    def fail_after_moving_target(
+        _source: Path,
+        replacement_target: Path,
+        backup: Path | None = None,
+    ) -> None:
+        assert backup is not None
+        replacement_target.replace(backup)
+        raise OSError(1177, "simulated partial ReplaceFileW failure")
+
+    monkeypatch.setattr(
+        generate_hooks_transaction,
+        "_replace_target",
+        fail_after_moving_target,
+    )
+
+    with pytest.raises(OSError, match="partial ReplaceFileW failure"):
+        transaction.publish_many([(staged, target)])
+
+    assert transaction.rollback() == []
+    assert target.read_text(encoding="utf-8") == "old\n"
+    assert not list(tmp_path.glob(".hook-stage-*"))
+
+def test_generator_failed_rollback_retains_recovery_backup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed restore keeps the prior bytes in a named recovery file."""
+    cfg = _setup_skill_companion_fixture(tmp_path)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    hooks_json = tmp_path / "out" / "hooks.json"
+    original_companion = companion.read_bytes()
+    original_hooks = hooks_json.read_bytes()
+    source_owner = (
+        tmp_path / "hooks_src" / "Stop" / "invoke_skill_learning.py"
+    )
+    source_companion = (
+        tmp_path / "hooks_src" / "Stop" / "skill_pattern_loader.py"
+    )
+    source_owner.write_text("print('new owner')\n", encoding="utf-8")
+    source_companion.write_text("TOKEN = 'new'\n", encoding="utf-8")
+    real_replace = generate_hooks_transaction._replace_target
+    real_restore = generate_hooks_transaction._restore_backup
+
+    def fail_owner_publish(
+        source: Path,
+        target: Path,
+        backup: Path | None = None,
+    ) -> None:
+        if target == owner:
+            raise OSError("simulated owner publish failure")
+        real_replace(source, target, backup)
+
+    def fail_companion_restore(backup: Path, target: Path) -> None:
+        if target == companion:
+            raise OSError("simulated companion rollback failure")
+        real_restore(backup, target)
+
+    monkeypatch.setattr(
+        generate_hooks_transaction,
+        "_replace_target",
+        fail_owner_publish,
+    )
+    monkeypatch.setattr(
+        generate_hooks_transaction,
+        "_restore_backup",
+        fail_companion_restore,
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "simulated owner publish failure" in captured.err
+    assert "simulated companion rollback failure" in captured.err
+    assert "recovery backup retained at" in captured.err
+    assert hooks_json.read_bytes() == original_hooks
+    recovery_files = list(
+        (tmp_path / "out" / "SessionEnd").glob(".hook-stage-*.tmp")
+    )
+    assert len(recovery_files) == 1
+    assert recovery_files[0].read_bytes() == original_companion
 
 
 def test_generator_does_not_copy_unowned_skill_loader(tmp_path: Path) -> None:
