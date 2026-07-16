@@ -313,6 +313,18 @@ class TestClassifyReviewerPriority:
     def test_copilot_bot_login_variant_is_p2(self):
         assert classify_reviewer_priority("github-copilot[bot]", "Bot") == "P2"
 
+    def test_copilot_pr_reviewer_bot_is_p2(self):
+        assert classify_reviewer_priority("copilot-pull-request-reviewer[bot]", "Bot") == "P2"
+
+    def test_copilot_pr_reviewer_user_type_is_p2(self):
+        assert classify_reviewer_priority("copilot-pull-request-reviewer", "User") == "P2"
+
+    def test_ghost_author_empty_string_is_unknown(self):
+        assert classify_reviewer_priority("", "") == "Unknown"
+
+    def test_ghost_author_empty_with_user_type_is_unknown(self):
+        assert classify_reviewer_priority("", "User") == "Unknown"
+
     def test_unrecognized_bot_is_unknown(self):
         assert classify_reviewer_priority("randobot[bot]", "Bot") == "Unknown"
 
