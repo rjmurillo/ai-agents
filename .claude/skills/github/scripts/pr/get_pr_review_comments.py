@@ -625,12 +625,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.output_format == "human":
         if isinstance(result, list):
-            count: object = len(result)
+            count = len(result)
+            print(f"PR #{args.pull_request}: {count} comment(s)")
         elif isinstance(result, dict):
-            count = result.get("TotalComments", len(result.get("Comments", [])))
+            review_count = result.get("ReviewCommentCount", 0)
+            issue_count = result.get("IssueCommentCount", 0)
+            if issue_count > 0:
+                review_text = "review comment" if review_count == 1 else "review comments"
+                issue_text = "issue comment" if issue_count == 1 else "issue comments"
+                print(f"PR #{args.pull_request}: {review_count} {review_text} + {issue_count} {issue_text}")
+            else:
+                review_text = "review comment" if review_count == 1 else "review comments"
+                print(f"PR #{args.pull_request}: {review_count} {review_text}")
         else:
-            count = "?"
-        print(f"PR #{args.pull_request}: {count} review comment(s)")
+            print(f"PR #{args.pull_request}: ? comment(s)")
     else:
         print(json.dumps(result, indent=2))
     return 0
