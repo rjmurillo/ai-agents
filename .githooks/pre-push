@@ -324,6 +324,9 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         refs/heads/*)
             PUSH_REMOTE_BRANCH="${remote_ref#refs/heads/}"
             ;;
+        *)
+            PUSH_REMOTE_BRANCH=""
+            ;;
     esac
 
     # Store base and head for per-ref plugin version validation
