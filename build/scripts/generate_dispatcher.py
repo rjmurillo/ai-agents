@@ -38,6 +38,7 @@ import json
 import re
 import shutil
 from pathlib import Path
+from typing import Any
 
 # Mirror contract from build/scripts/generate_hooks_emit.py::_build_copilot_entry:
 # bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
@@ -155,7 +156,7 @@ sys.exit(_main())
 '''
 
 
-def dispatcher_entry(event: str, timeout_sec: int) -> dict:
+def dispatcher_entry(event: str, timeout_sec: int) -> dict[str, Any]:
     """Return the single hooks.json entry that registers the event dispatcher."""
     return {
         "bash": _BASH_TEMPLATE.format(event=event),
@@ -185,7 +186,7 @@ def write_manifest(
     if mode not in ("gate", "observe"):
         raise ValueError(f"mode must be 'gate' or 'observe', got {mode!r}")
     manifest_path = event_dir / "_manifest.json"
-    manifest: dict = {"event": event, "mode": mode, "shims": list(shim_names)}
+    manifest: dict[str, Any] = {"event": event, "mode": mode, "shims": list(shim_names)}
     if shim_timeouts is not None:
         manifest["timeouts"] = {
             name: int(shim_timeouts[name])
@@ -235,7 +236,7 @@ def emit_dispatcher(
     shim_timeouts: dict[str, int] | None = None,
     *,
     mode: str = "gate",
-) -> dict:
+) -> dict[str, Any]:
     """Write manifest + entrypoint + bootstrap and return the hooks.json entry.
 
     ``timeout_sec`` should be the sum of the per-shim timeouts the dispatcher
@@ -269,7 +270,7 @@ def _shim_basename(command: str) -> str | None:
     return match.group(1) if match else None
 
 
-def consolidate(out: dict, hooks_dir: Path) -> dict:
+def consolidate(out: dict[str, Any], hooks_dir: Path) -> dict[str, Any]:
     """Collapse every event's per-shim entries to one dispatcher entry.
 
     ``out`` is the generator's ``{event: [entry, ...]}`` map. For each event
@@ -282,7 +283,7 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
     order is the registered hooks.json order (authoritative) and the
     consolidated ``timeoutSec`` is the sum of the per-shim timeouts.
     """
-    new_out: dict = {}
+    new_out: dict[str, Any] = {}
     for event, entries in out.items():
         shim_entries = [
             (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))
