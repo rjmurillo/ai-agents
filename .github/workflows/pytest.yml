@@ -54,6 +54,7 @@ jobs:
               - 'uv.lock'
               - 'tests/conftest.py'
               - 'scripts/memory_enhancement/**'
+              - '.github/actions/ai-review/action.yml'
               - '.github/workflows/pytest.yml'
 
       - name: Report path check result
@@ -278,6 +279,7 @@ jobs:
     needs: check-paths
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: windows-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -310,3 +312,9 @@ jobs:
         env:
           UV_PYTHON: '3.14'
         run: uv run pytest tests/test_pytest_head_guard.py -v
+
+      - name: Run AI review output path contract tests
+        shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
+        run: uv run pytest tests/test_check_ai_review_infra_gate.py -v
