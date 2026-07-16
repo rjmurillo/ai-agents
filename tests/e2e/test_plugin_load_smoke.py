@@ -197,7 +197,7 @@ def _copilot_version_omits_plugin_enumeration(version_output: str) -> bool:
 
     Only the versions in ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` are allowed to skip
     the strict subset assertion when ``skill list --json`` surfaces zero
-    ``source: plugin`` records (issues #2990 and #3014). This is an
+    ``source: plugin`` records (issues #2990, #3014, and #3090). This is an
     output-surface quirk of those releases: the plugin loads and its hooks fire,
     but ``skill list --json`` does not enumerate ``--plugin-dir`` skills under
     ``source: plugin``. Any other version that surfaces zero ``source: plugin``
@@ -290,8 +290,8 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
             pytest.fail(
                 "copilot skill list --json surfaced no source: plugin records for a "
                 f"known-good --plugin-dir on CLI version {version_text!r}, which is "
-                "NOT a known plugin-enumeration-omitting version (issues #2990, "
-                f"#3014). A version outside the benign {benign_versions} set that "
+                "NOT a known plugin-enumeration-omitting version (issues #2990, #3014, "
+                f"#3090). A version outside the benign {benign_versions} set that "
                 "surfaces no source: plugin records is treated as a real "
                 "plugin-load regression. "
                 f"sources seen: {sources}"
@@ -299,7 +299,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         pytest.skip(
             "copilot skill list --json surfaced no source: plugin records for a "
             "known-good --plugin-dir. On CLI 1.0.69, 1.0.70, and 1.0.71 the plugin-dir load "
-            "is not enumerated through this surface (issues #2990, #3014); the load "
+            "is not enumerated through this surface (issues #2990, #3014, #3090); the load "
             "itself is unaffected (the plugin's hooks still load and fire). Skipping "
             "loud rather than false-failing. "
             f"copilot --version: {version_text!r}; "
@@ -537,7 +537,7 @@ def test_copilot_version_omits_enumeration_true_for_benign_version() -> None:
     """CLI 1.0.69, 1.0.70, and 1.0.71 are the known plugin-enumeration-omitting releases.
 
     Both surface zero ``source: plugin`` records for a known-good ``--plugin-dir``
-    while the plugin still loads (issues #2990, #3014). A build-tag suffix
+    while the plugin still loads (issues #2990, #3014, #3090). A build-tag suffix
     (``1.0.69-3``) tracks the same release, so it still matches; extra surrounding
     text from ``--version`` is tolerated.
     """
@@ -551,7 +551,7 @@ def test_copilot_version_omits_enumeration_true_for_benign_version() -> None:
 
 
 def test_copilot_version_omits_enumeration_false_for_other_versions() -> None:
-    """Any version not in the benign set must fail loud, not skip (issues #2990, #3014).
+    """Any version not in the benign set must fail loud, not skip (issues #2990, #3014, #3090).
 
     A CLI that enumerates ``--plugin-dir`` skills but returns none is a real
     plugin-load regression; the negative control depends on this returning False.
