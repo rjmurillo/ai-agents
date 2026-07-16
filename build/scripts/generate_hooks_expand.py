@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Claude-side dispatch-group expansion for Copilot hook generation (#3075).
 
-``.claude/settings.json`` registers ONE ``dispatch_claude.py`` process per
+``.claude/settings.json`` registers ONE ``invoke_dispatch_claude.py`` process per
 (event, matcher) group to cut per-hook spawn cost on the Claude Code side.
 Copilot CLI has its own consolidation (ADR-068 dispatcher), so the
 generator expands each dispatch registration back to the per-hook entries
@@ -113,7 +113,7 @@ def _expand_dispatch_groups(
     hooks_map: dict[str, Any],
     script_source: Path,
 ) -> dict[str, Any]:
-    """Replace dispatch_claude.py registrations with their member hooks."""
+    """Replace invoke_dispatch_claude.py registrations with their member hooks."""
     manifest_groups: dict[str, Any] | None = None
     expanded_map: dict[str, Any] = {}
     for claude_event, groups in hooks_map.items():
@@ -137,7 +137,7 @@ def _expand_dispatch_groups(
                 continue
             if len(hooks) != 1 or len(found) != 1:
                 raise GenerateHooksError(
-                    "a dispatch_claude.py registration must be the only hook "
+                    "a invoke_dispatch_claude.py registration must be the only hook "
                     f"in its settings group (event {claude_event})"
                 )
             if manifest_groups is None:

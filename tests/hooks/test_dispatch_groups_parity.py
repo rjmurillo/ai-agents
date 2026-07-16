@@ -115,12 +115,12 @@ def _settings_direct_basenames() -> set[str]:
         for groups in SETTINGS["hooks"].values()
         for group in groups
         for hook in group.get("hooks", [])
-        if "dispatch_claude.py" not in (hook.get("command") or "")
+        if "invoke_dispatch_claude.py" not in (hook.get("command") or "")
     }
 
 
 def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
-    # The self-host bail (dispatch_claude.py exiting 0 for plugin
+    # The self-host bail (invoke_dispatch_claude.py exiting 0 for plugin
     # invocations inside this repo) is only safe when repo settings run
     # every hook the plugin would have run, minus the prunes this repo
     # deliberately made. A plugin shim missing here would silently never
@@ -149,6 +149,6 @@ def test_plugin_registrations_are_dispatcher_only():
         for groups in PLUGIN_HOOKS["hooks"].values()
         for group in groups
         for hook in group.get("hooks", [])
-        if "dispatch_claude.py" not in (hook.get("command") or "")
+        if "invoke_dispatch_claude.py" not in (hook.get("command") or "")
     ]
     assert direct == []

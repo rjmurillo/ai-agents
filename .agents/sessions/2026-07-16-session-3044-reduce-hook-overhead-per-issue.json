@@ -143,6 +143,11 @@
       "timestamp": "2026-07-16T07:05:00Z",
       "summary": "Renamed dispatcher entry to invoke_dispatch_claude.py for the hook naming lint; swept all references; live-session hooks verified working through the renamed dispatcher after a brief fail-closed wedge (settings pointed at the old path mid-rename).",
       "evidence": "871 tests pass; taste lint 0 errors; regen deterministic (no src/copilot-cli diff)"
+    },
+    {
+      "timestamp": "2026-07-16T07:12:00Z",
+      "summary": "Rename reference sweep across generator expansion module and test files.",
+      "evidence": "pytest 871 passed"
     }
   ],
   "endingCommit": "",

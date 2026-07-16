@@ -53,6 +53,22 @@
       "content": "Renamed dispatcher entry to invoke_dispatch_claude.py for the hook naming lint; swept all references; live-session hooks verified working through the renamed dispatcher after a brief fail-closed wedge (settings pointed at the old path mid-rename).",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rename reference sweep across generator expansion module and test files.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest 871 passed",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

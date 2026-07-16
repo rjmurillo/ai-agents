@@ -4,7 +4,7 @@
 Covers: gate short-circuit and fail-closed semantics, gate_all and observe
 modes, single-JSON output merging (the concatenation hazard that sank the
 earlier ad hoc dispatcher), stdin replay, stdout.buffer capture, the
-dispatch_claude.py entry point (unknown group, plugin self-host bail), and
+invoke_dispatch_claude.py entry point (unknown group, plugin self-host bail), and
 a runtime-contract subprocess check with negative control.
 """
 
@@ -317,7 +317,7 @@ def test_gate_all_blocking_shim_decision_document_logged_to_stderr(tmp_path, cap
     assert "decision document" in err and "block" in err
 
 
-# --- dispatch_claude.py entry ----------------------------------------------
+# --- invoke_dispatch_claude.py entry ----------------------------------------------
 
 
 def _entry_env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -331,7 +331,7 @@ def _entry_env(extra: dict[str, str] | None = None) -> dict[str, str]:
 
 def test_entry_unknown_group_fails_loud():
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/dispatch_claude.py", "--group", "no-such-group"],
+        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "no-such-group"],
         cwd=REPO_ROOT,
         env=_entry_env(),
         input=b"{}",
@@ -348,7 +348,7 @@ def test_entry_plugin_self_host_bails_fast(tmp_path):
     # it: CLAUDE_PLUGIN_ROOT points at this repo's .claude tree and the
     # project dir is the repo itself.
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/dispatch_claude.py", "--group", "no-such-group"],
+        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "no-such-group"],
         cwd=REPO_ROOT,
         env=_entry_env(
             {
@@ -370,7 +370,7 @@ def test_entry_plugin_outside_publisher_repo_runs(tmp_path):
     # Same plugin root, but the project dir is a plain consumer directory:
     # the dispatcher must NOT bail (and then fails loud on the bogus group).
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/dispatch_claude.py", "--group", "no-such-group"],
+        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "no-such-group"],
         cwd=REPO_ROOT,
         env=_entry_env(
             {
@@ -394,7 +394,7 @@ def test_runtime_contract_benign_bash_allows():
         {"tool_name": "Bash", "tool_input": {"command": "echo hook-dispatch-smoke"}}
     ).encode("utf-8")
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/dispatch_claude.py", "--group", "pretooluse-bash"],
+        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "pretooluse-bash"],
         cwd=REPO_ROOT,
         env=_entry_env(),
         input=payload,
@@ -415,7 +415,7 @@ def test_runtime_contract_raw_gh_pr_view_blocks():
         {"tool_name": "Bash", "tool_input": {"command": "gh pr view 1"}}
     ).encode("utf-8")
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/dispatch_claude.py", "--group", "pretooluse-bash"],
+        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "pretooluse-bash"],
         cwd=REPO_ROOT,
         env=_entry_env(),
         input=payload,

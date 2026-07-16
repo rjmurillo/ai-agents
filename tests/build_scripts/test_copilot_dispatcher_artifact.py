@@ -45,7 +45,7 @@ _DISPATCH_GROUPS = json.loads(
 def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> list[str]:
     """Flatten hook registrations to per-script command strings.
 
-    Claude-side manifests register dispatch_claude.py groups (#3075); a
+    Claude-side manifests register invoke_dispatch_claude.py groups (#3075); a
     group registration counts as one command per member shim so tests can
     keep asserting on the effective script set.
     """
@@ -55,7 +55,7 @@ def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> l
         for group in manifest["hooks"].get(evt, []):
             for hook in group.get("hooks", []):
                 command = hook.get("command", "") or ""
-                if "dispatch_claude.py" in command:
+                if "invoke_dispatch_claude.py" in command:
                     group_id = command.rsplit("--group", 1)[1].strip()
                     commands.extend(
                         shim["file"] for shim in _DISPATCH_GROUPS[group_id]["shims"]

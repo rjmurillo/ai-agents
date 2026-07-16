@@ -60,7 +60,7 @@ def test_expands_dispatcher_registration_to_member_hooks(tmp_path):
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python3 -u .claude/hooks/dispatch_claude.py --group g1",
+                        "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group g1",
                         "timeout": 60,
                     }
                 ],
@@ -104,7 +104,7 @@ def test_copilot_matcher_override_splits_partitions(tmp_path):
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python3 -u .claude/hooks/dispatch_claude.py --group g1",
+                        "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group g1",
                     }
                 ],
             }
@@ -140,7 +140,7 @@ def test_unknown_group_raises(tmp_path):
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python3 -u .claude/hooks/dispatch_claude.py --group nope",
+                        "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group nope",
                     }
                 ],
             }
@@ -161,7 +161,7 @@ def test_event_mismatch_raises(tmp_path):
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python3 -u .claude/hooks/dispatch_claude.py --group g1",
+                        "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group g1",
                     }
                 ]
             }
@@ -183,7 +183,7 @@ def test_dispatcher_mixed_with_sibling_hook_raises(tmp_path):
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python3 -u .claude/hooks/dispatch_claude.py --group g1",
+                        "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group g1",
                     },
                     {"type": "command", "command": "python3 -u .claude/hooks/other.py"},
                 ],
@@ -208,4 +208,4 @@ def test_real_settings_expand_cleanly_with_no_dispatcher_residue():
         if isinstance(hook, dict)
     ]
     assert commands, "expansion must not empty the hook map"
-    assert not any("dispatch_claude.py" in cmd for cmd in commands)
+    assert not any("invoke_dispatch_claude.py" in cmd for cmd in commands)
