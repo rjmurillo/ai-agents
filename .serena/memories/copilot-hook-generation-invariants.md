@@ -50,6 +50,13 @@ Repository-root discovery for observation sync is fail closed. A timeout or
 missing Git executable returns no root instead of treating the current working
 directory as verified.
 
+## Protocol encoding
+
+Session-start context output is a UTF-8 protocol. The canonical context loader
+reconfigures text streams to UTF-8 and explicitly encodes the binary fallback.
+Edit `.claude/hooks/SessionStart/invoke_context_loader.py`, then regenerate its
+Copilot CLI mirror rather than editing the generated file.
+
 ## Evidence
 
 PR 3076 sessions 3045 and 3046 covered positive, protected, filesystem-error,

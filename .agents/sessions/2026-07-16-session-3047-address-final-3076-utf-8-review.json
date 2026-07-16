@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3047,
+    "date": "2026-07-16",
+    "branch": "perf/batch-claude-hooks",
+    "startingCommit": "a4a20546",
+    "objective": "Address final PR 3076 UTF-8 review threads and close the pull request"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools were active for ai-agents; repository memory reads succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena.initial_instructions returned the Serena Instructions Manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and confirmed it remains read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded pr-comment-responder and used its thread clustering workflow"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena memory usage-mandatory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded Serena memories usage-mandatory and copilot-hook-generation-invariants"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/batch-claude-hooks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/batch-claude-hooks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Started session log from clean implementation commit a4a20546"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a4a20546"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed; focused tests and generation checks passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged and read-only"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated .serena/memories/copilot-hook-generation-invariants.md with the UTF-8 protocol rule"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 excludes .serena memories; scoped invocation completed with 0 errors and 0 files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "UTF-8 implementation committed as a4a20546; this memory and session log are staged for closeout"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed before the closeout commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR 3076 reply, CI, completion-gate, and merge steps recorded in nextSteps"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped for this focused review repair; the durable encoding rule was added to Serena memory"
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: none"
+        ]
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Clustered two unresolved Copilot threads and confirmed both flagged implicit UTF-8 encoding in the canonical context loader and generated mirror."
+    },
+    {
+      "time": "T1",
+      "entry": "Changed the canonical binary fallback to bytes(..., encoding=\"utf-8\") and regenerated the Copilot CLI mirror. Ruff rejects the reviewer literal .encode(\"utf-8\") form as UP012."
+    },
+    {
+      "time": "T2",
+      "entry": "Verified 18 context-loader tests passed, Ruff passed, mypy passed for both mirrors, and build_all.py --check reported no staged generation drift."
+    },
+    {
+      "time": "T3",
+      "entry": "Committed the two-file implementation as a4a20546 before resolving either review thread."
+    }
+  ],
+  "endingCommit": "a4a20546",
+  "nextSteps": [
+    "Push a4a20546 and this closeout commit to perf/batch-claude-hooks.",
+    "Reply to and resolve both UTF-8 review threads only after the push is confirmed.",
+    "Inspect the nonrequired Reliability Review failure, then merge after stable checks and zero unresolved threads."
+  ]
+}
