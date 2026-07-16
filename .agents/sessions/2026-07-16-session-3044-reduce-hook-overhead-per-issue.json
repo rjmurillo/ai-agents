@@ -163,6 +163,11 @@
       "timestamp": "2026-07-16T09:05:00Z",
       "summary": "Pre-push repairs: dropped type-ignore via BytesIO handle in dispatcher lib (re-vendored); flipped two stale fail-open tests to the base PR fail-closed contract; plugin-load smoke gains a plugin-dir mechanism probe and loud skip citing issue 3104.",
       "evidence": "pytest: 78 passed (targeted suites); RUN_CLI_E2E smoke 16 passed 1 skipped; ruff clean"
+    },
+    {
+      "timestamp": "2026-07-16T09:08:00Z",
+      "summary": "Registration tests for pr_description_guard and session_log_field_guard resolve through dispatch groups; e2e smoke mechanism probe committed.",
+      "evidence": "pytest 16 passed 1 skipped on smoke; 78 passed targeted"
     }
   ],
   "endingCommit": "",

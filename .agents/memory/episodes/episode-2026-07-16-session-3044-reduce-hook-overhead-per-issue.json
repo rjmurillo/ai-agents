@@ -109,6 +109,22 @@
       "content": "pytest: 78 passed (targeted suites); RUN_CLI_E2E smoke 16 passed 1 skipped; ruff clean",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Registration tests for pr_description_guard and session_log_field_guard resolve through dispatch groups; e2e smoke mechanism probe committed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest 16 passed 1 skipped on smoke; 78 passed targeted",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
