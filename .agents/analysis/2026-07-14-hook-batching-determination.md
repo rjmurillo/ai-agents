@@ -8,28 +8,25 @@ blocking: false
 
 ## Decision
 
-The current hook set costs too much on Windows. When hooks make Copilot CLI
-unusable, use `disableAllHooks` only through an approval-required, time-bounded,
-read-only diagnostic procedure. This accepts the loss of repository, user, and
-plugin hook execution. A selective minimal profile for GPT-5.6 Sol and Opus 4.8
-is an analytical hypothesis only. The current roadmap places Copilot CLI in
-maintenance-only mode, so profile feature work requires formal reprioritization.
-Copilot CLI 1.0.70 provides one immediate performance switch:
+The current hook set costs too much on Windows. The selected maintenance fix is
+to prevent process creation before Python starts. Remove repeated advisory hooks,
+and narrow broad shell matchers to the commands each hard gate already checks.
+Keep the Python checks as the policy authority so wrapped, chained, path-qualified,
+and piped commands retain the same protection.
 
-```json
-{
-  "disableAllHooks": true
-}
-```
+This change preserves security, branch, commit, push, permission, session, and
+routing gates. It skips four direct repository hook processes on unrelated shell
+calls. The generated Copilot dispatcher remains one process per event and applies
+the same matcher filters in-process.
 
-This switch is broader than the local help text suggests. In a controlled,
-trusted-worktree probe, it stopped repository and plugin hook execution. Policy
-hooks still loaded and remain exempt by contract. Treat this as a version-specific
-kill switch, not a selective plugin profile.
+`disableAllHooks` is a diagnostic escape hatch only. Copilot CLI 1.0.70 has no
+supported source-specific setting that disables repository hooks while retaining
+plugin hooks. The setting stops repository and plugin hook execution, while policy
+hooks still load. Do not use it as the developer performance profile.
 
-No supported setting was found that disables repository hooks while retaining
-plugin hooks. The maintenance path is to fix failing Windows hooks and remove or
-rescope advisory work from repeated event paths.
+A selective model-tier profile remains an analytical hypothesis. Copilot CLI is
+in maintenance-only mode, so profile feature work requires formal
+reprioritization.
 
 ## Measured cost
 
@@ -38,7 +35,7 @@ The repository registers 53 command hooks in `.claude/settings.json`, covering
 
 | Event | Matcher groups | Command registrations |
 | --- | ---: | ---: |
-| PreToolUse | 11 | 29 |
+| PreToolUse | 14 | 29 |
 | SessionStart | 2 | 7 |
 | UserPromptSubmit | 1 | 4 |
 | PostToolUse | 5 | 7 |
@@ -56,6 +53,39 @@ aggregate near 8.7 seconds in the prior per-shim Copilot layout. ADR-068 remains
 Proposed. The generated dispatcher exists, but its parity claims are not an
 accepted decision. The dispatcher removed that spawn storm for the plugin path.
 It did not remove the cost of executing the shim bodies.
+
+### Enabled-hook process trace
+
+A non-admin Windows Job Object trace measured Copilot CLI 1.0.70 with GPT-5.6
+Sol. Each run used a fresh detached worktree, the same plugin directory, and the
+same prompt requiring one PowerShell tool call. Defender remained active.
+
+| State | Process starts | Direct shell wrappers | Wrapper lifetime | Plugin dispatchers |
+| --- | ---: | ---: | ---: | ---: |
+| Baseline at `7b9d3ce3` | 355 | 5 | 5,586.946 ms | 2 |
+| Advisory hook removed | 352 | 4 | 3,771.760 ms | 2 |
+| Shell matchers rescoped, run 1 | 334 | 0 | 0 ms | 2 |
+| Shell matchers rescoped, run 2 | 332 | 0 | 0 ms | 2 |
+
+The removed direct subtrees account for 23 process starts: five from the
+correction hook and 18 from the four broad shell wrappers. Total session starts
+fell by 21 and 23 across the two final runs. The totals include unrelated process
+noise, so only the 23 traced subtree starts are claimed as causal savings. The
+host-side filters now skip unrelated calls before PowerShell, Python, and Git
+start.
+
+The five direct wrappers ran sequentially. Their measured lifetime was 5.587
+seconds in the baseline. This is process lifetime, not total CLI wall time, but it
+is removed from this tool-call path. Both final runs returned `TRACE_TOOL_OK` and
+`TRACE_SESSION_OK`. The two PreToolUse plugin dispatchers still started, proving
+that the change narrowed hook bodies rather than disabling hooks.
+
+The topical-memory hook removal could not be measured through Copilot
+`apply_patch`. Copilot exposes no separate `Write` or `Edit` tool, and the
+remaining security hook ran first on that probe. The removal still affects Claude
+Code `Write` and `Edit` registrations.
+
+### Diagnostic escape-hatch probe
 
 A same-prompt probe in the trusted review worktree produced these results:
 
@@ -78,7 +108,7 @@ but the enabled run's plugin marker did not appear. The 20 enabled log records
 contained 7,725 payload bytes after removing timestamps and log prefixes. The
 largest payload was 5,393 bytes. Token volume was not measured.
 
-The probe did not record Defender service state, process count, or compare
+The escape-hatch probe did not record Defender service state or compare
 Defender on and off. It records an end-to-end Windows difference correlated with
 hook execution. It does not isolate hook duration or Defender's share.
 
@@ -214,16 +244,15 @@ rescoping the existing hook set.
 
 ## Recommended order
 
-1. Document `disableAllHooks` as an approval-required, time-bounded, read-only
-   diagnostic procedure. State that it disables plugin hook execution in CLI 1.0.70 and must
-   not become a default developer setting.
-2. Fix the Windows encoding, project-root validation, import, and duplicate
-   session-guidance defects.
-3. Keep hard gates at commit, push, permission, and security boundaries. Remove
-   or rescope existing advisory work from per-tool paths as a performance fix.
-4. Run controlled task suites with hooks on and off for GPT-5.6 Sol, Opus 4.8,
-   Sonnet, Terra, Luna, and Haiku. Measure success rate, false denials, hook wall
-   time, process count, and tokens added.
+1. Ship the Windows encoding, worktree validation, companion generation, and
+   advisory-hook removals.
+2. Ship host-side command matchers for the four broad shell hooks. Keep the
+   existing Python policy checks and their positive, negative, and edge tests.
+3. Keep `disableAllHooks` limited to approval-required, time-bounded, read-only
+   diagnosis. It must not become a default developer setting.
+4. Run controlled task suites for GPT-5.6 Sol, Opus 4.8, Sonnet, Terra, Luna,
+   and Haiku before adding model-tier profiles. Measure success, false denials,
+   hook time, process count, and injected tokens.
 5. Do not add a dispatcher profile framework while Copilot CLI remains
    maintenance-only. Reopen that decision only through roadmap approval.
 
@@ -236,6 +265,14 @@ rescoping the existing hook set.
 - GitHub hooks reference: <https://docs.github.com/en/copilot/reference/hooks-reference>
 - Copilot CLI configuration reference:
   <https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference>
+- Controlled enabled-hook Job Object traces are uncommitted session artifacts
+  under `enabled-hook-trace`. The controlled baseline trace SHA-256 is
+  `9F0A0561DC3E0B3D884185795E8AA5B72DC4B91D48D30BCEF70EDD60D199EB98`.
+- The intermediate PR trace SHA-256 is
+  `14CF818EF800DE20A42942DD9D4555014AC7C865A6CEB827760E9AAF1B63762C`.
+- The two rescoped trace SHA-256 values are
+  `B552A3CA36132504E585CBC8321CAEB4DD538F2C9F3B8E070A00371547203C5B` and
+  `A2FD34365D01F64FEF5791A86722CC197356AE2A162E9DFD714840ED16096072`.
 - Raw Copilot CLI 1.0.70 probe logs are uncommitted session artifacts under
   session `0276d4e1-f1fd-40f7-a71f-ce0e0a51d719`. The sanitized counts,
   timestamps, byte sizes, and markers needed for this determination are recorded
