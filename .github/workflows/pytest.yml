@@ -54,6 +54,7 @@ jobs:
               - 'uv.lock'
               - 'tests/conftest.py'
               - 'scripts/memory_enhancement/**'
+              - '.github/actions/ai-review/action.yml'
               - '.github/workflows/pytest.yml'
 
       - name: Report path check result
@@ -306,3 +307,9 @@ jobs:
         env:
           UV_PYTHON: '3.14'
         run: uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -v -k "powershell"
+
+      - name: Run AI review output path contract tests
+        shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
+        run: uv run pytest tests/test_check_ai_review_infra_gate.py -v

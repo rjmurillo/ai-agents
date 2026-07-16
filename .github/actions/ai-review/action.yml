@@ -94,7 +94,7 @@ outputs:
   # Falls back to 'true' when context build fails (e.g., missing BOT_PAT for first-time contributor PRs)
   infrastructure-failure:
     description: 'Whether failure was infrastructure-related (true/false)'
-    value: ${{ steps.invoke.outputs.infrastructure_failure || steps.context.outputs.context_infra_failure || 'false' }}
+    value: ${{ steps.invoke.outputs.infrastructure_failure || steps.infra_gate.outputs.infrastructure_failure || 'false' }}
   retry-count:
     description: 'Number of retry attempts made (0 = no retries)'
     value: ${{ steps.invoke.outputs.retry_count || steps.infra_gate.outputs.retry_count }}
@@ -438,6 +438,7 @@ runs:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
         GH_TOKEN: ${{ inputs.bot-pat }}
+        AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}
         ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
         COPILOT_AGENT: ${{ inputs.agent }}
@@ -639,7 +640,7 @@ runs:
         fi
 
         # Save output
-        echo "$OUTPUT" > /tmp/ai-review-output.txt
+        echo "$OUTPUT" > "$AI_REVIEW_OUTPUT_FILE"
 
         # Set outputs (escape for GitHub Actions using heredoc)
         {
@@ -674,8 +675,10 @@ runs:
     - name: Parse output
       id: parse
       shell: bash
+      env:
+        AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}
       run: |
-        output=$(cat /tmp/ai-review-output.txt 2>/dev/null || echo "")
+        output=$(cat "$AI_REVIEW_OUTPUT_FILE" 2>/dev/null || echo "")
 
         # Extract verdict using explicit VERDICT: TOKEN pattern only
         # Fix for Issue #470: Removed fallback keyword matching that caused context contamination
