@@ -97,7 +97,7 @@ outputs:
     value: ${{ steps.invoke.outputs.infrastructure_failure || steps.context.outputs.context_infra_failure || 'false' }}
   retry-count:
     description: 'Number of retry attempts made (0 = no retries)'
-    value: ${{ steps.invoke.outputs.retry_count }}
+    value: ${{ steps.invoke.outputs.retry_count || steps.infra_gate.outputs.retry_count }}
   # Debug outputs for AI agents and humans
   full-prompt:
     description: 'Complete prompt sent to the model (for debugging)'
@@ -420,8 +420,19 @@ runs:
           echo "EOF_PROMPT"
         } >> $GITHUB_OUTPUT
 
+    - name: Check context infrastructure gate
+      id: infra_gate
+      shell: bash
+      env:
+        CONTEXT_INFRA_FAILURE: ${{ steps.context.outputs.context_infra_failure }}
+      run: python3 "$GITHUB_WORKSPACE/scripts/ci/check_ai_review_infra_gate.py"
+
     - name: Invoke Copilot CLI (with retry for infrastructure failures)
       id: invoke
+      # Skip the Copilot invocation when the Build context step reported an
+      # infrastructure failure. The gate step owns the skip decision and wrote
+      # the DID_NOT_RUN verdict file the parse step reads (ADR-006, issue #2967).
+      if: steps.infra_gate.outputs.skip != 'true'
       shell: bash
       env:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
@@ -438,20 +449,6 @@ runs:
         # (AI-REVIEW-MODEL-POLICY.md "CONTEXT_MODE Header (REQUIRED)", issue #1981).
         CONTEXT_MODE: ${{ steps.context.outputs.context_mode }}
       run: |
-        # Skip Copilot invocation if context build detected infrastructure failure
-        if [ "${{ steps.context.outputs.context_infra_failure }}" = "true" ]; then
-          echo "::warning::Skipping Copilot CLI invocation due to context build infrastructure failure"
-          echo "VERDICT: DID_NOT_RUN" > /tmp/ai-review-output.txt
-          echo "MESSAGE: AI review did not run because context build had an infrastructure failure." >> /tmp/ai-review-output.txt
-          echo "infrastructure_failure=true" >> $GITHUB_OUTPUT
-          echo "retry_count=0" >> $GITHUB_OUTPUT
-          # Exit 0 (not 1) so the downstream parse step still runs and surfaces
-          # the DID_NOT_RUN verdict as a blocking exit_code. A non-zero exit here
-          # short-circuits the job before parse, leaving verdict/exit_code empty
-          # and silently dropping the review gate (#2821).
-          exit 0
-        fi
-
         # Assemble prompt from template + context
         # Note: Agent definition is loaded automatically by Copilot CLI via --agent flag
         FULL_PROMPT=""
