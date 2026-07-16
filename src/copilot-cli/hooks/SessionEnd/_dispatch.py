@@ -15,8 +15,8 @@ from _bootstrap import ensure_plugin_paths  # noqa: E402
 # apply_patch in a long Copilot session can cross a few MiB, so this ceiling sits
 # far above real payloads; only a truly anomalous payload trips it. Below the
 # ceiling the dispatcher runs normally: an unmatched tool is allowed (exit 0) and
-# a matched guard inspects the full payload. At or above it, a gate event fails
-# closed (deny, exit 2) and an observe event allows (exit 0, never gates).
+# a matched guard inspects the full payload. Above it, a gate event fails closed
+# (deny, exit 2) and an observe event allows (exit 0, never gates).
 _MAX_STDIN_BYTES = 64 * 1024 * 1024
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
 
@@ -64,16 +64,13 @@ def _main() -> int:
             shim_timeouts[shim] = timeout_sec
         raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
         if len(raw) > _MAX_STDIN_BYTES:
-            # Payload past the genuine-anomaly ceiling (#3074, ADR-066). Report
-            # it loudly, naming the event and its registered shims from the
-            # manifest, never the payload bytes, so tool_input/args content
-            # cannot leak. A gate event fails closed (deny, exit 2); an observe
-            # event never gates (allow, exit 0). Return before run_dispatch so
-            # no shim ever sees the truncated buffer.
-            if short_circuit:
-                verdict = "denying (fail-closed)"
-            else:
-                verdict = "allowing (observe mode does not gate)"
+            # Report the anomaly without leaking payload bytes. Return before
+            # run_dispatch so no shim receives a truncated buffer.
+            verdict = (
+                "denying (fail-closed)"
+                if short_circuit
+                else "allowing (observe mode does not gate)"
+            )
             print(
                 f"hook-dispatch-entrypoint: stdin exceeds {_MAX_STDIN_BYTES} bytes "
                 f"for event {event} shims={shims}; {verdict}",

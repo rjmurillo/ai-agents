@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "build" / "scripts"))
 
 import generate_dispatcher as gd  # noqa: E402
+from generate_hooks_shim import _SHIM_BEGIN  # noqa: E402
 
 
 class TestDispatcherEntry:
@@ -47,8 +52,6 @@ class TestEmit:
         assert data["mode"] == "observe"
 
     def test_manifest_rejects_unknown_mode(self, tmp_path):
-        import pytest
-
         with pytest.raises(ValueError, match="mode must be"):
             gd.write_manifest(tmp_path, "postToolUse", ["a.py"], mode="bogus")
 
@@ -291,17 +294,15 @@ def _run_dispatch_entry(root, event_dir, payload=b'{"tool_name":"X"}'):
 _CEILING_BYTES = 64 * 1024 * 1024
 
 
-def _oversize_payload() -> bytes:
-    """A hook payload of exactly ``_CEILING_BYTES + 1`` bytes.
+def _payload_with_size(size: int) -> bytes:
+    """Return a hook payload with exactly ``size`` bytes.
 
-    Exactly one byte over the ceiling so the entrypoint's ``read(ceiling + 1)``
-    consumes the whole stream and the parent ``communicate`` never writes into a
-    closed pipe. The long ``b"P"`` run and the fake ``tool_input`` are distinctive
-    markers a no-leak assertion checks are absent from stderr and stdout.
+    The long ``b"P"`` run and fake ``tool_input`` are distinctive markers used
+    by no-leak assertions.
     """
     head = b'{"tool_name":"apply_patch","tool_input":"'
     tail = b'"}'
-    pad = b"P" * (_CEILING_BYTES + 1 - len(head) - len(tail))
+    pad = b"P" * (size - len(head) - len(tail))
     return head + pad + tail
 
 
@@ -424,6 +425,19 @@ class TestOversizeCeiling:
     allowed (observe) WITHOUT the payload bytes reaching stderr or stdout.
     """
 
+    def test_exact_ceiling_allows_unmatched_payload(self, tmp_path):
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+
+        proc = _run_dispatch_entry(
+            root,
+            event_dir,
+            _payload_with_size(_CEILING_BYTES),
+        )
+
+        assert proc.returncode == 0, proc.stderr.decode()
+        assert b"exceeds" not in proc.stderr
+
     def test_above_ceiling_gate_denies_without_leaking_payload(self, tmp_path):
         # A payload past the ceiling on a gate event fails closed (exit 2). The
         # registered shim must NOT run (entrypoint returns before run_dispatch),
@@ -439,7 +453,9 @@ class TestOversizeCeiling:
         )
         gd.emit_dispatcher(event_dir, "preToolUse", ["guard.py"], 5, mode="gate")
 
-        proc = _run_dispatch_entry(root, event_dir, _oversize_payload())
+        proc = _run_dispatch_entry(
+            root, event_dir, _payload_with_size(_CEILING_BYTES + 1)
+        )
 
         assert proc.returncode == 2, proc.stderr.decode()
         assert not ran.is_file(), "a shim ran on oversize; deny must precede dispatch"
@@ -474,7 +490,9 @@ class TestOversizeCeiling:
         proc = _run_dispatch_entry(root, event_dir, payload)
 
         assert proc.returncode == 2, proc.stderr.decode()
-        assert seen.read_text() == str(len(payload)), "guard did not see the full payload"
+        assert seen.read_text(encoding="utf-8") == str(
+            len(payload)
+        ), "guard did not see the full payload"
 
     def test_observe_allows_on_oversize(self, tmp_path):
         # An observe event never gates: an oversize payload is allowed (exit 0),
@@ -490,7 +508,9 @@ class TestOversizeCeiling:
         )
         gd.emit_dispatcher(event_dir, "postToolUse", ["obs.py"], 5, mode="observe")
 
-        proc = _run_dispatch_entry(root, event_dir, _oversize_payload())
+        proc = _run_dispatch_entry(
+            root, event_dir, _payload_with_size(_CEILING_BYTES + 1)
+        )
 
         assert proc.returncode == 0, proc.stderr.decode()
         assert not ran.is_file(), "an observer ran on oversize; allow must precede dispatch"
@@ -574,6 +594,199 @@ class TestConsolidate:
         gd.consolidate(out, hooks_dir)
         assert (hooks_dir / "SessionStart" / "_bootstrap.py").is_file()
         assert (hooks_dir / "SessionStart" / "_dispatch.py").is_file()
+
+    def test_consolidate_removes_unregistered_matcher_shims(self, tmp_path):
+        event_dir = tmp_path / "hooks" / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        active = event_dir / "guard__Bash_git_commit_123abc.py"
+        stale = event_dir / "guard__Bash_git_status_456def.py"
+        support = event_dir / "support__helper.py"
+        package = event_dir / "__init__.py"
+        active.write_text("pass\n", encoding="utf-8")
+        stale.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        support.write_text("pass\n", encoding="utf-8")
+        package.write_text("pass\n", encoding="utf-8")
+        out = {
+            "PreToolUse": [
+                {
+                    "bash": f'python3 -u "${{ROOT}}/hooks/PreToolUse/{active.name}"',
+                    "timeoutSec": 5,
+                },
+            ],
+        }
+
+        gd.consolidate(out, tmp_path / "hooks")
+
+        assert active.is_file()
+        assert not stale.exists()
+        assert support.is_file()
+        assert package.is_file()
+
+    def test_consolidate_preserves_no_regen_stale_matcher_shim(
+        self, tmp_path, capsys
+    ):
+        event_dir = tmp_path / "hooks" / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        active = event_dir / "guard__Bash_git_commit_123abc.py"
+        inline = event_dir / "guard__Bash_git_status_456def.py"
+        sidecar = event_dir / "guard__Bash_git_push_789abc.py"
+        active.write_text("pass\n", encoding="utf-8")
+        inline.write_text(f"{_SHIM_BEGIN}\n# NO-REGEN\n", encoding="utf-8")
+        sidecar.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        sidecar.with_suffix(sidecar.suffix + ".noregen").write_text(
+            "preserve\n", encoding="utf-8"
+        )
+        out = {
+            "PreToolUse": [
+                {
+                    "bash": f'python3 -u "${{ROOT}}/hooks/PreToolUse/{active.name}"',
+                    "timeoutSec": 5,
+                },
+            ],
+        }
+
+        gd.consolidate(out, tmp_path / "hooks")
+
+        notice = capsys.readouterr().out
+        assert inline.is_file()
+        assert sidecar.is_file()
+        assert inline.name in notice
+        assert sidecar.name in notice
+        assert "NO-REGEN" in notice
+
+    def test_stale_scan_rejects_parent_event_path(self, tmp_path):
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        out = {
+            "../outside": [
+                {
+                    "bash": "python3 -u /hooks/outside/guard.py",
+                    "timeoutSec": 5,
+                }
+            ]
+        }
+
+        with pytest.raises(ValueError, match="single path component"):
+            gd.consolidate(out, hooks_dir)
+        assert not (tmp_path / "outside").exists()
+
+    def test_stale_scan_rejects_symlinked_event_directory(self, tmp_path, monkeypatch):
+        hooks_dir = tmp_path / "hooks"
+        event_dir = hooks_dir / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        real_lstat = Path.lstat
+        symlink_stat = os.stat_result(
+            (stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        )
+
+        def fake_lstat(path):
+            if path == event_dir:
+                return symlink_stat
+            return real_lstat(path)
+
+        monkeypatch.setattr(Path, "lstat", fake_lstat)
+
+        with pytest.raises(ValueError, match="symlinked event directory"):
+            gd.find_stale_matcher_shims(
+                event_dir,
+                ["guard.py"],
+                hooks_root=hooks_dir.resolve(),
+            )
+
+    def test_stale_scan_rejects_symlinked_candidate(self, tmp_path, monkeypatch):
+        hooks_dir = tmp_path / "hooks"
+        event_dir = hooks_dir / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        candidate = event_dir / "guard__Bash_git_status_deadbeef.py"
+        candidate.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        real_lstat = Path.lstat
+        symlink_stat = os.stat_result(
+            (stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        )
+
+        def fake_lstat(path):
+            if path == candidate:
+                return symlink_stat
+            return real_lstat(path)
+
+        monkeypatch.setattr(Path, "lstat", fake_lstat)
+
+        with pytest.raises(ValueError, match="symlinked hook candidate"):
+            gd.find_stale_matcher_shims(
+                event_dir,
+                ["guard.py"],
+                hooks_root=hooks_dir.resolve(),
+            )
+
+    def test_stale_scan_preserves_case_only_active_name(
+        self, tmp_path, monkeypatch
+    ):
+        hooks_dir = tmp_path / "hooks"
+        event_dir = hooks_dir / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        active = event_dir / "Guard__Bash_git_commit_123abc.py"
+        active.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        monkeypatch.setattr(gd, "_CASE_INSENSITIVE_SHIM_NAMES", True)
+
+        assert (
+            gd.find_stale_matcher_shims(
+                event_dir,
+                ["guard__Bash_git_commit_123abc.py"],
+                hooks_root=hooks_dir.resolve(),
+            )
+            == []
+        )
+        assert active.is_file()
+
+    @pytest.mark.parametrize("failure_site", ["scan", "read", "unlink"])
+    def test_consolidate_propagates_cleanup_filesystem_errors(
+        self, tmp_path, monkeypatch, failure_site
+    ):
+        event_dir = tmp_path / "hooks" / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        active = event_dir / "guard__Bash_git_commit_123abc.py"
+        stale = event_dir / "guard__Bash_git_status_456def.py"
+        active.write_text("pass\n", encoding="utf-8")
+        stale.write_text(f"{_SHIM_BEGIN}\n", encoding="utf-8")
+        out = {
+            "PreToolUse": [
+                {
+                    "bash": f'python3 -u "${{ROOT}}/hooks/PreToolUse/{active.name}"',
+                    "timeoutSec": 5,
+                },
+            ],
+        }
+
+        if failure_site == "scan":
+            original = Path.iterdir
+
+            def fail_scan(path):
+                if path == event_dir:
+                    raise OSError("scan failed")
+                return original(path)
+
+            monkeypatch.setattr(Path, "iterdir", fail_scan)
+        elif failure_site == "read":
+            original = Path.read_text
+
+            def fail_read(path, *args, **kwargs):
+                if path == stale:
+                    raise OSError("read failed")
+                return original(path, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "read_text", fail_read)
+        else:
+            original = Path.unlink
+
+            def fail_unlink(path, *args, **kwargs):
+                if path == stale:
+                    raise OSError("unlink failed")
+                return original(path, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "unlink", fail_unlink)
+
+        with pytest.raises(OSError, match=f"{failure_site} failed"):
+            gd.consolidate(out, tmp_path / "hooks")
 
     def test_consolidate_passes_through_event_with_no_shims(self, tmp_path):
         # An entry with no parseable shim path (e.g. a verbatim shell snippet)
