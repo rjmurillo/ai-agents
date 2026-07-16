@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Full suite passed 14423 tests with 21 skipped and 45 expected failures; pre_pr.py, Ruff, mypy, generation checks, live Copilot hook smoke, code review, and security review passed"
+        "Evidence": "Full suite passed 14423 tests; pre_pr.py, Ruff, mypy, generation checks, live Copilot hook smoke, code review, and security review passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
