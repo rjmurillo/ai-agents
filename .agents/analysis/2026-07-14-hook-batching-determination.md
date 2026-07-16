@@ -132,9 +132,8 @@ The enabled probe added this temporary repository hook in the trusted worktree:
 
 Both runs used the same worktree, prompt, plugin directory, and CLI flags:
 
-```text
-copilot --plugin-dir src\copilot-cli --log-dir <DIR> --log-level all \
-  -p "Reply PROBE." --allow-all-tools
+```powershell
+copilot --plugin-dir src\copilot-cli --log-dir <DIR> --log-level all -p "Reply PROBE." --allow-all-tools
 ```
 
 The disabled run added only `{"disableAllHooks": true}` to

@@ -454,25 +454,20 @@ def get_safe_project_path(project_dir: str) -> Path | None:
     if SAFE_BASE_DIR == _FAILED_PROJECT_ROOT:
         return None
     try:
-        # Determine candidate safe root from the validated worktree.
-        root_raw = os.getenv("CLAUDE_PROJECT_ROOT", str(SAFE_BASE_DIR))
-
-        # Convert environment-provided root to a safe root within SAFE_BASE_DIR.
-        # This encapsulates all handling of potentially tainted path strings.
-        safe_root = _get_safe_root_from_env(root_raw)
-
         resolved_project = Path(project_dir).resolve()
     except OSError:
         # If resolution fails for any reason, treat as unsafe
         return None
 
-    # Python 3.9+ has is_relative_to; fall back to relative_to otherwise
+    # Validate project_dir is within SAFE_BASE_DIR (the Git worktree root).
+    # Previously this used CLAUDE_PROJECT_ROOT which could be a subdirectory,
+    # causing the check to fail when project_dir was the worktree root itself.
     if hasattr(resolved_project, "is_relative_to"):
-        if not resolved_project.is_relative_to(safe_root):
+        if not resolved_project.is_relative_to(SAFE_BASE_DIR):
             return None
     else:
         try:
-            resolved_project.relative_to(safe_root)
+            resolved_project.relative_to(SAFE_BASE_DIR)
         except ValueError:
             return None
 
