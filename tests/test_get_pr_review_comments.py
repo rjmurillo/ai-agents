@@ -22,8 +22,8 @@ _SCRIPTS_DIR = (
 )
 
 
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
+def _import_script(name: str, script_path: Path):
+    spec = importlib.util.spec_from_file_location(name, script_path)
     assert spec is not None
     assert spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
@@ -32,10 +32,25 @@ def _import_script(name: str):
     return mod
 
 
-_mod = _import_script("get_pr_review_comments")
+_mod = _import_script(
+    "get_pr_review_comments",
+    _SCRIPTS_DIR / "get_pr_review_comments.py",
+)
+_copilot_mod = _import_script(
+    "copilot_get_pr_review_comments",
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "github"
+    / "scripts"
+    / "pr"
+    / "get_pr_review_comments.py",
+)
 main = _mod.main
 build_parser = _mod.build_parser
 classify_reviewer_priority = _mod.classify_reviewer_priority
+copilot_classify_reviewer_priority = _copilot_mod.classify_reviewer_priority
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +346,18 @@ class TestClassifyReviewerPriority:
     def test_bot_by_type_only_is_unknown(self):
         assert classify_reviewer_priority("mystery", "Bot") == "Unknown"
 
+    @pytest.mark.parametrize(
+        ("author", "author_type", "expected"),
+        [
+            ("copilot-pull-request-reviewer[bot]", "Bot", "P2"),
+            ("copilot-pull-request-reviewer", "User", "P2"),
+            ("", "", "Unknown"),
+            ("", "User", "Unknown"),
+        ],
+    )
+    def test_copilot_mirror_reviewer_priorities(self, author, author_type, expected):
+        assert copilot_classify_reviewer_priority(author, author_type) == expected
+
 
 # ---------------------------------------------------------------------------
 # Tests: --group-by-reviewer-priority output mode
@@ -410,6 +437,19 @@ class TestGroupByReviewerPriority:
         assert out["Unknown"][0]["Author"] == "randobot[bot]"
         assert out["ReviewerPriorityCounts"]["Unknown"] == 1
         assert out["P0"] == []
+
+    def test_deleted_account_uses_unknown_bucket(self, capsys):
+        review = [_review_comment(1, "deleted-user", "Just a passing note")]
+        review[0]["user"] = None
+
+        rc = _run_main(
+            ["--pull-request", "1", "--group-by-reviewer-priority"], review=review
+        )
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Unknown"][0]["Author"] == ""
+        assert out["ReviewerPriorityCounts"]["Unknown"] == 1
+        assert out["P1"] == []
 
     def test_pagination_places_every_comment(self, capsys):
         review = [
