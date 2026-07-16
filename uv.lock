@@ -33,7 +33,12 @@ eval = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "bandit", extra = ["sarif"] },
+    { name = "mypy" },
+    { name = "pip-audit" },
+    { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -54,7 +59,14 @@ requires-dist = [
 provides-extras = ["dev", "eval"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest-cov", specifier = ">=7.1.0" }]
+dev = [
+    { name = "bandit", extras = ["sarif"], specifier = ">=1.9.4" },
+    { name = "mypy", specifier = ">=2.1.0" },
+    { name = "pip-audit", specifier = ">=2.10.0" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.15.16" },
+]
 
 [[package]]
 name = "annotated-types"
