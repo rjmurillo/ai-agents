@@ -111,11 +111,16 @@ def scan_text(text: str) -> list[RunBlock]:
         key_indent = len(match.group("indent"))
         body, nxt = _body_lines(lines, i, key_indent)
         body_text = "\n".join(body)
+        # Filter out comments and blank lines before logic detection to avoid
+        # false positives from keywords appearing only in comment text.
+        code_only_text = "\n".join(
+            line for line in body if line.strip() and not line.strip().startswith("#")
+        )
         blocks.append(
             RunBlock(
                 line=i + 1,
                 code_lines=_count_code_lines(body),
-                has_logic=bool(_LOGIC.search(body_text)),
+                has_logic=bool(_LOGIC.search(code_only_text)),
                 body=body_text,
             )
         )
