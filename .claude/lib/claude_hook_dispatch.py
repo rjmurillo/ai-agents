@@ -160,6 +160,12 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes) -> _ShimOutcome:
     capture = io.TextIOWrapper(raw_buffer, encoding="utf-8", errors="replace")
     saved_stdout = sys.stdout
     sys.stdout = capture
+    # Standalone execution puts the script's own directory at sys.path[0],
+    # which shims with sibling companion modules rely on (e.g.
+    # Stop/invoke_skill_learning.py importing skill_pattern_loader). runpy
+    # does not, so restore that contract for the shim's run.
+    shim_dir = str(shim_path.parent)
+    sys.path.insert(0, shim_dir)
     try:
         runpy.run_path(str(shim_path), run_name="__main__")
         code = ALLOW_EXIT
@@ -175,6 +181,13 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes) -> _ShimOutcome:
         return _ShimOutcome(exit_code=BLOCK_EXIT, raw_stdout="")
     finally:
         sys.stdout = saved_stdout
+        if sys.path and sys.path[0] == shim_dir:
+            sys.path.pop(0)
+        else:
+            try:
+                sys.path.remove(shim_dir)
+            except ValueError:
+                pass
     capture.flush()
     raw = raw_buffer.getvalue().decode("utf-8", errors="replace")
     context, decision, recognized = _classify_stdout(raw)

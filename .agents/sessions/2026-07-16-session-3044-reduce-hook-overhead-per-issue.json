@@ -168,8 +168,22 @@
       "timestamp": "2026-07-16T09:08:00Z",
       "summary": "Registration tests for pr_description_guard and session_log_field_guard resolve through dispatch groups; e2e smoke mechanism probe committed.",
       "evidence": "pytest 16 passed 1 skipped on smoke; 78 passed targeted"
+    },
+    {
+      "timestamp": "2026-07-16T09:45:00Z",
+      "summary": "Rebase onto merged main surfaced a strategy conflict: the merged 3076 squash contains post-fork remote work (narrow case-insensitive host matchers per Bash guard giving 0-spawn common case, plus a generator transaction/rollback module with 1115 new test lines). The mechanical rebase resolutions clobbered that work; 24 generator tests fail. Branch parked unpushed; pre-rebase state preserved as perf/claude-hook-dispatch-prerebase; PR 3105 open but branch not pushed.",
+      "evidence": "git diff 987e35fd..8c0d7287 shows 2350-line generator delta; pytest 24 failed on tests/build_scripts/test_generate_hooks.py"
+    },
+    {
+      "timestamp": "2026-07-16T10:00:00Z",
+      "summary": "Live Stop-gate catch: runpy omits the shim directory from sys.path, breaking sibling companion imports (skill_pattern_loader). Runner now prepends the shim dir for the run and removes it after; regression test added; real stop group probe exits 0.",
+      "evidence": "pytest 33 passed on tests/hooks/test_claude_hook_dispatch.py; invoke_dispatch_claude.py --group stop exit 0"
     }
   ],
   "endingCommit": "",
-  "nextSteps": []
+  "nextSteps": [
+    "Synthesize both strategies: keep main narrow per-guard matchers for Bash singles (0-spawn common case beats 1-spawn dispatcher); group ONLY where multiple hooks share one matcher (git-commit chain, git-push chain, UserPromptSubmit, SessionStart, Stop, Write/Edit pre+post) plus plugin self-host dedupe and Copilot matcher union",
+    "Restore origin/main versions of generate_dispatcher.py, generate_hooks_events.py, settings.json, hooks.json, serena memory copilot-disable-all-hooks-windows.md; re-apply matcher-union and expansion patches onto main versions; rebuild dispatch_groups.json from main final settings",
+    "Regenerate copilot tree with main generator; rerun full suite; push (counters now clean vs main); PR 3105 already open (base main)"
+  ]
 }

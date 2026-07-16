@@ -228,6 +228,25 @@ def test_stdout_buffer_writes_are_captured(tmp_path, capsys):
     assert "bytes note" in json.loads(out)["hookSpecificOutput"]["additionalContext"]
 
 
+def test_shim_can_import_sibling_companion_module(tmp_path, capsys):
+    # Standalone execution puts the script's directory on sys.path[0];
+    # the dispatcher must preserve that contract or shims with sibling
+    # companions (Stop/invoke_skill_learning.py + skill_pattern_loader)
+    # fail with ModuleNotFoundError and block the event (observed live).
+    _write_shim(tmp_path, "Sub/companion_mod.py", "VALUE = 'companion-ok'\n")
+    shims = [
+        _write_shim(
+            tmp_path,
+            "Sub/owner.py",
+            "import companion_mod\nprint(companion_mod.VALUE)\n",
+        )
+    ]
+    code, out, _ = _run(capsys, tmp_path, "Stop", chd.GATE_ALL, shims)
+    assert code == 0
+    assert "companion-ok" in out
+    assert str(tmp_path / "Sub") not in sys.path
+
+
 def test_stdin_restored_after_run(tmp_path, capsys):
     saved = sys.stdin
     shims = [_write_shim(tmp_path, "a.py", "pass")]

@@ -125,14 +125,46 @@
       "content": "pytest 16 passed 1 skipped on smoke; 78 passed targeted",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebase onto merged main surfaced a strategy conflict: the merged 3076 squash contains post-fork remote work (narrow case-insensitive host matchers per Bash guard giving 0-spawn common case, plus a generator transaction/rollback module with 1115 new test lines). The mechanical rebase resolutions clobbered that work; 24 generator tests fail. Branch parked unpushed; pre-rebase state preserved as perf/claude-hook-dispatch-prerebase; PR 3105 open but branch not pushed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "error",
+      "content": "Rebase onto merged main surfaced a strategy conflict: the merged 3076 squash contains post-fork remote work (narrow case-insensitive host matchers per Bash guard giving 0-spawn common case, plus a generator transaction/rollback module with 1115 new test lines). The mechanical rebase resolutions clobbered that work; 24 generator tests fail. Branch parked unpushed; pre-rebase state preserved as perf/claude-hook-dispatch-prerebase; PR 3105 open but branch not pushed.    git diff 987e35fd..8c0d7287 shows 2350-line generator delta; pytest 24 failed on tests/build_scripts/test_generate_hooks.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Live Stop-gate catch: runpy omits the shim directory from sys.path, breaking sibling companion imports (skill_pattern_loader). Runner now prepends the shim dir for the run and removes it after; regression test added; real stop group probe exits 0.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest 33 passed on tests/hooks/test_claude_hook_dispatch.py; invoke_dispatch_claude.py --group stop exit 0",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 24,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 2,
     "files_changed": 10
   },
   "lessons": []
