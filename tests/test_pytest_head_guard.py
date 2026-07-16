@@ -30,7 +30,7 @@ def _load_root_conftest():
 
 def test_real_repo_head_unsets_git_environment_overrides(monkeypatch):
     module = _load_root_conftest()
-    captured: dict[str, dict[str, str]] = {}
+    captured: dict[str, dict[str, object]] = {}
 
     monkeypatch.setenv("GIT_DIR", "wrong")
     monkeypatch.setenv("GIT_WORK_TREE", "wrong")
@@ -53,9 +53,11 @@ def test_real_repo_head_unsets_git_environment_overrides(monkeypatch):
 
     assert module._real_repo_head() == "abc123"
     kwargs = captured["kwargs"]
-    assert kwargs["env"]["GIT_AUTHOR_NAME"] == "kept"
+    env = kwargs["env"]
+    assert isinstance(env, dict)
+    assert env["GIT_AUTHOR_NAME"] == "kept"
     for key in module._GIT_ENV_OVERRIDES | set(module._TRACE_ENV_NAMES):
-        assert key not in kwargs["env"]
+        assert key not in env
     assert kwargs["encoding"] == "utf-8"
     assert kwargs["errors"] == "replace"
     assert "text" not in kwargs
