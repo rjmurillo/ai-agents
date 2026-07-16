@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and memory changes are committed through 9ad574f4f; the session log and PR handoff form the atomic closeout commit. Pre-existing retrospective and graph artifacts remain outside this session scope."
+        "Evidence": "Implementation changes are committed through 53afb0f25; the session log, memory, and PR handoff form the closeout commit. Pre-existing retrospective and graph artifacts remain outside this session scope."
       },
       "validationPassed": {
         "level": "MUST",
@@ -154,11 +154,19 @@
     {
       "time": "T8",
       "entry": "Ran the exact pre-PR command, diagnosed its bare-interpreter import-path failure, and reran with the repository root on PYTHONPATH. The authoritative rerun passed 29 validations with 4 expected skips and no failures."
+    },
+    {
+      "time": "T9",
+      "entry": "Confirmed a newly surfaced review finding: off-tree dispatcher consolidation scanned the empty staging directory and could not remove stale generated shims from the published event directory."
+    },
+    {
+      "time": "T10",
+      "entry": "Moved published stale-shim deletion into HookGenerationTransaction with POSIX and Windows rollback behavior, preserved the immutable first backup across publish-then-delete sequences, and added successful cleanup, NO-REGEN, rollback, missing-target, duplicate-target, and partial-failure tests. The generator and dispatcher suites passed 171 tests with 1 platform skip; runtime-contract suites passed 7 tests; Ruff, CWE-78 scanning, regeneration, and drift checks passed."
     }
   ],
-  "endingCommit": "9ad574f4f",
+  "endingCommit": "53afb0f25",
   "nextSteps": [
-    "Push the reconciled branch without force and resolve the two duplicate review threads.",
+    "Push the reconciled branch without force and resolve the final stale-cleanup review thread.",
     "Verify a stable zero unresolved-thread count and green required checks, then merge PR 3076."
   ]
 }

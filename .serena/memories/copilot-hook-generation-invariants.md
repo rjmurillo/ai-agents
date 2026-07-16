@@ -17,6 +17,14 @@ also propagate scan, read, and unlink failures; silently accepting a partial
 cleanup can ship stale hook behavior. Protected stale shims remain in place and
 the generator emits a notice naming the protection reason.
 
+When dispatcher artifacts are staged off-tree, stale candidates must be
+discovered in the published event directory rather than the empty staging
+directory. Their deletion belongs to the same `HookGenerationTransaction` as
+script, dispatcher, and configuration publication so a later failure restores
+the stale shim. On Windows, a fresh deletion moves the original file object
+into the journal to preserve metadata; a target already backed up in the same
+transaction is unlinked without replacing the immutable first backup.
+
 ## Cross-platform tests
 
 Windows publish simulations must initialize the hook-generation transaction
@@ -32,8 +40,10 @@ directory as verified.
 ## Evidence
 
 PR 3076 session 3045 covered the cleanup contract with positive, protected,
-and filesystem-error cases. The focused suites passed 53 tests, and the full
-suite passed 14,284 tests with 20 skips and 45 expected failures.
+filesystem-error, transaction rollback, and Windows journal cases. The final
+generator and dispatcher suites passed 171 tests with 1 platform skip, and the
+full suite passed 14,284 tests with 20 skips and 45 expected failures before
+the final scoped correction.
 
 ## Related
 
