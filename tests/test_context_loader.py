@@ -102,13 +102,19 @@ class TestUtf8ProtocolOutput:
         assert stream.write_calls == 1
         assert stream.buffer.getvalue() == b""
 
-    def test_uses_binary_buffer_when_stdout_cannot_reconfigure(self, monkeypatch) -> None:
+    @pytest.mark.parametrize(
+        "error_type",
+        [io.UnsupportedOperation, TypeError, ValueError],
+    )
+    def test_uses_binary_buffer_when_stdout_cannot_reconfigure(
+        self, monkeypatch, error_type
+    ) -> None:
         class NonReconfigurableStream:
             def __init__(self) -> None:
                 self.buffer = io.BytesIO()
 
             def reconfigure(self, **_kwargs: object) -> None:
-                raise io.UnsupportedOperation("fixed encoding")
+                raise error_type("fixed encoding")
 
         stream = NonReconfigurableStream()
         monkeypatch.setattr(sys, "stdout", stream)

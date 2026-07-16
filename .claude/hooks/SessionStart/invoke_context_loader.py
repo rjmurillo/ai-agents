@@ -261,7 +261,13 @@ def _emit_utf8(text: str) -> None:
     if callable(reconfigure):
         try:
             reconfigure(encoding="utf-8", errors="strict", newline="\n")
-        except (AttributeError, io.UnsupportedOperation, OSError):
+        except (
+            AttributeError,
+            TypeError,
+            ValueError,
+            io.UnsupportedOperation,
+            OSError,
+        ):
             pass
         else:
             stream.write(text + "\n")
