@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -320,6 +321,204 @@ def build_causal_chains(episode: dict[str, Any]) -> list[dict[str, Any]]:
     return chains
 
 
+def collect_contributions(
+    episode: dict[str, Any],
+) -> tuple[
+    list[tuple[str, str]],
+    list[tuple[str, str, str, str, str, float]],
+    list[tuple[str, str, str, str, float]],
+]:
+    """Derive the nodes, edges, and patterns an episode currently produces.
+
+    Single source of truth for an episode's contribution set. ``process_episode``
+    feeds both the add path and the stale-prune keep-set from this one
+    derivation so the two cannot drift. A keep-set built from a separate mirror
+    of this logic would miss a label form (the decision loop and the chain
+    endpoints label the same decision differently) and strip ``episode_id`` from
+    a node the episode still supports.
+
+    Node tuple is ``(type, label)``; edge tuple is
+    ``(from_type, from_label, to_type, to_label, edge_type, weight)``; pattern
+    tuple is ``(name, description, trigger, action, success_rate)``.
+    """
+    nodes: list[tuple[str, str]] = []
+    for decision in episode.get("decisions", []):
+        node_label = f"{decision.get('type', 'unknown')}: {decision.get('chosen', '')}"
+        nodes.append(("decision", node_label))
+    for event in episode.get("events", []):
+        event_type = event.get("type", "unknown")
+        nodes.append((event_type, f"{event_type}: {event.get('content', '')}"))
+    outcome_label = f"Outcome: {episode.get('outcome', 'unknown')} - {episode.get('task', '')}"
+    nodes.append(("outcome", outcome_label))
+
+    edges: list[tuple[str, str, str, str, str, float]] = []
+    for chain in build_causal_chains(episode):
+        edges.append((
+            chain["from_type"], chain["from_label"],
+            chain["to_type"], chain["to_label"],
+            chain["edge_type"], chain["weight"],
+        ))
+
+    patterns: list[tuple[str, str, str, str, float]] = []
+    for pat in get_decision_patterns(episode):
+        success_rate = 1.0 if pat["success"] else 0.0
+        patterns.append((
+            pat["name"], pat["description"], pat["trigger"],
+            pat["action"], success_rate,
+        ))
+    return nodes, edges, patterns
+
+
+def _remove_from_elements(
+    elements: list[dict[str, Any]],
+    episode_id: str,
+    keep_keys: frozenset[Any],
+    key_of: Callable[[dict[str, Any]], Any],
+    count_field: str | None,
+) -> tuple[list[dict[str, Any]], int]:
+    """Strip ``episode_id`` from elements whose key is not in ``keep_keys``.
+
+    An element supported only by this episode is dropped. One with other
+    supporting episodes keeps its averaged ``weight``/``success_rate`` and
+    decrements ``count_field``. Leaving the average is exact under the generator
+    invariant that every episode contributes an identical value to a given key:
+    chain type fixes an edge's node-type prefixes and weight (0.8 for
+    error->recovery, 0.6 for decision->outcome), and a pattern name encodes its
+    success_rate (1.0 for ``pattern``, 0.0 for ``anti-pattern``). Returns
+    ``(survivors, removed_count)``.
+    """
+    survivors: list[dict[str, Any]] = []
+    removed = 0
+    for element in elements:
+        episodes = element.get("episodes", [])
+        if episode_id not in episodes or key_of(element) in keep_keys:
+            survivors.append(element)
+            continue
+        remaining = [e for e in episodes if e != episode_id]
+        if not remaining:
+            removed += 1
+            continue
+        element["episodes"] = remaining
+        if count_field is not None:
+            current = int(element.get(count_field, element.get("count", len(episodes))))
+            element[count_field] = max(len(remaining), current - 1)
+            element.pop("count", None)
+        survivors.append(element)
+    return survivors, removed
+
+
+def remove_episode_contributions(
+    graph: dict[str, Any],
+    episode_id: str,
+    *,
+    keep_node_ids: frozenset[str] = frozenset(),
+    keep_edge_keys: frozenset[tuple[str, str]] = frozenset(),
+    keep_pattern_names: frozenset[str] = frozenset(),
+) -> dict[str, int]:
+    """Remove an episode's stale contributions from the graph.
+
+    Elements whose key is in a keep-set are left intact (the episode still
+    produces them). Empty keep-sets remove every trace of the episode, the
+    prune path for a deleted episode (issue #3039). Returns per-kind removed
+    counts.
+    """
+    nodes, nodes_removed = _remove_from_elements(
+        graph["nodes"], episode_id, keep_node_ids, lambda n: n["id"], None,
+    )
+    edges, edges_removed = _remove_from_elements(
+        graph["edges"], episode_id, keep_edge_keys,
+        lambda e: (e["source"], e["target"]), "evidence_count",
+    )
+    patterns, patterns_removed = _remove_from_elements(
+        graph["patterns"], episode_id, keep_pattern_names,
+        lambda p: p["name"], "occurrences",
+    )
+    graph["nodes"] = nodes
+    graph["edges"] = edges
+    graph["patterns"] = patterns
+    return {
+        "nodes": nodes_removed,
+        "edges": edges_removed,
+        "patterns": patterns_removed,
+    }
+
+
+def process_episode(
+    graph: dict[str, Any],
+    episode: dict[str, Any],
+    episode_id: str,
+    dry_run: bool,
+) -> dict[str, int]:
+    """Apply one episode with replace semantics: prune stale, then re-add.
+
+    Reprocessing an edited episode drops the nodes, edges, and patterns it no
+    longer produces (issue #3039 edit-shrinks case) while leaving unchanged
+    elements byte-stable (issue #3034 idempotency: nothing is pruned and every
+    add is a no-op). Returns stat deltas.
+    """
+    nodes, edges, patterns = collect_contributions(episode)
+
+    zero = {
+        "nodes_added": 0, "edges_added": 0, "patterns_added": 0,
+        "nodes_removed": 0, "edges_removed": 0, "patterns_removed": 0,
+    }
+    if dry_run:
+        for _node_type, label in nodes:
+            print(f"  [DRY] Would add node: {label}", file=sys.stderr)
+        for _ft, from_label, _tt, to_label, edge_type, _weight in edges:
+            print(
+                f"  [DRY] Would add edge: {from_label} "
+                f"--[{edge_type}]--> {to_label}",
+                file=sys.stderr,
+            )
+        for name, *_rest in patterns:
+            print(f"  [DRY] Would add pattern: {name}", file=sys.stderr)
+        return zero
+
+    keep_node_ids = {generate_node_id(node_type, label) for node_type, label in nodes}
+    for from_type, from_label, to_type, to_label, _et, _w in edges:
+        keep_node_ids.add(generate_node_id(from_type, from_label))
+        keep_node_ids.add(generate_node_id(to_type, to_label))
+    keep_edge_keys = {
+        (generate_node_id(ft, fl), generate_node_id(tt, tl))
+        for ft, fl, tt, tl, _et, _w in edges
+    }
+    keep_pattern_names = {name for name, *_rest in patterns}
+
+    removed = remove_episode_contributions(
+        graph, episode_id,
+        keep_node_ids=frozenset(keep_node_ids),
+        keep_edge_keys=frozenset(keep_edge_keys),
+        keep_pattern_names=frozenset(keep_pattern_names),
+    )
+
+    stats = {
+        "nodes_added": 0, "edges_added": 0, "patterns_added": 0,
+        "nodes_removed": removed["nodes"],
+        "edges_removed": removed["edges"],
+        "patterns_removed": removed["patterns"],
+    }
+    for node_type, label in nodes:
+        if add_causal_node(graph, node_type, label, episode_id):
+            stats["nodes_added"] += 1
+    for from_type, from_label, to_type, to_label, edge_type, weight in edges:
+        from_node = add_causal_node(graph, from_type, from_label, episode_id)
+        to_node = add_causal_node(graph, to_type, to_label, episode_id)
+        if from_node and to_node:
+            edge = add_causal_edge(
+                graph, from_node["id"], to_node["id"],
+                edge_type, weight, episode_id,
+            )
+            if edge:
+                stats["edges_added"] += 1
+    for name, description, trigger, action, success_rate in patterns:
+        if add_pattern(
+            graph, name, description, trigger, action, success_rate, episode_id,
+        ):
+            stats["patterns_added"] += 1
+    return stats
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Update the causal graph from episode data.",
@@ -340,49 +539,106 @@ def build_parser() -> argparse.ArgumentParser:
         "--graph-path", type=Path, default=None,
         help="Path to causal graph JSON file",
     )
+    parser.add_argument(
+        "--deleted-episode-id", action="append", default=None, metavar="ID",
+        help="Episode id whose contributions to prune (repeatable). Use when "
+             "an episode file was deleted so its stale nodes, edges, and "
+             "patterns are removed from the graph.",
+    )
     return parser
+
+
+def _resolve_path(candidate: Path | None, default: Path) -> Path | None:
+    """Resolve a user-supplied path, rejecting traversal. None means unsafe."""
+    if candidate is None:
+        return default
+    if ".." in candidate.parts:
+        return None
+    return candidate.resolve()
+
+
+def _apply_episode_files(
+    graph: dict[str, Any],
+    episode_files: list[Path],
+    dry_run: bool,
+    stats: dict[str, int],
+) -> None:
+    """Process each episode file with replace semantics, folding in stats."""
+    for file_path in episode_files:
+        print(f"\nProcessing: {file_path.name}", file=sys.stderr)
+        try:
+            episode = json.loads(file_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            print(
+                f"WARNING: Failed to process episode file '{file_path}': {e}",
+                file=sys.stderr,
+            )
+            continue
+        episode_id = episode.get("id", file_path.stem)
+        deltas = process_episode(graph, episode, episode_id, dry_run)
+        for key, value in deltas.items():
+            stats[key] += value
+        stats["episodes_processed"] += 1
+
+
+def _apply_deletions(
+    graph: dict[str, Any],
+    deleted_ids: list[str],
+    dry_run: bool,
+    stats: dict[str, int],
+) -> None:
+    """Prune every deleted episode's contributions, folding in stats."""
+    for deleted_id in deleted_ids:
+        print(f"\nPruning deleted episode: {deleted_id}", file=sys.stderr)
+        if dry_run:
+            print(
+                f"  [DRY] Would prune contributions from {deleted_id}",
+                file=sys.stderr,
+            )
+            continue
+        removed = remove_episode_contributions(graph, deleted_id)
+        stats["nodes_removed"] += removed["nodes"]
+        stats["edges_removed"] += removed["edges"]
+        stats["patterns_removed"] += removed["patterns"]
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    # Determine paths
     script_dir = Path(__file__).resolve().parent
     base_path = script_dir.parent.parent.parent.parent
-
-    if args.episode_path:
-        if ".." in args.episode_path.parts:
-            msg = "Security: path must not contain traversal sequences."
-            print(msg, file=sys.stderr)
-            return 2
-        episode_path = args.episode_path.resolve()
-    else:
-        episode_path = base_path / ".agents" / "memory" / "episodes"
-
-    if args.graph_path:
-        if ".." in args.graph_path.parts:
-            msg = "Security: path must not contain traversal sequences."
-            print(msg, file=sys.stderr)
-            return 2
-        graph_path = args.graph_path.resolve()
-    else:
-        graph_path = base_path / ".agents" / "memory" / "causality" / "causal-graph.json"
+    episode_path = _resolve_path(
+        args.episode_path, base_path / ".agents" / "memory" / "episodes",
+    )
+    graph_path = _resolve_path(
+        args.graph_path,
+        base_path / ".agents" / "memory" / "causality" / "causal-graph.json",
+    )
+    if episode_path is None or graph_path is None:
+        print(
+            "Security: path must not contain traversal sequences.",
+            file=sys.stderr,
+        )
+        return 2
 
     print("Updating causal graph...", file=sys.stderr)
 
     if args.dry_run:
         print("[DRY RUN] No changes will be made", file=sys.stderr)
 
-    # Get episode files
     episode_files = get_episode_files(episode_path, args.since)
+    deleted_ids = args.deleted_episode_id or []
 
-    if not episode_files:
+    if not episode_files and not deleted_ids:
         print("No episode files found to process.", file=sys.stderr)
         return 0
 
-    print(f"Found {len(episode_files)} episode(s) to process", file=sys.stderr)
+    print(
+        f"Found {len(episode_files)} episode(s) to process, "
+        f"{len(deleted_ids)} deletion(s)",
+        file=sys.stderr,
+    )
 
-    # Load existing graph
     graph = load_causal_graph(graph_path)
 
     stats = {
@@ -390,94 +646,13 @@ def main(argv: list[str] | None = None) -> int:
         "nodes_added": 0,
         "edges_added": 0,
         "patterns_added": 0,
+        "nodes_removed": 0,
+        "edges_removed": 0,
+        "patterns_removed": 0,
     }
 
-    for file_path in episode_files:
-        print(f"\nProcessing: {file_path.name}", file=sys.stderr)
-
-        try:
-            content = file_path.read_text(encoding="utf-8")
-            episode = json.loads(content)
-        except (json.JSONDecodeError, OSError) as e:
-            print(
-                f"WARNING: Failed to process episode file '{file_path}': {e}",
-                file=sys.stderr,
-            )
-            continue
-
-        episode_id = episode.get("id", file_path.stem)
-
-        # Add decision nodes
-        for decision in episode.get("decisions", []):
-            node_label = f"{decision.get('type', 'unknown')}: {decision.get('chosen', '')}"
-            if not args.dry_run:
-                node = add_causal_node(graph, "decision", node_label, episode_id)
-                if node:
-                    stats["nodes_added"] += 1
-            else:
-                print(f"  [DRY] Would add node: {node_label}", file=sys.stderr)
-
-        # Add event nodes
-        for event in episode.get("events", []):
-            node_label = f"{event.get('type', 'unknown')}: {event.get('content', '')}"
-            if not args.dry_run:
-                node = add_causal_node(
-                    graph, event.get("type", "unknown"), node_label, episode_id,
-                )
-                if node:
-                    stats["nodes_added"] += 1
-            else:
-                print(f"  [DRY] Would add node: {node_label}", file=sys.stderr)
-
-        # Add outcome node
-        outcome_label = f"Outcome: {episode.get('outcome', 'unknown')} - {episode.get('task', '')}"
-        if not args.dry_run:
-            outcome_node = add_causal_node(graph, "outcome", outcome_label, episode_id)
-            if outcome_node:
-                stats["nodes_added"] += 1
-
-        # Build and add causal chains
-        chains = build_causal_chains(episode)
-        for chain in chains:
-            if not args.dry_run:
-                from_node = add_causal_node(
-                    graph, chain["from_type"], chain["from_label"], episode_id,
-                )
-                to_node = add_causal_node(
-                    graph, chain["to_type"], chain["to_label"], episode_id,
-                )
-                if from_node and to_node:
-                    edge = add_causal_edge(
-                        graph, from_node["id"], to_node["id"],
-                        chain["edge_type"], chain["weight"], episode_id,
-                    )
-                    if edge:
-                        stats["edges_added"] += 1
-            else:
-                print(
-                    f"  [DRY] Would add edge: {chain['from_label']} "
-                    f"--[{chain['edge_type']}]--> {chain['to_label']}",
-                    file=sys.stderr,
-                )
-
-        # Extract and add patterns
-        patterns = get_decision_patterns(episode)
-        for pat in patterns:
-            success_rate = 1.0 if pat["success"] else 0.0
-            if not args.dry_run:
-                p = add_pattern(
-                    graph, pat["name"], pat["description"],
-                    pat["trigger"], pat["action"], success_rate, episode_id,
-                )
-                if p:
-                    stats["patterns_added"] += 1
-            else:
-                print(
-                    f"  [DRY] Would add pattern: {pat['name']}",
-                    file=sys.stderr,
-                )
-
-        stats["episodes_processed"] += 1
+    _apply_episode_files(graph, episode_files, args.dry_run, stats)
+    _apply_deletions(graph, deleted_ids, args.dry_run, stats)
 
     # Save graph
     if not args.dry_run:
@@ -496,6 +671,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Nodes added:        {stats['nodes_added']}", file=sys.stderr)
     print(f"  Edges added:        {stats['edges_added']}", file=sys.stderr)
     print(f"  Patterns added:     {stats['patterns_added']}", file=sys.stderr)
+    print(f"  Nodes removed:      {stats['nodes_removed']}", file=sys.stderr)
+    print(f"  Edges removed:      {stats['edges_removed']}", file=sys.stderr)
+    print(f"  Patterns removed:   {stats['patterns_removed']}", file=sys.stderr)
 
     if args.dry_run:
         print("\n[DRY RUN] No actual changes were made", file=sys.stderr)
