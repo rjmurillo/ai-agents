@@ -12764,6 +12764,159 @@
         "episode-2026-07-16-session-3049-close-3103-review-findings"
       ],
       "created": "2026-07-16T13:23:02.603739+00:00"
+    },
+    {
+      "id": "d5c52ce0d7e2",
+      "type": "decision",
+      "label": "implementation: User chose to keep Graphify local, then requested its repository changes be reverted. Restored CLAUDE.md, .claude/CLAUDE.md, and .claude/settings.json, and moved both untracked Graphify skill trees into the session artifact backup.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.773969+00:00"
+    },
+    {
+      "id": "8f70748af9e4",
+      "type": "milestone",
+      "label": "milestone: Reviewed all pending files. Separated Graphify installer output, a superseded CVA draft, Serena-generated config drift, three empty retrospective stubs, and four evidence-backed memories.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774026+00:00"
+    },
+    {
+      "id": "749a7b27109d",
+      "type": "milestone",
+      "label": "milestone: User chose to keep Graphify local, then requested its repository changes be reverted. Restored CLAUDE.md, .claude/CLAUDE.md, and .claude/settings.json, and moved both untracked Graphify skill trees into the session artifact backup.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774079+00:00"
+    },
+    {
+      "id": "58c5150cba67",
+      "type": "milestone",
+      "label": "milestone: Verified the CVA draft regresses content already merged on origin/main, the Serena project.yml edit is generated schema drift, and the three auto-retrospectives are unfilled or superseded. None warrants a PR.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774124+00:00"
+    },
+    {
+      "id": "de12f14cf5b6",
+      "type": "milestone",
+      "label": "milestone: Verified four Serena memories are absent from origin/main, contain no prohibited dashes, and cite merged implementation evidence from issues or pull requests #2468, #2707, #2710, and #2168.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774168+00:00"
+    },
+    {
+      "id": "5e1c71f2b2d4",
+      "type": "milestone",
+      "label": "milestone: Created and claimed issue #3054, then created docs/3054-memory-backfill from current origin/main for one atomic PR with five manually authored files plus the required generated episode.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774213+00:00"
+    },
+    {
+      "id": "5b5da20f95db",
+      "type": "milestone",
+      "label": "milestone: Ran scripts/redact_secrets.py against all four memories; each output matched the source byte-for-byte. Confirmed zero U+2014 and U+2013 bytes.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774257+00:00"
+    },
+    {
+      "id": "3b68c64bbacb",
+      "type": "milestone",
+      "label": "milestone: Ran memory_index.py --ci successfully, security detection reported no security-sensitive paths, and scripts/validation/pre_pr.py passed all 29 active validations.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774307+00:00"
+    },
+    {
+      "id": "1ee132f09b8a",
+      "type": "milestone",
+      "label": "milestone: Committed the four memory records as 23835075de286d5ac27bc466f545bf9584596c7c, preserving the four-file atomic boundary.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774352+00:00"
+    },
+    {
+      "id": "6dc709a39f15",
+      "type": "milestone",
+      "label": "milestone: The SHA-bound review found stale merged-state claims in the LSP memory. Verified PR #2168 merge commit 96aafb4fa, added the read tracker, and corrected both landed plugin versions in commit 8215ffd80596f9f73534a88b1e3c86694561f050.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774396+00:00"
+    },
+    {
+      "id": "6b86956fc92c",
+      "type": "commit",
+      "label": "commit: Commit: 8215ffd80596f9f73534a88b1e3c86694561f050",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774440+00:00"
+    },
+    {
+      "id": "d17f78428464",
+      "type": "outcome",
+      "label": "Outcome: success - Review pending Graphify installation changes and create atomic pull requests",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774489+00:00"
+    },
+    {
+      "id": "ca97b9c4bc1b",
+      "type": "decision",
+      "label": "User chose to keep Graphify local, then requested its repository changes be reverted. Restored CLAUDE.md, .claude/CLAUDE.md, and .claude/settings.json, and moved both untracked Graphify skill trees into the session artifact backup.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774636+00:00"
+    },
+    {
+      "id": "e4744bf81381",
+      "type": "milestone",
+      "label": "User chose to keep Graphify local, then requested its repository changes be reverted. Restored CLAUDE.md, .claude/CLAUDE.md, and .claude/settings.json, and moved both untracked Graphify skill trees into the session artifact backup.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774692+00:00"
+    },
+    {
+      "id": "066bab450636",
+      "type": "milestone",
+      "label": "Verified the CVA draft regresses content already merged on origin/main, the Serena project.yml edit is generated schema drift, and the three auto-retrospectives are unfilled or superseded. None warrants a PR.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774785+00:00"
+    },
+    {
+      "id": "31d0c60794e1",
+      "type": "milestone",
+      "label": "Created and claimed issue #3054, then created docs/3054-memory-backfill from current origin/main for one atomic PR with five manually authored files plus the required generated episode.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774878+00:00"
+    },
+    {
+      "id": "0abd6521e8c0",
+      "type": "milestone",
+      "label": "Committed the four memory records as 23835075de286d5ac27bc466f545bf9584596c7c, preserving the four-file atomic boundary.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774970+00:00"
     }
   ],
   "patterns": [
@@ -12840,10 +12993,11 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 397,
+      "occurrences": 398,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
-        "episode-2026-07-13-session-3041-frontier-model"
+        "episode-2026-07-13-session-3041-frontier-model",
+        "episode-2026-07-15-session-3042"
       ]
     },
     {
@@ -13268,6 +13422,50 @@
         "episode-2026-07-13-session-3041-frontier-model"
       ],
       "created": "2026-07-14T04:09:24.920971+00:00"
+    },
+    {
+      "source": "ca97b9c4bc1b",
+      "target": "e4744bf81381",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774696+00:00"
+    },
+    {
+      "source": "ca97b9c4bc1b",
+      "target": "066bab450636",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774790+00:00"
+    },
+    {
+      "source": "ca97b9c4bc1b",
+      "target": "31d0c60794e1",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774882+00:00"
+    },
+    {
+      "source": "ca97b9c4bc1b",
+      "target": "0abd6521e8c0",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-16T15:28:42.774973+00:00"
     }
   ]
 }
