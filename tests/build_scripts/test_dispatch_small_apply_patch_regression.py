@@ -3,7 +3,7 @@
 
 On Windows the Copilot CLI host reported ``Hook command failed with code 1`` on a
 small ``apply_patch`` PreToolUse payload, yet a direct replay of the same payload
-class through ``_dispatch.py`` returned exit 0. No PreToolUse shim matches
+through ``_dispatch.py`` returned exit 0. No PreToolUse shim matches
 ``apply_patch`` (the manifest carries Bash, Write/Edit, Grep, Glob, Read, Task,
 and Agent shims), so on this payload every shim skips and the dispatcher returns
 0. The dispatcher is not limited to {0, 2} in general: ``hook_dispatch.run_dispatch``
@@ -48,10 +48,9 @@ _MAX_STDIN_BYTES = 2 * 1024 * 1024
 # A small representative apply_patch payload, well under the 2 MiB stdin cap (the
 # #3074 recording was about 1,659 bytes; this fixture is smaller and not a
 # byte-exact copy, which does not matter: any sub-cap payload with no matching
-# shim returns 0). This
-# is the Copilot host event shape: sessionId, cwd, and a toolCalls entry whose
-# name is apply_patch. It carries no top-level tool_name, exactly as the recorded
-# data.input did, so every matcher shim skips it.
+# shim returns 0). This is the Copilot host event shape: sessionId, cwd, and a
+# toolCalls entry whose name is apply_patch. It carries no top-level tool_name,
+# exactly as the recorded data.input did, so every matcher shim skips it.
 _RECORDED_HOST_EVENT: dict[str, object] = {
     "sessionId": "regression-3083",
     "cwd": "consumer-repo",
