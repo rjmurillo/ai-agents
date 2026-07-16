@@ -385,12 +385,15 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
             ),
         }
     if supersession and supersession.get("probe_inconclusive"):
+        if supersession.get("head_unresolved"):
+            detail = "PR head could not be resolved for git cherry"
+        else:
+            detail = "git cherry failed against base ref"
         return {
             "action": "ACT",
             "reason": (
-                "PR is open but the supersession probe was inconclusive "
-                "(PR head could not be resolved for git cherry); proceeding "
-                "without supersession verification"
+                f"PR is open but the supersession probe was inconclusive "
+                f"({detail}); proceeding without supersession verification"
             ),
         }
     return {"action": "ACT", "reason": "PR is still open and actionable"}

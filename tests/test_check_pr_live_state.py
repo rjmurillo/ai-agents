@@ -237,6 +237,25 @@ class TestClassifyLiveState:
         assert verdict["action"] == "ACT"
         assert "inconclusive" in verdict["reason"].lower()
         assert verdict["reason"] != "PR is still open and actionable"
+        assert "head could not be resolved" in verdict["reason"]
+
+    def test_cherry_failure_inconclusive_reason_differs_from_head_unresolved(self):
+        # A cherry failure (head resolved successfully, but git cherry failed)
+        # must report a different reason than a head-unresolved failure. Both
+        # are inconclusive, but the cause differs (issue #3116 follow-up).
+        pr = {"state": "OPEN", "merged": False, "isDraft": False, "closed": False}
+        supersession_cherry_failed = {
+            "fully_superseded": False,
+            "pr_commits": 0,
+            "superseded_commits": 0,
+            "git_cherry_failed": True,
+            "probe_inconclusive": True,
+        }
+        verdict = classify_live_state(pr, supersession=supersession_cherry_failed)
+        assert verdict["action"] == "ACT"
+        assert "inconclusive" in verdict["reason"].lower()
+        assert "git cherry failed" in verdict["reason"]
+        assert "head could not be resolved" not in verdict["reason"]
 
 
 # ---------------------------------------------------------------------------
