@@ -14,13 +14,36 @@ from ..scripts.update_causal_graph import (
     add_causal_node,
     add_pattern,
     build_causal_chains,
+    collect_contributions,
     generate_node_id,
     get_decision_patterns,
     get_episode_files,
     load_causal_graph,
     main,
+    process_episode,
+    remove_episode_contributions,
     save_causal_graph,
 )
+
+
+def _episode_with_recovery(episode_id: str = "episode-edit") -> dict[str, Any]:
+    """An episode that yields one error->recovery edge and one success pattern."""
+    return {
+        "id": episode_id,
+        "timestamp": "2026-01-01T00:00:00",
+        "outcome": "success",
+        "task": "Ship the fix",
+        "decisions": [{
+            "type": "design",
+            "chosen": "Use Python",
+            "outcome": "success",
+            "context": "Planning",
+        }],
+        "events": [
+            {"type": "error", "content": "Build failed"},
+            {"type": "milestone", "content": "Fixed build configuration"},
+        ],
+    }
 
 
 class TestGenerateNodeId:
@@ -318,3 +341,224 @@ class TestMainFunction:
         ])
         assert result == 0
         assert not graph_file.exists()
+
+
+class TestCollectContributions:
+    """Tests for single-source contribution derivation (#3039)."""
+
+    def test_includes_chain_endpoint_and_decision_node_labels(self) -> None:
+        # The decision loop labels the node "design: Use Python"; the chain
+        # endpoint labels the same decision "Use Python". Both must surface so
+        # the keep-set never strips a live node.
+        episode = _episode_with_recovery()
+        nodes, edges, patterns = collect_contributions(episode)
+        node_labels = {label for _t, label in nodes}
+        assert "design: Use Python" in node_labels
+        assert ("outcome", "Outcome: success - Ship the fix") in nodes
+        assert len(edges) == 1
+        assert edges[0][0] == "error"
+        assert edges[0][1] == "Build failed"
+        assert any("pattern" in name for name, *_ in patterns)
+
+
+class TestRemoveEpisodeContributions:
+    """Tests for pruning an episode's contributions (#3039)."""
+
+    def test_sole_contributor_node_dropped(self) -> None:
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        add_causal_node(graph, "decision", "only", "ep-001")
+        removed = remove_episode_contributions(graph, "ep-001")
+        assert graph["nodes"] == []
+        assert removed["nodes"] == 1
+
+    def test_kept_node_untouched(self) -> None:
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        node = add_causal_node(graph, "decision", "keep", "ep-001")
+        assert node is not None
+        removed = remove_episode_contributions(
+            graph, "ep-001", keep_node_ids=frozenset({node["id"]}),
+        )
+        assert len(graph["nodes"]) == 1
+        assert graph["nodes"][0]["episodes"] == ["ep-001"]
+        assert removed["nodes"] == 0
+
+    def test_multi_contributor_edge_decrements_and_preserves_weight(self) -> None:
+        # Both episodes contribute the same weight (the generator invariant), so
+        # removing one leaves the average exact and just decrements the count.
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        add_causal_edge(graph, "src", "tgt", "causes", 0.8, "ep-001")
+        add_causal_edge(graph, "src", "tgt", "causes", 0.8, "ep-002")
+        removed = remove_episode_contributions(graph, "ep-001")
+        assert len(graph["edges"]) == 1
+        edge = graph["edges"][0]
+        assert edge["episodes"] == ["ep-002"]
+        assert edge["evidence_count"] == 1
+        assert edge["weight"] == 0.8
+        assert removed["edges"] == 0
+
+    def test_sole_contributor_edge_dropped(self) -> None:
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        add_causal_edge(graph, "src", "tgt", "causes", 0.8, "ep-001")
+        removed = remove_episode_contributions(graph, "ep-001")
+        assert graph["edges"] == []
+        assert removed["edges"] == 1
+
+    def test_pattern_occurrences_decrement(self) -> None:
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        add_pattern(graph, "p", "d", "t", "a", 1.0, "ep-001")
+        add_pattern(graph, "p", "d", "t", "a", 1.0, "ep-002")
+        remove_episode_contributions(graph, "ep-001")
+        assert len(graph["patterns"]) == 1
+        assert graph["patterns"][0]["occurrences"] == 1
+        assert graph["patterns"][0]["episodes"] == ["ep-002"]
+
+    def test_legacy_edge_without_evidence_count(self) -> None:
+        # Pre-#3034 edges stored ``count`` and no ``episodes``; a sole-episode
+        # legacy edge that gained provenance is dropped when that episode goes.
+        graph: dict[str, Any] = {
+            "nodes": [],
+            "edges": [{
+                "source": "s", "target": "t", "type": "causes",
+                "weight": 0.6, "count": 3, "episodes": ["ep-001", "ep-002"],
+            }],
+            "patterns": [],
+        }
+        remove_episode_contributions(graph, "ep-001")
+        edge = graph["edges"][0]
+        assert edge["episodes"] == ["ep-002"]
+        assert edge["evidence_count"] == 2
+        assert "count" not in edge
+
+    def test_full_removal_with_empty_keep_sets(self) -> None:
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        add_causal_node(graph, "decision", "n", "ep-001")
+        add_causal_edge(graph, "src", "tgt", "causes", 0.8, "ep-001")
+        add_pattern(graph, "p", "d", "t", "a", 1.0, "ep-001")
+        removed = remove_episode_contributions(graph, "ep-001")
+        assert graph == {"nodes": [], "edges": [], "patterns": []}
+        assert removed == {"nodes": 1, "edges": 1, "patterns": 1}
+
+
+class TestReplaceSemantics:
+    """Edit-shrinks and deletion pruning through main() (#3039)."""
+
+    def _run(self, ep_dir: Path, graph_file: Path, *extra: str) -> None:
+        assert main([
+            "--episode-path", str(ep_dir),
+            "--graph-path", str(graph_file),
+            *extra,
+        ]) == 0
+
+    def test_edit_removes_obsolete_edge(self, tmp_path: Path) -> None:
+        ep_dir = tmp_path / "episodes"
+        ep_dir.mkdir()
+        graph_file = tmp_path / "graph.json"
+        ep_file = ep_dir / "episode-edit.json"
+
+        ep_file.write_text(json.dumps(_episode_with_recovery()))
+        self._run(ep_dir, graph_file)
+        graph = json.loads(graph_file.read_text())
+        assert len(graph["edges"]) == 1
+
+        shrunk = _episode_with_recovery()
+        shrunk["events"] = [{"type": "error", "content": "Build failed"}]
+        ep_file.write_text(json.dumps(shrunk))
+        self._run(ep_dir, graph_file)
+
+        graph = json.loads(graph_file.read_text())
+        assert graph["edges"] == []
+
+    def test_edit_removes_obsolete_pattern(self, tmp_path: Path) -> None:
+        ep_dir = tmp_path / "episodes"
+        ep_dir.mkdir()
+        graph_file = tmp_path / "graph.json"
+        ep_file = ep_dir / "episode-edit.json"
+
+        ep_file.write_text(json.dumps(_episode_with_recovery()))
+        self._run(ep_dir, graph_file)
+        graph = json.loads(graph_file.read_text())
+        assert len(graph["patterns"]) == 1
+
+        shrunk = _episode_with_recovery()
+        shrunk["decisions"] = []
+        ep_file.write_text(json.dumps(shrunk))
+        self._run(ep_dir, graph_file)
+
+        graph = json.loads(graph_file.read_text())
+        assert graph["patterns"] == []
+
+    def test_reprocess_unchanged_is_byte_stable(self, tmp_path: Path) -> None:
+        ep_dir = tmp_path / "episodes"
+        ep_dir.mkdir()
+        graph_file = tmp_path / "graph.json"
+        (ep_dir / "episode-edit.json").write_text(
+            json.dumps(_episode_with_recovery()),
+        )
+
+        self._run(ep_dir, graph_file)
+        first = graph_file.read_text()
+        self._run(ep_dir, graph_file)
+        second = graph_file.read_text()
+        assert first == second
+
+    def test_deleted_episode_id_prunes(self, tmp_path: Path) -> None:
+        ep_dir = tmp_path / "episodes"
+        ep_dir.mkdir()
+        graph_file = tmp_path / "graph.json"
+        (ep_dir / "episode-del.json").write_text(
+            json.dumps(_episode_with_recovery("episode-del")),
+        )
+        self._run(ep_dir, graph_file)
+        graph = json.loads(graph_file.read_text())
+        assert graph["nodes"] and graph["edges"] and graph["patterns"]
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+        self._run(empty_dir, graph_file, "--deleted-episode-id", "episode-del")
+
+        graph = json.loads(graph_file.read_text())
+        assert graph == {"nodes": [], "edges": [], "patterns": []}
+
+    def test_deleted_episode_id_dry_run_preserves_graph(
+        self, tmp_path: Path,
+    ) -> None:
+        ep_dir = tmp_path / "episodes"
+        ep_dir.mkdir()
+        graph_file = tmp_path / "graph.json"
+        (ep_dir / "episode-del.json").write_text(
+            json.dumps(_episode_with_recovery("episode-del")),
+        )
+        self._run(ep_dir, graph_file)
+        before = graph_file.read_text()
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+        self._run(
+            empty_dir, graph_file,
+            "--deleted-episode-id", "episode-del", "--dry-run",
+        )
+        assert graph_file.read_text() == before
+
+
+class TestProcessEpisode:
+    """Direct tests for the process_episode helper (#3039)."""
+
+    def test_dry_run_returns_zero_deltas(self) -> None:
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        deltas = process_episode(
+            graph, _episode_with_recovery(), "episode-edit", dry_run=True,
+        )
+        assert graph == {"nodes": [], "edges": [], "patterns": []}
+        assert deltas["nodes_added"] == 0
+        assert deltas["nodes_removed"] == 0
+
+    def test_removes_stale_and_reports_delta(self) -> None:
+        graph: dict[str, Any] = {"nodes": [], "edges": [], "patterns": []}
+        process_episode(graph, _episode_with_recovery(), "episode-edit", False)
+        assert len(graph["edges"]) == 1
+
+        shrunk = _episode_with_recovery()
+        shrunk["events"] = [{"type": "error", "content": "Build failed"}]
+        deltas = process_episode(graph, shrunk, "episode-edit", False)
+        assert graph["edges"] == []
+        assert deltas["edges_removed"] == 1
