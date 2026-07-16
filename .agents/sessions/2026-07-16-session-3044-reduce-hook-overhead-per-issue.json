@@ -158,6 +158,11 @@
       "timestamp": "2026-07-16T07:30:00Z",
       "summary": "Vendored claude_hook_dispatch.py into src/copilot-cli/lib via build_all; registration tests updated to resolve through dispatch groups.",
       "evidence": "pytest 18 passed on the two registration suites; build_all --check drift clears once vendored lib is committed"
+    },
+    {
+      "timestamp": "2026-07-16T09:05:00Z",
+      "summary": "Pre-push repairs: dropped type-ignore via BytesIO handle in dispatcher lib (re-vendored); flipped two stale fail-open tests to the base PR fail-closed contract; plugin-load smoke gains a plugin-dir mechanism probe and loud skip citing issue 3104.",
+      "evidence": "pytest: 78 passed (targeted suites); RUN_CLI_E2E smoke 16 passed 1 skipped; ruff clean"
     }
   ],
   "endingCommit": "",

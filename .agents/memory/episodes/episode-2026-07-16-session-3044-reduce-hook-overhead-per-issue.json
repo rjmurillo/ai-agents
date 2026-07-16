@@ -93,6 +93,22 @@
       "content": "pytest 18 passed on the two registration suites; build_all --check drift clears once vendored lib is committed",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-push repairs: dropped type-ignore via BytesIO handle in dispatcher lib (re-vendored); flipped two stale fail-open tests to the base PR fail-closed contract; plugin-load smoke gains a plugin-dir mechanism probe and loud skip citing issue 3104.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest: 78 passed (targeted suites); RUN_CLI_E2E smoke 16 passed 1 skipped; ruff clean",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

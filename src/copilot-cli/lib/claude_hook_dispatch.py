@@ -156,7 +156,8 @@ def _classify_stdout(text: str) -> tuple[str | None, str | None, bool]:
 def _run_one(shim_path: Path, name: str, raw_stdin: bytes) -> _ShimOutcome:
     """Run one shim in-process with stdin replay and stdout capture."""
     _install_stdin(raw_stdin)
-    capture = io.TextIOWrapper(io.BytesIO(), encoding="utf-8", errors="replace")
+    raw_buffer = io.BytesIO()
+    capture = io.TextIOWrapper(raw_buffer, encoding="utf-8", errors="replace")
     saved_stdout = sys.stdout
     sys.stdout = capture
     try:
@@ -175,7 +176,7 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes) -> _ShimOutcome:
     finally:
         sys.stdout = saved_stdout
     capture.flush()
-    raw = capture.buffer.getvalue().decode("utf-8", errors="replace")  # type: ignore[attr-defined]
+    raw = raw_buffer.getvalue().decode("utf-8", errors="replace")
     context, decision, recognized = _classify_stdout(raw)
     return _ShimOutcome(
         exit_code=code,
