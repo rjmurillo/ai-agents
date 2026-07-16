@@ -615,8 +615,15 @@ def _stage_dispatcher_artifacts(
     out: dict[str, list[dict[str, Any]]],
     output_scripts: Path,
     transaction: HookGenerationTransaction,
-) -> dict[str, list[dict[str, Any]]]:
-    """Generate dispatcher files off-tree, then publish them transactionally."""
+) -> tuple[dict[str, list[dict[str, Any]]], list[tuple[Path, list[str]]]]:
+    """Generate dispatcher files off-tree, then publish them transactionally.
+
+    Returns ``(consolidated_out, pending_stale_shim_cleanup)`` where the second
+    element is a list of ``(event_dir, active_shim_names)`` tuples. Stale shim
+    cleanup MUST be performed by the caller AFTER ``transaction.commit()``
+    succeeds; running it earlier would delete files that cannot be restored on
+    rollback.
+    """
     import generate_dispatcher
 
     stage_root = transaction.new_stage_directory(output_scripts.parent)
@@ -633,10 +640,13 @@ def _stage_dispatcher_artifacts(
         publish_pairs.append((staged, target))
     transaction.publish_many(publish_pairs)
 
-    # Clean up stale matcher shims from the actual output directories.
+    # Collect stale shim cleanup tasks but do NOT execute them here.
     # Consolidation runs on an empty staging tree, so _remove_stale_matcher_shims
     # inside emit_dispatcher only scans the staging directories. We must run
     # cleanup on the published output tree where stale shims actually live.
+    # However, these deletions are not journaled, so they must be deferred
+    # until after transaction.commit() to preserve atomic publication.
+    pending_stale_shim_cleanup: list[tuple[Path, list[str]]] = []
     for event, entries in out.items():
         shim_names = [
             name
@@ -647,9 +657,9 @@ def _stage_dispatcher_artifacts(
             continue
         event_dir = output_scripts / event
         if event_dir.is_dir():
-            generate_dispatcher._remove_stale_matcher_shims(event_dir, shim_names)
+            pending_stale_shim_cleanup.append((event_dir, shim_names))
 
-    return cast(dict[str, list[dict[str, Any]]], consolidated)
+    return cast(dict[str, list[dict[str, Any]]], consolidated), pending_stale_shim_cleanup
 
 
 def generate_hooks(
@@ -794,12 +804,13 @@ def generate_hooks(
         # entry, emitting _manifest.json + _dispatch.py next to the shims. The
         # shims stay on disk (the dispatcher runs them in-process); only the
         # hooks.json registration changes.
+        pending_stale_shim_cleanup: list[tuple[Path, list[str]]] = []
         if dispatcher_mode and not what_if:
             try:
                 _validate_dispatcher_artifact_targets(
                     _dispatcher_artifact_targets(out, output_scripts)
                 )
-                out = _stage_dispatcher_artifacts(
+                out, pending_stale_shim_cleanup = _stage_dispatcher_artifacts(
                     out,
                     output_scripts,
                     transaction,
@@ -846,6 +857,14 @@ def generate_hooks(
         committed = True
         for cleanup_error in cleanup_errors:
             print(f"  WARN: {cleanup_error}", file=sys.stderr)
+
+        # Remove stale matcher shims AFTER commit succeeds. These deletions
+        # are not journaled, so running them before commit would break the
+        # atomic publication invariant (rollback could not restore them).
+        import generate_dispatcher
+
+        for event_dir, shim_names in pending_stale_shim_cleanup:
+            generate_dispatcher._remove_stale_matcher_shims(event_dir, shim_names)
     finally:
         if not committed:
             for rollback_error in transaction.rollback():
