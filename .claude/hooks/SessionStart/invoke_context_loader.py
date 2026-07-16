@@ -274,7 +274,7 @@ def _emit_utf8(text: str) -> None:
             stream.flush()
             return
 
-    payload = f"{text}\n".encode()
+    payload = bytes(f"{text}\n", encoding="utf-8")
     buffer = getattr(stream, "buffer", None)
     if buffer is not None:
         buffer.write(payload)
