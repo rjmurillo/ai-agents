@@ -54,6 +54,7 @@ import os
 import subprocess
 import sys
 import time
+from typing import Any, NoReturn
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,19 @@ def _git_locale_env() -> dict[str, str]:
     return env
 
 
+def _run_git(cmd: list[str], timeout: int = 60) -> subprocess.CompletedProcess[str]:
+    """Run a git subprocess with the shared locale + capture settings."""
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=_git_locale_env(),
+        timeout=timeout,
+        check=False,
+    )
+
+
 def _emit_error(
     message: str,
     code: int,
@@ -109,7 +123,7 @@ def _emit_error(
     pr_number: int,
     owner: str,
     repo: str,
-) -> None:
+) -> NoReturn:
     write_skill_error(
         message,
         code,
@@ -155,7 +169,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
 # ---------------------------------------------------------------------------
 
 
-def parse_git_cherry(stdout: str) -> dict:
+def parse_git_cherry(stdout: str) -> dict[str, Any]:
     """Parse `git cherry` output into a supersession verdict.
 
     `git cherry <base> <head>` prints one line per commit on <head> that
@@ -193,101 +207,140 @@ def parse_git_cherry(stdout: str) -> dict:
     }
 
 
-def is_superseded_by_base(
-    base_branch: str,
-    head_ref: str,
-    skip_fetch: bool = False,
-) -> dict:
-    """Run `git cherry` against the base branch and return the verdict.
+def _probe_inconclusive(**extra: bool) -> dict[str, Any]:
+    """Return an inconclusive-probe verdict (never a false supersession).
 
-    When skip_fetch=False (default), runs `git fetch origin <base>` first
-    to ensure origin/<base> reflects the live tip. The pr-autofix walk
-    can pass --skip-fetch on the per-PR call after running one outer
-    fetch to keep the loop cheap.
-
-    The fetch writes ``refs/remotes/origin/<base>`` explicitly, then the
-    cherry call uses ``origin/<base>`` as the reference so a stale or
-    missing local <base> in the worktree cannot produce a false
-    "no supersession" result.
-
-    On any subprocess failure the result reports ``fully_superseded=False``
-    plus ``git_cherry_failed=True`` so the caller treats the probe as
-    inconclusive instead of as a positive signal. (Failing closed on
-    SKIP would block valid PRs; failing open on ACT is the correct
-    fallback because supersession is an optimization, not a safety
-    requirement.)
+    ``git_cherry_failed=True`` and ``probe_inconclusive=True`` tell the
+    caller the supersession check did not run to a trustworthy answer, so
+    it must not be read as a positive "not superseded" signal.
     """
-    if not skip_fetch:
-        remote_base_ref = f"refs/remotes/origin/{base_branch}"
-        try:
-            subprocess.run(
-                [
-                    "git",
-                    "fetch",
-                    "--quiet",
-                    "origin",
-                    f"+refs/heads/{base_branch}:{remote_base_ref}",
-                ],
-                capture_output=True,
-                encoding="utf-8",
-                errors="replace",
-                env=_git_locale_env(),
-                timeout=60,
-                check=False,
-            )
-        except (subprocess.SubprocessError, OSError) as exc:
-            logger.warning(
-                "op=live_state_fetch_failed base=%s err=%s",
-                base_branch, safe_log_str(str(exc)),
-            )
-            # Continue: cherry against whatever origin/<base> we have.
-
-    cherry_cmd = [
-        "git", "cherry", "-v",
-        f"origin/{base_branch}",
-        head_ref,
-    ]
-    try:
-        result = subprocess.run(
-            cherry_cmd,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            env=_git_locale_env(),
-            timeout=60,
-            check=False,
-        )
-    except (subprocess.SubprocessError, OSError) as exc:
-        logger.warning(
-            "op=live_state_cherry_failed base=%s head=%s err=%s",
-            base_branch, head_ref, safe_log_str(str(exc)),
-        )
-        return {
-            "pr_commits": 0,
-            "superseded_commits": 0,
-            "fully_superseded": False,
-            "git_cherry_failed": True,
-        }
-
-    if result.returncode != 0:
-        logger.warning(
-            "op=live_state_cherry_nonzero rc=%d base=%s head=%s stderr=%s",
-            result.returncode, base_branch, head_ref,
-            safe_log_str((result.stderr or "")[:200]),
-        )
-        return {
-            "pr_commits": 0,
-            "superseded_commits": 0,
-            "fully_superseded": False,
-            "git_cherry_failed": True,
-        }
-
-    verdict = parse_git_cherry(result.stdout or "")
-    verdict["git_cherry_failed"] = False
+    verdict = {
+        "pr_commits": 0,
+        "superseded_commits": 0,
+        "fully_superseded": False,
+        "git_cherry_failed": True,
+        "probe_inconclusive": True,
+    }
+    verdict.update(extra)
     return verdict
 
 
-def classify_live_state(pr: dict, supersession: dict | None) -> dict:
+def _fetch_base(base_branch: str) -> None:
+    """Fetch origin/<base> so `git cherry` compares against the live tip.
+
+    Writes ``refs/remotes/origin/<base>`` explicitly so a stale or missing
+    local <base> in the worktree cannot produce a false "no supersession".
+    """
+    remote_base_ref = f"refs/remotes/origin/{base_branch}"
+    try:
+        _run_git([
+            "git", "fetch", "--quiet", "origin",
+            f"+refs/heads/{base_branch}:{remote_base_ref}",
+        ])
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.warning(
+            "op=live_state_fetch_failed base=%s err=%s",
+            base_branch, safe_log_str(str(exc)),
+        )
+        # Continue: cherry against whatever origin/<base> we have.
+
+
+def _fetch_pr_head(pr_number: int) -> str | None:
+    """Fetch refs/pull/<n>/head into a private local ref; return its name.
+
+    The repository PR ref resolves the exact head for both same-repo and
+    fork PRs and does not depend on a branch existing under
+    ``origin/<headRefName>``, which a fresh or pruned clone may lack and
+    which a fork PR never has in the base-repo namespace. Returns the local
+    ref on success, ``None`` when the head cannot be resolved (deleted head,
+    missing PR ref, network error) so the caller surfaces an inconclusive
+    probe instead of failing open on a stale answer.
+    """
+    local_ref = f"refs/pr-live-state/{pr_number}"
+    refspec = f"+refs/pull/{pr_number}/head:{local_ref}"
+    try:
+        result = _run_git(["git", "fetch", "--quiet", "origin", refspec])
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.warning(
+            "op=live_state_head_fetch_failed pr=%d err=%s",
+            pr_number, safe_log_str(str(exc)),
+        )
+        return None
+    if result.returncode != 0:
+        logger.warning(
+            "op=live_state_head_fetch_nonzero rc=%d pr=%d stderr=%s",
+            result.returncode, pr_number,
+            safe_log_str((result.stderr or "")[:200]),
+        )
+        return None
+    return local_ref
+
+
+def is_superseded_by_base(
+    base_branch: str,
+    pr_number: int,
+    skip_fetch: bool = False,
+) -> dict[str, Any]:
+    """Run `git cherry` against the base branch and return the verdict.
+
+    When skip_fetch=False (default), fetches origin/<base> first so the
+    cherry compares against the live tip. The pr-autofix walk can pass
+    --skip-fetch after one outer `git fetch origin main` to skip the
+    redundant per-PR base fetch.
+
+    The PR head is resolved every call via ``refs/pull/<n>/head`` (issue
+    #3116): the outer loop fetches only <base>, never the individual PR
+    branches, and ``origin/<headRefName>`` is absent in a fresh/pruned
+    clone and never exists for a fork PR. Skipping the head fetch made the
+    cherry fail with "unknown commit origin/<head>" and fall through to a
+    success-shaped ACT, defeating the supersession guard.
+
+    When the head cannot be resolved or the cherry fails, the result carries
+    ``probe_inconclusive=True`` (plus ``git_cherry_failed=True``) so the
+    caller reports an inconclusive probe rather than a trustworthy
+    "not superseded". The probe stays ACT-but-loud rather than SKIP: a
+    transient git failure must not block a valid PR, and the four-condition
+    Ready-to-Merge gate still guards any real merge. The trustworthy path
+    sets ``probe_inconclusive=False`` so JSON consumers can tell the two
+    apart.
+    """
+    if not skip_fetch:
+        _fetch_base(base_branch)
+
+    head_ref = _fetch_pr_head(pr_number)
+    if head_ref is None:
+        logger.warning(
+            "op=live_state_head_unresolved base=%s pr=%d",
+            base_branch, pr_number,
+        )
+        return _probe_inconclusive(head_unresolved=True)
+
+    try:
+        result = _run_git(
+            ["git", "cherry", "-v", f"origin/{base_branch}", head_ref],
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        logger.warning(
+            "op=live_state_cherry_failed base=%s pr=%d err=%s",
+            base_branch, pr_number, safe_log_str(str(exc)),
+        )
+        return _probe_inconclusive()
+
+    if result.returncode != 0:
+        logger.warning(
+            "op=live_state_cherry_nonzero rc=%d base=%s pr=%d stderr=%s",
+            result.returncode, base_branch, pr_number,
+            safe_log_str((result.stderr or "")[:200]),
+        )
+        return _probe_inconclusive()
+
+    verdict = parse_git_cherry(result.stdout or "")
+    verdict["git_cherry_failed"] = False
+    verdict["probe_inconclusive"] = False
+    return verdict
+
+
+def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None) -> dict[str, Any]:
     """Combine GitHub state + supersession into a single ACT/SKIP verdict.
 
     SKIP conditions (binding for the caller):
@@ -329,6 +382,15 @@ def classify_live_state(pr: dict, supersession: dict | None) -> dict:
             "reason": (
                 f"PR is partially superseded ({n}/{m} commits already on "
                 "base); proceed with caution"
+            ),
+        }
+    if supersession and supersession.get("probe_inconclusive"):
+        return {
+            "action": "ACT",
+            "reason": (
+                "PR is open but the supersession probe was inconclusive "
+                "(PR head could not be resolved for git cherry); proceeding "
+                "without supersession verification"
             ),
         }
     return {"action": "ACT", "reason": "PR is still open and actionable"}
@@ -433,7 +495,7 @@ def main(argv: list[str] | None = None) -> int:
     # Only run the supersession probe when the PR is still OPEN; for a
     # MERGED/CLOSED/DRAFT PR the verdict is already settled and the git
     # call would just burn a fetch + subprocess for no gain.
-    supersession: dict | None = None
+    supersession: dict[str, Any] | None = None
     pr_open = (
         pr.get("state") == "OPEN"
         and pr.get("merged") is not True
@@ -443,7 +505,7 @@ def main(argv: list[str] | None = None) -> int:
     if pr_open:
         supersession = is_superseded_by_base(
             base_branch=pr.get("baseRefName", "main"),
-            head_ref=f"origin/{pr.get('headRefName', '')}",
+            pr_number=args.pull_request,
             skip_fetch=args.skip_fetch,
         )
 

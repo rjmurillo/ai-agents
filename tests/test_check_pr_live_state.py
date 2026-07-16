@@ -220,100 +220,186 @@ class TestClassifyLiveState:
         assert verdict["action"] == "ACT"
         assert "partial" in verdict["reason"].lower()
 
+    def test_open_pr_inconclusive_probe_acts_with_distinct_reason(self):
+        # An unresolvable PR head (deleted, network failure) must ACT but with
+        # a reason that names the inconclusive probe, not the clean not-
+        # superseded reason. Distinguishes trustworthy from inconclusive.
+        pr = {"state": "OPEN", "merged": False, "isDraft": False, "closed": False}
+        supersession = {
+            "fully_superseded": False,
+            "pr_commits": 0,
+            "superseded_commits": 0,
+            "git_cherry_failed": True,
+            "probe_inconclusive": True,
+            "head_unresolved": True,
+        }
+        verdict = classify_live_state(pr, supersession=supersession)
+        assert verdict["action"] == "ACT"
+        assert "inconclusive" in verdict["reason"].lower()
+        assert verdict["reason"] != "PR is still open and actionable"
+
 
 # ---------------------------------------------------------------------------
 # Tests: is_superseded_by_base
 # ---------------------------------------------------------------------------
 
 
+def _git_kind(cmd: list[str]) -> str:
+    """Classify a mocked git invocation for the supersession probe.
+
+    'base_fetch' populates origin/<base>; 'head_fetch' resolves the PR head
+    via refs/pull/<n>/head (issue #3116); 'cherry' is the supersession diff.
+    """
+    if cmd[:2] == ["git", "fetch"]:
+        return "head_fetch" if "refs/pull/" in cmd[-1] else "base_fetch"
+    if "cherry" in cmd:
+        return "cherry"
+    return "other"
+
+
 class TestIsSupersededByBase:
-    """End-to-end git interaction: fetch + git cherry against the PR's
-    base branch and head ref. Each subprocess call MUST be mocked.
+    """End-to-end git interaction: fetch base, resolve the PR head via
+    refs/pull/<n>/head, then git cherry. Each subprocess call MUST be mocked.
     """
 
-    def test_skip_fetch_does_not_call_git_fetch(self):
-        # When skip_fetch=True, the function must NOT invoke `git fetch`.
-        # Mock subprocess.run with a strict recorder so any unexpected
-        # git invocation surfaces.
+    def test_skip_fetch_skips_base_fetch_but_still_resolves_head(self):
+        # --skip-fetch skips the shared base fetch (the outer loop already
+        # ran one), but the per-PR head MUST still be resolved: the outer
+        # loop never fetches individual PR branches (issue #3116).
         calls: list[list[str]] = []
 
         def fake_run(cmd, **kwargs):
             calls.append(list(cmd))
-            if "cherry" in cmd:
+            kind = _git_kind(cmd)
+            if kind == "base_fetch":
+                raise AssertionError("base fetch must not run with skip_fetch=True")
+            if kind == "cherry":
                 return _completed(stdout="- abc1234567890\n", rc=0)
-            if cmd[:2] == ["git", "fetch"]:
-                raise AssertionError("git fetch must not be called with skip_fetch=True")
-            return _completed(stdout="", rc=0)
+            return _completed(rc=0)
 
         with patch("check_pr_live_state.subprocess.run", side_effect=fake_run):
             result = is_superseded_by_base(
                 base_branch="main",
-                head_ref="fix/foo",
+                pr_number=2409,
                 skip_fetch=True,
             )
         assert result["fully_superseded"] is True
-        fetch_calls = [c for c in calls if c[:2] == ["git", "fetch"]]
-        assert fetch_calls == []
+        assert result["probe_inconclusive"] is False
+        head_fetches = [c for c in calls if _git_kind(c) == "head_fetch"]
+        assert len(head_fetches) == 1
+        assert "+refs/pull/2409/head:refs/pr-live-state/2409" in head_fetches[0]
+        assert [c for c in calls if _git_kind(c) == "base_fetch"] == []
 
-    def test_fetch_called_by_default(self):
+    def test_base_and_head_fetched_by_default(self):
         calls: list[list[str]] = []
 
         def fake_run(cmd, **kwargs):
             calls.append(list(cmd))
-            if "cherry" in cmd:
+            if _git_kind(cmd) == "cherry":
                 return _completed(stdout="+ abc1234567890\n", rc=0)
-            return _completed(stdout="", rc=0)
+            return _completed(rc=0)
 
         with patch("check_pr_live_state.subprocess.run", side_effect=fake_run):
             is_superseded_by_base(
                 base_branch="main",
-                head_ref="fix/foo",
+                pr_number=2409,
                 skip_fetch=False,
             )
-        fetch_calls = [c for c in calls if c[:2] == ["git", "fetch"]]
-        assert len(fetch_calls) == 1
+        base_fetches = [c for c in calls if _git_kind(c) == "base_fetch"]
+        head_fetches = [c for c in calls if _git_kind(c) == "head_fetch"]
+        assert len(base_fetches) == 1
         # Fetch must populate origin/<base>; `git fetch origin main` only updates FETCH_HEAD.
-        assert "origin" in fetch_calls[0]
-        assert "+refs/heads/main:refs/remotes/origin/main" in fetch_calls[0]
+        assert "+refs/heads/main:refs/remotes/origin/main" in base_fetches[0]
+        assert len(head_fetches) == 1
+        assert "+refs/pull/2409/head:refs/pr-live-state/2409" in head_fetches[0]
 
-    def test_git_cherry_failure_surfaces_as_unknown(self):
-        # If git cherry exits non-zero, we cannot prove supersession; the
-        # result must be advisory (fully_superseded=False) rather than a
-        # false positive.
+    def test_cherry_runs_against_resolved_pr_ref_fork_safe(self):
+        # The cherry compares origin/<base> against the private pull ref, not
+        # origin/<headRefName>. That path is fork-safe (a fork PR has no
+        # branch in the base-repo namespace) and branch-name-agnostic.
+        captured_cmd: list[str] = []
+
         def fake_run(cmd, **kwargs):
-            if "cherry" in cmd:
-                return _completed(stdout="", stderr="fatal: bad ref", rc=128)
-            return _completed(stdout="", rc=0)
+            if _git_kind(cmd) == "cherry":
+                captured_cmd.extend(cmd)
+                return _completed(stdout="", rc=0)
+            return _completed(rc=0)
+
+        with patch("check_pr_live_state.subprocess.run", side_effect=fake_run):
+            is_superseded_by_base(
+                base_branch="main",
+                pr_number=2409,
+                skip_fetch=True,
+            )
+        assert "origin/main" in captured_cmd
+        assert "refs/pr-live-state/2409" in captured_cmd
+        # No dependence on a possibly-absent origin/<head> remote-tracking ref.
+        origin_refs = [c for c in captured_cmd if c.startswith("origin/")]
+        assert origin_refs == ["origin/main"]
+
+    def test_missing_local_head_ref_is_fetched_before_cherry(self):
+        # A fresh/pruned clone lacks the PR branch locally; the fix fetches
+        # refs/pull/<n>/head first, so the cherry then succeeds (issue #3116).
+        order: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            kind = _git_kind(cmd)
+            order.append(kind)
+            if kind == "cherry":
+                return _completed(stdout="- abc1234567890\n", rc=0)
+            return _completed(rc=0)
 
         with patch("check_pr_live_state.subprocess.run", side_effect=fake_run):
             result = is_superseded_by_base(
                 base_branch="main",
-                head_ref="fix/foo",
+                pr_number=2409,
                 skip_fetch=True,
             )
-        # The probe failed: never report superseded on the failure path.
-        assert result["fully_superseded"] is False
-        assert result.get("git_cherry_failed") is True
+        assert result["fully_superseded"] is True
+        assert result["probe_inconclusive"] is False
+        # The head is resolved before the cherry that consumes it.
+        assert order.index("head_fetch") < order.index("cherry")
 
-    def test_git_cherry_uses_origin_prefixed_base(self):
-        # `git cherry origin/<base> <head>` is the only correct invocation
-        # for a worktree where local <base> may be stale or missing.
-        captured_cmd: list[str] = []
-
+    def test_deleted_head_is_inconclusive_not_false_negative(self):
+        # A deleted / unresolvable PR head must NOT return a clean
+        # "not superseded" ACT; it surfaces an inconclusive probe and the
+        # cherry never runs against a phantom ref (issue #3116).
         def fake_run(cmd, **kwargs):
-            if "cherry" in cmd:
-                captured_cmd.extend(cmd)
-                return _completed(stdout="", rc=0)
-            return _completed(stdout="", rc=0)
+            kind = _git_kind(cmd)
+            if kind == "cherry":
+                raise AssertionError("cherry must not run when head is unresolved")
+            if kind == "head_fetch":
+                return _completed(stderr="fatal: couldn't find remote ref", rc=128)
+            return _completed(rc=0)
 
         with patch("check_pr_live_state.subprocess.run", side_effect=fake_run):
-            is_superseded_by_base(
+            result = is_superseded_by_base(
                 base_branch="main",
-                head_ref="origin/fix/foo",
+                pr_number=999,
                 skip_fetch=True,
             )
-        assert "origin/main" in captured_cmd
-        assert "origin/fix/foo" in captured_cmd
+        assert result["fully_superseded"] is False
+        assert result["probe_inconclusive"] is True
+        assert result["git_cherry_failed"] is True
+        assert result.get("head_unresolved") is True
+
+    def test_cherry_failure_surfaces_as_inconclusive(self):
+        # If git cherry exits non-zero after the head resolves, we cannot
+        # prove supersession; report inconclusive, never a false positive.
+        def fake_run(cmd, **kwargs):
+            if _git_kind(cmd) == "cherry":
+                return _completed(stdout="", stderr="fatal: bad object", rc=128)
+            return _completed(rc=0)
+
+        with patch("check_pr_live_state.subprocess.run", side_effect=fake_run):
+            result = is_superseded_by_base(
+                base_branch="main",
+                pr_number=2409,
+                skip_fetch=True,
+            )
+        assert result["fully_superseded"] is False
+        assert result["git_cherry_failed"] is True
+        assert result["probe_inconclusive"] is True
 
 
 # ---------------------------------------------------------------------------
