@@ -105,7 +105,10 @@ class TestDispatcherArtifacts:
             )
         )
         serialized_generated = json.dumps(generated)
-        assert all(script not in serialized_generated for script in removed)
+        assert all(
+            script.removesuffix(".py") not in serialized_generated
+            for script in removed
+        )
         assert all(
             script.removesuffix(".py") in serialized_generated
             for script in required_hard_gates

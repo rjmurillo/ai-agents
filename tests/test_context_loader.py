@@ -101,6 +101,7 @@ class TestUtf8ProtocolOutput:
 
         assert stream.write_calls == 1
         assert stream.buffer.getvalue() == b""
+
     def test_uses_binary_buffer_when_stdout_cannot_reconfigure(self, monkeypatch) -> None:
         class NonReconfigurableStream:
             def __init__(self) -> None:

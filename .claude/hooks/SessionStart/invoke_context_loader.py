@@ -278,6 +278,7 @@ def _emit_utf8(text: str) -> None:
     stream.write(text + "\n")
     stream.flush()
 
+
 def main() -> None:
     """Load HANDOFF.md and latest retrospective into session context."""
     _drain_stdin()
