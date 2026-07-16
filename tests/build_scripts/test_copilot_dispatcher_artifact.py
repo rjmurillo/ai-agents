@@ -37,6 +37,34 @@ def _hooks() -> dict[str, list[dict[str, Any]]]:
     return cast("dict[str, list[dict[str, Any]]]", data["hooks"])
 
 
+_DISPATCH_GROUPS = json.loads(
+    (_REPO / ".claude" / "hooks" / "dispatch_groups.json").read_text(encoding="utf-8")
+)["groups"]
+
+
+def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> list[str]:
+    """Flatten hook registrations to per-script command strings.
+
+    Claude-side manifests register dispatch_claude.py groups (#3075); a
+    group registration counts as one command per member shim so tests can
+    keep asserting on the effective script set.
+    """
+    commands: list[str] = []
+    events = [event] if event else list(manifest["hooks"].keys())
+    for evt in events:
+        for group in manifest["hooks"].get(evt, []):
+            for hook in group.get("hooks", []):
+                command = hook.get("command", "") or ""
+                if "dispatch_claude.py" in command:
+                    group_id = command.rsplit("--group", 1)[1].strip()
+                    commands.extend(
+                        shim["file"] for shim in _DISPATCH_GROUPS[group_id]["shims"]
+                    )
+                else:
+                    commands.append(command)
+    return commands
+
+
 def _run_entry(event: str, payload: dict[str, Any]) -> subprocess.CompletedProcess[bytes]:
     env = dict(os.environ)
     env["CLAUDE_PROJECT_DIR"] = str(_REPO)
@@ -92,11 +120,11 @@ class TestDispatcherArtifacts:
         )
 
         for manifest in manifests:
-            serialized = json.dumps(manifest)
+            serialized = json.dumps(manifest) + json.dumps(_effective_commands(manifest))
             assert all(script not in serialized for script in removed)
             assert all(script in serialized for script in required_hard_gates)
 
-        serialized_settings = json.dumps(settings)
+        serialized_settings = json.dumps(_effective_commands(settings))
         assert all(script in serialized_settings for script in required_session_start)
 
         generated = json.loads(
@@ -126,21 +154,13 @@ class TestDispatcherArtifacts:
         settings = json.loads(
             (_REPO / ".claude" / "settings.json").read_text(encoding="utf-8")
         )
-        settings_commands = [
-            hook["command"]
-            for group in settings["hooks"]["SessionStart"]
-            for hook in group["hooks"]
-        ]
+        settings_commands = _effective_commands(settings, "SessionStart")
         plugin_hooks = json.loads(
             (_REPO / ".claude" / "hooks" / "hooks.json").read_text(
                 encoding="utf-8"
             )
         )
-        plugin_commands = [
-            hook["command"]
-            for group in plugin_hooks["hooks"]["SessionStart"]
-            for hook in group["hooks"]
-        ]
+        plugin_commands = _effective_commands(plugin_hooks, "SessionStart")
         generated_manifest = json.loads(
             (_COPILOT / "hooks" / "SessionStart" / "_manifest.json").read_text(
                 encoding="utf-8"
