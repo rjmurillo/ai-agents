@@ -24,16 +24,21 @@ at or below 64 MiB exit 0; the shim does not gate a call it never matched.
 
 `MAX_MATCHER_TOOL_CALLS = 256` caps the raw `toolCalls` list before
 candidate copying, matcher evaluation, or guard execution. The cap counts
-invalid and non-dict entries. Exactly 256 entries are accepted; 257 are
+every raw entry. Exactly 256 structurally valid entries are accepted; 257 are
 rejected with exit 2.
+
+Every list entry is validated before any guard runs. Non-object entries and
+entries without a non-empty string `name` exit 2. An empty `toolCalls` list
+combined with a top-level `tool_name` or `toolName` also exits 2 because the
+payload presents conflicting schemas with no canonical batched candidate.
 
 A second, separate limit, `MATCHED_SHIM_PAYLOAD_LIMIT_MIB = 2`, applies only
 after matcher selection, to each canonical replay built for a matched
 candidate. An oversize matched replay exits 2.
 
-When `toolCalls` exists, each selected batched call is the canonical replay.
-Conflicting top-level `tool_name` or `tool_input` fields do not override the
-selected call.
+When a structurally valid `toolCalls` batch exists, each selected batched call
+is the canonical replay. Conflicting top-level `tool_name` or `tool_input`
+fields do not override the selected call.
 
 Every matching candidate inside a `toolCalls` batch is evaluated in input
 order, not only the first. Each candidate's replay excludes unrelated
@@ -41,8 +46,9 @@ sibling calls, so a large unmatched sibling cannot deny a small matched
 candidate. Evaluation stops at the first non-zero result; if every matching
 candidate allows, the shim exits 0.
 
-Candidate and selection traversal use generators, so accepted events do not
-allocate a second full candidate list.
+The bounded raw batch is validated in one pass before dispatch. Candidate and
+selection traversal then use generators, so accepted events do not allocate a
+second full candidate list.
 
 Wrapped `SystemExit` values normalize consistently: `None` becomes 0, an
 integer code passes through unchanged, and a non-integer code becomes 1.
@@ -74,6 +80,11 @@ mixed-schema bypass. An attacker cannot embed a dangerous call in `toolCalls`
 while showing a benign `tool_name` at the top level. A guard reading only the
 top-level field would miss the dangerous call.
 
+Rejecting malformed entries before dispatch closes the inverse bypass. A junk
+`toolCalls` list can no longer suppress a matching top-level call by producing
+zero candidates. Full-batch prevalidation also prevents a valid early
+candidate from running before a malformed later entry is detected.
+
 ## Limit rationale
 
 The three limits protect different resources and must stay independent:
@@ -86,9 +97,9 @@ The three limits protect different resources and must stay independent:
   were designed and tested around this ceiling, so raising it would increase
   guard memory and parsing exposure without helping unmatched calls.
 - 256 bounds candidate count before filtering. Payload bytes alone do not bound
-  iteration cost because an attacker can submit many tiny or invalid entries.
-  The value accepts normal batched events while fixing the maximum matcher and
-  guard work per event.
+  iteration cost because an attacker can submit many tiny entries. Malformed
+  entries are rejected before dispatch, while the value fixes the maximum
+  matcher and guard work for structurally valid events.
 
 These values are defensive operating limits, not measurements of a Copilot
 host guarantee. They can change independently when production evidence supports
@@ -101,8 +112,9 @@ camelCase payload shapes, then replay canonical JSON to unmodified guard
 scripts. A streaming parser would duplicate schema and matcher semantics before
 the established guard boundary. That adds a second policy implementation and
 still cannot safely dispatch a matched call without materializing its replay.
-The bounded full parse plus lazy candidate traversal keeps one matcher policy,
-preserves guard compatibility, and fixes both byte and candidate-count costs.
+The bounded full parse, bounded batch prevalidation, and lazy candidate
+traversal keep one matcher policy, preserve guard compatibility, and fix byte,
+candidate-count, and malformed-batch costs.
 
 ## Evidence
 
@@ -111,10 +123,11 @@ preserves guard compatibility, and fixes both byte and candidate-count costs.
 - Tests: `tests/build_scripts/test_generate_dispatcher.py`,
   `tests/build_scripts/test_generate_hooks.py`,
   `tests/build_scripts/test_dispatch_small_apply_patch_regression.py`.
-- Focused suite (5 mandated files): 229 passed, 1 skipped.
-- Build-script suite: 843 passed, 1 skipped.
-- Full suite: 14438 passed, 21 skipped, 45 expected failures, 3 warnings.
-- Live generated-shim probe: mixed schema rc=2, 256 entries rc=0,
-  257 entries rc=2, no payload disclosure.
+- Focused suite (5 mandated files): 235 passed, 1 skipped.
+- Build-script suite: 849 passed, 1 skipped.
+- Full suite: 14444 passed, 21 skipped, 45 expected failures, 3 warnings.
+- Live generated-shim probes: mixed schema rc=2, 256 entries rc=0,
+  257 entries rc=2, malformed batches rc=2 in both reviewed shims, and no
+  payload disclosure.
 - Final QA verdict: PASS, recorded in
   `.agents/qa/pr-3097-dispatcher-stdin-ceiling-test-report.md`.

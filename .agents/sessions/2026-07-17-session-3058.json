@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "branch is dirty only with the final matcher security source, regression tests, regenerated shims, and this continuation log; known auto-retro tool noise was quarantined."
+        "Evidence": "Runtime code and 34 generated matcher shims are committed through 3a1a76d948fa80a4269c74927c6ab6de97d04eaa; only final QA, memory, and session records are modified."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -84,27 +84,27 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Recorded the final 64 MiB raw-input, 2 MiB matched-replay, and 256-entry raw toolCalls contract. The memory also records why each limit is independent and why a streaming prefilter was rejected."
+        "Evidence": "Recorded the 64 MiB raw-input, 2 MiB matched-replay, and 256-entry raw toolCalls contract, plus fail-closed malformed-batch prevalidation and the rejected streaming-prefilter alternative."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "An explicit markdownlint config without repository ignores was run from /tmp against the QA report and Serena memory: 2 files linted, 0 errors."
+        "Evidence": "Direct markdownlint with repository ignores removed checked the QA report and Serena memory: 2 files linted, 0 issues."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, tests, and 34 generated matcher shims are committed through 433029e36f79250293c1f62a74c352356450eb8c. This record commit contains the final QA and decision-rationale corrections. Final PR scope is 50 files."
+        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through 3a1a76d948fa80a4269c74927c6ab6de97d04eaa. Final PR scope remains 50 files."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused five-file suite: 229 passed, 1 intentional exclusion. Build-script suite: 843 passed, 1 intentional exclusion. Full suite: 14438 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff passed. mypy: Success: no issues found in 2 source files. Manifest parity at 0.6.47. Live generated-shim probe: mixed schema rc=2, 256 entries rc=0, 257 entries rc=2, no payload disclosure. Final QA re-review passed after the lazy-traversal evidence update."
+        "Evidence": "Focused five-file suite: 235 passed, 1 intentional exclusion. Build-script suite: 849 passed, 1 intentional exclusion. Full suite: 14444 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings. Generation drift and manifest parity passed at 0.6.47. Direct probes against both reviewer-cited generated shims returned rc=2 for the malformed batch and disclosed no payload content."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "PR #3097 remains in progress through atomic commits, final review, push, CI, and merge."
+        "Evidence": "PR #3097 remains in progress through the late malformed-batch review fix, final records, review marker, push, CI, thread resolution, and merge."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -138,13 +138,19 @@
       "timestamp": "2026-07-17T05:20:58Z",
       "action": "Closed the final QA documentation gap",
       "result": "The QA report now cites lazy candidate traversal through _shim_candidate_payloads, _shim_select_payloads, and _shim_dispatch_selections. QA re-review returned PASS."
+    },
+    {
+      "timestamp": "2026-07-17T06:14:32Z",
+      "action": "Closed the late malformed toolCalls review bypass",
+      "result": "The generator now validates the full bounded batch before dispatch. Non-object entries, missing/non-string/empty names, an ambiguous empty batch, and a malformed later entry exit 2 before any guard runs. Focused suite: 235 passed, 1 intentional exclusion. Build-script suite: 849 passed, 1 intentional exclusion. Full suite: 14444 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Two real generated-shim probes returned rc=2 without payload disclosure."
     }
   ],
-  "endingCommit": "433029e36f79250293c1f62a74c352356450eb8c",
+  "endingCommit": "3a1a76d948fa80a4269c74927c6ab6de97d04eaa",
   "nextSteps": [
-    "Create and validate the SHA-bound review marker.",
-    "Update PR #3097 with the final three-limit contract and validation counts, then push normally.",
-    "Settle CI and review threads, then squash merge PR #3097.",
+    "Commit the final QA, memory, and session records.",
+    "Create and validate a new SHA-bound 15-axis review marker.",
+    "Push normally, resolve both late review threads after the fix is remote, and settle CI.",
+    "Squash merge PR #3097 after the completion gate returns ready.",
     "Resume pr-autofix across the remaining open pull requests."
   ]
 }
