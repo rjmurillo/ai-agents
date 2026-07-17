@@ -601,6 +601,12 @@ class TestEvidenceContradiction:
             "step 21 skipped",
             "PR #3141 skipped review",
             "v2.1 skipped tests",
+            # A numbered prose step sits after a word, not a delimiter, so it is
+            # not a pytest count and must still flag (#3141 review).
+            "Phase 2 skipped",
+            "check 5 skipped",
+            "test 3 skipped",
+            "phase3 skipped",
         ],
     )
     def test_skipped_step_still_flags(self, evidence: str) -> None:
