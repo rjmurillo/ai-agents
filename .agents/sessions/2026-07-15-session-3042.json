@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit 23835075de286d5ac27bc466f545bf9584596c7c records all four evidence-backed Serena memories."
+        "Evidence": "Commit 23835075de286d5ac27bc466f545bf9584596c7c records all four evidence-backed Serena memories; commit 8215ffd80596f9f73534a88b1e3c86694561f050 records the definitive corrected state."
       },
       "markdownLintRun": {
         "level": "MUST",
