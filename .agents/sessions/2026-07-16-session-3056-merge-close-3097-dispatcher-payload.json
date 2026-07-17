@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final source, tests, and generated artifacts are committed through ea562b277112b2f53c8573256cd81017ebcc0d72; QA, memory, and session records are ready for the final record commit."
+        "Evidence": "Final source, tests, generated artifacts, QA, memory, and session records are committed through b86a1acb56dfc0228fc3651e11de2d5a247ba4e8; causal-memory cleanup for issue #3143 is staged for the final correction commit."
       },
       "validationPassed": {
         "level": "MUST",

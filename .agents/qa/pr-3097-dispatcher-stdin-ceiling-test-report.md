@@ -10,8 +10,8 @@ present in the worktree at QA time. Per the task instructions this QA pass
 does not commit, stage, or otherwise alter that state; it evaluates the
 worktree as delivered.
 
-**Diff stat (calculated independently in this session):** 50 files changed,
-3420 insertions(+), 1418 deletions(-).
+**Diff stat (calculated independently in this session):** 51 files changed,
+3576 insertions(+), 1418 deletions(-).
 
 File breakdown:
 
@@ -109,7 +109,7 @@ Result: PASS
 | `build_all.py --check --platform copilot-cli` | exit 0, 0 drift |
 | `check_plugin_manifest_parity.py` | exit 0, both manifests at 0.6.47 |
 | Direct subprocess probes (this session) | 10/10 confirmed against the final staged generated artifacts |
-| Diff stat (independently calculated) | 50 files changed, 3420 insertions(+), 1418 deletions(-) |
+| Diff stat (independently calculated) | 51 files changed, 3576 insertions(+), 1418 deletions(-) |
 
 ## Test Results
 

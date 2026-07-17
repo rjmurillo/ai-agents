@@ -12772,7 +12772,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050321+00:00"
+      "created": "2026-07-17T01:14:31.427768+00:00"
     },
     {
       "id": "b15d6f210346",
@@ -12781,7 +12781,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050378+00:00"
+      "created": "2026-07-17T01:14:31.427826+00:00"
     },
     {
       "id": "1045b841f49f",
@@ -12790,7 +12790,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050424+00:00"
+      "created": "2026-07-17T01:14:31.427872+00:00"
     },
     {
       "id": "c4bb8cd8cb6e",
@@ -12799,7 +12799,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050469+00:00"
+      "created": "2026-07-17T01:14:31.427917+00:00"
     },
     {
       "id": "ccb7236169a6",
@@ -12808,7 +12808,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050516+00:00"
+      "created": "2026-07-17T01:14:31.427964+00:00"
     },
     {
       "id": "055e451fdce1",
@@ -12817,7 +12817,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050560+00:00"
+      "created": "2026-07-17T01:14:31.428008+00:00"
     },
     {
       "id": "474f6444c378",
@@ -12826,7 +12826,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050608+00:00"
+      "created": "2026-07-17T01:14:31.428055+00:00"
     },
     {
       "id": "61567c776c00",
@@ -12835,7 +12835,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050669+00:00"
+      "created": "2026-07-17T01:14:31.428099+00:00"
     },
     {
       "id": "71a40a57b455",
@@ -12844,16 +12844,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050731+00:00"
-    },
-    {
-      "id": "29b70c71cd15",
-      "type": "commit",
-      "label": "commit: Commit: 37cad6f6c46e8468926b473b21c8564209fce6f5",
-      "episodes": [
-        "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
-      ],
-      "created": "2026-07-17T01:11:42.050779+00:00"
+      "created": "2026-07-17T01:14:31.428143+00:00"
     },
     {
       "id": "4d0cd62e54c4",
@@ -12862,7 +12853,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050824+00:00"
+      "created": "2026-07-17T01:14:31.428190+00:00"
     },
     {
       "id": "cafe0352ce10",
@@ -12871,7 +12862,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050869+00:00"
+      "created": "2026-07-17T01:14:31.428234+00:00"
     },
     {
       "id": "e8f5255c0a6b",
@@ -12880,25 +12871,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.050913+00:00"
-    },
-    {
-      "id": "3fe10277365f",
-      "type": "milestone",
-      "label": "milestone: Completed final evidence and tooling reports: 14434 full-suite passes, QA PASS, no security or code-review blockers; filed #3137, #3138, #3139, #3140, and #3141 with repro evidence.",
-      "episodes": [
-        "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
-      ],
-      "created": "2026-07-17T01:11:42.050957+00:00"
-    },
-    {
-      "id": "88a5b0839efc",
-      "type": "commit",
-      "label": "commit: Commit: ea562b277112b2f53c8573256cd81017ebcc0d72",
-      "episodes": [
-        "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
-      ],
-      "created": "2026-07-17T01:11:42.051002+00:00"
+      "created": "2026-07-17T01:14:31.428279+00:00"
     },
     {
       "id": "0063d3e71468",
@@ -12907,7 +12880,16 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.051046+00:00"
+      "created": "2026-07-17T01:14:31.428323+00:00"
+    },
+    {
+      "id": "88a5b0839efc",
+      "type": "commit",
+      "label": "commit: Commit: ea562b277112b2f53c8573256cd81017ebcc0d72",
+      "episodes": [
+        "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
+      ],
+      "created": "2026-07-17T01:14:31.428367+00:00"
     },
     {
       "id": "d005257fc393",
@@ -12916,7 +12898,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.051091+00:00"
+      "created": "2026-07-17T01:14:31.428413+00:00"
     },
     {
       "id": "fffbf2211bd6",
@@ -12925,7 +12907,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.051212+00:00"
+      "created": "2026-07-17T01:14:31.428541+00:00"
     },
     {
       "id": "bb29e352b66c",
@@ -12934,7 +12916,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.051258+00:00"
+      "created": "2026-07-17T01:14:31.428588+00:00"
     }
   ],
   "patterns": [
@@ -13449,7 +13431,7 @@
       "episodes": [
         "episode-2026-07-16-session-3056-merge-close-3097-dispatcher-payload"
       ],
-      "created": "2026-07-17T01:11:42.051263+00:00"
+      "created": "2026-07-17T01:14:31.428593+00:00"
     }
   ]
 }

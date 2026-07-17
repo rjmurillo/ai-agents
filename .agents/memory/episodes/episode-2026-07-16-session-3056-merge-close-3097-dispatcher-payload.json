@@ -81,8 +81,8 @@
     {
       "id": "e010",
       "timestamp": "2026-07-16T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 37cad6f6c46e8468926b473b21c8564209fce6f5",
+      "type": "milestone",
+      "content": "Reproduced the late code-review blocker: generated matcher shims rejected input above 2 MiB before matcher classification; a real 5 MiB apply_patch call exited 2.",
       "caused_by": [],
       "leads_to": []
     },
@@ -90,7 +90,7 @@
       "id": "e011",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "milestone",
-      "content": "Reproduced the late code-review blocker: generated matcher shims rejected input above 2 MiB before matcher classification; a real 5 MiB apply_patch call exited 2.",
+      "content": "Fixed matcher input policy: shared 64 MiB classification ceiling, 2 MiB per matched canonical replay, unrelated sibling exclusion, SystemExit normalization, and first non-zero stop.",
       "caused_by": [],
       "leads_to": []
     },
@@ -98,7 +98,7 @@
       "id": "e012",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "milestone",
-      "content": "Fixed matcher input policy: shared 64 MiB classification ceiling, 2 MiB per matched canonical replay, unrelated sibling exclusion, SystemExit normalization, and first non-zero stop.",
+      "content": "Closed the security review blocker: shims now evaluate every matching toolCalls candidate in order, so a benign first call cannot hide a later dangerous call.",
       "caused_by": [],
       "leads_to": []
     },
@@ -106,31 +106,15 @@
       "id": "e013",
       "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "milestone",
-      "content": "Closed the security review blocker: shims now evaluate every matching toolCalls candidate in order, so a benign first call cannot hide a later dangerous call.",
+      "content": "Completed final evidence and tooling reports: 14434 full-suite passes, QA PASS, no security or code-review blockers; filed #3137, #3138, #3139, #3140, #3141, and #3142 with repro evidence.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e014",
       "timestamp": "2026-07-16T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Completed final evidence and tooling reports: 14434 full-suite passes, QA PASS, no security or code-review blockers; filed #3137, #3138, #3139, #3140, and #3141 with repro evidence.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-07-16T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: ea562b277112b2f53c8573256cd81017ebcc0d72",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-07-16T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Completed final evidence and tooling reports: 14434 full-suite passes, QA PASS, no security or code-review blockers; filed #3137, #3138, #3139, #3140, #3141, and #3142 with repro evidence.",
       "caused_by": [],
       "leads_to": []
     }
