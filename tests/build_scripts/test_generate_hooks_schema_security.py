@@ -10,6 +10,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
@@ -244,3 +246,94 @@ def test_committed_shim_rejects_duplicate_toolcalls_keys():
 
     assert proc.returncode == 2
     assert b"duplicate JSON object key" in proc.stderr
+
+
+def _nested_json_overflowing_stdin() -> bytes:
+    """Return JSON bytes whose nesting overflows this interpreter's parser.
+
+    The exact depth that trips ``RecursionError`` in the stdlib JSON C
+    scanner depends on the C stack size, which varies by platform and Python
+    build. Probe upward until the local parser raises, then reuse those bytes:
+    the shim runs under the same interpreter, so the same depth overflows
+    there too. This keeps the test deterministic across environments instead
+    of hard-coding a depth that might parse cleanly on a larger stack.
+    Refs issue #3169.
+    """
+    depth = 200_000
+    while depth <= 5_000_000:
+        payload = b"[" * depth + b"0" + b"]" * depth
+        try:
+            json.loads(payload)
+        except RecursionError:
+            return payload
+        depth *= 2
+    pytest.skip("could not induce a JSON RecursionError in this interpreter")
+
+
+def _run_committed_pretooluse_dispatcher(
+    raw_input: bytes,
+) -> subprocess.CompletedProcess[bytes]:
+    dispatcher = (
+        REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_dispatch.py"
+    )
+    if not dispatcher.exists():
+        raise AssertionError(f"committed dispatcher missing: {dispatcher}")
+    env = dict(os.environ)
+    env["COPILOT_PLUGIN_ROOT"] = str(REPO_ROOT / "src" / "copilot-cli")
+    return subprocess.run(
+        [sys.executable, str(dispatcher)],
+        input=raw_input,
+        capture_output=True,
+        cwd=REPO_ROOT,
+        env=env,
+        timeout=30,
+    )
+
+
+def test_deeply_nested_json_fails_closed_direct_shim():
+    # Issue #3169: a standalone shim (run directly, not under the dispatcher)
+    # must fail closed on deeply nested JSON that raises RecursionError inside
+    # the parser, rather than leaking exit 1 and a full traceback. RecursionError
+    # is not a ValueError subclass, so it escaped the malformed-JSON handler.
+    transformed = inject_shim(_ECHO_SCRIPT, "Bash(git push*)")
+
+    proc = _run_shim_raw(transformed, _nested_json_overflowing_stdin())
+
+    assert proc.returncode == 2, proc.stderr.decode()
+    assert b"stdin JSON nesting too deep" in proc.stderr
+    assert b"Traceback" not in proc.stderr
+    assert b"RecursionError" not in proc.stderr
+    assert len(proc.stderr) < 512
+    assert proc.stdout == b""
+
+
+def test_shallow_json_still_parses_direct_shim():
+    # Negative control: nesting below the overflow threshold parses normally and
+    # does not trip the fail-closed path, so the RecursionError catch adds no
+    # false positives for well-formed input.
+    transformed = inject_shim(_ECHO_SCRIPT, "Bash(git push*)")
+    payload = {"tool_name": "Bash", "tool_input": {"command": "echo safe"}}
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 0, proc.stderr.decode()
+    assert b"nesting too deep" not in proc.stderr
+
+
+def test_committed_shim_rejects_deeply_nested_json():
+    proc = _run_committed_git_push_shim(_nested_json_overflowing_stdin())
+
+    assert proc.returncode == 2, proc.stderr.decode()
+    assert b"stdin JSON nesting too deep" in proc.stderr
+    assert b"Traceback" not in proc.stderr
+    assert len(proc.stderr) < 4096
+
+
+def test_committed_dispatcher_rejects_deeply_nested_json():
+    # Dispatcher negative control: the production dispatcher already fails closed
+    # on RecursionError. This guards against regressing that path while fixing
+    # the standalone shim (issue #3169).
+    proc = _run_committed_pretooluse_dispatcher(_nested_json_overflowing_stdin())
+
+    assert proc.returncode == 2, proc.stderr.decode()
+    assert b"Traceback" not in proc.stderr
