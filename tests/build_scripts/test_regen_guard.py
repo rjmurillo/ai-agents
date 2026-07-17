@@ -78,6 +78,14 @@ def test_unreadable_file_falls_back_to_unprotected(tmp_path: Path) -> None:
     assert regen_guard.is_protected(target) is False
 
 
+def test_strict_detect_reason_propagates_read_errors(tmp_path: Path) -> None:
+    target = tmp_path / "ghost.md"
+    target.mkdir()
+
+    with pytest.raises(IsADirectoryError):
+        regen_guard.detect_reason_strict(target)
+
+
 @pytest.mark.parametrize("comment", ["<!-- NO-REGEN -->", "# NO-REGEN-this-too"])
 def test_multiple_comment_styles(tmp_path: Path, comment: str) -> None:
     target = tmp_path / "f.md"

@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3046,
+    "date": "2026-07-16",
+    "branch": "perf/batch-claude-hooks",
+    "startingCommit": "d6be8ad0",
+    "objective": "Resolve remaining PR 3076 review threads and merge"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context was active for ai-agents; initial_instructions and repository memory calls succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena.initial_instructions returned the Serena Instructions Manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and confirmed it remains read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed the GitHub skill issue and PR scripts, including live-state, thread, completion, merge, and issue filing commands"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena memory usage-mandatory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded Serena memories usage-mandatory and copilot-hook-generation-invariants"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/batch-claude-hooks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/batch-claude-hooks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified only five implementation/test files and this session log are modified on perf/batch-claude-hooks"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "d6be8ad0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed; session validation passed before the closeout commit"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged and read-only"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated .serena/memories/copilot-hook-generation-invariants.md with path safety, case handling, and rollback invariants"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 --no-globs linted 1 changed memory file with 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation committed as 4c83b4d7; this memory and session log are staged for the closeout commit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed before the closeout commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR 3076 live-state and merge steps recorded in nextSteps"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped for this focused PR repair; durable lessons were written to Serena memory"
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: none"
+        ]
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Resumed PR 3076 at d6be8ad0, inspected the sole unresolved review thread, and confirmed stale matcher cleanup did not scan the published hook tree."
+    },
+    {
+      "time": "T1",
+      "entry": "Implemented transactional stale-shim removal with NO-REGEN preservation, duplicate and missing target idempotency, Windows rollback handling, event path validation, symlink rejection, resolved-root containment, and Windows case-insensitive active-name matching."
+    },
+    {
+      "time": "T2",
+      "entry": "Verified with uv run pytest tests/build_scripts -q: 816 passed, 1 skipped. Ruff check passed. Mypy passed for four normal files and the transaction module under --platform win32. build_all.py --check passed with no generated drift."
+    },
+    {
+      "time": "T3",
+      "entry": "A real POSIX symlink reproduction raised before deletion and retained the external file. Independent correctness and security reviews reported no blocking findings."
+    },
+    {
+      "time": "T4",
+      "entry": "Fetched 15 concurrent branch commits, fast-forwarded to f568b458, and reconciled overlapping cleanup work without overwriting remote changes. The final API retains delete_many and manifest-driven stale discovery."
+    },
+    {
+      "time": "T5",
+      "entry": "Committed the five-file hardening as 4c83b4d7 after 816 tests passed and two post-merge independent reviews reported no blocking findings."
+    }
+  ],
+  "endingCommit": "4c83b4d7",
+  "nextSteps": [
+    "Push commits to perf/batch-claude-hooks and confirm 4c83b4d7 is on PR 3076.",
+    "Reply to and resolve review thread PRRT_kwDOQoWRls6RYa5H only after the push is confirmed.",
+    "Wait for stable checks and zero unresolved threads, then run the completion gate and merge PR 3076."
+  ]
+}
