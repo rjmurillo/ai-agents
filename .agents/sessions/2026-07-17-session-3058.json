@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Runtime code and 34 generated matcher shims are committed through f5174718dcd8be3a4df1bfe57d8170a7106f59e5; only final QA, memory, and session records are modified."
+        "Evidence": "Padded-name source, tests, and 34 regenerated matcher shims are committed through a34dd4667bda38e728d3610ffe66d39f20e78b53; only final QA and session records are modified."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -89,22 +89,22 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Direct markdownlint with repository ignores removed checked the QA report and Serena memory: 2 files linted, 0 issues."
+        "Evidence": "markdownlint-cli2 --no-globs checked the updated PR #3097 QA report: 1 file linted, 0 issues."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through f5174718dcd8be3a4df1bfe57d8170a7106f59e5. Final PR scope after QA and session evidence is 50 files, 5283 insertions, and 2118 deletions."
+        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through a34dd4667bda38e728d3610ffe66d39f20e78b53. Final PR scope with QA and session evidence is 50 files, 5461 insertions, and 2118 deletions."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused five-file suite: 243 passed, 1 intentional exclusion. Build-script suite: 857 passed, 1 intentional exclusion. Full suite: 14452 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings. Generation drift and manifest parity passed at 0.6.47. Direct generated-shim probes reject empty batches with string, null, and non-string top-level name values with rc=2, allow an empty batch without a top-level name with rc=0, and disclose no payload content. Final pre-PR validation reported 29 passed. The local Copilot plugin smoke suite reported 16 passed."
+        "Evidence": "Focused five-file suite: 246 passed, 1 intentional exclusion. Build-script suite: 860 passed, 1 intentional exclusion. Full suite: 14455 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Targeted Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings. Generation drift, agent parity, library parity, install parity, and manifest parity passed at plugin 0.6.47. A live generated-shim probe rejects the padded name \"Edit \" with rc=2 before guard execution. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips. Repository-wide Ruff reports 406 existing findings outside the changed generator and test file."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "PR #3097 remains in progress through the late malformed-batch review fix, final records, review marker, push, CI, thread resolution, and merge."
+        "Evidence": "PR #3097 remains in progress through the late padded-name review fix, refreshed records, review marker, push, CI, thread resolution, and merge."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -153,13 +153,17 @@
       "timestamp": "2026-07-17T08:55:37Z",
       "action": "Closed the non-string empty-batch contract gap from final code-quality review",
       "result": "Empty toolCalls now conflicts with either top-level name key by key presence, including null and non-string values. Eight new parameter and boundary cases pass. Focused suite: 243 passed, 1 intentional exclusion. Build-script suite: 857 passed, 1 intentional exclusion. Full suite: 14452 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff, mypy, CWE-78 scan, generation drift, agent parity, library parity, and manifest parity all passed. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips. Final PR scope with evidence records is 50 files, 5283 insertions, and 2118 deletions."
+    },
+    {
+      "timestamp": "2026-07-17T11:47:58Z",
+      "action": "Closed the whitespace-padded toolCalls name bypass",
+      "result": "The matcher shim now rejects leading or trailing whitespace instead of normalizing it. Leading-space, trailing-space, and tab/newline cases first failed, then passed after the generator fix. A real generated-shim probe returned rc=2 with no guard execution. Focused suite: 246 passed, 1 intentional exclusion. Build-script suite: 860 passed, 1 intentional exclusion. Full suite: 14455 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips."
     }
   ],
-  "endingCommit": "f5174718dcd8be3a4df1bfe57d8170a7106f59e5",
+  "endingCommit": "a34dd4667bda38e728d3610ffe66d39f20e78b53",
   "nextSteps": [
-    "Commit the refreshed QA, memory, and session records.",
     "Run the final SHA-bound 15-axis review and create its marker.",
-    "Push normally, resolve both late review threads after the fix is remote, and settle CI.",
+    "Push normally, resolve the padded-name review thread after the fix is remote, and settle CI.",
     "Squash merge PR #3097 after the completion gate returns ready.",
     "Resume pr-autofix across the remaining open pull requests."
   ]
