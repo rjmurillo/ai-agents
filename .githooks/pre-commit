@@ -2160,6 +2160,10 @@ if [ "$SKIP_SCOPE_CHECK" != "1" ]; then
             fi
         fi
     fi
+else
+    # Escape hatches must be announced, never silent (Issue #3142). Only the
+    # literal value "1" reaches this branch; any other value runs the detector.
+    echo_warning "Scope detection bypassed (SKIP_SCOPE_CHECK=1); commit size is not being checked"
 fi
 
 #
