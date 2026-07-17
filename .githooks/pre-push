@@ -760,7 +760,23 @@ fi
 # gets type-checked when its files change, and sync_plugin_lib.py guarantees
 # the synced copies are byte-identical.
 if [ -n "$CHANGED_PY_CANONICAL" ]; then
-    if command -v mypy &> /dev/null; then
+    # Issue #3132: resolve mypy via uv first (the repository dev environment),
+    # then fall back to a PATH executable, matching the RUFF_CMD selector above.
+    # A uv-managed checkout without a global mypy must still run this BLOCKING
+    # type check rather than silently skip it and defer type errors to CI.
+    MYPY_CMD=()
+    MYPY_SOURCE=""
+    if command -v uv &> /dev/null \
+        && { [ -f "$REPO_ROOT/uv.lock" ] || [ -f "$REPO_ROOT/pyproject.toml" ]; } \
+        && uv run --frozen --extra dev mypy --version &> /dev/null; then
+        MYPY_CMD=(uv run --frozen --extra dev mypy)
+        MYPY_SOURCE="uv"
+    elif command -v mypy &> /dev/null; then
+        MYPY_CMD=(mypy)
+        MYPY_SOURCE="path"
+    fi
+
+    if [ ${#MYPY_CMD[@]} -gt 0 ]; then
         PY_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -817,7 +833,7 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             if [ ${#PY_FILES_UNIQUE[@]} -gt 0 ]; then
                 MYPY_OUTPUT=$(mktemp)
                 TEMP_FILES+=("$MYPY_OUTPUT")
-                if mypy "${PY_FILES_UNIQUE[@]}" > "$MYPY_OUTPUT" 2>&1; then
+                if "${MYPY_CMD[@]}" "${PY_FILES_UNIQUE[@]}" > "$MYPY_OUTPUT" 2>&1; then
                     : # pass; aggregate recorded below
                 else
                     echo_info "  mypy issues (unique files):"
@@ -831,7 +847,7 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             for col_file in "${PY_FILES_COLLIDING[@]}"; do
                 MYPY_OUTPUT=$(mktemp)
                 TEMP_FILES+=("$MYPY_OUTPUT")
-                if mypy "$col_file" > "$MYPY_OUTPUT" 2>&1; then
+                if "${MYPY_CMD[@]}" "$col_file" > "$MYPY_OUTPUT" 2>&1; then
                     : # pass; aggregate recorded below
                 else
                     echo_info "  mypy issues in a colliding-basename file:"
@@ -849,7 +865,7 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
                 MYPY_OUTPUT=$(mktemp)
                 TEMP_FILES+=("$MYPY_OUTPUT")
                 if MYPYPATH="$REPO_ROOT/scripts/validation${MYPYPATH:+:$MYPYPATH}" \
-                    mypy "$pm_file" > "$MYPY_OUTPUT" 2>&1; then
+                    "${MYPY_CMD[@]}" "$pm_file" > "$MYPY_OUTPUT" 2>&1; then
                     : # pass; aggregate recorded below
                 else
                     echo_info "  mypy issues in a scripts/validation module:"
@@ -860,7 +876,7 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             done
 
             if [ "$MYPY_OVERALL_PASS" = true ]; then
-                record_pass "Python type check/mypy (${#PY_FILES[@]} files)"
+                record_pass "Python type check/mypy (${#PY_FILES[@]} files via ${MYPY_SOURCE})"
             else
                 record_fail "Python type check/mypy"
                 echo_info "  Fix type errors before pushing."
@@ -869,7 +885,11 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             record_skip "Python type check (no accessible files)"
         fi
     else
-        record_skip "Python type check (mypy not installed)"
+        # Neither uv-managed mypy nor a PATH mypy is reachable. This is a
+        # BLOCKING phase (Issue #3132): a uv checkout that cannot resolve mypy
+        # is an environment bug, not a reason to silently drop the type check.
+        record_fail "Python type check (mypy unavailable via uv or PATH)"
+        echo_info "  Install: uv sync --extra dev (or pip install mypy)"
     fi
 else
     record_skip "Python type check (no .py files changed)"
