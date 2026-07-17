@@ -388,12 +388,17 @@ def _original_main(stdin_bytes):
     from hook_utilities import get_project_directory  # noqa: E402
 
     # File path patterns that indicate auth-related code
+    # Candidate paths are lower-cased before matching (see ``is_auth_path``), so
+    # these patterns are written lower-case only. Case folding closes a Windows and
+    # macOS bypass: on a case-insensitive filesystem ``src/AUTH/login.ts`` names the
+    # same file as ``src/auth/login.ts`` but an upper-cased segment slipped past the
+    # gate before normalization (issue #3203 adversarial review).
     _AUTH_PATH_PATTERNS = [
-        re.compile(r"(^|[/\\])[Aa]uth[/\\]"),
-        re.compile(r"(^|[/\\])[Aa]uthentication[/\\]"),
-        re.compile(r"(^|[/\\])[Aa]uthorization[/\\]"),
+        re.compile(r"(^|[/\\])auth[/\\]"),
+        re.compile(r"(^|[/\\])authentication[/\\]"),
+        re.compile(r"(^|[/\\])authorization[/\\]"),
         re.compile(r"\.auth\.(ts|js|py|cs|java|go|rb)$"),
-        re.compile(r"(^|[/\\])middleware[/\\]auth", re.IGNORECASE),
+        re.compile(r"(^|[/\\])middleware[/\\]auth"),
     ]
 
     # Freeform patch (Codex/Copilot ``apply_patch``, V4A format) file headers.
@@ -406,9 +411,13 @@ def _original_main(stdin_bytes):
     #   *** Move to: path      (rename destination inside an Update hunk)
     # Matching all four is a superset of what the patch executor applies, so no
     # touched path can slip past the auth check. The keyword is matched
-    # case-insensitively and tolerates surrounding whitespace.
+    # case-insensitively and tolerates surrounding whitespace. The captured path
+    # must begin with a non-whitespace character (``\S``): a header with an empty or
+    # whitespace-only path (``*** Add File:   ``) is not well-formed, so it is left
+    # for ``malformed_structural_lines`` to fail closed on rather than silently
+    # skipped (issue #3203 adversarial review).
     _PATCH_FILE_HEADER = re.compile(
-        r"^\*\*\*\s+(?:(?:Add|Update|Delete)\s+File|Move\s+to)\s*:\s*(?P<path>.+?)\s*$",
+        r"^\*\*\*\s+(?:(?:Add|Update|Delete)\s+File|Move\s+to)\s*:\s*(?P<path>\S.*?)\s*$",
         re.IGNORECASE,
     )
 
@@ -474,11 +483,19 @@ def _original_main(stdin_bytes):
 
 
     def is_auth_path(file_path: str) -> bool:
-        """Check if a file path matches auth-related patterns."""
+        """Check if a file path matches auth-related patterns.
+
+        The candidate is lower-cased before matching so an auth directory or
+        extension written in any case (for example ``src/AUTH/login.ts`` on a
+        case-insensitive Windows or macOS filesystem) is still gated. Callers keep
+        the original path for reporting; only the match test is case-folded (issue
+        #3203 adversarial review).
+        """
         if not file_path:
             return False
+        candidate = file_path.lower()
         for pattern in _AUTH_PATH_PATTERNS:
-            if pattern.search(file_path):
+            if pattern.search(candidate):
                 return True
         return False
 

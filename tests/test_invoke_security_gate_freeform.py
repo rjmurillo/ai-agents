@@ -108,7 +108,12 @@ class TestMalformedStructuralLines:
 
 
 class TestGateFreeformPatchFailClosed:
-    """``gate_freeform_patch`` must fail closed on any malformed structural line."""
+    """``gate_freeform_patch`` fails closed on a malformed column-0 ``***`` header.
+
+    "Malformed" is scoped to a column-0 ``***`` structural line that matches
+    neither a well-formed file header nor ``*** Begin/End Patch``; the gate
+    cannot attribute a path to it, so it blocks (exit 2).
+    """
 
     def test_partial_parse_fails_closed(self, capsys: pytest.CaptureFixture[str]) -> None:
         # A benign ``Add File`` header must not let a malformed auth header ride
@@ -119,6 +124,21 @@ class TestGateFreeformPatchFailClosed:
             "+probe\n"
             "***Update File: src/auth/login.py\n"
             "@@\n-old\n+new\n"
+            "*** End Patch\n"
+        )
+        assert gate_freeform_patch(patch) == 2
+        assert "Security Gate Error" in capsys.readouterr().out
+
+    def test_whitespace_only_path_fails_closed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # A file header with a whitespace-only path is not well-formed: no path
+        # can be attributed, so it must fail closed instead of being silently
+        # skipped (issue #3203 adversarial review).
+        patch = (
+            "*** Begin Patch\n"
+            "*** Add File:   \n"
+            "+probe\n"
             "*** End Patch\n"
         )
         assert gate_freeform_patch(patch) == 2

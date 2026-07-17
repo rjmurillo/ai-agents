@@ -52,6 +52,22 @@ class TestIsAuthPath:
     @pytest.mark.parametrize(
         "path",
         [
+            "src/AUTH/login.ts",
+            "src/AUTHENTICATION/oauth.ts",
+            "lib/AUTHORIZATION/rbac.py",
+            "config.AUTH.ts",
+            "app/MIDDLEWARE/AUTH.js",
+            "SRC/Auth/Login.CS",
+        ],
+    )
+    def test_matches_uppercase_auth_paths(self, path: str) -> None:
+        # Windows and macOS filesystems are case-insensitive: an upper-cased
+        # segment names the same auth file and must still be gated (issue #3203).
+        assert is_auth_path(path) is True
+
+    @pytest.mark.parametrize(
+        "path",
+        [
             "src/controllers/UserController.cs",
             "lib/utils/helpers.py",
             "README.md",
