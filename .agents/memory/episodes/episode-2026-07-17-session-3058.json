@@ -1,0 +1,155 @@
+{
+  "id": "episode-2026-07-17-session-3058",
+  "session": "2026-07-17-session-3058",
+  "timestamp": "2026-07-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Finish and close PR 3097 dispatcher matcher hardening",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed final matcher security validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "test",
+      "content": "Refreshed final matcher security validation      uv run pytest tests/build_scripts/test_generate_hooks.py tests/build_scripts/test_generate_dispatcher.py tests/build_scripts/test_dispatch_small_apply_patch_regression.py tests/build_scripts/test_copilot_dispatcher_artifact.py tests/test_hook_dispatch.py -q: 229 passed, 1 intentional exclusion; Ruff passed; mypy reported Success: no issues found in 2 source files; plugin manifest parity passed at 0.6.47.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Full validation of MAX_MATCHER_TOOL_CALLS = 256 contract and live generated-shim probe",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "test",
+      "content": "Full validation of MAX_MATCHER_TOOL_CALLS = 256 contract and live generated-shim probe      Focused five-file suite: 229 passed, 1 intentional exclusion. Build-script suite: 843 passed, 1 intentional exclusion. Full suite: 14438 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff passed. mypy: Success: no issues found in 2 source files. Manifest parity at 0.6.47. Live generated-shim probe: mixed schema rc=2, 256 entries rc=0, 257 entries rc=2, no payload disclosure.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scope-gate finding documented",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed the 15-axis review and corrected its documentation findings",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the final QA documentation gap",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the late malformed toolCalls review bypass",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "test",
+      "content": "Closed the late malformed toolCalls review bypass      The generator now validates the full bounded batch before dispatch. Non-object entries, missing/non-string/empty names, an ambiguous empty batch, and a malformed later entry exit 2 before any guard runs. Focused suite: 235 passed, 1 intentional exclusion. Build-script suite: 849 passed, 1 intentional exclusion. Full suite: 14444 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Two real generated-shim probes returned rc=2 without payload disclosure.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the final PR diff evidence",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the non-string empty-batch contract gap from final code-quality review",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "test",
+      "content": "Closed the non-string empty-batch contract gap from final code-quality review      Empty toolCalls now conflicts with either top-level name key by key presence, including null and non-string values. Eight new parameter and boundary cases pass. Focused suite: 243 passed, 1 intentional exclusion. Build-script suite: 857 passed, 1 intentional exclusion. Full suite: 14452 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff, mypy, CWE-78 scan, generation drift, agent parity, library parity, and manifest parity all passed. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips. Final PR scope with evidence records is 50 files, 5283 insertions, and 2118 deletions.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the whitespace-padded toolCalls name bypass",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "test",
+      "content": "Closed the whitespace-padded toolCalls name bypass      The matcher shim now rejects leading or trailing whitespace instead of normalizing it. Leading-space, trailing-space, and tab/newline cases first failed, then passed after the generator fix. A real generated-shim probe returned rc=2 with no guard execution. Focused suite: 246 passed, 1 intentional exclusion. Build-script suite: 860 passed, 1 intentional exclusion. Full suite: 14455 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the top-level matcher schema bypasses and measured the exact-ceiling path",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "test",
+      "content": "Closed the top-level matcher schema bypasses and measured the exact-ceiling path      Present non-list toolCalls, malformed or padded top-level names, and conflicting tool_name/toolName aliases now exit 2 before guard execution. Matching aliases remain compatible. Canonical batch replay removes all top-level name, input, and call-ID aliases. Focused suite: 265 passed, 1 intentional exclusion. Build-script suite: 879 passed, 1 intentional exclusion. Full suite: 14474 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Three 64 MiB dispatcher benchmarks measured 4.81 to 4.84 seconds and 276720 to 277540 KiB peak RSS; filed #3174 with the repro.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-17T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6e52972c39e78f9944a4d2807ecb72f9b2c30eef",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 149
+  },
+  "lessons": []
+}

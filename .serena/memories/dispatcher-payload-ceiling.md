@@ -22,13 +22,16 @@ Each generated matcher shim reads and parses up to 64 MiB of stdin only to
 classify candidates against its matcher. Unmatched payloads above 2 MiB and
 at or below 64 MiB exit 0; the shim does not gate a call it never matched.
 
+When the `toolCalls` key is present, its value must be a list. Object,
+string, number, boolean, and null values exit 2 before top-level fallback.
+
 `MAX_MATCHER_TOOL_CALLS = 256` caps the raw `toolCalls` list before
 candidate copying, matcher evaluation, or guard execution. The cap counts
 every raw entry. Exactly 256 structurally valid entries are accepted; 257 are
 rejected with exit 2.
 
 Every list entry is validated before any guard runs. Non-object entries and
-entries without a non-empty string `name` exit 2. An empty `toolCalls` list
+entries without a non-empty, unpadded string `name` exit 2. An empty `toolCalls` list
 combined with a top-level `tool_name` or `toolName` key also exits 2,
 regardless of whether its value is a string, null, or another type. The payload
 presents conflicting schemas with no canonical batched candidate.
@@ -38,8 +41,13 @@ after matcher selection, to each canonical replay built for a matched
 candidate. An oversize matched replay exits 2.
 
 When a structurally valid `toolCalls` batch exists, each selected batched call
-is the canonical replay. Conflicting top-level `tool_name` or `tool_input`
-fields do not override the selected call.
+is the canonical replay. The replay removes `tool_name`, `toolName`,
+`tool_input`, `toolArgs`, `tool_call_id`, and `toolCallId`, then emits the
+selected call through canonical snake_case fields.
+
+Without a batch, each present `tool_name` or `toolName` value must be a
+non-empty, unpadded string. When both aliases are present, their values must
+match. Malformed or conflicting aliases exit 2 before matcher evaluation.
 
 Every matching candidate inside a `toolCalls` batch is evaluated in input
 order, not only the first. Each candidate's replay excludes unrelated
@@ -86,14 +94,20 @@ Rejecting malformed entries before dispatch closes the inverse bypass. A junk
 zero candidates. Full-batch prevalidation also prevents a valid early
 candidate from running before a malformed later entry is detected.
 
+Rejecting non-list `toolCalls` values closes a fallback seam. A malformed batch
+cannot be ignored in favor of a benign top-level call. Validating top-level
+aliases closes padded-name and conflicting-alias bypasses. Canonical batch
+replay removes every competing top-level alias before the wrapped guard reads
+stdin.
+
 ## Limit rationale
 
 The three limits protect different resources and must stay independent:
 
-- 64 MiB bounds the one raw stdin read and JSON parse. The prior 2 MiB raw
-  limit rejected valid unmatched Copilot events before matcher selection.
-  64 MiB admits observed multi-call payloads while preserving a fixed process
-  memory bound.
+- 64 MiB bounds each matcher shim raw stdin read and JSON parse. The prior
+  2 MiB raw limit rejected valid unmatched Copilot events before matcher
+  selection. The dispatcher fan-out repeats this bounded work; #3174 tracks a
+  parse-once design.
 - 2 MiB bounds each selected replay passed to a wrapped guard. Existing guards
   were designed and tested around this ceiling, so raising it would increase
   guard memory and parsing exposure without helping unmatched calls.
@@ -124,12 +138,16 @@ candidate-count, and malformed-batch costs.
 - Tests: `tests/build_scripts/test_generate_dispatcher.py`,
   `tests/build_scripts/test_generate_hooks.py`,
   `tests/build_scripts/test_dispatch_small_apply_patch_regression.py`.
-- Focused suite (5 mandated files): 243 passed, 1 skipped.
-- Build-script suite: 857 passed, 1 skipped.
-- Full suite: 14452 passed, 21 skipped, 45 expected failures, 3 warnings.
+- Focused suite (5 mandated files): 265 passed, 1 skipped.
+- Build-script suite: 879 passed, 1 skipped.
+- Full suite: 14474 passed, 21 skipped, 45 expected failures, 3 warnings.
 - Live generated-shim probes: mixed schema rc=2, 256 entries rc=0,
   257 entries rc=2, malformed batches rc=2 in both reviewed shims, empty
   batches with integer or null top-level name values rc=2, empty batches without
-  a top-level name rc=0, and no payload disclosure.
+  a top-level name rc=0, padded names rc=2, non-list `toolCalls` rc=2,
+  conflicting top-level aliases rc=2, matching aliases reach the guard, and
+  canonical batch replay removes all top-level aliases.
+- Exact-ceiling dispatcher benchmark: 4.81 to 4.84 seconds and 276720 to
+  277540 KiB peak RSS across three runs. Issue #3174 tracks parse amplification.
 - Final QA verdict: PASS, recorded in
   `.agents/qa/pr-3097-dispatcher-stdin-ceiling-test-report.md`.

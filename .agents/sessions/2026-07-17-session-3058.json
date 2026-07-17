@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Padded-name source, tests, and 34 regenerated matcher shims are committed through a34dd4667bda38e728d3610ffe66d39f20e78b53; only final QA and session records are modified."
+        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through 6e52972c39e78f9944a4d2807ecb72f9b2c30eef; final QA, memory, and session records are the only planned evidence changes."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -84,27 +84,27 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Recorded the 64 MiB raw-input, 2 MiB matched-replay, and 256-entry raw toolCalls contract, plus fail-closed malformed-batch prevalidation and the rejected streaming-prefilter alternative."
+        "Evidence": "Recorded the 64 MiB raw-input, 2 MiB matched-replay, 256-entry raw toolCalls, non-list rejection, top-level alias validation, canonical batch replay, and measured parse-amplification contracts."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 --no-globs checked the updated PR #3097 QA report: 1 file linted, 0 issues."
+        "Evidence": "markdownlint-cli2 checked the updated PR #3097 QA report and dispatcher memory outside repository ignore globs: 2 files linted, 0 issues. pre_pr.py markdown validation also passed."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through a34dd4667bda38e728d3610ffe66d39f20e78b53. Final PR scope with QA and session evidence is 50 files, 5467 insertions, and 2118 deletions."
+        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through 6e52972c39e78f9944a4d2807ecb72f9b2c30eef. Final product scope before evidence records is 50 files, 6674 insertions, and 2265 deletions."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused five-file suite: 246 passed, 1 intentional exclusion. Build-script suite: 860 passed, 1 intentional exclusion. Full suite: 14455 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Targeted Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings. Generation drift, agent parity, library parity, install parity, and manifest parity passed at plugin 0.6.47. A live generated-shim probe rejects the padded name \"Edit \" with rc=2 before guard execution. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips. Repository-wide Ruff reports 406 existing findings outside the changed generator and test file."
+        "Evidence": "Focused five-file suite: 265 passed, 1 intentional exclusion. Build-script suite: 879 passed, 1 intentional exclusion. Full suite: 14474 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Targeted Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings. Generation drift, agent parity, library parity, install parity, and manifest parity passed at plugin 0.6.47. Real generated-shim probes reject padded names, non-list toolCalls, malformed top-level names, and conflicting aliases with rc=2; matching aliases reach the guard and valid batches replay canonical snake_case fields. Three exact-ceiling dispatcher runs completed in 4.81 to 4.84 seconds with 276720 to 277540 KiB peak RSS; issue #3174 tracks parse amplification. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "PR #3097 remains in progress through the late padded-name review fix, refreshed records, review marker, push, CI, thread resolution, and merge."
+        "Evidence": "PR #3097 remains in progress through refreshed evidence, the final SHA-bound 15-axis review, push, CI settlement, thread resolution, and merge."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -158,12 +158,18 @@
       "timestamp": "2026-07-17T11:47:58Z",
       "action": "Closed the whitespace-padded toolCalls name bypass",
       "result": "The matcher shim now rejects leading or trailing whitespace instead of normalizing it. Leading-space, trailing-space, and tab/newline cases first failed, then passed after the generator fix. A real generated-shim probe returned rc=2 with no guard execution. Focused suite: 246 passed, 1 intentional exclusion. Build-script suite: 860 passed, 1 intentional exclusion. Full suite: 14455 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips."
+    },
+    {
+      "timestamp": "2026-07-17T14:18:30Z",
+      "action": "Closed the top-level matcher schema bypasses and measured the exact-ceiling path",
+      "result": "Present non-list toolCalls, malformed or padded top-level names, and conflicting tool_name/toolName aliases now exit 2 before guard execution. Matching aliases remain compatible. Canonical batch replay removes all top-level name, input, and call-ID aliases. Focused suite: 265 passed, 1 intentional exclusion. Build-script suite: 879 passed, 1 intentional exclusion. Full suite: 14474 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Three 64 MiB dispatcher benchmarks measured 4.81 to 4.84 seconds and 276720 to 277540 KiB peak RSS; filed #3174 with the repro."
     }
   ],
-  "endingCommit": "21036f271cb0ec9853cb0a87740ea900976d567e",
+  "endingCommit": "6e52972c39e78f9944a4d2807ecb72f9b2c30eef",
   "nextSteps": [
+    "Commit the refreshed QA, memory, and session evidence.",
     "Run the final SHA-bound 15-axis review and create its marker.",
-    "Push normally, resolve the padded-name review thread after the fix is remote, and settle CI.",
+    "Push normally, update issue #3168, resolve the review thread, and settle CI.",
     "Squash merge PR #3097 after the completion gate returns ready.",
     "Resume pr-autofix across the remaining open pull requests."
   ]
