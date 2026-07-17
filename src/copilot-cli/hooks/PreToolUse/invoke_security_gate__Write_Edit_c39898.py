@@ -408,7 +408,7 @@ def _original_main(stdin_bytes):
     # touched path can slip past the auth check. The keyword is matched
     # case-insensitively and tolerates surrounding whitespace.
     _PATCH_FILE_HEADER = re.compile(
-        r"^\s*\*\*\*\s+(?:(?:Add|Update|Delete)\s+File|Move\s+to)\s*:\s*(?P<path>.+?)\s*$",
+        r"^\*\*\*\s+(?:(?:Add|Update|Delete)\s+File|Move\s+to)\s*:\s*(?P<path>.+?)\s*$",
         re.IGNORECASE,
     )
 
