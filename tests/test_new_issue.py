@@ -192,8 +192,11 @@ def test_label_edit_timeout_emits_json_envelope(mock_run, capsys):
 
 @patch("subprocess.run")
 def test_auth_failure_emits_json_envelope(mock_run, capsys):
+    # Both REST status and the GraphQL viewer probe fail with a non-transient
+    # signature, so credentials are classified invalid (AuthError, exit 4).
     mock_run.side_effect = [
-        _completed(rc=1),  # gh auth status fails → assert_gh_authenticated raises SystemExit(4)
+        _completed(rc=1, stderr="You are not logged into any GitHub hosts."),  # gh auth status
+        _completed(rc=1, stderr="error validating token: 401 Unauthorized"),  # gh api graphql probe
     ]
 
     rc = main(["--title", "Test", "--output-format", "json"])
@@ -201,6 +204,42 @@ def test_auth_failure_emits_json_envelope(mock_run, capsys):
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
     assert output["Error"]["Type"] == "AuthError"
+
+
+@patch("subprocess.run")
+def test_transient_transport_emits_api_error_envelope(mock_run, capsys):
+    # A REST 5xx confirmed by a GraphQL probe that also returns a transient
+    # signature is a GitHub outage, not an auth failure: exit 3 with an ApiError
+    # envelope (issue #3139). The operator must not be sent to 'gh auth login'.
+    mock_run.side_effect = [
+        _completed(rc=1, stderr="HTTP 503: unicorn"),  # gh auth status (REST) 5xx
+        _completed(rc=1, stderr="HTTP 503: Service Unavailable"),  # gh api graphql probe 5xx
+    ]
+
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "ApiError"
+
+
+@patch("subprocess.run")
+def test_rest_outage_with_working_graphql_proceeds(mock_run, capsys):
+    # The core of issue #3139: gh auth status (REST) returns a transient 5xx but
+    # the token is valid over GraphQL, so the preflight must PASS and issue
+    # creation proceeds instead of false-failing with AuthError.
+    mock_run.side_effect = [
+        _completed(rc=1, stderr="HTTP 503: unicorn"),  # gh auth status (REST) 5xx
+        _completed(rc=0, stdout='{"data":{"viewer":{"login":"octocat"}}}'),  # graphql viewer OK
+        _completed(stdout="https://github.com/owner/repo\n"),  # git remote get-url origin
+        _completed(stdout="https://github.com/owner/repo/issues/321\n"),  # gh issue create
+    ]
+
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is True
+    assert output["Data"]["issue_number"] == 321
 
 
 @patch("subprocess.run")

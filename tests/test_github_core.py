@@ -12,10 +12,12 @@ import pytest
 
 from scripts.github_core import (
     FetchStatus,
+    GhAuthStatus,
     RateLimitResult,
     RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
+    check_gh_auth,
     check_workflow_rate_limit,
     count_unresolved_threads,
     create_issue_comment,
@@ -39,7 +41,12 @@ from scripts.github_core import (
     safe_log_str,
     update_issue_comment,
 )
-from scripts.github_core.api import _403_PATTERN, _retry_after_delay
+from scripts.github_core.api import (
+    _403_PATTERN,
+    _looks_transient,
+    _retry_after_delay,
+    _sanitize_auth_detail,
+)
 from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
@@ -384,6 +391,159 @@ class TestAssertGhAuthenticated:
             with pytest.raises(SystemExit) as exc:
                 assert_gh_authenticated()
             assert exc.value.code == 4
+
+
+def _auth_side_effect(*, status, graphql):
+    """Route subprocess.run by gh subcommand for auth-transport tests.
+
+    ``status`` drives ``gh auth status`` (REST) and ``graphql`` drives
+    ``gh api graphql`` (the fallback viewer probe). Each is either a
+    ``CompletedProcess`` to return or an ``Exception`` instance to raise.
+    """
+
+    def _run(cmd, *args, **kwargs):
+        head = list(cmd[:3])
+        if head == ["gh", "auth", "status"]:
+            target = status
+        elif cmd[:2] == ["gh", "api"]:
+            target = graphql
+        else:  # pragma: no cover - guards against an unexpected command
+            raise AssertionError(f"unexpected command: {cmd}")
+        if isinstance(target, BaseException):
+            raise target
+        return target
+
+    return _run
+
+
+class TestCheckGhAuthTransportClassification:
+    """Issue #3139: REST 5xx must not read as invalid credentials."""
+
+    def test_rest_503_but_graphql_ok_is_authenticated(self):
+        """A REST 503 with a working GraphQL token is AUTHENTICATED, not auth failure."""
+        side = _auth_side_effect(
+            status=_completed(stderr="HTTP 503: Unicorn! (unauthenticated)", rc=1),
+            graphql=_completed(stdout='{"data":{"viewer":{"login":"rjmurillo"}}}', rc=0),
+        )
+        with patch("subprocess.run", side_effect=side):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.AUTHENTICATED
+        assert result.is_authenticated is True
+
+    def test_rest_503_authenticated_preflight_does_not_raise(self):
+        """assert_gh_authenticated must pass when GraphQL still authenticates."""
+        side = _auth_side_effect(
+            status=_completed(stderr="HTTP 503: Unicorn!", rc=1),
+            graphql=_completed(stdout='{"data":{"viewer":{"login":"x"}}}', rc=0),
+        )
+        with patch("subprocess.run", side_effect=side):
+            assert_gh_authenticated()  # must not raise
+
+    def test_both_transports_5xx_is_transient_exit_3(self):
+        """When REST and GraphQL both 5xx, classify external (exit 3), not auth."""
+        side = _auth_side_effect(
+            status=_completed(stderr="HTTP 503: Unicorn!", rc=1),
+            graphql=_completed(stderr="HTTP 502: Bad gateway", rc=1),
+        )
+        with patch("subprocess.run", side_effect=side):
+            result = check_gh_auth()
+            assert result.status is GhAuthStatus.TRANSIENT_ERROR
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+            assert exc.value.code == 3
+
+    def test_confirmed_bad_credentials_is_invalid_exit_4(self):
+        """A real 401/Bad credentials over GraphQL still exits 4."""
+        side = _auth_side_effect(
+            status=_completed(stderr="not logged in", rc=1),
+            graphql=_completed(stderr="HTTP 401: Bad credentials", rc=1),
+        )
+        with patch("subprocess.run", side_effect=side):
+            result = check_gh_auth()
+            assert result.status is GhAuthStatus.INVALID_CREDENTIALS
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+            assert exc.value.code == 4
+
+    def test_missing_gh_is_missing_exit_4(self):
+        """FileNotFoundError (gh absent) stays an auth failure (exit 4)."""
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            result = check_gh_auth()
+            assert result.status is GhAuthStatus.MISSING_GH
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+            assert exc.value.code == 4
+
+    def test_status_timeout_then_graphql_ok_is_authenticated(self):
+        """A REST status timeout is not proof of an invalid token."""
+        side = _auth_side_effect(
+            status=subprocess.TimeoutExpired(cmd="gh", timeout=10),
+            graphql=_completed(stdout='{"data":{"viewer":{"login":"x"}}}', rc=0),
+        )
+        with patch("subprocess.run", side_effect=side):
+            assert check_gh_auth().status is GhAuthStatus.AUTHENTICATED
+
+    def test_status_ok_short_circuits_without_graphql(self):
+        """A clean REST status is authenticated and never probes GraphQL."""
+        calls: list[list[str]] = []
+
+        def _run(cmd, *a, **kw):
+            calls.append(list(cmd))
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=_run):
+            assert check_gh_auth().status is GhAuthStatus.AUTHENTICATED
+        assert calls == [["gh", "auth", "status"]]
+
+    def test_transient_detail_redacts_tokens(self):
+        """Structured detail identifies the failure without leaking credentials."""
+        leak = "ghp_" + "A" * 36
+        side = _auth_side_effect(
+            status=_completed(stderr="HTTP 503", rc=1),
+            graphql=_completed(stderr=f"HTTP 503 unicorn token={leak}", rc=1),
+        )
+        with patch("subprocess.run", side_effect=side):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.TRANSIENT_ERROR
+        assert leak not in result.detail
+        assert "[REDACTED]" in result.detail
+
+
+class TestAuthDetailHelpers:
+    """Unit coverage for the transient-signature and redaction helpers."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "HTTP 503: Service Unavailable",
+            "status code 502",
+            "Unicorn! GitHub",
+            "connection reset by peer",
+            "request timed out",
+            "server error, try again later",
+        ],
+    )
+    def test_looks_transient_true(self, text):
+        assert _looks_transient(text) is True
+
+    @pytest.mark.parametrize(
+        "text",
+        ["HTTP 401: Bad credentials", "not logged in", "invalid token", ""],
+    )
+    def test_looks_transient_false(self, text):
+        assert _looks_transient(text) is False
+
+    def test_sanitize_redacts_pat_and_collapses_whitespace(self):
+        pat = "github_pat_" + "b" * 30
+        out = _sanitize_auth_detail(f"line1\n   token={pat}\tmore")
+        assert pat not in out
+        assert "[REDACTED]" in out
+        assert "\n" not in out and "\t" not in out
+
+    def test_sanitize_truncates_long_detail(self):
+        out = _sanitize_auth_detail("x" * 500, limit=50)
+        assert len(out) <= 53  # 50 chars + ellipsis
+        assert out.endswith("...")
 
 
 # ---------------------------------------------------------------------------

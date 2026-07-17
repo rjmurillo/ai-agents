@@ -30,7 +30,9 @@ class TestNewIssue:
 
     @pytest.fixture(autouse=True)
     def _mock_auth(self):
-        with patch.object(mod, "assert_gh_authenticated"), \
+        authed = MagicMock()
+        authed.status = mod.GhAuthStatus.AUTHENTICATED
+        with patch.object(mod, "check_gh_auth", return_value=authed), \
              patch.object(mod, "resolve_repo_params") as mock_resolve:
             info = MagicMock()
             info.owner = "owner"
