@@ -11,7 +11,7 @@ replay ceiling, 256-entry raw `toolCalls` cap, and fail-closed malformed-batch
 validation.
 
 **Diff stat (calculated independently in this session):** 50 files changed,
-5250 insertions(+), 2118 deletions(-).
+5288 insertions(+), 2118 deletions(-).
 
 File breakdown:
 
@@ -127,7 +127,7 @@ Result: PASS
 | `build_all.py --check --platform copilot-cli` | exit 0, 0 drift |
 | `check_plugin_manifest_parity.py` | exit 0, both manifests at 0.6.47 |
 | Direct subprocess probes | Every listed boundary confirmed against final generated artifacts |
-| Diff stat (independently calculated) | 50 files changed, 5250 insertions(+), 2118 deletions(-) |
+| Diff stat (independently calculated) | 50 files changed, 5288 insertions(+), 2118 deletions(-) |
 
 ## Test Results
 
