@@ -22,6 +22,7 @@ _HOOK_STDIN_CEILING_BYTES = 64 * 1024 * 1024
 # events can contain a large unrelated call that must not deny a small matched
 # call.
 _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES = 2 * 1024 * 1024
+_MAX_MATCHER_TOOL_CALLS = 256
 
 
 def _shim_classify(pattern):
@@ -110,7 +111,12 @@ def _shim_top_level_input_field(payload):
 def _shim_candidate_payloads(payload):
     tool_calls = payload.get("toolCalls")
     if isinstance(tool_calls, list):
-        candidates = []
+        if len(tool_calls) > _MAX_MATCHER_TOOL_CALLS:
+            raise ValueError(
+                "toolCalls contains {} entries; limit is {}".format(
+                    len(tool_calls), _MAX_MATCHER_TOOL_CALLS
+                )
+            )
         for call in tool_calls:
             if not isinstance(call, dict):
                 continue
@@ -123,9 +129,9 @@ def _shim_candidate_payloads(payload):
             candidate["tool_input"] = _shim_tool_input_from_call_args(call.get("args"))
             if "id" in call:
                 candidate["tool_call_id"] = call.get("id")
-            candidates.append((candidate, "toolCalls.args"))
-        return candidates
-    return [(payload, _shim_top_level_input_field(payload))]
+            yield candidate, "toolCalls.args"
+        return
+    yield payload, _shim_top_level_input_field(payload)
 
 
 def _shim_match_candidate(payload, kind, params):
@@ -157,11 +163,9 @@ def _shim_match_candidate(payload, kind, params):
 
 def _shim_select_payloads(payload):
     kind, params = _shim_classify(_MATCHER)
-    selections = []
     for candidate, input_field in _shim_candidate_payloads(payload):
         if _shim_match_candidate(candidate, kind, params):
-            selections.append((candidate, input_field))
-    return selections
+            yield candidate, input_field
 
 
 def _shim_replay_bytes(payload, selected, raw):
@@ -176,8 +180,6 @@ def _shim_replay_bytes(payload, selected, raw):
         replay["tool_input"] = _shim_tool_input_from_tool_args(replay.get("toolArgs"))
         changed = True
     if not changed:
-        return raw
-    if payload.get("tool_name") is not None:
         return raw
     return _json.dumps(replay, separators=(",", ":")).encode("utf-8")
 
@@ -213,6 +215,26 @@ def _shim_invoke_selection(payload, selection, raw):
     return int(rc)
 
 
+def _shim_dispatch_selections(payload):
+    try:
+        yield from _shim_select_payloads(payload)
+    except Exception as exc:
+        print(
+            "matcher-shim [{}]: dispatch error: {}".format(_MATCHER, exc),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+
+
+def _shim_debug_trace(fire):
+    if not _os.environ.get("COPILOT_HOOK_DEBUG"):
+        return
+    kind, _ = _shim_classify(_MATCHER)
+    _sys.stderr.write(
+        "matcher-shim [{}]: kind={} fired={}\n".format(_MATCHER, kind, fire)
+    )
+
+
 def _shim_dispatch():
     try:
         _raw = _sys.stdin.buffer.read(_HOOK_STDIN_CEILING_BYTES + 1)
@@ -238,26 +260,16 @@ def _shim_dispatch():
             file=_sys.stderr,
         )
         _sys.exit(2)
-    try:
-        selections = _shim_select_payloads(payload)
-        fire = bool(selections)
-    except Exception as exc:
-        print(
-            "matcher-shim [{}]: dispatch error: {}".format(_MATCHER, exc),
-            file=_sys.stderr,
-        )
-        _sys.exit(2)
-    if _os.environ.get("COPILOT_HOOK_DEBUG"):
-        kind, _ = _shim_classify(_MATCHER)
-        _sys.stderr.write(
-            "matcher-shim [{}]: kind={} fired={}\n".format(_MATCHER, kind, fire)
-        )
-    if not selections:
-        _sys.exit(0)
-    for selection in selections:
+    fire = False
+    for selection in _shim_dispatch_selections(payload):
+        if not fire:
+            fire = True
+            _shim_debug_trace(fire)
         rc = _shim_invoke_selection(payload, selection, _raw)
         if rc != 0:
             _sys.exit(rc)
+    if not fire:
+        _shim_debug_trace(fire)
     _sys.exit(0)
 # END MATCHER SHIM
 
