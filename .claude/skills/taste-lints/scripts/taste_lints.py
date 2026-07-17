@@ -42,6 +42,33 @@ FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
     (".agents", "memory"),
 )
 
+_GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
+    ("src", "copilot-cli"),
+    ("src", "vs-code-agents"),
+)
+_GENERATED_MARKERS = (
+    "AUTO-GENERATED MATCHER SHIM",
+    "GENERATED -- DO NOT EDIT",
+    "DO NOT EDIT BY HAND - regenerated",
+)
+
+
+def classify_file_category(filepath: str, lines: list[str]) -> str:
+    """Classify a file as authored, test, or generated."""
+    path = Path(filepath)
+    if any(
+        any(path.parts[i : i + len(segment)] == segment for i in range(len(path.parts)))
+        for segment in _GENERATED_PATH_SEGMENTS
+    ):
+        return "generated"
+    if path.name.startswith("pr-quality-gate-") and ".github" in path.parts:
+        return "generated"
+    if any(marker in "".join(lines) for marker in _GENERATED_MARKERS):
+        return "generated"
+    if "tests" in path.parts or path.name.startswith("test_"):
+        return "test"
+    return "authored"
+
 
 @dataclass
 class Violation:
@@ -53,6 +80,7 @@ class Violation:
     line: int
     message: str
     remediation: str
+    category: str = "authored"
 
 
 @dataclass
@@ -60,6 +88,7 @@ class LintResult:
     """Lint result container."""
 
     files_scanned: int = 0
+    files_by_category: dict[str, int] = field(default_factory=dict)
     violations: list[Violation] = field(default_factory=list)
 
     @property
@@ -510,13 +539,20 @@ def run_lint(files: list[str], rules: tuple[str, ...]) -> LintResult:
         if Path(filepath).suffix not in SCANNABLE_EXTENSIONS:
             continue
 
-        result.files_scanned += 1
         lines = read_file_lines(filepath)
+        category = classify_file_category(filepath, lines)
+        result.files_scanned += 1
+        result.files_by_category[category] = result.files_by_category.get(category, 0) + 1
+        if category == "generated":
+            continue
 
         for rule in rules:
             checker = RULE_CHECKERS.get(rule)
             if checker:
-                result.violations.extend(checker(filepath, lines))
+                violations = checker(filepath, lines)
+                for violation in violations:
+                    violation.category = category
+                result.violations.extend(violations)
 
     return result
 
@@ -530,7 +566,7 @@ def format_text(result: LintResult) -> str:
     for v in result.violations:
         severity_marker = "ERROR" if v.severity == "error" else "WARNING"
         output.append(
-            f"\n[{severity_marker}] {v.rule}: {v.file}:{v.line}\n"
+            f"\n[{severity_marker}] {v.category} {v.rule}: {v.file}:{v.line}\n"
             f"  {v.message}\n"
             f"  {v.remediation}"
         )
@@ -547,12 +583,14 @@ def format_json(result: LintResult) -> str:
     """Format results as JSON."""
     data = {
         "files_scanned": result.files_scanned,
+        "files_by_category": result.files_by_category,
         "error_count": result.error_count,
         "warning_count": result.warning_count,
         "violations": [
             {
                 "rule": v.rule,
                 "severity": v.severity,
+                "category": v.category,
                 "file": v.file,
                 "line": v.line,
                 "message": v.message,

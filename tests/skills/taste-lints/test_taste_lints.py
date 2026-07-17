@@ -31,6 +31,7 @@ parse_rules = mod.parse_rules
 main = mod.main
 is_safe_path = mod.is_safe_path
 get_diff_files = mod.get_diff_files
+classify_file_category = mod.classify_file_category
 LintResult = mod.LintResult
 Violation = mod.Violation
 EXIT_SUCCESS = mod.EXIT_SUCCESS
@@ -264,6 +265,21 @@ class TestRunLint:
         test_file.write_bytes(b"\x89PNG")
         result = run_lint([str(test_file)], ("file-size",))
         assert result.files_scanned == 0
+
+    def test_generated_matcher_shim_is_skipped(self, tmp_path: Path) -> None:
+        generated = tmp_path / "invoke_guard__Bash_123.py"
+        generated.write_text(
+            "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n" + "x = 1\n" * 600
+        )
+
+        result = run_lint([str(generated)], ("file-size",))
+
+        assert result.files_scanned == 1
+        assert result.files_by_category == {"generated": 1}
+        assert result.violations == []
+
+    def test_classifies_test_files(self) -> None:
+        assert classify_file_category("tests/test_example.py", []) == "test"
 
     def test_lint_skips_missing_files(self) -> None:
         result = run_lint(["/nonexistent/file.py"], ("file-size",))

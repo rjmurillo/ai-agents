@@ -26,8 +26,8 @@ Evaluate code maintainability using 5 timeless design qualities with quantifiabl
 # Assess a single file
 python3 scripts/assess.py --target src/services/auth.py
 
-# Assess changed files only (CI mode)
-python3 scripts/assess.py --target . --changed-only --format json
+# Assess changed files from the PR base (CI mode)
+python3 scripts/assess.py --target . --changed-only --base origin/main --format json
 
 # Full module assessment with HTML report
 python3 scripts/assess.py --target src/services/ --format html --output quality-report.html

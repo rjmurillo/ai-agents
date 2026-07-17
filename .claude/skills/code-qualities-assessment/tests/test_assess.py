@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ assess_file = _mod.assess_file
 check_thresholds = _mod.check_thresholds
 detect_language = _mod.detect_language
 get_files_to_assess = _mod.get_files_to_assess
+classify_file_category = _mod.classify_file_category
 generate_json_report = _mod.generate_json_report
 generate_markdown_report = _mod.generate_markdown_report
 load_config = _mod.load_config
@@ -43,6 +45,16 @@ def _write(tmp_path: Path, name: str, body: str) -> Path:
     path = tmp_path / name
     path.write_text(body, encoding="utf-8")
     return path
+
+
+def _run_git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+    )
 
 
 def _default_config() -> dict[str, Any]:
@@ -425,6 +437,59 @@ def test_directory_scan_includes_all_supported_suffixes(tmp_path: Path) -> None:
         _write(tmp_path, name, "x = 1\n")
     found = {p.name for p in get_files_to_assess(str(tmp_path), False)}
     assert {"a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"} <= found
+
+
+def test_changed_only_uses_base_for_clean_committed_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _run_git(tmp_path, "init", "-b", "main")
+    _run_git(tmp_path, "config", "user.email", "test@example.com")
+    _run_git(tmp_path, "config", "user.name", "Test")
+    _write(tmp_path, "base.py", "def base():\n    return 1\n")
+    _run_git(tmp_path, "add", "base.py")
+    _run_git(tmp_path, "commit", "-m", "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    changed = _write(tmp_path, "changed.py", "def changed():\n    return 2\n")
+    _run_git(tmp_path, "add", "changed.py")
+    _run_git(tmp_path, "commit", "-m", "feature")
+    monkeypatch.chdir(tmp_path)
+
+    assert get_files_to_assess(".", True, "main") == [Path("changed.py")]
+    assert changed.exists()
+
+
+def test_generated_matcher_shim_is_classified_as_generated(tmp_path: Path) -> None:
+    generated = _write(
+        tmp_path,
+        "invoke_guard__Bash_123.py",
+        "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n"
+        "# END MATCHER SHIM\n",
+    )
+
+    assert classify_file_category(generated) == "generated"
+
+
+def test_generated_assessment_is_unscored(tmp_path: Path) -> None:
+    generated = _write(
+        tmp_path,
+        "invoke_guard__Bash_123.py",
+        "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n"
+        "def generated():\n    return 1\n",
+    )
+
+    assessment = assess_file(generated, "production", False)
+
+    assert assessment.category == "generated"
+    assert all(
+        score.confidence == 0.0
+        for score in (
+            assessment.cohesion,
+            assessment.coupling,
+            assessment.encapsulation,
+            assessment.testability,
+            assessment.non_redundancy,
+        )
+    )
 
 
 def test_template_qualityrc_uses_coupling_min(tmp_path: Path) -> None:

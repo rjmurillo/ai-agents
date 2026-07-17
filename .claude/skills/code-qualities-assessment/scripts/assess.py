@@ -52,6 +52,42 @@ _LINE_COMMENT_PREFIXES = {
     "go": ("//",),
 }
 
+_GENERATED_PATH_SEGMENTS = (
+    ("src", "copilot-cli"),
+    ("src", "vs-code-agents"),
+)
+_GENERATED_MARKERS = (
+    "AUTO-GENERATED MATCHER SHIM",
+    "GENERATED -- DO NOT EDIT",
+    "DO NOT EDIT BY HAND - regenerated",
+)
+
+
+def classify_file_category(file_path: Path, content: str | None = None) -> str:
+    """Classify a changed file as authored, test, or generated.
+
+    Generated outputs are reviewed through their generator and drift checks,
+    not as independent authored modules.
+    """
+    parts = file_path.parts
+    if any(
+        any(parts[i : i + len(segment)] == segment for i in range(len(parts)))
+        for segment in _GENERATED_PATH_SEGMENTS
+    ):
+        return "generated"
+    if file_path.name.startswith("pr-quality-gate-") and ".github" in parts:
+        return "generated"
+    if content is None:
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except OSError:
+            content = ""
+    if any(marker in content for marker in _GENERATED_MARKERS):
+        return "generated"
+    if "tests" in parts or file_path.name.startswith("test_"):
+        return "test"
+    return "authored"
+
 # Per-language import / dependency line patterns for the coupling heuristic.
 _IMPORT_PATTERNS = {
     "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
@@ -256,8 +292,9 @@ class QualityScore:
 
 @dataclass
 class FileAssessment:
-    """Assessment results for a single file"""
+    """Assessment results for a single file."""
     file_path: str
+    category: str
     cohesion: QualityScore
     coupling: QualityScore
     encapsulation: QualityScore
@@ -302,7 +339,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--changed-only",
         action="store_true",
-        help="Only assess changed files (git diff)"
+        help="Only assess files changed from --base, or uncommitted files without --base"
+    )
+    parser.add_argument(
+        "--base",
+        help="Base revision for --changed-only, such as origin/main"
     )
     parser.add_argument(
         "--format",
@@ -351,20 +392,22 @@ def load_config(config_path: str) -> dict[str, Any]:
         }
 
 
-def get_files_to_assess(target: str, changed_only: bool) -> list[Path]:
-    """Get list of files to assess"""
+def get_files_to_assess(
+    target: str, changed_only: bool, base: str | None = None
+) -> list[Path]:
+    """Get files to assess, using the PR base when one is supplied."""
     import subprocess
     from glob import glob
 
     if changed_only:
-        # Get changed files from git
+        revision_range = f"{base}...HEAD" if base else "HEAD"
         result = subprocess.run(
-            ["git", "diff", "--name-only", "HEAD"],
+            ["git", "diff", "--name-only", revision_range],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
-        files = [Path(f) for f in result.stdout.strip().split('\n') if f]
+        files = [Path(f) for f in result.stdout.splitlines() if f]
     else:
         target_path = Path(target)
         if target_path.is_file():
@@ -532,6 +575,26 @@ def _score_non_redundancy(lines: list[str], scored: bool) -> QualityScore:
     return QualityScore(value=round(score, 1), confidence=confidence, reasons=reasons)
 
 
+def _unscored_generated_assessment(file_path: Path) -> FileAssessment:
+    """Return a generated artifact assessment excluded from local quality gates."""
+    def _unscored() -> QualityScore:
+        return QualityScore(
+            value=10.0,
+            confidence=0.0,
+            reasons=["Generated artifact, reviewed through its generator and drift checks"],
+        )
+
+    return FileAssessment(
+        file_path=str(file_path),
+        category="generated",
+        cohesion=_unscored(),
+        coupling=_unscored(),
+        encapsulation=_unscored(),
+        testability=_unscored(),
+        non_redundancy=_unscored(),
+    )
+
+
 def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
     """Return an all-unscored assessment for a file that could not be read.
 
@@ -550,6 +613,7 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
 
     return FileAssessment(
         file_path=str(file_path),
+        category=classify_file_category(file_path),
         cohesion=_unscored(),
         coupling=_unscored(),
         encapsulation=_unscored(),
@@ -580,6 +644,10 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(file_path, f"decode failed: {exc}")
 
+    category = classify_file_category(file_path, content)
+    if category == "generated":
+        return _unscored_generated_assessment(file_path)
+
     lines = content.split('\n')
     code_lines = [
         line
@@ -591,6 +659,7 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
 
     return FileAssessment(
         file_path=str(file_path),
+        category=category,
         cohesion=_score_cohesion(language, code_lines, loc),
         coupling=_score_coupling(language, code_lines),
         encapsulation=_score_encapsulation(language, code_lines),
@@ -654,7 +723,7 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
     # Per-file breakdown
     report.append("## File Assessments\n")
     for assessment in sorted(assessments, key=lambda a: a.overall):
-        report.append(f"### {assessment.file_path}\n")
+        report.append(f"### {assessment.file_path} ({assessment.category})\n")
         overall = _format_average(assessment.overall if assessment.overall > 0 else None)
         report.append(f"**Overall**: {overall}\n")
         quality_rows = (
@@ -801,7 +870,7 @@ def main() -> int:
 
     # Get files to assess
     try:
-        files = get_files_to_assess(target_path, args.changed_only)
+        files = get_files_to_assess(target_path, args.changed_only, args.base)
     except Exception as e:
         print(f"Error getting files: {e}", file=sys.stderr)
         return 1
