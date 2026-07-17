@@ -44,24 +44,33 @@ import os
 import shutil
 import subprocess
 import sys
-import uuid
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# tests/e2e is not on sys.path under --import-mode=importlib (no __init__.py), so
+# add it for the sibling copilot_hook_probe import.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
+import copilot_hook_probe  # noqa: E402
 import generate_hooks  # noqa: E402
 
 from scripts.cli_exec import resolve_executable  # noqa: E402
 
-_RUN = os.environ.get("RUN_CLI_E2E") == "1"
-_PROMPT = "Reply with exactly the word: ok"
+# Fired-hook probe primitives (issue #3148). The synthetic --plugin-dir marker
+# probe lives in one place so this file and test_plugin_load_smoke.py share the
+# same load signal. _COPILOT_EVENT is UserPromptSubmit because copilot -p does
+# not dispatch SessionStart (issue #2378); see module docstring.
+_COPILOT_EVENT = copilot_hook_probe.PROBE_EVENT
+_PROMPT = copilot_hook_probe.PROBE_PROMPT
+_clean_env = copilot_hook_probe.clean_env
+_manifest = copilot_hook_probe.manifest
+_probe_name = copilot_hook_probe.probe_name
+_write_probe_script = copilot_hook_probe.write_probe_script
 
-# Copilot CLI does NOT dispatch SessionStart in non-interactive print mode
-# (-p); UserPromptSubmit does fire there. See module docstring and issue #2378.
-_COPILOT_EVENT = "UserPromptSubmit"
+_RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
 # The Copilot vendor install tree lives under this path segment. Verified
 # empirically (decision-copilot-cli-hook-plugin-root-contract):
@@ -79,46 +88,6 @@ requires_claude = pytest.mark.skipif(
     not (_RUN and shutil.which("claude")),
     reason="needs RUN_CLI_E2E=1 and the claude CLI on PATH (real auth + credits)",
 )
-
-
-def _write_probe_script(path: Path, marker: Path) -> None:
-    """Write a hook script that records where and how it was launched."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "import os, sys\n"
-        f"with open({str(marker)!r}, 'a', encoding='utf-8') as f:\n"
-        "    f.write('MARKER\\n')\n"
-        "    f.write('script=' + os.path.abspath(__file__) + '\\n')\n"
-        "    f.write('cwd=' + os.getcwd() + '\\n')\n"
-        "    f.write('COPILOT_PLUGIN_ROOT=' + str(os.environ.get('COPILOT_PLUGIN_ROOT')) + '\\n')\n"
-        "    f.write('CLAUDE_PLUGIN_ROOT=' + str(os.environ.get('CLAUDE_PLUGIN_ROOT')) + '\\n')\n"
-        "sys.exit(0)\n",
-        encoding="utf-8",
-    )
-
-
-def _manifest(name: str) -> str:
-    return json.dumps(
-        {"name": name, "description": "e2e probe", "version": "0.0.1", "author": {"name": "e2e"}}
-    )
-
-
-def _probe_name() -> str:
-    return f"hook-e2e-probe-{uuid.uuid4().hex[:12]}"
-
-
-def _clean_env() -> dict[str, str]:
-    """Env for the CLI subprocess with inherited plugin-root vars stripped.
-
-    The pre-push hook sets CLAUDE_PLUGIN_ROOT to the repo's copilot tree for the
-    pytest subprocess; a parent Claude session may also export these. Strip them
-    so the CLI under test sets its OWN plugin-root for the probe hook, which is
-    exactly the contract being verified.
-    """
-    env = os.environ.copy()
-    for var in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"):
-        env.pop(var, None)
-    return env
 
 
 def _copilot_install_roots() -> list[Path]:
