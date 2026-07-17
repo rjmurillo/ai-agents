@@ -318,6 +318,14 @@ def _original_main(stdin_bytes):
         detect_providers for the symbols-overview capability on a repository code
         target; an empty provider list degrades to ALLOW (fail-open). The kit had
         no such conditioning (it blocked regardless of provider availability).
+      - Target conditioning (issue #3091): LOOSER block, beyond the kit. The kit
+        blocked on subagent type alone. provider_available above is a repo-level
+        check, so a Python repo still blocked a delegation whose actual target is an
+        external repo or a no-provider file type (a PowerShell dotfiles repo). When
+        the prompt references files but none is an in-project file with an
+        overview-capable provider, delegation_targets_inproject_provider returns
+        False and the guard allows: there is nothing the orchestrator could have
+        pre-resolved. Prompts that reference no files keep the repo-level behavior.
       - State: NONE. This guard is stateless. It only READs subagent_type + prompt.
         It does not touch gate_state (that is the Read gate's tracker, ADR-062
         Section 4).
@@ -456,6 +464,54 @@ def _original_main(stdin_bytes):
         return bool(providers)
 
 
+    # Issue #3091: file-path references in a delegation prompt. Matches an optional
+    # Windows drive prefix, a path body, a dotted extension (1-5 chars), and an
+    # optional :line suffix. The negative lookbehind prevents matching inside a
+    # longer token. findall returns the path body without the :line suffix.
+    _FILE_REF_PATTERN = re.compile(
+        r"(?<![\w.\-/\\:])((?:[A-Za-z]:[\\/])?[\w.\-/\\]+\.\w{1,5})(?::\d+)?"
+    )
+
+
+    def delegation_targets_inproject_provider(prompt: str, project_dir: str) -> bool:
+        """Return True when the prompt references an in-project file with an LSP provider.
+
+        Returns False only when the prompt references files and NONE is an in-project
+        file whose type has an overview-capable provider: every reference resolves
+        outside the project root or is a file type with no configured provider. That
+        is the issue #3091 false positive (delegating a PowerShell dotfiles repo or a
+        prose target while standing in a Python project): nothing the orchestrator
+        could have pre-resolved, so the gate must not fire.
+
+        Returns True when the prompt references no files (conservative: the existing
+        provider_available gate still applies) or when any referenced file is an
+        in-project provider-backed target (the gate should fire).
+        """
+        refs = _FILE_REF_PATTERN.findall(prompt)
+        if not refs:
+            return True
+        try:
+            root = Path(project_dir).resolve()
+        except (OSError, ValueError):
+            return True
+        for ref in refs:
+            candidate = Path(ref)
+            try:
+                resolved = (
+                    candidate.resolve()
+                    if candidate.is_absolute()
+                    else (root / candidate).resolve()
+                )
+            except (OSError, ValueError):
+                continue
+            if resolved != root and root not in resolved.parents:
+                continue
+            ext = candidate.suffix
+            if ext and detect_providers(f"lsp_probe{ext}", SYMBOLS_OVERVIEW, project_dir):
+                return True
+        return False
+
+
     def build_guidance(subagent_type: str) -> str:
         """Build the LSP-context guidance message (block reason or warn systemMessage)."""
         return (
@@ -546,6 +602,20 @@ def _original_main(stdin_bytes):
             if not provider_available(project_dir):
                 print(
                     "LSP pre-delegation guard: no provider available, allowing",
+                    file=sys.stderr,
+                )
+                return 0
+
+            # Target conditioning (issue #3091): provider_available is a repo-level
+            # check, so a repo that has an LSP (for example Python) still fires this
+            # gate for a delegation whose actual target is external or a no-provider
+            # file type (a PowerShell dotfiles repo, a prose target). When the prompt
+            # references files but none is an in-project file whose type has an
+            # overview-capable provider, there is nothing to pre-resolve; allow rather
+            # than force a cosmetic LSP CONTEXT header.
+            if not delegation_targets_inproject_provider(prompt, project_dir):
+                print(
+                    "LSP pre-delegation guard: no in-project LSP-capable target in prompt, allowing",
                     file=sys.stderr,
                 )
                 return 0
