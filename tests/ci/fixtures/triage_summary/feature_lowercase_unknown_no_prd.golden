@@ -1,0 +1,61 @@
+<!-- AI-ISSUE-TRIAGE -->
+
+## AI Triage Summary
+
+> [!NOTE]
+> This issue has been automatically triaged by AI agents
+
+<details>
+<summary>What is AI Triage?</summary>
+
+This issue was analyzed by AI agents:
+
+- **Analyst Agent**: Categorizes the issue and suggests appropriate labels
+- **Roadmap Agent**: Aligns the issue with project milestones and priorities
+- **Explainer Agent** (if escalated): Generates comprehensive PRD
+
+</details>
+
+### Triage Results
+
+| Property | Value |
+|:---------|:------|
+| **Category** | `enhancement` |
+| **Labels** | ["enhancement"] |
+|  **Priority** | `P2` |
+| **Milestone** | v2.0 |
+
+
+
+<details>
+<summary>Categorization Analysis</summary>
+
+```json
+{"category":"enhancement"}
+
+```
+
+</details>
+
+<details>
+<summary>Roadmap Alignment</summary>
+
+```json
+{"priority":"P2","milestone":"v2.0"}
+
+```
+
+</details>
+
+
+<details>
+<summary>Feature Request Review</summary>
+
+Some reviewer notes here.
+
+
+</details>
+
+---
+
+<sub>Powered by [AI Issue Triage](https://github.com/rjmurillo/ai-agents2) workflow</sub>

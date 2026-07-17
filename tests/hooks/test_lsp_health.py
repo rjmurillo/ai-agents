@@ -41,6 +41,78 @@ class TestLspRuntimeDown:
         assert lsp_health.lsp_runtime_down() is False
 
 
+class TestPersistentDownSignal:
+    """Issue #3108: a persistent marker makes the signal usable from dedicated tools."""
+
+    def test_marker_makes_runtime_down_without_env(self):
+        # Arrange: no LSP_DOWN env (autouse fixture cleared it), signal marker set.
+        project = str(REPO_ROOT)
+        assert lsp_health.lsp_runtime_down(project) is False
+        assert lsp_health.set_lsp_down_signal(project) is True
+
+        # Act / Assert: a fresh reader (the case a dedicated tool call hits) sees
+        # the signal purely from the persisted file, with no env var in scope.
+        assert lsp_health.lsp_runtime_down(project) is True
+
+    def test_clear_restores_enforcement(self):
+        project = str(REPO_ROOT)
+        lsp_health.set_lsp_down_signal(project)
+        assert lsp_health.lsp_runtime_down(project) is True
+
+        assert lsp_health.clear_lsp_down_signal(project) is True
+        assert lsp_health.lsp_runtime_down(project) is False
+
+    def test_clear_is_idempotent_when_absent(self):
+        assert lsp_health.clear_lsp_down_signal(str(REPO_ROOT)) is True
+
+    def test_signal_marker_is_distinct_from_warn_marker(self):
+        project = str(REPO_ROOT)
+        lsp_health.set_lsp_down_signal(project)
+        # The warn-once marker must not exist just because the signal is set.
+        assert not lsp_health._marker_path(project).exists()
+        assert lsp_health._down_signal_path(project).exists()
+
+    def test_set_degrades_to_false_on_filesystem_error(self, monkeypatch):
+        # A NUL byte in the path forces an OSError inside the writer.
+        monkeypatch.setattr(
+            lsp_health, "_down_signal_path", lambda _project_dir: Path("bad\0signal")
+        )
+        assert lsp_health.set_lsp_down_signal(str(REPO_ROOT)) is False
+
+    def test_runtime_down_degrades_to_false_on_filesystem_error(self, monkeypatch):
+        monkeypatch.setattr(
+            lsp_health, "_down_signal_path", lambda _project_dir: Path("bad\0signal")
+        )
+        # Never raises; a broken marker read means "not down" (enforce as normal).
+        assert lsp_health.lsp_runtime_down(str(REPO_ROOT)) is False
+
+
+class TestDownSignalCli:
+    """The CLI is the shell-usable producer the issue needs (Bash persists a file)."""
+
+    def test_set_then_status_reports_active(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        assert lsp_health._main(["--set-down"]) == 0
+        capsys.readouterr()
+
+        assert lsp_health._main(["--status"]) == 0
+        assert capsys.readouterr().out.strip() == "active"
+
+    def test_clear_then_status_reports_inactive(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        lsp_health._main(["--set-down"])
+        capsys.readouterr()
+
+        assert lsp_health._main(["--clear-down"]) == 0
+        capsys.readouterr()
+        assert lsp_health._main(["--status"]) == 0
+        assert capsys.readouterr().out.strip() == "inactive"
+
+    def test_requires_a_mode(self):
+        with pytest.raises(SystemExit):
+            lsp_health._main([])
+
+
 class TestWarnOnce:
     def test_first_call_warns_and_writes_marker(self, capsys):
         emitted = lsp_health.warn_once_lsp_down("lsp-read-guard", str(REPO_ROOT))
