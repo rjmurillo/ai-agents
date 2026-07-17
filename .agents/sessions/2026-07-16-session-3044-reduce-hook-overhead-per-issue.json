@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena memory write scheduled before push (hook consolidation decision + audit findings)."
+        "Evidence": "decision-claude-hook-group-dispatch committed on branch; auto-memory hook-consolidation-3075 updated with rebase findings."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits 61de2118, dispatcher core, tests, registrations d7cb3de8, regen b808e074 on perf/claude-hook-dispatch."
+        "Evidence": "19 commits pushed on perf/claude-hook-dispatch through 62dff4b1; PR 3153."
       },
       "validationPassed": {
         "level": "MUST",
@@ -188,9 +188,14 @@
       "timestamp": "2026-07-16T11:00:00Z",
       "summary": "Push-gate repairs: entry point returns typed locally for mypy under dynamic-path import; main new test_hook_plugin_guards matcher lookup made dispatch-group aware.",
       "evidence": "pytest 139 passed on guard+dispatch suites; mypy clean"
+    },
+    {
+      "timestamp": "2026-07-17T04:35:00Z",
+      "summary": "Reconciled branch pushed (force-with-lease over the bootstrap ref after verifying the 2 overwritten remote commits were already contained in merged main via empty cherry-picks). GitHub refused to reopen force-pushed PR 3105; successor PR 3153 opened (base main).",
+      "evidence": "push forced update 9f17b6d2..62dff4b1; cherry-picks ff177737/9f17b6d2 empty; https://github.com/rjmurillo/ai-agents/pull/3153"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "62dff4b1",
   "nextSteps": [
     "Synthesize both strategies: keep main narrow per-guard matchers for Bash singles (0-spawn common case beats 1-spawn dispatcher); group ONLY where multiple hooks share one matcher (git-commit chain, git-push chain, UserPromptSubmit, SessionStart, Stop, Write/Edit pre+post) plus plugin self-host dedupe and Copilot matcher union",
     "Restore origin/main versions of generate_dispatcher.py, generate_hooks_events.py, settings.json, hooks.json, serena memory copilot-disable-all-hooks-windows.md; re-apply matcher-union and expansion patches onto main versions; rebuild dispatch_groups.json from main final settings",
