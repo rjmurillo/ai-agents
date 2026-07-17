@@ -1,4 +1,7 @@
 {
+  "env": {
+    "AI_AGENTS_PROJECT_REPO": "1"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -49,35 +52,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_guard.py",
-            "statusMessage": "Verifying session log exists before commit (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_context_guard.py",
-            "statusMessage": "Verifying branch matches session context (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_adr_review_guard.py",
-            "statusMessage": "Verifying ADR review completed (MUST requirement)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
-            "statusMessage": "Verifying branch protection"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_security_commit_gate.py",
-            "timeout": 10,
-            "statusMessage": "Checking security gate for staged auth files (ADR-033)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_prompt_eval_gate.py",
-            "timeout": 10,
-            "statusMessage": "Checking ADR-057 behavioral eval evidence for prompt changes"
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-1-session_log_guard",
+            "timeout": 140,
+            "statusMessage": "Running pretooluse-1-session_log_guard hooks (grouped, #3075)"
           }
         ]
       },
@@ -92,77 +69,13 @@
         ]
       },
       {
-        "matcher": "^(Write|Edit)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_security_gate.py",
-            "statusMessage": "Checking security gate for auth files (ADR-033)"
-          }
-        ]
-      },
-      {
         "matcher": "Bash(git push*)",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_context_guard.py",
-            "statusMessage": "Verifying branch matches session context (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
-            "statusMessage": "Verifying branch protection"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_retrospective_gate.py",
-            "statusMessage": "Verifying retrospective evidence (ADR-033)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_markdownlint_guard.py",
-            "timeout": 90,
-            "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_field_guard.py",
-            "statusMessage": "Checking session log placeholder values (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_pr_description_guard.py",
-            "timeout": 90,
-            "statusMessage": "Checking PR description vs diff (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_install_parity_guard.py",
-            "timeout": 30,
-            "statusMessage": "Checking install-copy parity for agents and rules (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_plugin_version_bump_guard.py",
-            "timeout": 30,
-            "statusMessage": "Checking plugin.json version bump on plugin source change (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_hook_drift_guard.py",
-            "timeout": 30,
-            "statusMessage": "Checking hook generator drift in src/copilot-cli/hooks/ (BLOCKING)"
-          }
-        ]
-      },
-      {
-        "matcher": "^(Edit|Write)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_adr_architect_gate.py",
-            "statusMessage": "Verifying architect review for ADR files (BLOCKING)"
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-2-branch_context_guard",
+            "timeout": 300,
+            "statusMessage": "Running pretooluse-2-branch_context_guard hooks (grouped, #3075)"
           }
         ]
       },
@@ -220,6 +133,17 @@
             "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
           }
         ]
+      },
+      {
+        "matcher": "^(Write|Edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-write-edit",
+            "timeout": 60,
+            "statusMessage": "Running pretooluse-write-edit hooks (grouped, #3075)"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -237,34 +161,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/SessionStart/invoke_session_initialization_enforcer.py",
-            "statusMessage": "Enforcing session protocol initialization (BLOCKING)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/SessionStart/invoke_memory_first_enforcer.py",
-            "statusMessage": "Enforcing ADR-007 memory-first evidence (HYBRID)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_session_start_memory_first.py",
-            "statusMessage": "Enforcing ADR-007 memory-first requirements"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_adr_change_detection.py",
-            "statusMessage": "Checking for ADR changes"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/SessionStart/invoke_context_loader.py",
-            "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/SessionStart/invoke_lsp_session_reset.py",
-            "timeout": 5,
-            "statusMessage": "Resetting LSP-gate state for the new session (ADR-062)"
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-1-session_initialization_enforcer",
+            "timeout": 125,
+            "statusMessage": "Running sessionstart-1-session_initialization_enforcer hooks (grouped, #3075)"
           }
         ]
       }
@@ -274,25 +173,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py",
-            "timeout": 3,
-            "statusMessage": "Re-asserting Serena activation (issue #1993)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py",
-            "statusMessage": "Detecting autonomous execution patterns"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_research_then_implement.py",
-            "timeout": 3,
-            "statusMessage": "Checking for research-before-implementation signals"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_user_prompt_memory_check.py",
-            "statusMessage": "Checking memory-first compliance"
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group userpromptsubmit-1-serena_reassertion",
+            "timeout": 66,
+            "statusMessage": "Running userpromptsubmit-1-serena_reassertion hooks (grouped, #3075)"
           }
         ]
       }
@@ -303,28 +186,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PostToolUse/invoke_markdown_auto_lint.py",
-            "statusMessage": "Auto-linting markdown files"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
-            "statusMessage": "Checking for ADR changes"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PostToolUse/invoke_plan_state_sync.py",
-            "statusMessage": "Checkpointing plan/TODO state (#1703)"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
-            "statusMessage": "Checking for ADR changes"
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group posttooluse-1-markdown_auto_lint",
+            "timeout": 90,
+            "statusMessage": "Running posttooluse-1-markdown_auto_lint hooks (grouped, #3075)"
           }
         ]
       },
@@ -367,18 +231,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/Stop/invoke_skill_learning.py",
-            "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/Stop/invoke_session_validator.py",
-            "statusMessage": "Validating session completeness"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/Stop/invoke_auto_retrospective.py",
-            "statusMessage": "Auto-generating session retrospective (#1703)"
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group stop-1-skill_learning",
+            "timeout": 90,
+            "statusMessage": "Running stop-1-skill_learning hooks (grouped, #3075)"
           }
         ]
       }
