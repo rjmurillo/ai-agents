@@ -401,6 +401,41 @@ def test_inject_shim_replays_small_match_from_large_multi_call_event():
     assert proc.stdout.startswith(b"FIRED:Edit")
 
 
+def test_inject_shim_mixed_schema_top_level_fields_do_not_bypass_toolcalls_selection():
+    """A benign top-level tool_name/tool_input must not make the guard
+    evaluate the top level instead of the dangerous toolCalls entry."""
+    guard = (
+        "import json\n"
+        "import sys\n"
+        "data = json.load(sys.stdin)\n"
+        'command = data["tool_input"]["command"]\n'
+        'print("EVALUATED:" + command, flush=True)\n'
+        'if command == "git push origin feature/safe":\n'
+        "    sys.exit(0)\n"
+        'if command == "git push origin main --force":\n'
+        "    sys.exit(2)\n"
+        "sys.exit(1)\n"
+    )
+    transformed = inject_shim(guard, "Bash(git push*)")
+    payload = {
+        "tool_name": "Bash",
+        "tool_input": {"command": "git push origin feature/safe"},
+        "toolCalls": [
+            {
+                "name": "Bash",
+                "args": {"command": "git push origin main --force"},
+            },
+        ],
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert proc.stdout.splitlines() == [
+        "EVALUATED:git push origin main --force",
+    ]
+
+
 def test_inject_shim_evaluates_all_matching_calls_until_denied():
     guard = (
         "import json\n"
@@ -425,6 +460,10 @@ def test_inject_shim_evaluates_all_matching_calls_until_denied():
                 "name": "Bash",
                 "args": {"command": "git push origin main --force"},
             },
+            {
+                "name": "Bash",
+                "args": {"command": "git push origin feature/safe"},
+            },
         ]
     }
 
@@ -435,6 +474,80 @@ def test_inject_shim_evaluates_all_matching_calls_until_denied():
         "EVALUATED:git push origin feature/safe",
         "EVALUATED:git push origin main --force",
     ]
+
+
+# Independent test contract: the maximum permitted number of toolCalls
+# entries per event. Not read from generate_hooks_shim.
+_TOOL_CALLS_CANDIDATE_CAP = 256
+
+
+def test_inject_shim_toolcalls_candidate_cap_boundary_fires_once():
+    """Exactly 256 toolCalls entries must still pass; the guard fires once
+    for the sole matching (final) entry."""
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    non_matching = [
+        {"name": "Read", "args": {"file_path": f"f{i}.txt"}}
+        for i in range(_TOOL_CALLS_CANDIDATE_CAP - 1)
+    ]
+    payload = {
+        "toolCalls": non_matching
+        + [{"name": "Edit", "args": {"file_path": "README.md"}}]
+    }
+    assert len(payload["toolCalls"]) == _TOOL_CALLS_CANDIDATE_CAP
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.splitlines() == ["FIRED:Edit"]
+
+
+def test_inject_shim_toolcalls_candidate_cap_denies_one_above_boundary():
+    """257 toolCalls entries must be denied before any candidate is
+    evaluated: the guard must never fire, and payload contents (e.g. args
+    markers) must not be disclosed on stdout or stderr."""
+    guard = (
+        "import json\n"
+        "import sys\n"
+        "data = json.load(sys.stdin)\n"
+        "print('FIRED:' + json.dumps(data.get('tool_input')), flush=True)\n"
+        "sys.exit(0)\n"
+    )
+    transformed = inject_shim(guard, "^Edit$")
+    marker = "marker-do-not-disclose-cap-test"
+    non_matching = [
+        {"name": "Read", "args": {"file_path": f"f{i}.txt"}}
+        for i in range(_TOOL_CALLS_CANDIDATE_CAP)
+    ]
+    payload = {
+        "toolCalls": non_matching + [{"name": "Edit", "args": {"marker": marker}}]
+    }
+    assert len(payload["toolCalls"]) == _TOOL_CALLS_CANDIDATE_CAP + 1
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls" in proc.stderr
+    assert (
+        str(_TOOL_CALLS_CANDIDATE_CAP + 1) in proc.stderr
+        or str(_TOOL_CALLS_CANDIDATE_CAP) in proc.stderr
+    )
+    assert marker not in proc.stderr
+    assert "FIRED" not in proc.stdout
+    assert marker not in proc.stdout
+
+
+def test_inject_shim_toolcalls_candidate_cap_denies_257_invalid_entries():
+    """257 non-dict toolCalls entries must also be denied by the cap, since
+    the cap must apply to the raw list length, not the post-filter
+    candidate count."""
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {"toolCalls": ["not-a-dict"] * (_TOOL_CALLS_CANDIDATE_CAP + 1)}
+    assert len(payload["toolCalls"]) == _TOOL_CALLS_CANDIDATE_CAP + 1
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "FIRED" not in proc.stdout
 
 
 @pytest.mark.parametrize(
