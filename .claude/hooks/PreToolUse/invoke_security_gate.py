@@ -61,6 +61,22 @@ _AUTH_PATH_PATTERNS = [
     re.compile(r"(^|[/\\])middleware[/\\]auth", re.IGNORECASE),
 ]
 
+# Freeform patch (Codex/Copilot ``apply_patch``, V4A format) file headers.
+# GitHub Copilot CLI delivers apply_patch operations to the Write/Edit gate as a
+# raw patch STRING rather than an object (issue #3203). Every file the patch
+# touches is named by one of these headers:
+#   *** Add File: path
+#   *** Update File: path
+#   *** Delete File: path
+#   *** Move to: path      (rename destination inside an Update hunk)
+# Matching all four is a superset of what the patch executor applies, so no
+# touched path can slip past the auth check. The keyword is matched
+# case-insensitively and tolerates surrounding whitespace.
+_PATCH_FILE_HEADER = re.compile(
+    r"^\s*\*\*\*\s+(?:(?:Add|Update|Delete)\s+File|Move\s+to)\s*:\s*(?P<path>.+?)\s*$",
+    re.IGNORECASE,
+)
+
 # Session log patterns indicating security review was performed
 _SECURITY_REVIEW_PATTERNS = [
     re.compile(r"security.*review", re.IGNORECASE),
@@ -118,6 +134,66 @@ def is_auth_path(file_path: str) -> bool:
         if pattern.search(file_path):
             return True
     return False
+
+
+def extract_patch_paths(patch_text: str) -> list[str]:
+    """Extract every file path named in a freeform ``apply_patch`` string.
+
+    Parses the ``*** Add File:``/``*** Update File:``/``*** Delete File:`` and
+    ``*** Move to:`` headers of a Codex/Copilot V4A patch. Returns the paths in
+    the order they appear (duplicates preserved). An empty list signals a string
+    that carries no recognizable patch headers, i.e. a malformed patch.
+    """
+    paths: list[str] = []
+    for line in patch_text.splitlines():
+        match = _PATCH_FILE_HEADER.match(line)
+        if match:
+            path = match.group("path").strip()
+            if path:
+                paths.append(path)
+    return paths
+
+
+def gate_paths(file_paths: list[str]) -> int:
+    """Gate a set of target paths against the auth-review requirement.
+
+    Returns 0 (allow) when no path is auth-related or when security review
+    evidence exists for the session. Returns 2 (block) for an auth-file edit
+    without evidence.
+    """
+    auth_paths = [path for path in file_paths if is_auth_path(path)]
+    if not auth_paths:
+        return 0
+
+    project_dir = get_project_directory()
+    if find_security_evidence(project_dir):
+        return 0
+
+    # Auth file edit without security review: block. Report the first auth path
+    # in the guidance template; list them all on stderr for diagnostics.
+    print(_BLOCK_TEMPLATE.format(file_path=auth_paths[0]))
+    print(
+        "Blocked: Auth file edit without security review: " + ", ".join(auth_paths),
+        file=sys.stderr,
+    )
+    return 2
+
+
+def gate_freeform_patch(patch_text: str) -> int:
+    """Gate a raw V4A ``apply_patch`` string (Copilot CLI delivery, issue #3203).
+
+    Parses the patch headers, then gates every touched path. A string with no
+    recognizable headers fails closed (exit 2): an unparseable patch could hide
+    an auth-file edit the executor would still apply.
+    """
+    patch_paths = extract_patch_paths(patch_text)
+    if not patch_paths:
+        block_security_gate_error(
+            "tool_input is a string but not a recognizable patch "
+            "(no '*** Add/Update/Delete File:' or '*** Move to:' headers)"
+        )
+        return 2
+    return gate_paths(patch_paths)
 
 
 def find_security_evidence(project_dir: str) -> bool:
@@ -195,6 +271,15 @@ def main() -> int:
             return 2
 
         tool_input = hook_input.get("tool_input")
+
+        # GitHub Copilot CLI delivers apply_patch / freeform-edit operations as
+        # a raw patch STRING rather than an object (issue #3203). The prior code
+        # failed closed on any non-dict tool_input, which denied EVERY
+        # apply_patch in Copilot CLI. Parse the patch headers instead and gate
+        # each touched path individually.
+        if isinstance(tool_input, str):
+            return gate_freeform_patch(tool_input)
+
         if not isinstance(tool_input, dict):
             block_security_gate_error("tool_input is missing or not an object")
             return 2
@@ -222,21 +307,7 @@ def main() -> int:
             )
             return 0
 
-        if not is_auth_path(file_path):
-            return 0
-
-        project_dir = get_project_directory()
-
-        if find_security_evidence(project_dir):
-            return 0
-
-        # Auth file edit without security review: block
-        print(_BLOCK_TEMPLATE.format(file_path=file_path))
-        print(
-            f"Blocked: Auth file edit without security review: {file_path}",
-            file=sys.stderr,
-        )
-        return 2
+        return gate_paths([file_path])
 
     except Exception as exc:
         print(f"Security gate error: {type(exc).__name__} - {exc}", file=sys.stderr)

@@ -15,7 +15,9 @@ sys.path.insert(0, str(_project_root / ".claude" / "hooks" / "PreToolUse"))
 sys.path.insert(0, str(_project_root))
 
 from invoke_security_gate import (  # noqa: E402
+    extract_patch_paths,
     find_security_evidence,
+    gate_paths,
     is_auth_path,
     main,
 )
@@ -335,3 +337,154 @@ class TestMainFailClosed:
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
             assert main() == 2
+
+
+class TestExtractPatchPaths:
+    """Unit tests for freeform apply_patch header extraction (issue #3203)."""
+
+    def test_extracts_add_file(self) -> None:
+        patch = "*** Begin Patch\n*** Add File: probe.txt\n+test\n*** End Patch\n"
+        assert extract_patch_paths(patch) == ["probe.txt"]
+
+    def test_extracts_update_and_delete(self) -> None:
+        patch = (
+            "*** Begin Patch\n"
+            "*** Update File: src/app.py\n"
+            "@@\n-a\n+b\n"
+            "*** Delete File: old/notes.md\n"
+            "*** End Patch\n"
+        )
+        assert extract_patch_paths(patch) == ["src/app.py", "old/notes.md"]
+
+    def test_extracts_move_to_rename_destination(self) -> None:
+        patch = (
+            "*** Begin Patch\n"
+            "*** Update File: src/old.ts\n"
+            "*** Move to: src/new.ts\n"
+            "*** End Patch\n"
+        )
+        assert extract_patch_paths(patch) == ["src/old.ts", "src/new.ts"]
+
+    def test_header_is_case_insensitive_and_whitespace_tolerant(self) -> None:
+        patch = "  *** add file:   spaced/path.txt  \n"
+        assert extract_patch_paths(patch) == ["spaced/path.txt"]
+
+    def test_path_with_spaces_preserved(self) -> None:
+        patch = "*** Add File: my dir/file name.txt\n"
+        assert extract_patch_paths(patch) == ["my dir/file name.txt"]
+
+    def test_windows_backslash_path(self) -> None:
+        patch = "*** Update File: src\\Auth\\Login.cs\n"
+        assert extract_patch_paths(patch) == ["src\\Auth\\Login.cs"]
+
+    def test_empty_header_path_skipped(self) -> None:
+        patch = "*** Add File: \n*** Add File: real.txt\n"
+        assert extract_patch_paths(patch) == ["real.txt"]
+
+    def test_no_headers_returns_empty(self) -> None:
+        assert extract_patch_paths("just a random string, not a patch") == []
+
+    def test_empty_string_returns_empty(self) -> None:
+        assert extract_patch_paths("") == []
+
+    def test_non_header_star_lines_ignored(self) -> None:
+        # Diff body lines that merely start with *** must not be mistaken for
+        # file headers (they lack the Add/Update/Delete/Move keyword).
+        patch = "*** Begin Patch\n*** End Patch\n+*** not a header: x\n"
+        assert extract_patch_paths(patch) == []
+
+
+class TestGatePaths:
+    """Unit tests for the shared multi-path gating helper (issue #3203)."""
+
+    def test_allows_when_no_auth_paths(self) -> None:
+        assert gate_paths(["a.txt", "src/utils/helpers.py"]) == 0
+
+    def test_allows_empty_path_list(self) -> None:
+        assert gate_paths([]) == 0
+
+    @patch("invoke_security_gate.find_security_evidence", return_value=True)
+    @patch("invoke_security_gate.get_project_directory", return_value="/project")
+    def test_allows_auth_path_with_evidence(
+        self, _mock_project: MagicMock, _mock_evidence: MagicMock
+    ) -> None:
+        assert gate_paths(["src/auth/login.ts"]) == 0
+
+    @patch("invoke_security_gate.find_security_evidence", return_value=False)
+    @patch("invoke_security_gate.get_project_directory", return_value="/project")
+    def test_blocks_auth_path_without_evidence(
+        self,
+        _mock_project: MagicMock,
+        _mock_evidence: MagicMock,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        assert gate_paths(["notes.md", "src/auth/login.ts"]) == 2
+        captured = capsys.readouterr()
+        assert "Security Review Required" in captured.out
+        assert "src/auth/login.ts" in captured.out
+
+
+class TestMainFreeformPatch:
+    """End-to-end main() coverage for Copilot CLI apply_patch strings (#3203)."""
+
+    @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
+    def test_allows_non_auth_patch(self, mock_stdin: StringIO) -> None:
+        # The exact customer repro: apply_patch creating a trivial file.
+        patch_text = "*** Begin Patch\n*** Add File: probe.txt\n+test\n*** End Patch\n"
+        hook_input = {"tool_name": "Edit", "tool_input": patch_text}
+        mock_stdin.write(json.dumps(hook_input))
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+
+    @patch("invoke_security_gate.find_security_evidence", return_value=False)
+    @patch("invoke_security_gate.get_project_directory", return_value="/project")
+    @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
+    def test_blocks_auth_patch_without_evidence(
+        self,
+        mock_stdin: StringIO,
+        _mock_project: MagicMock,
+        _mock_evidence: MagicMock,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        patch_text = (
+            "*** Begin Patch\n"
+            "*** Update File: src/auth/login.ts\n"
+            "@@\n-a\n+b\n"
+            "*** End Patch\n"
+        )
+        hook_input = {"tool_name": "Edit", "tool_input": patch_text}
+        mock_stdin.write(json.dumps(hook_input))
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 2
+        assert "Security Review Required" in capsys.readouterr().out
+
+    @patch("invoke_security_gate.find_security_evidence", return_value=True)
+    @patch("invoke_security_gate.get_project_directory", return_value="/project")
+    @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
+    def test_allows_auth_patch_with_evidence(
+        self,
+        mock_stdin: StringIO,
+        _mock_project: MagicMock,
+        _mock_evidence: MagicMock,
+    ) -> None:
+        patch_text = "*** Begin Patch\n*** Delete File: src/auth/tokens.py\n*** End Patch\n"
+        hook_input = {"tool_name": "Edit", "tool_input": patch_text}
+        mock_stdin.write(json.dumps(hook_input))
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+
+    @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
+    def test_fails_closed_on_malformed_patch_string(
+        self, mock_stdin: StringIO, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # A string with no recognizable patch headers cannot be classified;
+        # fail closed rather than let a hidden auth edit through.
+        hook_input = {"tool_name": "Edit", "tool_input": "not a patch at all"}
+        mock_stdin.write(json.dumps(hook_input))
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 2
+        assert "Security Gate Error" in capsys.readouterr().out
