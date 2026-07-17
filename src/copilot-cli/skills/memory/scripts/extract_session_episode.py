@@ -532,18 +532,46 @@ def _gate_complete(data: dict, phase: str, gate: str) -> bool:
     return bool(g.get("Complete") if "Complete" in g else g.get("complete"))
 
 
+def _same_commit(a: str, b: str) -> bool:
+    """True when two hex SHA strings denote the same commit, allowing for git
+    abbreviation: the shorter is a prefix of the longer with at least 7 shared
+    hex chars (git's minimum unambiguous abbreviation length). Exact equality
+    is the equal-length case. This lets a full 40-char ``startingCommit`` match
+    a 7-char abbreviation of it repeated in work-log prose (issue #3123)."""
+    a = a.strip().lower()
+    b = b.strip().lower()
+    if not a or not b:
+        return False
+    lo, hi = (a, b) if len(a) <= len(b) else (b, a)
+    return len(lo) >= 7 and hi.startswith(lo)
+
+
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     """Distinct commit SHAs from the structured commit fields and work-log
     evidence. Excludes the starting commit by default (it is the base, not a
-    commit the session produced)."""
+    commit the session produced), including when work-log prose repeats it at a
+    different abbreviation length than ``startingCommit`` is stored (issue
+    #3123)."""
     seen: list[str] = []
-    fields = [str(data.get("endingCommit") or "")]
+    starting = str(_as_dict(data.get("session")).get("startingCommit") or "").strip()
+
+    # Process endingCommit first without filtering - it's authoritative, not prose
+    ending_field = str(data.get("endingCommit") or "")
+    for sha in _SHA_RE.findall(ending_field):
+        if sha not in seen:
+            seen.append(sha)
+
+    # Build remaining fields (startingCommit if requested, plus work-log)
+    fields: list[str] = []
     if include_starting:
-        fields.append(str(_as_dict(data.get("session")).get("startingCommit") or ""))
+        fields.append(starting)
     for entry in _as_list(data.get("workLog")):
         fields.append(_entry_text(entry))
+
     for field in fields:
         for sha in _SHA_RE.findall(field):
+            if not include_starting and starting and _same_commit(sha, starting):
+                continue
             if sha not in seen:
                 seen.append(sha)
     return seen
@@ -620,9 +648,12 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
         if _valid_fail_match(text):
             add("error", text.strip())
 
-    ending = str(data.get("endingCommit") or "")
-    if _SHA_RE.fullmatch(ending.strip()):
-        add("commit", f"Commit: {ending.strip()}")
+    # Emit one commit event per distinct session-produced commit SHA so the
+    # event stream and metrics.commits share a single provenance rule
+    # (issue #3123). Excludes the starting/base SHA, including work-log
+    # mentions of it, matching json_metrics.
+    for sha in _collect_shas(data, include_starting=False):
+        add("commit", f"Commit: {sha}")
 
     return events
 
@@ -910,6 +941,13 @@ def _dedupe_events(existing: list, new: list, midnight: str | None) -> list[dict
     return out
 
 
+def _count_commit_events(events: list) -> int:
+    """Distinct commit events in an episode. ``_dedupe_events`` unions by
+    ``(type, content)``, so counting ``type == "commit"`` yields the distinct
+    session-produced commit count that ``metrics.commits`` must equal (#3123)."""
+    return sum(1 for evt in events if _as_dict(evt).get("type") == "commit")
+
+
 def _merge_metrics(new: dict, existing: dict) -> dict:
     """Per-key max so regeneration never zeroes a previously counted metric.
 
@@ -962,6 +1000,11 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
     )
+    # metrics.commits must equal the distinct commit-event count so preserve
+    # accumulation never drifts from the event stream (issue #3123). The event
+    # union above already dedupes by (type, content), so counting commit events
+    # yields the distinct session-produced commit count.
+    merged["metrics"]["commits"] = _count_commit_events(merged["events"])
     return merged
 
 
