@@ -110,6 +110,17 @@ git worktree remove ~/worktrees/myapp-hotfix  # Clean up when done
 git worktree prune  # Remove stale entries
 ```
 
+**Move-safe caveat:** moving a worktree after `uv` created `.venv` leaves the
+absolute-path shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows)
+stale, so direct `.venv/bin/pytest` calls fail with "bad interpreter". Run
+`scripts/maintenance/repair_worktree_venv.py` with `uv run python` (or run
+`uv sync --frozen --extra dev --reinstall`) to rewrite them, and prefer
+`uv run python -m pytest` for move-safe validation. Each flag earns its place:
+`--reinstall` recreates the launchers (a plain `--frozen` sync no-ops when the
+packages already appear installed and leaves the stale shebangs unrewritten),
+`--extra dev` keeps pytest/ruff/mypy in the repaired venv, and `--frozen`
+reproduces `uv.lock` without re-resolving so the result matches CI.
+
 #### Recovery: Undo Mistakes with Reflog
 
 ```bash
