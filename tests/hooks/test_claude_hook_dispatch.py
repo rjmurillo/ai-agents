@@ -448,10 +448,27 @@ def test_runtime_contract_prompt_group_allows():
     assert result.returncode == 0, result.stderr.decode(errors="replace")
 
 
-def test_runtime_contract_force_push_to_main_blocks():
-    # Negative control: branch protection must still block a force-push
-    # to main through the push-chain group, proving group members really
-    # execute under the live manifest.
+def test_runtime_contract_force_push_to_main_blocks(tmp_path):
+    # Negative control: branch protection must still block a push made from a
+    # protected branch through the push-chain group, proving group members
+    # really execute under the live manifest.
+    #
+    # invoke_branch_protection_guard keys off the *current* branch of the
+    # resolved project directory, not the push target parsed from the command.
+    # A detached-HEAD checkout (CI's PR merge-commit checkout, or a --detach
+    # worktree) reports no current branch, so the guard fails open and the
+    # control becomes vacuous. Point CLAUDE_PROJECT_DIR at a scratch repo that
+    # is on `main` so the guard deterministically fires; the scratch repo has
+    # no .agents/sessions, so branch_context_guard (the group's first shim)
+    # allows and the block comes from branch_protection_guard.
+    on_main = tmp_path / "on-main"
+    on_main.mkdir()
+    subprocess.run(["git", "init", str(on_main)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(on_main), "checkout", "-b", "main"],
+        check=True,
+        capture_output=True,
+    )
     payload = json.dumps(
         {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}}
     ).encode("utf-8")
@@ -464,10 +481,10 @@ def test_runtime_contract_force_push_to_main_blocks():
             "pretooluse-2-branch_context_guard",
         ],
         cwd=REPO_ROOT,
-        env=_entry_env(),
+        env=_entry_env({"CLAUDE_PROJECT_DIR": str(on_main)}),
         input=payload,
         capture_output=True,
         timeout=120,
         check=False,
     )
-    assert result.returncode == 2
+    assert result.returncode == 2, result.stderr.decode(errors="replace")
