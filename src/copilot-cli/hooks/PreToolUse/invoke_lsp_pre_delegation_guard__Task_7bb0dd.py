@@ -473,6 +473,22 @@ def _original_main(stdin_bytes):
     )
 
 
+    def _is_file_reference(ref: str) -> bool:
+        """Return True if ref looks like a file path rather than a version string.
+
+        Filters out semver-style tokens (e.g., 2.0.1) that the file pattern
+        inadvertently matches. A reference is considered a file path if it
+        contains a path separator or has a non-numeric extension.
+        """
+        if "/" in ref or "\\" in ref:
+            return True
+        dot_idx = ref.rfind(".")
+        if dot_idx == -1:
+            return False
+        ext = ref[dot_idx + 1 :]
+        return not ext.isdigit()
+
+
     def delegation_targets_inproject_provider(prompt: str, project_dir: str) -> bool:
         """Return True when the prompt references an in-project file with an LSP provider.
 
@@ -488,6 +504,7 @@ def _original_main(stdin_bytes):
         in-project provider-backed target (the gate should fire).
         """
         refs = _FILE_REF_PATTERN.findall(prompt)
+        refs = [ref for ref in refs if _is_file_reference(ref)]
         if not refs:
             return True
         try:
