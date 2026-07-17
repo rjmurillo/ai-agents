@@ -443,6 +443,9 @@ def test_inject_shim_mixed_schema_top_level_fields_do_not_bypass_toolcalls_selec
         ({}, "name must be a non-empty string"),
         ({"name": 7}, "name must be a non-empty string"),
         ({"name": ""}, "name must be a non-empty string"),
+        ({"name": " Edit"}, "must not have leading or trailing whitespace"),
+        ({"name": "Edit "}, "must not have leading or trailing whitespace"),
+        ({"name": "\tEdit\n"}, "must not have leading or trailing whitespace"),
     ],
 )
 def test_inject_shim_denies_malformed_toolcalls_before_dispatch(
