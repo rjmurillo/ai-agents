@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3055,
+    "date": "2026-07-16",
+    "branch": "fix/pytest-head-guard-concurrent-commit-3109",
+    "startingCommit": "09afc411e",
+    "objective": "Fix PR 3125 Git 2.55 and Windows trace test failures"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project tools and project memory are active"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena manual loaded in this execution"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; file remains read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant PR, review, and CI log scripts listed and used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory pytest-head-attribution read and updated"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/pytest-head-guard-concurrent-commit-3109"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/pytest-head-guard-concurrent-commit-3109"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Branch status checked at starting commit 09afc411e; only session 3055 log untracked"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "09afc411e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Verified .agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated pytest-head-attribution with the Git 2.55 symbolic-ref exception"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Not applicable: changed repository files are Python and JSON; no Markdown changed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation committed as d2a2cd6ba"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Git 2.55 full suite: 14376 passed; Ruff, mypy, and CWE-78 scan passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #3125 CI failures fixed locally; push and fresh CI remain"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-16T18:12:00Z",
+      "action": "Investigated exact failed CI logs",
+      "result": "Windows Git 2.55 failed symbolic-ref transaction parsing and two update-ref stdin tests; Validate PR also failed"
+    },
+    {
+      "timestamp": "2026-07-16T18:14:00Z",
+      "action": "Built Git 2.55.0 and reproduced the runner-specific symbolic-ref trace",
+      "result": "Git 2.55 emits transaction_prepare without a transaction finish record; the prior parser returned false"
+    },
+    {
+      "timestamp": "2026-07-16T18:48:00Z",
+      "action": "Implemented and verified Git 2.55 and Windows fixes",
+      "result": "PATH=/tmp/pr3125-git-2.55.0-install/bin uv run pytest tests/ -q: 14376 passed, 21 skipped, 45 xfailed; Ruff, mypy, and CWE-78 scan passed"
+    },
+    {
+      "timestamp": "2026-07-16T18:50:00Z",
+      "action": "Committed cross-platform trace repair",
+      "result": "Commit d2a2cd6ba adds Git 2.55 symbolic-ref fallback and byte-precise update-ref stdin tests"
+    }
+  ],
+  "endingCommit": "d2a2cd6ba",
+  "nextSteps": [
+    "Run pre-PR validation and full review",
+    "Push through the live-state and SHA safety gates",
+    "Resolve remaining review threads after the fix is on the remote branch",
+    "Wait for CI, run completion gate, and merge PR #3125"
+  ]
+}
