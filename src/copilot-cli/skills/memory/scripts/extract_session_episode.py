@@ -532,11 +532,26 @@ def _gate_complete(data: dict, phase: str, gate: str) -> bool:
     return bool(g.get("Complete") if "Complete" in g else g.get("complete"))
 
 
+def _same_commit(a: str, b: str) -> bool:
+    """True when two hex SHA strings denote the same commit, allowing for git
+    abbreviation: the shorter is a prefix of the longer with at least 7 shared
+    hex chars (git's minimum unambiguous abbreviation length). Exact equality
+    is the equal-length case. This lets a full 40-char ``startingCommit`` match
+    a 7-char abbreviation of it repeated in work-log prose (issue #3123)."""
+    a = a.strip().lower()
+    b = b.strip().lower()
+    if not a or not b:
+        return False
+    lo, hi = (a, b) if len(a) <= len(b) else (b, a)
+    return len(lo) >= 7 and hi.startswith(lo)
+
+
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     """Distinct commit SHAs from the structured commit fields and work-log
     evidence. Excludes the starting commit by default (it is the base, not a
-    commit the session produced), including when work-log prose repeats it
-    (issue #3123)."""
+    commit the session produced), including when work-log prose repeats it at a
+    different abbreviation length than ``startingCommit`` is stored (issue
+    #3123)."""
     seen: list[str] = []
     starting = str(_as_dict(data.get("session")).get("startingCommit") or "").strip()
     fields = [str(data.get("endingCommit") or "")]
@@ -546,7 +561,7 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
         fields.append(_entry_text(entry))
     for field in fields:
         for sha in _SHA_RE.findall(field):
-            if not include_starting and starting and sha == starting:
+            if not include_starting and starting and _same_commit(sha, starting):
                 continue
             if sha not in seen:
                 seen.append(sha)
@@ -1106,13 +1121,6 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                         if not has_own_events:
                             events = archive_events
                             metrics_source = archive_data
-                        elif not has_events:
-                            own_commits = [e for e in events if e.get("type") == "commit"]
-                            archive_narrative = [
-                                e for e in archive_events
-                                if e.get("type") in ("milestone", "test", "error")
-                            ]
-                            events = archive_narrative + own_commits
                         if not decisions:
                             decisions = archive_decisions
                         if not lessons:
@@ -1144,14 +1152,6 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                             # archive (handled in the json-archive branch above).
                             # The markdown archive contributes events, decisions,
                             # and lessons (narrative recovery), not metrics.
-                        elif not has_events:
-                            md_events = parse_events(md_lines, session_ts)
-                            md_narrative = [
-                                e for e in _filter_markdown_events(md_events)
-                                if e.get("type") in ("milestone", "test", "error")
-                            ]
-                            own_commits = [e for e in events if e.get("type") == "commit"]
-                            events = md_narrative + own_commits
                         if not decisions:
                             decisions = parse_decisions(md_lines, session_ts)
                         if not lessons:

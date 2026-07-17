@@ -729,6 +729,32 @@ class TestCommitProvenanceConsistency:
         assert len(commit_events) == 1
         assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
 
+    def test_full_starting_sha_abbreviated_in_worklog_excluded(self):
+        # startingCommit stored full-length (40 hex) but work-log prose repeats
+        # it as a 7-char abbreviation. Exact-equality exclusion would miss it
+        # and leak a phantom commit; git-abbreviation matching excludes it
+        # (issue #3123 acceptance criterion 2).
+        data = _json_log([{"task": "closeout", "outcome": "merged base e535a4f"}])
+        data["session"]["startingCommit"] = "e535a4f33bcde972c829a6264bb3568c46a8954c"
+        data["endingCommit"] = "e07f40f"
+        commit_events = self._commit_events(
+            {"events": extract_session_episode.json_events(data, self._NOW)}
+        )
+        assert not any("e535a4f" in e["content"] for e in commit_events)
+        assert len(commit_events) == 1
+        assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
+
+    def test_same_commit_abbreviation_matching(self):
+        full = "e535a4f33bcde972c829a6264bb3568c46a8954c"
+        assert extract_session_episode._same_commit(full, "e535a4f")
+        assert extract_session_episode._same_commit("e535a4f", full)
+        assert extract_session_episode._same_commit(full, full)
+        # Distinct commits sharing a 6-char prefix are not the same commit.
+        assert not extract_session_episode._same_commit(full, "e535a4e9abc")
+        # Below git's 7-char minimum abbreviation, do not treat as a match.
+        assert not extract_session_episode._same_commit(full, "e535a4")
+        assert not extract_session_episode._same_commit("", full)
+
     def test_three_sequential_preserve_runs_stay_consistent(self):
         episode = extract_session_episode.extract_from_json(
             self._log("e07f40f"), archive_fallback=False
