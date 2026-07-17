@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through a34dd4667bda38e728d3610ffe66d39f20e78b53. Final PR scope with QA and session evidence is 50 files, 5461 insertions, and 2118 deletions."
+        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through a34dd4667bda38e728d3610ffe66d39f20e78b53. Final PR scope with QA and session evidence is 50 files, 5467 insertions, and 2118 deletions."
       },
       "validationPassed": {
         "level": "MUST",
@@ -160,7 +160,7 @@
       "result": "The matcher shim now rejects leading or trailing whitespace instead of normalizing it. Leading-space, trailing-space, and tab/newline cases first failed, then passed after the generator fix. A real generated-shim probe returned rc=2 with no guard execution. Focused suite: 246 passed, 1 intentional exclusion. Build-script suite: 860 passed, 1 intentional exclusion. Full suite: 14455 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips."
     }
   ],
-  "endingCommit": "a34dd4667bda38e728d3610ffe66d39f20e78b53",
+  "endingCommit": "21036f271cb0ec9853cb0a87740ea900976d567e",
   "nextSteps": [
     "Run the final SHA-bound 15-axis review and create its marker.",
     "Push normally, resolve the padded-name review thread after the fix is remote, and settle CI.",
