@@ -185,15 +185,94 @@ _ENTRYPOINT = _ENTRYPOINT.replace(
 )
 
 
-def dispatcher_entry(event: str, timeout_sec: int) -> dict[str, Any]:
-    """Return the single hooks.json entry that registers the event dispatcher."""
-    return {
+def dispatcher_entry(
+    event: str, timeout_sec: int, matcher: str | None = None
+) -> dict[str, Any]:
+    """Return the single hooks.json entry that registers the event dispatcher.
+
+    ``matcher`` (when not ``None``) is emitted on the entry so hosts with
+    host-side matcher filtering skip the dispatcher spawn entirely for
+    non-matching tool calls. Verified empirically on Copilot CLI 1.0.71
+    (issue #3075 probe): a PascalCase ``PreToolUse`` entry with matcher
+    ``Bash`` fired on a bash tool call while ``Edit|Write`` and ``view``
+    entries never spawned. Hosts without matcher support ignore the field
+    and fall back to the dispatcher's in-process filtering (unchanged).
+    """
+    entry: dict[str, Any] = {
         "bash": _BASH_TEMPLATE.format(event=event),
         "cwd": ".",
         "powershell": _PWSH_TEMPLATE.format(event=event),
         "timeoutSec": timeout_sec,
         "type": "command",
     }
+    if matcher:
+        entry["matcher"] = matcher
+    return entry
+
+
+# Events whose entries accept a host-side matcher per the Copilot hooks
+# reference (docs.github.com/en/copilot/reference/hooks-reference,
+# "Matcher filtering"), in this generator's PascalCase event names.
+_MATCHER_EVENTS = frozenset({"PreToolUse", "PostToolUse"})
+
+# Claude core tool names whose Copilot runtime mapping is documented
+# ("Tool names for hook matching"). Only these may appear in an emitted
+# host-side matcher union: an unknown token (an MCP tool name, a custom
+# regex) could silently never match the runtime name, which would turn a
+# registered guard into a dead hook on Copilot. Reduction fails open to
+# "no matcher" (dispatcher fires on every call, in-process filter decides,
+# exactly the pre-#3075 behavior).
+_KNOWN_CLAUDE_TOOLS = frozenset(
+    {"Bash", "Edit", "Write", "Read", "Grep", "Glob", "Task", "Agent", "WebFetch"}
+)
+
+_TOOL_TOKEN_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+_COMMAND_SCOPED_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_]*)\(")
+_ANCHORED_ALT_RE = re.compile(r"^\^\((.*)\)\$$")
+
+
+def _matcher_tool_tokens(matcher: str | None) -> list[str] | None:
+    """Reduce one Claude matcher to the tool names it can fire for.
+
+    Returns ``None`` when the matcher cannot be safely reduced (empty,
+    wildcard, or any token outside ``_KNOWN_CLAUDE_TOOLS``).
+    """
+    if not matcher or matcher in ("*", "**"):
+        return None
+    text = str(matcher)
+    command_scoped = _COMMAND_SCOPED_RE.match(text)
+    if command_scoped:
+        tool = command_scoped.group(1)
+        return [tool] if tool in _KNOWN_CLAUDE_TOOLS else None
+    anchored = _ANCHORED_ALT_RE.match(text)
+    inner = anchored.group(1) if anchored else text
+    tokens = inner.split("|")
+    if all(
+        _TOOL_TOKEN_RE.match(token) and token in _KNOWN_CLAUDE_TOOLS
+        for token in tokens
+    ):
+        return tokens
+    return None
+
+
+def event_matcher_union(event: str, matchers: list[str | None]) -> str | None:
+    """Compute the host-side matcher union for one event's shim matchers.
+
+    Returns a ``|``-joined union of tool names when EVERY registered shim's
+    matcher reduces to known tools, else ``None`` (emit no matcher; the
+    dispatcher fires on every call and filters in-process).
+    """
+    if event not in _MATCHER_EVENTS:
+        return None
+    union: list[str] = []
+    for matcher in matchers:
+        tokens = _matcher_tool_tokens(matcher)
+        if tokens is None:
+            return None
+        for token in tokens:
+            if token not in union:
+                union.append(token)
+    return "|".join(union) if union else None
 
 
 def write_manifest(
@@ -269,6 +348,7 @@ def emit_dispatcher(
     shim_timeouts: dict[str, int] | None = None,
     *,
     mode: str = "gate",
+    matcher: str | None = None,
 ) -> dict[str, Any]:
     """Write manifest + entrypoint + bootstrap and return the hooks.json entry.
 
@@ -276,12 +356,13 @@ def emit_dispatcher(
     replaces, so the consolidated entry preserves the cumulative budget from
     the separate host invocations. ``mode`` is ``"gate"`` (``PreToolUse``,
     fail-closed short-circuit) or ``"observe"`` (all shims run, never gate).
+    ``matcher`` (optional) is the host-side tool-name union for the entry.
     """
     _remove_stale_matcher_shims(event_dir, shim_names)
     write_manifest(event_dir, event, shim_names, shim_timeouts, mode=mode)
     write_entrypoint(event_dir)
     _copy_bootstrap(event_dir)
-    return dispatcher_entry(event, timeout_sec)
+    return dispatcher_entry(event, timeout_sec, matcher)
 
 
 # Tool-gating events short-circuit on the first denial (fail-closed). Every
@@ -424,6 +505,11 @@ def consolidate(
         shim_names = [name for name, _ in shim_entries]
         shim_timeouts = dict(shim_entries)
         timeout = sum(timeout_sec for _, timeout_sec in shim_entries)
+        matchers = [
+            entry.get("claudeMatcher")
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
         event_dir = Path(hooks_dir) / event
         new_out[event] = [
             emit_dispatcher(
@@ -433,6 +519,7 @@ def consolidate(
                 timeout,
                 shim_timeouts,
                 mode=_mode_for_event(event),
+                matcher=event_matcher_union(event, matchers),
             )
         ]
     return new_out
