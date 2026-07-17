@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through 3a1a76d948fa80a4269c74927c6ab6de97d04eaa. Final PR scope is 50 files, 5288 insertions, and 2118 deletions."
+        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through 3a1a76d948fa80a4269c74927c6ab6de97d04eaa. Final PR scope is 50 files, 5293 insertions, and 2118 deletions."
       },
       "validationPassed": {
         "level": "MUST",
@@ -147,7 +147,7 @@
     {
       "timestamp": "2026-07-17T06:28:07Z",
       "action": "Corrected the final PR diff evidence",
-      "result": "Independent git diff against origin/main reports 50 files changed, 5288 insertions, and 2118 deletions. The QA report and final PR body artifact now carry those exact values."
+      "result": "Independent git diff against origin/main reports 50 files changed, 5293 insertions, and 2118 deletions. The QA report and final PR body artifact now carry those exact values."
     }
   ],
   "endingCommit": "3a1a76d948fa80a4269c74927c6ab6de97d04eaa",
