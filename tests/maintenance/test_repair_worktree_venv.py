@@ -83,9 +83,9 @@ class TestInterpreterOfShebang:
 
 
 class TestIsStale:
-    """A shebang is stale when its absolute interpreter is outside the root."""
+    """A shebang is stale when its absolute interpreter is not under root/.venv."""
 
-    def test_interpreter_under_root_is_not_stale(self) -> None:
+    def test_interpreter_under_venv_is_not_stale(self) -> None:
         assert is_stale("/repo/wt/.venv/bin/python", Path("/repo/wt")) is False
 
     def test_interpreter_outside_root_is_stale(self) -> None:
@@ -94,6 +94,11 @@ class TestIsStale:
     def test_sibling_prefix_is_stale_not_false_negative(self) -> None:
         # /repo/wt is a string prefix of /repo/wt-other but not a parent.
         assert is_stale("/repo/wt-other/.venv/bin/python", Path("/repo/wt")) is True
+
+    def test_nested_old_venv_under_new_root_is_stale(self) -> None:
+        # After moving from /data/wt to /data, the old shebang /data/wt/.venv/bin/python
+        # is still under /data but is not under /data/.venv. This must be stale.
+        assert is_stale("/data/wt/.venv/bin/python", Path("/data")) is True
 
     def test_relative_interpreter_is_not_stale(self) -> None:
         assert is_stale("python", Path("/repo/wt")) is False

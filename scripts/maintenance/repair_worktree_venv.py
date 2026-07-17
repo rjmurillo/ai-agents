@@ -53,7 +53,7 @@ _LAUNCHER_DIR_NAMES = ("bin", "Scripts")
 
 @dataclass(frozen=True)
 class StaleShebang:
-    """A launcher whose shebang names an interpreter outside the worktree root."""
+    """A launcher whose shebang names an interpreter not under ``{root}/.venv``."""
 
     path: Path
     interpreter: str
@@ -138,7 +138,14 @@ def interpreter_of_shebang(shebang: str) -> str | None:
 
 
 def is_stale(interpreter: str, root: Path) -> bool:
-    """Return True when an absolute interpreter path is outside ``root``.
+    """Return True when an absolute interpreter path is not under ``root/.venv``.
+
+    A shebang is stale when the interpreter is not rooted at the current
+    worktree's ``.venv`` directory. This catches both interpreters outside
+    ``root`` entirely *and* interpreters under ``root`` but in an obsolete
+    ``.venv`` layout (e.g., after moving from ``/data/wt`` to ``/data``, a
+    shebang naming ``/data/wt/.venv/bin/python`` is still under ``/data`` but
+    is no longer the correct ``/data/.venv`` location).
 
     Compares raw paths (no ``resolve``) so a symlinked root component does not
     normalize differently from uv's literal shebang and false-flag a correct
@@ -147,7 +154,8 @@ def is_stale(interpreter: str, root: Path) -> bool:
     interpreter_path = Path(interpreter)
     if not interpreter_path.is_absolute():
         return False
-    return not interpreter_path.is_relative_to(root)
+    expected_venv = root / ".venv"
+    return not interpreter_path.is_relative_to(expected_venv)
 
 
 def scan_launcher_dir(launcher_dir: Path, root: Path) -> list[StaleShebang]:
