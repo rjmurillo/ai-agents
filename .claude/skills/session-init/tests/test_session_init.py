@@ -634,6 +634,8 @@ class TestNewSessionLogJson:
             env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             preexec_fn=lambda: os.umask(0o002),  # noqa: PLW1509
         )
@@ -641,6 +643,6 @@ class TestNewSessionLogJson:
         assert proc.returncode == 0, proc.stderr
         created_path = Path(proc.stdout.strip().splitlines()[-1])
         # Guard: the log must land under tmp, never the real repo.
-        assert str(created_path).startswith(str(tmp_path)), created_path
-        mode = created_path.stat().st_mode
-        assert mode & 0o111 == 0, f"unexpected execute bits: {oct(mode)}"
+        assert created_path.resolve().is_relative_to(tmp_path.resolve()), created_path
+        mode = created_path.stat().st_mode & 0o777
+        assert mode == 0o644, f"expected 0o644 under umask 0o002, got {oct(mode)}"
