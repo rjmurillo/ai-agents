@@ -1106,13 +1106,6 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                         if not has_own_events:
                             events = archive_events
                             metrics_source = archive_data
-                        elif not has_events:
-                            own_commits = [e for e in events if e.get("type") == "commit"]
-                            archive_narrative = [
-                                e for e in archive_events
-                                if e.get("type") in ("milestone", "test", "error")
-                            ]
-                            events = archive_narrative + own_commits
                         if not decisions:
                             decisions = archive_decisions
                         if not lessons:
@@ -1144,14 +1137,6 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                             # archive (handled in the json-archive branch above).
                             # The markdown archive contributes events, decisions,
                             # and lessons (narrative recovery), not metrics.
-                        elif not has_events:
-                            md_events = parse_events(md_lines, session_ts)
-                            md_narrative = [
-                                e for e in _filter_markdown_events(md_events)
-                                if e.get("type") in ("milestone", "test", "error")
-                            ]
-                            own_commits = [e for e in events if e.get("type") == "commit"]
-                            events = md_narrative + own_commits
                         if not decisions:
                             decisions = parse_decisions(md_lines, session_ts)
                         if not lessons:
