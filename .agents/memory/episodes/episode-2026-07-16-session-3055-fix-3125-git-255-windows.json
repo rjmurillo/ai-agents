@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-07-16-session-3055-fix-3125-git-255-windows",
+  "session": "2026-07-16-session-3055-fix-3125-git-255-windows",
+  "timestamp": "2026-07-16T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix PR 3125 Git 2.55 and Windows trace test failures",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated exact failed CI logs",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "error",
+      "content": "Investigated exact failed CI logs      Windows Git 2.55 failed symbolic-ref transaction parsing and two update-ref stdin tests; Validate PR also failed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built Git 2.55.0 and reproduced the runner-specific symbolic-ref trace",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented and verified Git 2.55 and Windows fixes",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "Implemented and verified Git 2.55 and Windows fixes      PATH=/tmp/pr3125-git-2.55.0-install/bin uv run pytest tests/ -q: 14376 passed, 21 skipped, 45 xfailed; Ruff, mypy, and CWE-78 scan passed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed cross-platform trace repair",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d2a2cd6ba",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 55,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
