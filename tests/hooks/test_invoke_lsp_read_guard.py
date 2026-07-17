@@ -29,6 +29,7 @@ HOOK_DIR = REPO_ROOT / ".claude" / "hooks" / "PreToolUse"
 sys.path.insert(0, str(HOOK_DIR))
 
 import invoke_lsp_read_guard as guard  # noqa: E402
+from hook_utilities import lsp_gate_state as _gate_state  # noqa: E402
 
 # A real in-repo file path whose extension is overview-capable (python). The
 # file need not exist; detect_providers keys on extension + config, and
@@ -66,6 +67,36 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(REPO_ROOT))
     monkeypatch.delenv("TMPDIR", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _neutralize_outer_merge_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate the suite from the live checkout's merge/rebase state (#3137).
+
+    ``is_gated_target`` consults ``_merge_in_progress`` against the caller's
+    ``project_dir``. Tests that pass the live ``REPO_ROOT`` inherit the outer
+    checkout's ``.git/MERGE_HEAD``/``rebase-merge``/``rebase-apply`` markers, so
+    running the suite mid-merge (exactly when merge-resolver asks for
+    validation) flips every gated target to bypass and false-fails ~15 tests.
+
+    Force the probe to report no merge only for the live ``REPO_ROOT``. Isolated
+    temporary repositories keep the real detection, so the explicit
+    merge/rebase/worktree/conflict bypass tests still exercise the production
+    signal. Production behavior is unchanged; only the test's dependency on
+    external git state is removed.
+    """
+    real_merge_in_progress = _gate_state._merge_in_progress
+    repo_root_resolved = REPO_ROOT.resolve()
+
+    def _scoped(project_dir: str) -> bool:
+        try:
+            if Path(project_dir).resolve() == repo_root_resolved:
+                return False
+        except (OSError, ValueError):
+            pass
+        return real_merge_in_progress(project_dir)
+
+    monkeypatch.setattr(_gate_state, "_merge_in_progress", _scoped)
 
 
 # ---------------------------------------------------------------------------
@@ -570,3 +601,48 @@ class TestLspRuntimeDownFailOpen:
 # ---------------------------------------------------------------------------
 # main: dispatch, kill switch, fail-open paths
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Outer-checkout merge-state isolation (issue #3137)
+# ---------------------------------------------------------------------------
+
+
+class TestOuterMergeStateIsolation:
+    """The suite must not observe the containing checkout's merge state.
+
+    Before #3137, ``is_gated_target`` consulted ``_merge_in_progress`` against
+    the live ``REPO_ROOT``, so running the suite while the checkout had
+    ``.git/MERGE_HEAD`` flipped every gated target to bypass and false-failed
+    the tier tests. The autouse neutralizer forces the live-root probe to report
+    no merge while leaving isolated repositories on the real detection.
+    """
+
+    def test_live_root_probe_is_neutralized(self):
+        # Under the neutralizer the live-root probe always reports no merge,
+        # regardless of the outer checkout's real .git/MERGE_HEAD state.
+        assert _gate_state._merge_in_progress(str(REPO_ROOT)) is False
+
+    def test_isolated_repo_merge_is_still_observed(self, tmp_path):
+        # The neutralizer is scoped to REPO_ROOT only: an isolated repo with a
+        # real MERGE_HEAD marker still reports a merge, so the explicit bypass
+        # tests keep exercising the production signal.
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        (repo / ".git" / "MERGE_HEAD").write_text("abc123\n", encoding="utf-8")
+        assert _gate_state._merge_in_progress(str(repo)) is True
+
+    def test_gated_target_holds_regardless_of_outer_merge(self):
+        # The observable effect: a live-root code target stays gated even when
+        # the outer checkout is mid-merge, because the probe is neutralized.
+        assert guard.is_gated_target(PY_TARGET, str(REPO_ROOT)) is True
+
+    def test_isolated_repo_bypass_still_holds(self, tmp_path):
+        # And an isolated mid-merge repo still bypasses, proving per-project_dir
+        # scoping rather than a global override.
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        (repo / ".git" / "MERGE_HEAD").write_text("abc123\n", encoding="utf-8")
+        target = repo / "sample.py"
+        target.write_text("def foo():\n    return 1\n", encoding="utf-8")
+        assert guard.is_gated_target(str(target), str(repo)) is False
