@@ -106,10 +106,12 @@ def main(argv: list[str] | None = None) -> int:
             f"{_HOOKS_DIR / _MANIFEST_NAME}: {type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        return BLOCK_EXIT
+        block_exit: int = BLOCK_EXIT
+        return block_exit
 
     raw_stdin = sys.stdin.buffer.read()
-    return run_group(_HOOKS_DIR, event, mode, shims, raw_stdin)
+    exit_code: int = run_group(_HOOKS_DIR, event, mode, shims, raw_stdin)
+    return exit_code
 
 
 if __name__ == "__main__":

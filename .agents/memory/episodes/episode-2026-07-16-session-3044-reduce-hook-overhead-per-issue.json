@@ -173,6 +173,22 @@
       "content": "pytest 2528 passed 1 skipped across hooks+build_scripts; ruff and mypy clean; copilot regen delta = matcher union + 2 pruned shims + write-edit ordering",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push-gate repairs: entry point returns typed locally for mypy under dynamic-path import; main new test_hook_plugin_guards matcher lookup made dispatch-group aware.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-16T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest 139 passed on guard+dispatch suites; mypy clean",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

@@ -183,6 +183,11 @@
       "timestamp": "2026-07-16T10:40:00Z",
       "summary": "Reconciliation executed: restored merged-main generator and manifests, re-applied matcher-union and expansion patches, synthesized grouped registrations programmatically from main final settings (narrow single-guard matchers kept; groups only where multiple hooks share one matcher; plugin fully dispatcher-routed for self-host bail; prunes reapplied). Plugin pair bumped to 0.6.41 over main 0.6.40.",
       "evidence": "pytest 2528 passed 1 skipped across hooks+build_scripts; ruff and mypy clean; copilot regen delta = matcher union + 2 pruned shims + write-edit ordering"
+    },
+    {
+      "timestamp": "2026-07-16T11:00:00Z",
+      "summary": "Push-gate repairs: entry point returns typed locally for mypy under dynamic-path import; main new test_hook_plugin_guards matcher lookup made dispatch-group aware.",
+      "evidence": "pytest 139 passed on guard+dispatch suites; mypy clean"
     }
   ],
   "endingCommit": "",
