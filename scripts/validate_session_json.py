@@ -73,7 +73,9 @@ CONTRADICTION_PATTERNS = re.compile(
 # in honest multi-scope evidence ("scorer deferred per PRD 11", "lint passed;
 # pending pre-commit final run") where a different piece of work, not the item, is
 # deferred. The other tokens (TODO, TBD, N/A, skipped, will run, will validate, not
-# available) signal the item itself is incomplete and always flag. See issue #2007.
+# available) signal the item itself is incomplete and always flag, EXCEPT that a
+# "skipped" token that is a numeric pytest outcome count is exempted separately
+# (see _NUMERIC_COUNT_TOKENS and issue #3141). See issue #2007.
 _SCOPE_QUALIFIED_TOKENS = frozenset({"deferred", "pending"})
 
 # Words that affirmatively report the item itself was done. When such a word
@@ -114,6 +116,15 @@ _NEGATION_BEFORE_AFFIRMATIVE = re.compile(
 # we deferred the deploy") rather than noting separate work, so it must NOT be
 # suppressed. See bug (gemini) on ordering/contrast false negatives.
 _CONTRAST_CONJUNCTION = re.compile(r"(?i)\b(but|however|except|though|although)\b")
+
+# pytest summarizes outcomes as counts like "21 skipped" or "45 xfailed". A
+# "skipped" token that is immediately preceded by a digit (ignoring whitespace)
+# is such a numeric test-outcome count, not a skipped validation step, so it must
+# not flag as a contradiction. Only "skipped" collides with pytest count output;
+# the other CONTRADICTION_PATTERNS tokens never appear as "<N> token" counts.
+# See issue #3141.
+_NUMERIC_COUNT_TOKENS = frozenset({"skipped"})
+_DIGIT_BEFORE_TOKEN = re.compile(r"\d\s*$")
 
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
@@ -263,11 +274,32 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
     return False
 
 
+def _is_numeric_test_count(evidence: str, match: re.Match[str]) -> bool:
+    """Return True if the token is a pytest numeric outcome count.
+
+    pytest reports outcomes as "<N> skipped" (for example
+    "14434 passed, 21 skipped, 45 xfailed"). A digit immediately before a
+    "skipped" token marks a test-outcome count, which is normal successful
+    evidence, not a skipped validation step. See issue #3141.
+
+    Args:
+        evidence: Full evidence string.
+        match: A single CONTRADICTION_PATTERNS match within the evidence.
+
+    Returns:
+        True if the matched token is a numeric test-outcome count.
+    """
+    if match.group(0).lower() not in _NUMERIC_COUNT_TOKENS:
+        return False
+    return bool(_DIGIT_BEFORE_TOKEN.search(evidence[: match.start()]))
+
+
 def _has_contradiction(evidence: str) -> bool:
     """Return True if evidence contradicts a "complete: true" claim.
 
     Flags any CONTRADICTION_PATTERNS token unless it is a scope-qualified
-    "deferred"/"pending" that points at a different subject. A genuine
+    "deferred"/"pending" that points at a different subject, or a "skipped"
+    token that is a numeric pytest outcome count ("21 skipped"). A genuine
     contradiction (an item-itself deferral, "TODO", a bare token) still flags
     even when scope-qualified tokens appear elsewhere in the same string.
 
@@ -278,7 +310,7 @@ def _has_contradiction(evidence: str) -> bool:
         True if at least one unqualified contradiction token is present.
     """
     return any(
-        not _is_scope_qualified(evidence, match)
+        not _is_scope_qualified(evidence, match) and not _is_numeric_test_count(evidence, match)
         for match in CONTRADICTION_PATTERNS.finditer(evidence)
     )
 

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from scripts.validate_session_json import (
+    _LEGACY_HANDOFF_FIELD,
     BRANCH_PATTERN,
     COMMIT_SHA_PATTERN,
     CONTRADICTION_PATTERNS,
@@ -23,7 +24,6 @@ from scripts.validate_session_json import (
     SESSION_END_REQUIRED_ITEMS,
     SESSION_START_REQUIRED_ITEMS,
     ValidationResult,
-    _LEGACY_HANDOFF_FIELD,
     get_case_insensitive,
     has_case_insensitive,
     load_session_file,
@@ -53,7 +53,11 @@ def _make_complete_end_section(**overrides: dict) -> dict:
         for name in SESSION_END_REQUIRED_ITEMS
     }
     # handoffPreserved is MUST: complete=True means HANDOFF.md was not modified
-    section["handoffPreserved"] = {"complete": True, "evidence": "HANDOFF.md not modified", "level": "MUST"}
+    section["handoffPreserved"] = {
+        "complete": True,
+        "evidence": "HANDOFF.md not modified",
+        "level": "MUST",
+    }
     section.update(overrides)
     return section
 
@@ -302,7 +306,11 @@ class TestValidateSessionEnd:
     def test_handoff_preserved_violated(self) -> None:
         """handoffPreserved with Complete=false fails (issue #868)."""
         session_end = _make_complete_end_section(
-            handoffPreserved={"complete": False, "evidence": "HANDOFF.md was modified", "level": "MUST"},
+            handoffPreserved={
+                "complete": False,
+                "evidence": "HANDOFF.md was modified",
+                "level": "MUST",
+            },
         )
         result = ValidationResult()
 
@@ -401,7 +409,9 @@ class TestChecklistSectionValidation:
         )
 
         assert not result.is_valid
-        assert any("Missing required item: sessionStart.requiredButMissing" in e for e in result.errors)
+        assert any(
+            "Missing required item: sessionStart.requiredButMissing" in e for e in result.errors
+        )
 
     def test_non_dict_items_ignored(self) -> None:
         """Non-dict values in section data are ignored."""
@@ -552,6 +562,45 @@ class TestEvidenceContradiction:
     def test_scope_qualified_deferral_not_flagged(self, evidence: str) -> None:
         """Deferred/pending pointing at a different scope must not warn (#2007)."""
         assert not self._warn(self._item(evidence)), f"false positive on {evidence!r}"
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            # Exact string from issue #3141: full pytest summary line.
+            "uv run pytest tests/ -q: 14434 passed, 21 skipped, 45 xfailed",
+            # Minimal numeric count.
+            "21 skipped",
+            # Zero is still a numeric count, not a skipped step.
+            "0 skipped",
+            # Thousands separator keeps the digit immediately before the token.
+            "1,234 skipped",
+            # Whitespace between digit and token (multiple spaces / tab).
+            "12   skipped",
+        ],
+    )
+    def test_numeric_skipped_count_not_flagged(self, evidence: str) -> None:
+        """A pytest numeric 'N skipped' count is not a contradiction (#3141)."""
+        assert not self._warn(self._item(evidence)), f"false positive on {evidence!r}"
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            # Bare status word: the item itself was skipped.
+            "Tests skipped.",
+            # A word (not a digit) immediately precedes the token, so it is a
+            # skipped step, not a numeric count.
+            "step skipped",
+            # The digit is not immediately before the token ("step" is), so this
+            # describes a skipped validation step and must still flag.
+            "1 step skipped",
+            # A numeric skipped count alongside a genuine incomplete token still
+            # flags on the genuine token (TODO).
+            "14434 passed, 21 skipped, 45 xfailed; TODO wire up remaining check",
+        ],
+    )
+    def test_skipped_step_still_flags(self, evidence: str) -> None:
+        """A skipped validation step (not a numeric count) must still warn (#3141)."""
+        assert self._warn(self._item(evidence)), f"expected warning for {evidence!r}"
 
 
 class TestValidateProtocolCompliance:
