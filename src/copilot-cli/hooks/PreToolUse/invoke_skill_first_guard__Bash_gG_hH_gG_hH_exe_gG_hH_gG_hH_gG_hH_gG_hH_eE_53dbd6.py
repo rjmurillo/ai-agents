@@ -133,6 +133,11 @@ def _shim_candidate_payloads(payload):
                 raise ValueError(
                     "toolCalls[{}].name must be a non-empty string".format(index)
                 )
+            if name != name.strip():
+                raise ValueError(
+                    "toolCalls[{}].name must not have leading or trailing "
+                    "whitespace".format(index)
+                )
         for call in tool_calls:
             name = call["name"]
             candidate = dict(payload)
