@@ -59,7 +59,7 @@ def _edge_key(episode: dict[str, Any]) -> tuple[str, str]:
 def _pattern_name(episode: dict[str, Any]) -> str:
     patterns = get_decision_patterns(episode)
     assert len(patterns) == 1, "fixture episode must yield exactly one pattern"
-    return patterns[0]["name"]
+    return str(patterns[0]["name"])
 
 
 def _write_episode(episodes_dir: Path, episode: dict[str, Any]) -> None:
