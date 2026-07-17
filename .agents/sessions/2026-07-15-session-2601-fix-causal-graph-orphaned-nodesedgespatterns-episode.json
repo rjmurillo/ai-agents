@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2601,
+    "date": "2026-07-15",
+    "branch": "fix/causal-graph-orphans-3039",
+    "startingCommit": "5db854d7ea",
+    "objective": "Fix causal-graph orphaned nodes/edges/patterns on episode edit and delete (#3039): per-episode contributions, replace semantics, prune path"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active this session (reconnected); prior initial_instructions read"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual earlier this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by SessionStart context loader"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skills + agent types listed in session context"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + .claude/rules/*.md auto-loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS via AGENTS.md; DDIA schema-evolution rules applied to #3039 contributions schema"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md + Serena topical memories surfaced per turn"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/causal-graph-orphans-3039"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/causal-graph-orphans-3039"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked; branch fix/causal-graph-orphans-3039 off origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5db854d7ea"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart + sessionEnd MUSTs complete with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Decision memory decision-2796 written earlier this session; no new memory required for #3039 (well-documented in code)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown changed (script/test/hook/json only)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "2 commits (99f9897 #3039 fix, 5db854d plugin bump); session log committed follow-up. Pre-existing dirty retrospective/INDEX.md, .serena/project.yml predate session."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/skills/memory/ -> 247 passed; ruff+mypy clean on update_causal_graph.py."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "item": "#3039 causal-graph orphaned contributions",
+      "evidence": "update_causal_graph.py: per-episode contributions map (mean-derived weight/success_rate), replace-semantics on edit, remove_episode_contributions, --prune-episode-ids; pre-commit prunes staged episode deletions (diff-filter=D). Legacy anonymous evidence preserved via sentinel keys. uv run pytest tests/skills/memory/ -> 247 passed (28 in update_causal_graph incl 8 new #3039); ruff+mypy clean; mirror regenerated; bash -n pre-commit OK. Plugin bumped 0.6.34->0.6.35."
+    }
+  ],
+  "endingCommit": "5db854d7ea",
+  "nextSteps": []
+}

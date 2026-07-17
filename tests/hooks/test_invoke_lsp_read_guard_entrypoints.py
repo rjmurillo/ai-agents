@@ -36,6 +36,7 @@ HOOK_DIR = REPO_ROOT / ".claude" / "hooks" / "PreToolUse"
 sys.path.insert(0, str(HOOK_DIR))
 
 import invoke_lsp_read_guard as guard  # noqa: E402
+from hook_utilities import lsp_gate_state  # noqa: E402
 
 # A real in-repo file path whose extension is overview-capable (python). The
 # file need not exist; detect_providers keys on extension + config, and
@@ -73,6 +74,27 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(REPO_ROOT))
     monkeypatch.delenv("TMPDIR", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_outer_merge_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutralize the live checkout's merge/rebase state (issue #3137).
+
+    In-process ``guard.main()`` calls ``is_gated_target`` against the real
+    REPO_ROOT, so an in-progress merge in the outer checkout flips the target
+    to non-gated and false-fails the warmup-block assertion. Force ``False``
+    for REPO_ROOT only; real detection is untouched for any other path. The
+    subprocess tests spawn a fresh interpreter this patch cannot reach, so they
+    isolate themselves by pointing at their own tmp repo.
+    """
+    real_merge_in_progress = lsp_gate_state._merge_in_progress
+
+    def isolated(project_dir: str) -> bool:
+        if Path(project_dir).resolve() == REPO_ROOT:
+            return False
+        return real_merge_in_progress(project_dir)
+
+    monkeypatch.setattr(lsp_gate_state, "_merge_in_progress", isolated)
 
 
 # ---------------------------------------------------------------------------
@@ -185,13 +207,29 @@ class TestModuleAsScript:
         assert result.returncode == 0
 
     def test_block_via_subprocess(self, tmp_path):
-        """In-repo python target with fresh (absent) state blocks: exit 2."""
+        """In-repo python target with fresh (absent) state blocks: exit 2.
+
+        Runs against an isolated tmp repo (a ``.git`` dir with no MERGE_HEAD)
+        rather than the live checkout, so the outer checkout's merge/rebase
+        state cannot flip the target to non-gated (issue #3137). The subprocess
+        is a fresh interpreter, so the in-process isolation fixture does not
+        reach it; a clean tmp repo is the hermetic substitute. A ``.py`` target
+        is gated via native LSP regardless of serena config, and
+        ``AI_AGENTS_PROJECT_REPO=1`` forces project identity past the
+        consumer-repo skip.
+        """
         hook_path = str(HOOK_DIR / "invoke_lsp_read_guard.py")
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        target = repo / "sample_module.py"
+        target.write_text("def foo():\n    return 1\n", encoding="utf-8")
         payload = json.dumps(
-            {"tool_name": "Read", "tool_input": {"file_path": PY_TARGET}}
+            {"tool_name": "Read", "tool_input": {"file_path": str(target)}}
         )
         env = dict(os.environ)
         env["XDG_STATE_HOME"] = str(tmp_path)  # isolated, no warmup recorded
+        env["CLAUDE_PROJECT_DIR"] = str(repo)
+        env["AI_AGENTS_PROJECT_REPO"] = "1"  # force project identity, skip consumer check
         env.pop("SKIP_LSP_GATE", None)
         env.pop("LSP_GATE_MODE", None)
         result = subprocess.run(
@@ -199,7 +237,7 @@ class TestModuleAsScript:
             input=payload,
             capture_output=True,
             text=True,
-            cwd=str(REPO_ROOT),
+            cwd=str(repo),
             env=env,
         )
         assert result.returncode == 2
