@@ -288,9 +288,21 @@ def _shim_top_level_input_field(payload):
     return "tool_input"
 
 
+def _shim_validate_tool_name(name, field):
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("{{}} must be a non-empty string".format(field))
+    if name != name.strip():
+        raise ValueError(
+            "{{}} must not have leading or trailing whitespace".format(field)
+        )
+    return name
+
+
 def _shim_candidate_payloads(payload):
-    tool_calls = payload.get("toolCalls")
-    if isinstance(tool_calls, list):
+    if "toolCalls" in payload:
+        tool_calls = payload["toolCalls"]
+        if not isinstance(tool_calls, list):
+            raise ValueError("toolCalls must be a list when present")
         if len(tool_calls) > _MAX_MATCHER_TOOL_CALLS:
             raise ValueError(
                 "toolCalls contains {{}} entries; limit is {{}}".format(
@@ -308,26 +320,39 @@ def _shim_candidate_payloads(payload):
                 raise ValueError(
                     "toolCalls[{{}}] must be an object".format(index)
                 )
-            name = call.get("name")
-            if not isinstance(name, str) or not name.strip():
-                raise ValueError(
-                    "toolCalls[{{}}].name must be a non-empty string".format(index)
-                )
-            if name != name.strip():
-                raise ValueError(
-                    "toolCalls[{{}}].name must not have leading or trailing "
-                    "whitespace".format(index)
-                )
+            _shim_validate_tool_name(
+                call.get("name"), "toolCalls[{{}}].name".format(index)
+            )
         for call in tool_calls:
             name = call["name"]
             candidate = dict(payload)
-            candidate.pop("toolCalls", None)
+            for field in (
+                "toolCalls",
+                "tool_name",
+                "toolName",
+                "tool_input",
+                "toolArgs",
+                "tool_call_id",
+                "toolCallId",
+            ):
+                candidate.pop(field, None)
             candidate["tool_name"] = name
             candidate["tool_input"] = _shim_tool_input_from_call_args(call.get("args"))
             if "id" in call:
                 candidate["tool_call_id"] = call.get("id")
             yield candidate, "toolCalls.args"
         return
+    name_fields = [
+        field for field in ("tool_name", "toolName") if field in payload
+    ]
+    if not name_fields:
+        raise ValueError("hook input missing string `tool_name`/`toolName` field")
+    names = [
+        _shim_validate_tool_name(payload[field], field)
+        for field in name_fields
+    ]
+    if len(names) == 2 and names[0] != names[1]:
+        raise ValueError("conflicting top-level tool_name/toolName values")
     yield payload, _shim_top_level_input_field(payload)
 
 

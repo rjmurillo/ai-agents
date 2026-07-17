@@ -466,6 +466,128 @@ def test_inject_shim_denies_malformed_toolcalls_before_dispatch(
     assert "FIRED" not in proc.stdout
 
 
+@pytest.mark.parametrize(
+    "tool_calls",
+    [
+        {"name": "Edit", "args": {"file_path": "README.md"}},
+        "not-a-list",
+        7,
+        False,
+        None,
+    ],
+)
+def test_inject_shim_denies_non_list_toolcalls_before_top_level_fallback(
+    tool_calls,
+):
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "tool_name": "Bash",
+        "tool_input": {"command": "echo safe"},
+        "toolCalls": tool_calls,
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls must be a list when present" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+@pytest.mark.parametrize("top_level_name_field", ["tool_name", "toolName"])
+@pytest.mark.parametrize(
+    ("top_level_name", "expected_error"),
+    [
+        ("", "must be a non-empty string"),
+        (7, "must be a non-empty string"),
+        (None, "must be a non-empty string"),
+        (" Edit", "must not have leading or trailing whitespace"),
+        ("Edit ", "must not have leading or trailing whitespace"),
+        ("\tEdit\n", "must not have leading or trailing whitespace"),
+    ],
+)
+def test_inject_shim_denies_malformed_top_level_name_before_dispatch(
+    top_level_name_field, top_level_name, expected_error
+):
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        top_level_name_field: top_level_name,
+        "tool_input": {"file_path": "README.md"},
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert top_level_name_field in proc.stderr
+    assert expected_error in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_denies_conflicting_top_level_names_before_dispatch():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "tool_name": "Bash",
+        "toolName": "Edit",
+        "tool_input": {"file_path": "README.md"},
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "conflicting top-level tool_name/toolName values" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_allows_matching_top_level_name_aliases():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "tool_name": "Edit",
+        "toolName": "Edit",
+        "tool_input": {"file_path": "README.md"},
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 0
+    assert proc.stdout.startswith("FIRED:Edit")
+
+
+def test_inject_shim_batch_replay_removes_conflicting_top_level_aliases():
+    body = (
+        "import json\n"
+        "import sys\n"
+        "data = json.load(sys.stdin)\n"
+        "print(json.dumps(data, sort_keys=True), flush=True)\n"
+    )
+    transformed = inject_shim(body, "^Edit$")
+    payload = {
+        "sessionId": "canonical-batch",
+        "tool_name": "Bash",
+        "toolName": "Write",
+        "tool_input": {"command": "echo snake"},
+        "toolArgs": {"command": "echo camel"},
+        "tool_call_id": "top-snake",
+        "toolCallId": "top-camel",
+        "toolCalls": [
+            {
+                "id": "batch-call",
+                "name": "Edit",
+                "args": {"file_path": "README.md"},
+            },
+        ],
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    replay = json.loads(proc.stdout)
+    assert proc.returncode == 0
+    assert replay == {
+        "sessionId": "canonical-batch",
+        "tool_call_id": "batch-call",
+        "tool_input": {"file_path": "README.md"},
+        "tool_name": "Edit",
+    }
+
+
 @pytest.mark.parametrize("top_level_name_field", ["tool_name", "toolName"])
 @pytest.mark.parametrize("top_level_name", ["Edit", "", 7, None])
 def test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name(
@@ -3120,13 +3242,6 @@ def test_shim_tool_glob_null_tool_input_falls_back_to_toolargs() -> None:
         "shim dropped toolArgs when tool_input was null; "
         f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
     )
-
-
-def test_shim_snake_case_takes_precedence_over_camelcase() -> None:
-    """When both tool_name and toolName are present, snake_case wins."""
-    transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash")
-    proc = _run_shim(transformed, {"tool_name": "Bash", "toolName": "Edit"})
-    assert proc.returncode == 0, proc.stderr  # Bash matched, not Edit
 
 
 def test_all_generated_hooks_parse_as_python() -> None:
