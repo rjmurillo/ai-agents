@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2840,
+    "date": "2026-07-15",
+    "branch": "feat/model-pin-governance-2840",
+    "startingCommit": "d64f26de10",
+    "objective": "After the owner authorized paid eval spend and confirmed gh act availability, resume the open-issue goal. Verify each remaining issue against primary sources, then implement ADR-080 Implementation Notes step 3 for issue #2840: the model-pin governance check (scripts/validation/check_model_pins.py) with a frozen draining baseline, an empty sidecar evidence manifest, comprehensive tests, and warn-mode wiring into the pre-PR runner. Run a bounded live eval sweep to prove the harness path and measure cost."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP tools deferred this session; used direct file reads plus ADR-080's own file:line references (which cite exact paths) for orientation. LSP read/grep guards enforced warmup; worked within them via sed and authored-file knowledge."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "serena-initial_instructions not callable this session (Serena MCP deferred). Followed in-repo AGENTS.md and .claude/rules guidance directly, plus ADR-080's cited file:line references."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by the SessionStart context loader; not modified (ADR-014 read-only)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created for the #2840 governance-check work on 2026-07-15."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned feat/model-pin-governance-2840 (renamed from the initial chore/adr006 branch after pivoting from #2967 to the higher-leverage #2840 work)."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work is on feat/model-pin-governance-2840, based off origin/main d64f26de10."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status inspected; staged only the six intended files across two atomic commits. Transient eval sweep artifacts under evals/critic-spike were left untracked (not staged)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read ADR-080 in full (accepted 2026-07-11, PR #3028; implemented:false): the 6-rule kind-split policy, the governance-check acceptance criteria, and the Implementation Notes. Confirmed AC1 (the ADR) is already satisfied, so this session implements step 3 rather than authoring a new ADR."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Starting commit recorded as d64f26de10 (origin/main head this session)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ADR-080 step 3 delivered: check_model_pins.py + frozen 113-pin baseline + empty evidence manifest + 21 tests (positive/negative/edge) + warn-mode wiring in pre_pr.py. Bounded live sweep (critic, n=1, opus vs sonnet) proved the harness path end-to-end at ~$0.39 and returned DROP_PIN."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP deferred; durable context lives in this log, the PR body, and the #2840 issue comment."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown authored (Python + JSON only). Session log and commit messages byte-checked for em/en dashes: 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Two atomic commits on feat/model-pin-governance-2840: (1) the four check files, (2) the two wiring files. endingCommit names the wiring commit; the session-log and review-marker commits follow."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/validation/test_check_model_pins.py: 21 passed in 0.16s. ruff check clean on all files; mypy clean on check_model_pins.py. check_model_pins.py --mode warn exits 0 (113 grandfathered backlog, 0 hard violations) and --mode enforce exits 0 against the real tree. No security-suppression comments introduced."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Owner authorized paid eval and confirmed gh act. Verified environment: network restored (pypi 200), gh act extension + Docker present, ANTHROPIC_API_KEY loads from .env. Re-verified all three remaining issues against primary sources."
+    },
+    {
+      "time": "T1",
+      "entry": "Fixture-coverage discriminator: only ~17 of ~108 pinned units (the agents with evals/*-spike/fixtures) are sweepable; 81 skill/command pins have no fixtures. This matches ADR-080, which is already accepted and specifies a kind-split policy that does NOT require per-skill eval (skills/commands may never carry a versioned id)."
+    },
+    {
+      "time": "T2",
+      "entry": "Bounded live sweep tracer: reviewer-asymmetry failed fixture validation (empty assertions) before spend; critic n=1 opus-vs-sonnet succeeded end-to-end (~$0.39), verdict DROP_PIN (default not beaten). Proves the harness path and cost; full agent sweep is ~$6.6 at n=1 / ~$20 at n=3."
+    },
+    {
+      "time": "T3",
+      "entry": "Implemented ADR-080 step 3: check_model_pins.py (scan source units, kind-split rules 1-3, manifest validation with path-traversal rejection and 180-day staleness, draining-ratchet baseline separating grandfathered backlog from new/changed hard violations, warn/enforce modes). Fixed two self-caught bugs during test: model_tiers is nested under agents: (recursive lookup), and unit paths must relativize against the scanned repo_root not the module constant."
+    },
+    {
+      "time": "T4",
+      "entry": "Seeded the frozen baseline (113 source pins), authored the empty evidence manifest, wrote 21 tests to the ADR's positive/negative/edge AC, and wired validate_model_pins into pre_pr.py in warn mode. Committed in two atomic commits."
+    }
+  ],
+  "endingCommit": "3f305744e8",
+  "nextSteps": [
+    "Open the PR (Refs #2840) for owner review; post a #2840 status comment with the ADR-080 step mapping, the sweep cost proof, and the remaining migration plan.",
+    "Follow-up PRs per ADR-080 sequence: generator default change (step 2), then batched migration (de-version skills/commands, sweep the ~17 fixture-backed agents at n>=3 to populate the manifest, flip the check to enforce once the baseline drains).",
+    "Owner-gated still: #3045 remains blocked on the #3042 tiered panel (PR #3061) landing on main before the eval-derived floor can be recorded.",
+    "#2967 (ADR-006 workflow burn-down) remains a large multi-PR grind; gh act now unblocks it but each block needs careful behavior-preserving extraction."
+  ]
+}
