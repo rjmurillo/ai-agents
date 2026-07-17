@@ -1,0 +1,202 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3044,
+    "date": "2026-07-16",
+    "branch": "perf/batch-claude-hooks",
+    "startingCommit": "6edf9fb1",
+    "objective": "Complete PR #3076 review and merge readiness for Windows hook performance"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena was preactivated for this worktree session; mcp__serena__activate_project ran successfully before work began"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions and mcp__serena__read_memory both succeeded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root .agents/HANDOFF.md read at session start"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill script directory listing contained .claude/skills/session-end/scripts/test_workflow_locally.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory Serena memory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index, adr/adr-035-exit-code-standardization, and skills-implementation-index Serena memories read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "perf/batch-claude-hooks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On perf/batch-claude-hooks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status confirmed branch perf/batch-claude-hooks, 18 modified tracked files, 1 untracked session log, 5 commits ahead of origin/perf/batch-claude-hooks"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "6edf9fb1"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All repository session-end gates complete; PR merge remains the final external shipping step."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated Serena memory hook-performance-windows with transaction, backup, locking, stale-shim, and current validation evidence."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint completed on analysis, retrospective, index, and issue handoff records."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation pushed through 1314e372; the final record commit includes this session log, handoff, analysis, and retrospective."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py completed successfully after all MUST fields were closed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR body, analysis, issue handoff, session log, retrospective, and retrospective index updated."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-16-auto-retro.md completed through the retrospective skill."
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: none"
+        ]
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Continued PR #3076 review work on perf/batch-claude-hooks. Preserved unrelated analysis, retrospective, and handoff artifacts."
+    },
+    {
+      "time": "T1",
+      "entry": "Implemented run-wide hook generation transactions. Owner scripts, runtime companions, dispatcher artifacts, and hooks.json now publish or roll back as one unit."
+    },
+    {
+      "time": "T2",
+      "entry": "Hardened Windows replacement behavior with ReplaceFileW backups, immutable first backups, disposable repeated-publication backups, partial-failure recovery, DACL retention, and named-stream coverage."
+    },
+    {
+      "time": "T3",
+      "entry": "Added cross-process output locking. Windows uses msvcrt byte locks. POSIX uses flock in an ownership-validated per-user 0700 temp directory."
+    },
+    {
+      "time": "T4",
+      "entry": "Corrected the architecture skill stale reference from Phase 2 to the Phase 4 observation-loop entry and regenerated the Copilot mirror."
+    },
+    {
+      "time": "T5",
+      "entry": "C:\\src\\ai-agents\\.venv\\Scripts\\python.exe -m pytest tests/build_scripts/test_generate_hooks.py -q completed: 133 passed, 1 skipped."
+    },
+    {
+      "time": "T6",
+      "entry": "C:\\src\\ai-agents\\.venv\\Scripts\\python.exe -m pytest tests/build_scripts/test_generate_hooks.py tests/test_hook_plugin_guards.py tests/test_skill_pattern_loader.py tests/test_invoke_skill_learning.py tests/hooks/test_skill_learning.py -q completed: 412 passed, 1 skipped."
+    },
+    {
+      "time": "T7",
+      "entry": "C:\\src\\ai-agents\\.venv\\Scripts\\python.exe -m pytest tests/e2e/test_plugin_load_smoke.py -q completed: 15 passed, 2 skipped."
+    },
+    {
+      "time": "T8",
+      "entry": "C:\\src\\ai-agents\\.venv\\Scripts\\python.exe -m ruff check and -m mypy on the three changed Python files completed successfully."
+    },
+    {
+      "time": "T9",
+      "entry": "C:\\src\\ai-agents\\.venv\\Scripts\\python.exe build/scripts/build_all.py --check completed successfully after staging the canonical and generated skill files."
+    },
+    {
+      "time": "T10",
+      "entry": "Plugin manifest parity passed at 0.6.35. Plugin version increase from origin/main passed. Security detection reported no infrastructure or security files."
+    },
+    {
+      "time": "T11",
+      "entry": "Removed 20 stale generated matcher shims in four atomic commits and added a reverse manifest test. The matcher guard suite completed: 106 passed."
+    },
+    {
+      "time": "T12",
+      "entry": "Pushed transactional generation and stale-shim review fixes through e187157d. Posted commit-specific replies and resolved all four prior review threads."
+    },
+    {
+      "time": "T13",
+      "entry": "Corrected the UTF-8 emitter description in canonical and generated hooks. Context loader suites completed: 31 passed. Ruff, mypy, and generated-output checks passed."
+    },
+    {
+      "time": "T14",
+      "entry": "Hardened subprocess stderr diagnostics against invalid UTF-8. Dispatcher artifact suite completed: 10 passed. Pushed implementation head 1314e372."
+    },
+    {
+      "time": "T15",
+      "entry": "Posted commit-specific replies for the final review threads and resolved them only after the commits reached the remote PR head."
+    },
+    {
+      "time": "T16",
+      "entry": "Validated and updated the PR description with transaction, stale-shim, measurement, and current test evidence."
+    },
+    {
+      "time": "T17",
+      "entry": "Completed the retrospective and updated Serena memory hook-performance-windows. Final local record validation and CI merge checks remain."
+    }
+  ],
+  "endingCommit": "1314e372",
+  "nextSteps": [
+    "Wait for every required check on PR #3076 to pass.",
+    "Recheck all review threads, including outdated unresolved threads.",
+    "Squash-merge PR #3076 with the authorized commit-limit bypass.",
+    "Confirm issue #3075 closed from the PR linkage."
+  ]
+}

@@ -892,33 +892,48 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
                 > "$WF_LOCAL_OUTPUT" 2>&1
             WF_LOCAL_RC=$?
             if [ $WF_LOCAL_RC -eq 0 ]; then
-                WF_SECRET_SUMMARY=$("${PYTHON_CMD[@]}" - "$WF_LOCAL_OUTPUT" 2>/dev/null <<'PY'
+                # An exit 0 has three shapes: a clean pass, a secret-skip
+                # (secret_skipped=true), and an environment degrade
+                # (degraded=true) where a tool gap was downgraded inside a
+                # remote container (Issue #3064 extends #2548 item 3). Parse
+                # BOTH flags: without the degraded flag a container degrade
+                # surfaces as a silent record_pass, hiding that the local run
+                # did not actually execute.
+                WF_LOCAL_SUMMARY=$("${PYTHON_CMD[@]}" - "$WF_LOCAL_OUTPUT" 2>/dev/null <<'PY'
 import json
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
-value = payload.get("secret_skipped")
-if not isinstance(value, bool):
+secret_skipped = payload.get("secret_skipped")
+degraded = payload.get("degraded")
+if not isinstance(secret_skipped, bool) or not isinstance(degraded, bool):
     raise SystemExit(2)
 note = payload.get("note")
-if value and not isinstance(note, str):
+if (secret_skipped or degraded) and not isinstance(note, str):
     raise SystemExit(2)
-print("true" if value else "false")
-if value and note:
+print("true" if secret_skipped else "false")
+print("true" if degraded else "false")
+if note and (secret_skipped or degraded):
     print(note)
 PY
 )
-                WF_SECRET_PARSE_RC=$?
-                WF_SECRET_SKIPPED=$(printf '%s\n' "$WF_SECRET_SUMMARY" | sed -n '1p')
-                WF_SECRET_NOTE=$(printf '%s\n' "$WF_SECRET_SUMMARY" | sed '1d')
-                if [ $WF_SECRET_PARSE_RC -ne 0 ]; then
+                WF_LOCAL_PARSE_RC=$?
+                WF_SECRET_SKIPPED=$(printf '%s\n' "$WF_LOCAL_SUMMARY" | sed -n '1p')
+                WF_DEGRADED=$(printf '%s\n' "$WF_LOCAL_SUMMARY" | sed -n '2p')
+                WF_LOCAL_NOTE=$(printf '%s\n' "$WF_LOCAL_SUMMARY" | sed '1,2d')
+                if [ $WF_LOCAL_PARSE_RC -ne 0 ]; then
                     cat "$WF_LOCAL_OUTPUT"
                     record_fail "Workflow local run returned malformed JSON"
                     echo_info "  Fix scripts/validation/run_workflow_local_test.py output before pushing."
+                elif [ "$WF_DEGRADED" = "true" ]; then
+                    if [ -n "$WF_LOCAL_NOTE" ]; then
+                        echo_info "  $WF_LOCAL_NOTE"
+                    fi
+                    record_warn "Workflow local run degraded: a required tool is unavailable in this environment; CI runs the full workflow check"
                 elif [ "$WF_SECRET_SKIPPED" = "true" ]; then
-                    if [ -n "$WF_SECRET_NOTE" ]; then
-                        echo_info "  $WF_SECRET_NOTE"
+                    if [ -n "$WF_LOCAL_NOTE" ]; then
+                        echo_info "  $WF_LOCAL_NOTE"
                     fi
                     record_warn "Workflow local run: some workflows skipped (secrets absent locally); CI runs them with real secrets"
                 else
