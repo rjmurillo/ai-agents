@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-07-15-session-2604-build-tiered-model-panel-sweep-harness",
+  "session": "2026-07-15-session-2604-build-tiered-model-panel-sweep-harness",
+  "timestamp": "2026-07-15T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Build tiered model-panel sweep harness (#3042): panel config, per-tier effect-size, degradation classification, dry-run, tests",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "test",
+      "content": "scripts/eval/_model_panel_core.py + eval-model-panel.py + 24 tests. Reuses eval-agent-vs-baseline via #2710 --provider/--model; effect-size=recall_delta, degradation classification vs frontier band; --dry-run zero-spend; panel --panel-config-overridable. uv run pytest tests/eval/ -> 293 passed; ruff+mypy clean; no suppressions. Paid sweep owner-gated; unblocks #3045 #2840.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 79515f40df",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
