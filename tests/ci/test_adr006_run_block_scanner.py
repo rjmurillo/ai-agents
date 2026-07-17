@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import textwrap
 from pathlib import Path
 
@@ -101,6 +102,71 @@ def test_gate_mode_exits_over_max(tmp_path: Path):
 
 def test_bad_root_is_config_error(tmp_path: Path):
     assert scanner.main(["--root", str(tmp_path / "absent")]) == scanner.EXIT_CONFIG
+
+
+def test_json_output_emits_threshold_count_and_violations(tmp_path: Path, capsys):
+    wf = tmp_path / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "x.yml").write_text(_big_logic_run(), encoding="utf-8")
+
+    exit_code = scanner.main(["--root", str(tmp_path), "--format", "json"])
+
+    assert exit_code == scanner.EXIT_OK
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["threshold"] == scanner._DEFAULT_THRESHOLD
+    assert payload["count"] == 1
+    violation = payload["violations"][0]
+    assert violation["file"].endswith("x.yml")
+    assert violation["code_lines"] > scanner._DEFAULT_THRESHOLD
+
+
+# Parse block modeled on .github/actions/ai-review/action.yml (verdict/labels/
+# milestone extraction, lines 680-769), a #2967-listed ADR-006 offender: sed
+# and python3 parsing pipes, computed variables, a case dispatch, and
+# GITHUB_OUTPUT assembly. sed patterns trimmed to fit the line-length limit;
+# the logic markers the scanner keys on are preserved.
+_AI_REVIEW_PARSE_BLOCK = textwrap.dedent(
+    r"""
+    steps:
+      - run: |
+          output=$(cat /tmp/ai-review-output.txt 2>/dev/null || echo "")
+          verdict=$(echo "$output" | sed -n 's/.*VERDICT: *\([A-Z_]*\).*/\1/p' | tail -n 1)
+          if [ -z "$verdict" ]; then
+            verdict=$(printf '%s' "$output" | python3 -c 'import sys; print(sys.stdin.read())')
+          fi
+          case "$verdict" in
+            PASS|WARN|CRITICAL_FAIL)
+              ;;
+            *)
+              verdict="NEEDS_REVIEW"
+              ;;
+          esac
+          labels_raw=$(echo "$output" | sed -n 's/.*LABEL: *\(.*\)/\1/p' | tr '\n' ',')
+          milestone=$(echo "$output" | sed -n 's/.*MILESTONE: *\(.*\)/\1/p' | head -1)
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "labels=$labels_raw" >> "$GITHUB_OUTPUT"
+          echo "milestone=$milestone" >> "$GITHUB_OUTPUT"
+    """
+)
+
+
+def test_known_violating_parse_block_is_flagged():
+    block = scanner.scan_text(_AI_REVIEW_PARSE_BLOCK)[0]
+    assert block.has_logic is True
+    assert block.code_lines > scanner._DEFAULT_THRESHOLD
+    assert scanner.is_violation(block, scanner._DEFAULT_THRESHOLD) is True
+
+
+def test_large_pure_output_block_is_not_flagged():
+    body = "\n".join(f'          echo "line {i}"' for i in range(8))
+    body += "\n" + "\n".join(f'          printf "%s\\n" "value {i}"' for i in range(6))
+    text = "steps:\n  - run: |\n" + body + "\n"
+
+    block = scanner.scan_text(text)[0]
+
+    assert block.code_lines > scanner._DEFAULT_THRESHOLD
+    assert block.has_logic is False
+    assert scanner.is_violation(block, scanner._DEFAULT_THRESHOLD) is False
 
 
 if __name__ == "__main__":
