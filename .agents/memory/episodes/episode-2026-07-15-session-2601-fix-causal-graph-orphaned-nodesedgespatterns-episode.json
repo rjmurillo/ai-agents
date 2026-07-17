@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-07-15-session-2601-fix-causal-graph-orphaned-nodesedgespatterns-episode",
+  "session": "2026-07-15-session-2601-fix-causal-graph-orphaned-nodesedgespatterns-episode",
+  "timestamp": "2026-07-15T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix causal-graph orphaned nodes/edges/patterns on episode edit and delete (#3039): per-episode contributions, replace semantics, prune path",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "test",
+      "content": "update_causal_graph.py: per-episode contributions map (mean-derived weight/success_rate), replace-semantics on edit, remove_episode_contributions, --prune-episode-ids; pre-commit prunes staged episode deletions (diff-filter=D). Legacy anonymous evidence preserved via sentinel keys. uv run pytest tests/skills/memory/ -> 247 passed (28 in update_causal_graph incl 8 new #3039); ruff+mypy clean; mirror regenerated; bash -n pre-commit OK. Plugin bumped 0.6.34->0.6.35.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5db854d7ea",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

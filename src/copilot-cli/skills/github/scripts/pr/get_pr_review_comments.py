@@ -676,6 +676,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--bot-only", action="store_true",
         help="With --only-unaddressed, filter to bot comments only",
     )
+    parser.add_argument(
+        "--output-format", choices=("json", "human", "auto"), default="auto",
+        help="Output format for parity with sibling scripts (#3092). "
+        "json and auto emit the classified JSON; human emits a one-line count.",
+    )
     return parser
 
 
@@ -730,7 +735,24 @@ def main(argv: list[str] | None = None) -> int:
         bot_only=args.bot_only,
     )
 
-    print(json.dumps(result, indent=2))
+    if args.output_format == "human":
+        if isinstance(result, list):
+            count = len(result)
+            print(f"PR #{args.pull_request}: {count} comment(s)")
+        elif isinstance(result, dict):
+            review_count = result.get("ReviewCommentCount", 0)
+            issue_count = result.get("IssueCommentCount", 0)
+            if issue_count > 0:
+                review_text = "review comment" if review_count == 1 else "review comments"
+                issue_text = "issue comment" if issue_count == 1 else "issue comments"
+                print(f"PR #{args.pull_request}: {review_count} {review_text} + {issue_count} {issue_text}")
+            else:
+                review_text = "review comment" if review_count == 1 else "review comments"
+                print(f"PR #{args.pull_request}: {review_count} {review_text}")
+        else:
+            print(f"PR #{args.pull_request}: ? comment(s)")
+    else:
+        print(json.dumps(result, indent=2))
     return 0
 
 

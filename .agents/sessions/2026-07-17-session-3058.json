@@ -1,0 +1,182 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3058,
+    "date": "2026-07-17",
+    "branch": "fix/dispatcher-oversize-allow-unmatched-3074",
+    "startingCommit": "b896dede7",
+    "objective": "Finish and close PR 3097 dispatcher matcher hardening"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active for repository; list_memories returned project index."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned manual this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read earlier and remains read-only; no issue-specific handoff changed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub PR scripts were listed and check_pr_live_state.py, test_pr_merge_ready.py, and set_issue_labels.py were used."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md was read and skill-owned GitHub scripts were used."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md was read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "loaded copilot-hook-generation-invariants and dispatcher-payload-ceiling, plus the prior PR #3097 session evidence."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/dispatcher-oversize-allow-unmatched-3074"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/dispatcher-oversize-allow-unmatched-3074"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Implementation, tests, 34 regenerated matcher shims, and 5 regenerated dispatchers are committed through 2b59d62b35ab5dabef576f6120e8c6c485e60218."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "b896dede7"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionEnd fields are complete for this atomic checkpoint."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF unchanged and read-only."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Recorded the 64 MiB raw-input, 2 MiB matched-replay, 256-entry raw toolCalls, recursive duplicate-key rejection, name/input/call-ID alias validation, type-strict JSON equality, null tool_input fallback, canonical snake_case replay, and measured parse-amplification contracts."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 checked the refreshed PR #3097 QA report and dispatcher memory outside repository ignore globs: 2 files linted, 0 issues. pre_pr.py markdown validation also passed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Runtime implementation, security regressions, 34 regenerated matcher shims, and 5 regenerated dispatchers are committed through 2b59d62b35ab5dabef576f6120e8c6c485e60218. Final PR scope is 52 files, 9691 insertions, and 4111 deletions."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Focused six-file suite: 277 passed, 1 intentional exclusion. Build-script suite: 891 passed, 1 intentional exclusion. Full suite: 14486 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Targeted Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings in 5 authored files. Generation drift, agent parity, library parity, install parity, and manifest parity passed at plugin 0.6.47. Real generated-shim probes reject duplicate outer, nested, and encoded JSON object keys; padded names; non-list toolCalls; malformed top-level names; and conflicting name, input, and call-ID aliases with rc=2. JSON number and boolean aliases remain distinct. Matching aliases replay one canonical snake_case schema, and valid batches remove every top-level alias. Three exact-ceiling dispatcher runs completed in 4.81 to 4.84 seconds with 276720 to 277540 KiB peak RSS; issue #3174 tracks parse amplification. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR #3097 remains in progress through the refreshed final 15-axis review, SHA-bound marker, push, CI settlement, thread resolution, and merge."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Stop-hook defect #3140 generated unrelated auto-retro skeletons that were quarantined. Retrospective will be invoked after clean merge."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-17T03:28:00Z",
+      "action": "Refreshed final matcher security validation",
+      "result": "uv run pytest tests/build_scripts/test_generate_hooks.py tests/build_scripts/test_generate_dispatcher.py tests/build_scripts/test_dispatch_small_apply_patch_regression.py tests/build_scripts/test_copilot_dispatcher_artifact.py tests/test_hook_dispatch.py -q: 229 passed, 1 intentional exclusion; Ruff passed; mypy reported Success: no issues found in 2 source files; plugin manifest parity passed at 0.6.47."
+    },
+    {
+      "timestamp": "2026-07-17T04:15:00Z",
+      "action": "Full validation of MAX_MATCHER_TOOL_CALLS = 256 contract and live generated-shim probe",
+      "result": "Focused five-file suite: 229 passed, 1 intentional exclusion. Build-script suite: 843 passed, 1 intentional exclusion. Full suite: 14438 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff passed. mypy: Success: no issues found in 2 source files. Manifest parity at 0.6.47. Live generated-shim probe: mixed schema rc=2, 256 entries rc=0, 257 entries rc=2, no payload disclosure."
+    },
+    {
+      "timestamp": "2026-07-17T04:22:00Z",
+      "action": "Scope-gate finding documented",
+      "result": "The gate counted 51 committed files even when the staged change removed two derived memory files. The documented SKIP_SCOPE_CHECK=1 path is needed once to land the reduction to 49 files before this new session log brings final scope to 50."
+    },
+    {
+      "timestamp": "2026-07-17T05:13:48Z",
+      "action": "Completed the 15-axis review and corrected its documentation findings",
+      "result": "Runtime and security axes passed. QA and decision-rigor findings were resolved by refreshing final counts and recording the separate 64 MiB, 2 MiB, and 256-entry rationales plus the rejected streaming-prefilter alternative. Generated-wrapper size heuristics remain advisory."
+    },
+    {
+      "timestamp": "2026-07-17T05:20:58Z",
+      "action": "Closed the final QA documentation gap",
+      "result": "The QA report now cites lazy candidate traversal through _shim_candidate_payloads, _shim_select_payloads, and _shim_dispatch_selections. QA re-review returned PASS."
+    },
+    {
+      "timestamp": "2026-07-17T06:14:32Z",
+      "action": "Closed the late malformed toolCalls review bypass",
+      "result": "The generator now validates the full bounded batch before dispatch. Non-object entries, missing/non-string/empty names, an ambiguous empty batch, and a malformed later entry exit 2 before any guard runs. Focused suite: 235 passed, 1 intentional exclusion. Build-script suite: 849 passed, 1 intentional exclusion. Full suite: 14444 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Two real generated-shim probes returned rc=2 without payload disclosure."
+    },
+    {
+      "timestamp": "2026-07-17T06:28:07Z",
+      "action": "Corrected the final PR diff evidence",
+      "result": "Independent git diff against origin/main reports 50 files changed, 5293 insertions, and 2118 deletions. The QA report and final PR body artifact now carry those exact values."
+    },
+    {
+      "timestamp": "2026-07-17T08:55:37Z",
+      "action": "Closed the non-string empty-batch contract gap from final code-quality review",
+      "result": "Empty toolCalls now conflicts with either top-level name key by key presence, including null and non-string values. Eight new parameter and boundary cases pass. Focused suite: 243 passed, 1 intentional exclusion. Build-script suite: 857 passed, 1 intentional exclusion. Full suite: 14452 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff, mypy, CWE-78 scan, generation drift, agent parity, library parity, and manifest parity all passed. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips. Final PR scope with evidence records is 50 files, 5283 insertions, and 2118 deletions."
+    },
+    {
+      "timestamp": "2026-07-17T11:47:58Z",
+      "action": "Closed the whitespace-padded toolCalls name bypass",
+      "result": "The matcher shim now rejects leading or trailing whitespace instead of normalizing it. Leading-space, trailing-space, and tab/newline cases first failed, then passed after the generator fix. A real generated-shim probe returned rc=2 with no guard execution. Focused suite: 246 passed, 1 intentional exclusion. Build-script suite: 860 passed, 1 intentional exclusion. Full suite: 14455 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips."
+    },
+    {
+      "timestamp": "2026-07-17T14:18:30Z",
+      "action": "Closed the top-level matcher schema bypasses and measured the exact-ceiling path",
+      "result": "Present non-list toolCalls, malformed or padded top-level names, and conflicting tool_name/toolName aliases now exit 2 before guard execution. Matching aliases remain compatible. Canonical batch replay removes all top-level name, input, and call-ID aliases. Focused suite: 265 passed, 1 intentional exclusion. Build-script suite: 879 passed, 1 intentional exclusion. Full suite: 14474 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Three 64 MiB dispatcher benchmarks measured 4.81 to 4.84 seconds and 276720 to 277540 KiB peak RSS; filed #3174 with the repro."
+    },
+    {
+      "timestamp": "2026-07-17T16:51:31Z",
+      "action": "Closed the final duplicate-key and matcher-alias review blockers",
+      "result": "Recursive duplicate JSON keys now fail closed with a fixed payload-free diagnostic. Conflicting name, input, and call-ID aliases fail closed. Matching aliases use recursive type-strict equality and replay as one snake_case schema; null tool_input still falls back to toolArgs. Dispatcher helpers remain at complexity 10 or lower and preserve the established manifest validation order. Focused suite: 277 passed, 1 intentional exclusion. Build-script suite: 891 passed, 1 intentional exclusion. Full suite: 14486 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff, mypy, CWE-78, generation, plugin smoke, manifest parity, and pre-PR checks passed. Final implementation tip is 2b59d62b35ab5dabef576f6120e8c6c485e60218."
+    }
+  ],
+  "endingCommit": "2b59d62b35ab5dabef576f6120e8c6c485e60218",
+  "nextSteps": [
+    "Commit the refreshed QA report, dispatcher memory, and session record.",
+    "Regenerate the complete diff for the current tip and run all 15 review axes.",
+    "Create and validate the SHA-bound review marker after blocking axes pass.",
+    "Update the PR body, reacquire the pr-autofix lease, verify ancestry, and push normally.",
+    "Resolve the tracked review thread after the fixes are remote.",
+    "Wait for required CI and three clean unresolved-thread scans, then squash merge using the exact remote head SHA."
+  ]
+}
