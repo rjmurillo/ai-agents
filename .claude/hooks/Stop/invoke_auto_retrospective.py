@@ -642,7 +642,7 @@ def _acquire_daily_claim(project_dir: Path, today: str) -> bool:
     claim = _daily_claim_path(project_dir, today)
     try:
         claim.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(str(claim), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        fd = os.open(str(claim), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:
         return False
     except OSError as e:
