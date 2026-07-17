@@ -412,6 +412,18 @@ def _original_main(stdin_bytes):
         re.IGNORECASE,
     )
 
+    # A V4A structural marker sits at column 0 with no content prefix. The only
+    # well-formed markers are ``*** Begin Patch``, ``*** End Patch``, and the four
+    # file headers above. A column-0 ``***`` line that matches none of those is
+    # malformed: the parser cannot attribute a path to it, so it cannot be gated.
+    # The anchor is column 0 (``^\*\*\*``), not ``^\s*\*\*\*``, on purpose: a context
+    # or added line whose *content* begins with ``***`` (e.g. a Markdown horizontal
+    # rule inside an Update hunk) carries a one-character diff prefix (space, ``+``,
+    # or ``-``), so it never sits at column 0 and is not mistaken for a marker.
+    # Fail-closed hardening from the issue #3203 adversarial review.
+    _PATCH_STRUCTURAL_PREFIX = re.compile(r"^\*\*\*")
+    _PATCH_BEGIN_END = re.compile(r"^\*\*\*\s+(?:Begin|End)\s+Patch\s*$", re.IGNORECASE)
+
     # Session log patterns indicating security review was performed
     _SECURITY_REVIEW_PATTERNS = [
         re.compile(r"security.*review", re.IGNORECASE),
@@ -489,6 +501,25 @@ def _original_main(stdin_bytes):
         return paths
 
 
+    def malformed_structural_lines(patch_text: str) -> list[str]:
+        """Return every column-0 ``***`` line that is not a well-formed V4A marker.
+
+        A patch that carries an unrecognized structural header cannot be gated
+        reliably: no file path can be attributed to it. ``gate_freeform_patch`` fails
+        closed when this list is non-empty, so a malformed header cannot smuggle an
+        ungated auth-file edit past the gate by sitting next to a benign one (issue
+        #3203 adversarial review).
+        """
+        suspicious: list[str] = []
+        for line in patch_text.splitlines():
+            if not _PATCH_STRUCTURAL_PREFIX.match(line):
+                continue
+            if _PATCH_FILE_HEADER.match(line) or _PATCH_BEGIN_END.match(line):
+                continue
+            suspicious.append(line.strip())
+        return suspicious
+
+
     def gate_paths(file_paths: list[str]) -> int:
         """Gate a set of target paths against the auth-review requirement.
 
@@ -518,9 +549,19 @@ def _original_main(stdin_bytes):
         """Gate a raw V4A ``apply_patch`` string (Copilot CLI delivery, issue #3203).
 
         Parses the patch headers, then gates every touched path. A string with no
-        recognizable headers fails closed (exit 2): an unparseable patch could hide
-        an auth-file edit the executor would still apply.
+        recognizable headers, or one carrying a malformed structural header the gate
+        cannot attribute to a path, fails closed (exit 2): an unparseable or
+        partially parseable patch could hide an auth-file edit the executor would
+        still apply.
         """
+        malformed = malformed_structural_lines(patch_text)
+        if malformed:
+            block_security_gate_error(
+                "tool_input carries malformed patch header(s) the gate cannot "
+                "attribute to a file path (fail-closed): " + "; ".join(malformed[:3])
+            )
+            return 2
+
         patch_paths = extract_patch_paths(patch_text)
         if not patch_paths:
             block_security_gate_error(
