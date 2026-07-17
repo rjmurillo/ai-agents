@@ -19,7 +19,7 @@
 [Scripting and Testing]
 |powershell ps1 psm1 module pester test discovery isolation variable scope script: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
-|copilot hook generation matcher shim stale cleanup NO-REGEN windows transaction fail closed root: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (516)
+|copilot hook generation matcher shim stale cleanup NO-REGEN windows transaction fail closed root: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (891)
 |test exit code pytest pester error failed passed block commit: [testing/testing-exit-code-interpretation](testing/testing-exit-code-interpretation.md) (628)
 |regex pattern match escape lookahead anchor quantifier: [utilities/utilities-regex](utilities/utilities-regex.md) (548)
 
