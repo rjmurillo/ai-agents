@@ -297,12 +297,25 @@ def _shim_candidate_payloads(payload):
                     len(tool_calls), _MAX_MATCHER_TOOL_CALLS
                 )
             )
-        for call in tool_calls:
+        top_level_name = payload.get("tool_name")
+        if top_level_name is None:
+            top_level_name = payload.get("toolName")
+        if not tool_calls and isinstance(top_level_name, str):
+            raise ValueError(
+                "empty toolCalls conflicts with top-level tool_name/toolName"
+            )
+        for index, call in enumerate(tool_calls):
             if not isinstance(call, dict):
-                continue
+                raise ValueError(
+                    "toolCalls[{{}}] must be an object".format(index)
+                )
             name = call.get("name")
-            if not isinstance(name, str):
-                continue
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError(
+                    "toolCalls[{{}}].name must be a non-empty string".format(index)
+                )
+        for call in tool_calls:
+            name = call["name"]
             candidate = dict(payload)
             candidate.pop("toolCalls", None)
             candidate["tool_name"] = name

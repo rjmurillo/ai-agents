@@ -436,6 +436,64 @@ def test_inject_shim_mixed_schema_top_level_fields_do_not_bypass_toolcalls_selec
     ]
 
 
+@pytest.mark.parametrize(
+    ("invalid_call", "expected_error"),
+    [
+        ("not-an-object", "must be an object"),
+        ({}, "name must be a non-empty string"),
+        ({"name": 7}, "name must be a non-empty string"),
+        ({"name": ""}, "name must be a non-empty string"),
+    ],
+)
+def test_inject_shim_denies_malformed_toolcalls_before_dispatch(
+    invalid_call, expected_error
+):
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "tool_name": "Edit",
+        "tool_input": {"file_path": "README.md"},
+        "toolCalls": [invalid_call],
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls[0]" in proc.stderr
+    assert expected_error in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "tool_name": "Edit",
+        "tool_input": {"file_path": "README.md"},
+        "toolCalls": [],
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "empty toolCalls" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_validates_entire_toolcalls_batch_before_dispatch():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "toolCalls": [
+            {"name": "Edit", "args": {"file_path": "README.md"}},
+            "not-an-object",
+        ]
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls[1]" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
 def test_inject_shim_evaluates_all_matching_calls_until_denied():
     guard = (
         "import json\n"
