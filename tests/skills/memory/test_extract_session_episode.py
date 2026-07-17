@@ -684,6 +684,97 @@ class TestJsonCommitMetric:
         assert extract_session_episode.json_metrics(data)["commits"] == 0
 
 
+class TestCommitProvenanceConsistency:
+    """Commit events and metrics.commits share one provenance rule so preserve
+    accumulation never drifts from the event stream (issue #3123)."""
+
+    _NOW = "2026-07-16T00:00:00+00:00"
+
+    @staticmethod
+    def _commit_events(episode):
+        return [e for e in episode["events"] if e["type"] == "commit"]
+
+    @staticmethod
+    def _log(ending, work_log=None):
+        data = _json_log(work_log or [{"task": "t", "outcome": "ok"}])
+        data["session"]["startingCommit"] = "b31cb29"
+        data["endingCommit"] = ending
+        return data
+
+    def test_fresh_events_equal_metrics(self):
+        data = self._log(
+            "e07f40f",
+            [
+                {"task": "Commit A", "outcome": "45576b6. parser"},
+                {"task": "Commit B", "outcome": "24da6b2. lint"},
+            ],
+        )
+        commit_events = self._commit_events(
+            {"events": extract_session_episode.json_events(data, self._NOW)}
+        )
+        # endingCommit + two work-log SHAs = 3 documented commits, all retained.
+        assert len(commit_events) == 3
+        assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
+
+    def test_starting_sha_in_worklog_prose_excluded(self):
+        data = self._log(
+            "e07f40f",
+            [{"task": "closeout", "outcome": "merged origin/main at b31cb29"}],
+        )
+        commit_events = self._commit_events(
+            {"events": extract_session_episode.json_events(data, self._NOW)}
+        )
+        # Base SHA b31cb29 appears in prose but is not a session-produced commit.
+        assert not any("b31cb29" in e["content"] for e in commit_events)
+        assert len(commit_events) == 1
+        assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
+
+    def test_three_sequential_preserve_runs_stay_consistent(self):
+        episode = extract_session_episode.extract_from_json(
+            self._log("e07f40f"), archive_fallback=False
+        )
+        for sha in ("45576b6", "24da6b2"):
+            fresh = extract_session_episode.extract_from_json(
+                self._log(sha), archive_fallback=False
+            )
+            episode = extract_session_episode.merge_preserving(
+                fresh, episode, session_id="2026-07-16-session-1"
+            )
+        commit_events = self._commit_events(episode)
+        # Three preserve runs accumulate three distinct commit events; metrics
+        # tracks them exactly (was 3 events / 2 metrics before #3123).
+        assert len(commit_events) == 3
+        assert episode["metrics"]["commits"] == 3
+
+    def test_force_after_history_matches_events(self):
+        fresh = extract_session_episode.extract_from_json(
+            self._log("24da6b2"), archive_fallback=False
+        )
+        commit_events = self._commit_events(fresh)
+        assert len(commit_events) == 1
+        assert fresh["metrics"]["commits"] == len(commit_events)
+
+    def test_preserve_is_idempotent_for_commits(self):
+        base = extract_session_episode.extract_from_json(
+            self._log("e07f40f"), archive_fallback=False
+        )
+        once = extract_session_episode.merge_preserving(
+            extract_session_episode.extract_from_json(
+                self._log("e07f40f"), archive_fallback=False
+            ),
+            base,
+            session_id="s",
+        )
+        twice = extract_session_episode.merge_preserving(
+            extract_session_episode.extract_from_json(
+                self._log("e07f40f"), archive_fallback=False
+            ),
+            once,
+            session_id="s",
+        )
+        assert twice["metrics"]["commits"] == once["metrics"]["commits"] == 1
+
+
 class TestArchiveGateAndRoot:
     """Decisions must not block event recovery; repo root resolves via marker (#2036)."""
 
