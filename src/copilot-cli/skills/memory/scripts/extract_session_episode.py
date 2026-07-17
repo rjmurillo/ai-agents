@@ -554,11 +554,20 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     #3123)."""
     seen: list[str] = []
     starting = str(_as_dict(data.get("session")).get("startingCommit") or "").strip()
-    fields = [str(data.get("endingCommit") or "")]
+
+    # Process endingCommit first without filtering - it's authoritative, not prose
+    ending_field = str(data.get("endingCommit") or "")
+    for sha in _SHA_RE.findall(ending_field):
+        if sha not in seen:
+            seen.append(sha)
+
+    # Build remaining fields (startingCommit if requested, plus work-log)
+    fields: list[str] = []
     if include_starting:
         fields.append(starting)
     for entry in _as_list(data.get("workLog")):
         fields.append(_entry_text(entry))
+
     for field in fields:
         for sha in _SHA_RE.findall(field):
             if not include_starting and starting and _same_commit(sha, starting):
