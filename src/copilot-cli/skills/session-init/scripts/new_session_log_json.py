@@ -200,7 +200,11 @@ def main(argv: list[str] | None = None) -> int:
         filepath = os.path.join(sessions_dir, filename)
 
         try:
-            fd = os.open(filepath, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            # 0o644: the log is data, not a program. Omitting the mode lets
+            # os.open default to 0o777, which under a 0002 umask yields an
+            # executable 0o775 file (#3114). A stricter umask may drop bits
+            # further; the script must never request execute bits.
+            fd = os.open(filepath, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
             try:
                 os.write(fd, json_content.encode("utf-8"))
             finally:
