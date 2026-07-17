@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3059,
+    "date": "2026-07-17",
+    "branch": "fix/pr-maintenance-empty-findings",
+    "startingCommit": "30ebace5",
+    "objective": "Fix hourly pr-maintenance.yml failure: parse_findings exits 2 on empty/prose AI findings (issue #3180, failing run 29603691792)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Copilot CLI harness: no Serena MCP tools present in this environment. Skipped per AGENTS.md documented fallback (If unavailable: Skip Serena. Reference AGENTS.md for context)."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not applicable without Serena MCP in the Copilot CLI harness; AGENTS.md governance was read directly from the repository instead."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only reference per ADR-014) at session start."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-07-17-session-3059.json"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported fix/pr-maintenance-empty-findings, branched from origin/main tip 30ebace5 with no prior commits ahead."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/pr-maintenance-empty-findings, not main or master."
+      },
+      "constraintsRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Read the canonical-source-mirror and plugin-version-bump instruction files plus AGENTS.md boundaries before editing generated trees."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All applicable MUST sessionEnd items are complete for this Copilot CLI session; Serena items are SHOULD and not applicable in this harness."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Copilot CLI harness has no Serena MCP; cross-session memory was not written this session. Issue #3180 and this session log carry the durable record instead."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint target set is empty: this PR changes only .py and .json files, no Markdown."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fix committed as db98500e (5 files: canonical skill script, regenerated Copilot mirror, skill tests, and the two parity plugin.json manifests). Session log committed separately."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_invoke_pr_comment_processing_skill.py tests/test_invoke_pr_comment_processing.py reported 55 passed. Targeted ruff reported All checks passed. build/scripts/build_all.py --check exited 0 (no generation drift). build/scripts/validate_plugin_version_bump.py --base origin/main printed plugin-version-bump: OK."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo list tracked seven items; each marked in_progress then done as completed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-17T20:05:00Z",
+      "action": "Diagnosed and mapped the three copies of invoke_pr_comment_processing.py",
+      "result": "Confirmed .claude/skills/.../invoke_pr_comment_processing.py is the copy invoked by pr-maintenance.yml:431; src/copilot-cli/skills/... is its byte-identical generated mirror (generate_skills.py from .claude/skills/); .github/scripts/... is an independent, dormant, test-only copy carrying an unrelated issue #2522 fix the skill copy lacks."
+    },
+    {
+      "timestamp": "2026-07-17T20:12:00Z",
+      "action": "Created tracking issue for the hourly failure",
+      "result": "Opened issue #3180 describing the WARN-verdict empty-JSON root cause and linking failing run 29603691792 (PR 3167). Assigned to self."
+    },
+    {
+      "timestamp": "2026-07-17T20:20:00Z",
+      "action": "Fixed parse_findings in the canonical skill script",
+      "result": "Empty, whitespace-only, unparseable, or non-object input now returns {\"comments\": []} (benign no-op, exit 0) instead of raise SystemExit(2). Markdown code-fence stripping preserved. Regenerated the Copilot CLI mirror via build/scripts/generate_skills.py; diff confirms byte parity with canonical."
+    },
+    {
+      "timestamp": "2026-07-17T20:30:00Z",
+      "action": "Updated skill unit tests and bumped the plugin parity pair",
+      "result": "Rewrote TestParseFindings to assert no-op on empty/whitespace/prose/invalid/non-object plus regression cases for valid and fenced findings, and added three main-level tests including an empty-stdin reproduction of run 29603691792. Bumped .claude and src/copilot-cli plugin.json 0.6.62 -> 0.6.63. 55 tests passed; ruff, drift check, and version-bump gate all green."
+    }
+  ],
+  "endingCommit": "db98500e",
+  "nextSteps": [
+    "Push branch fix/pr-maintenance-empty-findings and open PR against main with gh pr create (no auto-merge).",
+    "Flag in the PR body that .github/scripts/invoke_pr_comment_processing.py (dormant duplicate) shares the same parse_findings shape and the skill copy still lacks the issue #2522 reaction-failure fix; both are out of scope for this fix."
+  ]
+}
