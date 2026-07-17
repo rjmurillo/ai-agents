@@ -84,22 +84,22 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Replaced .serena/memories/dispatcher-payload-ceiling.md with the final two-limit, all-candidate contract: shared HOOK_STDIN_CEILING_MIB = 64 for dispatcher and matcher-shim classification, a separate MATCHED_SHIM_PAYLOAD_LIMIT_MIB = 2 applied per matched candidate replay after matcher selection, every matching toolCalls candidate evaluated in order with unrelated siblings excluded, SystemExit normalization, and the CWE-400 and safe-first-dangerous-second-bypass security reasoning"
+        "Evidence": "Recorded the two-limit, all-candidate contract established in this session. Session 3058 records the later 256-entry raw toolCalls cap and final rationale."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx markdownlint-cli2 .agents/qa/pr-3097-dispatcher-stdin-ceiling-test-report.md .serena/memories/dispatcher-payload-ceiling.md completed with 0 errors."
+        "Evidence": "The direct markdownlint command exited 0, but repository exclusions meant the QA and Serena files were not scanned. Session 3058 records the corrected explicit-file check."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final source, tests, generated artifacts, QA, memory, and session records are committed through b86a1acb56dfc0228fc3651e11de2d5a247ba4e8; causal-memory cleanup for issue #3143 is staged for the final correction commit."
+        "Evidence": "This session's source, tests, generated artifacts, QA, memory, and records were committed through ea562b277112b2f53c8573256cd81017ebcc0d72. Later hardening is recorded in session 3058."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/ -q: 14434 passed, 21 test skips, 45 xfailed; uv run pytest tests/build_scripts -q: 839 passed, 1 test skip; focused dispatcher and hook suite: 225 passed, 1 test skip; Ruff, mypy, build_all.py --check, manifest parity, pre_pr.py, live Copilot hook smoke, final code review, final security review, and independent QA passed."
+        "Evidence": "Point-in-time validation for this session: uv run pytest tests/ -q: 14434 passed, 21 test skips, 45 expected failures; uv run pytest tests/build_scripts -q: 839 passed, 1 test skip; focused dispatcher and hook suite: 225 passed, 1 test skip. Ruff, mypy, build_all.py --check, manifest parity, pre_pr.py, live Copilot hook smoke, code review, security review, and independent QA passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -161,14 +161,12 @@
     },
     {
       "timestamp": "2026-07-17T00:51:00Z",
-      "action": "Completed final evidence and tooling reports: 14434 full-suite passes, QA PASS, no security or code-review blockers; filed #3137, #3138, #3139, #3140, #3141, and #3142 with repro evidence.",
-      "result": "Recorded in .agents/qa/pr-3097-dispatcher-stdin-ceiling-test-report.md and the filed issues"
+      "action": "Completed this session's evidence and tooling reports: 14434 full-suite passes, QA PASS, no security or code-review blockers; filed #3137, #3138, #3139, #3140, #3141, and #3142 with repro evidence.",
+      "result": "Recorded in the QA report and filed issues. Session 3058 supersedes the final-state counts."
     }
   ],
   "endingCommit": "ea562b277112b2f53c8573256cd81017ebcc0d72",
   "nextSteps": [
-    "Run the required review marker, verify remote head lease 9a50407c87718171af4c7412ba0edb64289cb49a, and push normally.",
-    "Update the PR body with the final two-limit and all-candidate contract, confirm zero unresolved threads and stable CI, then squash merge PR #3097.",
-    "Resume pr-autofix across every remaining open pull request."
+    "Continue in session 3058 for the 256-entry cap, final review, push, CI, and merge."
   ]
 }

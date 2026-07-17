@@ -74,6 +74,36 @@ mixed-schema bypass. An attacker cannot embed a dangerous call in `toolCalls`
 while showing a benign `tool_name` at the top level. A guard reading only the
 top-level field would miss the dangerous call.
 
+## Limit rationale
+
+The three limits protect different resources and must stay independent:
+
+- 64 MiB bounds the one raw stdin read and JSON parse. The prior 2 MiB raw
+  limit rejected valid unmatched Copilot events before matcher selection.
+  64 MiB admits observed multi-call payloads while preserving a fixed process
+  memory bound.
+- 2 MiB bounds each selected replay passed to a wrapped guard. Existing guards
+  were designed and tested around this ceiling, so raising it would increase
+  guard memory and parsing exposure without helping unmatched calls.
+- 256 bounds candidate count before filtering. Payload bytes alone do not bound
+  iteration cost because an attacker can submit many tiny or invalid entries.
+  The value accepts normal batched events while fixing the maximum matcher and
+  guard work per event.
+
+These values are defensive operating limits, not measurements of a Copilot
+host guarantee. They can change independently when production evidence supports
+a different bound.
+
+## Rejected alternative
+
+A streaming prefilter was rejected. Matchers inspect both snake_case and
+camelCase payload shapes, then replay canonical JSON to unmodified guard
+scripts. A streaming parser would duplicate schema and matcher semantics before
+the established guard boundary. That adds a second policy implementation and
+still cannot safely dispatch a matched call without materializing its replay.
+The bounded full parse plus lazy candidate traversal keeps one matcher policy,
+preserves guard compatibility, and fixes both byte and candidate-count costs.
+
 ## Evidence
 
 - Generators: `build/scripts/generate_dispatcher.py`,
@@ -83,8 +113,8 @@ top-level field would miss the dangerous call.
   `tests/build_scripts/test_dispatch_small_apply_patch_regression.py`.
 - Focused suite (5 mandated files): 229 passed, 1 skipped.
 - Build-script suite: 843 passed, 1 skipped.
-- Full suite: 14438 passed, 21 skipped, 45 xfailed, 3 warnings.
+- Full suite: 14438 passed, 21 skipped, 45 expected failures, 3 warnings.
 - Live generated-shim probe: mixed schema rc=2, 256 entries rc=0,
-  257 entries rc=2, payload disclosure false.
+  257 entries rc=2, no payload disclosure.
 - Final QA verdict: PASS, recorded in
   `.agents/qa/pr-3097-dispatcher-stdin-ceiling-test-report.md`.
