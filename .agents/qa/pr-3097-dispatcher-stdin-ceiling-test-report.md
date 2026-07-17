@@ -13,7 +13,7 @@ and top-level schema validation. This includes rejection of non-list
 and removal of top-level aliases from canonical batch replays.
 
 **Diff stat (calculated independently in this session):** 50 files changed,
-6674 insertions(+), 2265 deletions(-).
+6727 insertions(+), 2265 deletions(-).
 
 File breakdown:
 
@@ -145,7 +145,7 @@ Result: PASS
 | `check_plugin_manifest_parity.py` | exit 0, both manifests at 0.6.47 |
 | Direct subprocess probes | Every listed boundary confirmed against final generated artifacts |
 | Direct 64 MiB benchmark | 4.81 to 4.84 seconds, 276720 to 277540 KiB peak RSS |
-| Diff stat (independently calculated) | 50 files changed, 6674 insertions(+), 2265 deletions(-) |
+| Diff stat (independently calculated) | 50 files changed, 6727 insertions(+), 2265 deletions(-) |
 
 ## Test Results
 

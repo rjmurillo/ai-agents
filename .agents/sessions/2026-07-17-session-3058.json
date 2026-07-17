@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through 6e52972c39e78f9944a4d2807ecb72f9b2c30eef; final QA, memory, and session records are the only planned evidence changes."
+        "Evidence": "Runtime implementation, tests, 34 regenerated matcher shims, and refreshed evidence are committed through 7a514dfc8a267af2bc5d99ab8043e452addc97c5."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through 6e52972c39e78f9944a4d2807ecb72f9b2c30eef. Final product scope before evidence records is 50 files, 6674 insertions, and 2265 deletions."
+        "Evidence": "Runtime implementation, tests, 34 regenerated matcher shims, and refreshed evidence are committed through 7a514dfc8a267af2bc5d99ab8043e452addc97c5. Final PR scope is 50 files, 6727 insertions, and 2265 deletions."
       },
       "validationPassed": {
         "level": "MUST",
@@ -165,7 +165,7 @@
       "result": "Present non-list toolCalls, malformed or padded top-level names, and conflicting tool_name/toolName aliases now exit 2 before guard execution. Matching aliases remain compatible. Canonical batch replay removes all top-level name, input, and call-ID aliases. Focused suite: 265 passed, 1 intentional exclusion. Build-script suite: 879 passed, 1 intentional exclusion. Full suite: 14474 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Three 64 MiB dispatcher benchmarks measured 4.81 to 4.84 seconds and 276720 to 277540 KiB peak RSS; filed #3174 with the repro."
     }
   ],
-  "endingCommit": "6e52972c39e78f9944a4d2807ecb72f9b2c30eef",
+  "endingCommit": "7a514dfc8a267af2bc5d99ab8043e452addc97c5",
   "nextSteps": [
     "Commit the refreshed QA, memory, and session evidence.",
     "Run the final SHA-bound 15-axis review and create its marker.",
