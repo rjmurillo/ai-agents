@@ -72,7 +72,7 @@ def derive_attribution(
         except (json.JSONDecodeError, OSError):
             continue
 
-        episode_id = episode.get("id") or file_path.stem
+        episode_id = episode.get("id", file_path.stem)
 
         for chain in ucg.build_causal_chains(episode):
             source_id = ucg.generate_node_id(chain["from_type"], chain["from_label"])
