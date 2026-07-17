@@ -222,6 +222,53 @@ def _is_linked_worktree(repo_root: Path) -> bool:
     return git_dir_path.resolve() != git_common_dir_path.resolve()
 
 
+def _collect_changed_workflow_files(repo_root: Path, base_ref: str) -> list[str] | None:
+    """Deduplicated workflow files changed across every local git state.
+
+    Unions the committed branch range (``base_ref...HEAD``) with staged,
+    unstaged, and untracked files so ``pre_pr`` validates a workflow edit that
+    has not been committed yet (issue #3134). Deleted paths are dropped by the
+    final ``is_file`` check, which keeps a missing path from reaching the
+    runner (the runner rejects paths that escape or do not exist).
+
+    Returns ``None`` when the committed-range diff cannot run, preserving the
+    fail-open skip the caller documented. The three local-state sources are
+    additive: a non-zero exit in any one contributes nothing rather than
+    masking real changes from the others.
+    """
+    committed_code, committed_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
+    )
+    if committed_code != 0:
+        return None
+
+    blocks = [committed_out]
+    for extra_args in (
+        ["diff", "--cached", "--name-only"],
+        ["diff", "--name-only"],
+        ["ls-files", "--others", "--exclude-standard"],
+    ):
+        code, out, _ = _run_subprocess(["git", "-C", str(repo_root), *extra_args])
+        if code == 0:
+            blocks.append(out)
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for block in blocks:
+        for line in block.splitlines():
+            path = line.strip()
+            if path and path not in seen:
+                seen.add(path)
+                ordered.append(path)
+    return [
+        path
+        for path in ordered
+        if path.startswith(".github/workflows/")
+        and path.endswith((".yml", ".yaml"))
+        and (repo_root / path).is_file()
+    ]
+
+
 def validate_workflow_local_run(repo_root: Path) -> bool:
     """Shift-left tier of the workflow local-run gate (actionlint + act -n).
 
@@ -238,10 +285,13 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     gate is the authoritative enforcer; pre_pr only warns so a contributor
     without local workflow dependencies is not stopped pre-PR.
 
-    Change detection uses :func:`_resolve_default_base_ref` to choose a default
-    branch ref for the diff. The branch's own upstream is deliberately not used:
-    once the branch is pushed it yields an empty diff, which is how pre_pr
-    previously missed changed workflows that pre-push detected (issue #2571).
+    Change detection unions the committed branch range with the staged,
+    unstaged, and untracked workflow files. The branch's own upstream is
+    deliberately not used for the committed range: once the branch is pushed it
+    yields an empty diff, which is how pre_pr previously missed changed
+    workflows that pre-push detected (issue #2571). The local-state sources are
+    added so a workflow edit that has not been committed yet is still validated
+    (issue #3134).
     """
     script = repo_root / "scripts" / "validation" / "run_workflow_local_test.py"
     if not script.exists():
@@ -252,19 +302,10 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
         print("[WARN] workflow local-run: base ref unresolved; skipping.")
         return True
 
-    diff_code, diff_out, _ = _run_subprocess(
-        ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
-    )
-    if diff_code != 0:
+    changed = _collect_changed_workflow_files(repo_root, base_ref)
+    if changed is None:
         print("[WARN] workflow local-run: git diff failed; skipping.")
         return True
-    changed = [
-        line
-        for line in diff_out.splitlines()
-        if line.startswith(".github/workflows/")
-        and line.endswith((".yml", ".yaml"))
-        and (repo_root / line).is_file()
-    ]
     if not changed:
         print("No changed workflow files; nothing to run locally.")
         return True
