@@ -562,7 +562,7 @@ def _original_main(stdin_bytes):
         # (ADR-062 Section 8, "configured != active"). If the LSP runtime is down,
         # degrade to ALLOW with a one-time warning rather than hard-block native
         # Read/Edit/Grep (ADR-062 Section 5, release-it.md graceful degradation).
-        if lsp_runtime_down():
+        if lsp_runtime_down(project_dir):
             warn_once_lsp_down("lsp-read-guard", project_dir)
             _note(f"lsp runtime down, allow: {file_path}")
             return 0, None

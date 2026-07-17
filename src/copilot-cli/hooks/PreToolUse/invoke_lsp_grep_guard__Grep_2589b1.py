@@ -648,8 +648,9 @@ def _original_main(stdin_bytes):
 
             symbols, providers = decision
 
-            if lsp_runtime_down():
-                warn_once_lsp_down(_HOOK_NAME, get_project_directory())
+            project_dir = get_project_directory()
+            if lsp_runtime_down(project_dir):
+                warn_once_lsp_down(_HOOK_NAME, project_dir)
                 return 0
 
             guidance = build_guidance(symbols, providers)
