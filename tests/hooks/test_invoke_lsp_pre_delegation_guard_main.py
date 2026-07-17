@@ -255,6 +255,54 @@ class TestMainBlock:
         assert guard.main() == 2
 
 
+class TestMainTargetConditioning:
+    """Issue #3091: provider_available is a repo-level check, so the gate must
+    not fire for a delegation whose actual target is external or a no-provider
+    file type (a PowerShell dotfiles repo), while still firing for an in-repo
+    provider-backed target with no pre-resolved context."""
+
+    def test_external_target_allowed(self, mock_stdin: Callable[[str], None]):
+        # Provider available for the repo (autouse), but the prompt's only file
+        # references are EXTERNAL paths, so there is nothing to pre-resolve. On
+        # the pre-#3091 guard this blocked (exit 2); it must now allow (exit 0).
+        prompt = (
+            "Update the shell dotfiles for the target machine. "
+            "Edit /tmp/external-dotfiles-repo/profile.d/setup.ps1:79 and "
+            "/tmp/external-dotfiles-repo/profile.d/aliases.ps1:12. " * 4
+        )
+        mock_stdin(
+            _stdin_json(
+                tool_name="Agent",
+                tool_input={"subagent_type": "implementer", "prompt": prompt},
+            )
+        )
+        assert guard.main() == 0
+
+    def test_in_repo_python_target_still_blocks(
+        self, monkeypatch: pytest.MonkeyPatch, mock_stdin: Callable[[str], None]
+    ):
+        # The prompt references an IN-REPO Python file (a real pre-resolution
+        # target) with no LSP context marker. The gate must still block (the
+        # #3091 fix must not over-loosen). detect_providers is stubbed so a .py
+        # target reports a provider deterministically.
+        monkeypatch.setattr(
+            guard,
+            "detect_providers",
+            lambda target, _cap, _pd: str(target).endswith(".py"),
+        )
+        prompt = (
+            "Refactor the helper in scripts/foo.py:10 and its caller in "
+            "scripts/bar.py:44 without changing behavior. " * 4
+        )
+        mock_stdin(
+            _stdin_json(
+                tool_name="Agent",
+                tool_input={"subagent_type": "implementer", "prompt": prompt},
+            )
+        )
+        assert guard.main() == 2
+
+
 class TestMainLspRuntimeDownFailOpen:
     """LSP_DOWN turns a would-be delegation block into ALLOW + one-time warning.
 

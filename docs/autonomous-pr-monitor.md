@@ -83,7 +83,10 @@ The triage above produces a session-start snapshot. In a repo with heavy merge a
 Before any per-tier action on each PR (arming auto-merge, pushing a CI fix, posting a thread reply), call the live-state gate and branch on the JSON envelope `Data.action` field:
 
 ```bash
-# One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
+# One outer fetch of the shared base; --skip-fetch then skips the redundant
+# per-PR base fetch. The gate still resolves each PR head itself via
+# refs/pull/<n>/head (issue #3116), so --skip-fetch does NOT assume the PR
+# branch already exists locally.
 git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main"
 
 # Per PR, immediately before the tier's planned action:
@@ -101,7 +104,7 @@ fi
 The gate checks two failure modes:
 
 1. **Live state drift.** The PR is now MERGED, CLOSED, or a DRAFT. Anything other than OPEN means do not act.
-2. **Superseded by base.** `git cherry origin/<base> origin/<head>` reports every commit on the PR branch as already on `origin/<base>` (patch-id match). This is the "diff already landed via a sibling PR" case (PR #2394 vs PRs #2409/#2412 on 2026-06-05; #2409 was auto-merge-armed before redundancy was caught).
+2. **Superseded by base.** The gate resolves the exact PR head via `refs/pull/<n>/head` (fork-safe, branch-name-agnostic), then `git cherry origin/<base> <head>` reports every commit on the PR branch as already on `origin/<base>` (patch-id match). This is the "diff already landed via a sibling PR" case (PR #2394 vs PRs #2409/#2412 on 2026-06-05; #2409 was auto-merge-armed before redundancy was caught). When the head cannot be resolved, the JSON `Data.superseded_by_base.probe_inconclusive` flag is set and the `reason` names the inconclusive probe: the verdict stays `ACT` (a transient git failure must not block a valid PR) but is not a clean not-superseded result.
 
 SKIP verdicts are binding: do NOT push commits, do NOT arm auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP. The verdict's `reason` field names the cause for the autofix log. An `ACT` verdict only proves the PR is still actionable; the four-condition Ready-to-Merge gate above still applies before any merge.
 
