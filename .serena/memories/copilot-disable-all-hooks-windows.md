@@ -40,4 +40,5 @@ Session 3042 recorded the controlled probe counts and timestamps in
 
 - [copilot-agent-frontmatter-ci-enforcement](copilot-agent-frontmatter-ci-enforcement.md)
 - [copilot-agent-frontmatter-ci-review-fixes](copilot-agent-frontmatter-ci-review-fixes.md)
+- [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md)
 - [copilot-hooks-observations](copilot-hooks-observations.md)

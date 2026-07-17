@@ -35,9 +35,15 @@ order, the authoritative registered set, NOT a directory listing), it produces:
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import stat
 from pathlib import Path
+from typing import Any
+
+from generate_hooks_body import is_shimmed
+from regen_guard import detect_reason_strict as regen_detect_reason
 
 # Mirror contract from build/scripts/generate_hooks_emit.py::_build_copilot_entry:
 # bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
@@ -77,41 +83,6 @@ _MAX_STDIN_BYTES = 2 * 1024 * 1024
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
 
 
-def _validated_mode(manifest: dict, event: str) -> str:
-    # mode selects gate (short_circuit, fail-closed) vs observe (run all,
-    # never gate). Default to gate when absent so an older manifest fails
-    # closed (ADR-066) rather than silently dropping a guard.
-    mode = manifest.get("mode", "gate")
-    if mode not in ("gate", "observe"):
-        raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
-    expected_mode = "gate" if event in _GATE_EVENTS else "observe"
-    if mode != expected_mode:
-        raise ValueError(
-            f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
-        )
-    return mode
-
-
-def _validated_timeouts(manifest: dict, shims: list) -> dict:
-    # Validate timeout metadata so malformed manifests fail closed. Do not
-    # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
-    # timed-out thread, and the host already owns this process timeout.
-    timeouts = manifest.get("timeouts", {})
-    if not isinstance(timeouts, dict):
-        raise TypeError("manifest field 'timeouts' must be a dict when present")
-    shim_timeouts = {}
-    for shim in shims:
-        if not isinstance(shim, str):
-            raise TypeError("manifest field 'shims' must contain strings")
-        if shim not in timeouts:
-            continue
-        timeout_sec = int(timeouts[shim])
-        if timeout_sec <= 0:
-            raise ValueError(f"manifest timeout for {shim} must be positive")
-        shim_timeouts[shim] = timeout_sec
-    return shim_timeouts
-
-
 def _main() -> int:
     try:
         ensure_plugin_paths()
@@ -125,8 +96,34 @@ def _main() -> int:
         shims = manifest["shims"]
         if not isinstance(shims, list):
             raise TypeError("manifest field 'shims' must be a list")
-        short_circuit = _validated_mode(manifest, event) == "gate"
-        shim_timeouts = _validated_timeouts(manifest, shims)
+        # mode selects gate (short_circuit, fail-closed) vs observe (run all,
+        # never gate). Default to gate when absent so an older manifest fails
+        # closed (ADR-066) rather than silently dropping a guard.
+        mode = manifest.get("mode", "gate")
+        if mode not in ("gate", "observe"):
+            raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
+        expected_mode = "gate" if event in _GATE_EVENTS else "observe"
+        if mode != expected_mode:
+            raise ValueError(
+                f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
+            )
+        short_circuit = mode == "gate"
+        # Validate timeout metadata so malformed manifests fail closed. Do not
+        # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
+        # timed-out thread, and the host already owns this process timeout.
+        timeouts = manifest.get("timeouts", {})
+        if not isinstance(timeouts, dict):
+            raise TypeError("manifest field 'timeouts' must be a dict when present")
+        shim_timeouts = {}
+        for shim in shims:
+            if not isinstance(shim, str):
+                raise TypeError("manifest field 'shims' must contain strings")
+            if shim not in timeouts:
+                continue
+            timeout_sec = int(timeouts[shim])
+            if timeout_sec <= 0:
+                raise ValueError(f"manifest timeout for {shim} must be positive")
+            shim_timeouts[shim] = timeout_sec
         raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
         if len(raw) > _MAX_STDIN_BYTES:
             raise ValueError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")
@@ -145,7 +142,7 @@ sys.exit(_main())
 
 def dispatcher_entry(
     event: str, timeout_sec: int, matcher: str | None = None
-) -> dict:
+) -> dict[str, Any]:
     """Return the single hooks.json entry that registers the event dispatcher.
 
     ``matcher`` (when not ``None``) is emitted on the entry so hosts with
@@ -156,7 +153,7 @@ def dispatcher_entry(
     entries never spawned. Hosts without matcher support ignore the field
     and fall back to the dispatcher's in-process filtering (unchanged).
     """
-    entry = {
+    entry: dict[str, Any] = {
         "bash": _BASH_TEMPLATE.format(event=event),
         "cwd": ".",
         "powershell": _PWSH_TEMPLATE.format(event=event),
@@ -252,7 +249,11 @@ def write_manifest(
     if mode not in ("gate", "observe"):
         raise ValueError(f"mode must be 'gate' or 'observe', got {mode!r}")
     manifest_path = event_dir / "_manifest.json"
-    manifest: dict = {"event": event, "mode": mode, "shims": list(shim_names)}
+    manifest: dict[str, Any] = {
+        "event": event,
+        "mode": mode,
+        "shims": list(shim_names),
+    }
     if shim_timeouts is not None:
         manifest["timeouts"] = {
             name: int(shim_timeouts[name])
@@ -303,7 +304,7 @@ def emit_dispatcher(
     *,
     mode: str = "gate",
     matcher: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Write manifest + entrypoint + bootstrap and return the hooks.json entry.
 
     ``timeout_sec`` should be the sum of the per-shim timeouts the dispatcher
@@ -312,6 +313,7 @@ def emit_dispatcher(
     fail-closed short-circuit) or ``"observe"`` (all shims run, never gate).
     ``matcher`` (optional) is the host-side tool-name union for the entry.
     """
+    _remove_stale_matcher_shims(event_dir, shim_names)
     write_manifest(event_dir, event, shim_names, shim_timeouts, mode=mode)
     write_entrypoint(event_dir)
     _copy_bootstrap(event_dir)
@@ -325,6 +327,7 @@ def emit_dispatcher(
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
 _DEFAULT_TIMEOUT_SEC = 5
 _SCRIPT_RE = re.compile(r"/hooks/[^/]+/([^/\"']+\.py)(?!\.\w)")
+_CASE_INSENSITIVE_SHIM_NAMES = os.name == "nt"
 
 
 def _mode_for_event(event: str) -> str:
@@ -338,7 +341,103 @@ def _shim_basename(command: str) -> str | None:
     return match.group(1) if match else None
 
 
-def consolidate(out: dict, hooks_dir: Path) -> dict:
+def _dispatcher_shim_entries(
+    entries: list[dict[str, Any]],
+) -> list[tuple[str, int]]:
+    """Return generated shim names and their timeout budgets."""
+    return [
+        (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))
+        for entry in entries
+        if (name := _shim_basename(entry.get("bash", "")))
+    ]
+
+
+def _shim_name_key(name: str) -> str:
+    if _CASE_INSENSITIVE_SHIM_NAMES:
+        return name.casefold()
+    return name
+
+
+def validate_event_name(event: str) -> None:
+    """Reject hook event names that can escape their output directory."""
+    if (
+        not event
+        or event in {".", ".."}
+        or "/" in event
+        or "\\" in event
+        or "\x00" in event
+    ):
+        raise ValueError(
+            f"invalid hook event {event!r}: expected a single path component"
+        )
+
+
+def _resolve_within(path: Path, root: Path, label: str) -> Path:
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f"could not resolve {label} {path}: {exc}") from exc
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{label} escapes hooks root: {path}") from exc
+    return resolved
+
+
+def find_stale_matcher_shims(
+    event_dir: Path,
+    shim_names: list[str],
+    *,
+    hooks_root: Path | None = None,
+) -> list[Path]:
+    """Return removable generated shims omitted from the manifest."""
+    try:
+        event_stat = event_dir.lstat()
+    except FileNotFoundError:
+        return []
+    if stat.S_ISLNK(event_stat.st_mode):
+        raise ValueError(f"refusing symlinked event directory: {event_dir}")
+    if not stat.S_ISDIR(event_stat.st_mode):
+        raise ValueError(f"hook event path is not a directory: {event_dir}")
+
+    try:
+        root_path = hooks_root or event_dir.parent.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f"could not resolve hooks root for {event_dir}: {exc}") from exc
+    resolved_event = _resolve_within(event_dir, root_path, "hook event directory")
+    active_shims = {_shim_name_key(name) for name in shim_names}
+    stale_shims: list[Path] = []
+    for candidate in sorted(event_dir.iterdir()):
+        candidate_stat = candidate.lstat()
+        if stat.S_ISLNK(candidate_stat.st_mode):
+            raise ValueError(f"refusing symlinked hook candidate: {candidate}")
+        if not stat.S_ISREG(candidate_stat.st_mode):
+            continue
+        _resolve_within(candidate, resolved_event, "hook candidate")
+        if candidate.suffix != ".py":
+            continue
+        if _shim_name_key(candidate.name) in active_shims:
+            continue
+        source = candidate.read_text(encoding="utf-8")
+        if not is_shimmed(source):
+            continue
+        reason = regen_detect_reason(candidate)
+        if reason is not None:
+            print(f"  NOTICE: skipped {candidate} (NO-REGEN: {reason})")
+            continue
+        stale_shims.append(candidate)
+    return stale_shims
+
+
+def _remove_stale_matcher_shims(event_dir: Path, shim_names: list[str]) -> None:
+    """Remove generated matcher shims omitted from the authoritative manifest."""
+    for candidate in find_stale_matcher_shims(event_dir, shim_names):
+        candidate.unlink()
+
+
+def consolidate(
+    out: dict[str, list[dict[str, Any]]], hooks_dir: Path
+) -> dict[str, list[dict[str, Any]]]:
     """Collapse every event's per-shim entries to one dispatcher entry.
 
     ``out`` is the generator's ``{event: [entry, ...]}`` map. For each event
@@ -351,13 +450,10 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
     order is the registered hooks.json order (authoritative) and the
     consolidated ``timeoutSec`` is the sum of the per-shim timeouts.
     """
-    new_out: dict = {}
+    new_out: dict[str, list[dict[str, Any]]] = {}
     for event, entries in out.items():
-        shim_entries = [
-            (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))
-            for entry in entries
-            if (name := _shim_basename(entry.get("bash", "")))
-        ]
+        validate_event_name(event)
+        shim_entries = _dispatcher_shim_entries(entries)
         if not shim_entries:
             new_out[event] = entries
             continue
@@ -367,7 +463,7 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
         matchers = [
             entry.get("claudeMatcher")
             for entry in entries
-            if _shim_basename(entry.get("bash", ""))
+            if isinstance(entry, dict)
         ]
         event_dir = Path(hooks_dir) / event
         new_out[event] = [

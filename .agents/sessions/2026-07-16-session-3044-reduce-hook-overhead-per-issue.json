@@ -178,6 +178,11 @@
       "timestamp": "2026-07-16T10:00:00Z",
       "summary": "Live Stop-gate catch: runpy omits the shim directory from sys.path, breaking sibling companion imports (skill_pattern_loader). Runner now prepends the shim dir for the run and removes it after; regression test added; real stop group probe exits 0.",
       "evidence": "pytest 33 passed on tests/hooks/test_claude_hook_dispatch.py; invoke_dispatch_claude.py --group stop exit 0"
+    },
+    {
+      "timestamp": "2026-07-16T10:40:00Z",
+      "summary": "Reconciliation executed: restored merged-main generator and manifests, re-applied matcher-union and expansion patches, synthesized grouped registrations programmatically from main final settings (narrow single-guard matchers kept; groups only where multiple hooks share one matcher; plugin fully dispatcher-routed for self-host bail; prunes reapplied). Plugin pair bumped to 0.6.41 over main 0.6.40.",
+      "evidence": "pytest 2528 passed 1 skipped across hooks+build_scripts; ruff and mypy clean; copilot regen delta = matcher union + 2 pruned shims + write-edit ordering"
     }
   ],
   "endingCommit": "",
