@@ -240,6 +240,25 @@ class TestEmit:
         assert proc.returncode == 2
         assert "manifest timeout for a.py must be positive" in proc.stderr.decode()
 
+    def test_generated_entrypoint_validates_mode_before_shim_entries(self, tmp_path):
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+        manifest = {
+            "event": "preToolUse",
+            "mode": "bogus",
+            "shims": [7],
+            "timeouts": {},
+        }
+        (event_dir / "_manifest.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        assert proc.returncode == 2
+        assert "manifest field 'mode'" in proc.stderr.decode()
+        assert "must contain strings" not in proc.stderr.decode()
+
     def test_generated_pretooluse_observe_manifest_fails_closed(self, tmp_path):
         root, event_dir = _stage_plugin(tmp_path, "preToolUse")
         (event_dir / "a.py").write_text("import sys; sys.exit(0)\n", encoding="utf-8")

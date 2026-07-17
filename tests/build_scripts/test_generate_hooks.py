@@ -724,10 +724,8 @@ def test_inject_shim_toolcalls_candidate_cap_denies_one_above_boundary():
 
     assert proc.returncode == 2
     assert "toolCalls" in proc.stderr
-    assert (
-        str(_TOOL_CALLS_CANDIDATE_CAP + 1) in proc.stderr
-        or str(_TOOL_CALLS_CANDIDATE_CAP) in proc.stderr
-    )
+    assert f"{_TOOL_CALLS_CANDIDATE_CAP + 1} entries" in proc.stderr
+    assert f"limit is {_TOOL_CALLS_CANDIDATE_CAP}" in proc.stderr
     assert marker not in proc.stderr
     assert "FIRED" not in proc.stdout
     assert marker not in proc.stdout

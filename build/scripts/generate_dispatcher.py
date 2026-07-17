@@ -80,15 +80,83 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _bootstrap import ensure_plugin_paths  # noqa: E402
 
-# Genuine-anomaly cap on the hook payload (#3074, ADR-066, CWE-400). A normal
-# apply_patch in a long Copilot session can cross a few MiB, so this ceiling sits
-# far above real payloads; only a truly anomalous payload trips it. Below the
-# ceiling the dispatcher runs normally: unmatched tools are allowed (exit 0), and
-# registered shims receive the full dispatcher input before enforcing their own
-# matcher and size policies. Above it, a gate event fails closed
-# (deny, exit 2) and an observe event allows (exit 0, never gates).
+# Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
+# apply_patch calls can cross a few MiB, and no measured host maximum exists.
+# Below this independent operating limit, unmatched tools allow and registered
+# shims enforce their own matcher and replay policies. Above it, gate events deny
+# and observe events allow without dispatching a truncated payload.
 _MAX_STDIN_BYTES = __HOOK_STDIN_CEILING_MIB__ * 1024 * 1024
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
+
+
+def _manifest_event(manifest):
+    event = manifest.get("event")
+    if not isinstance(event, str):
+        raise TypeError("manifest field 'event' must be a string")
+    return event
+
+
+def _manifest_shims(manifest):
+    shims = manifest["shims"]
+    if not isinstance(shims, list):
+        raise TypeError("manifest field 'shims' must be a list")
+    return shims
+
+
+def _manifest_short_circuit(manifest, event):
+    # Default to gate so an older manifest fails closed (ADR-066).
+    mode = manifest.get("mode", "gate")
+    if mode not in ("gate", "observe"):
+        raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
+    expected_mode = "gate" if event in _GATE_EVENTS else "observe"
+    if mode != expected_mode:
+        raise ValueError(
+            f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
+        )
+    return mode == "gate"
+
+
+def _manifest_timeouts(manifest, shims):
+    # Metadata supports host budgeting. The host owns the process timeout.
+    timeouts = manifest.get("timeouts", {})
+    if not isinstance(timeouts, dict):
+        raise TypeError("manifest field 'timeouts' must be a dict when present")
+    shim_timeouts = {}
+    for shim in shims:
+        if not isinstance(shim, str):
+            raise TypeError("manifest field 'shims' must contain strings")
+        if shim not in timeouts:
+            continue
+        timeout_sec = int(timeouts[shim])
+        if timeout_sec <= 0:
+            raise ValueError(f"manifest timeout for {shim} must be positive")
+        shim_timeouts[shim] = timeout_sec
+    return shim_timeouts
+
+
+def _load_manifest(event_dir):
+    manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
+    event = _manifest_event(manifest)
+    shims = _manifest_shims(manifest)
+    short_circuit = _manifest_short_circuit(manifest, event)
+    return event, shims, _manifest_timeouts(manifest, shims), short_circuit
+
+
+def _read_payload(event, shims, short_circuit):
+    raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
+    if len(raw) <= _MAX_STDIN_BYTES:
+        return raw, None
+    verdict = (
+        "denying (fail-closed)"
+        if short_circuit
+        else "allowing (observe mode does not gate)"
+    )
+    print(
+        f"hook-dispatch-entrypoint: stdin exceeds {_MAX_STDIN_BYTES} bytes "
+        f"for event {event} shims={shims}; {verdict}",
+        file=sys.stderr,
+    )
+    return raw, 2 if short_circuit else 0
 
 
 def _main() -> int:
@@ -97,56 +165,10 @@ def _main() -> int:
         from hook_dispatch import run_dispatch  # noqa: E402
 
         event_dir = Path(__file__).resolve().parent
-        manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
-        event = manifest.get("event")
-        if not isinstance(event, str):
-            raise TypeError("manifest field 'event' must be a string")
-        shims = manifest["shims"]
-        if not isinstance(shims, list):
-            raise TypeError("manifest field 'shims' must be a list")
-        # mode selects gate (short_circuit, fail-closed) vs observe (run all,
-        # never gate). Default to gate when absent so an older manifest fails
-        # closed (ADR-066) rather than silently dropping a guard.
-        mode = manifest.get("mode", "gate")
-        if mode not in ("gate", "observe"):
-            raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
-        expected_mode = "gate" if event in _GATE_EVENTS else "observe"
-        if mode != expected_mode:
-            raise ValueError(
-                f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
-            )
-        short_circuit = mode == "gate"
-        # Validate timeout metadata so malformed manifests fail closed. Do not
-        # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
-        # timed-out thread, and the host already owns this process timeout.
-        timeouts = manifest.get("timeouts", {})
-        if not isinstance(timeouts, dict):
-            raise TypeError("manifest field 'timeouts' must be a dict when present")
-        shim_timeouts = {}
-        for shim in shims:
-            if not isinstance(shim, str):
-                raise TypeError("manifest field 'shims' must contain strings")
-            if shim not in timeouts:
-                continue
-            timeout_sec = int(timeouts[shim])
-            if timeout_sec <= 0:
-                raise ValueError(f"manifest timeout for {shim} must be positive")
-            shim_timeouts[shim] = timeout_sec
-        raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
-        if len(raw) > _MAX_STDIN_BYTES:
-            # Report the anomaly without leaking payload bytes. Return before
-            # run_dispatch so no shim receives a truncated buffer.
-            verdict = (
-                "denying (fail-closed)"
-                if short_circuit
-                else "allowing (observe mode does not gate)"
-            )
-            print(
-                f"hook-dispatch-entrypoint: stdin exceeds {_MAX_STDIN_BYTES} bytes "
-                f"for event {event} shims={shims}; {verdict}",
-                file=sys.stderr,
-            )
-            return 2 if short_circuit else 0
+        event, shims, shim_timeouts, short_circuit = _load_manifest(event_dir)
+        raw, oversize_exit = _read_payload(event, shims, short_circuit)
+        if oversize_exit is not None:
+            return oversize_exit
         return run_dispatch(event_dir, shims, raw, shim_timeouts, short_circuit=short_circuit)
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
         print(

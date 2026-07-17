@@ -157,23 +157,9 @@ def glob_or_match(args_glob: str, tool_args_norm: str) -> bool:
 
 
 def _build_shim(matcher: str) -> str:
-    """Return the Python source code for the matcher shim.
+    """Return source for a fail-closed matcher shim.
 
-    The shim:
-
-    - buffers stdin once into ``_raw`` (bytes), preserving those bytes for
-      already snake_case payloads and canonicalizing camelCase payloads before
-      replay so wrapped hooks read the schema they enforce;
-    - dispatches by classified matcher kind;
-    - exits 0 silently when the matcher does not fire (no-op = allow);
-    - exits 2 to stderr on any internal error (regex parse, JSON decode,
-      missing tool_name) so Copilot CLI surfaces the failure rather than
-      silently allowing the tool call;
-    - calls the wrapped ``_original_main`` for each matching candidate in
-      order, stopping at the first non-zero result.
-
-    The original script body is wrapped into ``_original_main`` by
-    :func:`inject_shim`.
+    Canonicalizes aliases and evaluates matching calls in order.
     """
     # The shim is emitted as a single triple-quoted block so the indenting
     # is stable. We do NOT f-string the matcher into the shim body; we
@@ -241,17 +227,25 @@ def _shim_normalize_args(tool_args):
 
 
 def _shim_glob_match(args_glob, tool_args_norm):
-    """Match args_glob against tool_args_norm with `|` as alternation.
-
-    fnmatch treats `|` as a literal. Authors expect Claude semantics
-    where each `|` branch is a separate glob alternation. Split on
-    top-level `|` and OR-fold the results.
-    """
+    """Match each top-level `|` branch as a separate glob alternative."""
     branches = args_glob.split("|") if args_glob else [""]
     for branch in branches:
         if _fnmatch.fnmatchcase(tool_args_norm, branch):
             return True
     return False
+
+
+def _shim_unique_object(pairs):
+    result = {{}}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _shim_load_json(raw_value):
+    return _json.loads(raw_value, object_pairs_hook=_shim_unique_object)
 
 
 def _shim_parse_json_string(raw_value, field_name):
@@ -260,8 +254,8 @@ def _shim_parse_json_string(raw_value, field_name):
         if not stripped or stripped[0] not in "{{[\\"":
             return raw_value
         try:
-            return _json.loads(raw_value)
-        except ValueError as exc:
+            return _shim_load_json(raw_value)
+        except _json.JSONDecodeError as exc:
             print(
                 "matcher-shim [{{}}]: {{}} is not valid JSON: {{}}".format(
                     _MATCHER, field_name, exc
@@ -276,18 +270,6 @@ def _shim_tool_input_from_call_args(raw_args):
     return _shim_parse_json_string(raw_args, "toolCalls.args")
 
 
-def _shim_tool_input_from_tool_args(raw_args):
-    return _shim_parse_json_string(raw_args, "toolArgs")
-
-
-def _shim_top_level_input_field(payload):
-    if payload.get("tool_input") is not None:
-        return "tool_input"
-    if "toolArgs" in payload:
-        return "toolArgs"
-    return "tool_input"
-
-
 def _shim_validate_tool_name(name, field):
     if not isinstance(name, str) or not name.strip():
         raise ValueError("{{}} must be a non-empty string".format(field))
@@ -298,17 +280,59 @@ def _shim_validate_tool_name(name, field):
     return name
 
 
+def _shim_json_equal(left, right):
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _shim_json_equal(left[key], right[key]) for key in left)
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _shim_json_equal(a, b) for a, b in zip(left, right))
+    return left == right
+
+
+def _shim_alias_value(payload, snake, camel, parser=None):
+    fields = [field for field in (snake, camel) if field in payload]
+    if not fields:
+        return False, None, snake, False
+    values = [payload[field] for field in fields]
+    if parser is not None:
+        values = [parser(value, field) for value, field in zip(values, fields)]
+    if len(values) == 2 and not _shim_json_equal(values[0], values[1]):
+        raise ValueError(
+            "conflicting top-level {{}}/{{}} values".format(snake, camel)
+        )
+    changed = fields != [snake] or values[0] != payload[snake]
+    return True, values[0], "/".join(fields), changed
+
+
 def _shim_top_level_candidate(payload):
-    name_fields = [key for key in ("tool_name", "toolName") if key in payload]
-    if not name_fields:
+    has_name, name, _, name_changed = _shim_alias_value(
+        payload, "tool_name", "toolName", _shim_validate_tool_name
+    )
+    if not has_name:
         raise ValueError("hook input missing string `tool_name`/`toolName` field")
-    names = [
-        _shim_validate_tool_name(payload[field], field)
-        for field in name_fields
-    ]
-    if len(names) == 2 and names[0] != names[1]:
-        raise ValueError("conflicting top-level tool_name/toolName values")
-    return payload, _shim_top_level_input_field(payload)
+    input_payload = payload
+    if payload.get("tool_input") is None and "toolArgs" in payload:
+        input_payload = {{key: value for key, value in payload.items() if key != "tool_input"}}
+    has_input, tool_input, input_field, input_changed = _shim_alias_value(
+        input_payload, "tool_input", "toolArgs", _shim_parse_json_string
+    )
+    has_call_id, call_id, _, call_id_changed = _shim_alias_value(
+        payload, "tool_call_id", "toolCallId"
+    )
+    if not (name_changed or input_changed or call_id_changed):
+        return payload, input_field
+    candidate = dict(payload)
+    for field in ("toolName", "toolArgs", "toolCallId"):
+        candidate.pop(field, None)
+    candidate["tool_name"] = name
+    if has_input:
+        candidate["tool_input"] = tool_input
+    if has_call_id:
+        candidate["tool_call_id"] = call_id
+    return candidate, input_field
 
 
 def _shim_candidate_payloads(payload):
@@ -359,13 +383,7 @@ def _shim_candidate_payloads(payload):
 
 
 def _shim_match_candidate(payload, kind, params):
-    # Support both VS Code-compatible snake_case (PascalCase event names)
-    # and native camelCase (camelCase event names) payloads.
-    # Copilot CLI sends snake_case when the event key is PascalCase,
-    # camelCase when the event key is camelCase. See issue #2290.
     tool_name = payload.get("tool_name")
-    if tool_name is None:
-        tool_name = payload.get("toolName")
     if not isinstance(tool_name, str):
         raise ValueError("hook input missing string `tool_name`/`toolName` field")
     if kind == "regex":
@@ -373,15 +391,8 @@ def _shim_match_candidate(payload, kind, params):
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        tool_args = payload.get("tool_input")
-        if tool_args is None:
-            tool_args = payload.get("toolArgs")
-        # camelCase payloads send toolArgs as a JSON string, not a parsed
-        # object. Parse it so _shim_normalize_args can extract "command".
-        tool_args = _shim_tool_input_from_tool_args(tool_args)
-        norm_args = _shim_normalize_args(tool_args)
+        norm_args = _shim_normalize_args(payload.get("tool_input"))
         return _shim_glob_match(params["argsGlob"], norm_args)
-    # bare
     return tool_name == params["toolName"]
 
 
@@ -393,19 +404,9 @@ def _shim_select_payloads(payload):
 
 
 def _shim_replay_bytes(payload, selected, raw):
-    replay = dict(selected)
-    changed = selected is not payload
-    tool_name = replay.get("tool_name")
-    if tool_name is None and isinstance(replay.get("toolName"), str):
-        replay["tool_name"] = replay["toolName"]
-        changed = True
-    tool_input = replay.get("tool_input")
-    if tool_input is None and "toolArgs" in replay:
-        replay["tool_input"] = _shim_tool_input_from_tool_args(replay.get("toolArgs"))
-        changed = True
-    if not changed:
+    if selected is payload:
         return raw
-    return _json.dumps(replay, separators=(",", ":")).encode("utf-8")
+    return _json.dumps(selected, separators=(",", ":")).encode("utf-8")
 
 
 def _shim_exit_code(exc):
@@ -477,8 +478,8 @@ def _shim_dispatch():
         )
         _sys.exit(2)
     try:
-        payload = _json.loads(_raw or b"{{}}")
-    except _json.JSONDecodeError as exc:
+        payload = _shim_load_json(_raw or b"{{}}")
+    except ValueError as exc:
         print(
             "matcher-shim [{{}}]: malformed JSON on stdin: {{}}".format(_MATCHER, exc),
             file=_sys.stderr,
