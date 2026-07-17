@@ -26,9 +26,13 @@ Contract under test:
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -74,7 +78,9 @@ def _run_agents(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _run_suite(*args: str) -> subprocess.CompletedProcess[str]:
+def _run_suite(
+    *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SUITE_SCRIPT), *args],
         capture_output=True,
@@ -82,8 +88,57 @@ def _run_suite(*args: str) -> subprocess.CompletedProcess[str]:
         errors="replace",
         timeout=120,
         cwd=str(REPO_ROOT),
+        env=env if env is not None else _clean_subprocess_env(),
+    )
+
+
+def _git(args: list[str], cwd: Path) -> None:
+    """Run a git command in `cwd` with a stripped env, raising on failure."""
+    subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
         env=_clean_subprocess_env(),
     )
+
+
+@contextmanager
+def _temp_git_repo() -> Iterator[Path]:
+    """Yield a fresh git repo with one commit and a clean index.
+
+    eval-suite's detect_changed_files hardcodes cwd=REPO_ROOT, so the diff
+    always runs against the developer checkout unless git is redirected by
+    env vars. Pair this fixture with _suite_env to point that diff at an
+    isolated repo whose state the test owns (issue #3138).
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        _git(["init", "-q"], repo)
+        (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
+        _git(["add", "seed.txt"], repo)
+        _git(
+            [
+                "-c", "user.email=eval@test",
+                "-c", "user.name=eval",
+                "-c", "commit.gpgsign=false",
+                "commit", "-q", "-m", "seed",
+            ],
+            repo,
+        )
+        yield repo
+
+
+def _suite_env(repo: Path) -> dict[str, str]:
+    """Env that redirects eval-suite's git queries to `repo`."""
+    env = _clean_subprocess_env()
+    git_dir = repo / ".git"
+    env["GIT_DIR"] = str(git_dir)
+    env["GIT_WORK_TREE"] = str(repo)
+    env["GIT_INDEX_FILE"] = str(git_dir / "index")
+    return env
 
 
 class TestDecideDryRunExit:
@@ -191,30 +246,62 @@ class TestEvalAgentsCli:
 
 
 class TestEvalSuiteAgentsDryRun:
-    """End-to-end test for the suite-level reproduction from the issue."""
+    """End-to-end suite tests, isolated from the developer checkout.
+
+    detect_changed_files (scripts/eval/eval-suite.py) hardcodes cwd=REPO_ROOT
+    and diffs HEAD against the working tree plus the index, so `--base-ref HEAD`
+    does NOT mean `HEAD..HEAD`: staged or unstaged changes in the outer checkout
+    (an in-progress merge, for example) leak into the diff. These tests redirect
+    the suite's git queries to a throwaway repo via GIT_DIR / GIT_WORK_TREE /
+    GIT_INDEX_FILE so the diff reflects the fixture, not the checkout (issue #3138).
+    """
 
     def test_suite_agents_dry_run_does_not_fail_on_zero_scores(self):
-        """`eval-suite.py --scope agents --dry-run` must not exit 1 just
-        because dry-run produced zero scores (issue #2441 acceptance criterion 1).
+        """Empty diff yields a green dry-run (issue #2441 acceptance criterion 1).
+
+        A clean index against HEAD produces no changed files, so the classifier
+        returns nothing and the suite exits 0 without scoring anything. Isolated
+        per issue #3138 so outer-repo state cannot force a false failure.
         """
-        # Drive the suite against itself with no actual agent diff: the
-        # classifier returns no agents, so nothing to evaluate, dry-run is
-        # vacuously successful. Using base-ref=HEAD guarantees an empty diff
-        # regardless of repo state.
-        result = _run_suite("--scope", "agents", "--dry-run", "--base-ref", "HEAD")
+        with _temp_git_repo() as repo:
+            result = _run_suite(
+                "--scope", "agents", "--dry-run", "--base-ref", "HEAD",
+                env=_suite_env(repo),
+            )
         assert result.returncode == 0, (
             f"Suite dry-run with empty diff must exit 0; got "
             f"{result.returncode}. stderr: {result.stderr[-500:]}"
         )
 
-    # NOTE: A broader end-to-end test that drives the suite with real agent
-    # files in the diff was prototyped (diffing against the git empty-tree
-    # ref) but exposed a SEPARATE classifier bug: eval-suite's
-    # `Path(a).stem` for `src/copilot-cli/agents/foo.agent.md` returns
-    # `"foo.agent"`, which then cannot be resolved as
-    # `.claude/agents/foo.agent.md`. That misclassification is out of scope
-    # for issue #2441 (dry-run exit policy) and is tracked as a follow-up.
-    # The unit tests above against `eval_agents.decide_dry_run_exit` and
-    # the per-script CLI test (`test_dry_run_real_agent_exits_zero`) prove
-    # the contract end-to-end at the eval-agents layer, which is the
-    # subprocess eval-suite invokes for every classified agent.
+    def test_suite_classifies_staged_agent_files(self):
+        """Staged agent files route to the agent classifier (issue #3138).
+
+        The empty-diff isolation must not hide real changes. Stage an agent
+        definition in the fixture repo and prove the suite classifies it as an
+        agent. Classification comes from the isolated git diff, so it stays
+        independent of the developer checkout.
+
+        The suite exit code is intentionally not asserted. eval-agents resolves
+        the agent file from AGENTS_DIR (its own __file__ path, the real
+        checkout), not from the fixture, so a returncode check would couple this
+        test back to the outer-repo state that issue #3138 exists to remove. The
+        eval-agents exit contract is covered by TestEvalAgentsCli.
+        """
+        agent_rel = ".claude/agents/architect.md"
+        with _temp_git_repo() as repo:
+            agent_path = repo / agent_rel
+            agent_path.parent.mkdir(parents=True, exist_ok=True)
+            agent_path.write_text("# architect\n", encoding="utf-8")
+            _git(["add", agent_rel], repo)
+            out_file = repo / ".git" / "eval-out.json"
+            _run_suite(
+                "--scope", "agents", "--dry-run", "--base-ref", "HEAD",
+                "--output", str(out_file),
+                env=_suite_env(repo),
+            )
+            output = json.loads(out_file.read_text(encoding="utf-8"))
+
+        assert agent_rel in output["classification"]["agents"], (
+            f"Staged agent file must be classified as an agent; "
+            f"classification: {output.get('classification')}"
+        )

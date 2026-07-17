@@ -55,7 +55,10 @@ from github_core.output import (  # noqa: E402
 # Failure detection patterns
 # ---------------------------------------------------------------------------
 
-_FAILURE_PATTERNS = [
+# Weak signals: single failure words. They also appear inside a step's own
+# ``run:`` source echoed at the top of the log, so they yield false positives
+# (for example ``echo "::error::..."`` or an action input ``fail-on-cache-miss``).
+_WEAK_FAILURE_PATTERNS = [
     r"\berror\b",
     r"\bfail(ed|ure|ing)?\b",
     r"\btraceback\b",
@@ -64,14 +67,28 @@ _FAILURE_PATTERNS = [
     r"\bfatal\b",
     r"\btimeout\b",
     r"ERROR:",
-    r"##\[error\]",
-    r"Process completed with exit code [1-9]",
     r"\bsegmentation fault\b",
     r"\bstack trace\b",
     r"\bassertion failed\b",
 ]
 
+# Authoritative signals: emitted verdicts and exit markers, not quoted source.
+# GitHub Actions renders a real ``::error::`` command as ``##[error]`` in the
+# downloaded log and ends a failed step with ``Process completed with exit code
+# N``; the repo's review axes print a ``Verdict:`` line and an ``Exit Code:``
+# line. These outrank the weak words so a tail verdict is never crowded out of
+# the bounded snippet by echoed setup source (issue #3113).
+_AUTHORITATIVE_PATTERNS = [
+    r"##\[error\]",
+    r"Process completed with exit code [1-9]",
+    r"\bExit Code:\s*[1-9]",
+    r"\bVerdict:\s*\w*FAIL",
+]
+
+_FAILURE_PATTERNS = _WEAK_FAILURE_PATTERNS + _AUTHORITATIVE_PATTERNS
+
 _COMBINED_PATTERN = re.compile("|".join(_FAILURE_PATTERNS), re.IGNORECASE)
+_AUTHORITATIVE_PATTERN = re.compile("|".join(_AUTHORITATIVE_PATTERNS), re.IGNORECASE)
 
 # Fallback list used only when an input check lacks producer-computed
 # "IsFailing". Keep aligned with get_pr_checks.py failing CheckRun conclusions,
@@ -151,39 +168,98 @@ def _coerce_checks_list(payload: dict[str, object]) -> list[dict] | None:
 
 
 
+def _rank_matches(log_lines: list[str]) -> list[int]:
+    """Return failure-matching line indices, most authoritative first.
+
+    Authoritative markers rank before weak word matches; within a tier the
+    later line wins, so a tail verdict beats echoed setup source (#3113).
+    """
+    matches = [
+        i for i, line in enumerate(log_lines) if _COMBINED_PATTERN.search(line)
+    ]
+    return sorted(
+        matches,
+        key=lambda i: (0 if _AUTHORITATIVE_PATTERN.search(log_lines[i]) else 1, -i),
+    )
+
+
+def _claim_lines(
+    ranked: list[int], line_count: int, context_lines: int, max_lines: int,
+) -> set[int]:
+    """Claim context windows around ranked matches until the budget fills."""
+    claimed: set[int] = set()
+    for i in ranked:
+        if len(claimed) >= max_lines:
+            break
+        if i in claimed:
+            continue
+        start = max(0, i - context_lines)
+        end = min(line_count - 1, i + context_lines)
+        fresh = [n for n in range(start, end + 1) if n not in claimed]
+        remaining = max_lines - len(claimed)
+        claimed.update(fresh[:remaining])
+    return claimed
+
+
+def _group_runs(sorted_lines: list[int]) -> list[tuple[int, int]]:
+    """Collapse a sorted line-index list into contiguous (start, end) runs."""
+    runs: list[tuple[int, int]] = []
+    start = prev = sorted_lines[0]
+    for n in sorted_lines[1:]:
+        if n == prev + 1:
+            prev = n
+            continue
+        runs.append((start, prev))
+        start = prev = n
+    runs.append((start, prev))
+    return runs
+
+
+def _run_has_authoritative(run: tuple[int, int], log_lines: list[str]) -> bool:
+    start, end = run
+    return any(
+        _AUTHORITATIVE_PATTERN.search(log_lines[n]) for n in range(start, end + 1)
+    )
+
+
+def _run_to_snippet(start: int, end: int, log_lines: list[str]) -> dict[str, object]:
+    """Build a snippet dict for a claimed run, keyed on its best match line."""
+    matches = [
+        n for n in range(start, end + 1) if _COMBINED_PATTERN.search(log_lines[n])
+    ]
+    authoritative = [
+        n for n in matches if _AUTHORITATIVE_PATTERN.search(log_lines[n])
+    ]
+    rep = authoritative[0] if authoritative else (matches[0] if matches else start)
+    return {
+        "LineNumber": rep + 1,
+        "MatchedLine": log_lines[rep].strip(),
+        "Context": "\n".join(log_lines[start : end + 1]),
+        "StartLine": start + 1,
+        "EndLine": end + 1,
+    }
+
+
 def get_failure_snippets(
     log_lines: list[str], context_lines: int, max_lines: int,
-) -> list[dict]:
-    """Extract failure snippets from log content with context."""
-    snippets: list[dict] = []
-    total_extracted = 0
-    i = 0
+) -> list[dict[str, object]]:
+    """Extract failure snippets, prioritizing authoritative verdicts.
 
-    while i < len(log_lines) and total_extracted < max_lines:
-        line = log_lines[i]
-        if _COMBINED_PATTERN.search(line):
-            start = max(0, i - context_lines)
-            end = min(len(log_lines) - 1, i + context_lines)
-
-            snippet_lines = log_lines[start : end + 1]
-            lines_available = max_lines - total_extracted
-            if len(snippet_lines) > lines_available:
-                snippet_lines = snippet_lines[:lines_available]
-
-            snippets.append({
-                "LineNumber": i + 1,
-                "MatchedLine": line.strip(),
-                "Context": "\n".join(snippet_lines),
-                "StartLine": start + 1,
-                "EndLine": start + len(snippet_lines),
-            })
-
-            total_extracted += len(snippet_lines)
-            i = end + 1
-        else:
-            i += 1
-
-    return snippets
+    GitHub Actions echoes a step's own ``run:`` source at the top of the log.
+    Weak word matches inside that echoed source used to consume the whole
+    ``max_lines`` budget before the scan reached the real verdict near the tail
+    (issue #3113). Matches are now ranked (authoritative markers first, then
+    later-in-log before earlier), claimed within budget, and overlapping
+    windows merged, so the authoritative failure always lands in the snippet.
+    Authoritative snippets are returned before weak ones.
+    """
+    ranked = _rank_matches(log_lines)
+    claimed = _claim_lines(ranked, len(log_lines), context_lines, max_lines)
+    if not claimed:
+        return []
+    runs = _group_runs(sorted(claimed))
+    runs.sort(key=lambda r: (0 if _run_has_authoritative(r, log_lines) else 1, r[0]))
+    return [_run_to_snippet(start, end, log_lines) for start, end in runs]
 
 
 def fetch_workflow_run_logs(

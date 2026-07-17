@@ -255,7 +255,10 @@ def test_main_returns_external_error_on_unreadable_output_parent(tmp_path: Path)
     output_path.write_text("not a directory", encoding="utf-8")
 
     # Act
-    code = gac.main(["--templates-path", str(templates_dir), "--output", str(output_path / "out.md")])
+    code = gac.main([
+        "--templates-path", str(templates_dir),
+        "--output", str(output_path / "out.md"),
+    ])
 
     # Assert
     assert code == 3
@@ -288,7 +291,9 @@ def test_relative_templates_path_resolves_from_repo_root() -> None:
     assert output_path == REPO_ROOT / "docs" / "agent-catalog.md"
 
 
-def test_validator_returns_config_error_when_generator_import_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_validator_returns_config_error_when_generator_import_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # Arrange
     import builtins
 

@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3056,
+    "date": "2026-07-16",
+    "branch": "fix/dispatcher-oversize-allow-unmatched-3074",
+    "startingCommit": "4443a7b38",
+    "objective": "Merge and close PR 3097 dispatcher payload ceiling"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP project context active; list_memories returned the ai-agents project index"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; confirmed it is read-only per ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts domains; continued the invoked pr-autofix and merge-resolver workflows"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena memory usage-mandatory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed Serena memories and read usage-mandatory plus copilot-hook-generation-invariants"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/dispatcher-oversize-allow-unmatched-3074"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/dispatcher-oversize-allow-unmatched-3074"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified merge in progress on fix/dispatcher-oversize-allow-unmatched-3074 with no unmerged paths"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4443a7b38"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session items complete before the final record commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git diff origin/main -- .agents/HANDOFF.md exited 0; HANDOFF remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Recorded the two-limit, all-candidate contract established in this session. Session 3058 records the later 256-entry raw toolCalls cap and final rationale."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The direct markdownlint command exited 0, but repository exclusions meant the QA and Serena files were not scanned. Session 3058 records the corrected explicit-file check."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This session's source, tests, generated artifacts, QA, memory, and records were committed through ea562b277112b2f53c8573256cd81017ebcc0d72. Later hardening is recorded in session 3058."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Point-in-time validation for this session: uv run pytest tests/ -q: 14434 passed, 21 test skips, 45 expected failures; uv run pytest tests/build_scripts -q: 839 passed, 1 test skip; focused dispatcher and hook suite: 225 passed, 1 test skip. Ruff, mypy, build_all.py --check, manifest parity, pre_pr.py, live Copilot hook smoke, code review, security review, and independent QA passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Todo pr-3097 remains in progress through push, CI, review-thread resolution, and merge"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped. Stop-hook defect #3140 repeatedly generated unfilled retrospective skeletons and modified the index during subagent completion."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-16T21:40:00Z",
+      "action": "Merged current origin/main and resolved dispatcher conflicts",
+      "result": "Preserved main safety checks, reapplied the 64 MiB ceiling, and set both plugin manifests to 0.6.47"
+    },
+    {
+      "timestamp": "2026-07-16T21:55:00Z",
+      "action": "Strengthened dispatcher boundary coverage",
+      "result": "Added exact-ceiling allow, one-byte-over deny and observe, full below-ceiling dispatch, UTF-8 read, and payload non-disclosure assertions"
+    },
+    {
+      "timestamp": "2026-07-16T22:09:00Z",
+      "action": "Regenerated and validated owned artifacts",
+      "result": "Build scripts 828 passed and 1 skipped; generation, manifest parity, Ruff, mypy, and pre_pr.py passed"
+    },
+    {
+      "timestamp": "2026-07-16T22:18:00Z",
+      "action": "Ran live plugin, code, and security reviews",
+      "result": "Copilot vendor hook smoke passed; independent reviewers found no correctness or medium-or-higher security blocker"
+    },
+    {
+      "timestamp": "2026-07-16T22:24:00Z",
+      "action": "Diagnosed full-suite failures during MERGE_HEAD",
+      "result": "14407 tests passed; 16 failures reproduced as live git-state test isolation defects and passed on detached current main; GitHub authentication expired before the issues could be filed"
+    },
+    {
+      "timestamp": "2026-07-16T22:29:00Z",
+      "action": "Committed the merge and reran the full suite without MERGE_HEAD",
+      "result": "Merge commit 37cad6f6c completed; 14423 passed, 21 skipped, and 45 expected failures"
+    },
+    {
+      "timestamp": "2026-07-17T00:51:00Z",
+      "action": "Reproduced the late code-review blocker: generated matcher shims rejected input above 2 MiB before matcher classification; a real 5 MiB apply_patch call exited 2.",
+      "result": "Confirmed the defect with a direct subprocess probe against the generated shim, matching the reviewer's report"
+    },
+    {
+      "timestamp": "2026-07-17T00:51:00Z",
+      "action": "Fixed matcher input policy: shared 64 MiB classification ceiling, 2 MiB per matched canonical replay, unrelated sibling exclusion, SystemExit normalization, and first non-zero stop.",
+      "result": "Unmatched payloads above 2 MiB and at or below 64 MiB now exit 0; matched replays enforce the 2 MiB limit only after selection"
+    },
+    {
+      "timestamp": "2026-07-17T00:51:00Z",
+      "action": "Closed the security review blocker: shims now evaluate every matching toolCalls candidate in order, so a benign first call cannot hide a later dangerous call.",
+      "result": "Independent security re-review found no remaining blocker"
+    },
+    {
+      "timestamp": "2026-07-17T00:51:00Z",
+      "action": "Completed this session's evidence and tooling reports: 14434 full-suite passes, QA PASS, no security or code-review blockers; filed #3137, #3138, #3139, #3140, #3141, and #3142 with repro evidence.",
+      "result": "Recorded in the QA report and filed issues. Session 3058 supersedes the final-state counts."
+    }
+  ],
+  "endingCommit": "ea562b277112b2f53c8573256cd81017ebcc0d72",
+  "nextSteps": [
+    "Continue in session 3058 for the 256-entry cap, final review, push, CI, and merge."
+  ]
+}

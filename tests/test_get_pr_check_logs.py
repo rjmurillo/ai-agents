@@ -51,6 +51,28 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
+def _pr3076_shaped_log() -> list[str]:
+    """Synthesize the PR #3076 Reliability Review log shape (issue #3113).
+
+    Early echoed workflow source and an action input match failure words near
+    the top; the authoritative verdict, exit code, and process-exit marker
+    appear far down a 1180+ line log. Reproduces the budget-exhaustion bug.
+    """
+    lines = [f"setup step {i}" for i in range(150)]
+    lines.append('echo "::error::Invalid agent name: $AGENT"')
+    lines += [f"config line {i}" for i in range(59)]
+    lines.append("fail-on-cache-miss: false")
+    lines += [f"more config {i}" for i in range(30)]
+    lines.append('echo "::error::copilot command not found after installation"')
+    lines += [f"progress {i}" for i in range(len(lines), 662)]
+    lines.append("Verdict: CRITICAL_FAIL")
+    lines.append("Review detail line")
+    lines.append("Exit Code: 1")
+    lines += [f"teardown {i}" for i in range(len(lines), 1181)]
+    lines.append("##[error]Process completed with exit code 1")
+    return lines
+
+
 # ---------------------------------------------------------------------------
 # Tests: URL parsing
 # ---------------------------------------------------------------------------
@@ -120,6 +142,52 @@ class TestGetFailureSnippets:
         assert len(snippets) == 1
         assert "before1" in snippets[0]["Context"]
         assert "after2" in snippets[0]["Context"]
+
+    def test_late_verdict_survives_early_echoed_source(self):
+        # Regression for #3113 (PR #3076 shape): echoed workflow source and an
+        # action input near the top match failure words; the real verdict and
+        # exit code sit ~660 lines down a 1180+ line log. The bounded snippet
+        # must still surface the verdict and exit code, not the echoed source.
+        lines = _pr3076_shaped_log()
+        snippets = get_failure_snippets(lines, context_lines=30, max_lines=160)
+        combined = "\n".join(s["Context"] for s in snippets)
+        assert "Verdict: CRITICAL_FAIL" in combined
+        assert "Exit Code: 1" in combined
+
+    def test_authoritative_verdict_is_root_not_echoed_source(self):
+        # Criterion: `fail-on-cache-miss: false` and echoed `echo "::error::"`
+        # must not be the primary (root) snippet when a real verdict exists.
+        lines = _pr3076_shaped_log()
+        snippets = get_failure_snippets(lines, context_lines=30, max_lines=160)
+        assert _mod._AUTHORITATIVE_PATTERN.search(snippets[0]["MatchedLine"])
+        assert "fail-on-cache-miss" not in snippets[0]["Context"]
+
+    def test_budget_respected_with_late_verdict(self):
+        lines = _pr3076_shaped_log()
+        snippets = get_failure_snippets(lines, context_lines=30, max_lines=160)
+        total = sum(len(s["Context"].splitlines()) for s in snippets)
+        assert total <= 160
+
+    def test_late_failure_survives_many_early_matches(self):
+        # Criterion: a real failure in the final quarter stays visible when
+        # setup text holds more than three earlier failure-pattern matches.
+        lines = [f"error in setup step {i}" for i in range(20)]
+        lines += [f"progress {i}" for i in range(300)]
+        lines.append("error: the real late failure")
+        lines += [f"teardown {i}" for i in range(10)]
+        snippets = get_failure_snippets(lines, context_lines=5, max_lines=40)
+        combined = "\n".join(s["Context"] for s in snippets)
+        assert "the real late failure" in combined
+
+    def test_overlapping_windows_are_merged(self):
+        # Criterion: overlapping selected windows are merged/deduplicated.
+        lines = ["ok line"] * 12
+        lines[4] = "error one"
+        lines[6] = "error two"
+        snippets = get_failure_snippets(lines, context_lines=3, max_lines=100)
+        assert len(snippets) == 1
+        assert "error one" in snippets[0]["Context"]
+        assert "error two" in snippets[0]["Context"]
 
 
 # ---------------------------------------------------------------------------
