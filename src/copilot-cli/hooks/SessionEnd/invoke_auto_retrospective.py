@@ -666,6 +666,24 @@ def _release_daily_claim(project_dir: Path, today: str) -> None:
         )
 
 
+def _is_claim_stale(project_dir: Path, today: str, stale_threshold_seconds: float = 60.0) -> bool:
+    """Return True if today's claim file is older than the threshold.
+
+    Used to detect orphan claims from processes killed (SIGKILL, power loss)
+    or where _release_daily_claim failed. Normal retro generation takes < 1
+    second, so a 60-second threshold safely distinguishes orphan claims from
+    active ones without risking a race with a concurrent healthy run.
+    """
+    claim = _daily_claim_path(project_dir, today)
+    try:
+        mtime = claim.stat().st_mtime
+        now = datetime.now(tz=UTC).timestamp()
+        age = now - mtime
+        return age > stale_threshold_seconds
+    except OSError:
+        return False  # Can't stat; assume not stale (fail-open)
+
+
 def _create_retro_and_prompt(project_dir: Path, today: str) -> int:
     """Write the skeleton, audit and index it, and prompt the model to fill it.
 
@@ -829,6 +847,25 @@ def main() -> int:
     # create the skeleton, index a row, and emit a fill prompt (Issue #3140).
     # The winner releases it in the finally so a failure does not lock the day.
     if not _acquire_daily_claim(project_dir, today):
+        # Stale-claim recovery: if the claim exists but no retro does, a prior
+        # run may have been killed (SIGKILL, power loss) or _release_daily_claim
+        # failed. If the claim is old enough (>60s), remove it and retry once.
+        # Without this, the day would be locked out until the next UTC day.
+        if not has_retro_today(retro_dir, today) and _is_claim_stale(project_dir, today):
+            _release_daily_claim(project_dir, today)
+            if _acquire_daily_claim(project_dir, today):
+                # Won the claim after stale recovery; proceed to create retro.
+                try:
+                    return _create_retro_and_prompt(project_dir, today)
+                finally:
+                    _release_daily_claim(project_dir, today)
+            # Lost the race after cleanup; another run will handle it.
+            write_audit_log(
+                project_dir,
+                "skipped",
+                skip_reason="concurrent create claim held (after stale recovery)",
+            )
+            return 0
         write_audit_log(
             project_dir,
             "skipped",
