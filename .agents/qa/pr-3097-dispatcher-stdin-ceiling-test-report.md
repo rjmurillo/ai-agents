@@ -10,7 +10,7 @@ branch diff, including the shared 64 MiB raw-input ceiling, 2 MiB per-matched
 replay ceiling, and 256-entry raw `toolCalls` cap.
 
 **Diff stat (calculated independently in this session):** 50 files changed,
-4588 insertions(+), 1978 deletions(-).
+4597 insertions(+), 1978 deletions(-).
 
 File breakdown:
 
@@ -50,7 +50,8 @@ Promised: One source of truth (HOOK_STDIN_CEILING_MIB = 64) drives both dispatch
           byte limit, without payload bytes. The raw toolCalls list is capped
           at 256 entries before filtering or guard execution; invalid entries
           count. Batched entries are canonical over conflicting top-level
-          fields. Wrapped direct SystemExit values
+          fields. Candidate selection is lazy and does not build a second
+          candidate list. Wrapped direct SystemExit values
           normalize as None=0, int unchanged, non-int=1. First non-zero matched
           candidate stops the shim; all allowed matches return 0. The final
           PreToolUse dispatcher plus the real 27-shim manifest allow a
@@ -85,7 +86,9 @@ Delivered: HOOK_STDIN_CEILING_MIB = 64 is defined once in generate_hooks_shim.py
           batched command evaluates the batched command and exits 2. Exactly
           256 raw toolCalls entries are accepted; 257 entries exit 2 before
           the guard runs. The same 257-entry denial applies when every entry
-          is invalid.
+          is invalid. Source inspection confirms `_shim_candidate_payloads` and
+          `_shim_select_payloads` yield candidates, while
+          `_shim_dispatch_selections` delegates with `yield from`.
           _shim_exit_code/_exit_code in both generate_hooks_shim.py and
           hook_dispatch.py normalize None to 0, pass ints through, and map
           non-int codes to 1, matching source read in this session.
@@ -112,7 +115,7 @@ Result: PASS
 | `build_all.py --check --platform copilot-cli` | exit 0, 0 drift |
 | `check_plugin_manifest_parity.py` | exit 0, both manifests at 0.6.47 |
 | Direct subprocess probes | Every listed boundary confirmed against final generated artifacts |
-| Diff stat (independently calculated) | 50 files changed, 4588 insertions(+), 1978 deletions(-) |
+| Diff stat (independently calculated) | 50 files changed, 4597 insertions(+), 1978 deletions(-) |
 
 ## Test Results
 
@@ -190,6 +193,7 @@ None.
 | Mixed-schema precedence | Subprocess exec, real shim | Dangerous batched command overrides benign top-level command and exits 2; `test_inject_shim_mixed_schema_top_level_fields_do_not_bypass_toolcalls_selection` | PASS |
 | Raw candidate cap | Subprocess exec, real shim | 256 entries accepted; 257 entries denied before guard execution | PASS |
 | Invalid entries count toward cap | Generated-shim execution | 257 non-dict entries denied; `test_inject_shim_toolcalls_candidate_cap_denies_257_invalid_entries` | PASS |
+| Lazy candidate traversal | Source inspection and generated-shim execution | `_shim_candidate_payloads` and `_shim_select_payloads` yield candidates; `_shim_dispatch_selections` uses `yield from` | PASS |
 | Unrelated large sibling excluded from replay | Subprocess exec, real shim | 3 MiB unmatched Bash + small matched Edit, guard invoked once, rc=0; `test_inject_shim_replays_small_match_from_large_multi_call_event` | PASS |
 | Malformed JSON | Subprocess exec, real shim | `{not valid json`, rc=2, decode-error message, no raw bytes echoed | PASS |
 | No payload disclosure | Negative assertion on stdout/stderr across all probes | Marker/padding bytes absent in every oversize/malformed/matched-deny run | PASS |

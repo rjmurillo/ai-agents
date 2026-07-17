@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused five-file suite: 229 passed, 1 intentional exclusion. Build-script suite: 843 passed, 1 intentional exclusion. Full suite: 14438 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff passed. mypy: Success: no issues found in 2 source files. Manifest parity at 0.6.47. Live generated-shim probe: mixed schema rc=2, 256 entries rc=0, 257 entries rc=2, no payload disclosure."
+        "Evidence": "Focused five-file suite: 229 passed, 1 intentional exclusion. Build-script suite: 843 passed, 1 intentional exclusion. Full suite: 14438 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff passed. mypy: Success: no issues found in 2 source files. Manifest parity at 0.6.47. Live generated-shim probe: mixed schema rc=2, 256 entries rc=0, 257 entries rc=2, no payload disclosure. Final QA re-review passed after the lazy-traversal evidence update."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -133,6 +133,11 @@
       "timestamp": "2026-07-17T05:13:48Z",
       "action": "Completed the 15-axis review and corrected its documentation findings",
       "result": "Runtime and security axes passed. QA and decision-rigor findings were resolved by refreshing final counts and recording the separate 64 MiB, 2 MiB, and 256-entry rationales plus the rejected streaming-prefilter alternative. Generated-wrapper size heuristics remain advisory."
+    },
+    {
+      "timestamp": "2026-07-17T05:20:58Z",
+      "action": "Closed the final QA documentation gap",
+      "result": "The QA report now cites lazy candidate traversal through _shim_candidate_payloads, _shim_select_payloads, and _shim_dispatch_selections. QA re-review returned PASS."
     }
   ],
   "endingCommit": "433029e36f79250293c1f62a74c352356450eb8c",
