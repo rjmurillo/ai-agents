@@ -671,7 +671,7 @@ def _original_main(stdin_bytes):
             # is down, degrade to ALLOW with a one-time warning rather than block a
             # grep the agent cannot replace with a (dead) symbol query (ADR-062
             # Section 5, release-it.md graceful degradation).
-            if lsp_runtime_down():
+            if lsp_runtime_down(project_dir):
                 warn_once_lsp_down("lsp-bash-grep-guard", project_dir)
                 return 0
 

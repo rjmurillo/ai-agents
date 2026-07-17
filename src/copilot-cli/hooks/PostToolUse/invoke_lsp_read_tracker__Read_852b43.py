@@ -307,7 +307,7 @@ def _original_main(stdin_bytes):
             # allowed without gating, so we must not track them either. Otherwise
             # tier state advances during degraded mode and hard-blocks resume when
             # the LSP recovers (issue #2622).
-            if lsp_runtime_down():
+            if lsp_runtime_down(get_project_directory()):
                 return 0
 
             if sys.stdin.isatty():
