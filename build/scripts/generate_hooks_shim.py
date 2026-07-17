@@ -298,6 +298,19 @@ def _shim_validate_tool_name(name, field):
     return name
 
 
+def _shim_top_level_candidate(payload):
+    name_fields = [key for key in ("tool_name", "toolName") if key in payload]
+    if not name_fields:
+        raise ValueError("hook input missing string `tool_name`/`toolName` field")
+    names = [
+        _shim_validate_tool_name(payload[field], field)
+        for field in name_fields
+    ]
+    if len(names) == 2 and names[0] != names[1]:
+        raise ValueError("conflicting top-level tool_name/toolName values")
+    return payload, _shim_top_level_input_field(payload)
+
+
 def _shim_candidate_payloads(payload):
     if "toolCalls" in payload:
         tool_calls = payload["toolCalls"]
@@ -342,18 +355,7 @@ def _shim_candidate_payloads(payload):
                 candidate["tool_call_id"] = call.get("id")
             yield candidate, "toolCalls.args"
         return
-    name_fields = [
-        field for field in ("tool_name", "toolName") if field in payload
-    ]
-    if not name_fields:
-        raise ValueError("hook input missing string `tool_name`/`toolName` field")
-    names = [
-        _shim_validate_tool_name(payload[field], field)
-        for field in name_fields
-    ]
-    if len(names) == 2 and names[0] != names[1]:
-        raise ValueError("conflicting top-level tool_name/toolName values")
-    yield payload, _shim_top_level_input_field(payload)
+    yield _shim_top_level_candidate(payload)
 
 
 def _shim_match_candidate(payload, kind, params):
