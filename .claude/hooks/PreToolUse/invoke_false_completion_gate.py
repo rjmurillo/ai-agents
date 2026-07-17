@@ -266,11 +266,17 @@ def _is_completion_claim(text: str) -> bool:
 def _extract_commit_message_file(command: str) -> str | None:
     """Extract the filename from a `git commit -F <file>` command.
 
-    Returns the file path if found, otherwise None.
+    Returns the file path if found, otherwise None. A literal ``-`` denotes a
+    message read from stdin (e.g. a heredoc), not a file path, so it returns
+    None and routes the command to the command-string completion check rather
+    than inferring a claim from an unreadable "file" named ``-`` (issue #3089).
     """
     match = re.search(r"(?:^|\s)git\s+(?:commit|ci)\s+.*?(?:-F|--file)[=\s]+([^\s]+)", command)
     if match:
-        return match.group(1).strip("'\"")
+        token = match.group(1).strip("'\"")
+        if token == "-":
+            return None
+        return token
     return None
 
 
@@ -377,11 +383,16 @@ def _is_completion_claim_in_message_file(command: str) -> tuple[bool, bool]:
 def _extract_pr_body_file(command: str) -> str | None:
     """Extract the filename from a `gh pr create --body-file <file>` command.
 
-    Returns the file path if found, otherwise None.
+    Returns the file path if found, otherwise None. A literal ``-`` denotes a
+    body read from stdin, not a file path, so it returns None and routes the
+    command to the command-string completion check (issue #3089).
     """
     match = re.search(r"(?:^|\s)gh\s+pr\s+create\s+.*?(?:--body-file|-F)[=\s]+([^\s]+)", command)
     if match:
-        return match.group(1).strip("'\"")
+        token = match.group(1).strip("'\"")
+        if token == "-":
+            return None
+        return token
     return None
 
 
@@ -720,7 +731,12 @@ def main() -> None:
                 yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
                 if yesterday_logs:
                     if _has_verification_evidence_across_logs(yesterday_logs):
-                        _write_audit_log(project_dir, command, "ALLOW", "verification evidence found (yesterday)")
+                        _write_audit_log(
+                            project_dir,
+                            command,
+                            "ALLOW",
+                            "verification evidence found (yesterday)",
+                        )
                         sys.exit(0)
                     # Yesterday logs exist but lack evidence; fall through to block.
                 else:

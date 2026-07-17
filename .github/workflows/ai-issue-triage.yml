@@ -329,109 +329,12 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          # Get priority emoji
-          $priorityEmoji = switch ($env:PRIORITY) {
-            'P0' { '' }
-            'P1' { '' }
-            'P2' { '' }
-            'P3' { '' }
-            default { '' }
-          }
-
-          # Determine PRD status
-          $prdRow = if ($env:ESCALATE_TO_PRD -eq 'true') {
-            "| **PRD Escalation** | Generated (see below) |"
-          } else {
-            ""
-          }
-
-          # Determine feature review status
-          $featureReviewRow = if ($env:FEATURE_REVIEW -and $env:FEATURE_REVIEW -ne 'UNKNOWN') {
-            "| **Feature Review** | ``$($env:FEATURE_REVIEW)`` |"
-          } else {
-            ""
-          }
-
-          # Get analysis outputs
-          $categorizeOutput = if (Test-Path /tmp/categorize-output.txt) {
-            Get-Content /tmp/categorize-output.txt -Raw
-          } else { "N/A" }
-
-          $alignOutput = if (Test-Path /tmp/align-output.txt) {
-            Get-Content /tmp/align-output.txt -Raw
-          } else { "N/A" }
-
-          $featureReviewOutput = if (Test-Path /tmp/feature-review-output.txt) {
-            Get-Content /tmp/feature-review-output.txt -Raw
-          } else { "" }
-
-          $labelsDisplay = if ($env:LABELS) { $env:LABELS } else { "*None assigned*" }
-          $milestoneDisplay = if ($env:MILESTONE) { $env:MILESTONE } else { "*Not assigned*" }
-
-          $triageComment = @"
-          <!-- AI-ISSUE-TRIAGE -->
-
-          ## AI Triage Summary
-
-          > [!NOTE]
-          > This issue has been automatically triaged by AI agents
-
-          <details>
-          <summary>What is AI Triage?</summary>
-
-          This issue was analyzed by AI agents:
-
-          - **Analyst Agent**: Categorizes the issue and suggests appropriate labels
-          - **Roadmap Agent**: Aligns the issue with project milestones and priorities
-          - **Explainer Agent** (if escalated): Generates comprehensive PRD
-
-          </details>
-
-          ### Triage Results
-
-          | Property | Value |
-          |:---------|:------|
-          | **Category** | ``$($env:CATEGORY)`` |
-          | **Labels** | $labelsDisplay |
-          | $priorityEmoji **Priority** | ``$($env:PRIORITY)`` |
-          | **Milestone** | $milestoneDisplay |
-          $featureReviewRow
-          $prdRow
-
-          <details>
-          <summary>Categorization Analysis</summary>
-
-          ``````json
-          $categorizeOutput
-          ``````
-
-          </details>
-
-          <details>
-          <summary>Roadmap Alignment</summary>
-
-          ``````json
-          $alignOutput
-          ``````
-
-          </details>
-
-          $(if ($featureReviewOutput) { @"
-
-          <details>
-          <summary>Feature Request Review</summary>
-
-          $featureReviewOutput
-
-          </details>
-          "@ })
-
-          ---
-
-          <sub>Powered by [AI Issue Triage](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
-          "@
-
-          $triageComment | Set-Content /tmp/triage-comment.md -Encoding UTF8
+          # Assemble the triage comment. ADR-006: the here-string assembly
+          # logic moved to scripts/ci/build_triage_summary_comment.py
+          # (byte-for-byte tested in
+          # tests/ci/test_build_triage_summary_comment.py).
+          python3 scripts/ci/build_triage_summary_comment.py --output /tmp/triage-comment.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           # Post comment via Python script (ADR-042 migration)
           python3 .github/scripts/run_with_retry.py -- `

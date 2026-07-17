@@ -43,12 +43,11 @@ _REPO = Path(__file__).resolve().parents[2]
 _PLUGIN_ROOT = _REPO / "src" / "copilot-cli"
 _DISPATCH = _PLUGIN_ROOT / "hooks" / "PreToolUse" / "_dispatch.py"
 
-_MAX_STDIN_BYTES = 2 * 1024 * 1024
+_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES = 2 * 1024 * 1024
 
-# A small representative apply_patch payload, well under the 2 MiB stdin cap (the
-# #3074 recording was about 1,659 bytes; this fixture is smaller and not a
-# byte-exact copy, which does not matter: any sub-cap payload with no matching
-# shim returns 0). This is the Copilot host event shape: sessionId, cwd, and a
+# A small representative apply_patch payload, well under the matched replay
+# limit. Its exact bytes do not matter because no matcher selects apply_patch.
+# This is the Copilot host event shape: sessionId, cwd, and a
 # toolCalls entry whose name is apply_patch. It carries no top-level tool_name,
 # exactly as the recorded data.input did, so every matcher shim skips it.
 _RECORDED_HOST_EVENT: dict[str, object] = {
@@ -106,7 +105,9 @@ def _run_dispatch(
 )
 def test_small_apply_patch_payload_allows(payload: dict[str, object], tmp_path: Path) -> None:
     raw = json.dumps(payload).encode("utf-8")
-    assert len(raw) < _MAX_STDIN_BYTES, "fixture must stay under the dispatcher cap"
+    assert len(raw) < _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES, (
+        "fixture must stay under the matched replay limit"
+    )
 
     proc = _run_dispatch(raw, _PLUGIN_ROOT, tmp_path)
 
@@ -118,12 +119,62 @@ def test_small_apply_patch_payload_allows(payload: dict[str, object], tmp_path: 
     )
 
 
+def test_oversized_unmatched_apply_patch_payload_allows(tmp_path: Path) -> None:
+    payload = {
+        "sessionId": "regression-3074-unmatched",
+        "cwd": "consumer-repo",
+        "toolCalls": [
+            {
+                "id": "call_apply_patch_large",
+                "name": "apply_patch",
+                "args": "P" * (_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES + 1),
+            }
+        ],
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    assert len(raw) > _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES
+
+    proc = _run_dispatch(raw, _PLUGIN_ROOT, tmp_path)
+
+    assert proc.returncode == 0, proc.stderr.decode(
+        "utf-8", errors="replace"
+    )
+    assert b"P" * 4096 not in proc.stdout
+    assert b"P" * 4096 not in proc.stderr
+
+
+def test_oversized_matched_edit_payload_denies_with_context(tmp_path: Path) -> None:
+    payload = {
+        "sessionId": "regression-3074-matched",
+        "cwd": "consumer-repo",
+        "toolCalls": [
+            {
+                "id": "call_edit_large",
+                "name": "Edit",
+                "args": "E" * (_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES + 1),
+            }
+        ],
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    assert len(raw) > _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES
+
+    proc = _run_dispatch(raw, _PLUGIN_ROOT, tmp_path)
+
+    stderr = proc.stderr.decode("utf-8", errors="replace")
+    assert proc.returncode == 2
+    assert "^(Write|Edit)$" in stderr
+    assert "toolCalls.args" in stderr
+    assert str(_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES) in stderr
+    for stream in (proc.stdout, proc.stderr):
+        assert b"E" * 4096 not in stream
+
+
 def test_harness_observes_nonzero_exit(tmp_path: Path) -> None:
     # Teeth for the positive assertion: point the plugin root at a directory that
     # is not a plugin so the bootstrap fails closed (exit 2). This proves the same
     # subprocess harness surfaces a non-zero exit, so ``assert rc == 0`` above is
-    # not vacuous. It deliberately avoids the 2 MiB cap path, which issue #3074 is
-    # changing, so this guard does not couple to that in-flight work.
+    # not vacuous. It deliberately keeps the recorded payload small so this
+    # negative control isolates bootstrap failure rather than payload size.
     raw = json.dumps(_RECORDED_HOST_EVENT).encode("utf-8")
 
     proc = _run_dispatch(raw, tmp_path, tmp_path)
