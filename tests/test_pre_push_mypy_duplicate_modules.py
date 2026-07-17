@@ -326,7 +326,11 @@ def test_pre_push_fails_closed_when_colliding_file_mypy_fails(tmp_path: Path) ->
     assert result.returncode == 1, output
     assert "forced mypy failure for pkg_b/foo.py" in output
     assert "ERROR: Python type check/mypy" in output
-    assert "PASS: Python type check/mypy (3 files)" not in output
+    # Intent: on failure there must be no mypy PASS label at all. Assert on the
+    # stable prefix, not the fixture's file count ("3 files"), so a change to
+    # _make_hook_repo() cannot let a mistaken PASS line with a different count
+    # slip through.
+    assert "PASS: Python type check/mypy" not in output
 
 
 # ---------------------------------------------------------------------------
