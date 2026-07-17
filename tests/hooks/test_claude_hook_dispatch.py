@@ -350,7 +350,13 @@ def _entry_env(extra: dict[str, str] | None = None) -> dict[str, str]:
 
 def test_entry_unknown_group_fails_loud():
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "no-such-group"],
+        [
+            sys.executable,
+            "-u",
+            ".claude/hooks/invoke_dispatch_claude.py",
+            "--group",
+            "no-such-group",
+        ],
         cwd=REPO_ROOT,
         env=_entry_env(),
         input=b"{}",
@@ -367,7 +373,13 @@ def test_entry_plugin_self_host_bails_fast(tmp_path):
     # it: CLAUDE_PLUGIN_ROOT points at this repo's .claude tree and the
     # project dir is the repo itself.
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "no-such-group"],
+        [
+            sys.executable,
+            "-u",
+            ".claude/hooks/invoke_dispatch_claude.py",
+            "--group",
+            "no-such-group",
+        ],
         cwd=REPO_ROOT,
         env=_entry_env(
             {
@@ -389,7 +401,13 @@ def test_entry_plugin_outside_publisher_repo_runs(tmp_path):
     # Same plugin root, but the project dir is a plain consumer directory:
     # the dispatcher must NOT bail (and then fails loud on the bogus group).
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "no-such-group"],
+        [
+            sys.executable,
+            "-u",
+            ".claude/hooks/invoke_dispatch_claude.py",
+            "--group",
+            "no-such-group",
+        ],
         cwd=REPO_ROOT,
         env=_entry_env(
             {
@@ -408,12 +426,18 @@ def test_entry_plugin_outside_publisher_repo_runs(tmp_path):
 # --- runtime contract (real group, real shims, real payload) ----------------
 
 
-def test_runtime_contract_benign_bash_allows():
-    payload = json.dumps(
-        {"tool_name": "Bash", "tool_input": {"command": "echo hook-dispatch-smoke"}}
-    ).encode("utf-8")
+def test_runtime_contract_prompt_group_allows():
+    # Real manifest, real shims: the UserPromptSubmit group is advisory
+    # and must allow a benign prompt (plain-text context on stdout).
+    payload = json.dumps({"prompt": "hello"}).encode("utf-8")
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "pretooluse-bash"],
+        [
+            sys.executable,
+            "-u",
+            ".claude/hooks/invoke_dispatch_claude.py",
+            "--group",
+            "userpromptsubmit-1-serena_reassertion",
+        ],
         cwd=REPO_ROOT,
         env=_entry_env(),
         input=payload,
@@ -422,19 +446,23 @@ def test_runtime_contract_benign_bash_allows():
         check=False,
     )
     assert result.returncode == 0, result.stderr.decode(errors="replace")
-    stdout = result.stdout.decode(errors="replace").strip()
-    if stdout:
-        json.loads(stdout)  # single valid JSON document or nothing
 
 
-def test_runtime_contract_raw_gh_pr_view_blocks():
-    # Negative control: the skill-first guard must still block raw gh
-    # through the dispatcher, proving group members really execute.
+def test_runtime_contract_force_push_to_main_blocks():
+    # Negative control: branch protection must still block a force-push
+    # to main through the push-chain group, proving group members really
+    # execute under the live manifest.
     payload = json.dumps(
-        {"tool_name": "Bash", "tool_input": {"command": "gh pr view 1"}}
+        {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}}
     ).encode("utf-8")
     result = subprocess.run(
-        [sys.executable, "-u", ".claude/hooks/invoke_dispatch_claude.py", "--group", "pretooluse-bash"],
+        [
+            sys.executable,
+            "-u",
+            ".claude/hooks/invoke_dispatch_claude.py",
+            "--group",
+            "pretooluse-2-branch_context_guard",
+        ],
         cwd=REPO_ROOT,
         env=_entry_env(),
         input=payload,
