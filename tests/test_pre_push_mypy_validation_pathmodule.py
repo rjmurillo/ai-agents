@@ -76,12 +76,12 @@ def test_pathmodule_loop_sets_mypypath_and_is_per_file() -> None:
     )
     # Single-file invocation inside the loop (never batched). Issue #3132/#3150
     # resolves mypy via uv first, so the invocation prefix is the
-    # "${MYPY_CMD[@]}" array rather than a bare ``mypy``.
-    assert (
-        '"${MYPY_CMD[@]}" "$pm_file"' in text
-        or 'mypy "$pm_file"' in text
-    ), (
-        "Expected the pathmodule loop to invoke mypy on one file at a time."
+    # "${MYPY_CMD[@]}" array rather than a bare ``mypy``. pre-push now
+    # unconditionally uses the array, so require it: a regression back to a
+    # bare PATH-only ``mypy`` must fail this mirror test.
+    assert '"${MYPY_CMD[@]}" "$pm_file"' in text, (
+        "Expected the pathmodule loop to invoke the uv-first ${MYPY_CMD[@]} "
+        "array on one file at a time (Issue #3132/#3150)."
     )
 
 
@@ -91,11 +91,11 @@ def test_unique_and_colliding_buckets_preserved() -> None:
     assert "PY_FILES_UNIQUE" in text
     assert "PY_FILES_COLLIDING" in text
     # Issue #3132/#3150: mypy resolved via uv first -> "${MYPY_CMD[@]}" prefix.
-    assert (
-        '"${MYPY_CMD[@]}" "${PY_FILES_UNIQUE[@]}"' in text
-        or 'mypy "${PY_FILES_UNIQUE[@]}"' in text
-    ), (
-        "Expected the bulk unique-basename mypy invocation to remain."
+    # pre-push always uses the array for the bulk unique-basename call, so
+    # require it; a regression to PATH-only ``mypy`` must fail this test.
+    assert '"${MYPY_CMD[@]}" "${PY_FILES_UNIQUE[@]}"' in text, (
+        "Expected the bulk unique-basename mypy invocation to use the "
+        "uv-first ${MYPY_CMD[@]} array (Issue #3132/#3150)."
     )
 
 

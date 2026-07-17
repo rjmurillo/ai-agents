@@ -217,15 +217,13 @@ def test_unique_files_still_bulk_checked() -> None:
 
     # Assert: mypy is called with the full PY_FILES_UNIQUE array in one bulk
     # invocation. Issue #3132/#3150 resolves the type checker via uv first, so
-    # the command prefix is the "${MYPY_CMD[@]}" array rather than a bare
-    # ``mypy``; the fast-path contract is the single array-expanded call.
-    assert (
-        '"${MYPY_CMD[@]}" "${PY_FILES_UNIQUE[@]}"' in text
-        or 'mypy "${PY_FILES_UNIQUE[@]}"' in text
-        or "mypy ${PY_FILES_UNIQUE" in text
-    ), (
-        "Expected bulk mypy invocation on PY_FILES_UNIQUE array in pre-push; "
-        "the non-colliding fast path appears to be missing"
+    # the command prefix is the "${MYPY_CMD[@]}" array. pre-push always uses
+    # the array for this fast-path call, so require it: a regression back to a
+    # bare PATH-only ``mypy`` must fail this mirror test.
+    assert '"${MYPY_CMD[@]}" "${PY_FILES_UNIQUE[@]}"' in text, (
+        "Expected bulk uv-first ${MYPY_CMD[@]} invocation on PY_FILES_UNIQUE "
+        "array in pre-push; the non-colliding fast path appears to be missing "
+        "or regressed to PATH-only mypy (Issue #3132/#3150)"
     )
 
 

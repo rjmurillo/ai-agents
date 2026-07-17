@@ -463,11 +463,37 @@ def test_runtime_contract_force_push_to_main_blocks(tmp_path):
     # allows and the block comes from branch_protection_guard.
     on_main = tmp_path / "on-main"
     on_main.mkdir()
-    subprocess.run(["git", "init", str(on_main)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", str(on_main)], check=True, capture_output=True, timeout=30
+    )
     subprocess.run(
         ["git", "-C", str(on_main), "checkout", "-b", "main"],
         check=True,
         capture_output=True,
+        timeout=30,
+    )
+    # An unborn HEAD (branch created, no commit) makes `git branch
+    # --show-current` return an empty string on some git versions, which would
+    # let branch_protection_guard fail open and reintroduce the very
+    # non-determinism this negative control exists to remove. A single empty
+    # commit gives HEAD a born ref so the branch name resolves deterministically.
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(on_main),
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "user.name=Test",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "init",
+        ],
+        check=True,
+        capture_output=True,
+        timeout=30,
     )
     payload = json.dumps(
         {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}}
