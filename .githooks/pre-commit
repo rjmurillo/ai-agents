@@ -453,7 +453,20 @@ STAGED_PY_FILES=$(echo "$STAGED_FILES" | grep -E '\.py$' || true)
 if [ -n "$STAGED_PY_FILES" ]; then
     echo_info "Checking Python files..."
 
-    if command -v ruff &> /dev/null; then
+    # Issue #3136: resolve ruff via uv first (the repository dev environment),
+    # then fall back to a PATH executable, matching the pre-push resolver. A
+    # uv-managed checkout without a global ruff must still lint at commit time
+    # rather than silently skip and defer the finding to push or CI.
+    RUFF_CMD=()
+    if command -v uv &> /dev/null \
+        && { [ -f "$REPO_ROOT/uv.lock" ] || [ -f "$REPO_ROOT/pyproject.toml" ]; } \
+        && uv run --frozen --extra dev ruff --version &> /dev/null; then
+        RUFF_CMD=(uv run --frozen --extra dev ruff)
+    elif command -v ruff &> /dev/null; then
+        RUFF_CMD=(ruff)
+    fi
+
+    if [ ${#RUFF_CMD[@]} -gt 0 ]; then
         # CRITICAL-001: Build array safely to prevent command injection
         PY_FILES=()
         while IFS= read -r file; do
@@ -465,7 +478,7 @@ if [ -n "$STAGED_PY_FILES" ]; then
             # Auto-fix if enabled
             if [ "$AUTOFIX" = "1" ]; then
                 echo_action "Auto-fixing Python files with ruff..."
-                ruff check --fix -- "${PY_FILES[@]}" 2>/dev/null || true
+                "${RUFF_CMD[@]}" check --fix -- "${PY_FILES[@]}" 2>/dev/null || true
 
                 # Re-stage fixed files even when unfixable advisory findings
                 # remain (Issue #2832). Re-staging only on a clean verify left
@@ -483,7 +496,7 @@ if [ -n "$STAGED_PY_FILES" ]; then
             fi
 
             # Verify (non-blocking)
-            if ! ruff check -- "${PY_FILES[@]}" 2>/dev/null; then
+            if ! "${RUFF_CMD[@]}" check -- "${PY_FILES[@]}" 2>/dev/null; then
                 echo_warning "Python linting found issues (non-blocking)."
                 echo_info "  Run: ruff check --fix <files>"
                 # Non-blocking: just warn, don't fail the commit
@@ -492,8 +505,8 @@ if [ -n "$STAGED_PY_FILES" ]; then
             fi
         fi
     else
-        echo_info "ruff not available. Skipping Python linting."
-        echo_info "  Install: pip install ruff"
+        echo_info "ruff not available via uv or PATH. Skipping Python linting."
+        echo_info "  Install: uv sync --extra dev (or pip install ruff)"
     fi
 else
     echo_info "No Python files staged. Skipping Python linting."
@@ -1474,7 +1487,12 @@ CAUSAL_GRAPH_FILE="$REPO_ROOT/.agents/memory/causality/causal-graph.json"
 # Check if any episode files are staged
 STAGED_EPISODE_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/memory/episodes/episode-.*\.json$' || true)
 
-if [ -n "$STAGED_EPISODE_FILES" ]; then
+# Staged DELETIONS of episode files (#3039). STAGED_FILES uses --diff-filter=ACMR
+# and so excludes deletions; a deleted episode's nodes/edges/patterns would linger
+# in the graph forever. Collect them separately so the update can prune them.
+STAGED_DELETED_EPISODES=$(git diff --cached --name-only --diff-filter=D | grep -E '^\.agents/memory/episodes/episode-.*\.json$' || true)
+
+if [ -n "$STAGED_EPISODE_FILES" ] || [ -n "$STAGED_DELETED_EPISODES" ]; then
     # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
     if [ "$AUTOFIX" = "1" ]; then
         echo_info "Updating causal graph from staged episodes..."
@@ -1529,6 +1547,42 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                 if [ "$_can_update" -eq 0 ]; then
                     echo_warning "Could not snapshot the causal graph; skipping update (non-blocking)."
                 else
+                    # Prune deleted episodes FIRST (#3039). Run prune before
+                    # processing staged episodes so that renames (delete old +
+                    # add new with same JSON id) do not lose contributions:
+                    # prune removes old state, then staged processing re-adds.
+                    # Read the id from the last committed version (HEAD) since
+                    # it may differ from the filename stem if hand-edited; fall
+                    # back to the stem when HEAD read fails. A nonexistent
+                    # --episode-path ensures no episode is reprocessed; only the
+                    # prune runs.
+                    if [ -n "$STAGED_DELETED_EPISODES" ]; then
+                        _prune_ids=""
+                        while IFS= read -r _del_ep; do
+                            [ -z "$_del_ep" ] && continue
+                            _del_base=${_del_ep##*/}
+                            _del_stem=${_del_base%.json}
+                            # Extract the "id" field from the last committed version.
+                            _del_id=$(git show "HEAD:$_del_ep" 2>/dev/null | "${PYTHON_CMD[@]}" -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null) || _del_id=""
+                            # Fall back to filename stem if extraction failed.
+                            [ -z "$_del_id" ] && _del_id="$_del_stem"
+                            if [ -n "$_prune_ids" ]; then
+                                _prune_ids="${_prune_ids},${_del_id}"
+                            else
+                                _prune_ids="$_del_id"
+                            fi
+                        done <<< "$STAGED_DELETED_EPISODES"
+                        if [ -n "$_prune_ids" ]; then
+                            _prune_out=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --prune-episode-ids "$_prune_ids" --episode-path "$REPO_ROOT/.agents/memory/episodes/__prune_only__" --graph-path "$CAUSAL_GRAPH_FILE" 2>&1) && _prc=0 || _prc=$?
+                            UPDATE_OUTPUT="${UPDATE_OUTPUT}${_prune_out}
+"
+                            if [ "$_prc" -ne 0 ]; then
+                                UPDATE_EXIT=$_prc
+                            fi
+                        fi
+                    fi
+
+                    # Process staged episodes after prune completes.
                     while IFS= read -r _episode; do
                         [ -z "$_episode" ] && continue
                         # Reject symlinks (MEDIUM-002).
