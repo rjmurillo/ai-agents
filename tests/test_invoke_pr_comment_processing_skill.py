@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import subprocess
 import sys
@@ -86,13 +87,35 @@ class TestParseFindings:
         assert result == {"comments": []}
 
     def test_code_fence_json(self):
+        # Regression: valid findings wrapped in ```json fences still parse.
         result = parse_findings('```json\n{"comments": []}\n```')
         assert result == {"comments": []}
 
-    def test_invalid_json_exits_2(self):
-        with pytest.raises(SystemExit) as exc:
-            parse_findings("not json at all")
-        assert exc.value.code == 2
+    def test_valid_findings_with_comments_unchanged(self):
+        # Regression: a real findings object passes through untouched.
+        raw = '{"comments": [{"id": 7, "classification": "stale"}]}'
+        result = parse_findings(raw)
+        assert result == {"comments": [{"id": 7, "classification": "stale"}]}
+
+    def test_empty_string_is_noop(self):
+        # Issue #3180: WARN/PASS verdict emits an empty payload; that is "no
+        # findings" (success), not a fatal parse error.
+        assert parse_findings("") == {"comments": []}
+
+    def test_whitespace_only_is_noop(self):
+        assert parse_findings("   \n\t  ") == {"comments": []}
+
+    def test_prose_is_noop(self):
+        # The AI emitted prose instead of a findings object: benign no-op.
+        assert parse_findings("The review looks good.") == {"comments": []}
+
+    def test_invalid_json_is_noop(self):
+        # Issue #3180: malformed JSON must not fail the scheduled run.
+        assert parse_findings("{not valid json") == {"comments": []}
+
+    def test_non_object_json_is_noop(self):
+        # Well-formed JSON that is not an object cannot carry a comments array.
+        assert parse_findings("[1, 2, 3]") == {"comments": []}
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +204,30 @@ class TestMain:
             rc = main([
                 "--pr-number", "1", "--verdict", "PASS",
                 "--findings-json", '{"comments": []}',
+            ])
+        assert rc == 0
+
+    def test_warn_verdict_empty_findings_returns_0(self):
+        # Issue #3180: the exact hourly failure. A WARN verdict routinely emits
+        # an empty findings payload; the run must exit 0, not 2.
+        rc = main([
+            "--pr-number", "1", "--verdict", "WARN", "--findings-json", "",
+        ])
+        assert rc == 0
+
+    def test_pass_verdict_prose_findings_returns_0(self):
+        # AI emitted prose instead of a findings object: no-op, exit 0.
+        rc = main([
+            "--pr-number", "1", "--verdict", "PASS",
+            "--findings-json", "The review looks good.",
+        ])
+        assert rc == 0
+
+    def test_warn_verdict_empty_stdin_returns_0(self):
+        # Reproduces run 29603691792: findings piped via stdin ("-") are empty.
+        with patch.object(sys, "stdin", io.StringIO("")):
+            rc = main([
+                "--pr-number", "1", "--verdict", "WARN", "--findings-json", "-",
             ])
         assert rc == 0
 
