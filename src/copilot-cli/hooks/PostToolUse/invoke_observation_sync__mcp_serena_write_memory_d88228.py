@@ -287,7 +287,11 @@ def _original_main(stdin_bytes):
                 break
             _cur = _cur.parent
     if _lib_dir is None or not os.path.isdir(_lib_dir):
-        print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+        print(
+            f"Plugin lib directory not found: {_lib_dir} "
+            f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+            file=sys.stderr,
+        )
         # Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)
         sys.exit(0)
     if _lib_dir not in sys.path:
@@ -295,58 +299,94 @@ def _original_main(stdin_bytes):
 
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
-    # Hoisted from `_get_repo_root` per `/simplify` review: `__file__` is
-    # invariant for the lifetime of the process, so resolving it once at
-    # module load saves a `stat()` syscall on every PostToolUse hook fire
-    # (this hook runs after every Serena memory write -- a hot path).
-    _SCRIPT_DIR_RESOLVED: str = os.path.realpath(str(Path(__file__).resolve().parent))
+
+    def _emit_project_root_rejection(reason: str, env_dir: str = "") -> None:
+        """Emit the existing CWE-22 project-root diagnostic."""
+        _SECURITY_LOG.warning(
+            reason,
+            extra={
+                "code": "E_CWE22_PROJECT_DIR_MISMATCH",
+                "env_dir": env_dir,
+                "cwe": "CWE-22",
+                "hook": "observation-sync",
+            },
+        )
+
+
+    def _validated_absolute_path(raw_path: str) -> Path | None:
+        """Resolve an absolute path after rejecting malformed or traversal text."""
+        if not raw_path or "\x00" in raw_path:
+            return None
+        if any(char in raw_path for char in ("\n", "\r", "\t", "\v", "\f")):
+            return None
+        normalized = raw_path.replace("\\", "/")
+        if "/../" in normalized or normalized.startswith("../"):
+            return None
+        try:
+            candidate = Path(raw_path).expanduser()
+            if not candidate.is_absolute():
+                return None
+            return candidate.resolve(strict=True)
+        except OSError:
+            return None
 
 
     def _get_repo_root() -> str | None:
-        """Resolve the repository root from environment or git, with traversal guard.
-
-        Returns ``None`` when ``CLAUDE_PROJECT_DIR`` is set but does not contain
-        this hook script. Without that guard, an attacker who can set the env
-        var could redirect downstream subprocess calls (line 113 -- launches
-        ``$repo_root/.serena/scripts/import_observations_to_forgetful.py``) at
-        any directory they control. The list-form ``subprocess.run`` blocks
-        CWE-78 shell injection; the containment check here blocks CWE-22 by
-        refusing to honor a project root that does not contain the live hook
-        file. Mirrors the pattern in ``invoke_adr_change_detection.get_project_root``.
-        """
+        """Return the cwd Git worktree when project-dir input exactly corroborates it."""
         env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
-        if env_dir:
-            resolved_root = os.path.realpath(env_dir)
-            if not _SCRIPT_DIR_RESOLVED.startswith(resolved_root + os.sep):
-                _SECURITY_LOG.warning(
-                    "CLAUDE_PROJECT_DIR does not contain hook script -- refusing",
-                    extra={
-                        "code": "E_CWE22_PROJECT_DIR_MISMATCH",
-                        "env_dir": env_dir,
-                        "script_dir": _SCRIPT_DIR_RESOLVED,
-                        "cwe": "CWE-22",
-                        "hook": "observation-sync",
-                    },
-                )
-                return None
-            return env_dir
-        # Fixed argv, no user data. Safe.
         try:
-            result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
+            cwd = Path.cwd().resolve(strict=True)
+            result = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
+                cwd=str(cwd),
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
                 timeout=5,
             )
-        except (subprocess.TimeoutExpired, OSError):
-            # TimeoutExpired: git hung. OSError (incl. FileNotFoundError): git
-            # missing or not executable. Either way, degrade to cwd like a
-            # non-zero exit rather than surfacing as a hook error.
-            return os.getcwd()
-        if result.returncode == 0:
-            return result.stdout.strip()
-        return os.getcwd()
+        except subprocess.TimeoutExpired:
+            _emit_project_root_rejection(
+                "git rev-parse timed out deriving the cwd worktree -- refusing",
+                env_dir,
+            )
+            return None
+        except OSError as exc:
+            _emit_project_root_rejection(
+                f"git rev-parse failed to start ({type(exc).__name__}) -- refusing",
+                env_dir,
+            )
+            return None
+        if result.returncode != 0:
+            _emit_project_root_rejection(
+                "Git failed to derive the cwd worktree -- refusing", env_dir
+            )
+            return None
+
+        worktree_root = _validated_absolute_path(result.stdout.strip())
+        if worktree_root is None:
+            _emit_project_root_rejection(
+                "Git returned a malformed worktree root -- refusing", env_dir
+            )
+            return None
+        try:
+            cwd.relative_to(worktree_root)
+        except ValueError:
+            _emit_project_root_rejection(
+                "Git returned a worktree that does not contain cwd -- refusing", env_dir
+            )
+            return None
+
+        if not env_dir:
+            return str(worktree_root)
+        corroborated_root = _validated_absolute_path(env_dir)
+        if corroborated_root != worktree_root:
+            _emit_project_root_rejection(
+                "CLAUDE_PROJECT_DIR does not match the cwd Git worktree -- refusing",
+                env_dir,
+            )
+            return None
+        return str(worktree_root)
 
 
     def _is_observation_memory(tool_input: dict[str, object]) -> str | None:
@@ -402,8 +442,8 @@ def _original_main(stdin_bytes):
         """Run the import script for a single observation file.
 
         Caller MUST pass a ``repo_root`` returned by :func:`_get_repo_root`,
-        which enforces a CWE-22 containment guard (env-supplied root must
-        contain this script). Combined with list-form ``subprocess.run``
+        which derives the cwd Git worktree and requires an environment root
+        to resolve to that exact path. Combined with list-form ``subprocess.run``
         (CWE-78 shell injection blocked) and the ``observation_file``
         validation in :func:`_find_observation_file` (path traversal blocked
         via ``is_relative_to``), the tainted env source is fully neutralized
@@ -419,8 +459,8 @@ def _original_main(stdin_bytes):
             )
             return
 
-        # Tainted source (CLAUDE_PROJECT_DIR -> repo_root) is contained by
-        # _get_repo_root(); script path is validated by .is_file() check;
+        # Tainted CLAUDE_PROJECT_DIR input must exactly corroborate the cwd Git
+        # root in _get_repo_root(); script path is validated by .is_file();
         # observation_file is validated by _find_observation_file. List form
         # blocks shell metacharacter injection. Defense-in-depth complete.
         result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args

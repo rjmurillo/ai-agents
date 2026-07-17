@@ -58,6 +58,36 @@ def detect_reason(path: Path) -> str | None:
     return _detect_reason(path)
 
 
+def detect_reason_strict(path: Path) -> str | None:
+    """Return the protection reason while propagating filesystem errors."""
+    sidecar = path.with_suffix(path.suffix + ".noregen")
+    try:
+        sidecar.stat()
+    except FileNotFoundError:
+        pass
+    else:
+        return REASON_SIDECAR
+
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(_HEAD_BYTES)
+    except FileNotFoundError:
+        return None
+    return _detect_reason_from_head(head)
+
+
+def _detect_reason_from_head(head: bytes) -> str | None:
+    if _HTML_TOKEN in head:
+        return REASON_HTML_COMMENT
+    # Match `# NO-REGEN` only at start-of-line / after whitespace to avoid
+    # accidental matches inside string literals like "x# NO-REGEN".
+    for line in head.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith(_HASH_TOKEN):
+            return REASON_HASH_COMMENT
+    return None
+
+
 def _detect_reason(path: Path) -> str | None:
     sidecar = path.with_suffix(path.suffix + ".noregen")
     if sidecar.exists():
@@ -69,12 +99,4 @@ def _detect_reason(path: Path) -> str | None:
             head = handle.read(_HEAD_BYTES)
     except OSError:
         return None
-    if _HTML_TOKEN in head:
-        return REASON_HTML_COMMENT
-    # Match `# NO-REGEN` only at start-of-line / after whitespace to avoid
-    # accidental matches inside string literals like "x# NO-REGEN".
-    for line in head.splitlines():
-        stripped = line.lstrip()
-        if stripped.startswith(_HASH_TOKEN):
-            return REASON_HASH_COMMENT
-    return None
+    return _detect_reason_from_head(head)

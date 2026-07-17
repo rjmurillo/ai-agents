@@ -7,7 +7,7 @@ requires-python = ">=3.14"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==0.116.0",
+    "anthropic==0.117.0",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
     "PyYAML==6.0.3",
@@ -192,7 +192,16 @@ module = "tests.*"
 disallow_any_generics = false
 warn_return_any = false
 
+# Mirror of [project.optional-dependencies].dev above. Both tables must list the
+# same dev tools: `uv pip install -e ".[dev]"` reads only the extra, while a plain
+# `uv sync` installs this group by default and ignores extras (issue #3111). Keep
+# the two in sync; tests/test_pyproject_dev_deps_parity.py fails when they drift.
 [dependency-groups]
 dev = [
+    "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
+    "bandit[sarif]>=1.9.4",
+    "pip-audit>=2.10.0",
+    "ruff>=0.15.16",
+    "mypy>=2.1.0",
 ]

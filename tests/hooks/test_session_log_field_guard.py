@@ -42,7 +42,8 @@ def _diff(stdout: str) -> subprocess.CompletedProcess[str]:
 
 
 def _valid_log() -> dict:
-    """Mirror the real session schema: markdownLintRun nested under protocolCompliance.sessionEnd."""
+    """Mirror the real session schema: markdownLintRun nested under
+    protocolCompliance.sessionEnd."""
     return {
         "session": {"id": 1234, "date": "2026-05-04"},
         "protocolCompliance": {

@@ -19,6 +19,11 @@ from pathlib import Path
 from typing import Any, cast
 
 _REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO / "build" / "scripts"))
+
+from generate_hooks_body import is_shimmed  # noqa: E402
+from regen_guard import detect_reason_strict  # noqa: E402
+
 _COPILOT = _REPO / "src" / "copilot-cli"
 _HOOKS_JSON = _COPILOT / "hooks" / "hooks.json"
 _GATING = "PreToolUse"
@@ -60,6 +65,118 @@ class TestDispatcherArtifacts:
             assert f"/hooks/{event}/_dispatch.py" in entries[0]["bash"]
             assert f"/hooks/{event}/_dispatch.py" in entries[0]["powershell"]
 
+    def test_only_advisory_pretooluse_registrations_are_absent(self):
+        settings = json.loads(
+            (_REPO / ".claude" / "settings.json").read_text(encoding="utf-8")
+        )
+        plugin_hooks = json.loads(
+            (_REPO / ".claude" / "hooks" / "hooks.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        manifests = [settings, plugin_hooks]
+        removed = (
+            "invoke_correction_applier.py",
+            "invoke_topical_memory_injection.py",
+        )
+        required_hard_gates = (
+            "invoke_branch_context_guard.py",
+            "invoke_branch_protection_guard.py",
+            "invoke_security_commit_gate.py",
+            "invoke_security_gate.py",
+            "invoke_session_log_guard.py",
+        )
+        required_session_start = (
+            "invoke_session_initialization_enforcer.py",
+            "invoke_context_loader.py",
+        )
+
+        for manifest in manifests:
+            serialized = json.dumps(manifest)
+            assert all(script not in serialized for script in removed)
+            assert all(script in serialized for script in required_hard_gates)
+
+        serialized_settings = json.dumps(settings)
+        assert all(script in serialized_settings for script in required_session_start)
+
+        generated = json.loads(
+            (_COPILOT / "hooks" / "PreToolUse" / "_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        serialized_generated = json.dumps(generated)
+        assert all(
+            script.removesuffix(".py") not in serialized_generated
+            for script in removed
+        )
+        assert all(
+            script.removesuffix(".py") in serialized_generated
+            for script in required_hard_gates
+        )
+        session_start_manifest = json.loads(
+            (_COPILOT / "hooks" / "SessionStart" / "_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        serialized_session_start = json.dumps(session_start_manifest)
+        assert all(script in serialized_session_start for script in required_session_start)
+
+    def test_session_start_enforcer_has_one_registration_per_manifest(self):
+        script_name = "invoke_session_initialization_enforcer.py"
+        settings = json.loads(
+            (_REPO / ".claude" / "settings.json").read_text(encoding="utf-8")
+        )
+        settings_commands = [
+            hook["command"]
+            for group in settings["hooks"]["SessionStart"]
+            for hook in group["hooks"]
+        ]
+        plugin_hooks = json.loads(
+            (_REPO / ".claude" / "hooks" / "hooks.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        plugin_commands = [
+            hook["command"]
+            for group in plugin_hooks["hooks"]["SessionStart"]
+            for hook in group["hooks"]
+        ]
+        generated_manifest = json.loads(
+            (_COPILOT / "hooks" / "SessionStart" / "_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert sum(script_name in command for command in settings_commands) == 1
+        assert sum(script_name in command for command in plugin_commands) == 1
+        assert generated_manifest["shims"].count(script_name) == 1
+
+    def test_one_session_start_origin_emits_branch_session_once(self):
+        env = dict(os.environ)
+        env["CLAUDE_PROJECT_DIR"] = str(_REPO)
+        env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
+        env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
+        env["AI_AGENTS_PROJECT_REPO"] = "1"
+        script = (
+            _COPILOT
+            / "hooks"
+            / "SessionStart"
+            / "invoke_session_initialization_enforcer.py"
+        )
+
+        process = subprocess.run(
+            [sys.executable, "-u", str(script)],
+            input=b"{}",
+            capture_output=True,
+            cwd=_REPO,
+            env=env,
+            timeout=15,
+        )
+
+        assert process.returncode == 0, process.stderr.decode(errors="replace")
+        assert process.stdout.count(b"Branch: `") == 1
+        assert process.stdout.count(b" | Session: ") == 1
+
     def test_manifest_modes_match_event_role(self):
         # PreToolUse gates (fail-closed); the rest observe (run all, exit 0).
         for event in _ALL_EVENTS:
@@ -82,6 +199,37 @@ class TestDispatcherArtifacts:
             assert _hooks()[event][0]["timeoutSec"] == sum(manifest["timeouts"].values())
             for shim in manifest["shims"]:
                 assert (event_dir / shim).is_file(), f"{event}: manifest shim {shim} missing"
+
+    def test_no_unregistered_matcher_shims_are_shipped(self):
+        for event in _ALL_EVENTS:
+            event_dir = _COPILOT / "hooks" / event
+            manifest = json.loads(
+                (event_dir / "_manifest.json").read_text(encoding="utf-8")
+            )
+            registered = set(manifest["shims"])
+            stale = []
+            for path in event_dir.glob("*.py"):
+                if path.name in registered:
+                    continue
+                source = path.read_text(encoding="utf-8")
+                if is_shimmed(source) and detect_reason_strict(path) is None:
+                    stale.append(path.name)
+            assert sorted(stale) == [], f"{event}: unregistered matcher shims: {stale}"
+
+    def test_session_end_skill_loader_is_shipped_but_not_dispatched(self):
+        event_dir = _COPILOT / "hooks" / "SessionEnd"
+        manifest = json.loads(
+            (event_dir / "_manifest.json").read_text(encoding="utf-8")
+        )
+        canonical = _REPO / ".claude" / "hooks" / "Stop" / "skill_pattern_loader.py"
+        shipped = event_dir / "skill_pattern_loader.py"
+
+        assert shipped.is_file()
+        assert "skill_pattern_loader.py" not in manifest["shims"]
+        # The companion is copied verbatim (no matcher shim is injected for
+        # unmatched hooks), so the shipped bytes must equal the canonical
+        # source exactly, not merely both exist (#12).
+        assert shipped.read_bytes() == canonical.read_bytes()
 
     def test_pretooluse_allows_non_matching_tool(self):
         proc = _run_entry(_GATING, {"tool_name": "____NoSuchTool____", "tool_input": {}})
