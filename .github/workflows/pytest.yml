@@ -54,6 +54,7 @@ jobs:
               - 'uv.lock'
               - 'tests/conftest.py'
               - 'scripts/memory_enhancement/**'
+              - '.github/actions/ai-review/action.yml'
               - '.github/workflows/pytest.yml'
 
       - name: Report path check result
@@ -268,18 +269,17 @@ jobs:
           echo "See the 'python' filter in check-paths job for paths that trigger tests."
           echo "Reference: .github/workflows/pytest.yml"
 
-  # ─── Windows pwsh contract test (fix #2231 item 1) ─────────────────────────
-  # The PowerShell path-resolution contract test is guarded by
-  # `skipif(shutil.which("pwsh") is None)`, so it never runs on Linux ubuntu
-  # runners. Windows is where #2205 was first reported. This job ensures the
-  # pwsh branch of test_generate_hooks_runtime_contract.py runs on an always-on
-  # Windows runner. No auth or external credentials needed: the test is purely
-  # path-resolution (generates hooks into a tmp dir and verifies resolution).
+  # ─── Windows runtime contract tests ───────────────────────────────────────
+  # The PowerShell path-resolution test never runs on Linux because pwsh is
+  # absent. The pytest HEAD guard also depends on Git's Windows trace behavior.
+  # This job executes both contracts on an always-on Windows runner. Neither
+  # contract needs authentication or external credentials.
   test-windows-pwsh:
     name: Run Python Tests (Windows - pwsh contract)
     needs: check-paths
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: windows-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -306,3 +306,15 @@ jobs:
         env:
           UV_PYTHON: '3.14'
         run: uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -v -k "powershell"
+
+      - name: Run pytest HEAD guard contracts
+        shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
+        run: uv run pytest tests/test_pytest_head_guard.py -v
+
+      - name: Run AI review output path contract tests
+        shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
+        run: uv run pytest tests/test_check_ai_review_infra_gate.py -v

@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3050,
+    "date": "2026-07-16",
+    "branch": "fix/pytest-head-guard-concurrent-commit-3109",
+    "startingCommit": "f4aaf1171",
+    "objective": "Close PR 3125 review findings"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena.activate_project completed for /home/richard/src/GitHub/rjmurillo/ai-agents"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena.initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; confirmed it is read-only under ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/pr and confirmed the pr-autofix support scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded relevant repository memories and read usage-mandatory.md"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/pytest-head-guard-concurrent-commit-3109"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/pytest-head-guard-concurrent-commit-3109"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short --branch showed only this untracked session log"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f4aaf1171"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Completed the session-end checklist after the full test, static analysis, workflow, security, and independent review gates passed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained read-only and unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote Serena memory pytest-head-attribution with the verified reflog and Trace2 design."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed, so scoped Markdown lint was not applicable."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation committed as 304cb593f."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/ -x -q completed with 14336 passed. Ruff, mypy, Python 3.10 syntax, actionlint, gh act, security scan, and independent review passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Remote review replies, thread resolution, CI, completion gate, merge, and lease release are recorded in nextSteps."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped for this focused PR repair; the durable attribution design was stored in Serena memory."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Read PR 3125 review findings. Confirmed the guard must distinguish test-launched project HEAD mutations from concurrent external commits and must decode Git output as UTF-8 with replacement."
+    },
+    {
+      "time": "T1",
+      "entry": "Implemented per-test GIT_REFLOG_ACTION attribution for successful porcelain commands and project-scoped GIT_TRACE2_EVENT attribution for successful update-ref and symbolic-ref writes."
+    },
+    {
+      "time": "T2",
+      "entry": "Added Linux and Windows coverage for commits, branch switches, explicit git directories, failed plumbing commands, Windows executable names, malformed evidence, environment restoration, and real invalid UTF-8 Git output."
+    },
+    {
+      "time": "T3",
+      "entry": "Verification: uv run pytest tests/ -x -q completed with 14336 passed, 21 skipped, and 45 xfailed. Focused Ruff, mypy, Python 3.10 syntax validation, actionlint, gh act validation, security scan, and git diff --check passed. Independent final review found no defects."
+    }
+  ],
+  "endingCommit": "304cb593f",
+  "nextSteps": [
+    "Reacquire the PR 3125 lease and run the live-state gate before pushing.",
+    "Push commits, reply to review comments 3595828788 and 3595857974, then resolve their threads only after the fixes are on the remote head.",
+    "Wait for Linux and Windows CI plus bot reviews, run the completion gate, merge PR 3125, and release the lease.",
+    "File the reproduced pre_pr.py issue for missing uncommitted workflow changes, then continue the remaining open PR queue."
+  ]
+}
