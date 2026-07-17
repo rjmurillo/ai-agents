@@ -14,8 +14,9 @@ from _bootstrap import ensure_plugin_paths  # noqa: E402
 # Genuine-anomaly cap on the hook payload (#3074, ADR-066, CWE-400). A normal
 # apply_patch in a long Copilot session can cross a few MiB, so this ceiling sits
 # far above real payloads; only a truly anomalous payload trips it. Below the
-# ceiling the dispatcher runs normally: an unmatched tool is allowed (exit 0) and
-# a matched guard inspects the full payload. Above it, a gate event fails closed
+# ceiling the dispatcher runs normally: unmatched tools are allowed (exit 0), and
+# registered shims receive the full dispatcher input before enforcing their own
+# matcher and size policies. Above it, a gate event fails closed
 # (deny, exit 2) and an observe event allows (exit 0, never gates).
 _MAX_STDIN_BYTES = 64 * 1024 * 1024
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
