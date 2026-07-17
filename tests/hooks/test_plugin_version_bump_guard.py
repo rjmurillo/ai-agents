@@ -184,13 +184,28 @@ class TestHooksJsonRegistration:
     _GUARD = "invoke_plugin_version_bump_guard.py"
 
     def _push_block(self, path: Path) -> list[str]:
+        # Dispatch-groups aware (#3075): a dispatcher command counts as one
+        # command per member shim so the registration contract stays pinned.
         data = json.loads(path.read_text(encoding="utf-8"))
         block = next(
             b
             for b in data["hooks"]["PreToolUse"]
             if b.get("matcher") == "Bash(git push*)"
         )
-        return [hook.get("command", "") for hook in block["hooks"]]
+        groups = json.loads(
+            (self._ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(
+                encoding="utf-8"
+            )
+        )["groups"]
+        commands: list[str] = []
+        for hook in block["hooks"]:
+            command = hook.get("command", "") or ""
+            if "invoke_dispatch_claude.py" in command:
+                group_id = command.rsplit("--group", 1)[1].strip()
+                commands.extend(shim["file"] for shim in groups[group_id]["shims"])
+            else:
+                commands.append(command)
+        return commands
 
     def test_settings_json_registers_guard(self):
         commands = self._push_block(self._ROOT / ".claude" / "settings.json")

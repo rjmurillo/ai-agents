@@ -44,7 +44,6 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (  # noqa: E402
-    assert_gh_authenticated,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
@@ -53,6 +52,38 @@ from github_core.output import (  # noqa: E402
     write_skill_error,
     write_skill_output,
 )
+
+# Markers that confirm a real authentication failure in gh stderr. A transient
+# REST 5xx (the 503 "Unicorn" page in issue #3139) contains none of these, so
+# it classifies as an external ApiError (exit 3), not an AuthError (exit 4).
+# Copied verbatim from close_issue.py::_AUTH_ERROR_MARKERS
+# (.claude/skills/github/scripts/issue/close_issue.py) to keep gh failure
+# classification consistent across the issue scripts.
+_AUTH_ERROR_MARKERS = (
+    "credential",
+    "not logged in",
+    "bad credentials",
+    "could not authenticate",
+    "authentication",
+    "requires authentication",
+)
+
+
+def _is_auth_error(message: str) -> bool:
+    lowered = message.lower()
+    return any(marker in lowered for marker in _AUTH_ERROR_MARKERS)
+
+
+def _classify_gh_failure(message: str) -> tuple[int, str]:
+    """Classify a failed gh operation by its stderr.
+
+    A confirmed auth failure maps to exit 4 / AuthError; every other failure,
+    including a transient HTTP 5xx or timeout, maps to exit 3 / ApiError so a
+    GitHub outage is not misreported as invalid credentials (issue #3139).
+    """
+    if _is_auth_error(message):
+        return 4, "AuthError"
+    return 3, "ApiError"
 
 
 def _write_github_output(outputs: dict[str, str]) -> None:
@@ -159,25 +190,17 @@ def _resolve_auth_and_repo(
     repo: str,
     fmt: str,
 ) -> tuple[str, str] | int:
-    """Assert authentication and resolve owner/repo, emitting JSON envelopes on failure.
+    """Resolve owner/repo, emitting a JSON envelope on failure.
+
+    No ``gh auth status`` preflight runs here. That preflight blocked working
+    GraphQL creates during a transient REST 503 because gh relabels the 503 as
+    an invalid token (issue #3139). Authentication is instead classified from
+    the actual ``gh issue create`` failure in ``main``.
 
     Returns:
         ``(owner, repo)`` on success, or an int exit code after writing the
         error envelope so ``main`` can propagate it immediately.
     """
-    try:
-        assert_gh_authenticated()
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 4
-        write_skill_error(
-            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-            code,
-            error_type="AuthError",
-            output_format=fmt,
-            script_name="new_issue.py",
-        )
-        return code
-
     _stderr_buf = io.StringIO()
     try:
         with contextlib.redirect_stderr(_stderr_buf):
@@ -195,6 +218,82 @@ def _resolve_auth_and_repo(
         return code
 
     return resolved.owner, resolved.repo
+
+
+def _create_issue(
+    owner: str,
+    repo: str,
+    title: str,
+    body: str,
+    fmt: str,
+) -> tuple[int, str] | int:
+    """Run ``gh issue create`` and return the created issue.
+
+    Classifies the actual operation failure (issue #3139): a missing gh binary
+    or a confirmed auth failure maps to exit 4; a 5xx, timeout, or unparseable
+    result maps to exit 3.
+
+    Returns:
+        ``(issue_number, url_text)`` on success, or an int exit code after
+        writing the error envelope so ``main`` can propagate it immediately.
+    """
+    gh_args = ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", title]
+    if body and body.strip():
+        gh_args.extend(["--body", body])
+
+    try:
+        result = subprocess.run(
+            gh_args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            "gh issue create timed out after 30s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 3
+    except FileNotFoundError:
+        write_skill_error(
+            "GitHub CLI (gh) is not installed or not on PATH. Run 'gh auth login' first.",
+            4,
+            error_type="AuthError",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 4
+
+    if result.returncode != 0:
+        error_str = result.stderr.strip() or result.stdout.strip()
+        code, error_type = _classify_gh_failure(error_str)
+        write_skill_error(
+            f"Failed to create issue: {error_str}",
+            code,
+            error_type=error_type,
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return code
+
+    output_text = result.stdout.strip()
+    match = re.search(r"issues/(\d+)", output_text)
+    if not match:
+        write_skill_error(
+            f"Could not parse issue number from result: {output_text}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 3
+
+    return int(match.group(1)), output_text
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -230,54 +329,10 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         body = body_path.read_text(encoding="utf-8")
 
-    gh_args = ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", args.title]
-
-    if body and body.strip():
-        gh_args.extend(["--body", body])
-
-    try:
-        result = subprocess.run(
-            gh_args,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        write_skill_error(
-            "gh issue create timed out after 30s",
-            3,
-            error_type="Timeout",
-            output_format=fmt,
-            script_name="new_issue.py",
-        )
-        return 3
-
-    if result.returncode != 0:
-        error_str = result.stderr.strip() or result.stdout.strip()
-        write_skill_error(
-            f"Failed to create issue: {error_str}",
-            3,
-            error_type="ApiError",
-            output_format=fmt,
-            script_name="new_issue.py",
-        )
-        return 3
-
-    output_text = result.stdout.strip()
-    match = re.search(r"issues/(\d+)", output_text)
-    if not match:
-        write_skill_error(
-            f"Could not parse issue number from result: {output_text}",
-            3,
-            error_type="ApiError",
-            output_format=fmt,
-            script_name="new_issue.py",
-        )
-        return 3
-
-    issue_number = int(match.group(1))
+    create_result = _create_issue(owner, repo, args.title, body, fmt)
+    if isinstance(create_result, int):
+        return create_result
+    issue_number, output_text = create_result
 
     label_error = _apply_labels(owner, repo, issue_number, output_text, args.labels, fmt)
     if label_error is not None:

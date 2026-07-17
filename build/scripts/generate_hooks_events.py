@@ -48,6 +48,7 @@ from generate_hooks_emit import (  # noqa: E402
     _resolve_paths,
     _resolve_script_path,
 )
+from generate_hooks_expand import _expand_dispatch_groups  # noqa: E402,F401
 from generate_hooks_transaction import HookGenerationTransaction  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError  # noqa: E402
@@ -202,6 +203,10 @@ def _emit_one_hook(
         what_if=what_if,
     )
     entry = _build_copilot_entry(target_event, script_name, timeout_sec=timeout)
+    # Internal key consumed by generate_dispatcher.event_matcher_union for
+    # host-side matcher emission (#3075); stripped before hooks.json is
+    # written on every path.
+    entry["claudeMatcher"] = matcher_str
     if not written:
         # NO-REGEN: keep customer-owned script untouched but still emit
         # the Copilot config entry (the whole point of NO-REGEN).
@@ -739,6 +744,7 @@ def generate_hooks(
 
     try:
         hooks_map = _load_claude_settings(settings_source)
+        hooks_map = _expand_dispatch_groups(hooks_map, script_source)
     except GenerateHooksError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2, result
@@ -835,6 +841,13 @@ def generate_hooks(
                     file=sys.stderr,
                 )
                 return 1, result
+
+        # Drop the generator-internal matcher key on every path (dispatcher
+        # or per-shim) so it never reaches the emitted hooks.json.
+        for entries in out.values():
+            for entry in entries:
+                if isinstance(entry, dict):
+                    entry.pop("claudeMatcher", None)
 
         # Write hooks.json through the same transaction as every generated
         # script. NO-REGEN on the config file itself protects customer edits.

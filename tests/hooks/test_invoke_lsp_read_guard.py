@@ -29,6 +29,7 @@ HOOK_DIR = REPO_ROOT / ".claude" / "hooks" / "PreToolUse"
 sys.path.insert(0, str(HOOK_DIR))
 
 import invoke_lsp_read_guard as guard  # noqa: E402
+from hook_utilities import lsp_gate_state  # noqa: E402
 
 # A real in-repo file path whose extension is overview-capable (python). The
 # file need not exist; detect_providers keys on extension + config, and
@@ -66,6 +67,27 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(REPO_ROOT))
     monkeypatch.delenv("TMPDIR", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_outer_merge_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutralize the live checkout's merge/rebase state (issue #3137).
+
+    ``is_gated_target`` calls ``_merge_in_progress`` against the real REPO_ROOT.
+    When the outer checkout is mid-merge (a ``MERGE_HEAD``/rebase marker exists),
+    that bypass fires and every in-repo target flips to non-gated, false-failing
+    every tier assertion. Force ``False`` for REPO_ROOT only; real detection
+    still runs for the isolated tmp repos the explicit merge-bypass tests build,
+    so those keep exercising the true bypass.
+    """
+    real_merge_in_progress = lsp_gate_state._merge_in_progress
+
+    def isolated(project_dir: str) -> bool:
+        if Path(project_dir).resolve() == REPO_ROOT:
+            return False
+        return real_merge_in_progress(project_dir)
+
+    monkeypatch.setattr(lsp_gate_state, "_merge_in_progress", isolated)
 
 
 # ---------------------------------------------------------------------------
@@ -568,5 +590,62 @@ class TestLspRuntimeDownFailOpen:
 
 
 # ---------------------------------------------------------------------------
-# main: dispatch, kill switch, fail-open paths
+# Outer-merge isolation regression (issue #3137)
 # ---------------------------------------------------------------------------
+
+
+class TestOuterMergeStateIsolation:
+    """Tier tests must be hermetic against the live checkout's merge/rebase
+    state. The autouse ``_isolate_outer_merge_state`` fixture forces
+    ``_merge_in_progress(REPO_ROOT)`` to False while preserving real detection
+    for the isolated tmp repos the explicit bypass tests build (issue #3137).
+    """
+
+    def _simulate_outer_merge(self, tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Make REPO_ROOT's git-dir resolution report a merge in progress.
+
+        Points ``_resolve_git_dir(REPO_ROOT)`` at a tmp dir carrying MERGE_HEAD,
+        so the true ``_merge_in_progress`` would return True for REPO_ROOT. No
+        real git state is touched, so the simulation is safe under any checkout.
+        """
+        fake_git = tmp_path / "gitdir"
+        fake_git.mkdir()
+        (fake_git / "MERGE_HEAD").write_text("simulated-3137\n", encoding="utf-8")
+        real_resolve = lsp_gate_state._resolve_git_dir
+
+        def fake_resolve(project_dir: str):
+            if Path(project_dir).resolve() == REPO_ROOT:
+                return fake_git
+            return real_resolve(project_dir)
+
+        monkeypatch.setattr(lsp_gate_state, "_resolve_git_dir", fake_resolve)
+
+    def test_in_repo_target_stays_gated_under_outer_merge(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Simulated outer merge; isolation keeps the in-repo target gated.
+        self._simulate_outer_merge(tmp_path, monkeypatch)
+        assert guard.is_gated_target(PY_TARGET, str(REPO_ROOT)) is True
+
+    @patch.object(guard, "detect_providers", return_value=["serena"])
+    @patch.object(guard, "read_state")
+    def test_warmup_block_fires_under_outer_merge(
+        self, mock_state, _mock_providers, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ):
+        # The classic false-fail: warmup tier must still block mid-merge.
+        self._simulate_outer_merge(tmp_path, monkeypatch)
+        mock_state.return_value = _state(warmup_done=False)
+        code, msg = guard.evaluate(PY_TARGET, str(REPO_ROOT))
+        assert code == 2
+        assert msg is not None
+        assert "Warmup required" in msg
+
+    def test_isolated_repo_merge_detection_preserved(self, tmp_path):
+        # Real detection still fires for isolated repos: the explicit bypass
+        # tests depend on this, so isolation must not over-reach.
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        (repo / ".git" / "MERGE_HEAD").write_text("abc123\n", encoding="utf-8")
+        target = repo / "sample.py"
+        target.write_text("def foo():\n    return 1\n", encoding="utf-8")
+        assert guard.is_gated_target(str(target), str(repo)) is False

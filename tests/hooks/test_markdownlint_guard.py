@@ -217,39 +217,50 @@ class TestEmptyChangeset:
 
 
 class TestHooksJsonRegistration:
+    _ROOT = Path(__file__).resolve().parents[2]
+
+    def _push_commands(self, manifest_path: Path) -> list[str]:
+        """Effective commands for the git-push block, dispatch-groups aware.
+
+        Registrations route through invoke_dispatch_claude.py groups
+        (#3075); a dispatcher command counts as one command per member
+        shim so this contract stays pinned at the source layer.
+        """
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        block = next(
+            b
+            for b in data["hooks"]["PreToolUse"]
+            if b.get("matcher") == "Bash(git push*)"
+        )
+        groups = json.loads(
+            (self._ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(
+                encoding="utf-8"
+            )
+        )["groups"]
+        commands: list[str] = []
+        for hook in block["hooks"]:
+            command = hook.get("command", "") or ""
+            if "invoke_dispatch_claude.py" in command:
+                group_id = command.rsplit("--group", 1)[1].strip()
+                commands.extend(shim["file"] for shim in groups[group_id]["shims"])
+            else:
+                commands.append(command)
+        return commands
+
     def test_hooks_json_includes_markdownlint_guard(self):
-        hooks_path = (
-            Path(__file__).resolve().parents[2]
-            / ".claude"
-            / "hooks"
-            / "hooks.json"
+        commands = self._push_commands(
+            self._ROOT / ".claude" / "hooks" / "hooks.json"
         )
-        data = json.loads(hooks_path.read_text(encoding="utf-8"))
-        push_block = next(
-            block
-            for block in data["hooks"]["PreToolUse"]
-            if block.get("matcher") == "Bash(git push*)"
-        )
-        commands = [hook.get("command", "") for hook in push_block["hooks"]]
         assert any("invoke_markdownlint_guard.py" in cmd for cmd in commands)
 
     def test_settings_json_includes_markdownlint_guard(self):
         """Source-of-truth check.
 
         ``build/scripts/generate_hooks.py`` reads ``.claude/settings.json``
-        and emits the generated ``hooks.json`` mirror. Testing only the
-        mirror would let a regression that drops the registration from
-        the source pass as long as the mirror was stale. Assert the
-        source explicitly so the contract is locked at both layers.
+        and emits the generated Copilot mirror. Testing only the mirror
+        would let a regression that drops the registration from the source
+        pass as long as the mirror was stale. Assert the source explicitly
+        so the contract is locked at both layers.
         """
-        settings_path = (
-            Path(__file__).resolve().parents[2] / ".claude" / "settings.json"
-        )
-        data = json.loads(settings_path.read_text(encoding="utf-8"))
-        push_block = next(
-            block
-            for block in data["hooks"]["PreToolUse"]
-            if block.get("matcher") == "Bash(git push*)"
-        )
-        commands = [hook.get("command", "") for hook in push_block["hooks"]]
+        commands = self._push_commands(self._ROOT / ".claude" / "settings.json")
         assert any("invoke_markdownlint_guard.py" in cmd for cmd in commands)

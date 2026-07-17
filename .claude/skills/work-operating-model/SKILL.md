@@ -17,7 +17,7 @@ A conversation-first elicitation skill. Surface what is documented, what is taci
 | `elicit operating model` | Start the 5-layer interview |
 | `interview team operating model` | Start the 5-layer interview |
 | `how does this team actually work` | Start the 5-layer interview |
-| `resume operating model interview` | Continue from the last completed layer |
+| `resume operating model interview` | Continue from the first layer not yet captured or skipped |
 | `validate operating model` | Run scripts/validate_operating_model.py against an output JSON |
 
 ## When to Use
@@ -88,8 +88,8 @@ Pass `--skip-path-validation` to bypass CWE-22 path containment when reading fix
 The interview is long. To resume:
 
 1. Read the existing `operating-model.json`.
-2. Inspect `metadata.completed_layers`. The next layer is the first one not in that list.
-3. Continue from the start of that layer.
+2. Build a resolved-layers set: include every string in `metadata.completed_layers`, plus the `layer` property of each object in `metadata.skipped_layers` (since `skipped_layers` stores objects like `{ "layer": "rhythms", "reason": "..." }`, not plain strings). The next layer is the first layer (in the order of The 5 Layers table) whose key is not in this resolved-layers set. A recorded skip is a resolved disposition, not pending work, so never re-ask a layer that appears in `metadata.skipped_layers`.
+3. Continue from the start of that layer. If every layer key already appears in the resolved-layers set, there is no next layer: the interview is complete, so set `metadata.interview_status` to `complete` instead of resuming.
 
 Do not silently rewrite an earlier layer. If a previous answer needs to change, open the discussion, then update the section and append to `metadata.revisions`.
 

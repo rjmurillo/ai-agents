@@ -222,6 +222,55 @@ def _is_linked_worktree(repo_root: Path) -> bool:
     return git_dir_path.resolve() != git_common_dir_path.resolve()
 
 
+def _add_workflow_paths(repo_root: Path, diff_out: str, changed: list[str]) -> None:
+    """Append new ``.github/workflows`` YAML paths from ``diff_out`` to ``changed``.
+
+    Filters to workflow YAML files that still exist on disk (the ``is_file``
+    check drops deleted paths) and skips duplicates already collected.
+    """
+    for line in diff_out.splitlines():
+        if not line.startswith(".github/workflows/"):
+            continue
+        if not line.endswith((".yml", ".yaml")):
+            continue
+        if not (repo_root / line).is_file():
+            continue
+        if line not in changed:
+            changed.append(line)
+
+
+def _collect_changed_workflows(repo_root: Path, base_ref: str) -> list[str] | None:
+    """Union of changed workflow files across every local git state (issue #3134).
+
+    Combines four sources so a workflow edit is detected before it is committed:
+    committed range ``<base>...HEAD``, staged (``--cached``), unstaged, and
+    untracked (``ls-files --others --exclude-standard``). Deleted paths are
+    dropped by the ``is_file`` check in :func:`_add_workflow_paths`; duplicates
+    across sources collapse to the first occurrence.
+
+    Returns None when the committed-range diff itself fails (unresolved base
+    ref, git error), signalling the caller to warn and skip. The local sources
+    are best-effort: a non-zero exit contributes no paths but does not abort.
+    """
+    committed_code, committed_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
+    )
+    if committed_code != 0:
+        return None
+    changed: list[str] = []
+    _add_workflow_paths(repo_root, committed_out, changed)
+    local_sources = [
+        ["git", "-C", str(repo_root), "diff", "--cached", "--name-only"],
+        ["git", "-C", str(repo_root), "diff", "--name-only"],
+        ["git", "-C", str(repo_root), "ls-files", "--others", "--exclude-standard"],
+    ]
+    for cmd in local_sources:
+        code, out, _ = _run_subprocess(cmd)
+        if code == 0:
+            _add_workflow_paths(repo_root, out, changed)
+    return changed
+
+
 def validate_workflow_local_run(repo_root: Path) -> bool:
     """Shift-left tier of the workflow local-run gate (actionlint + act -n).
 
@@ -242,6 +291,10 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     branch ref for the diff. The branch's own upstream is deliberately not used:
     once the branch is pushed it yields an empty diff, which is how pre_pr
     previously missed changed workflows that pre-push detected (issue #2571).
+
+    :func:`_collect_changed_workflows` unions the committed range with staged,
+    unstaged, and untracked git states (issue #3134) so a workflow edit is
+    validated before it is committed, not only after.
     """
     script = repo_root / "scripts" / "validation" / "run_workflow_local_test.py"
     if not script.exists():
@@ -252,19 +305,10 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
         print("[WARN] workflow local-run: base ref unresolved; skipping.")
         return True
 
-    diff_code, diff_out, _ = _run_subprocess(
-        ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
-    )
-    if diff_code != 0:
+    changed = _collect_changed_workflows(repo_root, base_ref)
+    if changed is None:
         print("[WARN] workflow local-run: git diff failed; skipping.")
         return True
-    changed = [
-        line
-        for line in diff_out.splitlines()
-        if line.startswith(".github/workflows/")
-        and line.endswith((".yml", ".yaml"))
-        and (repo_root / line).is_file()
-    ]
     if not changed:
         print("No changed workflow files; nothing to run locally.")
         return True
