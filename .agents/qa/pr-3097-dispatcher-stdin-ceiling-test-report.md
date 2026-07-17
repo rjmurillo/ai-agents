@@ -5,15 +5,15 @@
 Worktree `pr3097-worktree`, branch
 `fix/dispatcher-oversize-allow-unmatched-3074` vs `origin/main` merge-base
 `2c15968b40e8ac9a66ae42dadb1d0313f6f0ed72`. The final implementation tip is
-`6e52972c39e78f9944a4d2807ecb72f9b2c30eef`. This report covers the committed
+`2b59d62b35ab5dabef576f6120e8c6c485e60218`. This report covers the committed
 branch diff, including the shared 64 MiB raw-input ceiling, 2 MiB per-matched
 replay ceiling, 256-entry raw `toolCalls` cap, and fail-closed malformed-batch
 and top-level schema validation. This includes rejection of non-list
-`toolCalls`, padded names, malformed or conflicting top-level name aliases,
-and removal of top-level aliases from canonical batch replays.
+`toolCalls`, duplicate JSON object keys, padded names, conflicting name, input,
+and call-ID aliases, and canonical snake_case replay.
 
-**Diff stat (calculated independently in this session):** 50 files changed,
-6727 insertions(+), 2265 deletions(-).
+**Diff stat (calculated independently in this session):** 51 files changed,
+9520 insertions(+), 4111 deletions(-).
 
 File breakdown:
 
@@ -22,7 +22,7 @@ File breakdown:
 | Generators | 2 | `build/scripts/generate_dispatcher.py`, `build/scripts/generate_hooks_shim.py` |
 | Dispatcher entrypoints | 5 | `_dispatch.py` under PreToolUse, PostToolUse, SessionStart, SessionEnd, UserPromptSubmit |
 | Generated matcher shims | 34 | `invoke_*.py` under PreToolUse (27) and PostToolUse (7) |
-| Tests | 3 | `test_generate_dispatcher.py`, `test_generate_hooks.py`, `test_dispatch_small_apply_patch_regression.py` |
+| Tests | 4 | `test_generate_dispatcher.py`, `test_generate_hooks.py`, `test_generate_hooks_schema_security.py`, `test_dispatch_small_apply_patch_regression.py` |
 | Plugin manifests | 2 | `.claude/.claude-plugin/plugin.json`, `src/copilot-cli/.claude-plugin/plugin.json` (version 0.6.47) |
 | QA/session/memory artifacts | 4 | this report, two session logs, `dispatcher-payload-ceiling.md` |
 
@@ -57,8 +57,10 @@ Promised: One source of truth (HOOK_STDIN_CEILING_MIB = 64) drives both dispatch
           batched entries are canonical over conflicting top-level fields.
           A present toolCalls key must hold a list. Without a batch, each
           top-level tool_name or toolName value must be a non-empty,
-          unpadded string. Duplicate aliases must match. Canonical batch
-          replays remove both input schemas and emit snake_case fields only.
+          unpadded string. Name, input, and call-ID aliases must match with
+          type-strict JSON equality. A null tool_input falls back to toolArgs.
+          Duplicate JSON object keys at any parsed depth exit 2. Canonical
+          replays remove competing aliases and emit snake_case fields only.
           Candidate selection is lazy after full-batch prevalidation and does
           not build a second candidate list. Wrapped direct SystemExit values
           normalize as None=0, int unchanged, non-int=1. First non-zero matched
@@ -101,10 +103,14 @@ Delivered: HOOK_STDIN_CEILING_MIB = 64 is defined once in generate_hooks_shim.py
           against both reviewer-cited generated shims confirmed rc=2 with no
           payload disclosure. A present object, string, integer, boolean, or
           null toolCalls value exits 2. Empty, non-string, padded, or
-          conflicting top-level names exit 2. Matching aliases reach the real
-          Read guard. A generated sentinel shim confirmed that batch replay
-          drops tool_name, toolName, tool_input, toolArgs, tool_call_id, and
-          toolCallId before emitting the selected call as canonical snake_case.
+          conflicting top-level names exit 2. Conflicting input and call-ID
+          aliases exit 2. Matching aliases reach the real guard and replay as
+          one snake_case schema. JSON boolean and number aliases do not compare
+          equal. Duplicate outer, nested, and encoded JSON object keys exit 2
+          with a payload-free diagnostic. A generated sentinel shim confirmed
+          that batch replay drops tool_name, toolName, tool_input, toolArgs,
+          tool_call_id, and toolCallId before emitting the selected call as
+          canonical snake_case.
           Source inspection confirms `_shim_candidate_payloads` and
           `_shim_select_payloads` yield candidates, while
           `_shim_dispatch_selections` delegates with `yield from`.
@@ -113,11 +119,11 @@ Delivered: HOOK_STDIN_CEILING_MIB = 64 is defined once in generate_hooks_shim.py
           non-int codes to 1, matching source read in this session.
           A live generated-shim probe with `"Edit "` exits 2 and reports
           "toolCalls[0].name must not have leading or trailing whitespace."
-          `uv run pytest` on the 5 mandated files: 265 passed, 1 skipped.
-          The build-script suite reported 879 passed, 1 skipped. The full suite
-          reported 14474 passed, 21 skipped, 45 expected failures, and 3 warnings.
-          Ruff and mypy on the changed generator and test file: 0 findings each.
-          The CWE-78 scanner found no vulnerabilities in those files.
+          `uv run pytest` on the 6 focused files: 277 passed, 1 skipped.
+          The build-script suite reported 891 passed, 1 skipped. The full suite
+          reported 14486 passed, 21 skipped, 45 expected failures, and 3 warnings.
+          Ruff and mypy on the changed authored Python files: 0 findings each.
+          The CWE-78 scanner found no vulnerabilities in 5 authored files.
           `build_all.py --check`: exit 0, confirming no generator drift.
           `check_plugin_manifest_parity.py`: exit 0, both manifests at 0.6.47.
           Three direct exact-ceiling dispatcher benchmarks completed in
@@ -135,25 +141,25 @@ Result: PASS
 
 | Metric | Value |
 |--------|-------|
-| Mandated pytest suite (5 files) | 265 passed, 1 skipped, 0 failed |
-| Build-script suite | 879 passed, 1 skipped, 0 failed |
-| Full Python suite | 14474 passed, 21 skipped, 45 expected failures, 3 warnings |
-| Ruff (changed generator and test file) | 0 findings |
-| mypy (changed generator and test file) | 0 errors (Success: no issues found in 2 source files) |
-| CWE-78 scan (changed generator and test file) | 0 findings |
+| Focused pytest suite (6 files) | 277 passed, 1 skipped, 0 failed |
+| Build-script suite | 891 passed, 1 skipped, 0 failed |
+| Full Python suite | 14486 passed, 21 skipped, 45 expected failures, 3 warnings |
+| Ruff (5 authored Python files) | 0 findings |
+| mypy (2 generators and focused security tests) | 0 errors |
+| CWE-78 scan (5 authored Python files) | 0 findings |
 | `build_all.py --check` | exit 0, 0 drift |
 | `check_plugin_manifest_parity.py` | exit 0, both manifests at 0.6.47 |
 | Direct subprocess probes | Every listed boundary confirmed against final generated artifacts |
 | Direct 64 MiB benchmark | 4.81 to 4.84 seconds, 276720 to 277540 KiB peak RSS |
-| Diff stat (independently calculated) | 50 files changed, 6727 insertions(+), 2265 deletions(-) |
+| Diff stat (independently calculated) | 51 files changed, 9520 insertions(+), 4111 deletions(-) |
 
 ## Test Results
 
 ### Passed
 
-- `uv run python -m pytest tests/build_scripts/test_generate_hooks.py tests/build_scripts/test_generate_dispatcher.py tests/build_scripts/test_dispatch_small_apply_patch_regression.py tests/build_scripts/test_copilot_dispatcher_artifact.py tests/test_hook_dispatch.py -q`: 265 passed, 1 skipped, 0 failed.
-- `uv run python -m pytest tests/build_scripts/ -q`: 879 passed, 1 skipped, 0 failed.
-- `uv run python -m pytest tests/ -q`: 14474 passed, 21 skipped, 45 expected failures, 3 warnings.
+- `uv run python -m pytest tests/build_scripts/test_generate_hooks.py tests/build_scripts/test_generate_dispatcher.py tests/build_scripts/test_generate_hooks_schema_security.py tests/build_scripts/test_dispatch_small_apply_patch_regression.py tests/build_scripts/test_copilot_dispatcher_artifact.py tests/test_hook_dispatch.py -q`: 277 passed, 1 skipped, 0 failed.
+- `uv run python -m pytest tests/build_scripts/ -q`: 891 passed, 1 skipped, 0 failed.
+- `uv run python -m pytest tests/ -q`: 14486 passed, 21 skipped, 45 expected failures, 3 warnings.
 - `test_inject_shim_denies_one_byte_above_read_ceiling`, `test_inject_shim_allows_exact_read_ceiling_when_unmatched`: exact/one-over ceiling behavior at the shim layer, exercised and passing.
 - `test_inject_shim_allows_payload_above_matched_limit_when_unmatched`: unmatched payload above 2 MiB and below 64 MiB exits 0, exercised and passing.
 - `test_inject_shim_allows_matched_replay_at_limit`, `test_inject_shim_denies_matched_replay_above_limit_with_context`: matched-replay 2 MiB boundary, exercised and passing.
@@ -166,6 +172,8 @@ Result: PASS
 - `test_inject_shim_denies_non_list_toolcalls_before_top_level_fallback`: object, string, integer, boolean, and null `toolCalls` values exit 2.
 - `test_inject_shim_denies_malformed_top_level_name_before_dispatch`, `test_inject_shim_denies_conflicting_top_level_names_before_dispatch`, and `test_inject_shim_allows_matching_top_level_name_aliases`: top-level aliases are validated before matcher evaluation, and matching duplicates remain compatible.
 - `test_inject_shim_batch_replay_removes_conflicting_top_level_aliases`: valid batches discard every top-level name, input, and call-ID alias before replay.
+- `test_generate_hooks_schema_security.py`: conflicting input and call-ID aliases fail closed, JSON boolean and number values remain distinct, duplicate keys are rejected recursively, matching aliases replay one snake_case schema, and committed generated shims enforce the same contract.
+- `test_generated_entrypoint_validates_mode_before_shim_entries`: dispatcher helper extraction preserves the established malformed-manifest validation order.
 - `TestOversizeCeiling::test_exact_ceiling_allows_unmatched_payload`, `test_above_ceiling_gate_denies_without_leaking_payload`, `test_observe_allows_on_oversize`: dispatcher-entrypoint boundary and no-payload-disclosure assertions, exercised and passing.
 - `TestCeilingConstant::test_entrypoint_embeds_raised_ceiling`: drift guard on the embedded constant, supplementary only.
 - `tests/build_scripts/test_dispatch_small_apply_patch_regression.py`, `tests/build_scripts/test_copilot_dispatcher_artifact.py`, `tests/test_hook_dispatch.py`: full files pass, confirming the #3083/#3130 small-apply_patch regression case and the generated-artifact regression for the dispatcher cutover remain intact.
@@ -210,6 +218,13 @@ top-level name "Read "                              -> rc=2, guard did not run
 top-level toolCalls object/string/int/bool/null      -> rc=2, guard did not run
 conflicting tool_name="Bash", toolName="Read"       -> rc=2, guard did not run
 matching tool_name="Read", toolName="Read"          -> rc=2, real Read guard ran
+conflicting tool_input and toolArgs                  -> rc=2, guard did not run
+conflicting tool_call_id and toolCallId              -> rc=2, guard did not run
+JSON number 1 vs boolean true aliases                -> rc=2, guard did not run
+matching name/input/call-ID aliases                  -> canonical snake_case replay
+duplicate outer toolCalls keys                       -> rc=2, guard did not run
+duplicate nested name keys                           -> rc=2, guard did not run
+duplicate keys inside encoded toolArgs               -> rc=2, guard did not run
 valid batch plus conflicting top-level aliases       -> rc=0, canonical batch replay
 Malformed JSON stdin ("{not valid json")             -> rc=2, stderr:
   "malformed JSON on stdin: Expecting property name enclosed in double quotes..."
@@ -227,7 +242,7 @@ None.
 
 ### Skipped
 
-1 skip in the mandated 5-file run (pre-existing, unrelated to this diff).
+1 skip in the focused 6-file run (pre-existing, unrelated to this diff).
 
 ## Coverage Matrix
 
@@ -245,6 +260,9 @@ None.
 | Padded batch name validation | Generated-shim execution and unit tests | Leading space, trailing space, and tab/newline padding exit 2 before guard execution | PASS |
 | Present `toolCalls` type validation | Generated-shim execution and parameterized tests | Object, string, integer, boolean, and null values exit 2 before top-level fallback | PASS |
 | Top-level name validation | Generated-shim execution and parameterized tests | Empty, non-string, padded, and conflicting aliases exit 2; matching aliases reach the guard | PASS |
+| Top-level input and call-ID aliases | Generated-shim execution and security tests | Conflicting aliases exit 2; null tool_input falls back to toolArgs; matching aliases replay one snake_case schema | PASS |
+| Type-strict alias equality | Generated-shim execution and security tests | JSON number and boolean values do not compare equal, including nested input fields and call IDs | PASS |
+| Duplicate JSON keys | Generated-shim execution and security tests | Duplicate outer, nested, and encoded object keys exit 2 with a payload-free diagnostic | PASS |
 | Canonical batch alias removal | Generated-shim execution | Batch replay contains only selected snake_case name, input, and call ID fields | PASS |
 | Lazy candidate traversal | Source inspection and generated-shim execution | Bounded full-batch prevalidation, then `_shim_candidate_payloads` and `_shim_select_payloads` yield candidates; `_shim_dispatch_selections` uses `yield from` | PASS |
 | Unrelated large sibling excluded from replay | Subprocess exec, real shim | 3 MiB unmatched Bash + small matched Edit, guard invoked once, rc=0; `test_inject_shim_replays_small_match_from_large_multi_call_event` | PASS |
@@ -270,13 +288,13 @@ own docstring.
 
 Executed against the final matcher schema implementation:
 
-- Full suite: 14,474 passed, 21 skipped, 45 expected failures, 3 warnings.
-- Build-script suite: 879 passed, 1 skipped.
+- Full suite: 14,486 passed, 21 skipped, 45 expected failures, 3 warnings.
+- Build-script suite: 891 passed, 1 skipped.
 - `pre_pr.py`: 29 passed, 4 skipped, zero failures.
 - Copilot plugin smoke suite: 16 passed, 2 live CLI cases skipped by the explicit `RUN_CLI_E2E` gate.
 - Tooling defect #3140 (subagent Stop hooks creating auto-retro skeletons) is unrelated to product behavior; reproduced as a side effect during this QA session (see Reconciliation Gap above).
 - Repository-wide `ruff check .` reports 406 existing findings outside the
-  changed generator and test file. Targeted Ruff on both changed files passes.
+  authored change. Targeted Ruff on all 5 authored Python files passes.
 
 ## Recommendations
 

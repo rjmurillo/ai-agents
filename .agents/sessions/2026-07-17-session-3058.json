@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, 34 regenerated matcher shims, and refreshed evidence are committed through 7a514dfc8a267af2bc5d99ab8043e452addc97c5."
+        "Evidence": "Implementation, tests, 34 regenerated matcher shims, and 5 regenerated dispatchers are committed through 2b59d62b35ab5dabef576f6120e8c6c485e60218."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -84,27 +84,27 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Recorded the 64 MiB raw-input, 2 MiB matched-replay, 256-entry raw toolCalls, non-list rejection, top-level alias validation, canonical batch replay, and measured parse-amplification contracts."
+        "Evidence": "Recorded the 64 MiB raw-input, 2 MiB matched-replay, 256-entry raw toolCalls, recursive duplicate-key rejection, name/input/call-ID alias validation, type-strict JSON equality, null tool_input fallback, canonical snake_case replay, and measured parse-amplification contracts."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 checked the updated PR #3097 QA report and dispatcher memory outside repository ignore globs: 2 files linted, 0 issues. pre_pr.py markdown validation also passed."
+        "Evidence": "markdownlint-cli2 checked the refreshed PR #3097 QA report and dispatcher memory outside repository ignore globs: 2 files linted, 0 issues. pre_pr.py markdown validation also passed."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, 34 regenerated matcher shims, and refreshed evidence are committed through 7a514dfc8a267af2bc5d99ab8043e452addc97c5. Final PR scope is 50 files, 6727 insertions, and 2265 deletions."
+        "Evidence": "Runtime implementation, security regressions, 34 regenerated matcher shims, and 5 regenerated dispatchers are committed through 2b59d62b35ab5dabef576f6120e8c6c485e60218. Final PR scope is 51 files, 9520 insertions, and 4111 deletions."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused five-file suite: 265 passed, 1 intentional exclusion. Build-script suite: 879 passed, 1 intentional exclusion. Full suite: 14474 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Targeted Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings. Generation drift, agent parity, library parity, install parity, and manifest parity passed at plugin 0.6.47. Real generated-shim probes reject padded names, non-list toolCalls, malformed top-level names, and conflicting aliases with rc=2; matching aliases reach the guard and valid batches replay canonical snake_case fields. Three exact-ceiling dispatcher runs completed in 4.81 to 4.84 seconds with 276720 to 277540 KiB peak RSS; issue #3174 tracks parse amplification. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips."
+        "Evidence": "Focused six-file suite: 277 passed, 1 intentional exclusion. Build-script suite: 891 passed, 1 intentional exclusion. Full suite: 14486 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Targeted Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings in 5 authored files. Generation drift, agent parity, library parity, install parity, and manifest parity passed at plugin 0.6.47. Real generated-shim probes reject duplicate outer, nested, and encoded JSON object keys; padded names; non-list toolCalls; malformed top-level names; and conflicting name, input, and call-ID aliases with rc=2. JSON number and boolean aliases remain distinct. Matching aliases replay one canonical snake_case schema, and valid batches remove every top-level alias. Three exact-ceiling dispatcher runs completed in 4.81 to 4.84 seconds with 276720 to 277540 KiB peak RSS; issue #3174 tracks parse amplification. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "PR #3097 remains in progress through refreshed evidence, the final SHA-bound 15-axis review, push, CI settlement, thread resolution, and merge."
+        "Evidence": "PR #3097 remains in progress through the refreshed final 15-axis review, SHA-bound marker, push, CI settlement, thread resolution, and merge."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -163,14 +163,20 @@
       "timestamp": "2026-07-17T14:18:30Z",
       "action": "Closed the top-level matcher schema bypasses and measured the exact-ceiling path",
       "result": "Present non-list toolCalls, malformed or padded top-level names, and conflicting tool_name/toolName aliases now exit 2 before guard execution. Matching aliases remain compatible. Canonical batch replay removes all top-level name, input, and call-ID aliases. Focused suite: 265 passed, 1 intentional exclusion. Build-script suite: 879 passed, 1 intentional exclusion. Full suite: 14474 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Three 64 MiB dispatcher benchmarks measured 4.81 to 4.84 seconds and 276720 to 277540 KiB peak RSS; filed #3174 with the repro."
+    },
+    {
+      "timestamp": "2026-07-17T16:51:31Z",
+      "action": "Closed the final duplicate-key and matcher-alias review blockers",
+      "result": "Recursive duplicate JSON keys now fail closed with a fixed payload-free diagnostic. Conflicting name, input, and call-ID aliases fail closed. Matching aliases use recursive type-strict equality and replay as one snake_case schema; null tool_input still falls back to toolArgs. Dispatcher helpers remain at complexity 10 or lower and preserve the established manifest validation order. Focused suite: 277 passed, 1 intentional exclusion. Build-script suite: 891 passed, 1 intentional exclusion. Full suite: 14486 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff, mypy, CWE-78, generation, plugin smoke, manifest parity, and pre-PR checks passed. Final implementation tip is 2b59d62b35ab5dabef576f6120e8c6c485e60218."
     }
   ],
-  "endingCommit": "7a514dfc8a267af2bc5d99ab8043e452addc97c5",
+  "endingCommit": "2b59d62b35ab5dabef576f6120e8c6c485e60218",
   "nextSteps": [
-    "Commit the refreshed QA, memory, and session evidence.",
-    "Run the final SHA-bound 15-axis review and create its marker.",
-    "Push normally, update issue #3168, resolve the review thread, and settle CI.",
-    "Squash merge PR #3097 after the completion gate returns ready.",
-    "Resume pr-autofix across the remaining open pull requests."
+    "Commit the refreshed QA report, dispatcher memory, and session record.",
+    "Regenerate the complete diff for the current tip and run all 15 review axes.",
+    "Create and validate the SHA-bound review marker after blocking axes pass.",
+    "Update the PR body, reacquire the pr-autofix lease, verify ancestry, and push normally.",
+    "Resolve the tracked review thread after the fixes are remote.",
+    "Wait for required CI and three clean unresolved-thread scans, then squash merge using the exact remote head SHA."
   ]
 }
