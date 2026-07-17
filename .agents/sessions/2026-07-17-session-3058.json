@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Runtime implementation, security regressions, 34 regenerated matcher shims, and 5 regenerated dispatchers are committed through 2b59d62b35ab5dabef576f6120e8c6c485e60218. Final PR scope is 51 files, 9520 insertions, and 4111 deletions."
+        "Evidence": "Runtime implementation, security regressions, 34 regenerated matcher shims, and 5 regenerated dispatchers are committed through 2b59d62b35ab5dabef576f6120e8c6c485e60218. Final PR scope is 52 files, 9691 insertions, and 4111 deletions."
       },
       "validationPassed": {
         "level": "MUST",

@@ -12,8 +12,8 @@ and top-level schema validation. This includes rejection of non-list
 `toolCalls`, duplicate JSON object keys, padded names, conflicting name, input,
 and call-ID aliases, and canonical snake_case replay.
 
-**Diff stat (calculated independently in this session):** 51 files changed,
-9520 insertions(+), 4111 deletions(-).
+**Diff stat (calculated independently in this session):** 52 files changed,
+9691 insertions(+), 4111 deletions(-).
 
 File breakdown:
 
@@ -24,7 +24,7 @@ File breakdown:
 | Generated matcher shims | 34 | `invoke_*.py` under PreToolUse (27) and PostToolUse (7) |
 | Tests | 4 | `test_generate_dispatcher.py`, `test_generate_hooks.py`, `test_generate_hooks_schema_security.py`, `test_dispatch_small_apply_patch_regression.py` |
 | Plugin manifests | 2 | `.claude/.claude-plugin/plugin.json`, `src/copilot-cli/.claude-plugin/plugin.json` (version 0.6.47) |
-| QA/session/memory artifacts | 4 | this report, two session logs, `dispatcher-payload-ceiling.md` |
+| QA/session/memory artifacts | 5 | this report, two session logs, `dispatcher-payload-ceiling.md`, generated episode |
 
 **Correction to the prior QA pass on this PR:** the earlier report claimed
 `generate_hooks_shim.py` was untouched by this diff, that real shims reject
@@ -151,7 +151,7 @@ Result: PASS
 | `check_plugin_manifest_parity.py` | exit 0, both manifests at 0.6.47 |
 | Direct subprocess probes | Every listed boundary confirmed against final generated artifacts |
 | Direct 64 MiB benchmark | 4.81 to 4.84 seconds, 276720 to 277540 KiB peak RSS |
-| Diff stat (independently calculated) | 51 files changed, 9520 insertions(+), 4111 deletions(-) |
+| Diff stat (independently calculated) | 52 files changed, 9691 insertions(+), 4111 deletions(-) |
 
 ## Test Results
 
