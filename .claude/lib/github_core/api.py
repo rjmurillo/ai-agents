@@ -23,6 +23,7 @@ import time
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
@@ -158,31 +159,170 @@ def resolve_repo_params(owner: str = "", repo: str = "") -> RepoInfo:
 
 
 def is_gh_authenticated() -> bool:
-    """Check if GitHub CLI is installed and authenticated."""
+    """Return True if the GitHub token authenticates on any supported transport.
+
+    Thin boolean wrapper over :func:`check_gh_auth` for callers that only need a
+    gate. A transient REST failure (for example a 5xx "Unicorn" page) no longer
+    reads as unauthenticated when the same token still works over GraphQL
+    (issue #3139).
+    """
+    return check_gh_auth().is_authenticated
+
+
+class GhAuthStatus(Enum):
+    """Classification of a GitHub CLI authentication preflight (issue #3139)."""
+
+    AUTHENTICATED = "authenticated"
+    MISSING_GH = "missing_gh"
+    INVALID_CREDENTIALS = "invalid_credentials"
+    TRANSIENT_ERROR = "transient_error"
+
+
+@dataclass(frozen=True)
+class GhAuthResult:
+    """Outcome of :func:`check_gh_auth` with a sanitized diagnostic detail."""
+
+    status: GhAuthStatus
+    detail: str = ""
+
+    @property
+    def is_authenticated(self) -> bool:
+        return self.status is GhAuthStatus.AUTHENTICATED
+
+
+# Credentials that must never reach an error envelope or log line.
+_TOKEN_REDACTION_PATTERN = re.compile(
+    r"gh[opsu]_[A-Za-z0-9]{20,}"
+    r"|github_pat_[A-Za-z0-9_]{20,}"
+    r"|\b[A-Fa-f0-9]{40}\b"
+)
+
+# Signatures that mark a transport (REST/GraphQL) as transiently degraded
+# rather than proof of an invalid token: 5xx responses, the GitHub "Unicorn"
+# page, timeouts, and connection failures.
+_TRANSIENT_SIGNATURE = re.compile(
+    r"HTTP 5\d\d"
+    r"|status(?:\s+code)?\s+5\d\d"
+    r"|\b50[0-4]\b"
+    r"|unicorn"
+    r"|try again"
+    r"|temporarily unavailable"
+    r"|service unavailable"
+    r"|bad gateway"
+    r"|gateway time"
+    r"|timed out"
+    r"|timeout"
+    r"|connection (?:reset|refused|error|timed out)"
+    r"|could not resolve host"
+    r"|server error",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_auth_detail(text: str, limit: int = 200) -> str:
+    """Redact tokens and collapse whitespace so detail is envelope/log safe."""
+    redacted = _TOKEN_REDACTION_PATTERN.sub("[REDACTED]", text or "")
+    redacted = " ".join(redacted.split())
+    if len(redacted) > limit:
+        redacted = redacted[:limit] + "..."
+    return redacted
+
+
+def _looks_transient(text: str) -> bool:
+    return bool(_TRANSIENT_SIGNATURE.search(text or ""))
+
+
+def _run_gh(args: list[str], timeout: int = 10) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["gh", *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
+
+
+def _graphql_viewer_probe() -> GhAuthResult:
+    """Confirm auth over the GraphQL transport (issue #3139).
+
+    ``gh auth status`` uses the REST transport, which can return a transient
+    5xx while the same token authenticates GraphQL and git. When REST status is
+    inconclusive, probe ``gh api graphql`` for the viewer: a clean success means
+    the token is valid and only REST was degraded.
+    """
     try:
-        result = subprocess.run(
-            ["gh", "auth", "status"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-        )
-        return result.returncode == 0
+        result = _run_gh(["api", "graphql", "-f", "query=query { viewer { login } }"])
     except FileNotFoundError:
         logger.debug("GitHub CLI (gh) not found on PATH")
-        return False
+        return GhAuthResult(GhAuthStatus.MISSING_GH)
+    except subprocess.TimeoutExpired:
+        logger.debug("gh api graphql viewer probe timed out")
+        return GhAuthResult(GhAuthStatus.TRANSIENT_ERROR, "GraphQL viewer probe timed out")
+
+    if result.returncode == 0:
+        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+
+    combined = f"{result.stdout}\n{result.stderr}"
+    detail = _sanitize_auth_detail(combined)
+    if _looks_transient(combined):
+        return GhAuthResult(GhAuthStatus.TRANSIENT_ERROR, detail)
+    return GhAuthResult(GhAuthStatus.INVALID_CREDENTIALS, detail)
+
+
+def check_gh_auth() -> GhAuthResult:
+    """Classify GitHub CLI auth across the REST and GraphQL transports.
+
+    ``gh auth status`` (REST) can misreport a transient 5xx as an invalid
+    token, which previously sent operators to ``gh auth login`` for what was a
+    GitHub outage and blocked working GraphQL operations (issue #3139). When
+    REST status is nonzero but ``gh`` is installed, confirm the real state via a
+    GraphQL viewer probe before declaring an auth failure.
+
+    Returns:
+        A :class:`GhAuthResult`. ``TRANSIENT_ERROR`` maps to external-failure
+        exit 3; ``MISSING_GH`` and ``INVALID_CREDENTIALS`` map to auth exit 4.
+    """
+    try:
+        result = _run_gh(["auth", "status"])
+    except FileNotFoundError:
+        logger.debug("GitHub CLI (gh) not found on PATH")
+        return GhAuthResult(GhAuthStatus.MISSING_GH)
     except subprocess.TimeoutExpired:
         logger.debug("gh auth status timed out")
-        return False
+        # A REST status timeout is not proof of an invalid token; confirm via
+        # the GraphQL transport before failing.
+        return _graphql_viewer_probe()
+
+    if result.returncode == 0:
+        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+
+    # REST status failed. Do not trust its verdict (it may relabel a 5xx as an
+    # invalid token); confirm the real state over GraphQL.
+    return _graphql_viewer_probe()
 
 
 def assert_gh_authenticated() -> None:
-    """Ensure GitHub CLI is authenticated. Raises SystemExit if not."""
-    if not is_gh_authenticated():
+    """Ensure GitHub CLI can authenticate. Raises SystemExit if not.
+
+    Transient transport failures (5xx, timeouts) exit 3 (external) and identify
+    the failing transport without leaking credentials; missing ``gh`` and
+    confirmed invalid credentials exit 4 (auth). See :func:`check_gh_auth` and
+    issue #3139.
+    """
+    result = check_gh_auth()
+    if result.status is GhAuthStatus.AUTHENTICATED:
+        return
+    if result.status is GhAuthStatus.TRANSIENT_ERROR:
+        detail = f" ({result.detail})" if result.detail else ""
         error_and_exit(
-            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-            4,
+            "GitHub API is temporarily unavailable (transport error); this is "
+            f"not an authentication failure. Retry shortly.{detail}",
+            3,
         )
+    error_and_exit(
+        "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
+        4,
+    )
 
 
 # ---------------------------------------------------------------------------

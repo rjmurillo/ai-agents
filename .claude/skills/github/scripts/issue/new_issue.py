@@ -44,7 +44,8 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (  # noqa: E402
-    assert_gh_authenticated,
+    GhAuthStatus,
+    check_gh_auth,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
@@ -159,24 +160,37 @@ def _resolve_auth_and_repo(
     repo: str,
     fmt: str,
 ) -> tuple[str, str] | int:
-    """Assert authentication and resolve owner/repo, emitting JSON envelopes on failure.
+    """Classify authentication and resolve owner/repo, emitting JSON envelopes on failure.
+
+    A transient GitHub transport failure (5xx, timeout) is reported as an
+    ApiError (exit 3), not an AuthError, so a REST outage no longer sends
+    the operator to ``gh auth login`` (issue #3139).
 
     Returns:
         ``(owner, repo)`` on success, or an int exit code after writing the
         error envelope so ``main`` can propagate it immediately.
     """
-    try:
-        assert_gh_authenticated()
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 4
+    auth = check_gh_auth()
+    if auth.status is not GhAuthStatus.AUTHENTICATED:
+        if auth.status is GhAuthStatus.TRANSIENT_ERROR:
+            detail = f" Detail: {auth.detail}" if auth.detail else ""
+            write_skill_error(
+                "GitHub API is temporarily unavailable (transport error); this "
+                f"is not an authentication failure. Retry shortly.{detail}",
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name="new_issue.py",
+            )
+            return 3
         write_skill_error(
             "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-            code,
+            4,
             error_type="AuthError",
             output_format=fmt,
             script_name="new_issue.py",
         )
-        return code
+        return 4
 
     _stderr_buf = io.StringIO()
     try:
