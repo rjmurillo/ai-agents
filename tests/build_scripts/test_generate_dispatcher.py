@@ -470,9 +470,10 @@ class TestOversizeCeiling:
             assert b"apply_patch" not in stream
             assert b"tool_input" not in stream
 
-    def test_matched_guard_sees_full_payload_below_ceiling(self, tmp_path):
+    def test_dispatcher_forwards_full_payload_below_ceiling(self, tmp_path):
         # A payload above the old 2 MiB cap but below the new ceiling reaches a
-        # matched guard intact: the guard reads the whole stream and denies.
+        # registered shim intact. Generated matcher shims can still apply their
+        # own size policy after the dispatcher forwards the stream.
         root, event_dir = _stage_plugin(tmp_path, "preToolUse")
         seen = tmp_path / "seen_len"
         (event_dir / "guard.py").write_text(
