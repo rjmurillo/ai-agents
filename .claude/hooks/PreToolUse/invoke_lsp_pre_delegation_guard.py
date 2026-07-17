@@ -407,7 +407,7 @@ def main() -> int:
         # the orchestrator cannot pre-resolve symbol context, so blocking the
         # delegation just wedges the turn. Allow it with a one-time warning
         # (ADR-062 Section 5, release-it.md graceful degradation).
-        if lsp_runtime_down():
+        if lsp_runtime_down(project_dir):
             warn_once_lsp_down("lsp-pre-delegation-guard", project_dir)
             return 0
 

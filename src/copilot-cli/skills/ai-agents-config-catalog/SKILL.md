@@ -51,6 +51,7 @@ All are scoped, single-check bypasses. Every bypass is printed to the hook outpu
 | `SKIP_ACTIONLINT=1` | env var | Skips actionlint validation | Emergency only | Bypass is announced in output | `.githooks/pre-commit:477-479` |
 | `SKIP_YAMLLINT=1` | env var | Skips yamllint validation | Emergency only | Bypass is announced in output | `.githooks/pre-commit:578-580` |
 | `SKIP_MEMORY_SYNC=1` | env var | Skips the memory sync step in pre-commit | Production | Sync is advisory; skipping delays memory freshness only | `.githooks/pre-commit:1784-1792` |
+| `SKIP_SCOPE_CHECK=1` | env var | Skips `scripts/detect_scope_explosion.py` cumulative-file scope gate in pre-commit | Escape hatch for justified large sets (generated-artifact bundles, approved oversized-PR repairs) | Prints a WARN naming the flag, not silent (issue #3142); only the literal `1` bypasses, any other value runs the detector; bypassing for convenience or a slow check is the abuse | `.githooks/pre-commit:2137,2163-2167` |
 | `SKIP_WORKFLOW_LOCAL_TEST=true` | env var | Bypasses local `act` run of changed workflows in pre-push | Escape hatch for workflows that cannot run under act | Recorded as WARN in the pre-push summary, not silent | `.githooks/pre-push:775-787` |
 | `SKIP_CLI_E2E=true` | env var | Opts out of hook-anchoring and plugin-load e2e smoke when a CLI is installed but unusable (unauthenticated, out of credits) | Escape hatch | Recorded as SKIP with named reason | `.githooks/pre-push:1223-1257` |
 
