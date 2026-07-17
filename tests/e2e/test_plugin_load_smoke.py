@@ -5,30 +5,42 @@ PR #2735 was green on unit tests, schema checks, and generated-file checks, yet 
 broken skill front-matter field (``argument-hint must be a string``) could still
 reach a customer because nothing loaded the plugin in the real CLI and asserted
 the skills loaded. These tests close that gap: they launch the REAL CLIs, load
-the shipped plugin directory, list the plugin's skills, and assert the lifecycle
-skills load.
+the shipped plugin directory, and assert the plugin loads.
 
-  - Copilot: ``copilot --plugin-dir <repo>/src/copilot-cli skill list --json``
-    with ``cwd`` set to a neutral directory. Assert returncode 0, no
-    ``argument-hint`` loader warning in stderr, and the expected lifecycle skills
-    load from ``source: plugin``.
+  - Copilot: the PRIMARY load signal is a FIRED HOOK (issue #3148). Running
+    ``copilot --plugin-dir <probe> -p`` from a neutral cwd fires the probe
+    plugin's ``UserPromptSubmit`` hook, which proves the CLI loads and dispatches
+    a ``--plugin-dir`` plugin regardless of how ``skill list --json`` labels
+    plugin skills. The shared probe lives in ``tests/e2e/copilot_hook_probe.py``
+    so this smoke and ``tests/e2e/test_cli_hook_e2e.py`` use the same source of
+    truth. As a co-primary #2736 guard, ``copilot --plugin-dir <repo> skill list
+    --json`` must return 0 with no ``argument-hint`` loader warning. The
+    ``EXPECTED_SKILLS`` subset check is kept only as a SECONDARY soft signal for
+    when the CLI does enumerate the shipped plugin under ``source: plugin``.
   - Claude: ``claude --plugin-dir <repo>/.claude plugin list`` and
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
     Assert returncode 0, the manifest version appears, and the expected lifecycle
     skills are present in the details output.
 
-This is the plugin-LOAD smoke. The plugin-HOOK smoke (a hook resolves and runs
-from the install tree) lives in ``tests/e2e/test_cli_hook_e2e.py``. Both run in
-the same nightly workflow under ``RUN_CLI_E2E=1``; each has its own JUnit report
-and its own ``assert_smoke_ran`` gate so a silent skip of either is a red run.
+Why version-agnostic (issue #3148): earlier the smoke keyed the benign path on a
+per-version allowlist (``_COPILOT_BENIGN_NO_ENUM_VERSIONS``) plus a "zero
+source: plugin records" check. That needed a manual bump every Copilot CLI
+release and flaked on machines with globally installed plugins (surfaced under
+``source: plugin`` with ``pluginName: null``). The fired-hook signal removes both
+problems: a hook fires or it does not, on every version.
+
+This is the plugin-LOAD smoke. The plugin-HOOK anchoring smoke lives in
+``tests/e2e/test_cli_hook_e2e.py``. Both run in the same nightly workflow under
+``RUN_CLI_E2E=1``; each has its own JUnit report so a silent skip of either is a
+red run.
 
 Why opt-in: these spawn real CLIs that need authentication and spend model
 credits, which bare CI does not have. They run wherever the CLIs are installed
 and ``RUN_CLI_E2E=1`` is set (local dev, the nightly job with secrets); elsewhere
 they SKIP with a loud reason so a skipped run never reads as a passed run. The
 fast, always-on guards are the unit checks at the bottom of this file: they pin
-the expected-skills set against the shipped plugin trees with no CLI, so a
-renamed or deleted lifecycle skill fails in bare CI too.
+the expected-skills set against the shipped plugin trees, and pin the fired-hook
+detector's positive and negative controls, with no CLI.
 
 Run locally:
     RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -v
@@ -38,7 +50,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -47,12 +58,22 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# tests/e2e is not on sys.path under --import-mode=importlib (no __init__.py), so
+# add it for the sibling copilot_hook_probe import.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 _original_sys_path = sys.path.copy()
 try:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     from cli_exec import resolve_executable  # noqa: E402
 finally:
     sys.path[:] = _original_sys_path
+
+# Fired-hook probe: ONE source of truth shared with test_cli_hook_e2e.py (#3148).
+from copilot_hook_probe import (  # noqa: E402
+    PROBE_EVENT,
+    run_copilot_plugin_dir,
+    write_marker_probe_plugin,
+)
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
@@ -161,13 +182,15 @@ def _has_plugin_source_record(
     payload: object,
     plugin_dir: Path | None = None,
 ) -> bool:
-    """True if `payload` is a list with at least one `source: plugin` record.
+    """True if `payload` is a list with a `source: plugin` record for `plugin_dir`.
 
     Unlike `_plugin_skill_names`, this ignores the ``name`` field: a plugin
     record with a missing or non-string name still proves the enumeration
     surface carried plugin loads. The strict ``name`` filter is applied later by
-    `_plugin_skill_names`, so a nameless plugin record makes the smoke fail loud
-    on the missing skill rather than skip.
+    `_plugin_skill_names`, so a nameless plugin record makes the secondary check
+    fail loud on the missing skill rather than skip. Scoping by ``plugin_dir``
+    drops globally installed plugins (which surface with ``pluginName: null`` on
+    1.0.72), so the secondary check never trips on unrelated installs.
     """
     if not isinstance(payload, list):
         return False
@@ -177,71 +200,6 @@ def _has_plugin_source_record(
         and _is_from_plugin_dir(record, plugin_dir)
         for record in payload
     )
-
-
-def _plugin_enumeration_available(
-    payload: object,
-    plugin_dir: Path | None = None,
-) -> bool:
-    """True when the caller must keep the strict assertion instead of skipping.
-
-    The smoke skips ONLY for the known-benign shape: a well-formed JSON array
-    that carries zero ``source: plugin`` records. On Copilot CLI 1.0.69
-    (verified 2026-07-08 on this repo's shipped ``src/copilot-cli`` tree),
-    1.0.70 (issue #3014), 1.0.71 (issue #3090; verified via
-    debug-boot hooks-fired proof on 1.0.71-3), and 1.0.72 (issue #3135;
-    verified via debug-boot hook execution on 1.0.72-0),
-    ``copilot --plugin-dir <dir> skill list --json`` run
-    from a neutral cwd surfaces ZERO ``source: plugin`` records: the output
-    carries only ``builtin`` and ``personal-copilot``. The ``source: project``
-    group that does list the lifecycle skills is cwd-based (the repo you stand
-    in), not ``--plugin-dir`` based, so it is not a valid load signal for a
-    neutral-cwd smoke. The full set of benign versions lives in
-    ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` below. See #2990, #3014, #3090, and #3135.
-
-    The caller validates list-ness first:
-    ``test_copilot_plugin_loads_expected_skills`` fails loud on a non-list
-    payload before this helper is consulted. This helper still returns True for
-    every non-benign shape as defense in depth, so any caller (present or
-    future) that omits its own guard fails loud rather than skips:
-
-    - a non-list payload (unexpected schema, or a CLI error object) returns True,
-      so a caller without its own list guard still fails loud instead of
-      skipping silently; and
-    - a list that DOES carry ``source: plugin`` records keeps the strict subset
-      assertion, so a plugin record with a missing name fails on the absent
-      skill instead of masking a regression.
-    """
-    if not isinstance(payload, list):
-        return True
-    return _has_plugin_source_record(payload, plugin_dir)
-
-
-_COPILOT_BENIGN_NO_ENUM_VERSIONS = frozenset({"1.0.69", "1.0.70", "1.0.71", "1.0.72"})
-
-
-def _copilot_version_omits_plugin_enumeration(version_output: str) -> bool:
-    """True when the Copilot CLI version is known to omit ``--plugin-dir`` skills.
-
-    Only the versions in ``_COPILOT_BENIGN_NO_ENUM_VERSIONS`` are allowed to skip
-    the strict subset assertion when ``skill list --json`` surfaces zero
-    ``source: plugin`` records (issues #2990, #3014, #3090, and #3135). This is an
-    output-surface quirk of those releases: the plugin loads and its hooks fire,
-    but ``skill list --json`` does not enumerate ``--plugin-dir`` skills under
-    ``source: plugin``. Any other version that surfaces zero ``source: plugin``
-    records is treated as a real plugin-load regression and must fail loud, so
-    the smoke keeps its negative control instead of masking a broken load on a
-    CLI that DOES enumerate ``--plugin-dir`` skills through this surface.
-
-    The version token is the first ``MAJOR.MINOR.PATCH`` in the CLI's
-    ``--version`` output; a ``-<suffix>`` build tag (for example ``1.0.69-3``) is
-    ignored because the enumeration behavior tracks the release, not the build.
-    A version string with no parseable token returns False (fail loud).
-    """
-    match = re.search(r"\d+\.\d+\.\d+", version_output)
-    if match is None:
-        return False
-    return match.group(0) in _COPILOT_BENIGN_NO_ENUM_VERSIONS
 
 
 def _read_manifest_version(manifest_path: Path) -> str:
@@ -255,11 +213,17 @@ def _read_manifest_version(manifest_path: Path) -> str:
 @pytest.mark.smoke
 @requires_copilot
 def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
-    """copilot --plugin-dir loads the lifecycle skills with no loader warning.
+    """copilot loads the plugin, proven by a fired hook, with no loader warning.
 
-    Asserts returncode 0, that no ``argument-hint`` loader warning appears on
-    stderr (the issue #2736 failure class), and that EXPECTED_SKILLS is a subset
-    of the skills the CLI loaded from ``source: plugin``.
+    Primary load signal (version-agnostic, issue #3148): ``copilot --plugin-dir
+    <probe> -p`` fires the probe plugin's ``UserPromptSubmit`` hook, proving the
+    CLI loads and dispatches a ``--plugin-dir`` plugin without depending on how
+    ``skill list --json`` labels plugin skills. Co-primary (issue #2736): the
+    shipped ``src/copilot-cli`` plugin lists skills with returncode 0 and no
+    ``argument-hint`` loader warning. Secondary soft signal: when the CLI does
+    enumerate the shipped plugin under ``source: plugin``, ``EXPECTED_SKILLS``
+    must be a subset (so a CLI that enumerates and is genuinely broken still
+    fails).
     """
     version = _run_cli(
         [resolve_executable("copilot"), "--version"],
@@ -267,6 +231,32 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     )
     print(f"copilot --version: {version.stdout.strip() or version.stderr.strip()}")
 
+    # PRIMARY: a fired hook proves the --plugin-dir plugin loaded and dispatched.
+    probe_plugin = tmp_path / "probe-plugin"
+    marker = tmp_path / "probe_marker.txt"
+    userland = tmp_path / "userland"
+    userland.mkdir()
+    write_marker_probe_plugin(probe_plugin, marker)
+    try:
+        fired = run_copilot_plugin_dir(
+            probe_plugin, cwd=userland, timeout=_CLI_TIMEOUT_SECONDS
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip(
+            f"copilot --plugin-dir probe exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
+        )
+    assert fired.returncode == 0, (
+        f"copilot --plugin-dir probe run failed (rc={fired.returncode}). "
+        f"stdout={fired.stdout[-600:]!r} stderr={fired.stderr[-600:]!r}"
+    )
+    assert marker.is_file(), (
+        "copilot --plugin-dir did not fire the probe plugin's UserPromptSubmit hook: the CLI "
+        "failed to load and dispatch the --plugin-dir plugin. This is a real plugin-load "
+        f"failure, not an enumeration quirk. stdout={fired.stdout[-600:]!r} "
+        f"stderr={fired.stderr[-600:]!r}"
+    )
+
+    # CO-PRIMARY (issue #2736): the shipped plugin lists skills with no loader warning.
     try:
         run = _run_cli(
             [
@@ -304,42 +294,66 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
             f"stdout={run.stdout[-600:]!r}"
         )
 
-    if not _plugin_enumeration_available(payload, _COPILOT_PLUGIN_DIR):
-        version_text = version.stdout.strip() or version.stderr.strip()
-        sources = sorted(
-            {
-                str(record.get("source"))
-                for record in (payload if isinstance(payload, list) else [])
-                if isinstance(record, dict)
-            }
-        )
-        if not _copilot_version_omits_plugin_enumeration(version_text):
-            benign_versions = "/".join(sorted(_COPILOT_BENIGN_NO_ENUM_VERSIONS))
-            pytest.fail(
-                "copilot skill list --json surfaced no source: plugin records for a "
-                f"known-good --plugin-dir on CLI version {version_text!r}, which is "
-                "NOT a known plugin-enumeration-omitting version (issues #2990, #3014, "
-                f"#3090, #3135). A version outside the benign {benign_versions} set that "
-                "surfaces no source: plugin records is treated as a real "
-                "plugin-load regression. "
-                f"sources seen: {sources}"
-            )
-        pytest.skip(
-            "copilot skill list --json surfaced no source: plugin records for a "
-            "known-good --plugin-dir. On CLI 1.0.69 through 1.0.72 the plugin-dir "
-            "load is not enumerated through this surface (issues #2990, #3014, "
-            "#3090, #3135); the load "
-            "itself is unaffected (the plugin's hooks still load and fire). Skipping "
-            "loud rather than false-failing. "
-            f"copilot --version: {version_text!r}; "
-            f"sources seen: {sources}"
+    # SECONDARY soft signal. When the CLI enumerates the shipped plugin under
+    # source: plugin, EXPECTED_SKILLS must be a subset, so a CLI that DOES
+    # enumerate and is genuinely broken still fails. When it does not enumerate
+    # the plugin (CLI 1.0.69+, issues #2990/#3014/#3090/#3135), the fired-hook and
+    # no-loader-warning signals above already proved the load, so the absence of
+    # source: plugin records is not a failure and not a skip. Scoping by plugin
+    # dir also drops globally installed plugins (pluginName: null), removing the
+    # environment-dependent flake that used to route 1.0.72 into a strict assert.
+    if _has_plugin_source_record(payload, _COPILOT_PLUGIN_DIR):
+        loaded = _plugin_skill_names(payload, _COPILOT_PLUGIN_DIR)
+        missing = EXPECTED_SKILLS - loaded
+        assert not missing, (
+            "copilot enumerated the shipped plugin under source: plugin but omitted expected "
+            f"skills: missing={sorted(missing)} loaded={sorted(loaded)}"
         )
 
-    loaded = _plugin_skill_names(payload, _COPILOT_PLUGIN_DIR)
-    missing = EXPECTED_SKILLS - loaded
-    assert not missing, (
-        f"copilot did not load expected plugin skills: missing={sorted(missing)} "
-        f"loaded={sorted(loaded)}"
+
+@pytest.mark.smoke
+@requires_copilot
+def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> None:
+    """Negative control: the fired-hook load signal fails when nothing loads.
+
+    A marker-writing probe hook exists on disk, but copilot is pointed at a
+    DIFFERENT, empty plugin dir. The probe hook must NOT fire, so its marker
+    stays absent. This proves the PRIMARY assertion in
+    ``test_copilot_plugin_loads_expected_skills`` fails loud when the plugin does
+    not load, rather than passing unconditionally (generated-artifacts.md: a push
+    gate must keep a loud-fail negative control). Verified against Copilot CLI
+    1.0.72-0: an empty ``--plugin-dir`` leaves the marker absent.
+    """
+    probe_plugin = tmp_path / "probe-plugin"
+    marker = tmp_path / "probe_marker.txt"
+    write_marker_probe_plugin(probe_plugin, marker)
+
+    empty_plugin = tmp_path / "empty-plugin"
+    empty_plugin.mkdir()
+    (empty_plugin / "plugin.json").write_text(
+        json.dumps(
+            {
+                "name": "load-smoke-neg-control",
+                "description": "negative control",
+                "version": "0.0.1",
+                "author": {"name": "e2e"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    userland = tmp_path / "userland"
+    userland.mkdir()
+    try:
+        run = run_copilot_plugin_dir(empty_plugin, cwd=userland, timeout=_CLI_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        pytest.skip(
+            f"copilot --plugin-dir empty exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
+        )
+    assert not marker.is_file(), (
+        "negative control failed: copilot fired the probe hook while pointed at an EMPTY "
+        "--plugin-dir, so a fired marker cannot distinguish load from no-load and the smoke's "
+        f"primary assertion would pass unconditionally. stdout={run.stdout[-600:]!r} "
+        f"stderr={run.stderr[-600:]!r}"
     )
 
 
@@ -414,8 +428,9 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
 
 # Always-on unit checks. They need no real CLI, so they run in bare CI and pin
 # the load contract the gated smoke depends on: every expected lifecycle skill
-# ships in BOTH plugin trees. A break here means the gated smoke is asserting a
-# skill set that cannot load, so the contract drifted and the smoke is stale.
+# ships in BOTH plugin trees, and the fired-hook detector has a working positive
+# and negative control. A break here means the gated smoke is asserting a skill
+# set that cannot load, or a load signal that cannot fail.
 
 
 def test_expected_skills_ship_in_copilot_plugin_tree() -> None:
@@ -467,7 +482,7 @@ def test_plugin_skill_names_counts_only_plugin_source() -> None:
     """Only `source: plugin` records count toward the loaded set.
 
     A built-in or user-level skill with the same name must not mask a missing
-    plugin skill. This pins the filter the gated Copilot assertion relies on.
+    plugin skill. This pins the filter the secondary Copilot assertion relies on.
     """
     payload = [
         {"name": "build", "source": "plugin"},
@@ -493,41 +508,17 @@ def test_plugin_skill_names_handles_non_list_payload() -> None:
     assert _plugin_skill_names(None) == set()
 
 
-def test_plugin_enumeration_available_true_when_plugin_records_present() -> None:
-    """A payload with at least one `source: plugin` record enables the assertion.
+def test_plugin_source_records_are_scoped_to_the_requested_plugin(tmp_path: Path) -> None:
+    """Only records under the requested plugin dir count as its plugin source.
 
-    This is the branch where the CLI does enumerate `--plugin-dir` loads, so the
-    caller keeps the strict subset check rather than skipping.
+    A globally installed plugin (different path, and on 1.0.72 a null pluginName)
+    must not make the secondary check treat the shipped plugin as enumerated, and
+    must not contribute skill names. This is the fix for the environment-dependent
+    flake where a machine with global plugins routed 1.0.72 into the strict subset
+    assert (issue #3148).
     """
-    payload = [
-        {"name": "build", "source": "plugin"},
-        {"name": "review", "source": "builtin"},
-    ]
-
-    assert _plugin_enumeration_available(payload) is True
-
-
-def test_plugin_enumeration_available_false_when_no_plugin_records() -> None:
-    """No `source: plugin` record means the CLI did not enumerate the plugin dir.
-
-    On CLI 1.0.69 a neutral-cwd run surfaces only `builtin` and
-    `personal-copilot`; the smoke must SKIP rather than false-fail (issue #2990).
-    Only a well-formed list with zero plugin records collapses to this
-    not-available verdict; malformed shapes are handled separately below.
-    """
-    only_builtin = [
-        {"name": "review", "source": "builtin"},
-        {"name": "explain", "source": "personal-copilot"},
-    ]
-
-    assert _plugin_enumeration_available(only_builtin) is False
-    assert _plugin_enumeration_available([]) is False
-
-
-def test_plugin_enumeration_ignores_other_installed_plugins(tmp_path: Path) -> None:
-    """Unrelated installed plugins do not prove the requested plugin loaded."""
     requested = tmp_path / "requested-plugin"
-    payload = [
+    payload: list[object] = [
         {
             "name": "other-skill",
             "source": "plugin",
@@ -535,7 +526,7 @@ def test_plugin_enumeration_ignores_other_installed_plugins(tmp_path: Path) -> N
         }
     ]
 
-    assert _plugin_enumeration_available(payload, requested) is False
+    assert _has_plugin_source_record(payload, requested) is False
     assert _plugin_skill_names(payload, requested) == set()
 
     payload.append(
@@ -546,36 +537,8 @@ def test_plugin_enumeration_ignores_other_installed_plugins(tmp_path: Path) -> N
         }
     )
 
-    assert _plugin_enumeration_available(payload, requested) is True
+    assert _has_plugin_source_record(payload, requested) is True
     assert _plugin_skill_names(payload, requested) == {"build"}
-
-
-def test_plugin_enumeration_available_true_on_non_list_payload() -> None:
-    """A non-list payload proceeds (True) so the smoke fails loud, not skips.
-
-    A CLI error object or any unexpected schema must surface as a failed
-    assertion with diagnostics, never a silent skip that masks a regression
-    (gemini/copilot review on PR #3001).
-    """
-    assert _plugin_enumeration_available({"unexpected": "object"}) is True
-    assert _plugin_enumeration_available(None) is True
-    assert _plugin_enumeration_available("not-a-list") is True
-
-
-def test_plugin_enumeration_available_true_when_plugin_record_missing_name() -> None:
-    """A `source: plugin` record counts even without a string `name`.
-
-    Detection is name-independent so a schema change that drops or mangles the
-    name field keeps the strict assertion (True), where `_plugin_skill_names`
-    then fails on the absent skill instead of skipping.
-    """
-    payload = [
-        {"source": "plugin"},
-        {"name": 123, "source": "plugin"},
-    ]
-
-    assert _plugin_enumeration_available(payload) is True
-    assert _plugin_skill_names(payload) == set()
 
 
 def test_has_plugin_source_record() -> None:
@@ -588,42 +551,47 @@ def test_has_plugin_source_record() -> None:
     assert _has_plugin_source_record(None) is False
 
 
-def test_copilot_version_omits_enumeration_true_for_benign_version() -> None:
-    """CLI 1.0.69 through 1.0.72 omit requested plugin-dir enumeration.
+def test_marker_probe_plugin_hook_writes_marker_when_run(tmp_path: Path) -> None:
+    """The probe plugin's hook writes its marker when executed directly.
 
-    These releases surface zero matching ``source: plugin`` records for a known-good
-    ``--plugin-dir`` while the plugin still loads (#2990, #3014, #3090, #3135).
-    A build-tag suffix such as ``1.0.69-3`` tracks the same release, so it
-    still matches; extra surrounding text from ``--version`` is tolerated.
+    CLI-independent positive control for the fired-hook detector: if the probe
+    script were itself broken, the gated PRIMARY assertion could never pass and
+    the failure would be misattributed to the CLI. Build the plugin, run its
+    hook, and confirm the marker records the run.
     """
-    assert _copilot_version_omits_plugin_enumeration("1.0.69") is True
-    assert _copilot_version_omits_plugin_enumeration("1.0.69-3") is True
-    assert _copilot_version_omits_plugin_enumeration("1.0.70") is True
-    assert _copilot_version_omits_plugin_enumeration("1.0.70-0") is True
-    assert _copilot_version_omits_plugin_enumeration("1.0.71") is True
-    assert _copilot_version_omits_plugin_enumeration("1.0.71-3") is True
-    assert _copilot_version_omits_plugin_enumeration("1.0.72") is True
-    assert _copilot_version_omits_plugin_enumeration("1.0.72-0") is True
-    assert _copilot_version_omits_plugin_enumeration("copilot 1.0.69 (build 42)") is True
+    plugin = tmp_path / "plugin"
+    marker = tmp_path / "marker.txt"
+    write_marker_probe_plugin(plugin, marker)
+    script = plugin / "hooks" / PROBE_EVENT / "probe.py"
+    assert script.is_file()
+
+    env = os.environ.copy()
+    env["COPILOT_PLUGIN_ROOT"] = str(plugin)
+    result = subprocess.run(
+        [sys.executable, "-u", str(script)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert marker.is_file()
+    text = marker.read_text(encoding="utf-8")
+    assert "MARKER" in text
+    assert f"COPILOT_PLUGIN_ROOT={plugin}" in text
 
 
-def test_copilot_version_omits_enumeration_false_for_other_versions() -> None:
-    """Unknown versions must fail loud, not skip (#2990, #3014, #3090, #3135).
+def test_absent_marker_means_hook_did_not_fire(tmp_path: Path) -> None:
+    """A marker that was never written reports no-fire.
 
-    A CLI that enumerates ``--plugin-dir`` skills but returns none is a real
-    plugin-load regression; the negative control depends on this returning False.
+    CLI-independent negative control: the gated PRIMARY asserts `marker.is_file()`.
+    This pins that the detector reports no-fire when the hook never ran, so a
+    genuine plugin-load failure fails the smoke rather than passing.
     """
-    assert _copilot_version_omits_plugin_enumeration("1.0.68") is False
-    assert _copilot_version_omits_plugin_enumeration("1.0.73") is False
-    assert _copilot_version_omits_plugin_enumeration("1.1.0") is False
-    assert _copilot_version_omits_plugin_enumeration("2.0.0") is False
-
-
-def test_copilot_version_omits_enumeration_false_when_unparseable() -> None:
-    """No parseable version token means fail loud (return False), never skip."""
-    assert _copilot_version_omits_plugin_enumeration("") is False
-    assert _copilot_version_omits_plugin_enumeration("unknown") is False
-    assert _copilot_version_omits_plugin_enumeration("v1.0") is False
+    marker = tmp_path / "never_written.txt"
+    assert not marker.is_file()
 
 
 def test_clean_env_strips_plugin_root_keys_case_insensitively(
