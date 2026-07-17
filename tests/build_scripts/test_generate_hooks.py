@@ -463,10 +463,14 @@ def test_inject_shim_denies_malformed_toolcalls_before_dispatch(
     assert "FIRED" not in proc.stdout
 
 
-def test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name():
+@pytest.mark.parametrize("top_level_name_field", ["tool_name", "toolName"])
+@pytest.mark.parametrize("top_level_name", ["Edit", "", 7, None])
+def test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name(
+    top_level_name_field, top_level_name
+):
     transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
     payload = {
-        "tool_name": "Edit",
+        top_level_name_field: top_level_name,
         "tool_input": {"file_path": "README.md"},
         "toolCalls": [],
     }
@@ -475,6 +479,16 @@ def test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name():
 
     assert proc.returncode == 2
     assert "empty toolCalls" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_allows_empty_toolcalls_without_top_level_tool_name():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+
+    proc = _run_shim(transformed, {"toolCalls": []})
+
+    assert proc.returncode == 0
+    assert proc.stderr == ""
     assert "FIRED" not in proc.stdout
 
 

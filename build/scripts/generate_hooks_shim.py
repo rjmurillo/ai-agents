@@ -297,10 +297,9 @@ def _shim_candidate_payloads(payload):
                     len(tool_calls), _MAX_MATCHER_TOOL_CALLS
                 )
             )
-        top_level_name = payload.get("tool_name")
-        if top_level_name is None:
-            top_level_name = payload.get("toolName")
-        if not tool_calls and isinstance(top_level_name, str):
+        if not tool_calls and (
+            "tool_name" in payload or "toolName" in payload
+        ):
             raise ValueError(
                 "empty toolCalls conflicts with top-level tool_name/toolName"
             )
