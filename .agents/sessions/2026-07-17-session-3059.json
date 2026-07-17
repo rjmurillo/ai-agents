@@ -102,7 +102,7 @@
     {
       "timestamp": "2026-07-17T20:30:00Z",
       "action": "Updated skill unit tests and bumped the plugin parity pair",
-      "result": "Rewrote TestParseFindings to assert no-op on empty/whitespace/prose/invalid/non-object plus regression cases for valid and fenced findings, and added three main-level tests including an empty-stdin reproduction of run 29603691792. Bumped .claude and src/copilot-cli plugin.json 0.6.62 -> 0.6.63. 55 tests passed; ruff, drift check, and version-bump gate all green."
+      "result": "Rewrote TestParseFindings to assert no-op on empty/whitespace/prose/invalid/non-object plus regression cases for valid and fenced findings, and added three main-level tests including an empty-stdin reproduction of run 29603691792. Bumped .claude and src/copilot-cli plugin.json to 0.6.64 (0.6.63 -> 0.6.64 after merging main, which had advanced to 0.6.63). 55 tests passed; ruff, drift check, and version-bump gate all green."
     }
   ],
   "endingCommit": "db98500e",
