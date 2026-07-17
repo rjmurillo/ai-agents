@@ -799,6 +799,157 @@ class TestAutoRetrospectiveAudit(unittest.TestCase):
                 self.assertEqual(record["skip_reason"], f"run {i}")
 
 
+class TestSubagentStopSkip(unittest.TestCase):
+    """Issue #3140: a subagent stop must not create or index a parent retro."""
+
+    def _nontrivial_session(self, tmp_path: Path) -> str:
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        (sessions_dir / f"{today}-session-01.json").write_text(
+            json.dumps({"work": ["real work"], "outcomes": ["PR opened"]}),
+            encoding="utf-8",
+        )
+        return today
+
+    def _run(self, tmp_path: Path, stdin_text: str) -> str:
+        captured = StringIO()
+        with patch("sys.stdin", StringIO(stdin_text)), patch.object(
+            invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+        ), patch("sys.stdout", captured):
+            result = invoke_auto_retrospective.main()
+        self.assertEqual(result, 0)
+        return captured.getvalue()
+
+    def test_parent_stop_creates_one(self):
+        """Baseline: a parent stop (no subagent marker) writes one retro and one row."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            today = self._nontrivial_session(tmp_path)
+            self._run(tmp_path, json.dumps({"hook_event_name": "Stop"}))
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            self.assertEqual(len(list(retro_dir.glob(f"{today}*.md"))), 1)
+            index = retro_dir / "INDEX.md"
+            self.assertTrue(index.exists())
+            self.assertEqual(index.read_text(encoding="utf-8").count(f"| {today} |"), 1)
+
+    def test_subagent_stop_skips(self):
+        """A subagent stop writes no retro, no INDEX.md, and no fill continuation."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            self._nontrivial_session(tmp_path)
+            out = self._run(tmp_path, json.dumps({"subagent_type": "qa"}))
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            self.assertEqual(
+                list(retro_dir.glob("*.md")) if retro_dir.exists() else [], []
+            )
+            self.assertFalse((retro_dir / "INDEX.md").exists())
+            # The spurious fill prompt to the subagent is part of the bug's blast
+            # radius; a skipped subagent stop must emit no continuation.
+            self.assertNotIn('"continue"', out)
+
+    def test_subagent_stop_audits_skip_reason(self):
+        """The subagent skip records a 'skipped' audit citing 'subagent stop'."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            today = self._nontrivial_session(tmp_path)
+            self._run(tmp_path, json.dumps({"subagent_type": "qa"}))
+            audit = (
+                tmp_path
+                / ".agents"
+                / ".hook-state"
+                / "auto-retrospective"
+                / f"{today}.jsonl"
+            )
+            records = [
+                json.loads(line)
+                for line in audit.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["status"], "skipped")
+            self.assertEqual(records[0]["skip_reason"], "subagent stop")
+
+    def test_repeated_subagent_stops_are_noops(self):
+        """Repeated subagent stops never create or index anything."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            self._nontrivial_session(tmp_path)
+            for _ in range(3):
+                self._run(tmp_path, json.dumps({"subagent_type": "code-review"}))
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            self.assertEqual(
+                list(retro_dir.glob("*.md")) if retro_dir.exists() else [], []
+            )
+            self.assertFalse((retro_dir / "INDEX.md").exists())
+
+    def test_is_subagent_stop_predicate(self):
+        """Unit: the predicate keys off a non-empty subagent_type."""
+        self.assertTrue(
+            invoke_auto_retrospective.is_subagent_stop({"subagent_type": "qa"})
+        )
+        self.assertFalse(invoke_auto_retrospective.is_subagent_stop({"subagent_type": ""}))
+        self.assertFalse(invoke_auto_retrospective.is_subagent_stop({}))
+        self.assertFalse(
+            invoke_auto_retrospective.is_subagent_stop({"hook_event_name": "Stop"})
+        )
+
+
+class TestDailyCreationClaim(unittest.TestCase):
+    """Issue #3140: an atomic per-day claim serializes concurrent parent stops."""
+
+    def _nontrivial_session(self, tmp_path: Path) -> str:
+        (tmp_path / ".agents").mkdir()
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        (sessions_dir / f"{today}-session-01.json").write_text(
+            json.dumps({"work": ["real work"], "outcomes": ["done"]}),
+            encoding="utf-8",
+        )
+        return today
+
+    def test_held_claim_blocks_second_creation(self):
+        """A pre-existing claim (a concurrent winner) makes this run skip creation."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            today = self._nontrivial_session(tmp_path)
+            # Simulate a concurrent winner already holding today's claim.
+            claim = invoke_auto_retrospective._daily_claim_path(tmp_path, today)
+            claim.parent.mkdir(parents=True, exist_ok=True)
+            claim.touch()
+
+            captured = StringIO()
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ), patch("sys.stdout", captured):
+                self.assertEqual(invoke_auto_retrospective.main(), 0)
+
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            self.assertEqual(
+                list(retro_dir.glob("*.md")) if retro_dir.exists() else [], []
+            )
+            self.assertNotIn('"continue"', captured.getvalue())
+
+    def test_claim_released_after_successful_creation(self):
+        """The winner releases its claim so a later retry is not locked out."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            today = self._nontrivial_session(tmp_path)
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ), patch("sys.stdout", StringIO()):
+                invoke_auto_retrospective.main()
+            claim = invoke_auto_retrospective._daily_claim_path(tmp_path, today)
+            self.assertFalse(claim.exists())
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            self.assertEqual(len(list(retro_dir.glob(f"{today}*.md"))), 1)
+
+
 class TestSecurityRetrospectiveFetchFailures(unittest.TestCase):
     """Boundary tests for security retrospective comment fetch errors."""
 

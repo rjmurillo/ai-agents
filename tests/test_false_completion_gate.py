@@ -494,6 +494,74 @@ class TestBodyFileFailClosed:
             )
 
 
+class TestStdinMessageFile:
+    """A literal ``-`` after -F/--file/--body-file means stdin, not a file.
+
+    Regression for issue #3089: ``git commit -F -`` (heredoc message on stdin)
+    was parsed as a file named ``-``, which read as unreadable and inferred a
+    completion claim, blocking a commit whose real message had no completion
+    words. ``-`` must route to the command-string check instead, while real
+    (non-``-``) paths keep the fail-closed contract.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git commit -F -",
+            "git commit --file -",
+            "git commit --file=-",
+            "git ci -F -",
+            "git commit -F '-'",
+        ],
+    )
+    def test_commit_stdin_dash_is_not_a_file(self, command: str) -> None:
+        assert invoke_false_completion_gate._extract_commit_message_file(command) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh pr create --body-file -",
+            "gh pr create --body-file=-",
+            "gh pr create -F -",
+        ],
+    )
+    def test_pr_body_stdin_dash_is_not_a_file(self, command: str) -> None:
+        assert invoke_false_completion_gate._extract_pr_body_file(command) is None
+
+    def test_commit_stdin_dash_infers_no_claim(self) -> None:
+        """``-F -`` must yield (has_claim=False, body_unreadable=False)."""
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            "git commit -F -"
+        ) == (False, False)
+
+    def test_pr_body_stdin_dash_infers_no_claim(self) -> None:
+        assert invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+            "gh pr create --body-file -"
+        ) == (False, False)
+
+    def test_real_path_named_dash_suffix_still_extracted(self) -> None:
+        """Only an exact ``-`` is stdin; a real filename is still a file path."""
+        assert (
+            invoke_false_completion_gate._extract_commit_message_file(
+                "git commit -F messages/-note.txt"
+            )
+            == "messages/-note.txt"
+        )
+        assert (
+            invoke_false_completion_gate._extract_commit_message_file(
+                "git commit -F /tmp/msg.txt"
+            )
+            == "/tmp/msg.txt"
+        )
+
+    def test_real_unreadable_path_still_fails_closed(self, tmp_path: Path) -> None:
+        """The stdin carve-out must not weaken fail-closed for real paths."""
+        missing = tmp_path / "does-not-exist.txt"
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            f"git commit -F {missing}"
+        ) == (True, True)
+
+
 class TestAllowedTempRoots:
     """_allowed_temp_roots mirrors canonical _candidate_temp_roots semantics."""
 
