@@ -249,6 +249,12 @@ ZERO="0000000000000000000000000000000000000000"
 CHANGED_FILES=""
 PUSH_RANGE=""
 PUSH_BRANCH=""
+# Destination (remote) branch of the push. For `git push origin HEAD:other` the
+# local and remote branch names differ, and PR policy (the commit-limit-bypass
+# label) lives on the PR whose head is the REMOTE branch, not the local one
+# (Issue #3110). Kept separate from PUSH_BRANCH so the bypass-label lookup can
+# prefer the destination branch while other checks keep using the local range.
+PUSH_REMOTE_BRANCH=""
 REFS_PROCESSED=0
 # Store each ref's base and head for per-ref validation (plugin version bump)
 PVB_BASES=()
@@ -312,6 +318,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     case "$local_ref" in
         refs/heads/*)
             PUSH_BRANCH="${local_ref#refs/heads/}"
+            ;;
+    esac
+    case "$remote_ref" in
+        refs/heads/*)
+            PUSH_REMOTE_BRANCH="${remote_ref#refs/heads/}"
+            ;;
+        *)
+            PUSH_REMOTE_BRANCH=""
             ;;
     esac
 
@@ -481,9 +495,15 @@ if [ -n "$PUSH_RANGE" ]; then
         # ("Enforce Blocking Issues"). The helper fails closed: any gh error
         # leaves the limit enforced.
         if set_python_cmd; then
+            # Prefer the destination (remote) branch: the commit-limit-bypass
+            # label lives on the PR whose head is the branch being pushed TO,
+            # which differs from the local branch on a `git push origin
+            # HEAD:other` repair push (Issue #3110). Fall back to the local
+            # branch, then the checked-out branch, for same-name pushes.
+            BYPASS_BRANCH="${PUSH_REMOTE_BRANCH:-${PUSH_BRANCH:-$current_branch}}"
             BYPASS_STATUS=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
                 "${PYTHON_CMD[@]}" "$REPO_ROOT/scripts/validation/check_pr_bypass_label.py" \
-                --branch "${PUSH_BRANCH:-$current_branch}" 2>/dev/null)
+                --branch "$BYPASS_BRANCH" 2>/dev/null)
             BYPASS_EXIT=$?
         else
             BYPASS_STATUS="python unavailable; cannot check bypass label"
