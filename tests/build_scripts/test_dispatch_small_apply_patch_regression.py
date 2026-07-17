@@ -173,8 +173,8 @@ def test_harness_observes_nonzero_exit(tmp_path: Path) -> None:
     # Teeth for the positive assertion: point the plugin root at a directory that
     # is not a plugin so the bootstrap fails closed (exit 2). This proves the same
     # subprocess harness surfaces a non-zero exit, so ``assert rc == 0`` above is
-    # not vacuous. It deliberately stays below the matched replay limit so this
-    # negative control isolates bootstrap failure.
+    # not vacuous. It deliberately keeps the recorded payload small so this
+    # negative control isolates bootstrap failure rather than payload size.
     raw = json.dumps(_RECORDED_HOST_EVENT).encode("utf-8")
 
     proc = _run_dispatch(raw, tmp_path, tmp_path)
