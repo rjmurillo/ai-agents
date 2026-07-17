@@ -29,9 +29,8 @@ class TestNewIssue:
     """Tests for new_issue via main entry point."""
 
     @pytest.fixture(autouse=True)
-    def _mock_auth(self):
-        with patch.object(mod, "assert_gh_authenticated"), \
-             patch.object(mod, "resolve_repo_params") as mock_resolve:
+    def _mock_repo(self):
+        with patch.object(mod, "resolve_repo_params") as mock_resolve:
             info = MagicMock()
             info.owner = "owner"
             info.repo = "repo"
@@ -39,9 +38,10 @@ class TestNewIssue:
             yield
 
     def test_create_basic_issue(self, capsys):
-        with patch("subprocess.run", return_value=_make_proc(
-            stdout="https://github.com/owner/repo/issues/42\n"
-        )):
+        with patch(
+            "subprocess.run",
+            return_value=_make_proc(stdout="https://github.com/owner/repo/issues/42\n"),
+        ):
             result = main(["--title", "Test Title"])
         assert result == 0
         data = json.loads(capsys.readouterr().out)
@@ -51,9 +51,10 @@ class TestNewIssue:
 
     def test_data_number_is_positive_int_and_url_set_on_success(self, capsys):
         # Regression for issue #2767: callers read Data.number, which was null.
-        with patch("subprocess.run", return_value=_make_proc(
-            stdout="https://github.com/owner/repo/issues/2767\n"
-        )):
+        with patch(
+            "subprocess.run",
+            return_value=_make_proc(stdout="https://github.com/owner/repo/issues/2767\n"),
+        ):
             result = main(["--title", "Test Title", "--output-format", "json"])
         assert result == 0
         data = json.loads(capsys.readouterr().out)
@@ -63,9 +64,9 @@ class TestNewIssue:
         assert data["Data"]["url"] == "https://github.com/owner/repo/issues/2767"
 
     def test_create_with_body_and_labels(self, capsys):
-        with patch("subprocess.run", return_value=_make_proc(
-            stdout="https://github.com/o/r/issues/7\n"
-        )) as mock_run:
+        with patch(
+            "subprocess.run", return_value=_make_proc(stdout="https://github.com/o/r/issues/7\n")
+        ) as mock_run:
             result = main(["--title", "Title", "--body", "Body text", "--labels", "bug,P1"])
         assert result == 0
         all_calls = [call[0][0] for call in mock_run.call_args_list]
@@ -75,9 +76,7 @@ class TestNewIssue:
         assert "--add-label" in edit_call
 
     def test_api_error_exits_3(self, capsys):
-        with patch("subprocess.run", return_value=_make_proc(
-            returncode=1, stderr="API error"
-        )):
+        with patch("subprocess.run", return_value=_make_proc(returncode=1, stderr="API error")):
             result = main(["--title", "Title", "--output-format", "json"])
         assert result == 3
         data = json.loads(capsys.readouterr().out)
@@ -85,9 +84,7 @@ class TestNewIssue:
         assert data["Error"]["Type"] == "ApiError"
 
     def test_unparseable_result_exits_3(self, capsys):
-        with patch("subprocess.run", return_value=_make_proc(
-            stdout="no url here"
-        )):
+        with patch("subprocess.run", return_value=_make_proc(stdout="no url here")):
             result = main(["--title", "Title", "--output-format", "json"])
         assert result == 3
         data = json.loads(capsys.readouterr().out)
@@ -95,17 +92,17 @@ class TestNewIssue:
         assert data["Error"]["Type"] == "ApiError"
 
     def test_empty_body_not_passed(self):
-        with patch("subprocess.run", return_value=_make_proc(
-            stdout="https://github.com/o/r/issues/1\n"
-        )) as mock_run:
+        with patch(
+            "subprocess.run", return_value=_make_proc(stdout="https://github.com/o/r/issues/1\n")
+        ) as mock_run:
             main(["--title", "Title", "--body", ""])
         call_args = mock_run.call_args[0][0]
         assert "--body" not in call_args
 
     def test_empty_labels_not_passed(self):
-        with patch("subprocess.run", return_value=_make_proc(
-            stdout="https://github.com/o/r/issues/1\n"
-        )) as mock_run:
+        with patch(
+            "subprocess.run", return_value=_make_proc(stdout="https://github.com/o/r/issues/1\n")
+        ) as mock_run:
             main(["--title", "Title", "--labels", ""])
         call_args = mock_run.call_args[0][0]
         assert "--label" not in call_args
