@@ -18,6 +18,7 @@ Bypass: SKIP_AUTO_RETRO=true environment variable
 
 Related:
 - Issue #1703 (lifecycle hook infrastructure)
+- Issue #3140 (a subagent stop must not create a parent-session retro)
 - ADR-008 (protocol automation lifecycle hooks)
 """
 
@@ -561,99 +562,116 @@ def write_continue_response(reason: str) -> None:
     print(json.dumps({"continue": True, "reason": reason}))
 
 
-def main() -> int:
-    """Generate retrospective on session stop."""
-    # Drain stdin FIRST, before any early-exit branches. Sibling hook
-    # invoke_false_completion_gate.py documents the same constraint: leaving
-    # stdin unread can surface as EPIPE or SIGPIPE on the harness side if its
-    # pipe buffer is full. The other lifecycle hooks introduced in this PR
-    # (invoke_context_loader, invoke_compact_checkpoint, invoke_plan_state_sync)
-    # all drain immediately after the TTY check.
-    if not sys.stdin.isatty():
-        try:
-            sys.stdin.read()
-        except Exception as e:
-            print(
-                f"[hook-error] invoke_auto_retrospective stdin: {type(e).__name__}: {e}",
-                file=sys.stderr,
-            )
+def _read_stop_payload() -> dict[str, Any]:
+    """Read and parse the Stop/SessionEnd JSON payload from stdin.
 
-    # Skip for consumer repos (avoid creating directories outside .agents/)
-    if skip_if_consumer_repo("auto-retrospective"):
-        return 0
-
-    # Bypass
-    if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
-        project_dir = get_project_directory()
-        if project_dir:
-            write_audit_log(
-                project_dir,
-                "skipped",
-                skip_reason="SKIP_AUTO_RETRO=true",
-            )
-        return 0
-
-    project_dir = get_project_directory()
-    if not project_dir:
-        return 0
-
-    # Suppress while a tree-mutating validation run is in flight (Issue #2327).
-    # The pre-push hook drops a sentinel for the duration of its run; honoring
-    # it here keeps a failing pre-push from leaving an untracked auto-retro file
-    # or a .agents/retrospective/INDEX.md edit in the worktree.
-    if is_auto_retro_suppressed(project_dir):
-        write_audit_log(
-            project_dir,
-            "skipped",
-            skip_reason="suppress sentinel present",
+    Draining stdin is mandatory even when we do not use the body: a sibling
+    hook (invoke_false_completion_gate.py) documents that leaving stdin unread
+    can surface as EPIPE/SIGPIPE if the harness pipe buffer fills. Returns an
+    empty dict on a TTY, empty input, or malformed JSON (fail-open); the caller
+    then treats the run as a normal parent stop. Issue #3140: the payload was
+    previously discarded, so a subagent stop could not be told from a parent one.
+    """
+    if sys.stdin.isatty():
+        return {}
+    try:
+        raw = sys.stdin.read()
+    except Exception as e:
+        print(
+            f"[hook-error] invoke_auto_retrospective stdin: {type(e).__name__}: {e}",
+            file=sys.stderr,
         )
-        return 0
-
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    retro_dir = project_dir / ".agents" / "retrospective"
-
-    # If a retro file already exists today, do not regenerate it, but still
-    # call update_retro_index to repair the case where a prior run created
-    # the retro file but failed to write the index entry. The index update
-    # is idempotent on the filename, so this is a no-op when the row is
-    # already present.
-    #
-    # Multiple same-day retros (manual plus auto, reruns) can coexist. Pick
-    # deterministically: newest by mtime, with filename as a stable tiebreaker
-    # when mtimes match or stat fails. This keeps index repair predictable
-    # across runs.
-    if has_retro_today(retro_dir, today):
-        existing_name = ""
-        try:
-            existing = _pick_same_day_retro(retro_dir, today)
-            if existing is not None:
-                existing_name = existing.name
-                update_retro_index(project_dir, today, existing.name)
-        except Exception as e:
-            print(
-                f"[hook-error] invoke_auto_retrospective index-repair: {type(e).__name__}: {e}",
-                file=sys.stderr,
-            )
-        write_audit_log(
-            project_dir,
-            "skipped",
-            retro_filename=existing_name,
-            skip_reason="retro already exists today",
+        return {}
+    if not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError) as e:
+        print(
+            f"[hook-error] invoke_auto_retrospective payload: {type(e).__name__}: {e}",
+            file=sys.stderr,
         )
-        return 0
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
-    # Skip trivial sessions. is_trivial_session() prefers today's session log
-    # to avoid misattributing yesterday's work, but falls back to yesterday
-    # when no today-prefixed session exists (cross-midnight continuation).
-    # Mirrors the same precedence used by hook_utilities.get_recent_session_log.
-    if is_trivial_session(project_dir):
-        write_audit_log(
-            project_dir,
-            "skipped",
-            skip_reason="trivial session",
+
+def is_subagent_stop(payload: dict[str, Any]) -> bool:
+    """Return True when the Stop/SessionEnd payload came from a subagent.
+
+    A subagent return must not create or index a parent-session retrospective
+    (Issue #3140). The Claude marker is ``subagent_type``, the field Claude
+    stamps on subagent payloads (verified in
+    .claude/hooks/SubagentStop/invoke_qa_agent_validator.py:61-63,
+    ``hook_input.get("subagent_type") == "qa"``). Any non-empty ``subagent_type``
+    marks a subagent stop.
+
+    UNVERIFIED COPILOT MARKER (Issue #3140, follow-up Issue #3160): the reported
+    bug is on Copilot CLI, where Claude's Stop maps to Copilot's SessionEnd
+    (templates/platforms/copilot-cli.yaml eventRemap ``Stop: SessionEnd``, with
+    ``SubagentStop`` dropped) and a synchronous ``task`` subagent's return fires
+    SessionEnd against the parent worktree. Copilot's SessionEnd subagent payload
+    shape was NOT captured empirically in this environment, so the field it uses
+    to mark a subagent is unknown. If Copilot also sends ``subagent_type`` this
+    guard already covers it; if it uses a different key, the Copilot path stays
+    broken until #3160 captures the marker. Do NOT invent a key here: see
+    .claude/rules/generated-artifacts.md (verify the contract empirically).
+    """
+    return bool(payload.get("subagent_type"))
+
+
+def _daily_claim_path(project_dir: Path, today: str) -> Path:
+    """Path to the per-day skeleton-creation claim under .hook-state/."""
+    return (
+        project_dir / ".agents" / ".hook-state" / "auto-retrospective" / f"{today}.claim"
+    )
+
+
+def _acquire_daily_claim(project_dir: Path, today: str) -> bool:
+    """Atomically claim today's skeleton creation. True means this run won.
+
+    Guards the check-then-create window so two near-simultaneous parent stops
+    produce one skeleton, one index row, and one fill prompt (Issue #3140). The
+    winner releases the claim in a finally so a generation failure does not lock
+    the day out.
+
+    ponytail: per-day O_CREAT|O_EXCL file claim, atomic on one POSIX filesystem;
+    a networked FS without O_EXCL atomicity could double-create. Upgrade to a
+    real lock service only if that ever matters. Fail-open: if the claim FS
+    errors, proceed (no worse than the pre-#3140 unguarded behavior).
+    """
+    claim = _daily_claim_path(project_dir, today)
+    try:
+        claim.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(claim), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except FileExistsError:
+        return False
+    except OSError as e:
+        print(
+            f"[hook-error] invoke_auto_retrospective claim: {type(e).__name__}: {e}",
+            file=sys.stderr,
         )
-        return 0
+        return True
+    os.close(fd)
+    return True
 
+
+def _release_daily_claim(project_dir: Path, today: str) -> None:
+    """Remove today's creation claim; ignore if already gone."""
+    try:
+        _daily_claim_path(project_dir, today).unlink(missing_ok=True)
+    except OSError as e:
+        print(
+            f"[hook-error] invoke_auto_retrospective claim-release: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+
+
+def _create_retro_and_prompt(project_dir: Path, today: str) -> int:
+    """Write the skeleton, audit and index it, and prompt the model to fill it.
+
+    Runs only after the caller wins the per-day creation claim (Issue #3140).
+    Returns 0 in every path to honor the Stop-hook fail-open contract.
+    """
     try:
         retro_path = generate_retrospective(project_dir, today)
     except Exception as e:
@@ -714,6 +732,114 @@ def main() -> int:
     )
 
     return 0
+
+
+def main() -> int:
+    """Generate retrospective on session stop."""
+    # Read the Stop/SessionEnd payload (Issue #3140). Draining stdin is
+    # mandatory even on the early-skip paths: sibling hook
+    # invoke_false_completion_gate.py documents that an unread stdin can surface
+    # as EPIPE/SIGPIPE if the harness pipe buffer fills. The payload was
+    # previously discarded, so a subagent stop could not be told from a parent.
+    payload = _read_stop_payload()
+
+    # Skip for consumer repos (avoid creating directories outside .agents/)
+    if skip_if_consumer_repo("auto-retrospective"):
+        return 0
+
+    # Bypass
+    if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
+        project_dir = get_project_directory()
+        if project_dir:
+            write_audit_log(
+                project_dir,
+                "skipped",
+                skip_reason="SKIP_AUTO_RETRO=true",
+            )
+        return 0
+
+    project_dir = get_project_directory()
+    if not project_dir:
+        return 0
+
+    # Issue #3140: a subagent stop must not create or index a parent-session
+    # retrospective. Skip before any tree mutation and record the reason.
+    if is_subagent_stop(payload):
+        write_audit_log(project_dir, "skipped", skip_reason="subagent stop")
+        return 0
+
+    # Suppress while a tree-mutating validation run is in flight (Issue #2327).
+    # The pre-push hook drops a sentinel for the duration of its run; honoring
+    # it here keeps a failing pre-push from leaving an untracked auto-retro file
+    # or a .agents/retrospective/INDEX.md edit in the worktree.
+    if is_auto_retro_suppressed(project_dir):
+        write_audit_log(
+            project_dir,
+            "skipped",
+            skip_reason="suppress sentinel present",
+        )
+        return 0
+
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    retro_dir = project_dir / ".agents" / "retrospective"
+
+    # If a retro file already exists today, do not regenerate it, but still
+    # call update_retro_index to repair the case where a prior run created
+    # the retro file but failed to write the index entry. The index update
+    # is idempotent on the filename, so this is a no-op when the row is
+    # already present.
+    #
+    # Multiple same-day retros (manual plus auto, reruns) can coexist. Pick
+    # deterministically: newest by mtime, with filename as a stable tiebreaker
+    # when mtimes match or stat fails. This keeps index repair predictable
+    # across runs.
+    if has_retro_today(retro_dir, today):
+        existing_name = ""
+        try:
+            existing = _pick_same_day_retro(retro_dir, today)
+            if existing is not None:
+                existing_name = existing.name
+                update_retro_index(project_dir, today, existing.name)
+        except Exception as e:
+            print(
+                f"[hook-error] invoke_auto_retrospective index-repair: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
+        write_audit_log(
+            project_dir,
+            "skipped",
+            retro_filename=existing_name,
+            skip_reason="retro already exists today",
+        )
+        return 0
+
+    # Skip trivial sessions. is_trivial_session() prefers today's session log
+    # to avoid misattributing yesterday's work, but falls back to yesterday
+    # when no today-prefixed session exists (cross-midnight continuation).
+    # Mirrors the same precedence used by hook_utilities.get_recent_session_log.
+    if is_trivial_session(project_dir):
+        write_audit_log(
+            project_dir,
+            "skipped",
+            skip_reason="trivial session",
+        )
+        return 0
+
+    # Atomic per-day claim so two near-simultaneous parent stops cannot both
+    # create the skeleton, index a row, and emit a fill prompt (Issue #3140).
+    # The winner releases it in the finally so a failure does not lock the day.
+    if not _acquire_daily_claim(project_dir, today):
+        write_audit_log(
+            project_dir,
+            "skipped",
+            skip_reason="concurrent create claim held",
+        )
+        return 0
+
+    try:
+        return _create_retro_and_prompt(project_dir, today)
+    finally:
+        _release_daily_claim(project_dir, today)
 
 
 if __name__ == "__main__":
