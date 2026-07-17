@@ -66,7 +66,14 @@ exclude_dirs = [".venv", "tests", ".git"]
 skips = []
 
 [tool.ruff]
-target-version = "py314"
+# Match the hook-execution portability floor enforced by
+# scripts/validation/validate_python_syntax.py (_SUPPORT_FLOOR). target-version
+# governs the syntax ruff may EMIT (formatter) and push toward (pyupgrade), so
+# it must track the OLDEST interpreter tracked files must parse on (3.10), not
+# the higher requires-python dev/install contract. Setting this to py314 made
+# `ruff format` rewrite portable `except (A, B):` into PEP 758 `except A, B:`,
+# which the 3.10 floor gate rejects. See issue #3126.
+target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
