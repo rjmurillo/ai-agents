@@ -18,9 +18,11 @@ from unittest import mock
 import pytest
 
 from scripts.maintenance.repair_worktree_venv import (
+    RepairReport,
     StaleShebang,
     build_report,
     find_launcher_dir,
+    format_report,
     interpreter_of_shebang,
     is_stale,
     main,
@@ -164,12 +166,12 @@ class TestFindLauncherDir:
 
 
 class TestBuildReport:
-    """The report reflects stale hits and the venv-present state."""
+    """The report reflects stale hits and the launcher-present state."""
 
-    def test_reports_missing_venv(self, tmp_path: Path) -> None:
+    def test_reports_missing_launcher_dir(self, tmp_path: Path) -> None:
         report = build_report(tmp_path)
 
-        assert report.venv_present is False
+        assert report.launcher_present is False
         assert report.stale == []
 
     def test_reports_stale_from_bin(self, tmp_path: Path) -> None:
@@ -178,9 +180,26 @@ class TestBuildReport:
 
         report = build_report(tmp_path)
 
-        assert report.venv_present is True
+        assert report.launcher_present is True
         assert len(report.stale) == 1
         assert report.stale[0].path == bin_dir / "ruff"
+
+
+class TestFormatReport:
+    """The human-readable summary names what the scan actually checked."""
+
+    def test_missing_launcher_message_names_the_dirs(self) -> None:
+        # launcher_present is False when no .venv/bin or .venv/Scripts exists;
+        # the message must not claim "no .venv" (the dir may exist but be empty).
+        report = RepairReport(worktree_root="/repo/wt", launcher_present=False)
+        message = format_report(report, check=False)
+        assert ".venv/bin or .venv/Scripts" in message
+        assert "no .venv under" not in message
+
+    def test_clean_message_points_inside_venv(self) -> None:
+        report = RepairReport(worktree_root="/repo/wt", launcher_present=True)
+        message = format_report(report, check=False)
+        assert "/repo/wt/.venv" in message
 
 
 class TestRepairCommand:

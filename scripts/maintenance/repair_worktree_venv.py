@@ -10,8 +10,10 @@ Direct calls such as ``.venv/bin/pytest`` then fail before Python starts with
 working because uv resolves the environment again.
 
 This tool scans the launcher directory, reads each script's first-line shebang,
-and flags any absolute interpreter path that is NOT rooted at the current
-worktree root. On a stale hit it either recreates the environment via
+and flags any absolute interpreter path that does not live under the current
+worktree's ``.venv`` directory (a moved worktree's launchers still name the old
+``.venv`` path, which is outside the new one). On a stale hit it either
+recreates the environment via
 ``uv sync --frozen --extra dev --reinstall`` (default) or, in ``--check`` mode,
 prints one exact repair command and exits non-zero without mutating anything.
 
@@ -64,7 +66,7 @@ class RepairReport:
     """The scan result for one worktree's virtual environment."""
 
     worktree_root: str
-    venv_present: bool
+    launcher_present: bool
     stale: list[StaleShebang] = field(default_factory=list)
 
 
@@ -179,9 +181,9 @@ def build_report(root: Path) -> RepairReport:
     """Scan ``root``'s ``.venv`` and build the repair plan (no mutation here)."""
     launcher_dir = find_launcher_dir(root / ".venv")
     if launcher_dir is None:
-        return RepairReport(worktree_root=str(root), venv_present=False)
+        return RepairReport(worktree_root=str(root), launcher_present=False)
     stale = scan_launcher_dir(launcher_dir, root)
-    return RepairReport(worktree_root=str(root), venv_present=True, stale=stale)
+    return RepairReport(worktree_root=str(root), launcher_present=True, stale=stale)
 
 
 def run_repair(root: Path) -> None:
@@ -228,10 +230,13 @@ def run_repair(root: Path) -> None:
 
 def format_report(report: RepairReport, *, check: bool) -> str:
     """Human-readable summary of the scan or repair result."""
-    if not report.venv_present:
-        return f"venv repair: no .venv under {report.worktree_root}; nothing to check."
+    if not report.launcher_present:
+        return (
+            f"venv repair: no uv launcher dir (.venv/bin or .venv/Scripts) under "
+            f"{report.worktree_root}; nothing to check."
+        )
     if not report.stale:
-        return f"venv repair: OK, all shebangs rooted at {report.worktree_root}."
+        return f"venv repair: OK, all launcher shebangs point inside {report.worktree_root}/.venv."
     lines = [f"venv repair: {len(report.stale)} stale shebang(s) under {report.worktree_root}:"]
     for hit in report.stale:
         lines.append(f"    - {hit.path} -> {hit.interpreter}")
