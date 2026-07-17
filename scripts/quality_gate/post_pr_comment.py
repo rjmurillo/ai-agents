@@ -41,11 +41,15 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
     from .path_utils import REPOSITORY_ROOT, resolve_workspace_path
-except ImportError:  # pragma: no cover - script execution path
-    from path_utils import REPOSITORY_ROOT, resolve_workspace_path
+else:
+    try:
+        from .path_utils import REPOSITORY_ROOT, resolve_workspace_path
+    except ImportError:  # pragma: no cover - script execution path
+        from path_utils import REPOSITORY_ROOT, resolve_workspace_path
 
 _GITHUB_SCRIPTS = REPOSITORY_ROOT / ".github" / "scripts"
 

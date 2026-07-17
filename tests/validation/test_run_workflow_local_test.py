@@ -121,10 +121,47 @@ def test_select_workflow_files_keeps_only_workflows(tmp_path):
 
 
 def test_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
+    # On a normal (non-container) box a missing actionlint is a real tool gap and
+    # blocks at exit 3. The container-downgrade seam is pinned off so the test is
+    # deterministic regardless of the host env (Issue #3064).
     monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
+    assert "actionlint" in r.note
+
+
+def test_actionlint_missing_in_remote_container_downgrades_to_warning(
+    monkeypatch, tmp_path
+):
+    # actionlint unavailable inside a remote container (CLAUDECODE set, no CI)
+    # must not block the push: it degrades to a logged warning (exit 0), the same
+    # way the gh/gh act gap already does. Issue #3064 extends PR #2548's degrade
+    # to the actionlint gap.
+    monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert r.degraded is True
+    assert "actionlint" in r.note
+
+
+def test_actionlint_missing_in_ci_still_blocks_even_with_container_signal(
+    monkeypatch, tmp_path
+):
+    # CI provisions actionlint, so a missing binary is a real failure. The CI
+    # marker overrides the container signal via the real _is_remote_container():
+    # hard exit 3, never degraded (Issue #3064).
+    monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CI", "true")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert r.degraded is False
     assert "actionlint" in r.note
 
 
@@ -234,8 +271,11 @@ def test_plain_docker_marker_does_not_downgrade(monkeypatch, tmp_path):
 
 def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
     # Dry-run passes (no daemon needed); the full stage needs Docker -> exit 3.
-    # docker is installed but the daemon is down -> "not running" note.
+    # docker is installed but the daemon is down -> "not running" note. The
+    # container-downgrade seam is pinned off so the exit-3 assertion is
+    # deterministic regardless of the host env (Issue #3064).
     monkeypatch.setattr(w, "_docker_ready", lambda: False)
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     r = w.run_local_test([WF], tmp_path)
@@ -245,15 +285,51 @@ def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
 
 def test_docker_not_installed_is_exit_3_with_distinct_note(monkeypatch, tmp_path):
     # docker binary absent -> "not installed" note, distinct from daemon-down.
+    # The container-downgrade seam is pinned off (Issue #3064).
     monkeypatch.setattr(w, "_have", lambda tool: tool != "docker")
     monkeypatch.setattr(w, "_gh_act_available", lambda: True)
     monkeypatch.setattr(w, "_docker_ready", lambda: False)
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
     assert "Docker is not installed" in r.note
+
+
+def test_docker_missing_in_remote_container_downgrades_to_warning(
+    all_tools, monkeypatch, tmp_path
+):
+    # Docker unavailable inside a remote container (CLAUDECODE set, no CI) must
+    # not block the push: actionlint and the dry-run pass, and the full stage's
+    # Docker gap degrades to a logged warning (exit 0). Issue #3064.
+    monkeypatch.setattr(w, "_docker_ready", lambda: False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert r.degraded is True
+    assert "Docker" in r.note
+
+
+def test_docker_missing_in_ci_still_blocks_even_with_container_signal(
+    all_tools, monkeypatch, tmp_path
+):
+    # CI provisions Docker, so a down daemon is a real failure even with a
+    # container env marker present. The CI marker overrides the container signal
+    # via the real _is_remote_container(): hard exit 3, never degraded (#3064).
+    monkeypatch.setattr(w, "_docker_ready", lambda: False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CI", "true")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert r.degraded is False
+    assert "Docker" in r.note
 
 
 def test_no_full_does_not_require_docker(all_tools, monkeypatch, tmp_path):
@@ -440,8 +516,11 @@ def test_all_secret_blocked_lints_before_skipping(monkeypatch, tmp_path):
 
 def test_all_secret_blocked_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
     # actionlint is required for every changed workflow; its absence blocks
-    # (exit 3) even when every workflow is secret-blocked.
+    # (exit 3) even when every workflow is secret-blocked. Pin the
+    # container-downgrade seam off so the exit-3 assertion holds regardless of
+    # the host env (Issue #3064).
     monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     r = w.run_local_test([WF], tmp_path)

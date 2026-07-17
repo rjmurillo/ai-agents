@@ -352,7 +352,10 @@ class TestYamlLanguageParsingFixes:
         serena_dir = tmp_path / ".serena"
         serena_dir.mkdir()
         (serena_dir / "project.yml").write_text(
-            "languages:\n- python  # primary language\n- typescript # frontend\n- bash#nospace_no_comment\n",
+            "languages:\n"
+            "- python  # primary language\n"
+            "- typescript # frontend\n"
+            "- bash#nospace_no_comment\n",
             encoding="utf-8",
         )
         # Inline comments stripped only when '#' has leading whitespace; the

@@ -83,7 +83,9 @@ def test_cwe78_detected_after_cwe22_delegation(cwe78_fixture: tuple[Path, str]) 
     """Removing the CWE-22 dispatch must not affect CWE-78 detection."""
     cwd, name = cwe78_fixture
     result = _scanner(name, cwd=cwd)
-    assert result.returncode == 10, f"Expected vulnerabilities exit code 10, got {result.returncode}"
+    assert result.returncode == 10, (
+        f"Expected vulnerabilities exit code 10, got {result.returncode}"
+    )
     assert "CWE-78" in result.stdout
     assert "Command Injection" in result.stdout
 

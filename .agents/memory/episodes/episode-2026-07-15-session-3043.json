@@ -1,0 +1,115 @@
+{
+  "id": "episode-2026-07-15-session-3043",
+  "session": "2026-07-15-session-3043",
+  "timestamp": "2026-07-15T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Refresh Serena project schema for version 1.5.4",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reviewed the five remaining pending paths. Current Serena 1.5.4 source confirmed that .serena/project.yml is a deterministic schema migration, while three retrospective stubs and session 2598 contain no unique durable evidence.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Moved the three retrospective stubs and incomplete session 2598 into session storage, then restored the original main worktree to a clean state.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created and claimed issue #3070, then isolated the Serena schema refresh on chore/3070-serena-schema-refresh from current origin/main.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 skipped.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran serena print-system-prompt . --only-instructions and confirmed the project.yml hash stayed unchanged. Security detection found no sensitive paths. PYTHONPATH=. uv run --frozen python -m scripts.validation.pre_pr completed with 29 passed, 0 failed, and 4 skipped.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The first /review passed all 15 axes at config-only tip fe12b3bfeccb07064d2f530cad7c79fc94ac5fcd. That result became stale when session artifacts were committed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created and validated SHA-bound review marker c5bb88e0d175b94c767cc1dc77c5b0414b8456d4 for content commit fe12b3bfeccb07064d2f530cad7c79fc94ac5fcd.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the session source record after reliability review. Final branch scope: 3 files changed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran pre-PR validation through its reproducible module entry point after QA review identified ambiguous command evidence.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the episode from the corrected session source so stale preserved events no longer inflated the commit metric.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified source-only extraction removes the stale 6b84291e6 event, then rebuilt the episode without preserve-mode history.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-15T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: bc39fe416",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 3
+  },
+  "lessons": []
+}

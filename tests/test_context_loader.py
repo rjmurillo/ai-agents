@@ -11,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -60,6 +61,94 @@ class TestReadFileTruncated:
             tmp_path / "nonexistent.md", 1000
         )
         assert result is None
+
+
+class TestUtf8ProtocolOutput:
+    """The SessionStart protocol must survive Windows console encodings."""
+
+    PROTOCOL_TEXT = "## 🔄 Context Loader: Session Start Auto-Injection"
+
+    def test_reconfigures_cp1252_stdout_to_utf8(self, monkeypatch) -> None:
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="cp1252")
+        monkeypatch.setattr(sys, "stdout", stream)
+
+        invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
+
+        assert raw.getvalue().decode("utf-8") == self.PROTOCOL_TEXT + "\n"
+
+    def test_broken_pipe_is_not_retried_through_binary_buffer(self, monkeypatch) -> None:
+        class BrokenPipeStream:
+            def __init__(self) -> None:
+                self.buffer = io.BytesIO()
+                self.write_calls = 0
+
+            def reconfigure(self, **_kwargs: object) -> None:
+                return None
+
+            def write(self, _text: str) -> int:
+                self.write_calls += 1
+                raise BrokenPipeError("consumer closed")
+
+            def flush(self) -> None:
+                raise AssertionError("flush must not follow a failed write")
+
+        stream = BrokenPipeStream()
+        monkeypatch.setattr(sys, "stdout", stream)
+
+        with pytest.raises(BrokenPipeError, match="consumer closed"):
+            invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
+
+        assert stream.write_calls == 1
+        assert stream.buffer.getvalue() == b""
+
+    @pytest.mark.parametrize(
+        "error_type",
+        [io.UnsupportedOperation, TypeError, ValueError],
+    )
+    def test_uses_binary_buffer_when_stdout_cannot_reconfigure(
+        self, monkeypatch, error_type
+    ) -> None:
+        class NonReconfigurableStream:
+            def __init__(self) -> None:
+                self.buffer = io.BytesIO()
+
+            def reconfigure(self, **_kwargs: object) -> None:
+                raise error_type("fixed encoding")
+
+        stream = NonReconfigurableStream()
+        monkeypatch.setattr(sys, "stdout", stream)
+
+        invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
+
+        assert stream.buffer.getvalue() == (self.PROTOCOL_TEXT + "\n").encode("utf-8")
+
+    def test_text_only_fallback_when_no_reconfigure_or_buffer(self, monkeypatch) -> None:
+        """A stream lacking BOTH reconfigure and buffer must still get the
+        exact protocol text plus one trailing LF via the plain str write
+        path (the third and last fallback branch in _emit_utf8; #14)."""
+
+        class TextOnlyStream:
+            def __init__(self) -> None:
+                self.written: list[str] = []
+                self.flushed = False
+
+            def write(self, data: str) -> int:
+                self.written.append(data)
+                return len(data)
+
+            def flush(self) -> None:
+                self.flushed = True
+
+        stream = TextOnlyStream()
+        assert not hasattr(stream, "reconfigure")
+        assert not hasattr(stream, "buffer")
+        monkeypatch.setattr(sys, "stdout", stream)
+
+        invoke_context_loader._emit_utf8(self.PROTOCOL_TEXT)
+
+        assert stream.written == [self.PROTOCOL_TEXT + "\n"]
+        assert stream.flushed is True
 
 
 class TestFindLatestRetrospective:

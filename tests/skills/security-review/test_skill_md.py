@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-_SKILL_MD = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "security-review" / "SKILL.md"
+_SKILL_MD = (
+    Path(__file__).resolve().parents[3]
+    / ".claude"
+    / "skills"
+    / "security-review"
+    / "SKILL.md"
+)
 
 
 def _read_skill() -> str:

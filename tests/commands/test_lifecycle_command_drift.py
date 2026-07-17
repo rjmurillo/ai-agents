@@ -92,7 +92,10 @@ def test_markdownlint_excludes_match_lifecycle_commands() -> None:
         # quotes; anchored on path-component boundary (start of line,
         # whitespace, list marker, or quote char).
         claude_re = rf"(?:^|[\s\-\"'])\.claude/commands/{re.escape(cmd)}\.md(?:[\s\"']|$)"
-        copilot_re = rf"(?:^|[\s\-\"'])src/copilot-cli/skills/{re.escape(cmd)}/SKILL\.md(?:[\s\"']|$)"
+        copilot_re = (
+            rf"(?:^|[\s\-\"'])src/copilot-cli/skills/{re.escape(cmd)}/"
+            rf"SKILL\.md(?:[\s\"']|$)"
+        )
         assert re.search(claude_re, config, re.MULTILINE), (
             f"markdownlint ignores missing entry for {cmd} (Claude Code): {claude_path}"
         )
