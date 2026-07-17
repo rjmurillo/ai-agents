@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Runtime code and 34 generated matcher shims are committed through 3a1a76d948fa80a4269c74927c6ab6de97d04eaa; only final QA, memory, and session records are modified."
+        "Evidence": "Runtime code and 34 generated matcher shims are committed through f5174718dcd8be3a4df1bfe57d8170a7106f59e5; only final QA, memory, and session records are modified."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through 3a1a76d948fa80a4269c74927c6ab6de97d04eaa. Final PR scope is 50 files, 5293 insertions, and 2118 deletions."
+        "Evidence": "Runtime implementation, tests, and 34 regenerated matcher shims are committed through f5174718dcd8be3a4df1bfe57d8170a7106f59e5. Final implementation scope is 50 files, 5272 insertions, and 2118 deletions."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused five-file suite: 235 passed, 1 intentional exclusion. Build-script suite: 849 passed, 1 intentional exclusion. Full suite: 14444 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings. Generation drift and manifest parity passed at 0.6.47. Direct probes against both reviewer-cited generated shims returned rc=2 for the malformed batch and disclosed no payload content."
+        "Evidence": "Focused five-file suite: 243 passed, 1 intentional exclusion. Build-script suite: 857 passed, 1 intentional exclusion. Full suite: 14452 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff and mypy completed with zero findings. The CWE-78 scan found zero findings. Generation drift and manifest parity passed at 0.6.47. Direct generated-shim probes reject empty batches with string, null, and non-string top-level name values with rc=2, allow an empty batch without a top-level name with rc=0, and disclose no payload content. Final pre-PR validation reported 29 passed. The local Copilot plugin smoke suite reported 16 passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -148,12 +148,17 @@
       "timestamp": "2026-07-17T06:28:07Z",
       "action": "Corrected the final PR diff evidence",
       "result": "Independent git diff against origin/main reports 50 files changed, 5293 insertions, and 2118 deletions. The QA report and final PR body artifact now carry those exact values."
+    },
+    {
+      "timestamp": "2026-07-17T08:55:37Z",
+      "action": "Closed the non-string empty-batch contract gap from final code-quality review",
+      "result": "Empty toolCalls now conflicts with either top-level name key by key presence, including null and non-string values. Eight new parameter and boundary cases pass. Focused suite: 243 passed, 1 intentional exclusion. Build-script suite: 857 passed, 1 intentional exclusion. Full suite: 14452 passed, 21 intentional exclusions, 45 expected negative cases, 3 advisory messages. Ruff, mypy, CWE-78 scan, generation drift, agent parity, library parity, and manifest parity all passed. Final pre-PR validation reported 29 passed and 4 explicit skips. The Copilot plugin smoke suite reported 16 passed and 2 gated skips. Final implementation scope is 50 files, 5272 insertions, and 2118 deletions."
     }
   ],
-  "endingCommit": "3a1a76d948fa80a4269c74927c6ab6de97d04eaa",
+  "endingCommit": "f5174718dcd8be3a4df1bfe57d8170a7106f59e5",
   "nextSteps": [
-    "Commit the final QA, memory, and session records.",
-    "Create and validate a new SHA-bound 15-axis review marker.",
+    "Commit the refreshed QA, memory, and session records.",
+    "Run the final SHA-bound 15-axis review and create its marker.",
     "Push normally, resolve both late review threads after the fix is remote, and settle CI.",
     "Squash merge PR #3097 after the completion gate returns ready.",
     "Resume pr-autofix across the remaining open pull requests."

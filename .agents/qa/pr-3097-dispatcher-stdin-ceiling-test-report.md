@@ -2,16 +2,16 @@
 
 ## Scope
 
-Worktree `.wt/3097`, branch
+Worktree `pr3097-worktree`, branch
 `fix/dispatcher-oversize-allow-unmatched-3074` vs `origin/main` merge-base
 `2c15968b40e8ac9a66ae42dadb1d0313f6f0ed72`. The final implementation tip is
-`3a1a76d948fa80a4269c74927c6ab6de97d04eaa`. This report covers the committed
+`f5174718dcd8be3a4df1bfe57d8170a7106f59e5`. This report covers the committed
 branch diff, including the shared 64 MiB raw-input ceiling, 2 MiB per-matched
 replay ceiling, 256-entry raw `toolCalls` cap, and fail-closed malformed-batch
 validation.
 
 **Diff stat (calculated independently in this session):** 50 files changed,
-5293 insertions(+), 2118 deletions(-).
+5272 insertions(+), 2118 deletions(-).
 
 File breakdown:
 
@@ -89,8 +89,9 @@ Delivered: HOOK_STDIN_CEILING_MIB = 64 is defined once in generate_hooks_shim.py
           batched command evaluates the batched command and exits 2. Exactly
           256 raw toolCalls entries are accepted; 257 entries exit 2 before
           the guard runs. A non-object entry, missing/non-string/empty name,
-          empty batch conflicting with a top-level tool name, or malformed
-          later entry also exits 2 before any guard runs. Direct probes against
+          empty batch combined with either top-level name key, including null or
+          non-string values, or a malformed later entry also exits 2 before any
+          guard runs. Direct probes against
           both reviewer-cited generated shims confirmed rc=2 with no payload
           disclosure. Source inspection confirms `_shim_candidate_payloads` and
           `_shim_select_payloads` yield candidates, while
@@ -98,9 +99,9 @@ Delivered: HOOK_STDIN_CEILING_MIB = 64 is defined once in generate_hooks_shim.py
           _shim_exit_code/_exit_code in both generate_hooks_shim.py and
           hook_dispatch.py normalize None to 0, pass ints through, and map
           non-int codes to 1, matching source read in this session.
-          `uv run pytest` on the 5 mandated files: 235 passed, 1 skipped.
-          The build-script suite reported 849 passed, 1 skipped. The full suite
-          reported 14444 passed, 21 skipped, 45 expected failures, and 3 warnings.
+          `uv run pytest` on the 5 mandated files: 243 passed, 1 skipped.
+          The build-script suite reported 857 passed, 1 skipped. The full suite
+          reported 14452 passed, 21 skipped, 45 expected failures, and 3 warnings.
           Ruff and mypy on the changed generator and test file: 0 findings each.
           The CWE-78 scanner found no vulnerabilities in those files.
           `build_all.py --check --platform copilot-cli`: exit
@@ -118,24 +119,24 @@ Result: PASS
 
 | Metric | Value |
 |--------|-------|
-| Mandated pytest suite (5 files) | 235 passed, 1 skipped, 0 failed |
-| Build-script suite | 849 passed, 1 skipped, 0 failed |
-| Full Python suite | 14444 passed, 21 skipped, 45 expected failures, 3 warnings |
+| Mandated pytest suite (5 files) | 243 passed, 1 skipped, 0 failed |
+| Build-script suite | 857 passed, 1 skipped, 0 failed |
+| Full Python suite | 14452 passed, 21 skipped, 45 expected failures, 3 warnings |
 | Ruff (changed generator and test file) | 0 findings |
 | mypy (changed generator and test file) | 0 errors (Success: no issues found in 2 source files) |
 | CWE-78 scan (changed generator and test file) | 0 findings |
 | `build_all.py --check --platform copilot-cli` | exit 0, 0 drift |
 | `check_plugin_manifest_parity.py` | exit 0, both manifests at 0.6.47 |
 | Direct subprocess probes | Every listed boundary confirmed against final generated artifacts |
-| Diff stat (independently calculated) | 50 files changed, 5293 insertions(+), 2118 deletions(-) |
+| Diff stat (independently calculated) | 50 files changed, 5272 insertions(+), 2118 deletions(-) |
 
 ## Test Results
 
 ### Passed
 
-- `uv run pytest tests/build_scripts/test_generate_hooks.py tests/build_scripts/test_generate_dispatcher.py tests/build_scripts/test_dispatch_small_apply_patch_regression.py tests/build_scripts/test_copilot_dispatcher_artifact.py tests/test_hook_dispatch.py -q`: 235 passed, 1 skipped, 0 failed.
-- `uv run pytest tests/build_scripts/ -q`: 849 passed, 1 skipped, 0 failed.
-- `uv run python -m pytest tests/ -q`: 14444 passed, 21 skipped, 45 expected failures, 3 warnings.
+- `uv run pytest tests/build_scripts/test_generate_hooks.py tests/build_scripts/test_generate_dispatcher.py tests/build_scripts/test_dispatch_small_apply_patch_regression.py tests/build_scripts/test_copilot_dispatcher_artifact.py tests/test_hook_dispatch.py -q`: 243 passed, 1 skipped, 0 failed.
+- `uv run pytest tests/build_scripts/ -q`: 857 passed, 1 skipped, 0 failed.
+- `uv run python -m pytest tests/ -q`: 14452 passed, 21 skipped, 45 expected failures, 3 warnings.
 - `test_inject_shim_denies_one_byte_above_read_ceiling`, `test_inject_shim_allows_exact_read_ceiling_when_unmatched`: exact/one-over ceiling behavior at the shim layer, exercised and passing.
 - `test_inject_shim_allows_payload_above_matched_limit_when_unmatched`: unmatched payload above 2 MiB and below 64 MiB exits 0, exercised and passing.
 - `test_inject_shim_allows_matched_replay_at_limit`, `test_inject_shim_denies_matched_replay_above_limit_with_context`: matched-replay 2 MiB boundary, exercised and passing.
@@ -144,7 +145,7 @@ Result: PASS
 - `test_inject_shim_mixed_schema_top_level_fields_do_not_bypass_toolcalls_selection`: batched candidates override conflicting top-level fields, exercised and passing.
 - `test_inject_shim_toolcalls_candidate_cap_boundary_fires_once`, `test_inject_shim_toolcalls_candidate_cap_denies_one_above_boundary`: 256-entry acceptance and 257-entry denial, exercised and passing.
 - `test_inject_shim_toolcalls_candidate_cap_denies_257_invalid_entries`: the raw cap includes invalid entries before filtering, exercised and passing.
-- `test_inject_shim_denies_malformed_toolcalls_before_dispatch`, `test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name`, and `test_inject_shim_validates_entire_toolcalls_batch_before_dispatch`: malformed or ambiguous batches exit 2 before any guard runs, exercised and passing.
+- `test_inject_shim_denies_malformed_toolcalls_before_dispatch`, `test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name`, and `test_inject_shim_validates_entire_toolcalls_batch_before_dispatch`: malformed or ambiguous batches exit 2 before any guard runs, including null and non-string top-level name values. `test_inject_shim_allows_empty_toolcalls_without_top_level_tool_name` preserves the no-candidate allow case.
 - `TestOversizeCeiling::test_exact_ceiling_allows_unmatched_payload`, `test_above_ceiling_gate_denies_without_leaking_payload`, `test_observe_allows_on_oversize`: dispatcher-entrypoint boundary and no-payload-disclosure assertions, exercised and passing.
 - `TestCeilingConstant::test_entrypoint_embeds_raised_ceiling`: drift guard on the embedded constant, supplementary only.
 - `tests/build_scripts/test_dispatch_small_apply_patch_regression.py`, `tests/build_scripts/test_copilot_dispatcher_artifact.py`, `tests/test_hook_dispatch.py`: full files pass, confirming the #3083/#3130 small-apply_patch regression case and the generated-artifact regression for the dispatcher cutover remain intact.
@@ -181,6 +182,9 @@ toolCalls batch, 257 raw entries                      -> rc=2, guard did not run
 toolCalls batch, 257 invalid entries                  -> rc=2, guard did not run
 malformed batch + matching top-level name, security   -> rc=2, guard did not run
 malformed batch + matching top-level name, LSP Read   -> rc=2, guard did not run
+empty batch + snake integer top-level name          -> rc=2, guard did not run
+empty batch + camel null top-level name              -> rc=2, guard did not run
+empty batch without a top-level name                 -> rc=0, guard did not run
 Malformed JSON stdin ("{not valid json")             -> rc=2, stderr:
   "malformed JSON on stdin: Expecting property name enclosed in double quotes..."
 ```
@@ -211,7 +215,7 @@ None.
 | Mixed-schema precedence | Subprocess exec, real shim | Dangerous batched command overrides benign top-level command and exits 2; `test_inject_shim_mixed_schema_top_level_fields_do_not_bypass_toolcalls_selection` | PASS |
 | Raw candidate cap | Subprocess exec, real shim | 256 entries accepted; 257 entries denied before guard execution | PASS |
 | Invalid entries count toward cap | Generated-shim execution | 257 non-dict entries denied; `test_inject_shim_toolcalls_candidate_cap_denies_257_invalid_entries` | PASS |
-| Malformed batch validation | Generated-shim execution and unit tests | Non-object, missing-name, non-string-name, empty-name, ambiguous empty batch, and valid-then-malformed cases exit 2 before guard execution | PASS |
+| Malformed batch validation | Generated-shim execution and unit tests | Non-object, missing-name, non-string-name, empty-name, valid-then-malformed, and empty-batch cases with any present top-level name key exit 2 before guard execution | PASS |
 | Lazy candidate traversal | Source inspection and generated-shim execution | Bounded full-batch prevalidation, then `_shim_candidate_payloads` and `_shim_select_payloads` yield candidates; `_shim_dispatch_selections` uses `yield from` | PASS |
 | Unrelated large sibling excluded from replay | Subprocess exec, real shim | 3 MiB unmatched Bash + small matched Edit, guard invoked once, rc=0; `test_inject_shim_replays_small_match_from_large_multi_call_event` | PASS |
 | Malformed JSON | Subprocess exec, real shim | `{not valid json`, rc=2, decode-error message, no raw bytes echoed | PASS |
@@ -235,10 +239,10 @@ own docstring.
 
 Executed against the final malformed-batch implementation:
 
-- Full suite: 14,444 passed, 21 skipped, 45 expected failures, 3 warnings.
-- Build-script suite: 849 passed, 1 skipped.
+- Full suite: 14,452 passed, 21 skipped, 45 expected failures, 3 warnings.
+- Build-script suite: 857 passed, 1 skipped.
 - `pre_pr.py`: 29 passed, 4 skipped, zero failures.
-- Live Copilot vendor-hook smoke: 1 passed.
+- Copilot plugin smoke suite: 16 passed, 2 live CLI cases skipped by the explicit `RUN_CLI_E2E` gate.
 - Final security re-review: no blockers.
 - Final code review: no blocking findings.
 - Plugin 0.6.47 is the highest version among current open PRs; next is 0.6.46.

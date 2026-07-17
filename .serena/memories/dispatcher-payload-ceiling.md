@@ -29,8 +29,9 @@ rejected with exit 2.
 
 Every list entry is validated before any guard runs. Non-object entries and
 entries without a non-empty string `name` exit 2. An empty `toolCalls` list
-combined with a top-level `tool_name` or `toolName` also exits 2 because the
-payload presents conflicting schemas with no canonical batched candidate.
+combined with a top-level `tool_name` or `toolName` key also exits 2,
+regardless of whether its value is a string, null, or another type. The payload
+presents conflicting schemas with no canonical batched candidate.
 
 A second, separate limit, `MATCHED_SHIM_PAYLOAD_LIMIT_MIB = 2`, applies only
 after matcher selection, to each canonical replay built for a matched
@@ -123,11 +124,12 @@ candidate-count, and malformed-batch costs.
 - Tests: `tests/build_scripts/test_generate_dispatcher.py`,
   `tests/build_scripts/test_generate_hooks.py`,
   `tests/build_scripts/test_dispatch_small_apply_patch_regression.py`.
-- Focused suite (5 mandated files): 235 passed, 1 skipped.
-- Build-script suite: 849 passed, 1 skipped.
-- Full suite: 14444 passed, 21 skipped, 45 expected failures, 3 warnings.
+- Focused suite (5 mandated files): 243 passed, 1 skipped.
+- Build-script suite: 857 passed, 1 skipped.
+- Full suite: 14452 passed, 21 skipped, 45 expected failures, 3 warnings.
 - Live generated-shim probes: mixed schema rc=2, 256 entries rc=0,
-  257 entries rc=2, malformed batches rc=2 in both reviewed shims, and no
-  payload disclosure.
+  257 entries rc=2, malformed batches rc=2 in both reviewed shims, empty
+  batches with integer or null top-level name values rc=2, empty batches without
+  a top-level name rc=0, and no payload disclosure.
 - Final QA verdict: PASS, recorded in
   `.agents/qa/pr-3097-dispatcher-stdin-ceiling-test-report.md`.
