@@ -23,6 +23,7 @@ sys.path.insert(0, str(_project_root / ".claude" / "hooks" / "PreToolUse"))
 sys.path.insert(0, str(_project_root))
 
 from invoke_security_gate import (  # noqa: E402
+    extract_patch_paths,
     gate_freeform_patch,
     main,
     malformed_structural_lines,
@@ -85,6 +86,25 @@ class TestMalformedStructuralLines:
 
     def test_non_patch_string_has_no_structural_lines(self) -> None:
         assert malformed_structural_lines("just a random string") == []
+
+    def test_context_line_with_file_header_content_not_extracted_as_path(self) -> None:
+        # A context line (leading space) whose content looks like a file header
+        # must not be extracted as a touched path. The ``***`` keyword sits at
+        # column 1 (not column 0), so it is diff content, not a structural marker.
+        # This regression test pins the column-0 anchor fix for issue #3203
+        # adversarial review: ``_PATCH_FILE_HEADER`` must use ``^\*\*\*``, not
+        # ``^\s*\*\*\*``, so context lines cannot spoof file headers.
+        patch = (
+            "*** Begin Patch\n"
+            "*** Update File: docs/readme.md\n"
+            "@@\n"
+            " *** Update File: src/auth/login.ts\n"  # context line, not a header
+            "+new content\n"
+            "*** End Patch\n"
+        )
+        paths = extract_patch_paths(patch)
+        assert paths == ["docs/readme.md"]
+        assert "src/auth/login.ts" not in paths
 
 
 class TestGateFreeformPatchFailClosed:

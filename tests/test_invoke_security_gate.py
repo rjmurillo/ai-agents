@@ -366,7 +366,10 @@ class TestExtractPatchPaths:
         assert extract_patch_paths(patch) == ["src/old.ts", "src/new.ts"]
 
     def test_header_is_case_insensitive_and_whitespace_tolerant(self) -> None:
-        patch = "  *** add file:   spaced/path.txt  \n"
+        # Case insensitivity and internal whitespace tolerance (around keywords,
+        # colon, and path). Leading whitespace before ``***`` is NOT tolerated
+        # because that pattern indicates a context line, not a structural header.
+        patch = "***  add  file :   spaced/path.txt  \n"
         assert extract_patch_paths(patch) == ["spaced/path.txt"]
 
     def test_path_with_spaces_preserved(self) -> None:
