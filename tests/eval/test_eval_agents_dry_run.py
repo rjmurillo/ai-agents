@@ -48,6 +48,12 @@ try:
     assert _spec and _spec.loader
     eval_agents = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(eval_agents)
+    _suite_spec = importlib.util.spec_from_file_location(
+        "eval_suite", SUITE_SCRIPT
+    )
+    assert _suite_spec and _suite_spec.loader
+    eval_suite = importlib.util.module_from_spec(_suite_spec)
+    _suite_spec.loader.exec_module(eval_suite)
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
@@ -193,19 +199,63 @@ class TestEvalAgentsCli:
 class TestEvalSuiteAgentsDryRun:
     """End-to-end test for the suite-level reproduction from the issue."""
 
-    def test_suite_agents_dry_run_does_not_fail_on_zero_scores(self):
+    def test_suite_agents_dry_run_does_not_fail_on_zero_scores(self, tmp_path):
         """`eval-suite.py --scope agents --dry-run` must not exit 1 just
         because dry-run produced zero scores (issue #2441 acceptance criterion 1).
         """
-        # Drive the suite against itself with no actual agent diff: the
-        # classifier returns no agents, so nothing to evaluate, dry-run is
-        # vacuously successful. Using base-ref=HEAD guarantees an empty diff
-        # regardless of repo state.
-        result = _run_suite("--scope", "agents", "--dry-run", "--base-ref", "HEAD")
+        # Drive the empty-diff case through the explicit --changed-files-from
+        # input (issue #3138). An empty file means "no changes", so the
+        # classifier returns no agents and the dry-run is vacuously successful.
+        # This reproduces the original empty-diff intent WITHOUT reading the
+        # live checkout: `--base-ref HEAD` does NOT guarantee an empty diff
+        # (staged/unstaged edits, e.g. during an in-progress merge, appear in
+        # `git diff HEAD`), which previously made this test false-fail.
+        empty_list = tmp_path / "changed_empty.txt"
+        empty_list.write_text("", encoding="utf-8")
+        result = _run_suite(
+            "--scope", "agents", "--dry-run",
+            "--changed-files-from", str(empty_list),
+        )
         assert result.returncode == 0, (
             f"Suite dry-run with empty diff must exit 0; got "
             f"{result.returncode}. stderr: {result.stderr[-500:]}"
         )
+
+    def test_read_changed_files_ignores_blank_and_dedups(self, tmp_path):
+        """The explicit changed-files input drops blanks and dedups (issue #3138)."""
+        listing = tmp_path / "changed.txt"
+        listing.write_text(
+            "\n".join(
+                [
+                    ".claude/agents/architect.md",
+                    "",
+                    "  ",
+                    ".claude/agents/architect.md",
+                    " src/claude/agents/analyst.md ",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        assert eval_suite.read_changed_files(str(listing)) == [
+            ".claude/agents/architect.md",
+            "src/claude/agents/analyst.md",
+        ]
+
+    def test_read_changed_files_empty_file_is_empty(self, tmp_path):
+        """A whitespace-only changed-files file classifies as no changes."""
+        listing = tmp_path / "blank.txt"
+        listing.write_text("\n  \n\t\n", encoding="utf-8")
+        assert eval_suite.read_changed_files(str(listing)) == []
+
+    def test_suite_classifier_includes_explicit_agent_change(self):
+        """Explicitly provided agent files ARE classified as agents.
+
+        The staged-change contract: when the input list names an agent file,
+        the classifier includes it. This proves the empty-diff test above is
+        empty because the list is empty, not because classification is broken.
+        """
+        classified = eval_suite.classify_changes([".claude/agents/architect.md"])
+        assert ".claude/agents/architect.md" in classified["agents"]
 
     # NOTE: A broader end-to-end test that drives the suite with real agent
     # files in the diff was prototyped (diffing against the git empty-tree

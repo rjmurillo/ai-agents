@@ -84,6 +84,20 @@ def detect_changed_files(base_ref: str) -> list[str]:
     return sorted(set(committed + staged))
 
 
+def read_changed_files(source: str) -> list[str]:
+    """Read a newline-delimited changed-file list from ``source``.
+
+    Explicit alternative to :func:`detect_changed_files` for callers that must
+    not depend on the live checkout's git state (issue #3138). Blank lines are
+    dropped; an empty or whitespace-only file yields an empty list, which the
+    classifier treats as "nothing changed". Paths are returned deduplicated and
+    sorted to match :func:`detect_changed_files`.
+    """
+    text = Path(source).read_text(encoding="utf-8")
+    files = [line.strip() for line in text.splitlines()]
+    return sorted({path for path in files if path})
+
+
 # ---------------------------------------------------------------------------
 # Change classification
 # ---------------------------------------------------------------------------
@@ -359,13 +373,28 @@ def run_skill_knowledge(
 # Main orchestrator
 # ---------------------------------------------------------------------------
 
-def _detect_and_classify(base_ref: str) -> dict[str, list[str]]:
-    """Detect changed files and classify them by eval category."""
+def _detect_and_classify(
+    base_ref: str, changed_files_from: str | None = None
+) -> dict[str, list[str]]:
+    """Detect changed files and classify them by eval category.
+
+    When ``changed_files_from`` is set, the file list is read from that path
+    instead of running ``git diff`` against the live checkout (issue #3138).
+    """
     print(f"{'='*60}", file=sys.stderr)
-    print(f"  EVAL SUITE: Detecting changes vs {base_ref}", file=sys.stderr)
+    if changed_files_from is not None:
+        print(
+            f"  EVAL SUITE: Reading changes from {changed_files_from}",
+            file=sys.stderr,
+        )
+    else:
+        print(f"  EVAL SUITE: Detecting changes vs {base_ref}", file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
 
-    changed_files = detect_changed_files(base_ref)
+    if changed_files_from is not None:
+        changed_files = read_changed_files(changed_files_from)
+    else:
+        changed_files = detect_changed_files(base_ref)
     if not changed_files:
         print("  No changes detected.", file=sys.stderr)
         sys.exit(0)
@@ -474,6 +503,10 @@ def main() -> None:
     )
     parser.add_argument("--base-ref", type=str, default="main",
                         help="Git ref to compare against (default: main)")
+    parser.add_argument("--changed-files-from", type=str, default=None,
+                        help="Read the changed-file list from this path (one "
+                             "path per line) instead of running git diff. An "
+                             "empty file means no changes.")
     parser.add_argument("--scope", type=str,
                         choices=["prompts", "agents", "skills", "all"],
                         default="all", help="Limit to specific scope")
@@ -485,7 +518,7 @@ def main() -> None:
     args = parser.parse_args()
 
     start_time = time.time()
-    classified = _detect_and_classify(args.base_ref)
+    classified = _detect_and_classify(args.base_ref, args.changed_files_from)
     results, any_failure = _run_evals(classified, args)
 
     elapsed = round(time.time() - start_time, 1)
