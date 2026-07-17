@@ -14,14 +14,14 @@ import fnmatch as _fnmatch
 
 _MATCHER = 'Bash(git push*)'
 
-# Cap stdin read so a malicious or buggy upstream cannot OOM the shim
-# (CWE-400). Mirrors push_guard_base.MAX_STDIN_BYTES (1 MiB) with a
-# small headroom; real Claude/Copilot tool_input commands are well
-# below this limit. The cap belongs at the SHIM layer because the
-# shim reads stdin BEFORE delegating to the wrapped script. Without
-# it, the wrapped script's own cap is applied too late: the OOM has
-# already happened.
-_SHIM_MAX_STDIN_BYTES = 2 * 1024 * 1024
+# Bound the standalone shim read before JSON parsing so a malicious or buggy
+# upstream cannot cause unbounded allocation (CWE-400).
+_HOOK_STDIN_CEILING_BYTES = 64 * 1024 * 1024
+
+# Apply the normal payload policy only after matcher selection. Multi-call
+# events can contain a large unrelated call that must not deny a small matched
+# call.
+_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES = 2 * 1024 * 1024
 
 
 def _shim_classify(pattern):
@@ -99,6 +99,14 @@ def _shim_tool_input_from_tool_args(raw_args):
     return _shim_parse_json_string(raw_args, "toolArgs")
 
 
+def _shim_top_level_input_field(payload):
+    if payload.get("tool_input") is not None:
+        return "tool_input"
+    if "toolArgs" in payload:
+        return "toolArgs"
+    return "tool_input"
+
+
 def _shim_candidate_payloads(payload):
     tool_calls = payload.get("toolCalls")
     if isinstance(tool_calls, list):
@@ -115,9 +123,9 @@ def _shim_candidate_payloads(payload):
             candidate["tool_input"] = _shim_tool_input_from_call_args(call.get("args"))
             if "id" in call:
                 candidate["tool_call_id"] = call.get("id")
-            candidates.append(candidate)
+            candidates.append((candidate, "toolCalls.args"))
         return candidates
-    return [payload]
+    return [(payload, _shim_top_level_input_field(payload))]
 
 
 def _shim_match_candidate(payload, kind, params):
@@ -147,25 +155,16 @@ def _shim_match_candidate(payload, kind, params):
     return tool_name == params["toolName"]
 
 
-def _shim_select_payload(payload):
+def _shim_select_payloads(payload):
     kind, params = _shim_classify(_MATCHER)
-    candidates = _shim_candidate_payloads(payload)
-    if not candidates:
-        return None
-    for candidate in candidates:
+    selections = []
+    for candidate, input_field in _shim_candidate_payloads(payload):
         if _shim_match_candidate(candidate, kind, params):
-            return candidate
-    return None
+            selections.append((candidate, input_field))
+    return selections
 
 
-def _shim_should_fire(payload):
-    return _shim_select_payload(payload) is not None
-
-
-def _shim_replay_bytes(payload, raw):
-    selected = _shim_select_payload(payload)
-    if selected is None:
-        return raw
+def _shim_replay_bytes(payload, selected, raw):
     replay = dict(selected)
     changed = selected is not payload
     tool_name = replay.get("tool_name")
@@ -183,19 +182,50 @@ def _shim_replay_bytes(payload, raw):
     return _json.dumps(replay, separators=(",", ":")).encode("utf-8")
 
 
+def _shim_exit_code(exc):
+    code = exc.code
+    if code is None:
+        return 0
+    if isinstance(code, int):
+        return code
+    return 1
+
+
+def _shim_invoke_selection(payload, selection, raw):
+    selected, input_field = selection
+    replay = _shim_replay_bytes(payload, selected, raw)
+    if len(replay) > _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES:
+        print(
+            (
+                "matcher-shim [{}]: matched replay from {} exceeds "
+                "{} bytes; refusing"
+            ).format(_MATCHER, input_field, _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES),
+            file=_sys.stderr,
+        )
+        return 2
+    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(replay), encoding="utf-8")
+    try:
+        rc = _original_main(replay)
+    except SystemExit as exc:
+        return _shim_exit_code(exc)
+    if rc is None:
+        return 0
+    return int(rc)
+
+
 def _shim_dispatch():
     try:
-        _raw = _sys.stdin.buffer.read(_SHIM_MAX_STDIN_BYTES + 1)
+        _raw = _sys.stdin.buffer.read(_HOOK_STDIN_CEILING_BYTES + 1)
     except Exception as exc:  # pragma: no cover - defensive
         print(
             "matcher-shim [{}]: failed to buffer stdin: {}".format(_MATCHER, exc),
             file=_sys.stderr,
         )
         _sys.exit(2)
-    if len(_raw) > _SHIM_MAX_STDIN_BYTES:
+    if len(_raw) > _HOOK_STDIN_CEILING_BYTES:
         print(
             "matcher-shim [{}]: stdin exceeds {} bytes; refusing".format(
-                _MATCHER, _SHIM_MAX_STDIN_BYTES
+                _MATCHER, _HOOK_STDIN_CEILING_BYTES
             ),
             file=_sys.stderr,
         )
@@ -209,7 +239,8 @@ def _shim_dispatch():
         )
         _sys.exit(2)
     try:
-        fire = _shim_should_fire(payload)
+        selections = _shim_select_payloads(payload)
+        fire = bool(selections)
     except Exception as exc:
         print(
             "matcher-shim [{}]: dispatch error: {}".format(_MATCHER, exc),
@@ -221,16 +252,13 @@ def _shim_dispatch():
         _sys.stderr.write(
             "matcher-shim [{}]: kind={} fired={}\n".format(_MATCHER, kind, fire)
         )
-    if not fire:
+    if not selections:
         _sys.exit(0)
-    # Replay a canonical payload into a fresh stdin so wrapped hooks enforce
-    # the same schema even when the host sent the camelCase variant.
-    _replay = _shim_replay_bytes(payload, _raw)
-    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(_replay), encoding="utf-8")
-    rc = _original_main(_replay)
-    if rc is None:
-        rc = 0
-    _sys.exit(int(rc))
+    for selection in selections:
+        rc = _shim_invoke_selection(payload, selection, _raw)
+        if rc != 0:
+            _sys.exit(rc)
+    _sys.exit(0)
 # END MATCHER SHIM
 
 def _original_main(stdin_bytes):
