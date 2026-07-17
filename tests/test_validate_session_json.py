@@ -596,6 +596,11 @@ class TestEvidenceContradiction:
             # A numeric skipped count alongside a genuine incomplete token still
             # flags on the genuine token (TODO).
             "14434 passed, 21 skipped, 45 xfailed; TODO wire up remaining check",
+            # Numeric identifier immediately before "skipped" where the number is
+            # part of an identifier phrase, not a pytest count. These must flag.
+            "step 21 skipped",
+            "PR #3141 skipped review",
+            "v2.1 skipped tests",
         ],
     )
     def test_skipped_step_still_flags(self, evidence: str) -> None:

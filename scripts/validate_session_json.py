@@ -123,8 +123,14 @@ _CONTRAST_CONJUNCTION = re.compile(r"(?i)\b(but|however|except|though|although)\
 # not flag as a contradiction. Only "skipped" collides with pytest count output;
 # the other CONTRADICTION_PATTERNS tokens never appear as "<N> token" counts.
 # See issue #3141.
+#
+# The count must be a standalone number: either at the start of the string or
+# immediately after a delimiter (comma, semicolon, colon). This prevents false
+# suppression when a numeric identifier precedes "skipped" (e.g. "step 21 skipped",
+# "PR #3141 skipped", "v2.1 skipped") where the number is part of an identifier,
+# not a pytest outcome count.
 _NUMERIC_COUNT_TOKENS = frozenset({"skipped"})
-_DIGIT_BEFORE_TOKEN = re.compile(r"\d\s*$")
+_DIGIT_BEFORE_TOKEN = re.compile(r"(?:^|[,;:]\s*)\d+\s*$")
 
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
