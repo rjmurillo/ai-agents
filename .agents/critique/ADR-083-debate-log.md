@@ -222,6 +222,24 @@ artifact.
 
 ---
 
+## Post-Review Consistency Pass (bot reviewers, 2026-07-18)
+
+After the human-agent debate reached consensus and the ADR moved to `accepted`,
+the PR bot reviewers (Cursor Bugbot, Copilot, CodeRabbit) flagged six internal
+consistency and staleness issues on the ADR text. All six were verified valid.
+None changed a decision (D1/D2/D3/A); they tightened wording. Two were fixed by
+Cursor Agent autofix commits on the branch (`cd0dc2b1a`, `a5f1be0fc`); the other
+four were fixed by hand on top of those commits.
+
+| Reviewer | Finding | Fix |
+|---|---|---|
+| Cursor | Deferral vs base-exclusion contradiction: item 6 said tagged items are excluded from the base, so with no overlay an internal item would drop from both surfaces | Fixed by Cursor autofix `cd0dc2b1a`: during deferral all items route to the base because the internal set is empty by hypothesis; the split activates when the first internal item is tagged |
+| Cursor | Overlay e2e timing contradicts deferral: item 4 and the impact table wired the base-plus-overlay job now | Fixed by Cursor autofix `a5f1be0fc`: item 4 and the impact table land only the base-alone job; the overlay job is deferred per item 6 |
+| Copilot | Machine-specific state ("this machine loads five") will rot | Removed; states the multi-plugin capability generically |
+| Copilot | Version claim ("1.0.69 and 1.0.70") narrower than the repo e2e rationale (1.0.69+) | Generalized to "1.0.69 and later" with issue refs #2990/#3014/#3090/#3135, matching `test_plugin_load_smoke.py` |
+| CodeRabbit | Overlay gate triggered only on an internal skill, but agents and instructions also carry `surface` tags | Item 6 gate now triggers on the first internal item of any plugin-routed type (skill, agent, instruction); hooks stay on the #3197 delete-and-re-home path |
+| CodeRabbit | Security-hook requirement stated as policy, not an executable invariant | Added a Confirmation Criteria bullet: CI asserts both security hooks present and `surface: ship`, fails on missing or reclassified |
+
 ## Verdict
 
 **ACCEPT-WITH-CHANGES, changes applied.** All P0 and P1 findings resolved in the

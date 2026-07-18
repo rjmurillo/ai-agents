@@ -109,7 +109,7 @@ customer installs the base.
 3. **Dogfood by loading both plugins locally.** A dogfood-install step links the
    base (and the overlay, once it exists) into `~/.copilot/installed-plugins/` so
    our Copilot sessions run the real packaged artifacts. Copilot CLI already loads
-   multiple plugins at once (this machine loads five). The install uses a symlink on
+   multiple plugins at once. The install uses a symlink on
    Unix and a copy on Windows, matching the gstack `_link_or_copy` pattern. The
    symlink tracks the repo, which kills the 0.5.248 copy rot. Windows cannot rely on
    a symlink by default, so instead of an advisory note the install script runs a
@@ -125,8 +125,9 @@ customer installs the base.
    packaged `hooks.json`, which proves the plugin loaded and dispatched. The
    CO-PRIMARY signal is `skill list` succeeding with no loader warning. Skill
    enumeration under `source: plugin` is only a SECONDARY soft signal, because
-   Copilot CLI 1.0.69 and 1.0.70 omit `source: plugin` records from
-   `skill list --json` for a known-good plugin dir even though the plugin loads.
+   Copilot CLI 1.0.69 and later can omit `source: plugin` records from
+   `skill list --json` for a known-good plugin dir even though the plugin loads
+   (issues #2990, #3014, #3090, #3135).
    The test also asserts a real shipped skill script resolves under the plugin
    root. Loading the base alone is what catches base-only form-factor bugs; loading
    the `.claude` superset (today's behavior) never exercises the base by itself. A
@@ -154,7 +155,9 @@ customer installs the base.
    family stays shippable, so the honest initial skill partition is all `ship`. The
    overlay tree (`src/copilot-cli-internal`) is therefore designed now but
    materialized only when phase-3 tagging produces at least one `surface: internal`
-   skill we need on our own Copilot runtime. Until that trigger fires, the split is
+   item of any plugin-routed type (skill, agent, or instruction) we need on our own
+   Copilot runtime. Hooks are outside this gate; they follow the #3197
+   delete-and-re-home path, not the overlay. Until that trigger fires, the split is
    deferred: all items route to the base (the `internal` set is empty by
    hypothesis), and no third tree, no fourth version line, and no overlay e2e job
    are built. The mechanism is specified so it
@@ -347,6 +350,9 @@ any `marketplace.json`.
 - The `surface` tag gate fails a CI run when an untagged item is added and passes
   when it is tagged, proven by a positive, a negative, and an invalid-value test
   case.
+- CI asserts both shipped security hooks (`invoke_security_gate`,
+  `invoke_security_commit_gate`) are present in the base and classified
+  `surface: ship`; the run fails if either is missing or reclassified `internal`.
 - The symlink dogfood install makes `copilot` load the repo `HEAD` version in an
   interactive session, verified by the loaded `plugin.json` version matching `HEAD`
   rather than 0.5.248.
