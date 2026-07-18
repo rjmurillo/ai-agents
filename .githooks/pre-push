@@ -408,11 +408,14 @@ CHANGED_AGENT_DRIFT_INPUTS=$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+
 # Hook-anchoring relevant paths (#2205): generator, both plugin hook files,
 # the project-mode settings source, the anchoring gate, and the e2e itself.
 # A change to any forces the real-CLI e2e (resolution under the live contract).
-CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\.py|src/copilot-cli/hooks/|\.claude/hooks/|\.claude/settings\.json|scripts/validation/validate_hook_anchoring\.py|tests/e2e/test_cli_hook_e2e\.py)' || true)
+# copilot_hook_probe.py is the shared fired-hook probe imported by the CLI hook
+# e2e and the plugin-load smoke (#3179); editing it alone must retrigger both.
+CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\.py|src/copilot-cli/hooks/|\.claude/hooks/|\.claude/settings\.json|scripts/validation/validate_hook_anchoring\.py|tests/e2e/test_cli_hook_e2e\.py|tests/e2e/copilot_hook_probe\.py)' || true)
 # Plugin-load relevant paths (#2736): sources, generated skill mirrors, plugin
 # manifests, generators, and the smoke itself. A change to any forces the real
-# CLI plugin-load smoke when a CLI is available.
-CHANGED_PLUGIN_LOAD=$(echo "$CHANGED_FILES" | grep -E '^(\.claude/(\.claude-plugin/plugin\.json|commands/|skills/)|src/copilot-cli/(\.claude-plugin/plugin\.json|skills/)|build/scripts/generate_(commands|skills)\.py|templates/platforms/copilot-cli\.yaml|tests/e2e/test_plugin_load_smoke\.py|\.github/workflows/nightly-cli-smoke\.yml)' || true)
+# CLI plugin-load smoke when a CLI is available. copilot_hook_probe.py is the
+# shared load-signal helper imported by the smoke (#3179).
+CHANGED_PLUGIN_LOAD=$(echo "$CHANGED_FILES" | grep -E '^(\.claude/(\.claude-plugin/plugin\.json|commands/|skills/)|src/copilot-cli/(\.claude-plugin/plugin\.json|skills/)|build/scripts/generate_(commands|skills)\.py|templates/platforms/copilot-cli\.yaml|tests/e2e/test_plugin_load_smoke\.py|tests/e2e/copilot_hook_probe\.py|\.github/workflows/nightly-cli-smoke\.yml)' || true)
 
 # ============================================================================
 # Phase 1: Fast Guards (< 5s)

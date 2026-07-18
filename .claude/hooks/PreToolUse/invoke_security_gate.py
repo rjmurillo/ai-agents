@@ -53,13 +53,50 @@ if _lib_dir not in sys.path:
 from hook_utilities import get_project_directory  # noqa: E402
 
 # File path patterns that indicate auth-related code
+# Candidate paths are lower-cased before matching (see ``is_auth_path``), so
+# these patterns are written lower-case only. Case folding closes a Windows and
+# macOS bypass: on a case-insensitive filesystem ``src/AUTH/login.ts`` names the
+# same file as ``src/auth/login.ts`` but an upper-cased segment slipped past the
+# gate before normalization (issue #3203 adversarial review).
 _AUTH_PATH_PATTERNS = [
-    re.compile(r"(^|[/\\])[Aa]uth[/\\]"),
-    re.compile(r"(^|[/\\])[Aa]uthentication[/\\]"),
-    re.compile(r"(^|[/\\])[Aa]uthorization[/\\]"),
+    re.compile(r"(^|[/\\])auth[/\\]"),
+    re.compile(r"(^|[/\\])authentication[/\\]"),
+    re.compile(r"(^|[/\\])authorization[/\\]"),
     re.compile(r"\.auth\.(ts|js|py|cs|java|go|rb)$"),
-    re.compile(r"(^|[/\\])middleware[/\\]auth", re.IGNORECASE),
+    re.compile(r"(^|[/\\])middleware[/\\]auth"),
 ]
+
+# Freeform patch (Codex/Copilot ``apply_patch``, V4A format) file headers.
+# GitHub Copilot CLI delivers apply_patch operations to the Write/Edit gate as a
+# raw patch STRING rather than an object (issue #3203). Every file the patch
+# touches is named by one of these headers:
+#   *** Add File: path
+#   *** Update File: path
+#   *** Delete File: path
+#   *** Move to: path      (rename destination inside an Update hunk)
+# Matching all four is a superset of what the patch executor applies, so no
+# touched path can slip past the auth check. The keyword is matched
+# case-insensitively and tolerates surrounding whitespace. The captured path
+# must begin with a non-whitespace character (``\S``): a header with an empty or
+# whitespace-only path (``*** Add File:   ``) is not well-formed, so it is left
+# for ``malformed_structural_lines`` to fail closed on rather than silently
+# skipped (issue #3203 adversarial review).
+_PATCH_FILE_HEADER = re.compile(
+    r"^\*\*\*\s+(?:(?:Add|Update|Delete)\s+File|Move\s+to)\s*:\s*(?P<path>\S.*?)\s*$",
+    re.IGNORECASE,
+)
+
+# A V4A structural marker sits at column 0 with no content prefix. The only
+# well-formed markers are ``*** Begin Patch``, ``*** End Patch``, and the four
+# file headers above. A column-0 ``***`` line that matches none of those is
+# malformed: the parser cannot attribute a path to it, so it cannot be gated.
+# The anchor is column 0 (``^\*\*\*``), not ``^\s*\*\*\*``, on purpose: a context
+# or added line whose *content* begins with ``***`` (e.g. a Markdown horizontal
+# rule inside an Update hunk) carries a one-character diff prefix (space, ``+``,
+# or ``-``), so it never sits at column 0 and is not mistaken for a marker.
+# Fail-closed hardening from the issue #3203 adversarial review.
+_PATCH_STRUCTURAL_PREFIX = re.compile(r"^\*\*\*")
+_PATCH_BEGIN_END = re.compile(r"^\*\*\*\s+(?:Begin|End)\s+Patch\s*$", re.IGNORECASE)
 
 # Session log patterns indicating security review was performed
 _SECURITY_REVIEW_PATTERNS = [
@@ -111,13 +148,110 @@ Place a security review report in `.agents/security/` with today's date:
 
 
 def is_auth_path(file_path: str) -> bool:
-    """Check if a file path matches auth-related patterns."""
+    """Check if a file path matches auth-related patterns.
+
+    The candidate is lower-cased before matching so an auth directory or
+    extension written in any case (for example ``src/AUTH/login.ts`` on a
+    case-insensitive Windows or macOS filesystem) is still gated. Callers keep
+    the original path for reporting; only the match test is case-folded (issue
+    #3203 adversarial review).
+    """
     if not file_path:
         return False
+    candidate = file_path.lower()
     for pattern in _AUTH_PATH_PATTERNS:
-        if pattern.search(file_path):
+        if pattern.search(candidate):
             return True
     return False
+
+
+def extract_patch_paths(patch_text: str) -> list[str]:
+    """Extract every file path named in a freeform ``apply_patch`` string.
+
+    Parses the ``*** Add File:``/``*** Update File:``/``*** Delete File:`` and
+    ``*** Move to:`` headers of a Codex/Copilot V4A patch. Returns the paths in
+    the order they appear (duplicates preserved). An empty list signals a string
+    that carries no recognizable patch headers, i.e. a malformed patch.
+    """
+    paths: list[str] = []
+    for line in patch_text.splitlines():
+        match = _PATCH_FILE_HEADER.match(line)
+        if match:
+            path = match.group("path").strip()
+            if path:
+                paths.append(path)
+    return paths
+
+
+def malformed_structural_lines(patch_text: str) -> list[str]:
+    """Return every column-0 ``***`` line that is not a well-formed V4A marker.
+
+    A patch that carries an unrecognized structural header cannot be gated
+    reliably: no file path can be attributed to it. ``gate_freeform_patch`` fails
+    closed when this list is non-empty, so a malformed header cannot smuggle an
+    ungated auth-file edit past the gate by sitting next to a benign one (issue
+    #3203 adversarial review).
+    """
+    suspicious: list[str] = []
+    for line in patch_text.splitlines():
+        if not _PATCH_STRUCTURAL_PREFIX.match(line):
+            continue
+        if _PATCH_FILE_HEADER.match(line) or _PATCH_BEGIN_END.match(line):
+            continue
+        suspicious.append(line.strip())
+    return suspicious
+
+
+def gate_paths(file_paths: list[str]) -> int:
+    """Gate a set of target paths against the auth-review requirement.
+
+    Returns 0 (allow) when no path is auth-related or when security review
+    evidence exists for the session. Returns 2 (block) for an auth-file edit
+    without evidence.
+    """
+    auth_paths = [path for path in file_paths if is_auth_path(path)]
+    if not auth_paths:
+        return 0
+
+    project_dir = get_project_directory()
+    if find_security_evidence(project_dir):
+        return 0
+
+    # Auth file edit without security review: block. Report the first auth path
+    # in the guidance template; list them all on stderr for diagnostics.
+    print(_BLOCK_TEMPLATE.format(file_path=auth_paths[0]))
+    print(
+        "Blocked: Auth file edit without security review: " + ", ".join(auth_paths),
+        file=sys.stderr,
+    )
+    return 2
+
+
+def gate_freeform_patch(patch_text: str) -> int:
+    """Gate a raw V4A ``apply_patch`` string (Copilot CLI delivery, issue #3203).
+
+    Parses the patch headers, then gates every touched path. A string with no
+    recognizable headers, or one carrying a malformed structural header the gate
+    cannot attribute to a path, fails closed (exit 2): an unparseable or
+    partially parseable patch could hide an auth-file edit the executor would
+    still apply.
+    """
+    malformed = malformed_structural_lines(patch_text)
+    if malformed:
+        block_security_gate_error(
+            "tool_input carries malformed patch header(s) the gate cannot "
+            "attribute to a file path (fail-closed): " + "; ".join(malformed[:3])
+        )
+        return 2
+
+    patch_paths = extract_patch_paths(patch_text)
+    if not patch_paths:
+        block_security_gate_error(
+            "tool_input is a string but not a recognizable patch "
+            "(no '*** Add/Update/Delete File:' or '*** Move to:' headers)"
+        )
+        return 2
+    return gate_paths(patch_paths)
 
 
 def find_security_evidence(project_dir: str) -> bool:
@@ -195,6 +329,15 @@ def main() -> int:
             return 2
 
         tool_input = hook_input.get("tool_input")
+
+        # GitHub Copilot CLI delivers apply_patch / freeform-edit operations as
+        # a raw patch STRING rather than an object (issue #3203). The prior code
+        # failed closed on any non-dict tool_input, which denied EVERY
+        # apply_patch in Copilot CLI. Parse the patch headers instead and gate
+        # each touched path individually.
+        if isinstance(tool_input, str):
+            return gate_freeform_patch(tool_input)
+
         if not isinstance(tool_input, dict):
             block_security_gate_error("tool_input is missing or not an object")
             return 2
@@ -222,21 +365,7 @@ def main() -> int:
             )
             return 0
 
-        if not is_auth_path(file_path):
-            return 0
-
-        project_dir = get_project_directory()
-
-        if find_security_evidence(project_dir):
-            return 0
-
-        # Auth file edit without security review: block
-        print(_BLOCK_TEMPLATE.format(file_path=file_path))
-        print(
-            f"Blocked: Auth file edit without security review: {file_path}",
-            file=sys.stderr,
-        )
-        return 2
+        return gate_paths([file_path])
 
     except Exception as exc:
         print(f"Security gate error: {type(exc).__name__} - {exc}", file=sys.stderr)
