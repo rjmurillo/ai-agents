@@ -170,7 +170,7 @@ class TestEmit:
             "    sys.path.insert(0, str(lib))\n",
             encoding="utf-8",
         )
-        gd.write_entrypoint(event_dir)
+        gd.write_entrypoint(event_dir, "preToolUse")
         (event_dir / "_manifest.json").write_text('{"event":"preToolUse"}\n', encoding="utf-8")
         env = dict(__import__("os").environ)
         env["CLAUDE_PLUGIN_ROOT"] = str(root)
@@ -224,7 +224,7 @@ class TestEmit:
             "    sys.path.insert(0, str(lib))\n",
             encoding="utf-8",
         )
-        gd.write_entrypoint(event_dir)
+        gd.write_entrypoint(event_dir, "preToolUse")
         gd.write_manifest(event_dir, "preToolUse", ["a.py"], {"a.py": 0})
         env = dict(__import__("os").environ)
         env["CLAUDE_PLUGIN_ROOT"] = str(root)
@@ -238,7 +238,7 @@ class TestEmit:
         )
 
         assert proc.returncode == 2
-        assert "manifest timeout for a.py must be positive" in proc.stderr.decode()
+        assert "manifest timeout for 'a.py' must be positive" in proc.stderr.decode()
 
     def test_generated_entrypoint_validates_mode_before_shim_entries(self, tmp_path):
         root, event_dir = _stage_plugin(tmp_path, "preToolUse")
@@ -817,3 +817,126 @@ class TestConsolidate:
     def test_consolidate_handles_empty_event(self, tmp_path):
         out = {"PreToolUse": []}
         assert gd.consolidate(out, tmp_path) == {"PreToolUse": []}
+
+
+class TestPostMergeHardening:
+    """Dispatcher hardening ported from PR #3097 (issue #3200).
+
+    Each test runs the GENERATED entrypoint as a subprocess under the verified
+    plugin-root contract, so it exercises the emitted ``_dispatch.py`` rather
+    than a string match against the generator template.
+    """
+
+    def _write_manifest(self, event_dir, manifest):
+        (event_dir / "_manifest.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+    def test_matching_event_dispatches(self, tmp_path):
+        # Positive: a manifest whose event equals the generated event runs.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        assert proc.returncode == 0, proc.stderr.decode()
+
+    def test_mismatched_event_fails_closed(self, tmp_path):
+        # Negative (#3200 defect 1): flipping the manifest event to another
+        # event with observe mode must be rejected before mode selection, so a
+        # gate dispatcher cannot be rebound into fail-open behavior.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {"event": "postToolUse", "mode": "observe", "shims": []},
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        stderr = proc.stderr.decode()
+        assert proc.returncode == 2, stderr
+        assert "must equal the generated event" in stderr
+        assert "'preToolUse'" in stderr
+
+    def test_boolean_timeout_rejected(self, tmp_path):
+        # Negative (#3200 defect 2): int(True) is 1; a boolean timeout must be
+        # rejected, not coerced.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", ["a.py"], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {
+                "event": "preToolUse",
+                "mode": "gate",
+                "shims": ["a.py"],
+                "timeouts": {"a.py": True},
+            },
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        stderr = proc.stderr.decode()
+        assert proc.returncode == 2, stderr
+        assert "non-boolean integer" in stderr
+
+    @pytest.mark.parametrize("bad_timeout", [1.5, "5", [5]])
+    def test_non_integer_timeout_rejected(self, tmp_path, bad_timeout):
+        # Negative (#3200 defect 2): float, numeric string, and list timeouts
+        # must all reject rather than coerce.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", ["a.py"], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {
+                "event": "preToolUse",
+                "mode": "gate",
+                "shims": ["a.py"],
+                "timeouts": {"a.py": bad_timeout},
+            },
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        stderr = proc.stderr.decode()
+        assert proc.returncode == 2, stderr
+        assert "non-boolean integer" in stderr
+
+    def test_valid_integer_timeout_accepted(self, tmp_path):
+        # Positive edge: a positive non-boolean integer timeout is accepted and
+        # the dispatcher proceeds (no registered shim => unmatched => allow).
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {
+                "event": "preToolUse",
+                "mode": "gate",
+                "shims": [],
+                "timeouts": {},
+            },
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        assert proc.returncode == 0, proc.stderr.decode()
+
+    def test_oversized_manifest_value_stderr_is_bounded(self, tmp_path):
+        # Edge (#3200 defect 4): a huge manifest-controlled event value must not
+        # produce unbounded stderr. The diagnostic is repr-escaped and capped.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {"event": "Z" * 5000, "mode": "gate", "shims": []},
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        stderr = proc.stderr.decode()
+        assert proc.returncode == 2, stderr
+        assert "hook-dispatch-entrypoint" in stderr
+        assert "truncated" in stderr
+        # The 5000-char manifest value cannot flow verbatim into stderr.
+        assert len(stderr) < 2000
+        assert "Z" * 1000 not in stderr
