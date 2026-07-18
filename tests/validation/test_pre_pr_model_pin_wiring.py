@@ -26,18 +26,27 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Import the pre-PR runner modules the way they are designed to be imported: add
 # ``scripts/validation`` to ``sys.path`` and import by bare name. These modules
-# self-insert their own directory and use bare intra-package imports (Issue
-# #2223), so a package-path import (``from scripts.validation import ...``) makes
-# mypy at repo root type-check them and surface the pre-existing #2876 bare-Any
-# ``no-any-return`` debt in unrelated code. The bare import keeps this test
-# scoped to the wiring it verifies.
+# self-insert their own directory and use bare intra-package imports
+# (Issue #2223), so a package-path import (``from scripts.validation import ...``)
+# makes mypy at repo root type-check them and surface the pre-existing #2876
+# bare-Any ``no-any-return`` debt in unrelated code. The bare import keeps this
+# test scoped to the wiring it verifies.
+#
+# The three modules resolve their sibling imports at import time (cached in
+# ``sys.modules``); their only function-level imports are stdlib. Snapshot
+# ``sys.path`` and restore it in ``finally`` so the injected directory does not
+# leak into other test modules, while the already-imported modules keep working
+# at runtime from ``sys.modules``.
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
+_SYS_PATH_SNAPSHOT = list(sys.path)
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
-
-import checks_spec  # noqa: E402
-import pre_pr  # noqa: E402
-import pre_pr_sequence  # noqa: E402
+try:
+    import checks_spec  # noqa: E402
+    import pre_pr  # noqa: E402
+    import pre_pr_sequence  # noqa: E402
+finally:
+    sys.path[:] = _SYS_PATH_SNAPSHOT
 
 
 def test_validate_model_pins_passes_in_warn_mode() -> None:
@@ -107,7 +116,8 @@ def test_check_model_pins_exits_2_on_malformed_baseline(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(script), "--mode", "warn", "--baseline", str(bad_baseline)],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=REPO_ROOT,
     )
     assert result.returncode == 2, result.stdout + result.stderr
@@ -164,7 +174,8 @@ def test_check_model_pins_runs_as_standalone_script() -> None:
     result = subprocess.run(
         [sys.executable, str(script), "--mode", "warn"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=REPO_ROOT,
     )
     assert result.returncode == 0, result.stderr
