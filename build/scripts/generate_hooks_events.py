@@ -714,22 +714,37 @@ def generate_hooks(
     try:
         event_remap: dict[str, str] = {}
         for k, v in event_remap_raw.items():
-            if k is None or v is None:
+            # Reject non-string keys/values BEFORE any str() coercion. YAML
+            # parses `PreToolUse: false` to the bool False; a silent str(False)
+            # would yield the literal event name "False", which passes the
+            # alphanumeric event-name allowlist and misroutes the PreToolUse
+            # security hooks to a bogus hooks/False/ directory the host never
+            # fires (fail-open). A null, boolean, or numeric scalar here is a
+            # config error, not a remap to its stringified form (#3212 family,
+            # CWE-704 incorrect type conversion).
+            if not isinstance(k, str) or not isinstance(v, str):
                 raise GenerateHooksError(
-                    "eventRemap entries require non-null keys and values; a "
-                    "null YAML value (e.g. 'PreToolUse:') is a config error, "
-                    "not a remap to the literal event 'None': "
-                    f"{k!r}: {v!r}"
+                    "eventRemap keys and values must be strings; a non-string "
+                    "YAML scalar (null 'PreToolUse:', boolean "
+                    "'PreToolUse: false', or number) is a config error, not a "
+                    "silent remap to its stringified form such as the literal "
+                    f"event 'None', 'False', or 'True': {k!r}: {v!r}"
                 )
-            event_remap[_validate_event_name(str(k))] = _validate_event_target(
-                str(v)
-            )
+            event_remap[_validate_event_name(k)] = _validate_event_target(v)
+        # eventDrop carries the same non-string footgun: a bool `false` would
+        # coerce to a bogus drop of the literal event "False". Fail closed.
+        event_drop: set[str] = set()
+        for item in stanza.get("eventDrop") or []:
+            if not isinstance(item, str):
+                raise GenerateHooksError(
+                    "eventDrop entries must be strings; a non-string YAML "
+                    "scalar (e.g. boolean 'false') is a config error, not a "
+                    f"drop of the literal event 'False': {item!r}"
+                )
+            event_drop.add(item)
     except GenerateHooksError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2, result
-    event_drop: set[str] = {
-        str(item) for item in (stanza.get("eventDrop") or [])
-    }
     try:
         version_field = _int_field_or_default(
             stanza.get("versionField"), 1, "artifacts.hooks.versionField"

@@ -290,6 +290,111 @@ def test_generation_rejects_hostile_event_remap(
     assert not (tmp_path / "out" / "hooks.json").exists()
 
 
+# --- CWE-704: non-string eventRemap / eventDrop scalars -------------------
+#
+# YAML parses `PreToolUse: false` to the bool False (likewise off/on/yes/no,
+# and bare null/numbers). A silent str(False) -> "False" passes the
+# alphanumeric event-name allowlist and misroutes the PreToolUse security
+# hooks to a bogus hooks/False/ directory the host never fires (fail-open).
+# The generator must reject non-string keys/values/drops with rc=2 instead.
+
+
+def _write_raw_hooks_fixture(
+    tmp_path: Path, *, remap_lines: list[str], event_drop: str = "[]"
+) -> Path:
+    """Write a hooks platform config with raw (unquoted) YAML remap lines.
+
+    Unlike ``_write_generation_fixture`` (which json.dumps the value into a
+    quoted string), this preserves the raw YAML token so scalars like
+    ``false`` parse to their native bool/null/number type at load time.
+    """
+    cfg = tmp_path / "platform.yaml"
+    remap_block = "".join(f"      {line}\n" for line in remap_lines)
+    cfg.write_text(
+        'schemaVersion: "1.0"\n'
+        'provider: "test"\n'
+        "artifacts:\n"
+        "  hooks:\n"
+        '    settingsSource: "settings.json"\n'
+        '    scriptSource: "hooks_src"\n'
+        '    outputConfig: "out/hooks.json"\n'
+        '    outputScripts: "out"\n'
+        "    eventRemap:\n"
+        f"{remap_block}"
+        f"    eventDrop: {event_drop}\n"
+        '    matcherPolicy: "inline-script-shim"\n'
+        "    dispatcher: false\n"
+        "    versionField: 1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "settings.json").write_text(
+        json.dumps({"hooks": {}}), encoding="utf-8"
+    )
+    (tmp_path / "hooks_src").mkdir()
+    return cfg
+
+
+def _assert_no_bogus_scalar_output(tmp_path: Path) -> None:
+    # No stringified-scalar event directory and no hooks.json were written.
+    for bogus in ("False", "True", "None"):
+        assert not (tmp_path / "out" / bogus).exists()
+    assert not (tmp_path / "out" / "hooks.json").exists()
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    ["false", "off", "no", "true", "on", "yes", "null", "~", "12", "3.5"],
+)
+def test_generation_rejects_nonstring_event_remap_value(
+    tmp_path: Path, raw_value: str
+) -> None:
+    cfg = _write_raw_hooks_fixture(
+        tmp_path, remap_lines=[f"PreToolUse: {raw_value}"]
+    )
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 2
+    _assert_no_bogus_scalar_output(tmp_path)
+
+
+@pytest.mark.parametrize("raw_key", ["false", "off", "true", "on", "null"])
+def test_generation_rejects_nonstring_event_remap_key(
+    tmp_path: Path, raw_key: str
+) -> None:
+    cfg = _write_raw_hooks_fixture(
+        tmp_path, remap_lines=[f"{raw_key}: PreToolUse"]
+    )
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 2
+    _assert_no_bogus_scalar_output(tmp_path)
+
+
+@pytest.mark.parametrize("raw_item", ["false", "true", "null", "12"])
+def test_generation_rejects_nonstring_event_drop(
+    tmp_path: Path, raw_item: str
+) -> None:
+    cfg = _write_raw_hooks_fixture(
+        tmp_path,
+        remap_lines=["PreToolUse: preToolUse"],
+        event_drop=f"[{raw_item}]",
+    )
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 2
+    _assert_no_bogus_scalar_output(tmp_path)
+
+
+def test_generation_accepts_quoted_boolean_word_remap_value(
+    tmp_path: Path,
+) -> None:
+    # A quoted YAML string that spells a boolean word is a genuine string,
+    # not a bool; the alphanumeric allowlist accepts it. Positive control
+    # proving the guard rejects the TYPE, not the spelling.
+    cfg = _write_raw_hooks_fixture(
+        tmp_path, remap_lines=['PreToolUse: "false"']
+    )
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+
+
 # --- CWE-94: matcher control-character injection into the shim ------------
 #
 # The matcher (settings.json "matcher") is embedded into the generated shim
