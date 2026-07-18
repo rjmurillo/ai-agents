@@ -19,8 +19,7 @@ BUILD_SCRIPTS = str(REPO_ROOT / "build" / "scripts")
 if BUILD_SCRIPTS not in sys.path:
     sys.path.insert(0, BUILD_SCRIPTS)
 
-import pytest
-
+import pytest  # noqa: E402
 from generate_dispatcher import (  # noqa: E402
     _matcher_tool_tokens,
     dispatcher_entry,
@@ -81,7 +80,10 @@ def test_committed_pretooluse_entry_has_matcher_and_others_do_not():
     )["hooks"]
     pre = hooks["PreToolUse"][0]
     tokens = set(pre["matcher"].split("|"))
-    assert {"Bash", "Write", "Edit", "Grep", "Glob", "Read", "Agent", "Task"} == tokens
+    # After the ADR-062 LSP-enforcement retirement (#3216), the LSP guards
+    # were the only PreToolUse hooks matching Grep/Glob/Read/Agent/Task, so
+    # the committed union reduces to the remaining Bash/Write/Edit surface.
+    assert {"Bash", "Write", "Edit"} == tokens
     for event, entries in hooks.items():
         if event == "PreToolUse":
             continue
