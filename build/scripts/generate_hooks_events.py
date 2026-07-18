@@ -741,7 +741,12 @@ def generate_hooks(
                     "scalar (e.g. boolean 'false') is a config error, not a "
                     f"drop of the literal event 'False': {item!r}"
                 )
-            event_drop.add(item)
+            # Same allowlist as eventRemap keys: a drop entry names a Claude
+            # event, so validate it against _EVENT_NAME_RE to keep the
+            # fail-closed posture consistent. Drop values only feed set
+            # membership today, but validating here means a future path that
+            # renders them is already guarded (#3212, #3213).
+            event_drop.add(_validate_event_name(item))
     except GenerateHooksError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2, result

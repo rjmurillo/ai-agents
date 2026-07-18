@@ -382,6 +382,40 @@ def test_generation_rejects_nonstring_event_drop(
     _assert_no_bogus_scalar_output(tmp_path)
 
 
+@pytest.mark.parametrize(
+    "raw_item",
+    ['"foo/bar"', '"has space"', '"semi;colon"', '"9leading"', '"../escape"'],
+)
+def test_generation_rejects_unsafe_event_drop_name(
+    tmp_path: Path, raw_item: str
+) -> None:
+    # A drop entry is a string but not a valid event name. Before the
+    # allowlist was applied to drops, it was silently added (inert set
+    # member). Now it fails closed like an eventRemap key would (#3212,
+    # #3213), matching the PR's stated posture.
+    cfg = _write_raw_hooks_fixture(
+        tmp_path,
+        remap_lines=["PreToolUse: preToolUse"],
+        event_drop=f"[{raw_item}]",
+    )
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 2
+    _assert_no_bogus_scalar_output(tmp_path)
+
+
+def test_generation_accepts_valid_event_drop_name(tmp_path: Path) -> None:
+    # Positive control: a canonical Claude event name in eventDrop passes the
+    # allowlist and generation succeeds. Proves the guard rejects malformed
+    # names, not the drop feature itself.
+    cfg = _write_raw_hooks_fixture(
+        tmp_path,
+        remap_lines=["PreToolUse: preToolUse"],
+        event_drop='["Notification"]',
+    )
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+
+
 def test_generation_accepts_quoted_boolean_word_remap_value(
     tmp_path: Path,
 ) -> None:
