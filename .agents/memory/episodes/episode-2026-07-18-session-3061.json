@@ -53,6 +53,22 @@
       "content": "Commit: 7aec838c",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Integrated upstream ADR conflict fix and addressed 5 reviewer accuracy threads on PR #3221",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 16abc7b7",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -60,7 +76,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 6
   },
   "lessons": []

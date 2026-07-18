@@ -3,8 +3,9 @@
 ## Status
 
 Proposed (2026-05-31). Amended 2026-07-17 (amendment proposed; adr-review
-consensus recorded 6/6 Accept, pending repo-owner acceptance): the runtime
-enforcement layer is retired and only the static steering is retained. See the
+consensus recorded 6/6 Accept, pending repo-owner acceptance): the amendment
+proposes retiring the runtime enforcement layer and retaining only the static
+steering. Nothing is retired until the amendment is accepted. See the
 Amendment section below.
 
 ## Date
@@ -27,8 +28,8 @@ PreToolUse guards (`invoke_lsp_read_guard.py`, `invoke_lsp_grep_guard.py`,
 (`invoke_lsp_read_tracker.py`, `invoke_lsp_usage_tracker.py`), the SessionStart
 reset (`invoke_lsp_session_reset.py`), and the shared state and detection
 modules under `.claude/lib/hook_utilities/` that only those hooks consume
-(`lsp_gate_state.py`, plus the parts of `lsp_provider.py`, `lsp_symbols.py`,
-and `lsp_health.py` with no other caller). Keep the static steering: the
+(`lsp_gate_state.py`, plus any code in `lsp_provider.py`, `lsp_symbols.py`,
+and `lsp_health.py` with no other caller, enumerated during #3216). Keep the static steering: the
 canonical rule `.claude/rules/lsp-first.md` shipped as context every session,
 the Serena Init BLOCKING step in AGENTS.md, and the per-turn
 `invoke_serena_reassertion.py` nudge (issue #1993). Note: that hook uses
