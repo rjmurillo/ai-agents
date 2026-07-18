@@ -318,3 +318,142 @@ class TestMainFunction:
         ])
         assert result == 0
         assert not graph_file.exists()
+
+
+class TestEpisodeReconcile:
+    """Reprocess-idempotency for an edited episode (regression for #3143).
+
+    #3143: a failed pre-commit retry reprocessed an episode whose milestone
+    label had been corrected. The old content-derived node was left behind, so
+    the committed graph held two nodes for the same episode. The reconcile path
+    (#3058) must retract the stale node while preserving nodes still supported
+    by other episodes.
+    """
+
+    @staticmethod
+    def _milestone_episode(chosen: str) -> dict[str, Any]:
+        return {
+            "id": "episode-2026-07-16-session-3056-record",
+            "timestamp": "2026-07-16T00:00:00",
+            "outcome": "success",
+            "task": "Milestone record",
+            "decisions": [{
+                "type": "milestone",
+                "chosen": chosen,
+                "outcome": "success",
+                "context": "record",
+            }],
+            "events": [],
+            "lessons": [],
+        }
+
+    def test_reprocess_changed_decision_retracts_stale_node(
+        self, tmp_path: Path,
+    ) -> None:
+        """A corrected milestone leaves exactly one milestone node (AC1, AC4)."""
+        ep_dir = tmp_path / "episodes"
+        ep_dir.mkdir()
+        graph_file = tmp_path / "graph.json"
+        ep_file = ep_dir / "episode-2026-07-16-session-3056-record.json"
+
+        ep_file.write_text(json.dumps(
+            self._milestone_episode("filed #3137, #3138, #3139, #3140, and #3141"),
+        ))
+        assert main([
+            "--episode-path", str(ep_file),
+            "--graph-path", str(graph_file),
+        ]) == 0
+
+        # Correct the milestone (same episode id, new content-derived node id).
+        ep_file.write_text(json.dumps(
+            self._milestone_episode(
+                "filed #3137, #3138, #3139, #3140, #3141, and #3142",
+            ),
+        ))
+        assert main([
+            "--episode-path", str(ep_file),
+            "--graph-path", str(graph_file),
+        ]) == 0
+
+        graph = json.loads(graph_file.read_text())
+        milestone_nodes = [
+            n for n in graph["nodes"] if n["label"].startswith("milestone:")
+        ]
+        assert len(milestone_nodes) == 1
+        assert "#3142" in milestone_nodes[0]["label"]
+        # The pre-correction node must be gone, not merely deduplicated.
+        assert not any(
+            n["label"].startswith("milestone:") and "#3142" not in n["label"]
+            for n in graph["nodes"]
+        )
+
+    def test_reprocess_preserves_node_shared_with_other_episode(
+        self, tmp_path: Path,
+    ) -> None:
+        """Retracting one episode keeps a node another episode still supports (AC6)."""
+        ep_dir = tmp_path / "episodes"
+        ep_dir.mkdir()
+        graph_file = tmp_path / "graph.json"
+
+        def design_episode(episode_id: str, chosen: list[str]) -> dict[str, Any]:
+            return {
+                "id": episode_id,
+                "timestamp": "2026-07-16T00:00:00",
+                "outcome": "success",
+                "task": "Design work",
+                "decisions": [
+                    {"type": "design", "chosen": c, "outcome": "success"}
+                    for c in chosen
+                ],
+                "events": [],
+                "lessons": [],
+            }
+
+        ep1 = ep_dir / "episode-one.json"
+        ep2 = ep_dir / "episode-two.json"
+        ep1.write_text(json.dumps(design_episode("episode-one", ["SHARED", "ONLY1"])))
+        ep2.write_text(json.dumps(design_episode("episode-two", ["SHARED"])))
+        assert main([
+            "--episode-path", str(ep_dir),
+            "--graph-path", str(graph_file),
+        ]) == 0
+
+        graph = json.loads(graph_file.read_text())
+        shared = next(n for n in graph["nodes"] if n["label"] == "design: SHARED")
+        assert set(shared["episodes"]) == {"episode-one", "episode-two"}
+
+        # Reprocess only episode-one, dropping both SHARED and ONLY1.
+        ep1.write_text(json.dumps(design_episode("episode-one", ["ONLY1-CHANGED"])))
+        assert main([
+            "--episode-path", str(ep1),
+            "--graph-path", str(graph_file),
+        ]) == 0
+
+        graph = json.loads(graph_file.read_text())
+        labels = {n["label"]: n for n in graph["nodes"]}
+        # Shared node survives, now supported only by episode-two.
+        assert "design: SHARED" in labels
+        assert labels["design: SHARED"]["episodes"] == ["episode-two"]
+        # Episode-one's dropped sole-supporter node is retracted.
+        assert "design: ONLY1" not in labels
+        assert "design: ONLY1-CHANGED" in labels
+
+    def test_unchanged_reprocess_is_byte_idempotent(
+        self, tmp_path: Path,
+    ) -> None:
+        """Reprocessing an unchanged episode changes no bytes (AC2)."""
+        ep_dir = tmp_path / "episodes"
+        ep_dir.mkdir()
+        graph_file = tmp_path / "graph.json"
+        ep_file = ep_dir / "episode-2026-07-16-session-3056-record.json"
+        ep_file.write_text(json.dumps(self._milestone_episode("filed #3141")))
+
+        assert main([
+            "--episode-path", str(ep_file), "--graph-path", str(graph_file),
+        ]) == 0
+        first = graph_file.read_text()
+
+        assert main([
+            "--episode-path", str(ep_file), "--graph-path", str(graph_file),
+        ]) == 0
+        assert graph_file.read_text() == first
