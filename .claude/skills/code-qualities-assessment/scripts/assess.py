@@ -88,7 +88,7 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
     if content is None:
         try:
             content = file_path.read_text(encoding="utf-8")
-        except OSError, UnicodeDecodeError:
+        except (OSError, UnicodeDecodeError):
             content = ""
     header = "\n".join(content.splitlines()[:_GENERATED_MARKER_HEADER_LINES])
     if any(marker in header for marker in _GENERATED_MARKERS):

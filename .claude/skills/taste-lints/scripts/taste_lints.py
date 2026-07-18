@@ -145,7 +145,7 @@ def get_staged_files() -> list[str]:
         files = [f for f in result.stdout.splitlines() if f]
         # Filter out any paths with traversal attempts (CWE-22)
         return sorted(f for f in files if is_safe_path(f))
-    except subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return []
 
 
