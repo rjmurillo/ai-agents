@@ -154,8 +154,9 @@ customer installs the base.
    overlay tree (`src/copilot-cli-internal`) is therefore designed now but
    materialized only when phase-3 tagging produces at least one `surface: internal`
    skill we need on our own Copilot runtime. Until that trigger fires, the split is
-   deferred: tagged items are excluded from the base, and no third tree, no fourth
-   version line, and no overlay e2e job are built. The mechanism is specified so it
+   deferred: all items route to the base (the `internal` set is empty by
+   hypothesis), and no third tree, no fourth version line, and no overlay e2e job
+   are built. The mechanism is specified so it
    can be turned on without redesign, but it is not stood up for a population of
    zero. The review date below re-checks this.
 
