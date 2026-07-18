@@ -50,6 +50,8 @@ def _run(script: Path, cwd: Path, arg: str) -> subprocess.CompletedProcess[str]:
         cwd=str(cwd),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
