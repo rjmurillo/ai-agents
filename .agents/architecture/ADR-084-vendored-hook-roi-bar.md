@@ -138,14 +138,17 @@ hooks. Concretely, the bar is five rules:
 - It does not delete any hook. The elimination is the #3197 implementation work
   (#3216, #3217, #3218) that this bar governs. This ADR sets the standard those
   issues apply.
-- It does not authorize retiring an actual security control. The active
-  security gates (`invoke_security_gate.py`, `invoke_security_commit_gate.py`)
-  run in consumer repos and enforce a security property, not a protocol
-  preference; they are not `skip_if_consumer_repo` gated. Their retention is
-  not subject to an ROI cost-benefit veto: a security control earns its place
-  by the property it enforces, and a future reviewer must not use this ADR's
-  ROI bar to retire them. They remain subject to the bar's mechanical rules
-  (rule 5's docstring requirement applies to them like any vendored hook).
+- It does not authorize retiring an actual security control. A hook that
+  enforces a security property in consumer repos earns its place by that
+  property, not by an ROI cost-benefit veto, and a future reviewer must not use
+  this ADR's ROI bar to retire it. Of the two current security gates, only
+  `invoke_security_gate.py` is consumer-effective: it is not
+  `skip_if_consumer_repo` gated and runs on consumer Write/Edit.
+  `invoke_security_commit_gate.py` is `skip_if_consumer_repo` gated, so it does
+  not run in consumer repos; whether it should is the #3197/#3219
+  security-rebuild question, not this ROI bar. Genuine security controls remain
+  subject to the bar's mechanical rules (rule 5's docstring requirement applies
+  to them like any vendored hook).
 - It does not change any security property. The security posture of the current
   hooks is handled by the #3197 decision to rebuild a portable auth-edit hook on
   real consumer demand (#3219); this ADR governs ROI, not security controls.

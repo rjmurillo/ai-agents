@@ -93,6 +93,14 @@
       "content": "Reconciled the session-3061 episode timeline with reviewer feedback on PR #3221",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled ADR-084 factual claim and debate-log status labels with reviewer feedback on PR #3221",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

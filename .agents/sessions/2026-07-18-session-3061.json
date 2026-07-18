@@ -146,6 +146,16 @@
         ".agents/sessions/2026-07-18-session-3061.json",
         ".agents/memory/episodes/episode-2026-07-18-session-3061.json"
       ]
+    },
+    {
+      "timestamp": "2026-07-18T08:05:00Z",
+      "action": "Reconciled ADR-084 factual claim and debate-log status labels with reviewer feedback on PR #3221",
+      "result": "Copilot review flagged five threads after the acceptance push. Fixed the one factual error: ADR-084's non-goal bullet claimed both current security gates run in consumer repos and are not skip_if_consumer_repo gated, but invoke_security_commit_gate.py calls skip_if_consumer_repo(\"security-commit-gate\") at line 178 and does not run in consumer repos. Corrected the bullet so only invoke_security_gate.py is described as consumer-effective (ungated, runs on consumer Write/Edit), scoped the commit gate to the #3197/#3219 security-rebuild question, and kept the point that the ROI bar does not veto genuine security controls. Updated the ADR-084 and ADR-062 debate-log status labels from Proposed/proposed to Accepted 2026-07-18 so the historical logs reflect the current ADR status. The remaining threads (session-log nextSteps, PR body out-of-scope framing) are stale: both were already updated to reflect owner acceptance.",
+      "filesModified": [
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
+        ".agents/critique/ADR-084-debate-log.md",
+        ".agents/critique/ADR-062-debate-log.md"
+      ]
     }
   ],
   "endingCommit": "7aec838c",
