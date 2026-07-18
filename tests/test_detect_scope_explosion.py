@@ -21,13 +21,11 @@ from scripts.detect_scope_explosion import (
     ScopeResult,
     detect_scope,
     format_bar,
-    get_changed_files,
     get_current_branch,
     get_index_files_against_ref,
     get_merge_base,
     get_merge_head_commit,
     get_ref_commit,
-    get_staged_new_files,
     main,
     report,
     resolve_base_ref,
@@ -206,46 +204,6 @@ class TestGetMergeBase:
             assert cmd[3] == "origin/main"
 
 
-class TestGetChangedFiles:
-    """Tests for get_changed_files function."""
-
-    def test_returns_empty_on_failure(self) -> None:
-        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=1, stdout="", stderr=""
-            )
-            result = get_changed_files("abc123")
-            assert result == []
-
-    def test_parses_file_list(self) -> None:
-        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="a.py\nb.py\nc.md\n", stderr=""
-            )
-            result = get_changed_files("abc123")
-            assert result == ["a.py", "b.py", "c.md"]
-
-    def test_strips_empty_lines(self) -> None:
-        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="a.py\n\nb.py\n", stderr=""
-            )
-            result = get_changed_files("abc123")
-            assert result == ["a.py", "b.py"]
-
-
-class TestGetStagedNewFiles:
-    """Tests for get_staged_new_files function."""
-
-    def test_returns_empty_on_failure(self) -> None:
-        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=1, stdout="", stderr=""
-            )
-            result = get_staged_new_files("abc123")
-            assert result == []
-
-
 class TestGetIndexFilesAgainstRef:
     """Tests for staged result diffing against a base ref."""
 
@@ -262,6 +220,25 @@ class TestGetIndexFilesAgainstRef:
                 args=[], returncode=1, stdout="", stderr=""
             )
             assert get_index_files_against_ref("origin/main") == []
+
+    def test_diffs_cached_index_against_base_ref(self) -> None:
+        # The --cached diff against the base ref reflects the final staged tree.
+        # A staged deletion of a branch-only file therefore drops out of the
+        # count (Issue #3171). Lock in the exact command shape that yields this.
+        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="kept.py\n", stderr=""
+            )
+            assert get_index_files_against_ref("origin/main") == ["kept.py"]
+            cmd = mock_run.call_args.args[0]
+            assert cmd[:5] == [
+                "git",
+                "diff",
+                "--cached",
+                "--name-only",
+                "--diff-filter=ACMR",
+            ]
+            assert cmd[5] == "origin/main"
 
 
 class TestDetectScope:
@@ -307,11 +284,8 @@ class TestDetectScope:
             "scripts.detect_scope_explosion.get_merge_base",
             return_value="abc123456789",
         ), patch(
-            "scripts.detect_scope_explosion.get_changed_files",
-            return_value=["a.py", "b.py"],
-        ), patch(
-            "scripts.detect_scope_explosion.get_staged_new_files",
-            return_value=["c.py"],
+            "scripts.detect_scope_explosion.get_index_files_against_ref",
+            return_value=["a.py", "b.py", "c.py"],
         ):
             result = detect_scope()
             assert result is not None
@@ -333,15 +307,45 @@ class TestDetectScope:
             "scripts.detect_scope_explosion.get_merge_base",
             return_value="abc123456789",
         ), patch(
-            "scripts.detect_scope_explosion.get_changed_files",
-            return_value=["a.py", "b.py"],
-        ), patch(
-            "scripts.detect_scope_explosion.get_staged_new_files",
-            return_value=["a.py", "c.py"],
+            "scripts.detect_scope_explosion.get_index_files_against_ref",
+            return_value=["a.py", "b.py", "a.py", "c.py"],
         ):
             result = detect_scope()
             assert result is not None
             assert result.file_count == 3
+
+    def test_staged_deletion_of_branch_only_file_subtracts(self) -> None:
+        # Regression for Issue #3171 Bug 2: staging the deletion of a
+        # branch-only file must lower the count. The non-merge path counts the
+        # final staged tree against the merge base via get_index_files_against_ref,
+        # so a deleted file simply never appears in that set.
+        captured_ref: list[str] = []
+
+        def fake_index_files(ref: str) -> list[str]:
+            captured_ref.append(ref)
+            # The staged deletion of "removed.py" leaves only these two.
+            return ["kept_a.py", "kept_b.py"]
+
+        with patch(
+            "scripts.detect_scope_explosion.get_current_branch",
+            return_value="feat/test",
+        ), patch(
+            "scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_head_commit", return_value=None
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_base",
+            return_value="base987654321",
+        ), patch(
+            "scripts.detect_scope_explosion.get_index_files_against_ref",
+            side_effect=fake_index_files,
+        ):
+            result = detect_scope()
+            assert result is not None
+            assert result.file_count == 2
+            assert "removed.py" not in result.files
+            # Counted against the merge base, not HEAD or the working tree.
+            assert captured_ref == ["base987654321"]
 
     def test_in_progress_base_merge_counts_index_against_base(self) -> None:
         with patch(
@@ -448,12 +452,46 @@ class TestReport:
         assert "WARNING" in captured.out
         assert "splitting" in captured.out.lower()
 
-    def test_at_block_threshold(self, capsys: CaptureFixture[str]) -> None:
+    def test_at_block_threshold_still_allowed(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        # Issue #3171 Bug 1: 50 is the inclusive hard limit. It must pass with a
+        # strong warning, not block. Blocking begins at 51.
         result = ScopeResult(
-            file_count=50,
+            file_count=BLOCK_THRESHOLD,
             merge_base="abc123",
             current_branch="feat/test",
-            files=tuple(f"file{i}.py" for i in range(50)),
+            files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD)),
+        )
+        exit_code = report(result)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+        assert "BLOCKED" not in captured.out
+
+    def test_just_below_block_threshold_allowed(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        result = ScopeResult(
+            file_count=BLOCK_THRESHOLD - 1,
+            merge_base="abc123",
+            current_branch="feat/test",
+            files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD - 1)),
+        )
+        exit_code = report(result)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "BLOCKED" not in captured.out
+
+    def test_just_over_block_threshold_blocks(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        # 51 is the first blocking count.
+        result = ScopeResult(
+            file_count=BLOCK_THRESHOLD + 1,
+            merge_base="abc123",
+            current_branch="feat/test",
+            files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD + 1)),
         )
         exit_code = report(result)
         assert exit_code == 1
