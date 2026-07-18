@@ -401,9 +401,12 @@ def test_inject_shim_replays_small_match_from_large_multi_call_event():
     assert proc.stdout.startswith(b"FIRED:Edit")
 
 
-def test_inject_shim_mixed_schema_top_level_fields_do_not_bypass_toolcalls_selection():
-    """A benign top-level tool_name/tool_input must not make the guard
-    evaluate the top level instead of the dangerous toolCalls entry."""
+def test_inject_shim_rejects_mixed_top_level_and_toolcalls_selection():
+    """A payload with both a top-level action and a toolCalls batch is
+    ambiguous: the host precedence is unverified, so a benign top-level
+    tool_name must not let a dangerous toolCalls entry slip through under a
+    guessed interpretation. The shim rejects the mix outright (#3200). This
+    replaces the former test that pinned silent toolCalls selection."""
     guard = (
         "import json\n"
         "import sys\n"
@@ -431,9 +434,9 @@ def test_inject_shim_mixed_schema_top_level_fields_do_not_bypass_toolcalls_selec
     proc = _run_shim(transformed, payload)
 
     assert proc.returncode == 2
-    assert proc.stdout.splitlines() == [
-        "EVALUATED:git push origin main --force",
-    ]
+    assert "toolCalls conflicts with top-level action fields" in proc.stderr
+    # The guard never ran: no candidate was ever evaluated.
+    assert "EVALUATED:" not in proc.stdout
 
 
 @pytest.mark.parametrize(
@@ -453,8 +456,6 @@ def test_inject_shim_denies_malformed_toolcalls_before_dispatch(
 ):
     transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
     payload = {
-        "tool_name": "Edit",
-        "tool_input": {"file_path": "README.md"},
         "toolCalls": [invalid_call],
     }
 
@@ -551,7 +552,13 @@ def test_inject_shim_allows_matching_top_level_name_aliases():
     assert proc.stdout.startswith("FIRED:Edit")
 
 
-def test_inject_shim_batch_replay_removes_conflicting_top_level_aliases():
+def test_inject_shim_rejects_mixed_top_level_and_nonempty_toolcalls():
+    # Hardening (#3200): a payload carrying BOTH top-level action fields and a
+    # non-empty toolCalls batch is ambiguous because the host precedence between
+    # the two shapes is unverified. The shim must reject it before any guard
+    # runs rather than silently drop the top-level aliases and dispatch the
+    # batch. This flips the former silent-drop behavior, which let an attacker
+    # hide a denied action behind a benign top-level alias (or vice versa).
     body = (
         "import json\n"
         "import sys\n"
@@ -578,14 +585,9 @@ def test_inject_shim_batch_replay_removes_conflicting_top_level_aliases():
 
     proc = _run_shim(transformed, payload)
 
-    replay = json.loads(proc.stdout)
-    assert proc.returncode == 0
-    assert replay == {
-        "sessionId": "canonical-batch",
-        "tool_call_id": "batch-call",
-        "tool_input": {"file_path": "README.md"},
-        "tool_name": "Edit",
-    }
+    assert proc.returncode == 2
+    assert "toolCalls conflicts with top-level action fields" in proc.stderr
+    assert proc.stdout == ""
 
 
 @pytest.mark.parametrize("top_level_name_field", ["tool_name", "toolName"])
@@ -603,7 +605,7 @@ def test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name(
     proc = _run_shim(transformed, payload)
 
     assert proc.returncode == 2
-    assert "empty toolCalls" in proc.stderr
+    assert "toolCalls conflicts with top-level action fields" in proc.stderr
     assert "FIRED" not in proc.stdout
 
 
@@ -1733,7 +1735,7 @@ def test_generator_dispatcher_staging_failure_restores_earlier_owner(
     }
     source.write_text("print('new owner')\n", encoding="utf-8")
 
-    def fail_entrypoint(_event_dir: Path) -> Path:
+    def fail_entrypoint(_event_dir: Path, _event: str) -> Path:
         raise OSError("simulated dispatcher staging failure")
 
     monkeypatch.setattr(

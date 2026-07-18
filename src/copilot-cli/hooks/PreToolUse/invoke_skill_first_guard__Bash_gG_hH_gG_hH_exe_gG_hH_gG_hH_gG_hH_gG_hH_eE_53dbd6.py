@@ -180,11 +180,27 @@ def _shim_candidate_payloads(payload):
                     len(tool_calls), _MAX_MATCHER_TOOL_CALLS
                 )
             )
-        if not tool_calls and (
-            "tool_name" in payload or "toolName" in payload
-        ):
+        # A payload may carry top-level action fields OR a `toolCalls` batch,
+        # never both: the host precedence contract between the two shapes is
+        # unverified, so a top-level Read alongside a Bash in `toolCalls` is
+        # ambiguous. Reject any mix (empty or non-empty batch) before a guard
+        # ever sees a candidate (#3200).
+        conflicting = [
+            field
+            for field in (
+                "tool_name",
+                "toolName",
+                "tool_input",
+                "toolArgs",
+                "tool_call_id",
+                "toolCallId",
+            )
+            if field in payload
+        ]
+        if conflicting:
             raise ValueError(
-                "empty toolCalls conflicts with top-level tool_name/toolName"
+                "toolCalls conflicts with top-level action fields: "
+                + ", ".join(conflicting)
             )
         for index, call in enumerate(tool_calls):
             if not isinstance(call, dict):
