@@ -96,7 +96,7 @@
     },
     {
       "timestamp": "2026-07-17T22:40:00Z",
-      "action": "Authored new ADR-084 for #3215",
+      "action": "Authored the vendored-hook ROI bar ADR (ADR-084) for #3215",
       "result": "Created ADR-084 codifying the five-point vendored-hook ROI bar (consumer-repo value required, internal enforcement to githooks/CI, prefer host-native permissions over spawns, ban self-neutering hooks, one-line customer-value docstring with a CI presence check) with the project-toolkit org-scale distribution context. ADR-073 lifecycle frontmatter, status proposed."
     },
     {
@@ -136,6 +136,15 @@
         ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
         ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
         ".agents/sessions/2026-07-18-session-3061.json"
+      ]
+    },
+    {
+      "timestamp": "2026-07-18T07:49:08Z",
+      "action": "Reconciled the session-3061 episode timeline with reviewer feedback on PR #3221",
+      "result": "Two Copilot review threads flagged the auto-generated episode: event e003 still read \"Authored new ADR-083\" after the renumber, and a second authoring milestone (\"Authored new ADR-084\") duplicated it. Root cause: the episode extractor is append-only and unions events by (type, content), so the frozen ADR-083 event and the duplicate ADR-084 event both survived while workLog[2] had already been updated to 084. Aligned workLog[2] and episode event e003 to one self-contained authoring milestone that names the final number ADR-084, and removed the duplicate so the renumber event stays the single record of the number change. Verified idempotent by running extract_session_episode.py --preserve: the event set is stable and no duplicate is re-added.",
+      "filesModified": [
+        ".agents/sessions/2026-07-18-session-3061.json",
+        ".agents/memory/episodes/episode-2026-07-18-session-3061.json"
       ]
     }
   ],

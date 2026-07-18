@@ -26,7 +26,7 @@
       "id": "e003",
       "timestamp": "2026-07-18T00:00:00+00:00",
       "type": "milestone",
-      "content": "Authored new ADR-083 for #3215",
+      "content": "Authored the vendored-hook ROI bar ADR (ADR-084) for #3215",
       "caused_by": [],
       "leads_to": []
     },
@@ -74,7 +74,7 @@
       "id": "e009",
       "timestamp": "2026-07-18T00:00:00+00:00",
       "type": "milestone",
-      "content": "Authored new ADR-084 for #3215",
+      "content": "Renumbered vendored-hook ROI bar ADR-083 to ADR-084 and merged main into PR #3221",
       "caused_by": [],
       "leads_to": []
     },
@@ -82,7 +82,7 @@
       "id": "e010",
       "timestamp": "2026-07-18T00:00:00+00:00",
       "type": "milestone",
-      "content": "Renumbered vendored-hook ROI bar ADR-083 to ADR-084 and merged main into PR #3221",
+      "content": "Recorded repo-owner acceptance of the ADR-062 amendment and ADR-084",
       "caused_by": [],
       "leads_to": []
     },
@@ -90,7 +90,7 @@
       "id": "e011",
       "timestamp": "2026-07-18T00:00:00+00:00",
       "type": "milestone",
-      "content": "Recorded repo-owner acceptance of the ADR-062 amendment and ADR-084",
+      "content": "Reconciled the session-3061 episode timeline with reviewer feedback on PR #3221",
       "caused_by": [],
       "leads_to": []
     }
