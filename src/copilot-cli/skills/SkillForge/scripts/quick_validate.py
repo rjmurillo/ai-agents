@@ -14,7 +14,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 try:
     import yaml
@@ -111,15 +111,45 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
     return frontmatter
 
 
-def _is_within(child: str, root: str) -> bool:
+class _PathModule(Protocol):
+    """Structural type for the ``os.path`` surface ``_is_within`` needs.
+
+    Lets tests substitute ``posixpath`` or ``ntpath`` for the host ``os.path``
+    while keeping a precise return type (``commonpath`` yields ``str``, so the
+    containment comparison stays ``bool`` instead of decaying to ``Any``).
+    """
+
+    def commonpath(self, paths: list[str], /) -> str: ...
+
+
+def _is_within(child: str, root: str, pathmod: _PathModule = os.path) -> bool:
     """Return True when case-normalized realpath ``child`` is ``root`` or nested inside it.
 
     Both arguments must already be ``os.path.normcase(os.path.realpath(...))``
-    results. ``os.path.join(root, "")`` appends exactly one trailing separator
-    whether or not ``root`` already ends with one, so a filesystem-root ``root``
-    (``/`` or ``C:\\``) does not double into ``//`` and reject valid descendants.
+    results. Containment is decided by ``os.path.commonpath`` rather than a
+    separator-appended prefix match, because ``os.path.join(root, "")`` does NOT
+    append a separator to a bare drive root (``C:\\``) or a bare UNC share root
+    (``\\\\server\\share``) on Windows. With the old prefix match a sibling that
+    merely shares a string prefix (``C:\\evil`` under ``C:\\``,
+    ``\\\\server\\shareevil`` under ``\\\\server\\share``) passed the guard and
+    escaped the CWD sandbox (CWE-22). ``commonpath`` compares whole path
+    components, so only true descendants match.
+
+    ``commonpath`` raises ``ValueError`` when the two paths cannot share a base
+    (different drives, drive-vs-UNC, or a bare UNC share root that ``ntpath``
+    treats as rootless). Those all mean "not contained", so the guard fails
+    closed and returns False.
+
+    ``pathmod`` is injected only so tests can pin ``posixpath`` or ``ntpath`` and
+    exercise both platforms' root semantics deterministically on any host;
+    production always uses the default ``os.path``.
     """
-    return child == root or child.startswith(os.path.join(root, ""))
+    if child == root:
+        return True
+    try:
+        return pathmod.commonpath([child, root]) == root
+    except ValueError:
+        return False
 
 
 def _contained_realpath(target: Path, root: str) -> str | None:

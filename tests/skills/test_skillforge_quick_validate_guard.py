@@ -14,6 +14,8 @@ drift.
 from __future__ import annotations
 
 import importlib.util
+import ntpath
+import posixpath
 import subprocess
 import sys
 from pathlib import Path
@@ -166,12 +168,40 @@ def _load_module(script: Path):
 
 @pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
 def test_is_within_handles_filesystem_root(script: Path) -> None:
-    # Regression for the doubled-separator bug: when the root is a filesystem
-    # root ("/" or a drive root), root + os.sep becomes "//", so a valid
-    # descendant was wrongly rejected. os.path.join(root, "") keeps one
-    # separator so containment holds at the root boundary.
+    # Cross-platform regression for the containment guard. ``_is_within`` runs on
+    # the host's ``os.path``, so a host-only assertion (POSIX literals on Linux CI)
+    # never exercises Windows drive/UNC root semantics where the CWE-22 sibling-
+    # share bypass lived. Inject ``posixpath`` and ``ntpath`` explicitly so both
+    # platforms are covered deterministically on any host. Inputs are normcased
+    # with the same module to mirror the production caller
+    # (``os.path.normcase(os.path.realpath(...))``).
     is_within = _load_module(script)._is_within
-    assert is_within("/foo", "/") is True  # descendant of filesystem root
-    assert is_within("/tmp/x", "/tmp") is True  # normal containment
-    assert is_within("/tmp", "/tmp") is True  # exact root
-    assert is_within("/tmpevil", "/tmp") is False  # sibling prefix, not nested
+    cases = [
+        # (pathmod, child, root, expected, label)
+        (posixpath, "/foo", "/", True, "posix descendant of root"),
+        (posixpath, "/tmp/x", "/tmp", True, "posix normal containment"),
+        (posixpath, "/tmp", "/tmp", True, "posix exact root"),
+        (posixpath, "/tmpevil", "/tmp", False, "posix sibling prefix"),
+        (ntpath, r"c:\repo\skill", r"c:\repo", True, "win normal containment"),
+        (ntpath, r"c:\repo", r"c:\repo", True, "win exact root"),
+        (ntpath, r"c:\repoevil", r"c:\repo", False, "win sibling prefix"),
+        (ntpath, r"c:\evil", "c:\\", True, "win descendant of bare drive root"),
+        (ntpath, r"d:\x", "c:\\", False, "win different drive fails closed"),
+        (ntpath, r"\\srv\share\repo\skill", r"\\srv\share\repo", True, "win UNC nested child"),
+        (ntpath, r"\\srv\share\repo", r"\\srv\share\repo", True, "win UNC exact root"),
+        (ntpath, r"\\srv\share\repoevil\x", r"\\srv\share\repo", False, "win UNC sibling prefix"),
+        (ntpath, r"\\srv\other\x", r"\\srv\share\repo", False, "win different UNC share"),
+        # The CWE-22 bypass the commonpath fix closes: a sibling share whose name
+        # string-prefixes the sandbox root. os.path.join(root, "") appends no
+        # separator to a bare UNC share, so the old startswith() let this escape.
+        (
+            ntpath,
+            r"\\srv\shareevil\skill",
+            r"\\srv\share",
+            False,
+            "win bare UNC sibling share (CWE-22)",
+        ),
+    ]
+    for pathmod, child, root, expected, label in cases:
+        got = is_within(pathmod.normcase(child), pathmod.normcase(root), pathmod)
+        assert got is expected, f"{label}: is_within({child!r}, {root!r}) = {got}, want {expected}"
