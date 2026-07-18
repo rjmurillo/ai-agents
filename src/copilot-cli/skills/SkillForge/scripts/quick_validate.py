@@ -11,9 +11,10 @@ Usage:
 """
 
 import os
-import sys
 import re
+import sys
 from pathlib import Path
+from typing import Any
 
 try:
     import yaml
@@ -24,8 +25,11 @@ except ImportError:
 # Import shared constants
 try:
     from _constants import (
-        ALLOWED_PROPERTIES, REQUIRED_PROPERTIES,
-        NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, NAME_REGEX
+        ALLOWED_PROPERTIES,
+        DESCRIPTION_MAX_LENGTH,
+        NAME_MAX_LENGTH,
+        NAME_REGEX,
+        REQUIRED_PROPERTIES,
     )
 except ImportError:
     # Fallback if _constants.py not available
@@ -40,15 +44,15 @@ except ImportError:
     NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'
 
 
-def _parse_frontmatter_fallback(frontmatter_text: str) -> dict:
+def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
     """Fallback YAML parser for when PyYAML is not available.
 
     Handles folded (>) and literal (|) scalars for multi-line descriptions.
     """
-    frontmatter = {}
+    frontmatter: dict[str, Any] = {}
     lines = frontmatter_text.split('\n')
     current_key = None
-    current_value_lines = []
+    current_value_lines: list[str] = []
     is_folded = False  # Track folded scalar (>)
     is_literal = False  # Track literal scalar (|)
 
@@ -166,12 +170,18 @@ def validate_skill(skill_path):
     if name:
         # Check naming convention (hyphen-case: starts with letter, lowercase with hyphens)
         if not re.match(NAME_REGEX, name):
-            return False, f"Name '{name}' should be hyphen-case (start with letter, lowercase letters, digits, and hyphens only)"
+            return False, (
+                f"Name '{name}' should be hyphen-case "
+                "(start with letter, lowercase letters, digits, and hyphens only)"
+            )
         if '--' in name:
             return False, f"Name '{name}' cannot contain consecutive hyphens"
         # Check name length
         if len(name) > NAME_MAX_LENGTH:
-            return False, f"Name is too long ({len(name)} characters). Maximum is {NAME_MAX_LENGTH} characters."
+            return False, (
+                f"Name is too long ({len(name)} characters). "
+                f"Maximum is {NAME_MAX_LENGTH} characters."
+            )
 
     # Validate description field
     description = frontmatter.get('description', '')
@@ -184,7 +194,10 @@ def validate_skill(skill_path):
             return False, "Description cannot contain angle brackets (< or >)"
         # Check description length
         if len(description) > DESCRIPTION_MAX_LENGTH:
-            return False, f"Description is too long ({len(description)} characters). Maximum is {DESCRIPTION_MAX_LENGTH} characters."
+            return False, (
+                f"Description is too long ({len(description)} characters). "
+                f"Maximum is {DESCRIPTION_MAX_LENGTH} characters."
+            )
 
     return True, "Skill is valid!"
 
@@ -198,10 +211,10 @@ def main():
 
     skill_path = sys.argv[1]
 
-    # SECURITY: Validate path stays within allowed base directory (CWE-22)
-    skills_root = os.path.realpath(str(Path.home() / ".claude" / "skills"))
+    # SECURITY: Validate path stays within the current working directory (CWE-22)
+    cwd_root = os.path.realpath(os.getcwd())
     resolved = os.path.realpath(skill_path)
-    if not resolved.startswith(skills_root + os.sep) and resolved != skills_root:
+    if not resolved.startswith(cwd_root + os.sep) and resolved != cwd_root:
         print(f"Error: Path traversal detected: {skill_path}")
         sys.exit(1)
 
