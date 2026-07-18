@@ -18,6 +18,7 @@ from typing import Any
 
 try:
     import yaml
+
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
@@ -34,14 +35,23 @@ try:
 except ImportError:
     # Fallback if _constants.py not available
     ALLOWED_PROPERTIES = {
-        'name', 'description', 'license', 'allowed-tools', 'metadata',
-        'model', 'context', 'agent', 'hooks', 'user-invocable', 'version',
-        'argument-hint'
+        "name",
+        "description",
+        "license",
+        "allowed-tools",
+        "metadata",
+        "model",
+        "context",
+        "agent",
+        "hooks",
+        "user-invocable",
+        "version",
+        "argument-hint",
     }
-    REQUIRED_PROPERTIES = {'name', 'description'}
+    REQUIRED_PROPERTIES = {"name", "description"}
     NAME_MAX_LENGTH = 64
     DESCRIPTION_MAX_LENGTH = 1024
-    NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'
+    NAME_REGEX = r"^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$"
 
 
 def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
@@ -50,7 +60,7 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
     Handles folded (>) and literal (|) scalars for multi-line descriptions.
     """
     frontmatter: dict[str, Any] = {}
-    lines = frontmatter_text.split('\n')
+    lines = frontmatter_text.split("\n")
     current_key = None
     current_value_lines: list[str] = []
     is_folded = False  # Track folded scalar (>)
@@ -58,21 +68,21 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
 
     for line in lines:
         # Check for top-level key
-        if ':' in line and not line.startswith(' ') and not line.startswith('\t'):
+        if ":" in line and not line.startswith(" ") and not line.startswith("\t"):
             # Save previous key if exists
             if current_key and (is_folded or is_literal):
-                frontmatter[current_key] = ' '.join(current_value_lines).strip()
+                frontmatter[current_key] = " ".join(current_value_lines).strip()
 
-            key, value = line.split(':', 1)
+            key, value = line.split(":", 1)
             current_key = key.strip()
             value = value.strip()
 
             # Check for folded (>) or literal (|) scalar
-            if value == '>' or value == '>-':
+            if value == ">" or value == ">-":
                 is_folded = True
                 is_literal = False
                 current_value_lines = []
-            elif value == '|' or value == '|-':
+            elif value == "|" or value == "|-":
                 is_literal = True
                 is_folded = False
                 current_value_lines = []
@@ -82,21 +92,21 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
                 frontmatter[current_key] = value
                 current_value_lines = []
 
-        elif (is_folded or is_literal) and (line.startswith('  ') or line.startswith('\t')):
+        elif (is_folded or is_literal) and (line.startswith("  ") or line.startswith("\t")):
             # Continuation of folded/literal scalar
             current_value_lines.append(line.strip())
 
-        elif line.startswith('  ') and current_key == 'metadata':
+        elif line.startswith("  ") and current_key == "metadata":
             # Basic nested parsing for metadata
-            if 'metadata' not in frontmatter or not isinstance(frontmatter['metadata'], dict):
-                frontmatter['metadata'] = {}
-            if ':' in line:
-                nested_key, nested_value = line.strip().split(':', 1)
-                frontmatter['metadata'][nested_key.strip()] = nested_value.strip()
+            if "metadata" not in frontmatter or not isinstance(frontmatter["metadata"], dict):
+                frontmatter["metadata"] = {}
+            if ":" in line:
+                nested_key, nested_value = line.strip().split(":", 1)
+                frontmatter["metadata"][nested_key.strip()] = nested_value.strip()
 
     # Save final key if it was a folded/literal scalar
     if current_key and (is_folded or is_literal) and current_value_lines:
-        frontmatter[current_key] = ' '.join(current_value_lines).strip()
+        frontmatter[current_key] = " ".join(current_value_lines).strip()
 
     return frontmatter
 
@@ -104,12 +114,18 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
 def _contained_realpath(target: Path, root: str) -> str | None:
     """Resolve ``target`` and return its real path only if it stays within ``root``.
 
-    ``root`` must already be an ``os.path.realpath`` result. Returns ``None`` when
-    the resolved target escapes ``root`` (via a symlink or ``..``), letting the
-    caller reject an out-of-root read (CWE-22).
+    ``root`` must already be an ``os.path.normcase(os.path.realpath(...))``
+    result. Returns ``None`` when the resolved target escapes ``root`` (via a
+    symlink or ``..``), letting the caller reject an out-of-root read (CWE-22).
+
+    The containment check compares case-normalized paths so a Windows path that
+    differs only by drive-letter or component casing (``C:\\`` vs ``c:\\``) is not
+    misclassified as an escape. The original real path is returned unchanged so
+    the caller reads the exact resolved target.
     """
     real = os.path.realpath(target)
-    if real == root or real.startswith(root + os.sep):
+    real_cmp = os.path.normcase(real)
+    if real_cmp == root or real_cmp.startswith(root + os.sep):
         return real
     return None
 
@@ -128,8 +144,9 @@ def validate_skill(skill_path, root: str | None = None):
 
     Args:
         skill_path: Path to the skill directory containing SKILL.md.
-        root: When set, the realpath-resolved trusted root. SKILL.md must
-            resolve within it or validation fails (CWE-22 containment).
+        root: When set, the ``os.path.normcase(os.path.realpath(...))`` trusted
+            root. SKILL.md must resolve within it or validation fails (CWE-22
+            containment).
 
     Returns:
         tuple: (is_valid: bool, message: str)
@@ -137,7 +154,7 @@ def validate_skill(skill_path, root: str | None = None):
     skill_path = Path(skill_path)
 
     # Check SKILL.md exists
-    skill_md = skill_path / 'SKILL.md'
+    skill_md = skill_path / "SKILL.md"
     if not skill_md.exists():
         return False, "SKILL.md not found"
 
@@ -153,12 +170,12 @@ def validate_skill(skill_path, root: str | None = None):
         read_target = Path(contained)
 
     # Read and validate frontmatter (explicit UTF-8 encoding)
-    content = read_target.read_text(encoding='utf-8')
-    if not content.startswith('---'):
+    content = read_target.read_text(encoding="utf-8")
+    if not content.startswith("---"):
         return False, "No YAML frontmatter found"
 
     # Extract frontmatter (handles both LF and CRLF line endings)
-    match = re.match(r'^---\r?\n(.*?)\r?\n---', content, re.DOTALL)
+    match = re.match(r"^---\r?\n(.*?)\r?\n---", content, re.DOTALL)
     if not match:
         return False, "Invalid frontmatter format"
 
@@ -192,7 +209,7 @@ def validate_skill(skill_path, root: str | None = None):
             return False, f"Missing '{field}' in frontmatter"
 
     # Validate name field
-    name = frontmatter.get('name', '')
+    name = frontmatter.get("name", "")
     if not isinstance(name, str):
         return False, f"Name must be a string, got {type(name).__name__}"
     name = name.strip()
@@ -203,7 +220,7 @@ def validate_skill(skill_path, root: str | None = None):
                 f"Name '{name}' should be hyphen-case "
                 "(start with letter, lowercase letters, digits, and hyphens only)"
             )
-        if '--' in name:
+        if "--" in name:
             return False, f"Name '{name}' cannot contain consecutive hyphens"
         # Check name length
         if len(name) > NAME_MAX_LENGTH:
@@ -213,13 +230,13 @@ def validate_skill(skill_path, root: str | None = None):
             )
 
     # Validate description field
-    description = frontmatter.get('description', '')
+    description = frontmatter.get("description", "")
     if not isinstance(description, str):
         return False, f"Description must be a string, got {type(description).__name__}"
     description = description.strip()
     if description:
         # Check for angle brackets
-        if '<' in description or '>' in description:
+        if "<" in description or ">" in description:
             return False, "Description cannot contain angle brackets (< or >)"
         # Check description length
         if len(description) > DESCRIPTION_MAX_LENGTH:
@@ -240,9 +257,11 @@ def main():
 
     skill_path = sys.argv[1]
 
-    # SECURITY: Validate path stays within the current working directory (CWE-22)
-    cwd_root = os.path.realpath(os.getcwd())
-    resolved = os.path.realpath(skill_path)
+    # SECURITY: Validate path stays within the current working directory (CWE-22).
+    # normcase() makes the containment check case-insensitive on Windows (C:\ vs
+    # c:\) while realpath() resolves symlinks so a descendant symlink cannot escape.
+    cwd_root = os.path.normcase(os.path.realpath(os.getcwd()))
+    resolved = os.path.normcase(os.path.realpath(skill_path))
     if not resolved.startswith(cwd_root + os.sep) and resolved != cwd_root:
         print(f"Error: Path traversal detected: {skill_path}")
         sys.exit(1)
