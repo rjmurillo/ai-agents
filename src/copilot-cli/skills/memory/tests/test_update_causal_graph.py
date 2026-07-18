@@ -51,14 +51,14 @@ class TestLoadCausalGraph:
     def test_valid_file(self, tmp_path: Path) -> None:
         graph_file = tmp_path / "graph.json"
         data = {"nodes": [{"id": "abc"}], "edges": [], "patterns": []}
-        graph_file.write_text(json.dumps(data))
+        graph_file.write_text(json.dumps(data), encoding="utf-8")
 
         graph = load_causal_graph(graph_file)
         assert len(graph["nodes"]) == 1
 
     def test_invalid_json(self, tmp_path: Path) -> None:
         graph_file = tmp_path / "graph.json"
-        graph_file.write_text("not json")
+        graph_file.write_text("not json", encoding="utf-8")
 
         graph = load_causal_graph(graph_file)
         assert graph == {"nodes": [], "edges": [], "patterns": []}
@@ -77,7 +77,7 @@ class TestSaveCausalGraph:
         data = {"nodes": [{"id": "test"}], "edges": [], "patterns": []}
         save_causal_graph(graph_file, data)
 
-        loaded = json.loads(graph_file.read_text())
+        loaded = json.loads(graph_file.read_text(encoding="utf-8"))
         assert loaded["nodes"][0]["id"] == "test"
 
 
@@ -163,13 +163,16 @@ class TestGetEpisodeFiles:
 
     def test_single_file(self, tmp_path: Path) -> None:
         f = tmp_path / "episode-test.json"
-        f.write_text(json.dumps({"id": "test", "timestamp": "2026-01-01T00:00:00"}))
+        f.write_text(
+            json.dumps({"id": "test", "timestamp": "2026-01-01T00:00:00"}),
+            encoding="utf-8",
+        )
         assert get_episode_files(f) == [f]
 
     def test_directory(self, tmp_path: Path) -> None:
-        (tmp_path / "episode-001.json").write_text("{}")
-        (tmp_path / "episode-002.json").write_text("{}")
-        (tmp_path / "other.json").write_text("{}")
+        (tmp_path / "episode-001.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "episode-002.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "other.json").write_text("{}", encoding="utf-8")
         files = get_episode_files(tmp_path)
         assert len(files) == 2
 
@@ -274,7 +277,7 @@ class TestMainFunction:
             "events": [],
             "lessons": [],
         }
-        (ep_dir / "episode-test.json").write_text(json.dumps(episode))
+        (ep_dir / "episode-test.json").write_text(json.dumps(episode), encoding="utf-8")
 
         result = main([
             "--episode-path", str(ep_dir),
@@ -287,7 +290,7 @@ class TestMainFunction:
         assert stats["episodes_processed"] == 1
         assert stats["nodes_added"] > 0
 
-        graph = json.loads(graph_file.read_text())
+        graph = json.loads(graph_file.read_text(encoding="utf-8"))
         assert len(graph["nodes"]) > 0
 
     def test_dry_run(
@@ -309,7 +312,7 @@ class TestMainFunction:
             }],
             "events": [],
         }
-        (ep_dir / "episode-dry.json").write_text(json.dumps(episode))
+        (ep_dir / "episode-dry.json").write_text(json.dumps(episode), encoding="utf-8")
 
         result = main([
             "--episode-path", str(ep_dir),
@@ -358,7 +361,7 @@ class TestEpisodeReconcile:
 
         ep_file.write_text(json.dumps(
             self._milestone_episode("filed #3137, #3138, #3139, #3140, and #3141"),
-        ))
+        ), encoding="utf-8")
         assert main([
             "--episode-path", str(ep_file),
             "--graph-path", str(graph_file),
@@ -369,13 +372,13 @@ class TestEpisodeReconcile:
             self._milestone_episode(
                 "filed #3137, #3138, #3139, #3140, #3141, and #3142",
             ),
-        ))
+        ), encoding="utf-8")
         assert main([
             "--episode-path", str(ep_file),
             "--graph-path", str(graph_file),
         ]) == 0
 
-        graph = json.loads(graph_file.read_text())
+        graph = json.loads(graph_file.read_text(encoding="utf-8"))
         milestone_nodes = [
             n for n in graph["nodes"] if n["label"].startswith("milestone:")
         ]
@@ -411,25 +414,31 @@ class TestEpisodeReconcile:
 
         ep1 = ep_dir / "episode-one.json"
         ep2 = ep_dir / "episode-two.json"
-        ep1.write_text(json.dumps(design_episode("episode-one", ["SHARED", "ONLY1"])))
-        ep2.write_text(json.dumps(design_episode("episode-two", ["SHARED"])))
+        ep1.write_text(
+            json.dumps(design_episode("episode-one", ["SHARED", "ONLY1"])),
+            encoding="utf-8",
+        )
+        ep2.write_text(json.dumps(design_episode("episode-two", ["SHARED"])), encoding="utf-8")
         assert main([
             "--episode-path", str(ep_dir),
             "--graph-path", str(graph_file),
         ]) == 0
 
-        graph = json.loads(graph_file.read_text())
+        graph = json.loads(graph_file.read_text(encoding="utf-8"))
         shared = next(n for n in graph["nodes"] if n["label"] == "design: SHARED")
         assert set(shared["episodes"]) == {"episode-one", "episode-two"}
 
         # Reprocess only episode-one, dropping both SHARED and ONLY1.
-        ep1.write_text(json.dumps(design_episode("episode-one", ["ONLY1-CHANGED"])))
+        ep1.write_text(
+            json.dumps(design_episode("episode-one", ["ONLY1-CHANGED"])),
+            encoding="utf-8",
+        )
         assert main([
             "--episode-path", str(ep1),
             "--graph-path", str(graph_file),
         ]) == 0
 
-        graph = json.loads(graph_file.read_text())
+        graph = json.loads(graph_file.read_text(encoding="utf-8"))
         labels = {n["label"]: n for n in graph["nodes"]}
         # Shared node survives, now supported only by episode-two.
         assert "design: SHARED" in labels
@@ -446,14 +455,14 @@ class TestEpisodeReconcile:
         ep_dir.mkdir()
         graph_file = tmp_path / "graph.json"
         ep_file = ep_dir / "episode-2026-07-16-session-3056-record.json"
-        ep_file.write_text(json.dumps(self._milestone_episode("filed #3141")))
+        ep_file.write_text(json.dumps(self._milestone_episode("filed #3141")), encoding="utf-8")
 
         assert main([
             "--episode-path", str(ep_file), "--graph-path", str(graph_file),
         ]) == 0
-        first = graph_file.read_text()
+        first = graph_file.read_text(encoding="utf-8")
 
         assert main([
             "--episode-path", str(ep_file), "--graph-path", str(graph_file),
         ]) == 0
-        assert graph_file.read_text() == first
+        assert graph_file.read_text(encoding="utf-8") == first
