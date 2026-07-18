@@ -23,16 +23,16 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _SCRIPTS = [
     _REPO_ROOT / ".claude" / "skills" / "SkillForge" / "scripts" / "quick_validate.py",
-    _REPO_ROOT
-    / "src"
-    / "copilot-cli"
-    / "skills"
-    / "SkillForge"
-    / "scripts"
-    / "quick_validate.py",
+    _REPO_ROOT / "src" / "copilot-cli" / "skills" / "SkillForge" / "scripts" / "quick_validate.py",
 ]
 
 _TRAVERSAL_MARKER = "Path traversal detected"
+_OUTSIDE_ROOT_MARKER = "outside the permitted root"
+
+
+def _script_id(script: Path) -> str:
+    """Distinguish the .claude copy from the copilot-cli mirror in test IDs."""
+    return script.parts[-5]
 
 
 def _make_skill(dir_path: Path) -> None:
@@ -56,22 +56,26 @@ def _run(script: Path, cwd: Path, arg: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-@pytest.mark.parametrize("script", _SCRIPTS, ids=lambda p: p.parts[-4])
+@pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
 def test_scripts_exist(script: Path) -> None:
     assert script.is_file(), f"missing quick_validate copy: {script}"
 
 
-@pytest.mark.parametrize("script", _SCRIPTS, ids=lambda p: p.parts[-4])
+@pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
 def test_skill_under_cwd_passes_traversal_guard(script: Path, tmp_path: Path) -> None:
     # A skill under the current working directory must clear the CWE-22 guard.
     # The final validation verdict is irrelevant here; the guard must not fire.
     _make_skill(tmp_path / "my-skill")
     result = _run(script, cwd=tmp_path, arg="my-skill")
     combined = result.stdout + result.stderr
+    # The script must reach a clean validation verdict, not crash before the
+    # guard: a traceback would also lack the traversal marker (a false pass).
+    assert result.returncode == 0, combined
     assert _TRAVERSAL_MARKER not in combined, combined
+    assert _OUTSIDE_ROOT_MARKER not in combined, combined
 
 
-@pytest.mark.parametrize("script", _SCRIPTS, ids=lambda p: p.parts[-4])
+@pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
 def test_dotdot_escape_above_cwd_is_rejected(script: Path, tmp_path: Path) -> None:
     # CWE-22 protection is preserved: a path resolving above cwd is rejected.
     outside = tmp_path / "outside-skill"
@@ -84,7 +88,7 @@ def test_dotdot_escape_above_cwd_is_rejected(script: Path, tmp_path: Path) -> No
     assert result.returncode == 1
 
 
-@pytest.mark.parametrize("script", _SCRIPTS, ids=lambda p: p.parts[-4])
+@pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
 def test_absolute_path_outside_cwd_is_rejected(script: Path, tmp_path: Path) -> None:
     # An absolute path outside the working directory is also an escape.
     outside = tmp_path / "elsewhere"
@@ -97,13 +101,8 @@ def test_absolute_path_outside_cwd_is_rejected(script: Path, tmp_path: Path) -> 
     assert result.returncode == 1
 
 
-_OUTSIDE_ROOT_MARKER = "outside the permitted root"
-
-
-@pytest.mark.parametrize("script", _SCRIPTS, ids=lambda p: p.parts[-4])
-def test_descendant_symlink_skill_md_is_rejected(
-    script: Path, tmp_path: Path
-) -> None:
+@pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
+def test_descendant_symlink_skill_md_is_rejected(script: Path, tmp_path: Path) -> None:
     # CWE-22: even when the skill directory is contained under cwd, a SKILL.md
     # symlink whose target is outside cwd must not be read or validated.
     outside = tmp_path / "outside"
@@ -127,7 +126,7 @@ def test_descendant_symlink_skill_md_is_rejected(
     assert "Skill is valid" not in combined, combined
 
 
-@pytest.mark.parametrize("script", _SCRIPTS, ids=lambda p: p.parts[-4])
+@pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
 def test_symlink_within_cwd_is_allowed(script: Path, tmp_path: Path) -> None:
     # A SKILL.md symlink whose target stays inside cwd resolves within the root,
     # so neither the traversal guard nor the containment check may fire.
