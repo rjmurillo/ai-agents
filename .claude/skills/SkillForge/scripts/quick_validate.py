@@ -111,6 +111,17 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
     return frontmatter
 
 
+def _is_within(child: str, root: str) -> bool:
+    """Return True when case-normalized realpath ``child`` is ``root`` or nested inside it.
+
+    Both arguments must already be ``os.path.normcase(os.path.realpath(...))``
+    results. ``os.path.join(root, "")`` appends exactly one trailing separator
+    whether or not ``root`` already ends with one, so a filesystem-root ``root``
+    (``/`` or ``C:\\``) does not double into ``//`` and reject valid descendants.
+    """
+    return child == root or child.startswith(os.path.join(root, ""))
+
+
 def _contained_realpath(target: Path, root: str) -> str | None:
     """Resolve ``target`` and return its real path only if it stays within ``root``.
 
@@ -125,7 +136,7 @@ def _contained_realpath(target: Path, root: str) -> str | None:
     """
     real = os.path.realpath(target)
     real_cmp = os.path.normcase(real)
-    if real_cmp == root or real_cmp.startswith(root + os.sep):
+    if _is_within(real_cmp, root):
         return real
     return None
 
@@ -262,7 +273,7 @@ def main():
     # c:\) while realpath() resolves symlinks so a descendant symlink cannot escape.
     cwd_root = os.path.normcase(os.path.realpath(os.getcwd()))
     resolved = os.path.normcase(os.path.realpath(skill_path))
-    if not resolved.startswith(cwd_root + os.sep) and resolved != cwd_root:
+    if not _is_within(resolved, cwd_root):
         print(f"Error: Path traversal detected: {skill_path}")
         sys.exit(1)
 

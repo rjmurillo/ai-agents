@@ -13,6 +13,7 @@ drift.
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -145,5 +146,32 @@ def test_symlink_within_cwd_is_allowed(script: Path, tmp_path: Path) -> None:
         pytest.skip("symlink creation not permitted on this platform")
     result = _run(script, cwd=workdir, arg="skill")
     combined = result.stdout + result.stderr
+    # A clean exit proves the script validated the in-root target rather than
+    # crashing before the guard (a traceback would also lack both markers).
+    assert result.returncode == 0, combined
     assert _OUTSIDE_ROOT_MARKER not in combined, combined
     assert _TRAVERSAL_MARKER not in combined, combined
+
+
+def _load_module(script: Path):
+    """Import a quick_validate copy as a module to unit-test its helpers."""
+    spec = importlib.util.spec_from_file_location(
+        f"quick_validate_{script.parts[-5]}", script
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
+def test_is_within_handles_filesystem_root(script: Path) -> None:
+    # Regression for the doubled-separator bug: when the root is a filesystem
+    # root ("/" or a drive root), root + os.sep becomes "//", so a valid
+    # descendant was wrongly rejected. os.path.join(root, "") keeps one
+    # separator so containment holds at the root boundary.
+    is_within = _load_module(script)._is_within
+    assert is_within("/foo", "/") is True  # descendant of filesystem root
+    assert is_within("/tmp/x", "/tmp") is True  # normal containment
+    assert is_within("/tmp", "/tmp") is True  # exact root
+    assert is_within("/tmpevil", "/tmp") is False  # sibling prefix, not nested
