@@ -898,6 +898,31 @@ class TestSubagentStopSkip(unittest.TestCase):
             invoke_auto_retrospective.is_subagent_stop({"hook_event_name": "Stop"})
         )
 
+    def test_captured_copilot_parent_sessionend_is_not_subagent(self):
+        """Copilot CLI 1.0.72 parent SessionEnd carries no subagent marker (#3160).
+
+        Empirically captured on 2026-07-18 by dumping stdin from a --plugin-dir
+        SessionEnd hook while a synchronous ``task`` subagent (``explore``, then
+        ``code-review``) ran to completion: the subagent return fired internal
+        ``subagent_completed`` telemetry, NOT a SessionEnd hook. The SessionEnd
+        hook fired exactly once, on parent ``session_shutdown``, with this exact
+        payload shape. There is therefore no Copilot subagent SessionEnd payload
+        to mark, and the real parent payload must classify as a parent stop so
+        the retro is still written. This locks that contract.
+        """
+        captured_copilot_parent_sessionend = {
+            "hook_event_name": "SessionEnd",
+            "session_id": "af826917-74ba-4525-889b-b5c431f9fb57",
+            "timestamp": "2026-07-18T01:01:15.489Z",
+            "cwd": "/tmp/iss3160_wt",
+            "reason": "complete",
+        }
+        self.assertFalse(
+            invoke_auto_retrospective.is_subagent_stop(
+                captured_copilot_parent_sessionend
+            )
+        )
+
 
 class TestDailyCreationClaim(unittest.TestCase):
     """Issue #3140: an atomic per-day claim serializes concurrent parent stops."""

@@ -605,16 +605,18 @@ def is_subagent_stop(payload: dict[str, Any]) -> bool:
     ``hook_input.get("subagent_type") == "qa"``). Any non-empty ``subagent_type``
     marks a subagent stop.
 
-    UNVERIFIED COPILOT MARKER (Issue #3140, follow-up Issue #3160): the reported
-    bug is on Copilot CLI, where Claude's Stop maps to Copilot's SessionEnd
-    (templates/platforms/copilot-cli.yaml eventRemap ``Stop: SessionEnd``, with
-    ``SubagentStop`` dropped) and a synchronous ``task`` subagent's return fires
-    SessionEnd against the parent worktree. Copilot's SessionEnd subagent payload
-    shape was NOT captured empirically in this environment, so the field it uses
-    to mark a subagent is unknown. If Copilot also sends ``subagent_type`` this
-    guard already covers it; if it uses a different key, the Copilot path stays
-    broken until #3160 captures the marker. Do NOT invent a key here: see
-    .claude/rules/generated-artifacts.md (verify the contract empirically).
+    VERIFIED COPILOT BEHAVIOR (Issue #3140, follow-up Issue #3160): on Copilot
+    CLI, Claude's Stop maps to Copilot's SessionEnd (templates/platforms/
+    copilot-cli.yaml eventRemap ``Stop: SessionEnd``, with ``SubagentStop``
+    dropped). Captured empirically on Copilot CLI 1.0.72 (2026-07-18): a
+    synchronous ``task`` subagent's return does NOT fire a SessionEnd hook. The
+    subagent lifecycle emits internal ``subagent_completed`` telemetry only; the
+    SessionEnd hook fires exactly once, on parent ``session_shutdown``, with
+    payload ``{hook_event_name, session_id, timestamp, cwd, reason}`` and no
+    ``subagent_type``. Copilot subagents therefore never reach this hook, so the
+    ``subagent_type`` check is correct for Claude and a harmless no-op on
+    Copilot. Method: dumped stdin from a --plugin-dir SessionEnd hook while
+    ``explore`` and ``code-review`` synchronous subagents ran to completion.
     """
     return bool(payload.get("subagent_type"))
 
