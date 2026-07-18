@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3060,
+    "date": "2026-07-18",
+    "branch": "feat/copilot-dogfood-surface-separation",
+    "startingCommit": "557f7499d",
+    "objective": "Close the Copilot dogfooding gap: author ADR-083 (dogfood the shipped Copilot base + separate ship-vs-internal surface), run the 6-agent adr-review debate, resolve all P0/P1 findings, record owner decision A. Refs #3222"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-* tools live in this Copilot CLI instance (verified via tool_search_tool; find_symbol, get_symbols_overview, initial_instructions, edit_memory all callable); memories accessible"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions read this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read (read-only reference, SESSION-PROTOCOL v1.4)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr-review skill scripts listed and run (detect_adr_changes.py exit 0)"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md present; usage-mandatory rules in context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and PROJECT-CONSTRAINTS in context: Python-first, atomic commits <=5 files, dash prohibition, plugin version bump"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository and user memories loaded in prompt; .serena/memories indexed (adr-reference-index, usage-mandatory)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/copilot-dogfood-surface-separation"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/copilot-dogfood-surface-separation"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short inspected; retro noise (INDEX.md, auto-retro.md) excluded from staging"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "557f7499d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR authored, reviewed, resolved; debate log written; owner decision A recorded"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Upvoted verified Serena-availability memory; no new durable fact beyond ADR-083 (captured in the ADR + debate log)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR and debate log live under .agents/, excluded from markdownlint scope by config (!.agents/**); markdownlint-cli2 reports 0 files, no violations possible"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-083 + debate log + session log committed atomically (3 files)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "dash byte-check 0 on ADR and debate log; detect_adr_changes.py exit 0; validate_session_json.py on this file"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "item": "ADR-083 authored: dogfood the shipped Copilot base + ship-vs-internal surface separation",
+      "evidence": ".agents/architecture/ADR-083-copilot-dogfood-surface-separation.md (373 lines, status accepted). Closes the gap where our Copilot sessions run canonical .claude/ not the shipped src/copilot-cli/ mirror (installed 0.5.248 vs shipped 0.6.70). Decisions: per-item surface:ship|internal tag with CI-enforced strict enum; base-first then base+overlay e2e; hooks defer to #3197; security hooks (invoke_security_gate, invoke_security_commit_gate) pinned surface:ship; overlay decision gate (item 6) defers the split until a surface:internal skill exists. Refs #3222."
+    },
+    {
+      "item": "adr-review 6-agent debate to consensus",
+      "evidence": ".agents/critique/ADR-083-debate-log.md. Phase 0 related-work (#3197 #3216 #2892 ADR-079 gstack); Phase 1 six agents (architect ACCEPT-WITH-CHANGES, critic NEEDS-REVISION, independent D&C, security BLOCK->resolved, analyst REVISE, advisor RE-SEQUENCE); analyst verified claims 1-5 at source; Phase 3 resolved all P0/P1 via 11 ADR edits (parity-gate exclusion precision, security-hook binding constraint, enumeration signal hierarchy, overlay kill criterion, Reversibility + Confirmation Criteria + Review Date). Phase 4 convergence: 3 Accept, 3 D&C, no blocks. Dash byte-check 0."
+    },
+    {
+      "item": "Owner decision A recorded (User Sovereignty)",
+      "evidence": "Surfaced the review's two direction-touching outputs (overlay defer gate, phase reorder) via ask_user. Owner picked A: four session skills (session-init, session-end, session, session-log-fixer) stay surface:ship; initial internal partition empty; overlay deferred. ADR frontmatter status flipped proposed->accepted with debate-log evidence (ADR-073 gate satisfied). File-corruption incident during review (adr-analyst DOTALL regex hit build/scripts/build_all.py) was restored via git checkout and ast-parse verified; no corruption reached commit."
+    }
+  ],
+  "endingCommit": "7cebaf179",
+  "nextSteps": [
+    "Push branch and open PR referencing #3222 (PR body byte-check for dashes; reference paths under ## References H2 to avoid the description-vs-diff gate)",
+    "Continue the implementation chain: design + implement base-alone CI e2e (TESTING-RIGOR pos+neg+edge on the real shipped artifact), wire into nightly-cli-smoke.yml",
+    "Implement the surface tag reader + CI hard-fail gate (strict ship|internal enum) and the symlink dogfood install (gstack _link_or_copy pattern)",
+    "Coordinate with in-flight #3197/#3216 to avoid collisions on templates and build scripts; overlay split stays deferred per decision A until a surface:internal skill exists"
+  ]
+}
