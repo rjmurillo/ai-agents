@@ -10,7 +10,9 @@ positive, negative, and edge coverage for every guard.
 
 from __future__ import annotations
 
+import ast
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -32,6 +34,7 @@ from generate_hooks_emit import (  # noqa: E402
     _validate_matcher,
     _validate_script_name,
 )
+from generate_hooks_transaction import HookGenerationTransaction  # noqa: E402
 
 # Shell metacharacters and traversal payloads reused across the negative
 # cases. The same validator guards both the command string (#3212) and the
@@ -57,6 +60,11 @@ _HOSTILE_EVENTS = [
     "",
     "1Pre",
     "Pr\u00e9",
+    # Edge cases the Critic flagged: whitespace-only, embedded NUL, and a tab
+    # all fail the `^[A-Za-z][A-Za-z0-9]*$` allowlist via fullmatch.
+    "   ",
+    "Pre\x00Use",
+    "Pre\tUse",
 ]
 
 _HOSTILE_SCRIPTS = [
@@ -71,6 +79,7 @@ _HOSTILE_SCRIPTS = [
     ".py",
     "owner.py\n",
     "\u00f3wner.py",
+    "own\x00er.py",
     "",
 ]
 
@@ -219,7 +228,9 @@ def test_require_within_rejects_symlink_escape(tmp_path: Path) -> None:
 # --- end-to-end generation refusal ----------------------------------------
 
 
-def _write_generation_fixture(tmp_path: Path, remap_value: str) -> Path:
+def _write_generation_fixture(
+    tmp_path: Path, remap_value: str, *, dispatcher: bool = False
+) -> Path:
     cfg = tmp_path / "platform.yaml"
     cfg.write_text(
         'schemaVersion: "1.0"\n'
@@ -234,6 +245,7 @@ def _write_generation_fixture(tmp_path: Path, remap_value: str) -> Path:
         f"      PreToolUse: {json.dumps(remap_value)}\n"
         "    eventDrop: []\n"
         '    matcherPolicy: "inline-script-shim"\n'
+        f"    dispatcher: {'true' if dispatcher else 'false'}\n"
         "    versionField: 1\n",
         encoding="utf-8",
     )
@@ -340,3 +352,129 @@ def test_build_shim_valid_matcher_renders_single_line_comment() -> None:
         line for line in src.splitlines() if line.startswith("# Matcher:")
     ]
     assert comment_lines == ["# Matcher: 'Bash(git commit*)'"]
+
+
+# --- #3213: same validation in dispatcher and non-dispatcher modes ---------
+#
+# The dispatcher path (ADR-068 consolidation) runs event validation before it
+# consolidates. A hostile eventRemap must be rejected with rc=2 and leave no
+# escaped files whether or not dispatcher mode is on.
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    ["../escaped", "../../etc", "/abs/evil", "$(touch pwned)", "PreToolUse/.."],
+)
+def test_generation_rejects_hostile_event_remap_in_dispatcher_mode(
+    tmp_path: Path, hostile: str
+) -> None:
+    cfg = _write_generation_fixture(tmp_path, hostile, dispatcher=True)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 2
+    assert not (tmp_path / "escaped").exists()
+    assert not (tmp_path / "etc").exists()
+    assert not (tmp_path / "pwned").exists()
+    assert not (tmp_path / "out" / "hooks.json").exists()
+
+
+# --- #3212: assert the committed generated artifacts, not only fixtures -----
+#
+# The issue asked for a regression test over the shipped artifacts. These
+# assert that every command string and matcher already on disk under
+# src/copilot-cli/hooks/ passes the same validators that guard generation, so
+# a future regeneration that smuggled a hostile value in would fail here.
+
+_COPILOT_HOOKS_DIR = REPO_ROOT / "src" / "copilot-cli" / "hooks"
+_COMMITTED_SCRIPT_RE = re.compile(r'/hooks/([^/"\s]+)/([^/"\s]+\.py)')
+
+
+def test_committed_hooks_json_paths_and_matchers_are_safe() -> None:
+    config = json.loads(
+        (_COPILOT_HOOKS_DIR / "hooks.json").read_text(encoding="utf-8")
+    )
+    events = config["hooks"]
+    assert events, "committed hooks.json has no events to validate"
+    checked_paths = 0
+    for event, entries in events.items():
+        # Every event key survives the same allowlist as generation time.
+        assert _validate_event_name(event) == event
+        for entry in entries:
+            for shell_key in ("bash", "powershell"):
+                command = entry[shell_key]
+                match = _COMMITTED_SCRIPT_RE.search(command)
+                assert match is not None, (
+                    f"no /hooks/<event>/<script>.py path in {event} {shell_key}"
+                )
+                path_event, script = match.groups()
+                assert ".." not in path_event and ".." not in script
+                assert path_event == event
+                assert _validate_event_name(path_event) == path_event
+                assert _validate_script_name(script) == script
+                checked_paths += 1
+            matcher = entry.get("matcher")
+            if matcher is not None:
+                assert _validate_matcher(matcher) == matcher
+    assert checked_paths > 0
+
+
+def test_committed_shim_matcher_headers_are_single_line_repr() -> None:
+    headered_shims = 0
+    for shim in sorted(_COPILOT_HOOKS_DIR.rglob("*.py")):
+        lines = shim.read_text(encoding="utf-8").splitlines()
+        comment_lines = [
+            line for line in lines if line.startswith("# Matcher:")
+        ]
+        if not comment_lines:
+            continue
+        # A control-char injection would break the matcher across lines or
+        # embed a raw newline; the committed header must be exactly one line
+        # whose payload is a plain repr-quoted string with no control chars.
+        assert len(comment_lines) == 1, f"{shim} has multiple Matcher headers"
+        payload = comment_lines[0][len("# Matcher:") :].strip()
+        value = ast.literal_eval(payload)
+        assert isinstance(value, str)
+        assert not any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value)
+        headered_shims += 1
+    assert headered_shims > 0, "expected committed shims carrying a Matcher header"
+
+
+# --- #3213: transaction rollback leaves no outside files after a failure ----
+#
+# When a later script in a batch trips a guard, generation aborts and the
+# transaction rolls back. A newly created file must be removed (no orphan);
+# an overwritten file must be restored to its original bytes.
+
+
+def test_transaction_rollback_removes_new_partial_write(tmp_path: Path) -> None:
+    root = tmp_path / "out"
+    root.mkdir()
+    transaction = HookGenerationTransaction(root)
+    staged = transaction.new_stage_path(root)
+    staged.write_text("first script", encoding="utf-8")
+    target = root / "PreToolUse" / "owner.py"
+    target.parent.mkdir(parents=True)
+    transaction.publish_many([(staged, target)])
+    assert target.exists()
+
+    errors = transaction.rollback()
+    assert errors == []
+    assert not target.exists()
+    leftovers = [path for path in root.rglob("*") if path.is_file()]
+    assert leftovers == []
+
+
+def test_transaction_rollback_restores_existing_target(tmp_path: Path) -> None:
+    root = tmp_path / "out"
+    root.mkdir()
+    target = root / "PreToolUse" / "owner.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("ORIGINAL", encoding="utf-8")
+    transaction = HookGenerationTransaction(root)
+    staged = transaction.new_stage_path(root)
+    staged.write_text("REPLACED", encoding="utf-8")
+    transaction.publish_many([(staged, target)])
+    assert target.read_text(encoding="utf-8") == "REPLACED"
+
+    errors = transaction.rollback()
+    assert errors == []
+    assert target.read_text(encoding="utf-8") == "ORIGINAL"
