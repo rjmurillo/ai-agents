@@ -161,6 +161,7 @@
   "endingCommit": "4d31c635",
   "nextSteps": [
     "Both ADR-062 amendment and ADR-084 are now accepted (repo-owner @rjmurillo, 2026-07-18); the adr-review 6/6 consensus is final.",
-    "The #3216 purge and #3217/#3218 follow-ons can proceed; acceptance is complete and no longer blocks implementation."
+    "The #3216 purge and #3217/#3218 follow-ons can proceed; acceptance is complete and no longer blocks implementation.",
+    "PR #3221 carries both ADRs to merge; the episode-3061 e012 and e013 milestone nodes were reconciled to their canonical generate_node_id values so the causal graph and episode stream stay in parity."
   ]
 }
