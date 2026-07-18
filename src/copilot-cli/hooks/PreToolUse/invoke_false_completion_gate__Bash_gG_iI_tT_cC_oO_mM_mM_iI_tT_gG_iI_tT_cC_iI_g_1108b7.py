@@ -1075,15 +1075,19 @@ def _original_main(stdin_bytes):
         sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
         session_logs = get_today_session_logs(sessions_dir)
 
-        # Fail-open when no session logs exist. Subagents legitimately have no
-        # session log, and with no evidence store to check against the gate
-        # cannot distinguish a true completion claim from a false one; blocking
-        # only taxes legitimate subagent commits whose -F / --body-file body is
-        # un-inspectable (heredoc, shell variable, temp file, or a path outside
-        # the trusted allowlist). The main-loop case is handled by the
-        # ``elif session_logs`` branch below, which still requires evidence, so
-        # an unreadable body cannot bypass the gate when a session exists
-        # (issue #3178).
+        # No today logs: fall through to the yesterday check below. The
+        # fail-open for subagents applies only when NO session log exists at
+        # all (neither today nor yesterday, or the sessions dir is unreadable).
+        # A subagent legitimately has no session log, and with no evidence
+        # store the gate cannot distinguish a true completion claim from a
+        # false one, so blocking only taxes legitimate subagent commits whose
+        # -F / --body-file body is un-inspectable (heredoc, shell variable,
+        # temp file, or a path outside the trusted allowlist). When yesterday's
+        # logs DO exist they are still evaluated: evidence there allows
+        # (cross-midnight continuation), its absence blocks. The main-loop case
+        # (today's logs present) is handled by the ``elif session_logs`` branch
+        # below, which still requires evidence, so an unreadable body cannot
+        # bypass the gate when a session exists (issue #3178).
         if not session_logs:
             # No today logs: check yesterday (cross-midnight continuation).
             sessions_path = Path(sessions_dir)
