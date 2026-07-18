@@ -395,12 +395,12 @@ def _run_hook_case(
         timed_out_stdout = exc.stdout
         timed_out_stderr = exc.stderr
         stdout = (
-            timed_out_stdout.decode(errors="replace")
+            timed_out_stdout.decode("utf-8", errors="replace")
             if isinstance(timed_out_stdout, bytes)
             else (timed_out_stdout or "")
         )
         stderr = (
-            timed_out_stderr.decode(errors="replace")
+            timed_out_stderr.decode("utf-8", errors="replace")
             if isinstance(timed_out_stderr, bytes)
             else (timed_out_stderr or "")
         ) + f"\nHook timed out after {HOOK_TIMEOUT_SECONDS}s."

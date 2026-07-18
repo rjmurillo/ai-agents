@@ -27,6 +27,7 @@ import generate_hooks_shim  # noqa: E402
 from generate_hooks_emit import (  # noqa: E402
     GenerateHooksError,
     _build_copilot_entry,
+    _copy_script,
     _relative_script_target,
     _require_within,
     _validate_event_name,
@@ -478,3 +479,26 @@ def test_transaction_rollback_restores_existing_target(tmp_path: Path) -> None:
     errors = transaction.rollback()
     assert errors == []
     assert target.read_text(encoding="utf-8") == "ORIGINAL"
+
+
+# --- #3212 / PR #3225 review: matcher boundary exercised in the copy path ---
+#
+# The end-to-end refusal fixture writes an empty ``{"hooks": {}}`` settings
+# file, so it never drives a matcher (which originates in settings.json) into
+# the copy path. PR #3225 moved ``_validate_matcher`` ahead of the ``what_if``
+# early return in ``_copy_script`` and ``_copy_hook_group`` so dry-run matches
+# production. This asserts that a control-character matcher fails at the copy
+# boundary and writes nothing, even in ``what_if`` mode.
+
+
+@pytest.mark.parametrize("hostile", _CONTROL_MATCHERS)
+def test_copy_script_rejects_hostile_matcher_before_write(
+    tmp_path: Path, hostile: str
+) -> None:
+    source = tmp_path / "owner.py"
+    source.write_text("print('ok')\n", encoding="utf-8")
+    target = tmp_path / "out" / "PreToolUse" / "owner.py"
+    with pytest.raises(GenerateHooksError):
+        _copy_script(source, target, matcher=hostile, what_if=True)
+    assert not target.exists()
+    assert not target.parent.exists()

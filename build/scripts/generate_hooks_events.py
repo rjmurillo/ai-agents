@@ -712,10 +712,18 @@ def generate_hooks(
 
     event_remap_raw = stanza["eventRemap"]
     try:
-        event_remap: dict[str, str] = {
-            _validate_event_name(str(k)): _validate_event_target(str(v))
-            for k, v in event_remap_raw.items()
-        }
+        event_remap: dict[str, str] = {}
+        for k, v in event_remap_raw.items():
+            if k is None or v is None:
+                raise GenerateHooksError(
+                    "eventRemap entries require non-null keys and values; a "
+                    "null YAML value (e.g. 'PreToolUse:') is a config error, "
+                    "not a remap to the literal event 'None': "
+                    f"{k!r}: {v!r}"
+                )
+            event_remap[_validate_event_name(str(k))] = _validate_event_target(
+                str(v)
+            )
     except GenerateHooksError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2, result

@@ -333,8 +333,19 @@ def _require_within(target_root: Path, target: Path) -> Path:
     Mirrors the source-side :func:`_resolve_script_candidate` guard for the
     write side: a remapped event name or crafted script name must never place
     a generated file outside ``outputScripts`` (#3213, CWE-22). ``resolve``
-    collapses ``..`` segments and follows symlinks, so a symlinked component
-    that escapes the root is rejected too.
+    collapses ``..`` segments and follows symlinks on both operands, so a
+    ``..`` traversal, an absolute-path leaf, or a symlinked component *below*
+    the root that escapes is rejected.
+
+    Trust boundary (PR #3225 review): ``target_root`` (the configured
+    ``outputScripts`` dir) is build-authored config joined to the repo root,
+    not attacker-controlled input. Both operands resolve through the same
+    root, so a legitimately symlinked root (for example ``/tmp`` ->
+    ``/private/tmp`` on macOS, which pytest's ``tmp_path`` uses) is
+    intentionally accepted. Rejecting a symlinked root would break those
+    checkouts while only defending against an actor who can already write a
+    symlink into the build output tree, a strictly greater capability than the
+    crafted-name threat this guard addresses.
     """
     resolved_base = target_root.resolve()
     try:
