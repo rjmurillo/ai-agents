@@ -14,14 +14,15 @@ import fnmatch as _fnmatch
 
 _MATCHER = 'Agent'
 
-# Cap stdin read so a malicious or buggy upstream cannot OOM the shim
-# (CWE-400). Mirrors push_guard_base.MAX_STDIN_BYTES (1 MiB) with a
-# small headroom; real Claude/Copilot tool_input commands are well
-# below this limit. The cap belongs at the SHIM layer because the
-# shim reads stdin BEFORE delegating to the wrapped script. Without
-# it, the wrapped script's own cap is applied too late: the OOM has
-# already happened.
-_SHIM_MAX_STDIN_BYTES = 2 * 1024 * 1024
+# Bound the standalone shim read before JSON parsing so a malicious or buggy
+# upstream cannot cause unbounded allocation (CWE-400).
+_HOOK_STDIN_CEILING_BYTES = 64 * 1024 * 1024
+
+# Apply the normal payload policy only after matcher selection. Multi-call
+# events can contain a large unrelated call that must not deny a small matched
+# call.
+_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES = 2 * 1024 * 1024
+_MAX_MATCHER_TOOL_CALLS = 256
 
 
 def _shim_classify(pattern):
@@ -60,17 +61,25 @@ def _shim_normalize_args(tool_args):
 
 
 def _shim_glob_match(args_glob, tool_args_norm):
-    """Match args_glob against tool_args_norm with `|` as alternation.
-
-    fnmatch treats `|` as a literal. Authors expect Claude semantics
-    where each `|` branch is a separate glob alternation. Split on
-    top-level `|` and OR-fold the results.
-    """
+    """Match each top-level `|` branch as a separate glob alternative."""
     branches = args_glob.split("|") if args_glob else [""]
     for branch in branches:
         if _fnmatch.fnmatchcase(tool_args_norm, branch):
             return True
     return False
+
+
+def _shim_unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _shim_load_json(raw_value):
+    return _json.loads(raw_value, object_pairs_hook=_shim_unique_object)
 
 
 def _shim_parse_json_string(raw_value, field_name):
@@ -79,8 +88,8 @@ def _shim_parse_json_string(raw_value, field_name):
         if not stripped or stripped[0] not in "{[\"":
             return raw_value
         try:
-            return _json.loads(raw_value)
-        except ValueError as exc:
+            return _shim_load_json(raw_value)
+        except _json.JSONDecodeError as exc:
             print(
                 "matcher-shim [{}]: {} is not valid JSON: {}".format(
                     _MATCHER, field_name, exc
@@ -95,39 +104,136 @@ def _shim_tool_input_from_call_args(raw_args):
     return _shim_parse_json_string(raw_args, "toolCalls.args")
 
 
-def _shim_tool_input_from_tool_args(raw_args):
-    return _shim_parse_json_string(raw_args, "toolArgs")
+def _shim_validate_tool_name(name, field):
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("{} must be a non-empty string".format(field))
+    if name != name.strip():
+        raise ValueError(
+            "{} must not have leading or trailing whitespace".format(field)
+        )
+    return name
+
+
+def _shim_json_equal(left, right):
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _shim_json_equal(left[key], right[key]) for key in left)
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _shim_json_equal(a, b) for a, b in zip(left, right))
+    return left == right
+
+
+def _shim_alias_value(payload, snake, camel, parser=None):
+    fields = [field for field in (snake, camel) if field in payload]
+    if not fields:
+        return False, None, snake, False
+    values = [payload[field] for field in fields]
+    if parser is not None:
+        values = [parser(value, field) for value, field in zip(values, fields)]
+    if len(values) == 2 and not _shim_json_equal(values[0], values[1]):
+        raise ValueError(
+            "conflicting top-level {}/{} values".format(snake, camel)
+        )
+    changed = fields != [snake] or values[0] != payload[snake]
+    return True, values[0], "/".join(fields), changed
+
+
+def _shim_top_level_candidate(payload):
+    has_name, name, _, name_changed = _shim_alias_value(
+        payload, "tool_name", "toolName", _shim_validate_tool_name
+    )
+    if not has_name:
+        raise ValueError("hook input missing string `tool_name`/`toolName` field")
+    input_payload = payload
+    if payload.get("tool_input") is None and "toolArgs" in payload:
+        input_payload = {key: value for key, value in payload.items() if key != "tool_input"}
+    has_input, tool_input, input_field, input_changed = _shim_alias_value(
+        input_payload, "tool_input", "toolArgs", _shim_parse_json_string
+    )
+    has_call_id, call_id, _, call_id_changed = _shim_alias_value(
+        payload, "tool_call_id", "toolCallId"
+    )
+    if not (name_changed or input_changed or call_id_changed):
+        return payload, input_field
+    candidate = dict(payload)
+    for field in ("toolName", "toolArgs", "toolCallId"):
+        candidate.pop(field, None)
+    candidate["tool_name"] = name
+    if has_input:
+        candidate["tool_input"] = tool_input
+    if has_call_id:
+        candidate["tool_call_id"] = call_id
+    return candidate, input_field
 
 
 def _shim_candidate_payloads(payload):
-    tool_calls = payload.get("toolCalls")
-    if isinstance(tool_calls, list):
-        candidates = []
-        for call in tool_calls:
+    if "toolCalls" in payload:
+        tool_calls = payload["toolCalls"]
+        if not isinstance(tool_calls, list):
+            raise ValueError("toolCalls must be a list when present")
+        if len(tool_calls) > _MAX_MATCHER_TOOL_CALLS:
+            raise ValueError(
+                "toolCalls contains {} entries; limit is {}".format(
+                    len(tool_calls), _MAX_MATCHER_TOOL_CALLS
+                )
+            )
+        # A payload may carry top-level action fields OR a `toolCalls` batch,
+        # never both: the host precedence contract between the two shapes is
+        # unverified, so a top-level Read alongside a Bash in `toolCalls` is
+        # ambiguous. Reject any mix (empty or non-empty batch) before a guard
+        # ever sees a candidate (#3200).
+        conflicting = [
+            field
+            for field in (
+                "tool_name",
+                "toolName",
+                "tool_input",
+                "toolArgs",
+                "tool_call_id",
+                "toolCallId",
+            )
+            if field in payload
+        ]
+        if conflicting:
+            raise ValueError(
+                "toolCalls conflicts with top-level action fields: "
+                + ", ".join(conflicting)
+            )
+        for index, call in enumerate(tool_calls):
             if not isinstance(call, dict):
-                continue
-            name = call.get("name")
-            if not isinstance(name, str):
-                continue
+                raise ValueError(
+                    "toolCalls[{}] must be an object".format(index)
+                )
+            _shim_validate_tool_name(
+                call.get("name"), "toolCalls[{}].name".format(index)
+            )
+        for call in tool_calls:
+            name = call["name"]
             candidate = dict(payload)
-            candidate.pop("toolCalls", None)
+            for field in (
+                "toolCalls",
+                "tool_name",
+                "toolName",
+                "tool_input",
+                "toolArgs",
+                "tool_call_id",
+                "toolCallId",
+            ):
+                candidate.pop(field, None)
             candidate["tool_name"] = name
             candidate["tool_input"] = _shim_tool_input_from_call_args(call.get("args"))
             if "id" in call:
                 candidate["tool_call_id"] = call.get("id")
-            candidates.append(candidate)
-        return candidates
-    return [payload]
+            yield candidate, "toolCalls.args"
+        return
+    yield _shim_top_level_candidate(payload)
 
 
 def _shim_match_candidate(payload, kind, params):
-    # Support both VS Code-compatible snake_case (PascalCase event names)
-    # and native camelCase (camelCase event names) payloads.
-    # Copilot CLI sends snake_case when the event key is PascalCase,
-    # camelCase when the event key is camelCase. See issue #2290.
     tool_name = payload.get("tool_name")
-    if tool_name is None:
-        tool_name = payload.get("toolName")
     if not isinstance(tool_name, str):
         raise ValueError("hook input missing string `tool_name`/`toolName` field")
     if kind == "regex":
@@ -135,102 +241,125 @@ def _shim_match_candidate(payload, kind, params):
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        tool_args = payload.get("tool_input")
-        if tool_args is None:
-            tool_args = payload.get("toolArgs")
-        # camelCase payloads send toolArgs as a JSON string, not a parsed
-        # object. Parse it so _shim_normalize_args can extract "command".
-        tool_args = _shim_tool_input_from_tool_args(tool_args)
-        norm_args = _shim_normalize_args(tool_args)
+        norm_args = _shim_normalize_args(payload.get("tool_input"))
         return _shim_glob_match(params["argsGlob"], norm_args)
-    # bare
     return tool_name == params["toolName"]
 
 
-def _shim_select_payload(payload):
+def _shim_select_payloads(payload):
     kind, params = _shim_classify(_MATCHER)
-    candidates = _shim_candidate_payloads(payload)
-    if not candidates:
-        return None
-    for candidate in candidates:
+    for candidate, input_field in _shim_candidate_payloads(payload):
         if _shim_match_candidate(candidate, kind, params):
-            return candidate
-    return None
+            yield candidate, input_field
 
 
-def _shim_should_fire(payload):
-    return _shim_select_payload(payload) is not None
-
-
-def _shim_replay_bytes(payload, raw):
-    selected = _shim_select_payload(payload)
-    if selected is None:
+def _shim_replay_bytes(payload, selected, raw):
+    if selected is payload:
         return raw
-    replay = dict(selected)
-    changed = selected is not payload
-    tool_name = replay.get("tool_name")
-    if tool_name is None and isinstance(replay.get("toolName"), str):
-        replay["tool_name"] = replay["toolName"]
-        changed = True
-    tool_input = replay.get("tool_input")
-    if tool_input is None and "toolArgs" in replay:
-        replay["tool_input"] = _shim_tool_input_from_tool_args(replay.get("toolArgs"))
-        changed = True
-    if not changed:
-        return raw
-    if payload.get("tool_name") is not None:
-        return raw
-    return _json.dumps(replay, separators=(",", ":")).encode("utf-8")
+    return _json.dumps(selected, separators=(",", ":")).encode("utf-8")
 
 
-def _shim_dispatch():
-    try:
-        _raw = _sys.stdin.buffer.read(_SHIM_MAX_STDIN_BYTES + 1)
-    except Exception as exc:  # pragma: no cover - defensive
+def _shim_exit_code(exc):
+    code = exc.code
+    if code is None:
+        return 0
+    if isinstance(code, int):
+        return code
+    return 1
+
+
+def _shim_invoke_selection(payload, selection, raw):
+    selected, input_field = selection
+    replay = _shim_replay_bytes(payload, selected, raw)
+    if len(replay) > _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES:
         print(
-            "matcher-shim [{}]: failed to buffer stdin: {}".format(_MATCHER, exc),
+            (
+                "matcher-shim [{}]: matched replay from {} exceeds "
+                "{} bytes; refusing"
+            ).format(_MATCHER, input_field, _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES),
             file=_sys.stderr,
         )
-        _sys.exit(2)
-    if len(_raw) > _SHIM_MAX_STDIN_BYTES:
-        print(
-            "matcher-shim [{}]: stdin exceeds {} bytes; refusing".format(
-                _MATCHER, _SHIM_MAX_STDIN_BYTES
-            ),
-            file=_sys.stderr,
-        )
-        _sys.exit(2)
+        return 2
+    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(replay), encoding="utf-8")
     try:
-        payload = _json.loads(_raw or b"{}")
-    except _json.JSONDecodeError as exc:
-        print(
-            "matcher-shim [{}]: malformed JSON on stdin: {}".format(_MATCHER, exc),
-            file=_sys.stderr,
-        )
-        _sys.exit(2)
+        rc = _original_main(replay)
+    except SystemExit as exc:
+        return _shim_exit_code(exc)
+    if rc is None:
+        return 0
+    return int(rc)
+
+
+def _shim_dispatch_selections(payload):
     try:
-        fire = _shim_should_fire(payload)
+        yield from _shim_select_payloads(payload)
     except Exception as exc:
         print(
             "matcher-shim [{}]: dispatch error: {}".format(_MATCHER, exc),
             file=_sys.stderr,
         )
         _sys.exit(2)
-    if _os.environ.get("COPILOT_HOOK_DEBUG"):
-        kind, _ = _shim_classify(_MATCHER)
-        _sys.stderr.write(
-            "matcher-shim [{}]: kind={} fired={}\n".format(_MATCHER, kind, fire)
+
+
+def _shim_debug_trace(fire):
+    if not _os.environ.get("COPILOT_HOOK_DEBUG"):
+        return
+    kind, _ = _shim_classify(_MATCHER)
+    _sys.stderr.write(
+        "matcher-shim [{}]: kind={} fired={}\n".format(_MATCHER, kind, fire)
+    )
+
+
+def _shim_dispatch():
+    try:
+        _raw = _sys.stdin.buffer.read(_HOOK_STDIN_CEILING_BYTES + 1)
+    except Exception as exc:  # pragma: no cover - defensive
+        print(
+            "matcher-shim [{}]: failed to buffer stdin: {}".format(_MATCHER, exc),
+            file=_sys.stderr,
         )
+        _sys.exit(2)
+    if len(_raw) > _HOOK_STDIN_CEILING_BYTES:
+        print(
+            "matcher-shim [{}]: stdin exceeds {} bytes; refusing".format(
+                _MATCHER, _HOOK_STDIN_CEILING_BYTES
+            ),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+    try:
+        payload = _shim_load_json(_raw or b"{}")
+    except RecursionError:
+        # Deeply nested JSON exhausts the parser recursion budget and raises
+        # RecursionError, which is NOT a ValueError subclass, so it would
+        # otherwise escape the malformed-JSON handler below, print a traceback,
+        # and exit 1. A standalone shim (run directly, not under the dispatcher)
+        # must fail closed the same way the dispatcher does: bounded diagnostic
+        # (no traceback, no payload bytes) and exit 2 (issue #3169).
+        print(
+            "matcher-shim [{}]: stdin JSON nesting too deep; refusing".format(
+                _MATCHER
+            ),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+    except ValueError as exc:
+        print(
+            "matcher-shim [{}]: malformed JSON on stdin: {}".format(_MATCHER, exc),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+    fire = False
+    for selection in _shim_dispatch_selections(payload):
+        if not fire:
+            fire = True
+            _shim_debug_trace(fire)
+        rc = _shim_invoke_selection(payload, selection, _raw)
+        if rc != 0:
+            _sys.exit(rc)
     if not fire:
-        _sys.exit(0)
-    # Replay a canonical payload into a fresh stdin so wrapped hooks enforce
-    # the same schema even when the host sent the camelCase variant.
-    _replay = _shim_replay_bytes(payload, _raw)
-    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(_replay), encoding="utf-8")
-    rc = _original_main(_replay)
-    if rc is None:
-        rc = 0
-    _sys.exit(int(rc))
+        _shim_debug_trace(fire)
+    _sys.exit(0)
 # END MATCHER SHIM
 
 def _original_main(stdin_bytes):
@@ -318,6 +447,14 @@ def _original_main(stdin_bytes):
         detect_providers for the symbols-overview capability on a repository code
         target; an empty provider list degrades to ALLOW (fail-open). The kit had
         no such conditioning (it blocked regardless of provider availability).
+      - Target conditioning (issue #3091): LOOSER block, beyond the kit. The kit
+        blocked on subagent type alone. provider_available above is a repo-level
+        check, so a Python repo still blocked a delegation whose actual target is an
+        external repo or a no-provider file type (a PowerShell dotfiles repo). When
+        the prompt references files but none is an in-project file with an
+        overview-capable provider, delegation_targets_inproject_provider returns
+        False and the guard allows: there is nothing the orchestrator could have
+        pre-resolved. Prompts that reference no files keep the repo-level behavior.
       - State: NONE. This guard is stateless. It only READs subagent_type + prompt.
         It does not touch gate_state (that is the Read gate's tracker, ADR-062
         Section 4).
@@ -456,6 +593,71 @@ def _original_main(stdin_bytes):
         return bool(providers)
 
 
+    # Issue #3091: file-path references in a delegation prompt. Matches an optional
+    # Windows drive prefix, a path body, a dotted extension (1-5 chars), and an
+    # optional :line suffix. The negative lookbehind prevents matching inside a
+    # longer token. findall returns the path body without the :line suffix.
+    _FILE_REF_PATTERN = re.compile(
+        r"(?<![\w.\-/\\:])((?:[A-Za-z]:[\\/])?[\w.\-/\\]+\.\w{1,5})(?::\d+)?"
+    )
+
+
+    def _is_file_reference(ref: str) -> bool:
+        """Return True if ref looks like a file path rather than a version string.
+
+        Filters out semver-style tokens (e.g., 2.0.1) that the file pattern
+        inadvertently matches. A reference is considered a file path if it
+        contains a path separator or has a non-numeric extension.
+        """
+        if "/" in ref or "\\" in ref:
+            return True
+        dot_idx = ref.rfind(".")
+        if dot_idx == -1:
+            return False
+        ext = ref[dot_idx + 1 :]
+        return not ext.isdigit()
+
+
+    def delegation_targets_inproject_provider(prompt: str, project_dir: str) -> bool:
+        """Return True when the prompt references an in-project file with an LSP provider.
+
+        Returns False only when the prompt references files and NONE is an in-project
+        file whose type has an overview-capable provider: every reference resolves
+        outside the project root or is a file type with no configured provider. That
+        is the issue #3091 false positive (delegating a PowerShell dotfiles repo or a
+        prose target while standing in a Python project): nothing the orchestrator
+        could have pre-resolved, so the gate must not fire.
+
+        Returns True when the prompt references no files (conservative: the existing
+        provider_available gate still applies) or when any referenced file is an
+        in-project provider-backed target (the gate should fire).
+        """
+        refs = _FILE_REF_PATTERN.findall(prompt)
+        refs = [ref for ref in refs if _is_file_reference(ref)]
+        if not refs:
+            return True
+        try:
+            root = Path(project_dir).resolve()
+        except (OSError, ValueError):
+            return True
+        for ref in refs:
+            candidate = Path(ref)
+            try:
+                resolved = (
+                    candidate.resolve()
+                    if candidate.is_absolute()
+                    else (root / candidate).resolve()
+                )
+            except (OSError, ValueError):
+                continue
+            if resolved != root and root not in resolved.parents:
+                continue
+            ext = candidate.suffix
+            if ext and detect_providers(f"lsp_probe{ext}", SYMBOLS_OVERVIEW, project_dir):
+                return True
+        return False
+
+
     def build_guidance(subagent_type: str) -> str:
         """Build the LSP-context guidance message (block reason or warn systemMessage)."""
         return (
@@ -550,13 +752,27 @@ def _original_main(stdin_bytes):
                 )
                 return 0
 
+            # Target conditioning (issue #3091): provider_available is a repo-level
+            # check, so a repo that has an LSP (for example Python) still fires this
+            # gate for a delegation whose actual target is external or a no-provider
+            # file type (a PowerShell dotfiles repo, a prose target). When the prompt
+            # references files but none is an in-project file whose type has an
+            # overview-capable provider, there is nothing to pre-resolve; allow rather
+            # than force a cosmetic LSP CONTEXT header.
+            if not delegation_targets_inproject_provider(prompt, project_dir):
+                print(
+                    "LSP pre-delegation guard: no in-project LSP-capable target in prompt, allowing",
+                    file=sys.stderr,
+                )
+                return 0
+
             # Runtime fail-open (issue #2622): provider_available is config-only, so
             # it still reports a provider when the language server timed out at
             # startup (ADR-062 Section 8, "configured != active"). With the LSP down,
             # the orchestrator cannot pre-resolve symbol context, so blocking the
             # delegation just wedges the turn. Allow it with a one-time warning
             # (ADR-062 Section 5, release-it.md graceful degradation).
-            if lsp_runtime_down():
+            if lsp_runtime_down(project_dir):
                 warn_once_lsp_down("lsp-pre-delegation-guard", project_dir)
                 return 0
 

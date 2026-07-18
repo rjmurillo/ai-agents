@@ -14,14 +14,15 @@ import fnmatch as _fnmatch
 
 _MATCHER = 'Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*|[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)'
 
-# Cap stdin read so a malicious or buggy upstream cannot OOM the shim
-# (CWE-400). Mirrors push_guard_base.MAX_STDIN_BYTES (1 MiB) with a
-# small headroom; real Claude/Copilot tool_input commands are well
-# below this limit. The cap belongs at the SHIM layer because the
-# shim reads stdin BEFORE delegating to the wrapped script. Without
-# it, the wrapped script's own cap is applied too late: the OOM has
-# already happened.
-_SHIM_MAX_STDIN_BYTES = 2 * 1024 * 1024
+# Bound the standalone shim read before JSON parsing so a malicious or buggy
+# upstream cannot cause unbounded allocation (CWE-400).
+_HOOK_STDIN_CEILING_BYTES = 64 * 1024 * 1024
+
+# Apply the normal payload policy only after matcher selection. Multi-call
+# events can contain a large unrelated call that must not deny a small matched
+# call.
+_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES = 2 * 1024 * 1024
+_MAX_MATCHER_TOOL_CALLS = 256
 
 
 def _shim_classify(pattern):
@@ -60,17 +61,25 @@ def _shim_normalize_args(tool_args):
 
 
 def _shim_glob_match(args_glob, tool_args_norm):
-    """Match args_glob against tool_args_norm with `|` as alternation.
-
-    fnmatch treats `|` as a literal. Authors expect Claude semantics
-    where each `|` branch is a separate glob alternation. Split on
-    top-level `|` and OR-fold the results.
-    """
+    """Match each top-level `|` branch as a separate glob alternative."""
     branches = args_glob.split("|") if args_glob else [""]
     for branch in branches:
         if _fnmatch.fnmatchcase(tool_args_norm, branch):
             return True
     return False
+
+
+def _shim_unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _shim_load_json(raw_value):
+    return _json.loads(raw_value, object_pairs_hook=_shim_unique_object)
 
 
 def _shim_parse_json_string(raw_value, field_name):
@@ -79,8 +88,8 @@ def _shim_parse_json_string(raw_value, field_name):
         if not stripped or stripped[0] not in "{[\"":
             return raw_value
         try:
-            return _json.loads(raw_value)
-        except ValueError as exc:
+            return _shim_load_json(raw_value)
+        except _json.JSONDecodeError as exc:
             print(
                 "matcher-shim [{}]: {} is not valid JSON: {}".format(
                     _MATCHER, field_name, exc
@@ -95,39 +104,136 @@ def _shim_tool_input_from_call_args(raw_args):
     return _shim_parse_json_string(raw_args, "toolCalls.args")
 
 
-def _shim_tool_input_from_tool_args(raw_args):
-    return _shim_parse_json_string(raw_args, "toolArgs")
+def _shim_validate_tool_name(name, field):
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("{} must be a non-empty string".format(field))
+    if name != name.strip():
+        raise ValueError(
+            "{} must not have leading or trailing whitespace".format(field)
+        )
+    return name
+
+
+def _shim_json_equal(left, right):
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _shim_json_equal(left[key], right[key]) for key in left)
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _shim_json_equal(a, b) for a, b in zip(left, right))
+    return left == right
+
+
+def _shim_alias_value(payload, snake, camel, parser=None):
+    fields = [field for field in (snake, camel) if field in payload]
+    if not fields:
+        return False, None, snake, False
+    values = [payload[field] for field in fields]
+    if parser is not None:
+        values = [parser(value, field) for value, field in zip(values, fields)]
+    if len(values) == 2 and not _shim_json_equal(values[0], values[1]):
+        raise ValueError(
+            "conflicting top-level {}/{} values".format(snake, camel)
+        )
+    changed = fields != [snake] or values[0] != payload[snake]
+    return True, values[0], "/".join(fields), changed
+
+
+def _shim_top_level_candidate(payload):
+    has_name, name, _, name_changed = _shim_alias_value(
+        payload, "tool_name", "toolName", _shim_validate_tool_name
+    )
+    if not has_name:
+        raise ValueError("hook input missing string `tool_name`/`toolName` field")
+    input_payload = payload
+    if payload.get("tool_input") is None and "toolArgs" in payload:
+        input_payload = {key: value for key, value in payload.items() if key != "tool_input"}
+    has_input, tool_input, input_field, input_changed = _shim_alias_value(
+        input_payload, "tool_input", "toolArgs", _shim_parse_json_string
+    )
+    has_call_id, call_id, _, call_id_changed = _shim_alias_value(
+        payload, "tool_call_id", "toolCallId"
+    )
+    if not (name_changed or input_changed or call_id_changed):
+        return payload, input_field
+    candidate = dict(payload)
+    for field in ("toolName", "toolArgs", "toolCallId"):
+        candidate.pop(field, None)
+    candidate["tool_name"] = name
+    if has_input:
+        candidate["tool_input"] = tool_input
+    if has_call_id:
+        candidate["tool_call_id"] = call_id
+    return candidate, input_field
 
 
 def _shim_candidate_payloads(payload):
-    tool_calls = payload.get("toolCalls")
-    if isinstance(tool_calls, list):
-        candidates = []
-        for call in tool_calls:
+    if "toolCalls" in payload:
+        tool_calls = payload["toolCalls"]
+        if not isinstance(tool_calls, list):
+            raise ValueError("toolCalls must be a list when present")
+        if len(tool_calls) > _MAX_MATCHER_TOOL_CALLS:
+            raise ValueError(
+                "toolCalls contains {} entries; limit is {}".format(
+                    len(tool_calls), _MAX_MATCHER_TOOL_CALLS
+                )
+            )
+        # A payload may carry top-level action fields OR a `toolCalls` batch,
+        # never both: the host precedence contract between the two shapes is
+        # unverified, so a top-level Read alongside a Bash in `toolCalls` is
+        # ambiguous. Reject any mix (empty or non-empty batch) before a guard
+        # ever sees a candidate (#3200).
+        conflicting = [
+            field
+            for field in (
+                "tool_name",
+                "toolName",
+                "tool_input",
+                "toolArgs",
+                "tool_call_id",
+                "toolCallId",
+            )
+            if field in payload
+        ]
+        if conflicting:
+            raise ValueError(
+                "toolCalls conflicts with top-level action fields: "
+                + ", ".join(conflicting)
+            )
+        for index, call in enumerate(tool_calls):
             if not isinstance(call, dict):
-                continue
-            name = call.get("name")
-            if not isinstance(name, str):
-                continue
+                raise ValueError(
+                    "toolCalls[{}] must be an object".format(index)
+                )
+            _shim_validate_tool_name(
+                call.get("name"), "toolCalls[{}].name".format(index)
+            )
+        for call in tool_calls:
+            name = call["name"]
             candidate = dict(payload)
-            candidate.pop("toolCalls", None)
+            for field in (
+                "toolCalls",
+                "tool_name",
+                "toolName",
+                "tool_input",
+                "toolArgs",
+                "tool_call_id",
+                "toolCallId",
+            ):
+                candidate.pop(field, None)
             candidate["tool_name"] = name
             candidate["tool_input"] = _shim_tool_input_from_call_args(call.get("args"))
             if "id" in call:
                 candidate["tool_call_id"] = call.get("id")
-            candidates.append(candidate)
-        return candidates
-    return [payload]
+            yield candidate, "toolCalls.args"
+        return
+    yield _shim_top_level_candidate(payload)
 
 
 def _shim_match_candidate(payload, kind, params):
-    # Support both VS Code-compatible snake_case (PascalCase event names)
-    # and native camelCase (camelCase event names) payloads.
-    # Copilot CLI sends snake_case when the event key is PascalCase,
-    # camelCase when the event key is camelCase. See issue #2290.
     tool_name = payload.get("tool_name")
-    if tool_name is None:
-        tool_name = payload.get("toolName")
     if not isinstance(tool_name, str):
         raise ValueError("hook input missing string `tool_name`/`toolName` field")
     if kind == "regex":
@@ -135,102 +241,125 @@ def _shim_match_candidate(payload, kind, params):
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        tool_args = payload.get("tool_input")
-        if tool_args is None:
-            tool_args = payload.get("toolArgs")
-        # camelCase payloads send toolArgs as a JSON string, not a parsed
-        # object. Parse it so _shim_normalize_args can extract "command".
-        tool_args = _shim_tool_input_from_tool_args(tool_args)
-        norm_args = _shim_normalize_args(tool_args)
+        norm_args = _shim_normalize_args(payload.get("tool_input"))
         return _shim_glob_match(params["argsGlob"], norm_args)
-    # bare
     return tool_name == params["toolName"]
 
 
-def _shim_select_payload(payload):
+def _shim_select_payloads(payload):
     kind, params = _shim_classify(_MATCHER)
-    candidates = _shim_candidate_payloads(payload)
-    if not candidates:
-        return None
-    for candidate in candidates:
+    for candidate, input_field in _shim_candidate_payloads(payload):
         if _shim_match_candidate(candidate, kind, params):
-            return candidate
-    return None
+            yield candidate, input_field
 
 
-def _shim_should_fire(payload):
-    return _shim_select_payload(payload) is not None
-
-
-def _shim_replay_bytes(payload, raw):
-    selected = _shim_select_payload(payload)
-    if selected is None:
+def _shim_replay_bytes(payload, selected, raw):
+    if selected is payload:
         return raw
-    replay = dict(selected)
-    changed = selected is not payload
-    tool_name = replay.get("tool_name")
-    if tool_name is None and isinstance(replay.get("toolName"), str):
-        replay["tool_name"] = replay["toolName"]
-        changed = True
-    tool_input = replay.get("tool_input")
-    if tool_input is None and "toolArgs" in replay:
-        replay["tool_input"] = _shim_tool_input_from_tool_args(replay.get("toolArgs"))
-        changed = True
-    if not changed:
-        return raw
-    if payload.get("tool_name") is not None:
-        return raw
-    return _json.dumps(replay, separators=(",", ":")).encode("utf-8")
+    return _json.dumps(selected, separators=(",", ":")).encode("utf-8")
 
 
-def _shim_dispatch():
-    try:
-        _raw = _sys.stdin.buffer.read(_SHIM_MAX_STDIN_BYTES + 1)
-    except Exception as exc:  # pragma: no cover - defensive
+def _shim_exit_code(exc):
+    code = exc.code
+    if code is None:
+        return 0
+    if isinstance(code, int):
+        return code
+    return 1
+
+
+def _shim_invoke_selection(payload, selection, raw):
+    selected, input_field = selection
+    replay = _shim_replay_bytes(payload, selected, raw)
+    if len(replay) > _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES:
         print(
-            "matcher-shim [{}]: failed to buffer stdin: {}".format(_MATCHER, exc),
+            (
+                "matcher-shim [{}]: matched replay from {} exceeds "
+                "{} bytes; refusing"
+            ).format(_MATCHER, input_field, _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES),
             file=_sys.stderr,
         )
-        _sys.exit(2)
-    if len(_raw) > _SHIM_MAX_STDIN_BYTES:
-        print(
-            "matcher-shim [{}]: stdin exceeds {} bytes; refusing".format(
-                _MATCHER, _SHIM_MAX_STDIN_BYTES
-            ),
-            file=_sys.stderr,
-        )
-        _sys.exit(2)
+        return 2
+    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(replay), encoding="utf-8")
     try:
-        payload = _json.loads(_raw or b"{}")
-    except _json.JSONDecodeError as exc:
-        print(
-            "matcher-shim [{}]: malformed JSON on stdin: {}".format(_MATCHER, exc),
-            file=_sys.stderr,
-        )
-        _sys.exit(2)
+        rc = _original_main(replay)
+    except SystemExit as exc:
+        return _shim_exit_code(exc)
+    if rc is None:
+        return 0
+    return int(rc)
+
+
+def _shim_dispatch_selections(payload):
     try:
-        fire = _shim_should_fire(payload)
+        yield from _shim_select_payloads(payload)
     except Exception as exc:
         print(
             "matcher-shim [{}]: dispatch error: {}".format(_MATCHER, exc),
             file=_sys.stderr,
         )
         _sys.exit(2)
-    if _os.environ.get("COPILOT_HOOK_DEBUG"):
-        kind, _ = _shim_classify(_MATCHER)
-        _sys.stderr.write(
-            "matcher-shim [{}]: kind={} fired={}\n".format(_MATCHER, kind, fire)
+
+
+def _shim_debug_trace(fire):
+    if not _os.environ.get("COPILOT_HOOK_DEBUG"):
+        return
+    kind, _ = _shim_classify(_MATCHER)
+    _sys.stderr.write(
+        "matcher-shim [{}]: kind={} fired={}\n".format(_MATCHER, kind, fire)
+    )
+
+
+def _shim_dispatch():
+    try:
+        _raw = _sys.stdin.buffer.read(_HOOK_STDIN_CEILING_BYTES + 1)
+    except Exception as exc:  # pragma: no cover - defensive
+        print(
+            "matcher-shim [{}]: failed to buffer stdin: {}".format(_MATCHER, exc),
+            file=_sys.stderr,
         )
+        _sys.exit(2)
+    if len(_raw) > _HOOK_STDIN_CEILING_BYTES:
+        print(
+            "matcher-shim [{}]: stdin exceeds {} bytes; refusing".format(
+                _MATCHER, _HOOK_STDIN_CEILING_BYTES
+            ),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+    try:
+        payload = _shim_load_json(_raw or b"{}")
+    except RecursionError:
+        # Deeply nested JSON exhausts the parser recursion budget and raises
+        # RecursionError, which is NOT a ValueError subclass, so it would
+        # otherwise escape the malformed-JSON handler below, print a traceback,
+        # and exit 1. A standalone shim (run directly, not under the dispatcher)
+        # must fail closed the same way the dispatcher does: bounded diagnostic
+        # (no traceback, no payload bytes) and exit 2 (issue #3169).
+        print(
+            "matcher-shim [{}]: stdin JSON nesting too deep; refusing".format(
+                _MATCHER
+            ),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+    except ValueError as exc:
+        print(
+            "matcher-shim [{}]: malformed JSON on stdin: {}".format(_MATCHER, exc),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+    fire = False
+    for selection in _shim_dispatch_selections(payload):
+        if not fire:
+            fire = True
+            _shim_debug_trace(fire)
+        rc = _shim_invoke_selection(payload, selection, _raw)
+        if rc != 0:
+            _sys.exit(rc)
     if not fire:
-        _sys.exit(0)
-    # Replay a canonical payload into a fresh stdin so wrapped hooks enforce
-    # the same schema even when the host sent the camelCase variant.
-    _replay = _shim_replay_bytes(payload, _raw)
-    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(_replay), encoding="utf-8")
-    rc = _original_main(_replay)
-    if rc is None:
-        rc = 0
-    _sys.exit(int(rc))
+        _shim_debug_trace(fire)
+    _sys.exit(0)
 # END MATCHER SHIM
 
 def _original_main(stdin_bytes):
@@ -257,8 +386,12 @@ def _original_main(stdin_bytes):
     Bypass conditions:
     - SKIP_COMPLETION_GATE=true environment variable
     - Documentation-only changes (*.md files only)
-    - No session log present (fail-open), unless the completion claim was
-      inferred from an unreadable -F / --body-file (fail-closed)
+    - No session log present (fail-open). Subagents legitimately have no
+      session log, so with no evidence store to check against the gate cannot
+      distinguish a true completion claim from a false one and fails open even
+      when the -F / --body-file body is un-inspectable (issue #3178). The
+      main-loop case (session log present) still requires evidence, so an
+      unreadable body cannot bypass the gate when a session exists.
     - Non-commit/non-PR/non-merge commands
 
     Hook Type: PreToolUse (blocking on match)
@@ -282,6 +415,7 @@ def _original_main(stdin_bytes):
     import time
     from datetime import UTC, datetime, timedelta
     from pathlib import Path
+    from typing import Any
 
     # --- Standard hook boilerplate ---
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -386,12 +520,12 @@ def _original_main(stdin_bytes):
                 timeout=_GIT_TIMEOUT_SECONDS,
             )
         except (OSError, subprocess.TimeoutExpired):
-            return get_project_directory()
+            return str(get_project_directory())
         if result.returncode == 0:
             top = result.stdout.strip()
             if top:
                 return str(Path(top).resolve())
-        return get_project_directory()
+        return str(get_project_directory())
 
 
     # Completion signal patterns in commit messages / PR titles
@@ -456,7 +590,7 @@ def _original_main(stdin_bytes):
     ]
 
 
-    def _read_stdin_json() -> dict | None:
+    def _read_stdin_json() -> dict[str, Any] | None:
         """Read and parse JSON from stdin (Claude hook input)."""
         if sys.stdin.isatty():
             return None
@@ -464,12 +598,13 @@ def _original_main(stdin_bytes):
             data = sys.stdin.read().strip()
             if not data:
                 return None
-            return json.loads(data)
+            parsed = json.loads(data)
         except (json.JSONDecodeError, OSError):
             return None
+        return parsed if isinstance(parsed, dict) else None
 
 
-    def _extract_command(hook_input: dict) -> str:
+    def _extract_command(hook_input: dict[str, Any]) -> str:
         """Extract the command string from hook input.
 
         Defends against malformed input where ``hook_input``, ``tool_input``,
@@ -502,11 +637,17 @@ def _original_main(stdin_bytes):
     def _extract_commit_message_file(command: str) -> str | None:
         """Extract the filename from a `git commit -F <file>` command.
 
-        Returns the file path if found, otherwise None.
+        Returns the file path if found, otherwise None. A literal ``-`` denotes a
+        message read from stdin (e.g. a heredoc), not a file path, so it returns
+        None and routes the command to the command-string completion check rather
+        than inferring a claim from an unreadable "file" named ``-`` (issue #3089).
         """
         match = re.search(r"(?:^|\s)git\s+(?:commit|ci)\s+.*?(?:-F|--file)[=\s]+([^\s]+)", command)
         if match:
-            return match.group(1).strip("'\"")
+            token = match.group(1).strip("'\"")
+            if token == "-":
+                return None
+            return token
         return None
 
 
@@ -596,10 +737,16 @@ def _original_main(stdin_bytes):
         Returns a tuple ``(has_claim, body_unreadable)``.
 
         ``body_unreadable`` is True when ``-F`` was specified but the file
-        could not be read (outside trusted paths or I/O error). Callers use
-        that signal to keep the fail-closed contract end-to-end: when the
-        body cannot be inspected, the gate cannot fall through to the
-        "no session log => allow" branch.
+        could not be read (outside trusted paths or I/O error). In that case
+        ``has_claim`` is also True so the command is still routed through the
+        session-log evidence check instead of being skipped.
+
+        The production caller in ``main`` consumes only ``has_claim`` and
+        discards ``body_unreadable`` (issue #3178): an un-inspectable body no
+        longer forces a block on its own. When a session log exists the
+        evidence check still gates the commit; when none exists (subagents),
+        the gate fails open. ``body_unreadable`` stays in the return contract
+        for callers and tests that assert the read outcome directly.
         """
         message_file = _extract_commit_message_file(command)
         if message_file is None:
@@ -613,11 +760,16 @@ def _original_main(stdin_bytes):
     def _extract_pr_body_file(command: str) -> str | None:
         """Extract the filename from a `gh pr create --body-file <file>` command.
 
-        Returns the file path if found, otherwise None.
+        Returns the file path if found, otherwise None. A literal ``-`` denotes a
+        body read from stdin, not a file path, so it returns None and routes the
+        command to the command-string completion check (issue #3089).
         """
         match = re.search(r"(?:^|\s)gh\s+pr\s+create\s+.*?(?:--body-file|-F)[=\s]+([^\s]+)", command)
         if match:
-            return match.group(1).strip("'\"")
+            token = match.group(1).strip("'\"")
+            if token == "-":
+                return None
+            return token
         return None
 
 
@@ -625,9 +777,12 @@ def _original_main(stdin_bytes):
         """Check if a gh pr create --body-file contains completion signals.
 
         Uses the same path containment as commit message files (CWE-22).
-        Returns a tuple ``(has_claim, body_unreadable)`` so callers can keep
-        the fail-closed contract end-to-end (see
-        ``_is_completion_claim_in_message_file``).
+        Returns a tuple ``(has_claim, body_unreadable)`` mirroring
+        ``_is_completion_claim_in_message_file``: an unreadable body yields
+        ``(True, True)`` so the command is routed to the evidence check, and
+        the production caller consumes only ``has_claim`` (issue #3178). The
+        ``body_unreadable`` element stays in the contract for tests and
+        callers that inspect the read outcome directly.
         """
         body_file = _extract_pr_body_file(command)
         if body_file is None:
@@ -910,20 +1065,13 @@ def _original_main(stdin_bytes):
         # For `gh pr create --body-file <file>`, also check the body file contents.
         # `gh pr merge` is always treated as a completion claim since merging is
         # an inherent "done" action that requires verification evidence.
-        msg_claim, msg_unreadable = _is_completion_claim_in_message_file(command)
-        body_claim, body_unreadable = _is_completion_claim_in_pr_body_file(command)
+        msg_claim, _ = _is_completion_claim_in_message_file(command)
+        body_claim, _ = _is_completion_claim_in_pr_body_file(command)
         has_completion_claim = (
             _is_completion_claim(command) or msg_claim or body_claim or bool(is_pr_merge)
         )
         if not has_completion_claim:
             sys.exit(0)
-
-        # ``body_inferred`` is true when the completion claim was inferred from
-        # a body file that could not be read (commit -F / pr create --body-file
-        # pointing outside trusted paths). The fail-closed contract on those
-        # helpers must propagate: when we cannot read the body, we cannot fall
-        # through to the "no session log => allow" branch below.
-        body_inferred = msg_unreadable or body_unreadable
 
         # Resolve the CURRENT worktree, not the MAIN checkout. In a linked
         # worktree ``CLAUDE_PROJECT_DIR`` points at main, so the session dir and
@@ -943,11 +1091,20 @@ def _original_main(stdin_bytes):
         sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
         session_logs = get_today_session_logs(sessions_dir)
 
-        # Fail-open when no session logs exist, EXCEPT when the completion
-        # claim was inferred from an unreadable body file. In that case we
-        # honor the fail-closed contract on the body-file helpers and require
-        # verification before allowing the command through.
-        if not session_logs and not body_inferred:
+        # No today logs: fall through to the yesterday check below. The
+        # fail-open for subagents applies only when NO session log exists at
+        # all (neither today nor yesterday, or the sessions dir is unreadable).
+        # A subagent legitimately has no session log, and with no evidence
+        # store the gate cannot distinguish a true completion claim from a
+        # false one, so blocking only taxes legitimate subagent commits whose
+        # -F / --body-file body is un-inspectable (heredoc, shell variable,
+        # temp file, or a path outside the trusted allowlist). When yesterday's
+        # logs DO exist they are still evaluated: evidence there allows
+        # (cross-midnight continuation), its absence blocks. The main-loop case
+        # (today's logs present) is handled by the ``elif session_logs`` branch
+        # below, which still requires evidence, so an unreadable body cannot
+        # bypass the gate when a session exists (issue #3178).
+        if not session_logs:
             # No today logs: check yesterday (cross-midnight continuation).
             sessions_path = Path(sessions_dir)
             if sessions_path.is_dir():
@@ -956,7 +1113,12 @@ def _original_main(stdin_bytes):
                     yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
                     if yesterday_logs:
                         if _has_verification_evidence_across_logs(yesterday_logs):
-                            _write_audit_log(project_dir, command, "ALLOW", "verification evidence found (yesterday)")
+                            _write_audit_log(
+                                project_dir,
+                                command,
+                                "ALLOW",
+                                "verification evidence found (yesterday)",
+                            )
                             sys.exit(0)
                         # Yesterday logs exist but lack evidence; fall through to block.
                     else:

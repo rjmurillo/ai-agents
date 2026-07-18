@@ -34,6 +34,20 @@ ADR-080 (accepted, not yet implemented) sets the model-pin policy: an unpinned u
 1. For a new prescriptive instruction, identify whether it constrains over-thinking or serves another documented project purpose. Both are valid.
 2. Do not merge an instruction as a default when its sole purpose is to compensate for a model below the calibrated envelope. That is scaffold-up this project does not provide, so flag it instead.
 
+### Noticing You Are Below the Calibrated Floor
+
+This project's guardrails constrain a frontier model down. They do not scaffold a weaker model up (see issue #3041, and "Why the direction matters" above). The ADR-080 `auto` default inherits whatever model the harness resolves, and that default is safe only while the harness default stays inside the frontier-tier calibrated envelope. If the harness resolves a materially weaker model, the guardrails stop protecting output quality. They were written to prune over-thinking in a capable model, not to add the decomposition a less capable model needs.
+
+There is no automated signal for this today. Issue #3045 decided this stays docs-only for now: no harness hook or runtime check exists to detect it. Watch for these observable symptoms instead, and treat them as a reason to check which model actually ran the session:
+
+- **Instructions followed too literally.** The agent executes the letter of a guardrail without the judgment the guardrail assumed, producing brittle or redundant steps a frontier model would have skipped.
+- **Over-thinking on simple tasks.** A frontier model prunes unnecessary reasoning on trivial work because these guardrails tell it to. A weaker model can lack the judgment to recognize a task is trivial, so the same guardrails do not produce the same restraint.
+- **Degraded multi-step reasoning.** Plans lose coherence across steps, tool-call sequences drift from the stated objective, or the agent loses track of earlier constraints partway through a task.
+
+No single symptom proves the model is below the floor. Together, and especially when they appear on tasks that previously ran cleanly, they are worth investigating.
+
+**What comes after this decision.** An eval-derived floor (the lowest model tier at which this project's evals still pass) is a defensible number, not a guess. That number depends on issue #3042's tiered eval sweep, which has not run yet. Building a runtime check now, before that number exists, would mean scaffolding a decision with nothing to decide against. Revisit runtime detection after #3042 produces the floor.
+
 ---
 
 ## Principle 1: Non-Overlapping Specialization

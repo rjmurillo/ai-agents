@@ -215,13 +215,15 @@ def test_unique_files_still_bulk_checked() -> None:
 
     # Act -- content-level only
 
-    # Assert: mypy is called with the full PY_FILES_UNIQUE array
-    assert (
-        'mypy "${PY_FILES_UNIQUE[@]}"' in text
-        or "mypy ${PY_FILES_UNIQUE" in text
-    ), (
-        "Expected bulk mypy invocation on PY_FILES_UNIQUE array in pre-push; "
-        "the non-colliding fast path appears to be missing"
+    # Assert: mypy is called with the full PY_FILES_UNIQUE array in one bulk
+    # invocation. Issue #3132/#3150 resolves the type checker via uv first, so
+    # the command prefix is the "${MYPY_CMD[@]}" array. pre-push always uses
+    # the array for this fast-path call, so require it: a regression back to a
+    # bare PATH-only ``mypy`` must fail this mirror test.
+    assert '"${MYPY_CMD[@]}" "${PY_FILES_UNIQUE[@]}"' in text, (
+        "Expected bulk uv-first ${MYPY_CMD[@]} invocation on PY_FILES_UNIQUE "
+        "array in pre-push; the non-colliding fast path appears to be missing "
+        "or regressed to PATH-only mypy (Issue #3132/#3150)"
     )
 
 
@@ -302,7 +304,10 @@ def test_pre_push_partitions_colliding_basenames_at_runtime(tmp_path: Path) -> N
 
     output = result.stdout + result.stderr
     assert result.returncode == 0, output
-    assert "PASS: Python type check/mypy (3 files)" in output
+    # Issue #3132/#3150: the pass label now records the resolution source
+    # ("via uv" or "via path"). The fixture repo has no uv.lock/pyproject.toml,
+    # so mypy always resolves to the PATH stub -> "via path".
+    assert "PASS: Python type check/mypy (3 files via path)" in output
 
     mypy_calls = (repo / "mypy.log").read_text(encoding="utf-8").splitlines()
     assert "pkg_c/bar.py" in mypy_calls
@@ -321,7 +326,11 @@ def test_pre_push_fails_closed_when_colliding_file_mypy_fails(tmp_path: Path) ->
     assert result.returncode == 1, output
     assert "forced mypy failure for pkg_b/foo.py" in output
     assert "ERROR: Python type check/mypy" in output
-    assert "PASS: Python type check/mypy (3 files)" not in output
+    # Intent: on failure there must be no mypy PASS label at all. Assert on the
+    # stable prefix, not the fixture's file count ("3 files"), so a change to
+    # _make_hook_repo() cannot let a mistaken PASS line with a different count
+    # slip through.
+    assert "PASS: Python type check/mypy" not in output
 
 
 # ---------------------------------------------------------------------------

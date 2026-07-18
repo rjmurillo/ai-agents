@@ -7,13 +7,14 @@ Designed to run as a pre-commit check, delegated from .githooks/pre-commit.
 Thresholds:
   10 files: Warning (suggest reviewing scope)
   20 files: Strong warning (suggest splitting)
-  50 files: Block commit (hard limit)
+  50 files: Hard limit, still allowed (strong warning)
+  Over 50:  Block commit
 
 Bypass: Set SKIP_SCOPE_CHECK=1 environment variable for justified large PRs.
 
 EXIT CODES:
   0  - Success: File count within limits (or warnings issued)
-  1  - Block: File count exceeds hard limit (50 files)
+  1  - Block: File count exceeds hard limit (over 50 files)
   2  - Error: Could not determine branch state
 
 See: ADR-035 Exit Code Standardization
@@ -152,50 +153,6 @@ def get_merge_base(base_branch: str) -> str | None:
     return sha if result.returncode == 0 and sha else None
 
 
-def get_changed_files(merge_base: str) -> list[str]:
-    """Get files changed between merge base and HEAD.
-
-    Args:
-        merge_base: The commit to compare from.
-
-    Returns:
-        List of changed file paths.
-    """
-    result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMR", merge_base, "HEAD"],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
-    if result.returncode != 0:
-        return []
-    return [f.strip() for f in result.stdout.splitlines() if f.strip()]
-
-
-def get_staged_new_files(merge_base: str) -> list[str]:
-    """Get staged files not yet committed that are new since merge base.
-
-    Includes currently staged changes to give accurate pre-commit count.
-
-    Args:
-        merge_base: The commit to compare from.
-
-    Returns:
-        List of staged file paths not already in the committed diff.
-    """
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-    )
-    if result.returncode != 0:
-        return []
-    return [f.strip() for f in result.stdout.splitlines() if f.strip()]
-
-
 def get_index_files_against_ref(base_ref: str) -> list[str]:
     """Get staged result files that differ from a base ref."""
     result = subprocess.run(
@@ -249,17 +206,21 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     if not merge_base:
         return None
 
-    committed_files = get_changed_files(merge_base)
-    staged_files = get_staged_new_files(merge_base)
-
-    # Union of committed and staged files for total count
-    all_files = sorted(set(committed_files) | set(staged_files))
+    # Count the final staged tree against the merge base, matching the
+    # in-progress-merge path above. `git diff --cached --diff-filter=ACMR
+    # <base>` reflects the index as it will be committed, so a staged deletion
+    # of a branch-only file drops out of the count: the file is absent from the
+    # index and from the base, so it produces no diff entry. The former
+    # approach unioned the committed diff (merge_base..HEAD) with the staged
+    # ACMR set, which could not subtract such a deletion because the committed
+    # diff still listed it (Issue #3171).
+    files = sorted(set(get_index_files_against_ref(merge_base)))
 
     return ScopeResult(
-        file_count=len(all_files),
+        file_count=len(files),
         merge_base=merge_base[:12],
         current_branch=branch,
-        files=tuple(all_files),
+        files=tuple(files),
     )
 
 
@@ -303,7 +264,7 @@ def report(result: ScopeResult, quiet: bool = False) -> int:
         print("  Consider reviewing scope before the PR grows further.")
         return 0
 
-    if count < BLOCK_THRESHOLD:
+    if count <= BLOCK_THRESHOLD:
         print(f"WARNING: PR scope is large. {format_bar(count, STRONG_WARN_THRESHOLD)}")
         print(f"  Branch: {result.current_branch}")
         print(f"  {count} files changed since diverging from main.")
@@ -314,10 +275,10 @@ def report(result: ScopeResult, quiet: bool = False) -> int:
         print("    3. Start a new branch for remaining work")
         return 0
 
-    # Block threshold exceeded
+    # Block: count exceeds the hard limit (50 is allowed; 51+ blocks).
     print(f"BLOCKED: PR scope explosion detected. {format_bar(count, BLOCK_THRESHOLD)}")
     print(f"  Branch: {result.current_branch}")
-    print(f"  {count} files changed (hard limit: {BLOCK_THRESHOLD}).")
+    print(f"  {count} files changed (over the {BLOCK_THRESHOLD}-file hard limit).")
     print("  This PR is too large to review effectively.")
     print("")
     print("  Remediation:")

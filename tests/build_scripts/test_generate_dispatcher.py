@@ -170,7 +170,7 @@ class TestEmit:
             "    sys.path.insert(0, str(lib))\n",
             encoding="utf-8",
         )
-        gd.write_entrypoint(event_dir)
+        gd.write_entrypoint(event_dir, "preToolUse")
         (event_dir / "_manifest.json").write_text('{"event":"preToolUse"}\n', encoding="utf-8")
         env = dict(__import__("os").environ)
         env["CLAUDE_PLUGIN_ROOT"] = str(root)
@@ -188,43 +188,21 @@ class TestEmit:
         assert "hook-dispatch-entrypoint" in stderr
         assert "fail-closed" in stderr
 
-    def test_generated_entrypoint_oversized_stdin_fails_closed(self, tmp_path):
-        root = tmp_path / "plugin"
-        (root / ".claude-plugin").mkdir(parents=True)
-        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
-        lib = root / "lib"
-        lib.mkdir()
-        (lib / "hook_dispatch.py").write_text(
-            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
-        event_dir = root / "hooks" / "preToolUse"
-        event_dir.mkdir(parents=True)
-        (event_dir / "_bootstrap.py").write_text(
-            "import os, sys\n"
-            "from pathlib import Path\n"
-            "def ensure_plugin_paths():\n"
-            "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
-            "    sys.path.insert(0, str(lib))\n",
-            encoding="utf-8",
-        )
-        gd.write_entrypoint(event_dir)
-        gd.write_manifest(event_dir, "preToolUse", [])
-        env = dict(__import__("os").environ)
-        env["CLAUDE_PLUGIN_ROOT"] = str(root)
+    def test_generated_entrypoint_below_ceiling_allows_unmatched(self, tmp_path):
+        # Contract change (#3074, ADR-066): the ceiling was raised from 2 MiB to a
+        # genuine-anomaly cap (64 MiB). A ~2 MiB payload that the old cap DENIED is
+        # now below the ceiling, so it proceeds to run_dispatch; with no registered
+        # shim (an unmatched tool) the dispatcher allows it (exit 0). This flips the
+        # former test_generated_entrypoint_oversized_stdin_fails_closed, which
+        # asserted the same 2 MiB payload was denied (exit 2).
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
 
-        proc = subprocess.run(
-            [sys.executable, "-u", str(event_dir / "_dispatch.py")],
-            input=b"{" + b'"x":"' + (b"a" * (2 * 1024 * 1024)) + b'"}',
-            capture_output=True,
-            env=env,
-            timeout=30,
-        )
+        payload = b'{"x":"' + (b"a" * (2 * 1024 * 1024)) + b'"}'
+        proc = _run_dispatch_entry(root, event_dir, payload)
 
-        assert proc.returncode == 2
-        stderr = proc.stderr.decode()
-        assert "stdin exceeds 2097152 bytes" in stderr
-        assert "fail-closed" in stderr
+        assert proc.returncode == 0, proc.stderr.decode()
+        assert b"exceeds" not in proc.stderr
 
     def test_generated_entrypoint_invalid_timeout_manifest_fails_closed(self, tmp_path):
         root = tmp_path / "plugin"
@@ -246,7 +224,7 @@ class TestEmit:
             "    sys.path.insert(0, str(lib))\n",
             encoding="utf-8",
         )
-        gd.write_entrypoint(event_dir)
+        gd.write_entrypoint(event_dir, "preToolUse")
         gd.write_manifest(event_dir, "preToolUse", ["a.py"], {"a.py": 0})
         env = dict(__import__("os").environ)
         env["CLAUDE_PLUGIN_ROOT"] = str(root)
@@ -260,7 +238,26 @@ class TestEmit:
         )
 
         assert proc.returncode == 2
-        assert "manifest timeout for a.py must be positive" in proc.stderr.decode()
+        assert "manifest timeout for 'a.py' must be positive" in proc.stderr.decode()
+
+    def test_generated_entrypoint_validates_mode_before_shim_entries(self, tmp_path):
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+        manifest = {
+            "event": "preToolUse",
+            "mode": "bogus",
+            "shims": [7],
+            "timeouts": {},
+        }
+        (event_dir / "_manifest.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        assert proc.returncode == 2
+        assert "manifest field 'mode'" in proc.stderr.decode()
+        assert "must contain strings" not in proc.stderr.decode()
 
     def test_generated_pretooluse_observe_manifest_fails_closed(self, tmp_path):
         root, event_dir = _stage_plugin(tmp_path, "preToolUse")
@@ -296,16 +293,36 @@ def _stage_plugin(tmp_path, event):
     return root, event_dir
 
 
-def _run_dispatch_entry(root, event_dir):
+def _run_dispatch_entry(root, event_dir, payload=b'{"tool_name":"X"}'):
     env = dict(__import__("os").environ)
     env["CLAUDE_PLUGIN_ROOT"] = str(root)
     return subprocess.run(
         [sys.executable, "-u", str(event_dir / "_dispatch.py")],
-        input=b'{"tool_name":"X"}',
+        input=payload,
         capture_output=True,
         env=env,
         timeout=30,
     )
+
+
+# Genuine-anomaly ceiling mirrored from the generated entrypoint
+# (build/scripts/generate_dispatcher.py: ``_MAX_STDIN_BYTES = 64 * 1024 * 1024``,
+# #3074, ADR-066). At or below it, payloads dispatch normally; above it a gate
+# event denies (exit 2) and an observe event allows (exit 0). TestCeilingConstant
+# guards this literal against drift in the generator.
+_CEILING_BYTES = 64 * 1024 * 1024
+
+
+def _payload_with_size(size: int) -> bytes:
+    """Return a hook payload with exactly ``size`` bytes.
+
+    The long ``b"P"`` run and fake ``tool_input`` are distinctive markers used
+    by no-leak assertions.
+    """
+    head = b'{"tool_name":"apply_patch","tool_input":"'
+    tail = b'"}'
+    pad = b"P" * (size - len(head) - len(tail))
+    return head + pad + tail
 
 
 class TestObserveMode:
@@ -416,6 +433,118 @@ class TestObserveMode:
         assert proc.returncode == 0, proc.stderr.decode()
         assert marker.is_file(), "dispatcher returned before the observer finished"
         assert elapsed >= 1.0, "per-shim timeout metadata was enforced inside dispatcher"
+
+
+class TestOversizeCeiling:
+    """Runtime-contract coverage for the genuine-anomaly ceiling (#3074, ADR-066).
+
+    These run the GENERATED entrypoint as a subprocess under the verified
+    plugin-root contract (not a string match against the generator). The
+    load-bearing security property: an oversize payload is denied (gate) or
+    allowed (observe) WITHOUT the payload bytes reaching stderr or stdout.
+    """
+
+    def test_exact_ceiling_allows_unmatched_payload(self, tmp_path):
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+
+        proc = _run_dispatch_entry(
+            root,
+            event_dir,
+            _payload_with_size(_CEILING_BYTES),
+        )
+
+        assert proc.returncode == 0, proc.stderr.decode()
+        assert b"exceeds" not in proc.stderr
+
+    def test_above_ceiling_gate_denies_without_leaking_payload(self, tmp_path):
+        # A payload past the ceiling on a gate event fails closed (exit 2). The
+        # registered shim must NOT run (entrypoint returns before run_dispatch),
+        # and no payload content may reach stderr or stdout.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        ran = tmp_path / "guard_ran"
+        (event_dir / "guard.py").write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            f"Path(r'{ran}').write_text('ran', encoding='utf-8')\n"
+            "sys.exit(2)\n",
+            encoding="utf-8",
+        )
+        gd.emit_dispatcher(event_dir, "preToolUse", ["guard.py"], 5, mode="gate")
+
+        proc = _run_dispatch_entry(
+            root, event_dir, _payload_with_size(_CEILING_BYTES + 1)
+        )
+
+        assert proc.returncode == 2, proc.stderr.decode()
+        assert not ran.is_file(), "a shim ran on oversize; deny must precede dispatch"
+        # Loud, names the event, keeps the raised byte count and the deny verdict.
+        assert b"exceeds" in proc.stderr
+        assert str(_CEILING_BYTES).encode() in proc.stderr
+        assert b"denying (fail-closed)" in proc.stderr
+        assert b"preToolUse" in proc.stderr
+        # No payload content (tool_input / args) leaked to either stream.
+        for stream in (proc.stderr, proc.stdout):
+            assert b"P" * 4096 not in stream
+            assert b"apply_patch" not in stream
+            assert b"tool_input" not in stream
+
+    def test_dispatcher_forwards_full_payload_below_ceiling(self, tmp_path):
+        # A payload above the old 2 MiB cap but below the new ceiling reaches a
+        # registered shim intact. Generated matcher shims can still apply their
+        # own size policy after the dispatcher forwards the stream.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        seen = tmp_path / "seen_len"
+        (event_dir / "guard.py").write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "data = sys.stdin.buffer.read()\n"
+            f"Path(r'{seen}').write_text(str(len(data)), encoding='utf-8')\n"
+            "sys.exit(2)\n",
+            encoding="utf-8",
+        )
+        gd.emit_dispatcher(event_dir, "preToolUse", ["guard.py"], 5, mode="gate")
+
+        big = b"Q" * (3 * 1024 * 1024)
+        payload = b'{"tool_name":"apply_patch","tool_input":"' + big + b'"}'
+        proc = _run_dispatch_entry(root, event_dir, payload)
+
+        assert proc.returncode == 2, proc.stderr.decode()
+        assert seen.read_text(encoding="utf-8") == str(
+            len(payload)
+        ), "guard did not see the full payload"
+
+    def test_observe_allows_on_oversize(self, tmp_path):
+        # An observe event never gates: an oversize payload is allowed (exit 0),
+        # still logged loudly, and no shim runs on the truncated buffer.
+        root, event_dir = _stage_plugin(tmp_path, "postToolUse")
+        ran = tmp_path / "observer_ran"
+        (event_dir / "obs.py").write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            f"Path(r'{ran}').write_text('ran', encoding='utf-8')\n"
+            "sys.exit(0)\n",
+            encoding="utf-8",
+        )
+        gd.emit_dispatcher(event_dir, "postToolUse", ["obs.py"], 5, mode="observe")
+
+        proc = _run_dispatch_entry(
+            root, event_dir, _payload_with_size(_CEILING_BYTES + 1)
+        )
+
+        assert proc.returncode == 0, proc.stderr.decode()
+        assert not ran.is_file(), "an observer ran on oversize; allow must precede dispatch"
+        assert b"exceeds" in proc.stderr  # loud even when allowing
+        for stream in (proc.stderr, proc.stdout):
+            assert b"P" * 4096 not in stream
+
+
+class TestCeilingConstant:
+    def test_entrypoint_embeds_raised_ceiling(self):
+        # The generated entrypoint must carry the raised ceiling verbatim (#3074).
+        # Guards against a silent regression to the old 2 MiB cap.
+        assert "_MAX_STDIN_BYTES = 64 * 1024 * 1024" in gd._ENTRYPOINT
+        assert "_MAX_STDIN_BYTES = 2 * 1024 * 1024" not in gd._ENTRYPOINT
 
 
 class TestShimBasename:
@@ -688,3 +817,126 @@ class TestConsolidate:
     def test_consolidate_handles_empty_event(self, tmp_path):
         out = {"PreToolUse": []}
         assert gd.consolidate(out, tmp_path) == {"PreToolUse": []}
+
+
+class TestPostMergeHardening:
+    """Dispatcher hardening ported from PR #3097 (issue #3200).
+
+    Each test runs the GENERATED entrypoint as a subprocess under the verified
+    plugin-root contract, so it exercises the emitted ``_dispatch.py`` rather
+    than a string match against the generator template.
+    """
+
+    def _write_manifest(self, event_dir, manifest):
+        (event_dir / "_manifest.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+    def test_matching_event_dispatches(self, tmp_path):
+        # Positive: a manifest whose event equals the generated event runs.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        assert proc.returncode == 0, proc.stderr.decode()
+
+    def test_mismatched_event_fails_closed(self, tmp_path):
+        # Negative (#3200 defect 1): flipping the manifest event to another
+        # event with observe mode must be rejected before mode selection, so a
+        # gate dispatcher cannot be rebound into fail-open behavior.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {"event": "postToolUse", "mode": "observe", "shims": []},
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        stderr = proc.stderr.decode()
+        assert proc.returncode == 2, stderr
+        assert "must equal the generated event" in stderr
+        assert "'preToolUse'" in stderr
+
+    def test_boolean_timeout_rejected(self, tmp_path):
+        # Negative (#3200 defect 2): int(True) is 1; a boolean timeout must be
+        # rejected, not coerced.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", ["a.py"], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {
+                "event": "preToolUse",
+                "mode": "gate",
+                "shims": ["a.py"],
+                "timeouts": {"a.py": True},
+            },
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        stderr = proc.stderr.decode()
+        assert proc.returncode == 2, stderr
+        assert "non-boolean integer" in stderr
+
+    @pytest.mark.parametrize("bad_timeout", [1.5, "5", [5]])
+    def test_non_integer_timeout_rejected(self, tmp_path, bad_timeout):
+        # Negative (#3200 defect 2): float, numeric string, and list timeouts
+        # must all reject rather than coerce.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", ["a.py"], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {
+                "event": "preToolUse",
+                "mode": "gate",
+                "shims": ["a.py"],
+                "timeouts": {"a.py": bad_timeout},
+            },
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        stderr = proc.stderr.decode()
+        assert proc.returncode == 2, stderr
+        assert "non-boolean integer" in stderr
+
+    def test_valid_integer_timeout_accepted(self, tmp_path):
+        # Positive edge: a positive non-boolean integer timeout is accepted and
+        # the dispatcher proceeds (no registered shim => unmatched => allow).
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {
+                "event": "preToolUse",
+                "mode": "gate",
+                "shims": [],
+                "timeouts": {},
+            },
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        assert proc.returncode == 0, proc.stderr.decode()
+
+    def test_oversized_manifest_value_stderr_is_bounded(self, tmp_path):
+        # Edge (#3200 defect 4): a huge manifest-controlled event value must not
+        # produce unbounded stderr. The diagnostic is repr-escaped and capped.
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        gd.emit_dispatcher(event_dir, "preToolUse", [], 5, mode="gate")
+        self._write_manifest(
+            event_dir,
+            {"event": "Z" * 5000, "mode": "gate", "shims": []},
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        stderr = proc.stderr.decode()
+        assert proc.returncode == 2, stderr
+        assert "hook-dispatch-entrypoint" in stderr
+        assert "truncated" in stderr
+        # The 5000-char manifest value cannot flow verbatim into stderr.
+        assert len(stderr) < 2000
+        assert "Z" * 1000 not in stderr

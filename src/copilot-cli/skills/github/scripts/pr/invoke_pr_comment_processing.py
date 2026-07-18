@@ -54,21 +54,54 @@ _CODE_FENCE_PATTERN = re.compile(r"```(?:json)?\s*([\s\S]*?)```")
 def parse_findings(json_str: str) -> dict:
     """Parse AI findings JSON, stripping markdown code fences if present.
 
-    Raises SystemExit(2) on parse failure.
+    Resilience contract (Issue #3180): this function runs inside the hourly
+    ``pr-maintenance`` workflow. When the AI Quality Gate returns a WARN or PASS
+    verdict, it routinely emits an empty body or prose instead of a findings
+    object, because there is nothing to report. That case means "no actionable
+    findings," which is success, not a config error.
+
+    So empty, whitespace-only, unparseable, or non-object input returns
+    ``{"comments": []}`` (a benign no-op) rather than raising. Failing here would
+    fail the whole scheduled run over one PR's benign non-JSON AI output. Prefer
+    resilience over strictness. A genuine config error (missing plugin lib) still
+    exits 2 at import time; parsing AI output does not.
     """
-    clean = json_str
     match = _CODE_FENCE_PATTERN.search(json_str)
-    if match:
-        clean = match.group(1).strip()
+    clean = match.group(1).strip() if match else json_str.strip()
+
+    # Empty or whitespace-only after fence stripping: the AI reported nothing.
+    if not clean:
+        print(
+            "No AI findings payload (empty/whitespace); treating as no "
+            "actionable findings (no-op).",
+            file=sys.stderr,
+        )
+        return {"comments": []}
 
     try:
-        parsed: dict = json.loads(clean)
-        return parsed
+        parsed = json.loads(clean)
     except json.JSONDecodeError as exc:
         preview = json_str[:500] if len(json_str) > 500 else json_str
-        print(f"Failed to parse AI findings JSON: {exc}", file=sys.stderr)
-        logger.debug("Raw JSON (first 500 chars): %s", preview)
-        raise SystemExit(2) from exc
+        print(
+            "WARNING: AI findings were not valid JSON; treating as no "
+            f"actionable findings (no-op). Detail: {exc}",
+            file=sys.stderr,
+        )
+        logger.debug("Raw AI findings (first 500 chars): %s", preview)
+        return {"comments": []}
+
+    # Well-formed JSON that is not a findings object (a list, string, number)
+    # cannot carry a "comments" array; treat it as a no-op instead of letting a
+    # downstream ``.get`` crash the run.
+    if not isinstance(parsed, dict):
+        print(
+            "WARNING: AI findings JSON was not an object; treating as no "
+            "actionable findings (no-op).",
+            file=sys.stderr,
+        )
+        return {"comments": []}
+
+    return parsed
 
 
 # ---------------------------------------------------------------------------

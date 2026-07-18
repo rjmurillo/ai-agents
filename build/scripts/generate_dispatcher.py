@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from generate_hooks_body import is_shimmed
+from generate_hooks_shim import HOOK_STDIN_CEILING_MIB
 from regen_guard import detect_reason_strict as regen_detect_reason
 
 # Mirror contract from build/scripts/generate_hooks_emit.py::_build_copilot_entry:
@@ -79,8 +80,116 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _bootstrap import ensure_plugin_paths  # noqa: E402
 
-_MAX_STDIN_BYTES = 2 * 1024 * 1024
+# Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
+# apply_patch calls can cross a few MiB, and no measured host maximum exists.
+# Below this independent operating limit, unmatched tools allow and registered
+# shims enforce their own matcher and replay policies. Above it, gate events deny
+# and observe events allow without dispatching a truncated payload.
+_MAX_STDIN_BYTES = __HOOK_STDIN_CEILING_MIB__ * 1024 * 1024
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
+# The event this dispatcher was generated for, baked in at generation time.
+# The manifest 'event' must equal it exactly before any mode selection, so
+# editing the manifest cannot rebind a gate dispatcher to an observer event
+# and convert a fail-closed gate into fail-open behavior (#3200, #3074).
+_GENERATED_EVENT = __GENERATED_EVENT__
+# Bound manifest-controlled diagnostics. repr() escapes control characters
+# (no log injection, CWE-117) and the cap prevents an oversized manifest value
+# from emitting unbounded stderr (CWE-400). #3200.
+_MAX_DIAG_CHARS = 512
+
+
+def _diag(value):
+    text = repr(value)
+    if len(text) > _MAX_DIAG_CHARS:
+        return text[:_MAX_DIAG_CHARS] + "...(truncated)"
+    return text
+
+
+def _manifest_event(manifest):
+    event = manifest.get("event")
+    if not isinstance(event, str):
+        raise TypeError("manifest field 'event' must be a string")
+    if event != _GENERATED_EVENT:
+        raise ValueError(
+            "manifest field 'event' must equal the generated event "
+            + _diag(_GENERATED_EVENT)
+            + ", got "
+            + _diag(event)
+        )
+    return event
+
+
+def _manifest_shims(manifest):
+    shims = manifest["shims"]
+    if not isinstance(shims, list):
+        raise TypeError("manifest field 'shims' must be a list")
+    return shims
+
+
+def _manifest_short_circuit(manifest, event):
+    # Default to gate so an older manifest fails closed (ADR-066).
+    mode = manifest.get("mode", "gate")
+    if mode not in ("gate", "observe"):
+        raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
+    expected_mode = "gate" if event in _GATE_EVENTS else "observe"
+    if mode != expected_mode:
+        raise ValueError(
+            f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
+        )
+    return mode == "gate"
+
+
+def _manifest_timeouts(manifest, shims):
+    # Metadata supports host budgeting. The host owns the process timeout.
+    timeouts = manifest.get("timeouts", {})
+    if not isinstance(timeouts, dict):
+        raise TypeError("manifest field 'timeouts' must be a dict when present")
+    shim_timeouts = {}
+    for shim in shims:
+        if not isinstance(shim, str):
+            raise TypeError("manifest field 'shims' must contain strings")
+        if shim not in timeouts:
+            continue
+        timeout_value = timeouts[shim]
+        # Accept only a positive, non-boolean JSON integer. int(True) is 1 and
+        # int(3.9)/int("5") silently coerce, so a bool, float, or numeric string
+        # must be rejected rather than coerced (#3200).
+        if isinstance(timeout_value, bool) or not isinstance(timeout_value, int):
+            raise TypeError(
+                "manifest timeout for " + _diag(shim)
+                + " must be a non-boolean integer, got " + _diag(timeout_value)
+            )
+        if timeout_value <= 0:
+            raise ValueError(
+                "manifest timeout for " + _diag(shim) + " must be positive"
+            )
+        shim_timeouts[shim] = timeout_value
+    return shim_timeouts
+
+
+def _load_manifest(event_dir):
+    manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
+    event = _manifest_event(manifest)
+    shims = _manifest_shims(manifest)
+    short_circuit = _manifest_short_circuit(manifest, event)
+    return event, shims, _manifest_timeouts(manifest, shims), short_circuit
+
+
+def _read_payload(event, shims, short_circuit):
+    raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
+    if len(raw) <= _MAX_STDIN_BYTES:
+        return raw, None
+    verdict = (
+        "denying (fail-closed)"
+        if short_circuit
+        else "allowing (observe mode does not gate)"
+    )
+    print(
+        f"hook-dispatch-entrypoint: stdin exceeds {_MAX_STDIN_BYTES} bytes "
+        f"for event {_diag(event)} shims={_diag(shims)}; {verdict}",
+        file=sys.stderr,
+    )
+    return raw, 2 if short_circuit else 0
 
 
 def _main() -> int:
@@ -89,48 +198,15 @@ def _main() -> int:
         from hook_dispatch import run_dispatch  # noqa: E402
 
         event_dir = Path(__file__).resolve().parent
-        manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
-        event = manifest.get("event")
-        if not isinstance(event, str):
-            raise TypeError("manifest field 'event' must be a string")
-        shims = manifest["shims"]
-        if not isinstance(shims, list):
-            raise TypeError("manifest field 'shims' must be a list")
-        # mode selects gate (short_circuit, fail-closed) vs observe (run all,
-        # never gate). Default to gate when absent so an older manifest fails
-        # closed (ADR-066) rather than silently dropping a guard.
-        mode = manifest.get("mode", "gate")
-        if mode not in ("gate", "observe"):
-            raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
-        expected_mode = "gate" if event in _GATE_EVENTS else "observe"
-        if mode != expected_mode:
-            raise ValueError(
-                f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
-            )
-        short_circuit = mode == "gate"
-        # Validate timeout metadata so malformed manifests fail closed. Do not
-        # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
-        # timed-out thread, and the host already owns this process timeout.
-        timeouts = manifest.get("timeouts", {})
-        if not isinstance(timeouts, dict):
-            raise TypeError("manifest field 'timeouts' must be a dict when present")
-        shim_timeouts = {}
-        for shim in shims:
-            if not isinstance(shim, str):
-                raise TypeError("manifest field 'shims' must contain strings")
-            if shim not in timeouts:
-                continue
-            timeout_sec = int(timeouts[shim])
-            if timeout_sec <= 0:
-                raise ValueError(f"manifest timeout for {shim} must be positive")
-            shim_timeouts[shim] = timeout_sec
-        raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
-        if len(raw) > _MAX_STDIN_BYTES:
-            raise ValueError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")
+        event, shims, shim_timeouts, short_circuit = _load_manifest(event_dir)
+        raw, oversize_exit = _read_payload(event, shims, short_circuit)
+        if oversize_exit is not None:
+            return oversize_exit
         return run_dispatch(event_dir, shims, raw, shim_timeouts, short_circuit=short_circuit)
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
         print(
-            f"hook-dispatch-entrypoint: {type(exc).__name__}: {exc}; denying (fail-closed)",
+            f"hook-dispatch-entrypoint: {type(exc).__name__}: "
+            f"{_diag(str(exc))}; denying (fail-closed)",
             file=sys.stderr,
         )
         return 2
@@ -138,17 +214,99 @@ def _main() -> int:
 
 sys.exit(_main())
 '''
+_ENTRYPOINT = _ENTRYPOINT.replace(
+    "__HOOK_STDIN_CEILING_MIB__", str(HOOK_STDIN_CEILING_MIB)
+)
 
 
-def dispatcher_entry(event: str, timeout_sec: int) -> dict[str, Any]:
-    """Return the single hooks.json entry that registers the event dispatcher."""
-    return {
+def dispatcher_entry(
+    event: str, timeout_sec: int, matcher: str | None = None
+) -> dict[str, Any]:
+    """Return the single hooks.json entry that registers the event dispatcher.
+
+    ``matcher`` (when not ``None``) is emitted on the entry so hosts with
+    host-side matcher filtering skip the dispatcher spawn entirely for
+    non-matching tool calls. Verified empirically on Copilot CLI 1.0.71
+    (issue #3075 probe): a PascalCase ``PreToolUse`` entry with matcher
+    ``Bash`` fired on a bash tool call while ``Edit|Write`` and ``view``
+    entries never spawned. Hosts without matcher support ignore the field
+    and fall back to the dispatcher's in-process filtering (unchanged).
+    """
+    entry: dict[str, Any] = {
         "bash": _BASH_TEMPLATE.format(event=event),
         "cwd": ".",
         "powershell": _PWSH_TEMPLATE.format(event=event),
         "timeoutSec": timeout_sec,
         "type": "command",
     }
+    if matcher:
+        entry["matcher"] = matcher
+    return entry
+
+
+# Events whose entries accept a host-side matcher per the Copilot hooks
+# reference (docs.github.com/en/copilot/reference/hooks-reference,
+# "Matcher filtering"), in this generator's PascalCase event names.
+_MATCHER_EVENTS = frozenset({"PreToolUse", "PostToolUse"})
+
+# Claude core tool names whose Copilot runtime mapping is documented
+# ("Tool names for hook matching"). Only these may appear in an emitted
+# host-side matcher union: an unknown token (an MCP tool name, a custom
+# regex) could silently never match the runtime name, which would turn a
+# registered guard into a dead hook on Copilot. Reduction fails open to
+# "no matcher" (dispatcher fires on every call, in-process filter decides,
+# exactly the pre-#3075 behavior).
+_KNOWN_CLAUDE_TOOLS = frozenset(
+    {"Bash", "Edit", "Write", "Read", "Grep", "Glob", "Task", "Agent", "WebFetch"}
+)
+
+_TOOL_TOKEN_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+_COMMAND_SCOPED_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_]*)\(")
+_ANCHORED_ALT_RE = re.compile(r"^\^\((.*)\)\$$")
+
+
+def _matcher_tool_tokens(matcher: str | None) -> list[str] | None:
+    """Reduce one Claude matcher to the tool names it can fire for.
+
+    Returns ``None`` when the matcher cannot be safely reduced (empty,
+    wildcard, or any token outside ``_KNOWN_CLAUDE_TOOLS``).
+    """
+    if not matcher or matcher in ("*", "**"):
+        return None
+    text = str(matcher)
+    command_scoped = _COMMAND_SCOPED_RE.match(text)
+    if command_scoped:
+        tool = command_scoped.group(1)
+        return [tool] if tool in _KNOWN_CLAUDE_TOOLS else None
+    anchored = _ANCHORED_ALT_RE.match(text)
+    inner = anchored.group(1) if anchored else text
+    tokens = inner.split("|")
+    if all(
+        _TOOL_TOKEN_RE.match(token) and token in _KNOWN_CLAUDE_TOOLS
+        for token in tokens
+    ):
+        return tokens
+    return None
+
+
+def event_matcher_union(event: str, matchers: list[str | None]) -> str | None:
+    """Compute the host-side matcher union for one event's shim matchers.
+
+    Returns a ``|``-joined union of tool names when EVERY registered shim's
+    matcher reduces to known tools, else ``None`` (emit no matcher; the
+    dispatcher fires on every call and filters in-process).
+    """
+    if event not in _MATCHER_EVENTS:
+        return None
+    union: list[str] = []
+    for matcher in matchers:
+        tokens = _matcher_tool_tokens(matcher)
+        if tokens is None:
+            return None
+        for token in tokens:
+            if token not in union:
+                union.append(token)
+    return "|".join(union) if union else None
 
 
 def write_manifest(
@@ -209,10 +367,17 @@ def _copy_bootstrap(event_dir: Path) -> Path:
     return dest
 
 
-def write_entrypoint(event_dir: Path) -> Path:
-    """Write the dispatcher entrypoint next to the shims; return its path."""
+def write_entrypoint(event_dir: Path, event: str) -> Path:
+    """Write the dispatcher entrypoint next to the shims; return its path.
+
+    ``event`` is baked into the entrypoint as ``_GENERATED_EVENT`` (via a
+    ``repr`` so any event string is a safe Python literal), so the generated
+    dispatcher rejects any manifest whose ``event`` field differs from the
+    event it was generated for before any mode selection (#3200).
+    """
     entry_path = event_dir / "_dispatch.py"
-    entry_path.write_text(_ENTRYPOINT, encoding="utf-8")
+    source = _ENTRYPOINT.replace("__GENERATED_EVENT__", repr(event))
+    entry_path.write_text(source, encoding="utf-8")
     return entry_path
 
 
@@ -224,6 +389,7 @@ def emit_dispatcher(
     shim_timeouts: dict[str, int] | None = None,
     *,
     mode: str = "gate",
+    matcher: str | None = None,
 ) -> dict[str, Any]:
     """Write manifest + entrypoint + bootstrap and return the hooks.json entry.
 
@@ -231,12 +397,13 @@ def emit_dispatcher(
     replaces, so the consolidated entry preserves the cumulative budget from
     the separate host invocations. ``mode`` is ``"gate"`` (``PreToolUse``,
     fail-closed short-circuit) or ``"observe"`` (all shims run, never gate).
+    ``matcher`` (optional) is the host-side tool-name union for the entry.
     """
     _remove_stale_matcher_shims(event_dir, shim_names)
     write_manifest(event_dir, event, shim_names, shim_timeouts, mode=mode)
-    write_entrypoint(event_dir)
+    write_entrypoint(event_dir, event)
     _copy_bootstrap(event_dir)
-    return dispatcher_entry(event, timeout_sec)
+    return dispatcher_entry(event, timeout_sec, matcher)
 
 
 # Tool-gating events short-circuit on the first denial (fail-closed). Every
@@ -379,6 +546,11 @@ def consolidate(
         shim_names = [name for name, _ in shim_entries]
         shim_timeouts = dict(shim_entries)
         timeout = sum(timeout_sec for _, timeout_sec in shim_entries)
+        matchers = [
+            entry.get("claudeMatcher")
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
         event_dir = Path(hooks_dir) / event
         new_out[event] = [
             emit_dispatcher(
@@ -388,6 +560,7 @@ def consolidate(
                 timeout,
                 shim_timeouts,
                 mode=_mode_for_event(event),
+                matcher=event_matcher_union(event, matchers),
             )
         ]
     return new_out

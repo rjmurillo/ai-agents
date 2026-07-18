@@ -249,6 +249,12 @@ ZERO="0000000000000000000000000000000000000000"
 CHANGED_FILES=""
 PUSH_RANGE=""
 PUSH_BRANCH=""
+# Destination (remote) branch of the push. For `git push origin HEAD:other` the
+# local and remote branch names differ, and PR policy (the commit-limit-bypass
+# label) lives on the PR whose head is the REMOTE branch, not the local one
+# (Issue #3110). Kept separate from PUSH_BRANCH so the bypass-label lookup can
+# prefer the destination branch while other checks keep using the local range.
+PUSH_REMOTE_BRANCH=""
 REFS_PROCESSED=0
 # Store each ref's base and head for per-ref validation (plugin version bump)
 PVB_BASES=()
@@ -312,6 +318,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     case "$local_ref" in
         refs/heads/*)
             PUSH_BRANCH="${local_ref#refs/heads/}"
+            ;;
+    esac
+    case "$remote_ref" in
+        refs/heads/*)
+            PUSH_REMOTE_BRANCH="${remote_ref#refs/heads/}"
+            ;;
+        *)
+            PUSH_REMOTE_BRANCH=""
             ;;
     esac
 
@@ -394,11 +408,14 @@ CHANGED_AGENT_DRIFT_INPUTS=$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+
 # Hook-anchoring relevant paths (#2205): generator, both plugin hook files,
 # the project-mode settings source, the anchoring gate, and the e2e itself.
 # A change to any forces the real-CLI e2e (resolution under the live contract).
-CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\.py|src/copilot-cli/hooks/|\.claude/hooks/|\.claude/settings\.json|scripts/validation/validate_hook_anchoring\.py|tests/e2e/test_cli_hook_e2e\.py)' || true)
+# copilot_hook_probe.py is the shared fired-hook probe imported by the CLI hook
+# e2e and the plugin-load smoke (#3179); editing it alone must retrigger both.
+CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\.py|src/copilot-cli/hooks/|\.claude/hooks/|\.claude/settings\.json|scripts/validation/validate_hook_anchoring\.py|tests/e2e/test_cli_hook_e2e\.py|tests/e2e/copilot_hook_probe\.py)' || true)
 # Plugin-load relevant paths (#2736): sources, generated skill mirrors, plugin
 # manifests, generators, and the smoke itself. A change to any forces the real
-# CLI plugin-load smoke when a CLI is available.
-CHANGED_PLUGIN_LOAD=$(echo "$CHANGED_FILES" | grep -E '^(\.claude/(\.claude-plugin/plugin\.json|commands/|skills/)|src/copilot-cli/(\.claude-plugin/plugin\.json|skills/)|build/scripts/generate_(commands|skills)\.py|templates/platforms/copilot-cli\.yaml|tests/e2e/test_plugin_load_smoke\.py|\.github/workflows/nightly-cli-smoke\.yml)' || true)
+# CLI plugin-load smoke when a CLI is available. copilot_hook_probe.py is the
+# shared load-signal helper imported by the smoke (#3179).
+CHANGED_PLUGIN_LOAD=$(echo "$CHANGED_FILES" | grep -E '^(\.claude/(\.claude-plugin/plugin\.json|commands/|skills/)|src/copilot-cli/(\.claude-plugin/plugin\.json|skills/)|build/scripts/generate_(commands|skills)\.py|templates/platforms/copilot-cli\.yaml|tests/e2e/test_plugin_load_smoke\.py|tests/e2e/copilot_hook_probe\.py|\.github/workflows/nightly-cli-smoke\.yml)' || true)
 
 # ============================================================================
 # Phase 1: Fast Guards (< 5s)
@@ -481,9 +498,15 @@ if [ -n "$PUSH_RANGE" ]; then
         # ("Enforce Blocking Issues"). The helper fails closed: any gh error
         # leaves the limit enforced.
         if set_python_cmd; then
+            # Prefer the destination (remote) branch: the commit-limit-bypass
+            # label lives on the PR whose head is the branch being pushed TO,
+            # which differs from the local branch on a `git push origin
+            # HEAD:other` repair push (Issue #3110). Fall back to the local
+            # branch, then the checked-out branch, for same-name pushes.
+            BYPASS_BRANCH="${PUSH_REMOTE_BRANCH:-${PUSH_BRANCH:-$current_branch}}"
             BYPASS_STATUS=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
                 "${PYTHON_CMD[@]}" "$REPO_ROOT/scripts/validation/check_pr_bypass_label.py" \
-                --branch "${PUSH_BRANCH:-$current_branch}" 2>/dev/null)
+                --branch "$BYPASS_BRANCH" 2>/dev/null)
             BYPASS_EXIT=$?
         else
             BYPASS_STATUS="python unavailable; cannot check bypass label"
@@ -740,7 +763,23 @@ fi
 # gets type-checked when its files change, and sync_plugin_lib.py guarantees
 # the synced copies are byte-identical.
 if [ -n "$CHANGED_PY_CANONICAL" ]; then
-    if command -v mypy &> /dev/null; then
+    # Issue #3132: resolve mypy via uv first (the repository dev environment),
+    # then fall back to a PATH executable, matching the RUFF_CMD selector above.
+    # A uv-managed checkout without a global mypy must still run this BLOCKING
+    # type check rather than silently skip it and defer type errors to CI.
+    MYPY_CMD=()
+    MYPY_SOURCE=""
+    if command -v uv &> /dev/null \
+        && { [ -f "$REPO_ROOT/uv.lock" ] || [ -f "$REPO_ROOT/pyproject.toml" ]; } \
+        && uv run --frozen --extra dev mypy --version &> /dev/null; then
+        MYPY_CMD=(uv run --frozen --extra dev mypy)
+        MYPY_SOURCE="uv"
+    elif command -v mypy &> /dev/null; then
+        MYPY_CMD=(mypy)
+        MYPY_SOURCE="path"
+    fi
+
+    if [ ${#MYPY_CMD[@]} -gt 0 ]; then
         PY_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -797,7 +836,7 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             if [ ${#PY_FILES_UNIQUE[@]} -gt 0 ]; then
                 MYPY_OUTPUT=$(mktemp)
                 TEMP_FILES+=("$MYPY_OUTPUT")
-                if mypy "${PY_FILES_UNIQUE[@]}" > "$MYPY_OUTPUT" 2>&1; then
+                if "${MYPY_CMD[@]}" "${PY_FILES_UNIQUE[@]}" > "$MYPY_OUTPUT" 2>&1; then
                     : # pass; aggregate recorded below
                 else
                     echo_info "  mypy issues (unique files):"
@@ -811,7 +850,7 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             for col_file in "${PY_FILES_COLLIDING[@]}"; do
                 MYPY_OUTPUT=$(mktemp)
                 TEMP_FILES+=("$MYPY_OUTPUT")
-                if mypy "$col_file" > "$MYPY_OUTPUT" 2>&1; then
+                if "${MYPY_CMD[@]}" "$col_file" > "$MYPY_OUTPUT" 2>&1; then
                     : # pass; aggregate recorded below
                 else
                     echo_info "  mypy issues in a colliding-basename file:"
@@ -829,7 +868,7 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
                 MYPY_OUTPUT=$(mktemp)
                 TEMP_FILES+=("$MYPY_OUTPUT")
                 if MYPYPATH="$REPO_ROOT/scripts/validation${MYPYPATH:+:$MYPYPATH}" \
-                    mypy "$pm_file" > "$MYPY_OUTPUT" 2>&1; then
+                    "${MYPY_CMD[@]}" "$pm_file" > "$MYPY_OUTPUT" 2>&1; then
                     : # pass; aggregate recorded below
                 else
                     echo_info "  mypy issues in a scripts/validation module:"
@@ -840,7 +879,7 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             done
 
             if [ "$MYPY_OVERALL_PASS" = true ]; then
-                record_pass "Python type check/mypy (${#PY_FILES[@]} files)"
+                record_pass "Python type check/mypy (${#PY_FILES[@]} files via ${MYPY_SOURCE})"
             else
                 record_fail "Python type check/mypy"
                 echo_info "  Fix type errors before pushing."
@@ -849,7 +888,11 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             record_skip "Python type check (no accessible files)"
         fi
     else
-        record_skip "Python type check (mypy not installed)"
+        # Neither uv-managed mypy nor a PATH mypy is reachable. This is a
+        # BLOCKING phase (Issue #3132): a uv checkout that cannot resolve mypy
+        # is an environment bug, not a reason to silently drop the type check.
+        record_fail "Python type check (mypy unavailable via uv or PATH)"
+        echo_info "  Install: uv sync --extra dev (or pip install mypy)"
     fi
 else
     record_skip "Python type check (no .py files changed)"

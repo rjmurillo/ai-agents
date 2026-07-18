@@ -12631,6 +12631,240 @@
       "created": "2026-07-14T04:09:24.920948+00:00"
     },
     {
+      "id": "d5c52ce0d7e2",
+      "type": "decision",
+      "label": "implementation: User chose to keep Graphify local, then requested its repository changes be reverted. Restored CLAUDE.md, .claude/CLAUDE.md, and .claude/settings.json, and moved both untracked Graphify skill trees into the session artifact backup.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608391+00:00"
+    },
+    {
+      "id": "8f70748af9e4",
+      "type": "milestone",
+      "label": "milestone: Reviewed all pending files. Separated Graphify installer output, a superseded CVA draft, Serena-generated config drift, three empty retrospective stubs, and four evidence-backed memories.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608447+00:00"
+    },
+    {
+      "id": "749a7b27109d",
+      "type": "milestone",
+      "label": "milestone: User chose to keep Graphify local, then requested its repository changes be reverted. Restored CLAUDE.md, .claude/CLAUDE.md, and .claude/settings.json, and moved both untracked Graphify skill trees into the session artifact backup.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608493+00:00"
+    },
+    {
+      "id": "58c5150cba67",
+      "type": "milestone",
+      "label": "milestone: Verified the CVA draft regresses content already merged on origin/main, the Serena project.yml edit is generated schema drift, and the three auto-retrospectives are unfilled or superseded. None warrants a PR.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608537+00:00"
+    },
+    {
+      "id": "de12f14cf5b6",
+      "type": "milestone",
+      "label": "milestone: Verified four Serena memories are absent from origin/main, contain no prohibited dashes, and cite merged implementation evidence from issues or pull requests #2468, #2707, #2710, and #2168.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608581+00:00"
+    },
+    {
+      "id": "5e1c71f2b2d4",
+      "type": "milestone",
+      "label": "milestone: Created and claimed issue #3054, then created docs/3054-memory-backfill from current origin/main for one atomic PR with five manually authored files plus the required generated episode.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608625+00:00"
+    },
+    {
+      "id": "5b5da20f95db",
+      "type": "milestone",
+      "label": "milestone: Ran scripts/redact_secrets.py against all four memories; each output matched the source byte-for-byte. Confirmed zero U+2014 and U+2013 bytes.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608676+00:00"
+    },
+    {
+      "id": "3b68c64bbacb",
+      "type": "milestone",
+      "label": "milestone: Ran memory_index.py --ci successfully, security detection reported no security-sensitive paths, and scripts/validation/pre_pr.py passed all 29 active validations.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608720+00:00"
+    },
+    {
+      "id": "1ee132f09b8a",
+      "type": "milestone",
+      "label": "milestone: Committed the four memory records as 23835075de286d5ac27bc466f545bf9584596c7c, preserving the four-file atomic boundary.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608763+00:00"
+    },
+    {
+      "id": "6dc709a39f15",
+      "type": "milestone",
+      "label": "milestone: The SHA-bound review found stale merged-state claims in the LSP memory. Verified PR #2168 merge commit 96aafb4fa, added the read tracker, and corrected both landed plugin versions in commit 8215ffd80596f9f73534a88b1e3c86694561f050.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608807+00:00"
+    },
+    {
+      "id": "6b86956fc92c",
+      "type": "commit",
+      "label": "commit: Commit: 8215ffd80596f9f73534a88b1e3c86694561f050",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608852+00:00"
+    },
+    {
+      "id": "d17f78428464",
+      "type": "outcome",
+      "label": "Outcome: success - Review pending Graphify installation changes and create atomic pull requests",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.608897+00:00"
+    },
+    {
+      "id": "ca97b9c4bc1b",
+      "type": "decision",
+      "label": "User chose to keep Graphify local, then requested its repository changes be reverted. Restored CLAUDE.md, .claude/CLAUDE.md, and .claude/settings.json, and moved both untracked Graphify skill trees into the session artifact backup.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.609049+00:00"
+    },
+    {
+      "id": "066bab450636",
+      "type": "milestone",
+      "label": "Verified the CVA draft regresses content already merged on origin/main, the Serena project.yml edit is generated schema drift, and the three auto-retrospectives are unfilled or superseded. None warrants a PR.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.609189+00:00"
+    },
+    {
+      "id": "31d0c60794e1",
+      "type": "milestone",
+      "label": "Created and claimed issue #3054, then created docs/3054-memory-backfill from current origin/main for one atomic PR with five manually authored files plus the required generated episode.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.609280+00:00"
+    },
+    {
+      "id": "0abd6521e8c0",
+      "type": "milestone",
+      "label": "Committed the four memory records as 23835075de286d5ac27bc466f545bf9584596c7c, preserving the four-file atomic boundary.",
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.609369+00:00"
+    },
+    {
+      "id": "1661b9bae6ea",
+      "type": "milestone",
+      "label": "milestone: Fetched origin/main after PR #3067 merged and verified five later unresolved review threads as untrusted data.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664048+00:00"
+    },
+    {
+      "id": "8e019024d728",
+      "type": "milestone",
+      "label": "milestone: Cluster analysis found no 4-thread shared-gist cluster; independent triage found two valid corrections, two historical-context clarifications, and one evidence-backed reply-only finding.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664113+00:00"
+    },
+    {
+      "id": "247edeaf0558",
+      "type": "milestone",
+      "label": "milestone: Created and claimed issue #3079, then created docs/3079-reconcile-memory-evidence from origin/main for one atomic follow-up PR.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664159+00:00"
+    },
+    {
+      "id": "672072630ffa",
+      "type": "milestone",
+      "label": "milestone: QA verified exact git provenance, source-session alignment, and minimal scope; commit 7f2bd0f992e535e028f61ef4693462beabcb28e2 passed all pre-commit gates.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664249+00:00"
+    },
+    {
+      "id": "f0ba22caacd0",
+      "type": "milestone",
+      "label": "milestone: Validated both source-derived episodes, both session records, memory indexing, 117 generator tests, and all 27 active quick pre-PR checks with no failures.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664293+00:00"
+    },
+    {
+      "id": "635381bd1b75",
+      "type": "commit",
+      "label": "commit: Commit: 7f2bd0f992e535e028f61ef4693462beabcb28e2",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664339+00:00"
+    },
+    {
+      "id": "91488d91441f",
+      "type": "outcome",
+      "label": "Outcome: success - Reconcile merged PR #3067 review evidence under issue #3079",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:16:52.664384+00:00"
+    },
+    {
+      "id": "791026181c56",
+      "type": "milestone",
+      "label": "milestone: Applied the missed session evidence correction, labeled PR #2168 evidence as historical, and force-regenerated episode 3042 to remove the stale duplicate milestone.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:27:18.056075+00:00"
+    },
+    {
+      "id": "a80622ec4e7d",
+      "type": "milestone",
+      "label": "milestone: Critic review tightened the per-thread handoff map and aligned the generated commit metric with the single deliverable commit; causal-graph dry runs reported zero changes for both corrected episodes.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T19:27:18.056215+00:00"
+    },
+    {
+      "id": "241784644fcb",
+      "type": "milestone",
+      "label": "milestone: PR #3081 review removed stale graph nodes and a dangling edge, clarified the handoff commit scope, and corrected the historical validation prose.",
+      "episodes": [
+        "episode-2026-07-15-session-3044-reconcile-merged-3067-review-evidence"
+      ],
+      "created": "2026-07-15T22:00:57.141851+00:00"
+    },
+    {
       "id": "330eb6adcd35",
       "type": "milestone",
       "label": "milestone: Refreshed PR 3103, merged origin/main, confirmed the live-state gate returned ACT, and acquired the pr-autofix lease.",
@@ -12764,6 +12998,132 @@
         "episode-2026-07-16-session-3049-close-3103-review-findings"
       ],
       "created": "2026-07-16T13:23:02.603739+00:00"
+    },
+    {
+      "id": "36f6020cee80",
+      "type": "milestone",
+      "label": "milestone: Grounded the ADR chain against the owner's #3197 decomposition",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359307+00:00"
+    },
+    {
+      "id": "9669760d82b0",
+      "type": "milestone",
+      "label": "milestone: Drafted the ADR-062 amendment for #3214",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359369+00:00"
+    },
+    {
+      "id": "28af02e4b44a",
+      "type": "milestone",
+      "label": "milestone: Authored the vendored-hook ROI bar ADR (ADR-084) for #3215",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359417+00:00"
+    },
+    {
+      "id": "a0be7f311ae4",
+      "type": "milestone",
+      "label": "milestone: Routed both ADRs through the 6-agent adr-review debate",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359464+00:00"
+    },
+    {
+      "id": "bee613604049",
+      "type": "milestone",
+      "label": "milestone: Recorded adr-review consensus and prepared the joint PR",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359509+00:00"
+    },
+    {
+      "id": "8563c7ebfd5d",
+      "type": "commit",
+      "label": "commit: Commit: 7aec838c",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359555+00:00"
+    },
+    {
+      "id": "4db6b5196175",
+      "type": "milestone",
+      "label": "milestone: Integrated upstream ADR conflict fix and addressed 5 reviewer accuracy threads on PR #3221",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359600+00:00"
+    },
+    {
+      "id": "19e98d1b549f",
+      "type": "commit",
+      "label": "commit: Commit: 16abc7b7",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359654+00:00"
+    },
+    {
+      "id": "f52aee2a4dbe",
+      "type": "milestone",
+      "label": "milestone: Renumbered vendored-hook ROI bar ADR-083 to ADR-084 and merged main into PR #3221",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359700+00:00"
+    },
+    {
+      "id": "cd7e47f068b0",
+      "type": "milestone",
+      "label": "milestone: Recorded repo-owner acceptance of the ADR-062 amendment and ADR-084",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359746+00:00"
+    },
+    {
+      "id": "8bce968419a6",
+      "type": "milestone",
+      "label": "milestone: Reconciled the session-3061 episode timeline with reviewer feedback on PR #3221",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359791+00:00"
+    },
+    {
+      "id": "c944cc045d32",
+      "type": "milestone",
+      "label": "milestone: Reconciled ADR-084 factual claim and debate-log status labels with reviewer feedback on PR #3221",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T08:07:10.478503+00:00"
+    },
+    {
+      "id": "2c5a1bd909c7",
+      "type": "commit",
+      "label": "commit: Commit: 4d31c635",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T08:17:04.368438+00:00"
+    },
+    {
+      "id": "4e86b60415e5",
+      "type": "outcome",
+      "label": "Outcome: success - Draft ADR-062 amendment (#3214) and new ADR-084 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197.",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T07:51:32.359838+00:00"
     }
   ],
   "patterns": [
@@ -12840,10 +13200,11 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 397,
+      "occurrences": 398,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
-        "episode-2026-07-13-session-3041-frontier-model"
+        "episode-2026-07-13-session-3041-frontier-model",
+        "episode-2026-07-15-session-3042"
       ]
     },
     {
@@ -13268,6 +13629,39 @@
         "episode-2026-07-13-session-3041-frontier-model"
       ],
       "created": "2026-07-14T04:09:24.920971+00:00"
+    },
+    {
+      "source": "ca97b9c4bc1b",
+      "target": "066bab450636",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.609193+00:00"
+    },
+    {
+      "source": "ca97b9c4bc1b",
+      "target": "31d0c60794e1",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.609284+00:00"
+    },
+    {
+      "source": "ca97b9c4bc1b",
+      "target": "0abd6521e8c0",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-15-session-3042"
+      ],
+      "created": "2026-07-15T19:13:40.609373+00:00"
     }
   ]
 }

@@ -21,11 +21,16 @@ from test_helpers import import_skill_script
 
 
 def make_proc(
-    stdout: str = "", stderr: str = "", returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+    returncode: int = 0,
 ) -> subprocess.CompletedProcess[str]:
     """Return a mock CompletedProcess."""
     return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr,
+        args=[],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 
@@ -54,6 +59,7 @@ def _mock_repo():
 # ---------------------------------------------------------------------------
 # get_issue_context
 # ---------------------------------------------------------------------------
+
 
 class TestGetIssueContext:
     """Tests for get_issue_context.main."""
@@ -208,6 +214,7 @@ class TestGetIssueContextMain:
 # new_issue
 # ---------------------------------------------------------------------------
 
+
 class TestNewIssue:
     """Tests for new_issue.main."""
 
@@ -218,7 +225,6 @@ class TestNewIssue:
         mod = self._import()
         proc = make_proc(stdout="https://github.com/o/r/issues/123")
         with (
-            patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
@@ -233,7 +239,6 @@ class TestNewIssue:
         mod = self._import()
         proc = make_proc(stdout="https://github.com/o/r/issues/5")
         with (
-            patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc) as mock_run,
         ):
@@ -246,7 +251,6 @@ class TestNewIssue:
         mod = self._import()
         proc = make_proc(stderr="server error", returncode=1)
         with (
-            patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
@@ -260,7 +264,6 @@ class TestNewIssue:
         mod = self._import()
         proc = make_proc(stdout="no url here", returncode=0)
         with (
-            patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
@@ -273,7 +276,6 @@ class TestNewIssue:
     def test_main_empty_title_exits_2(self, capsys):
         mod = self._import()
         with (
-            patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
         ):
             rc = mod.main(["--title", "   ", "--output-format", "json"])
@@ -285,14 +287,18 @@ class TestNewIssue:
     def test_main_body_file_not_found_exits_2(self, tmp_path, capsys):
         mod = self._import()
         with (
-            patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
         ):
-            rc = mod.main([
-                "--title", "T",
-                "--body-file", str(tmp_path / "missing.txt"),
-                "--output-format", "json",
-            ])
+            rc = mod.main(
+                [
+                    "--title",
+                    "T",
+                    "--body-file",
+                    str(tmp_path / "missing.txt"),
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 2
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
@@ -304,14 +310,17 @@ class TestNewIssue:
         body_file.write_text("file body content")
         proc = make_proc(stdout="https://github.com/o/r/issues/10")
         with (
-            patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main([
-                "--title", "Title",
-                "--body-file", str(body_file),
-            ])
+            rc = mod.main(
+                [
+                    "--title",
+                    "Title",
+                    "--body-file",
+                    str(body_file),
+                ]
+            )
         assert rc == 0
 
     def test_help_does_not_crash(self):
@@ -324,6 +333,7 @@ class TestNewIssue:
 # ---------------------------------------------------------------------------
 # post_issue_comment
 # ---------------------------------------------------------------------------
+
 
 class TestPostIssueComment:
     """Tests for post_issue_comment.main."""
@@ -381,10 +391,17 @@ class TestPostIssueComment:
             patch("subprocess.run", return_value=comments_proc),
             patch("post_issue_comment.update_issue_comment", return_value=updated),
         ):
-            rc = mod.main([
-                "--issue", "1", "--body", "new body",
-                "--marker", marker, "--update-if-exists",
-            ])
+            rc = mod.main(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "new body",
+                    "--marker",
+                    marker,
+                    "--update-if-exists",
+                ]
+            )
         assert rc == 0
         result = _extract_json(capsys.readouterr().out)
         assert result["Data"]["updated"] is True
@@ -478,6 +495,7 @@ class TestPostIssueComment:
 # set_issue_assignee
 # ---------------------------------------------------------------------------
 
+
 class TestSetIssueAssignee:
     """Tests for set_issue_assignee.main."""
 
@@ -548,6 +566,7 @@ class TestSetIssueAssignee:
 # set_issue_labels
 # ---------------------------------------------------------------------------
 
+
 class TestSetIssueLabels:
     """Tests for set_issue_labels.main."""
 
@@ -576,11 +595,14 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(returncode=1),   # _label_exists fails
-                make_proc(returncode=0),   # _create_label succeeds
-                make_proc(returncode=0),   # _apply_label succeeds
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(returncode=1),  # _label_exists fails
+                    make_proc(returncode=0),  # _create_label succeeds
+                    make_proc(returncode=0),  # _apply_label succeeds
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--labels", "new-label"])
         assert rc == 0
@@ -604,11 +626,16 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(returncode=0),                         # _label_exists
-                make_proc(returncode=0),                         # _apply_label
-                make_proc(stdout='{"labels": []}', returncode=0),  # _get_issue_labels for reconcile
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(returncode=0),  # _label_exists
+                    make_proc(returncode=0),  # _apply_label
+                    make_proc(
+                        stdout='{"labels": []}', returncode=0
+                    ),  # _get_issue_labels for reconcile
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--priority", "P1"])
         assert rc == 0
@@ -629,10 +656,13 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(returncode=0),   # _label_exists
-                make_proc(returncode=1),   # _apply_label fails
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(returncode=0),  # _label_exists
+                    make_proc(returncode=1),  # _apply_label fails
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--labels", "bug"])
@@ -643,10 +673,13 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(returncode=0),   # _label_exists
-                make_proc(returncode=1),   # _apply_label fails
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(returncode=0),  # _label_exists
+                    make_proc(returncode=1),  # _apply_label fails
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--labels", "bug"])
@@ -663,6 +696,7 @@ class TestSetIssueLabels:
 # set_issue_milestone
 # ---------------------------------------------------------------------------
 
+
 class TestSetIssueMilestone:
     """Tests for set_issue_milestone.main."""
 
@@ -674,11 +708,14 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="null"),                 # _get_current_milestone
-                make_proc(stdout="v1.0\nv2.0"),           # _get_milestone_titles
-                make_proc(returncode=0),                   # gh issue edit
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="null"),  # _get_current_milestone
+                    make_proc(stdout="v1.0\nv2.0"),  # _get_milestone_titles
+                    make_proc(returncode=0),  # gh issue edit
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--milestone", "v1.0"])
         assert rc == 0
@@ -691,10 +728,13 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="v1.0"),     # current milestone
-                make_proc(stdout="v1.0"),     # list titles
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="v1.0"),  # current milestone
+                    make_proc(stdout="v1.0"),  # list titles
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--milestone", "v1.0"])
         assert rc == 0
@@ -706,10 +746,13 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="old-ms"),            # current milestone
-                make_proc(stdout="old-ms\nnew-ms"),    # list titles
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="old-ms"),  # current milestone
+                    make_proc(stdout="old-ms\nnew-ms"),  # list titles
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--milestone", "new-ms"])
@@ -720,11 +763,14 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="old-ms"),
-                make_proc(stdout="old-ms\nnew-ms"),
-                make_proc(returncode=0),               # gh issue edit
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="old-ms"),
+                    make_proc(stdout="old-ms\nnew-ms"),
+                    make_proc(returncode=0),  # gh issue edit
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--milestone", "new-ms", "--force"])
         assert rc == 0
@@ -736,10 +782,13 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="old-ms"),   # _get_current_milestone
-                make_proc(returncode=0),       # PATCH to clear
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="old-ms"),  # _get_current_milestone
+                    make_proc(returncode=0),  # PATCH to clear
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--clear"])
         assert rc == 0
@@ -763,10 +812,13 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="null"),         # no current milestone
-                make_proc(stdout="other-ms"),     # list has different milestone
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="null"),  # no current milestone
+                    make_proc(stdout="other-ms"),  # list has different milestone
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--milestone", "missing-ms"])
@@ -793,6 +845,7 @@ class TestSetIssueMilestone:
 # invoke_copilot_assignment
 # ---------------------------------------------------------------------------
 
+
 class TestInvokeCopilotAssignment:
     """Tests for invoke_copilot_assignment helper functions and main."""
 
@@ -801,29 +854,35 @@ class TestInvokeCopilotAssignment:
 
     def test_get_maintainer_guidance_extracts_bullets(self):
         mod = self._import()
-        comments = [{
-            "user": {"login": "rjmurillo"},
-            "body": "Some text.\n- Do this important thing\n- Another requirement",
-        }]
+        comments = [
+            {
+                "user": {"login": "rjmurillo"},
+                "body": "Some text.\n- Do this important thing\n- Another requirement",
+            }
+        ]
         guidance = mod._get_maintainer_guidance(comments, ["rjmurillo"])
         assert len(guidance) >= 1
         assert any("Do this important thing" in g for g in guidance)
 
     def test_get_maintainer_guidance_must_keywords(self):
         mod = self._import()
-        comments = [{
-            "user": {"login": "rjmurillo"},
-            "body": "You MUST implement the feature. This SHOULD be done carefully.",
-        }]
+        comments = [
+            {
+                "user": {"login": "rjmurillo"},
+                "body": "You MUST implement the feature. This SHOULD be done carefully.",
+            }
+        ]
         guidance = mod._get_maintainer_guidance(comments, ["rjmurillo"])
         assert any("MUST" in g for g in guidance)
 
     def test_get_coderabbit_plan_extracts_impl(self):
         mod = self._import()
-        comments = [{
-            "user": {"login": "coderabbitai[bot]"},
-            "body": "## Implementation\nDo step 1\nDo step 2\n## Another section",
-        }]
+        comments = [
+            {
+                "user": {"login": "coderabbitai[bot]"},
+                "body": "## Implementation\nDo step 1\nDo step 2\n## Another section",
+            }
+        ]
         config_patterns = {
             "username": "coderabbitai[bot]",
             "implementation_plan": "## Implementation",
@@ -837,10 +896,12 @@ class TestInvokeCopilotAssignment:
     def test_get_ai_triage_info_extracts_priority(self):
         mod = self._import()
         marker = "<!-- AI-ISSUE-TRIAGE -->"
-        comments = [{
-            "user": {"login": "bot"},
-            "body": f"{marker}\n| **Priority** | `P1` |\n| **Category** | `bug` |",
-        }]
+        comments = [
+            {
+                "user": {"login": "bot"},
+                "body": f"{marker}\n| **Priority** | `P1` |\n| **Category** | `bug` |",
+            }
+        ]
         triage = mod._get_ai_triage_info(comments, marker)
         assert triage is not None
         assert triage["priority"] == "P1"

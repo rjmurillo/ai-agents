@@ -56,6 +56,15 @@ from generate_hooks import (  # noqa: E402
     normalize_tool_args,
     strip_shim,
 )
+from generate_hooks_shim import (  # noqa: E402
+    HOOK_STDIN_CEILING_MIB,
+    MATCHED_SHIM_PAYLOAD_LIMIT_MIB,
+)
+
+# Byte-unit conversions of the shim's policy constants, computed once so the
+# oversize-boundary tests below do not each redo `MIB * 1024 * 1024`.
+_HOOK_STDIN_CEILING_BYTES = HOOK_STDIN_CEILING_MIB * 1024 * 1024
+_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES = MATCHED_SHIM_PAYLOAD_LIMIT_MIB * 1024 * 1024
 
 # Helpers -------------------------------------------------------------------
 
@@ -104,10 +113,17 @@ def _run_shim_raw(
             ["python3", path],
             input=raw_input,
             capture_output=True,
-            timeout=20,
+            timeout=60,
         )
     finally:
         os.unlink(path)
+
+
+def _raw_json_with_size(payload: dict[str, Any], size: int) -> bytes:
+    encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    if len(encoded) > size:
+        raise ValueError(f"payload is {len(encoded)} bytes, larger than target {size}")
+    return b" " * (size - len(encoded)) + encoded
 
 
 def _write_settings(path: Path, hooks_obj: dict[str, Any]) -> Path:
@@ -272,39 +288,476 @@ _TRACE_SCRIPT = (
 )
 
 
-def test_inject_shim_caps_stdin_at_2mib():
-    """The generated shim must reject oversized stdin BEFORE delegating
-    to the wrapped script.
+def test_inject_shim_denies_one_byte_above_read_ceiling():
+    transformed = inject_shim(_TRACE_SCRIPT, "^(Write|Edit)$")
+    ceiling = _HOOK_STDIN_CEILING_BYTES
+    oversize = b" " * (ceiling + 1)
 
-    push_guard_base.MAX_STDIN_BYTES (1 MiB) only applies after the shim
-    has buffered everything; without the shim-level cap, an attacker
-    could exhaust memory before any guard logic ran (CWE-400). The shim
-    caps at _SHIM_MAX_STDIN_BYTES = 2 MiB and exits 2 with a stderr
-    explanation. PR #1887 review thread PRRT_kwDOQoWRls5_r7WA.
-    """
-    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
-    # 2 MiB + 1 byte: one over the cap. Use ASCII whitespace so the
-    # bytes are valid stdin even though we never expect json.loads to run.
-    oversize = b" " * (2 * 1024 * 1024 + 1)
     proc = _run_shim_raw(transformed, oversize)
+
     assert proc.returncode == 2
     stderr = proc.stderr.decode("utf-8", errors="replace")
     assert "stdin exceeds" in stderr
-    assert "2097152" in stderr  # _SHIM_MAX_STDIN_BYTES literal value
+    assert str(ceiling) in stderr
+    assert "malformed JSON" not in stderr
 
 
-def test_inject_shim_accepts_at_cap_boundary():
-    """Exactly at the cap is allowed; one over rejects (boundary check)."""
-    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
-    payload = json.dumps({"tool_name": "Read"}).encode("utf-8")  # no fire
-    # Pad to exactly _SHIM_MAX_STDIN_BYTES; the read uses MAX+1 so this
-    # path returns len == MAX (no overflow), shim proceeds normally.
-    pad = b" " * (2 * 1024 * 1024 - len(payload))
-    raw = pad + payload
-    assert len(raw) == 2 * 1024 * 1024
+def test_inject_shim_allows_exact_read_ceiling_when_unmatched():
+    transformed = inject_shim(_TRACE_SCRIPT, "^(Write|Edit)$")
+    ceiling = _HOOK_STDIN_CEILING_BYTES
+    raw = _raw_json_with_size(
+        {"tool_name": "apply_patch", "tool_input": {}},
+        ceiling,
+    )
+
     proc = _run_shim_raw(transformed, raw)
-    # tool_name=Read does not match ^Edit$, so shim no-ops with rc=0.
+
+    assert len(raw) == ceiling
     assert proc.returncode == 0
+    assert b"FIRED" not in proc.stdout
+
+
+def test_inject_shim_allows_payload_above_matched_limit_when_unmatched():
+    transformed = inject_shim(_TRACE_SCRIPT, "^(Write|Edit)$")
+    matched_limit = _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES
+    raw = _raw_json_with_size(
+        {"tool_name": "apply_patch", "tool_input": {}},
+        matched_limit + 1,
+    )
+
+    proc = _run_shim_raw(transformed, raw)
+
+    assert proc.returncode == 0
+    assert b"FIRED" not in proc.stdout
+    assert proc.stderr == b""
+
+
+def test_inject_shim_allows_matched_replay_at_limit():
+    transformed = inject_shim(_TRACE_SCRIPT, "^(Write|Edit)$")
+    matched_limit = _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES
+    raw = _raw_json_with_size(
+        {"tool_name": "Edit", "tool_input": {}},
+        matched_limit,
+    )
+
+    proc = _run_shim_raw(transformed, raw)
+
+    assert proc.returncode == 0, proc.stderr.decode()
+    assert proc.stdout.startswith(b"FIRED:Edit")
+
+
+def test_inject_shim_denies_matched_replay_above_limit_with_context():
+    matcher = "^(Write|Edit)$"
+    transformed = inject_shim(_TRACE_SCRIPT, matcher)
+    matched_limit = _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES
+    raw = _raw_json_with_size(
+        {
+            "tool_name": "Edit",
+            "tool_input": {"marker": "payload-marker-do-not-log"},
+        },
+        matched_limit + 1,
+    )
+
+    proc = _run_shim_raw(transformed, raw)
+
+    stderr = proc.stderr.decode("utf-8", errors="replace")
+    assert proc.returncode == 2
+    assert matcher in stderr
+    assert "tool_input" in stderr
+    assert str(matched_limit) in stderr
+    assert b"FIRED" not in proc.stdout
+    assert "payload-marker-do-not-log" not in stderr
+    assert b"payload-marker-do-not-log" not in proc.stdout
+
+
+def test_inject_shim_replays_small_match_from_large_multi_call_event():
+    transformed = inject_shim(_TRACE_SCRIPT, "^(Write|Edit)$")
+    matched_limit = _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES
+    payload = {
+        "sessionId": "multi-call-regression",
+        "toolCalls": [
+            {
+                "id": "call_patch",
+                "name": "apply_patch",
+                "args": "P" * (matched_limit + 1),
+            },
+            {
+                "id": "call_edit",
+                "name": "Edit",
+                "args": {
+                    "file_path": "README.md",
+                    "old_string": "a",
+                    "new_string": "b",
+                },
+            },
+        ],
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    assert len(raw) > matched_limit
+
+    proc = _run_shim_raw(transformed, raw)
+
+    assert proc.returncode == 0, proc.stderr.decode()
+    assert proc.stdout.startswith(b"FIRED:Edit")
+
+
+def test_inject_shim_rejects_mixed_top_level_and_toolcalls_selection():
+    """A payload with both a top-level action and a toolCalls batch is
+    ambiguous: the host precedence is unverified, so a benign top-level
+    tool_name must not let a dangerous toolCalls entry slip through under a
+    guessed interpretation. The shim rejects the mix outright (#3200). This
+    replaces the former test that pinned silent toolCalls selection."""
+    guard = (
+        "import json\n"
+        "import sys\n"
+        "data = json.load(sys.stdin)\n"
+        'command = data["tool_input"]["command"]\n'
+        'print("EVALUATED:" + command, flush=True)\n'
+        'if command == "git push origin feature/safe":\n'
+        "    sys.exit(0)\n"
+        'if command == "git push origin main --force":\n'
+        "    sys.exit(2)\n"
+        "sys.exit(1)\n"
+    )
+    transformed = inject_shim(guard, "Bash(git push*)")
+    payload = {
+        "tool_name": "Bash",
+        "tool_input": {"command": "git push origin feature/safe"},
+        "toolCalls": [
+            {
+                "name": "Bash",
+                "args": {"command": "git push origin main --force"},
+            },
+        ],
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls conflicts with top-level action fields" in proc.stderr
+    # The guard never ran: no candidate was ever evaluated.
+    assert "EVALUATED:" not in proc.stdout
+
+
+@pytest.mark.parametrize(
+    ("invalid_call", "expected_error"),
+    [
+        ("not-an-object", "must be an object"),
+        ({}, "name must be a non-empty string"),
+        ({"name": 7}, "name must be a non-empty string"),
+        ({"name": ""}, "name must be a non-empty string"),
+        ({"name": " Edit"}, "must not have leading or trailing whitespace"),
+        ({"name": "Edit "}, "must not have leading or trailing whitespace"),
+        ({"name": "\tEdit\n"}, "must not have leading or trailing whitespace"),
+    ],
+)
+def test_inject_shim_denies_malformed_toolcalls_before_dispatch(
+    invalid_call, expected_error
+):
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "toolCalls": [invalid_call],
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls[0]" in proc.stderr
+    assert expected_error in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+@pytest.mark.parametrize(
+    "tool_calls",
+    [
+        {"name": "Edit", "args": {"file_path": "README.md"}},
+        "not-a-list",
+        7,
+        False,
+        None,
+    ],
+)
+def test_inject_shim_denies_non_list_toolcalls_before_top_level_fallback(
+    tool_calls,
+):
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "tool_name": "Bash",
+        "tool_input": {"command": "echo safe"},
+        "toolCalls": tool_calls,
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls must be a list when present" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+@pytest.mark.parametrize("top_level_name_field", ["tool_name", "toolName"])
+@pytest.mark.parametrize(
+    ("top_level_name", "expected_error"),
+    [
+        ("", "must be a non-empty string"),
+        (7, "must be a non-empty string"),
+        (None, "must be a non-empty string"),
+        (" Edit", "must not have leading or trailing whitespace"),
+        ("Edit ", "must not have leading or trailing whitespace"),
+        ("\tEdit\n", "must not have leading or trailing whitespace"),
+    ],
+)
+def test_inject_shim_denies_malformed_top_level_name_before_dispatch(
+    top_level_name_field, top_level_name, expected_error
+):
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        top_level_name_field: top_level_name,
+        "tool_input": {"file_path": "README.md"},
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert top_level_name_field in proc.stderr
+    assert expected_error in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_denies_conflicting_top_level_names_before_dispatch():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "tool_name": "Bash",
+        "toolName": "Edit",
+        "tool_input": {"file_path": "README.md"},
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "conflicting top-level tool_name/toolName values" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_allows_matching_top_level_name_aliases():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "tool_name": "Edit",
+        "toolName": "Edit",
+        "tool_input": {"file_path": "README.md"},
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 0
+    assert proc.stdout.startswith("FIRED:Edit")
+
+
+def test_inject_shim_rejects_mixed_top_level_and_nonempty_toolcalls():
+    # Hardening (#3200): a payload carrying BOTH top-level action fields and a
+    # non-empty toolCalls batch is ambiguous because the host precedence between
+    # the two shapes is unverified. The shim must reject it before any guard
+    # runs rather than silently drop the top-level aliases and dispatch the
+    # batch. This flips the former silent-drop behavior, which let an attacker
+    # hide a denied action behind a benign top-level alias (or vice versa).
+    body = (
+        "import json\n"
+        "import sys\n"
+        "data = json.load(sys.stdin)\n"
+        "print(json.dumps(data, sort_keys=True), flush=True)\n"
+    )
+    transformed = inject_shim(body, "^Edit$")
+    payload = {
+        "sessionId": "canonical-batch",
+        "tool_name": "Bash",
+        "toolName": "Write",
+        "tool_input": {"command": "echo snake"},
+        "toolArgs": {"command": "echo camel"},
+        "tool_call_id": "top-snake",
+        "toolCallId": "top-camel",
+        "toolCalls": [
+            {
+                "id": "batch-call",
+                "name": "Edit",
+                "args": {"file_path": "README.md"},
+            },
+        ],
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls conflicts with top-level action fields" in proc.stderr
+    assert proc.stdout == ""
+
+
+@pytest.mark.parametrize("top_level_name_field", ["tool_name", "toolName"])
+@pytest.mark.parametrize("top_level_name", ["Edit", "", 7, None])
+def test_inject_shim_denies_empty_toolcalls_with_top_level_tool_name(
+    top_level_name_field, top_level_name
+):
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        top_level_name_field: top_level_name,
+        "tool_input": {"file_path": "README.md"},
+        "toolCalls": [],
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls conflicts with top-level action fields" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_allows_empty_toolcalls_without_top_level_tool_name():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+
+    proc = _run_shim(transformed, {"toolCalls": []})
+
+    assert proc.returncode == 0
+    assert proc.stderr == ""
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_validates_entire_toolcalls_batch_before_dispatch():
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {
+        "toolCalls": [
+            {"name": "Edit", "args": {"file_path": "README.md"}},
+            "not-an-object",
+        ]
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls[1]" in proc.stderr
+    assert "FIRED" not in proc.stdout
+
+
+def test_inject_shim_evaluates_all_matching_calls_until_denied():
+    guard = (
+        "import json\n"
+        "import sys\n"
+        "data = json.load(sys.stdin)\n"
+        'command = data["tool_input"]["command"]\n'
+        'print("EVALUATED:" + command, flush=True)\n'
+        'if command == "git push origin feature/safe":\n'
+        "    sys.exit(0)\n"
+        'if command == "git push origin main --force":\n'
+        "    sys.exit(2)\n"
+        "sys.exit(1)\n"
+    )
+    transformed = inject_shim(guard, "Bash(git push*)")
+    payload = {
+        "toolCalls": [
+            {
+                "name": "Bash",
+                "args": {"command": "git push origin feature/safe"},
+            },
+            {
+                "name": "Bash",
+                "args": {"command": "git push origin main --force"},
+            },
+            {
+                "name": "Bash",
+                "args": {"command": "git push origin feature/safe"},
+            },
+        ]
+    }
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert proc.stdout.splitlines() == [
+        "EVALUATED:git push origin feature/safe",
+        "EVALUATED:git push origin main --force",
+    ]
+
+
+# Independent test contract: the maximum permitted number of toolCalls
+# entries per event. Not read from generate_hooks_shim.
+_TOOL_CALLS_CANDIDATE_CAP = 256
+
+
+def test_inject_shim_toolcalls_candidate_cap_boundary_fires_once():
+    """Exactly 256 toolCalls entries must still pass; the guard fires once
+    for the sole matching (final) entry."""
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    non_matching = [
+        {"name": "Read", "args": {"file_path": f"f{i}.txt"}}
+        for i in range(_TOOL_CALLS_CANDIDATE_CAP - 1)
+    ]
+    payload = {
+        "toolCalls": non_matching
+        + [{"name": "Edit", "args": {"file_path": "README.md"}}]
+    }
+    assert len(payload["toolCalls"]) == _TOOL_CALLS_CANDIDATE_CAP
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.splitlines() == ["FIRED:Edit"]
+
+
+def test_inject_shim_toolcalls_candidate_cap_denies_one_above_boundary():
+    """257 toolCalls entries must be denied before any candidate is
+    evaluated: the guard must never fire, and payload contents (e.g. args
+    markers) must not be disclosed on stdout or stderr."""
+    guard = (
+        "import json\n"
+        "import sys\n"
+        "data = json.load(sys.stdin)\n"
+        "print('FIRED:' + json.dumps(data.get('tool_input')), flush=True)\n"
+        "sys.exit(0)\n"
+    )
+    transformed = inject_shim(guard, "^Edit$")
+    marker = "marker-do-not-disclose-cap-test"
+    non_matching = [
+        {"name": "Read", "args": {"file_path": f"f{i}.txt"}}
+        for i in range(_TOOL_CALLS_CANDIDATE_CAP)
+    ]
+    payload = {
+        "toolCalls": non_matching + [{"name": "Edit", "args": {"marker": marker}}]
+    }
+    assert len(payload["toolCalls"]) == _TOOL_CALLS_CANDIDATE_CAP + 1
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "toolCalls" in proc.stderr
+    assert f"{_TOOL_CALLS_CANDIDATE_CAP + 1} entries" in proc.stderr
+    assert f"limit is {_TOOL_CALLS_CANDIDATE_CAP}" in proc.stderr
+    assert marker not in proc.stderr
+    assert "FIRED" not in proc.stdout
+    assert marker not in proc.stdout
+
+
+def test_inject_shim_toolcalls_candidate_cap_denies_257_invalid_entries():
+    """257 non-dict toolCalls entries must also be denied by the cap, since
+    the cap must apply to the raw list length, not the post-filter
+    candidate count."""
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = {"toolCalls": ["not-a-dict"] * (_TOOL_CALLS_CANDIDATE_CAP + 1)}
+    assert len(payload["toolCalls"]) == _TOOL_CALLS_CANDIDATE_CAP + 1
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 2
+    assert "FIRED" not in proc.stdout
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "expected_code"),
+    [(None, 0), (0, 0), (2, 2), ("blocked", 1)],
+)
+def test_inject_shim_normalizes_system_exit_codes(exit_code, expected_code):
+    guard = f"import sys\nsys.exit({exit_code!r})\n"
+    transformed = inject_shim(guard, "Bash")
+
+    proc = _run_shim(transformed, {"tool_name": "Bash"})
+
+    assert proc.returncode == expected_code
 
 
 def test_inject_shim_fires_on_regex_match():
@@ -1282,7 +1735,7 @@ def test_generator_dispatcher_staging_failure_restores_earlier_owner(
     }
     source.write_text("print('new owner')\n", encoding="utf-8")
 
-    def fail_entrypoint(_event_dir: Path) -> Path:
+    def fail_entrypoint(_event_dir: Path, _event: str) -> Path:
         raise OSError("simulated dispatcher staging failure")
 
     monkeypatch.setattr(
@@ -2789,13 +3242,6 @@ def test_shim_tool_glob_null_tool_input_falls_back_to_toolargs() -> None:
         "shim dropped toolArgs when tool_input was null; "
         f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
     )
-
-
-def test_shim_snake_case_takes_precedence_over_camelcase() -> None:
-    """When both tool_name and toolName are present, snake_case wins."""
-    transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash")
-    proc = _run_shim(transformed, {"tool_name": "Bash", "toolName": "Edit"})
-    assert proc.returncode == 0, proc.stderr  # Bash matched, not Edit
 
 
 def test_all_generated_hooks_parse_as_python() -> None:

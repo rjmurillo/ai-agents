@@ -40,18 +40,39 @@ PROJECT_SPECIFIC_HOOKS = [
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _dispatch_group_files() -> dict[str, list[str]]:
+    manifest = json.loads(
+        (REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    return {
+        group_id: [shim["file"] for shim in spec["shims"]]
+        for group_id, spec in manifest["groups"].items()
+    }
+
+
 def _configured_matchers(script_suffix: str, config_path: Path) -> list[str]:
     config = json.loads(config_path.read_text(encoding="utf-8"))
     portable_suffix = script_suffix.removeprefix(".claude/")
+    hooks_suffix = portable_suffix.removeprefix("hooks/")
+    group_files = _dispatch_group_files()
+
+    def covers(hook: dict) -> bool:
+        command = hook["command"].strip().rstrip('"')
+        if "invoke_dispatch_claude.py" in command:
+            # Grouped registration (#3075): the matcher covers every shim
+            # in the referenced dispatch group.
+            group_id = command.rsplit("--group", 1)[1].strip().strip('"')
+            return any(
+                file.endswith(hooks_suffix) for file in group_files.get(group_id, [])
+            )
+        return command.endswith((script_suffix, portable_suffix))
+
     matchers = [
         group["matcher"]
         for group in config["hooks"]["PreToolUse"]
-        if any(
-            hook["command"].strip().rstrip('"').endswith(
-                (script_suffix, portable_suffix)
-            )
-            for hook in group["hooks"]
-        )
+        if any(covers(hook) for hook in group["hooks"])
     ]
     if not matchers:
         raise AssertionError(f"No PreToolUse matcher found for {script_suffix}")
