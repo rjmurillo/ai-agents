@@ -7,6 +7,8 @@ Covers the ADR-080 model-pin check being wired into ``pre_pr`` in warn mode:
   bug this issue fixed);
 - negative: a config-error exit (2) from the wrapped script fails the wrapper,
   and an absent script raises ``MissingScriptSkip``;
+- observability: new violations that print after the long grandfathered backlog
+  are not truncated away (the warn gate exists to surface them);
 - edge: the sequence extraction keeps ``pre_pr.py`` under its size ceiling and
   places the new gate immediately after the spec-contradiction check.
 """
@@ -49,12 +51,67 @@ def test_validate_model_pins_fails_on_config_error(
     """Negative: a config-error exit (2) from the wrapped script fails the gate.
 
     Warn mode never exits nonzero on a policy violation, so a nonzero exit here
-    is a real defect (missing baseline or manifest) and must not pass.
+    is a real defect (an unreadable or malformed baseline or manifest) and must
+    not pass.
     """
     monkeypatch.setattr(
         checks_spec, "_run_subprocess", lambda *_a, **_k: (2, "", "config error")
     )
     assert checks_spec.validate_model_pins(REPO_ROOT) is False
+
+
+def test_validate_model_pins_prints_new_violations_past_backlog(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Observability: a new violation after a long backlog is not truncated.
+
+    ``check_model_pins.py`` prints the grandfathered backlog (over a hundred
+    lines) before any new violation and the footer. The wrapper must sample the
+    backlog but always print the violation lines and summary, otherwise the warn
+    gate reports drift the developer never sees. Regression for the flat
+    head-truncation the first cut shipped.
+    """
+    backlog = [f"{checks_spec._MODEL_PIN_BACKLOG_PREFIX}unit-{i}" for i in range(60)]
+    tail = [
+        "[model-pins] VIOLATION: .claude/skills/new/SKILL.md: new pin",
+        "[model-pins] 1 hard violation(s)",
+        "[model-pins] warn mode: reporting only, exit 0",
+    ]
+    output = "\n".join(["[model-pins] scanned 60 pinned units", *backlog, *tail])
+    monkeypatch.setattr(
+        checks_spec, "_run_subprocess", lambda *_a, **_k: (0, output, "")
+    )
+
+    assert checks_spec.validate_model_pins(REPO_ROOT) is True
+
+    printed = capsys.readouterr().out
+    assert "VIOLATION: .claude/skills/new/SKILL.md: new pin" in printed
+    assert "1 hard violation(s)" in printed
+    assert "warn mode: reporting only, exit 0" in printed
+    # The backlog body is sampled, not dumped in full.
+    assert printed.count(checks_spec._MODEL_PIN_BACKLOG_PREFIX) < 60
+    assert "additional grandfathered pins omitted" in printed
+
+
+def test_check_model_pins_exits_2_on_malformed_baseline(tmp_path: Path) -> None:
+    """Negative/real-subprocess: a malformed baseline is a config error (exit 2).
+
+    Proves the exit-2 contract ``validate_model_pins`` relies on, through the
+    real script rather than a stubbed return, so the config guard is grounded in
+    the script's actual behavior.
+    """
+    bad_baseline = tmp_path / "bad_baseline.json"
+    bad_baseline.write_text("{ this is not valid json", encoding="utf-8")
+    script = REPO_ROOT / "scripts" / "validation" / "check_model_pins.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--mode", "warn", "--baseline", str(bad_baseline)],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "config error" in (result.stdout + result.stderr)
 
 
 def test_validate_model_pins_skips_when_script_absent(tmp_path: Path) -> None:
