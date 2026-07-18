@@ -87,12 +87,35 @@ from _bootstrap import ensure_plugin_paths  # noqa: E402
 # and observe events allow without dispatching a truncated payload.
 _MAX_STDIN_BYTES = __HOOK_STDIN_CEILING_MIB__ * 1024 * 1024
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
+# The event this dispatcher was generated for, baked in at generation time.
+# The manifest 'event' must equal it exactly before any mode selection, so
+# editing the manifest cannot rebind a gate dispatcher to an observer event
+# and convert a fail-closed gate into fail-open behavior (#3200, #3074).
+_GENERATED_EVENT = __GENERATED_EVENT__
+# Bound manifest-controlled diagnostics. repr() escapes control characters
+# (no log injection, CWE-117) and the cap prevents an oversized manifest value
+# from emitting unbounded stderr (CWE-400). #3200.
+_MAX_DIAG_CHARS = 512
+
+
+def _diag(value):
+    text = repr(value)
+    if len(text) > _MAX_DIAG_CHARS:
+        return text[:_MAX_DIAG_CHARS] + "...(truncated)"
+    return text
 
 
 def _manifest_event(manifest):
     event = manifest.get("event")
     if not isinstance(event, str):
         raise TypeError("manifest field 'event' must be a string")
+    if event != _GENERATED_EVENT:
+        raise ValueError(
+            "manifest field 'event' must equal the generated event "
+            + _diag(_GENERATED_EVENT)
+            + ", got "
+            + _diag(event)
+        )
     return event
 
 
@@ -127,10 +150,20 @@ def _manifest_timeouts(manifest, shims):
             raise TypeError("manifest field 'shims' must contain strings")
         if shim not in timeouts:
             continue
-        timeout_sec = int(timeouts[shim])
-        if timeout_sec <= 0:
-            raise ValueError(f"manifest timeout for {shim} must be positive")
-        shim_timeouts[shim] = timeout_sec
+        timeout_value = timeouts[shim]
+        # Accept only a positive, non-boolean JSON integer. int(True) is 1 and
+        # int(3.9)/int("5") silently coerce, so a bool, float, or numeric string
+        # must be rejected rather than coerced (#3200).
+        if isinstance(timeout_value, bool) or not isinstance(timeout_value, int):
+            raise TypeError(
+                "manifest timeout for " + _diag(shim)
+                + " must be a non-boolean integer, got " + _diag(timeout_value)
+            )
+        if timeout_value <= 0:
+            raise ValueError(
+                "manifest timeout for " + _diag(shim) + " must be positive"
+            )
+        shim_timeouts[shim] = timeout_value
     return shim_timeouts
 
 
@@ -153,7 +186,7 @@ def _read_payload(event, shims, short_circuit):
     )
     print(
         f"hook-dispatch-entrypoint: stdin exceeds {_MAX_STDIN_BYTES} bytes "
-        f"for event {event} shims={shims}; {verdict}",
+        f"for event {_diag(event)} shims={_diag(shims)}; {verdict}",
         file=sys.stderr,
     )
     return raw, 2 if short_circuit else 0
@@ -172,7 +205,8 @@ def _main() -> int:
         return run_dispatch(event_dir, shims, raw, shim_timeouts, short_circuit=short_circuit)
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
         print(
-            f"hook-dispatch-entrypoint: {type(exc).__name__}: {exc}; denying (fail-closed)",
+            f"hook-dispatch-entrypoint: {type(exc).__name__}: "
+            f"{_diag(str(exc))}; denying (fail-closed)",
             file=sys.stderr,
         )
         return 2
@@ -333,10 +367,17 @@ def _copy_bootstrap(event_dir: Path) -> Path:
     return dest
 
 
-def write_entrypoint(event_dir: Path) -> Path:
-    """Write the dispatcher entrypoint next to the shims; return its path."""
+def write_entrypoint(event_dir: Path, event: str) -> Path:
+    """Write the dispatcher entrypoint next to the shims; return its path.
+
+    ``event`` is baked into the entrypoint as ``_GENERATED_EVENT`` (via a
+    ``repr`` so any event string is a safe Python literal), so the generated
+    dispatcher rejects any manifest whose ``event`` field differs from the
+    event it was generated for before any mode selection (#3200).
+    """
     entry_path = event_dir / "_dispatch.py"
-    entry_path.write_text(_ENTRYPOINT, encoding="utf-8")
+    source = _ENTRYPOINT.replace("__GENERATED_EVENT__", repr(event))
+    entry_path.write_text(source, encoding="utf-8")
     return entry_path
 
 
@@ -360,7 +401,7 @@ def emit_dispatcher(
     """
     _remove_stale_matcher_shims(event_dir, shim_names)
     write_manifest(event_dir, event, shim_names, shim_timeouts, mode=mode)
-    write_entrypoint(event_dir)
+    write_entrypoint(event_dir, event)
     _copy_bootstrap(event_dir)
     return dispatcher_entry(event, timeout_sec, matcher)
 
