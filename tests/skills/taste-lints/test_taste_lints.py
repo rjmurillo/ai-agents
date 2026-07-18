@@ -75,9 +75,7 @@ class TestCheckFileSize:
     def test_memory_data_file_exempt_despite_size(self) -> None:
         # .agents/memory/ holds append-only generated data (issue #2785).
         lines = ["{}\n"] * 9000
-        result = check_file_size(
-            ".agents/memory/causality/causal-graph.json", lines
-        )
+        result = check_file_size(".agents/memory/causality/causal-graph.json", lines)
         assert result == []
 
     def test_memory_data_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
@@ -268,9 +266,7 @@ class TestRunLint:
 
     def test_generated_matcher_shim_is_skipped(self, tmp_path: Path) -> None:
         generated = tmp_path / "invoke_guard__Bash_123.py"
-        generated.write_text(
-            "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n" + "x = 1\n" * 600
-        )
+        generated.write_text("# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n" + "x = 1\n" * 600)
 
         result = run_lint([str(generated)], ("file-size",))
 
@@ -280,6 +276,26 @@ class TestRunLint:
 
     def test_classifies_test_files(self) -> None:
         assert classify_file_category("tests/test_example.py", []) == "test"
+
+    def test_marker_below_header_window_is_authored(self) -> None:
+        # A marker string that appears only past the header window must NOT
+        # reclassify an authored file (for example a generator script) as
+        # generated.
+        lines = [f"# line {n}\n" for n in range(30)]
+        lines.append('_MARKERS = ("DO NOT EDIT BY HAND - regenerated",)\n')
+        assert classify_file_category("build/scripts/generate_x.py", lines) == "authored"
+
+    def test_marker_in_header_window_is_generated(self) -> None:
+        lines = ["#!/usr/bin/env python3\n", "# GENERATED -- DO NOT EDIT\n"]
+        assert classify_file_category("scripts/shim.py", lines) == "generated"
+
+    def test_github_instructions_path_is_generated(self) -> None:
+        # .github/instructions/*.instructions.md are generated mirrors of
+        # .claude/rules/* and carry no in-file markers; classify by path.
+        assert (
+            classify_file_category(".github/instructions/universal.instructions.md", [])
+            == "generated"
+        )
 
     def test_lint_skips_missing_files(self) -> None:
         result = run_lint(["/nonexistent/file.py"], ("file-size",))
@@ -298,14 +314,16 @@ class TestFormatText:
     def test_violations_include_remediation(self) -> None:
         result = LintResult(
             files_scanned=1,
-            violations=[Violation(
-                rule="file-size",
-                severity="error",
-                file="test.py",
-                line=501,
-                message="File exceeds 500 lines",
-                remediation="AGENT_REMEDIATION: Split this file",
-            )],
+            violations=[
+                Violation(
+                    rule="file-size",
+                    severity="error",
+                    file="test.py",
+                    line=501,
+                    message="File exceeds 500 lines",
+                    remediation="AGENT_REMEDIATION: Split this file",
+                )
+            ],
         )
         output = format_text(result)
         assert "AGENT_REMEDIATION" in output
@@ -318,14 +336,16 @@ class TestFormatJson:
     def test_json_output_structure(self) -> None:
         result = LintResult(
             files_scanned=1,
-            violations=[Violation(
-                rule="naming",
-                severity="warning",
-                file="test.py",
-                line=0,
-                message="Bad name",
-                remediation="Fix it",
-            )],
+            violations=[
+                Violation(
+                    rule="naming",
+                    severity="warning",
+                    file="test.py",
+                    line=0,
+                    message="Bad name",
+                    remediation="Fix it",
+                )
+            ],
         )
         data = json.loads(format_json(result))
         assert data["files_scanned"] == 1
@@ -437,10 +457,14 @@ class TestGetDiffFiles:
     def test_returns_sorted_changed_files(self) -> None:
         # get_diff_files sorts for deterministic, mode-consistent output.
         completed = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="z.py\na.py\nm.py\n",
+            args=[],
+            returncode=0,
+            stdout="z.py\na.py\nm.py\n",
         )
-        with patch.object(mod, "_git_root", return_value="/repo"), \
-                patch.object(mod.subprocess, "run", return_value=completed):
+        with (
+            patch.object(mod, "_git_root", return_value="/repo"),
+            patch.object(mod.subprocess, "run", return_value=completed),
+        ):
             result = get_diff_files("main")
         assert result == ["/repo/a.py", "/repo/m.py", "/repo/z.py"]
 
@@ -469,10 +493,14 @@ class TestGetDiffFiles:
 
     def test_drops_traversal_paths(self) -> None:
         completed = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
+            args=[],
+            returncode=0,
+            stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
         )
-        with patch.object(mod, "_git_root", return_value="/repo"), \
-                patch.object(mod.subprocess, "run", return_value=completed):
+        with (
+            patch.object(mod, "_git_root", return_value="/repo"),
+            patch.object(mod.subprocess, "run", return_value=completed),
+        ):
             result = get_diff_files("main")
         assert result == ["/repo/changed.py"]
 

@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -28,8 +29,15 @@ ALL_RULES = ("file-size", "naming", "complexity", "skill-size")
 
 # File extensions to scan
 SCANNABLE_EXTENSIONS = {
-    ".py", ".ps1", ".psm1", ".sh", ".bash",
-    ".yml", ".yaml", ".md", ".json",
+    ".py",
+    ".ps1",
+    ".psm1",
+    ".sh",
+    ".bash",
+    ".yml",
+    ".yaml",
+    ".md",
+    ".json",
 }
 
 # Path segments whose files are exempt from the file-size rule. These hold
@@ -38,19 +46,23 @@ SCANNABLE_EXTENSIONS = {
 # data has no module boundaries to split on, so a line ceiling is the wrong gate,
 # and JSON cannot carry a `# taste-lint: ignore` suppression comment. A path
 # exemption is the only mechanism. See issue #2785.
-FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
-    (".agents", "memory"),
-)
+FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = ((".agents", "memory"),)
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli"),
     ("src", "vs-code-agents"),
+    (".github", "instructions"),
 )
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",
     "GENERATED -- DO NOT EDIT",
     "DO NOT EDIT BY HAND - regenerated",
 )
+# Match markers within the leading header window only. Authored files that
+# mention a marker string deeper in the body (generator scripts, this
+# classifier's own marker tuple) must not be misread as generated. 20 lines
+# clears every real generated header while excluding those in-body literals.
+_GENERATED_MARKER_HEADER_LINES = 20
 
 
 def classify_file_category(filepath: str, lines: list[str]) -> str:
@@ -63,7 +75,8 @@ def classify_file_category(filepath: str, lines: list[str]) -> str:
         return "generated"
     if path.name.startswith("pr-quality-gate-") and ".github" in path.parts:
         return "generated"
-    if any(marker in "".join(lines) for marker in _GENERATED_MARKERS):
+    header = "".join(lines[:_GENERATED_MARKER_HEADER_LINES])
+    if any(marker in header for marker in _GENERATED_MARKERS):
         return "generated"
     if "tests" in path.parts or path.name.startswith("test_"):
         return "test"
@@ -132,7 +145,7 @@ def get_staged_files() -> list[str]:
         files = [f for f in result.stdout.splitlines() if f]
         # Filter out any paths with traversal attempts (CWE-22)
         return sorted(f for f in files if is_safe_path(f))
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+    except subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError:
         return []
 
 
@@ -164,9 +177,7 @@ def _git_root() -> str:
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("git rev-parse --show-toplevel timed out") from exc
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(
-            f"git rev-parse --show-toplevel failed (exit {exc.returncode})"
-        ) from exc
+        raise RuntimeError(f"git rev-parse --show-toplevel failed (exit {exc.returncode})") from exc
     return result.stdout.strip()
 
 
@@ -203,9 +214,7 @@ def get_diff_files(base: str) -> list[str]:
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"git diff timed out for base {base!r}") from exc
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(
-            f"git diff failed for base {base!r} (exit {exc.returncode})"
-        ) from exc
+        raise RuntimeError(f"git diff failed for base {base!r} (exit {exc.returncode})") from exc
     files = [f for f in result.stdout.splitlines() if f]
     return sorted(os.path.join(root, f) for f in files if is_safe_path(f))
 
@@ -270,30 +279,40 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
     if line_count > 500:
         bn = Path(filepath).stem
         sx = Path(filepath).suffix
-        return [Violation(
-            rule="file-size", severity="error", file=filepath, line=line_count,
-            message=f"File exceeds 500 lines ({line_count} lines)",
-            remediation=(
-                f"AGENT_REMEDIATION: Split this file into smaller modules. "
-                f"Consider extracting:\n"
-                f"  1. Helper functions -> {bn}_helpers{sx}\n"
-                f"  2. Type definitions -> {bn}_types{sx}\n"
-                f"  3. Constants -> {bn}_constants{sx}\n"
-                f"  Target: each module under 300 lines for good cohesion."
-            ),
-        )]
+        return [
+            Violation(
+                rule="file-size",
+                severity="error",
+                file=filepath,
+                line=line_count,
+                message=f"File exceeds 500 lines ({line_count} lines)",
+                remediation=(
+                    f"AGENT_REMEDIATION: Split this file into smaller modules. "
+                    f"Consider extracting:\n"
+                    f"  1. Helper functions -> {bn}_helpers{sx}\n"
+                    f"  2. Type definitions -> {bn}_types{sx}\n"
+                    f"  3. Constants -> {bn}_constants{sx}\n"
+                    f"  Target: each module under 300 lines for good cohesion."
+                ),
+            )
+        ]
     if line_count > 300:
-        return [Violation(
-            rule="file-size", severity="warning", file=filepath, line=line_count,
-            message=f"File approaching size limit ({line_count}/500 lines)",
-            remediation=(
-                "AGENT_REMEDIATION: File is growing large. Plan extraction "
-                "before it exceeds 500 lines. Look for:\n"
-                "  1. Groups of related functions that form a cohesive module\n"
-                "  2. Data classes or constants that can be separated\n"
-                "  3. Test helpers that belong in a conftest or fixture file"
-            ),
-        )]
+        return [
+            Violation(
+                rule="file-size",
+                severity="warning",
+                file=filepath,
+                line=line_count,
+                message=f"File approaching size limit ({line_count}/500 lines)",
+                remediation=(
+                    "AGENT_REMEDIATION: File is growing large. Plan extraction "
+                    "before it exceeds 500 lines. Look for:\n"
+                    "  1. Groups of related functions that form a cohesive module\n"
+                    "  2. Data classes or constants that can be separated\n"
+                    "  3. Test helpers that belong in a conftest or fixture file"
+                ),
+            )
+        ]
     return []
 
 
@@ -306,7 +325,10 @@ def _check_python_naming(filepath: str, name: str, suffix: str) -> Violation | N
         return None
     path = Path(filepath)
     return Violation(
-        rule="naming", severity="error", file=filepath, line=0,
+        rule="naming",
+        severity="error",
+        file=filepath,
+        line=0,
         message=f"Python file '{name}{suffix}' is not snake_case",
         remediation=(
             f"AGENT_REMEDIATION: Rename to snake_case. "
@@ -322,7 +344,10 @@ def _check_yaml_naming(filepath: str, name: str, suffix: str) -> Violation | Non
     if re.match(r"^[a-z][a-z0-9-]*$", name) or name in ("CLAUDE", "project", "settings"):
         return None
     return Violation(
-        rule="naming", severity="warning", file=filepath, line=0,
+        rule="naming",
+        severity="warning",
+        file=filepath,
+        line=0,
         message=f"YAML file '{name}{suffix}' is not kebab-case",
         remediation=(
             f"AGENT_REMEDIATION: Rename to kebab-case. "
@@ -336,7 +361,10 @@ def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | Non
     if name.startswith("invoke_") or name in ("__init__", "skill_pattern_loader"):
         return None
     return Violation(
-        rule="naming", severity="error", file=filepath, line=0,
+        rule="naming",
+        severity="error",
+        file=filepath,
+        line=0,
         message=f"Hook script '{name}{suffix}' missing 'invoke_' prefix",
         remediation=(
             f"AGENT_REMEDIATION: Hook scripts must use invoke_ prefix "
@@ -359,7 +387,10 @@ def _check_skill_dir_naming(filepath: str) -> Violation | None:
     if re.match(r"^[a-z][a-z0-9-]*$", skill_dir) or skill_dir == "CLAUDE.md":
         return None
     return Violation(
-        rule="naming", severity="warning", file=filepath, line=0,
+        rule="naming",
+        severity="warning",
+        file=filepath,
+        line=0,
         message=f"Skill directory '{skill_dir}' is not kebab-case",
         remediation=(
             f"AGENT_REMEDIATION: Skill directories use kebab-case.\n"
@@ -378,11 +409,13 @@ def check_naming(filepath: str, _lines: list[str]) -> list[Violation]:
     name = Path(filepath).stem
     suffix = Path(filepath).suffix
 
-    checkers: list[tuple[bool, object]] = [
+    checkers: list[tuple[bool, Callable[[], Violation | None]]] = [
         (suffix == ".py", lambda: _check_python_naming(filepath, name, suffix)),
         (suffix in (".yml", ".yaml"), lambda: _check_yaml_naming(filepath, name, suffix)),
-        (".claude/hooks/" in filepath and suffix == ".py",
-         lambda: _check_hook_naming(filepath, name, suffix)),
+        (
+            ".claude/hooks/" in filepath and suffix == ".py",
+            lambda: _check_hook_naming(filepath, name, suffix),
+        ),
         (".claude/skills/" in filepath, lambda: _check_skill_dir_naming(filepath)),
     ]
     for condition, checker in checkers:
@@ -395,8 +428,11 @@ def check_naming(filepath: str, _lines: list[str]) -> list[Violation]:
 
 
 def _emit_if_complex(
-    violations: list[Violation], filepath: str,
-    func_name: str | None, func_line: int, branch_count: int,
+    violations: list[Violation],
+    filepath: str,
+    func_name: str | None,
+    func_line: int,
+    branch_count: int,
 ) -> None:
     """Append a complexity violation if the function exceeds the threshold."""
     if func_name and branch_count > 10:
@@ -451,7 +487,10 @@ def check_complexity(filepath: str, lines: list[str]) -> list[Violation]:
 
 
 def _complexity_violation(
-    filepath: str, func_name: str, line: int, complexity: int,
+    filepath: str,
+    func_name: str,
+    line: int,
+    complexity: int,
 ) -> Violation:
     return Violation(
         rule="complexity",
@@ -480,27 +519,37 @@ def check_skill_size(filepath: str, lines: list[str]) -> list[Violation]:
     line_count = len(lines)
     if line_count > 500:
         sd = Path(filepath).parent.name
-        return [Violation(
-            rule="skill-size", severity="error", file=filepath, line=line_count,
-            message=f"Skill prompt exceeds 500 lines ({line_count} lines)",
-            remediation=(
-                f"AGENT_REMEDIATION: Refactor using progressive disclosure:\n"
-                f"  1. Move reference docs -> {sd}/references/\n"
-                f"  2. Extract reusable logic -> {sd}/scripts/\n"
-                f"  3. Use templates -> {sd}/templates/\n"
-                f"  Or add 'size-exception: true' to frontmatter if justified."
-            ),
-        )]
+        return [
+            Violation(
+                rule="skill-size",
+                severity="error",
+                file=filepath,
+                line=line_count,
+                message=f"Skill prompt exceeds 500 lines ({line_count} lines)",
+                remediation=(
+                    f"AGENT_REMEDIATION: Refactor using progressive disclosure:\n"
+                    f"  1. Move reference docs -> {sd}/references/\n"
+                    f"  2. Extract reusable logic -> {sd}/scripts/\n"
+                    f"  3. Use templates -> {sd}/templates/\n"
+                    f"  Or add 'size-exception: true' to frontmatter if justified."
+                ),
+            )
+        ]
     if line_count > 300:
-        return [Violation(
-            rule="skill-size", severity="warning", file=filepath, line=line_count,
-            message=f"Skill prompt approaching limit ({line_count}/500 lines)",
-            remediation=(
-                "AGENT_REMEDIATION: Plan progressive disclosure refactoring "
-                "before exceeding 500 lines.\n"
-                "  Move reference material to references/ subdirectory."
-            ),
-        )]
+        return [
+            Violation(
+                rule="skill-size",
+                severity="warning",
+                file=filepath,
+                line=line_count,
+                message=f"Skill prompt approaching limit ({line_count}/500 lines)",
+                remediation=(
+                    "AGENT_REMEDIATION: Plan progressive disclosure refactoring "
+                    "before exceeding 500 lines.\n"
+                    "  Move reference material to references/ subdirectory."
+                ),
+            )
+        ]
     return []
 
 
@@ -620,10 +669,13 @@ def main() -> int:
         description="Taste invariant linter with agent-readable remediation",
     )
     parser.add_argument(
-        "files", nargs="*", help="Files to lint",
+        "files",
+        nargs="*",
+        help="Files to lint",
     )
     parser.add_argument(
-        "--git-staged", action="store_true",
+        "--git-staged",
+        action="store_true",
         help="Lint git staged files",
     )
     parser.add_argument(
@@ -632,11 +684,14 @@ def main() -> int:
         help="Lint only files changed in 'git diff --name-only BASE_BRANCH...HEAD'",
     )
     parser.add_argument(
-        "--directory", "-d",
+        "--directory",
+        "-d",
         help="Lint all scannable files in directory",
     )
     parser.add_argument(
-        "--format", choices=("text", "json"), default="text",
+        "--format",
+        choices=("text", "json"),
+        default="text",
         help="Output format (default: text)",
     )
     parser.add_argument(
