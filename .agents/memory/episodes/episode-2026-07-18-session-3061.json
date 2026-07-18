@@ -85,6 +85,14 @@
       "content": "Renumbered vendored-hook ROI bar ADR-083 to ADR-084 and merged main into PR #3221",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded repo-owner acceptance of the ADR-062 amendment and ADR-084",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

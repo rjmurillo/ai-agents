@@ -127,6 +127,16 @@
         ".agents/critique/ADR-084-debate-log.md",
         ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md"
       ]
+    },
+    {
+      "timestamp": "2026-07-18T07:41:43Z",
+      "action": "Recorded repo-owner acceptance of the ADR-062 amendment and ADR-084",
+      "result": "Repo owner (@rjmurillo) approved both ADRs in two messages this session: first \"approve 062\", then \"ADR 84 approved\". Flipped the ADR-062 amendment status from proposed to Accepted (repo-owner @rjmurillo, 2026-07-18) at all three status locations and reworded the top Status line to lead with the current effective state (Accepted as amended) while preserving the 2026-05-31 proposed history. Flipped ADR-084 frontmatter status from proposed to accepted and reworded its Status prose to Accepted (repo-owner @rjmurillo, 2026-07-18). The adr-review consensus text (6/6 Accept) is retained. No hook was deleted and implemented stays false: acceptance records the decisions and unblocks issues #3216, #3217, #3218, but the purge itself is separate implementation work not performed here.",
+      "filesModified": [
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
+        ".agents/sessions/2026-07-18-session-3061.json"
+      ]
     }
   ],
   "endingCommit": "7aec838c",

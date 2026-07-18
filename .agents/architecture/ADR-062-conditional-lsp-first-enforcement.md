@@ -2,20 +2,19 @@
 
 ## Status
 
-Proposed (2026-05-31). Amended 2026-07-17 (amendment proposed; adr-review
-consensus recorded 6/6 Accept, pending repo-owner acceptance): the amendment
-proposes retiring the runtime enforcement layer and retaining only the static
-steering. Nothing is retired until the amendment is accepted. See the
+Accepted as amended (repo-owner @rjmurillo, 2026-07-18). Originally proposed
+2026-05-31; amended 2026-07-17 (adr-review consensus 6/6 Accept) to retire the
+runtime enforcement layer and retain only the static steering. See the
 Amendment section below.
 
 ## Date
 
 2026-05-31
 
-## Amendment 2026-07-17 (proposed): Retire the runtime enforcement layer, keep the static steering
+## Amendment 2026-07-17 (accepted): Retire the runtime enforcement layer, keep the static steering
 
-Status of this amendment: Proposed. adr-review consensus recorded (6/6 Accept,
-see the debate log); pending repo-owner acceptance. Filed as issue #3214;
+Status of this amendment: Accepted (repo-owner @rjmurillo, 2026-07-18).
+adr-review consensus recorded (6/6 Accept, see the debate log). Filed as issue #3214;
 unblocks the hook removal in issue #3216, part
 of the #3197 vendored-hook ROI review. This amendment records the decision. It
 does not delete any hook. The deletion is the implementation issue this

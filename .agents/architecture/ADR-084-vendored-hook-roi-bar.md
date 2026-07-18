@@ -1,6 +1,6 @@
 ---
 id: ADR-084
-status: proposed
+status: accepted
 date: 2026-07-17
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,9 +13,9 @@ implemented: false
 
 ## Status
 
-Proposed (2026-07-17). Requested by issue #3215 as part of the issue #3197
-vendored-hook ROI review. adr-review consensus recorded (6/6 Accept, see the
-debate log); pending repo-owner acceptance. Blocks #3197: the hook elimination
+Accepted (repo-owner @rjmurillo, 2026-07-18). Requested by issue #3215 as part
+of the issue #3197 vendored-hook ROI review. adr-review consensus recorded
+(6/6 Accept, see the debate log). Blocks #3197: the hook elimination
 that #3197 authorizes needs a written bar so the vendored surface does not
 re-accrete.
 
