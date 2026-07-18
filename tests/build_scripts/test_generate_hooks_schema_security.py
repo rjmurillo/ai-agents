@@ -251,23 +251,59 @@ def test_committed_shim_rejects_duplicate_toolcalls_keys():
 def _nested_json_overflowing_stdin() -> bytes:
     """Return JSON bytes whose nesting overflows this interpreter's parser.
 
-    The exact depth that trips ``RecursionError`` in the stdlib JSON C
-    scanner depends on the C stack size, which varies by platform and Python
-    build. Probe upward until the local parser raises, then reuse those bytes:
-    the shim runs under the same interpreter, so the same depth overflows
-    there too. This keeps the test deterministic across environments instead
-    of hard-coding a depth that might parse cleanly on a larger stack.
-    Refs issue #3169.
+    The stdlib JSON C scanner raises ``RecursionError`` once nesting nears the
+    interpreter's C-stack recursion guard. That depth tracks the C stack size,
+    which varies by platform and Python build, so this probes for it at run
+    time instead of hard-coding a very deep constant. A fixed large depth would
+    build a needlessly deep payload on small-stack platforms (Windows, threaded
+    runners) where the guard trips far sooner. Refs issue #3169.
+
+    Two robustness details:
+
+    * ``MemoryError`` (a payload too large to allocate or parse) skips the test
+      rather than crashing the runner.
+    * The returned depth is twice the minimal depth that overflows this probe.
+      The probe runs deep inside pytest's call stack, so it hits the guard at a
+      shallower nesting than the shim does when it parses the same bytes near
+      the top of a fresh process. Doubling guarantees the shim overflows too,
+      and it scales with the platform's measured limit instead of a hand-tuned
+      constant.
     """
-    depth = 200_000
-    while depth <= 5_000_000:
-        payload = b"[" * depth + b"0" + b"]" * depth
+
+    def _overflows(candidate: int) -> bool:
+        payload = b"[" * candidate + b"0" + b"]" * candidate
         try:
             json.loads(payload)
+            return False
         except RecursionError:
-            return payload
+            return True
+
+    low = 0
+    high = 0
+    depth = 1_000
+    ceiling = 2_000_000
+    while depth <= ceiling:
+        try:
+            if _overflows(depth):
+                high = depth
+                break
+            low = depth
+        except MemoryError:
+            pytest.skip("insufficient memory to induce a JSON RecursionError")
         depth *= 2
-    pytest.skip("could not induce a JSON RecursionError in this interpreter")
+    if high == 0:
+        pytest.skip("could not induce a JSON RecursionError in this interpreter")
+    while high - low > 1:
+        mid = (low + high) // 2
+        try:
+            if _overflows(mid):
+                high = mid
+            else:
+                low = mid
+        except MemoryError:
+            pytest.skip("insufficient memory to induce a JSON RecursionError")
+    safe_depth = high * 2
+    return b"[" * safe_depth + b"0" + b"]" * safe_depth
 
 
 def _run_committed_pretooluse_dispatcher(
