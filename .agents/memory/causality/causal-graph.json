@@ -13099,15 +13099,6 @@
       "created": "2026-07-18T07:51:32.359791+00:00"
     },
     {
-      "id": "a3f7c2d91b4e",
-      "type": "milestone",
-      "label": "milestone: Reconciled ADR-084 factual claim and debate-log status labels with reviewer feedback on PR #3221",
-      "episodes": [
-        "episode-2026-07-18-session-3061"
-      ],
-      "created": "2026-07-18T07:51:32.359815+00:00"
-    },
-    {
       "id": "4e86b60415e5",
       "type": "outcome",
       "label": "Outcome: success - Draft ADR-062 amendment (#3214) and new ADR-084 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197.",
