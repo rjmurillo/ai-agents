@@ -10,6 +10,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
@@ -244,3 +246,130 @@ def test_committed_shim_rejects_duplicate_toolcalls_keys():
 
     assert proc.returncode == 2
     assert b"duplicate JSON object key" in proc.stderr
+
+
+def _nested_json_overflowing_stdin() -> bytes:
+    """Return JSON bytes whose nesting overflows this interpreter's parser.
+
+    The stdlib JSON C scanner raises ``RecursionError`` once nesting nears the
+    interpreter's C-stack recursion guard. That depth tracks the C stack size,
+    which varies by platform and Python build, so this probes for it at run
+    time instead of hard-coding a very deep constant. A fixed large depth would
+    build a needlessly deep payload on small-stack platforms (Windows, threaded
+    runners) where the guard trips far sooner. Refs issue #3169.
+
+    Two robustness details:
+
+    * ``MemoryError`` (a payload too large to allocate or parse) skips the test
+      rather than crashing the runner.
+    * The returned depth is twice the minimal depth that overflows this probe.
+      The probe runs deep inside pytest's call stack, so it hits the guard at a
+      shallower nesting than the shim does when it parses the same bytes near
+      the top of a fresh process. Doubling guarantees the shim overflows too,
+      and it scales with the platform's measured limit instead of a hand-tuned
+      constant.
+    """
+
+    def _overflows(candidate: int) -> bool:
+        payload = b"[" * candidate + b"0" + b"]" * candidate
+        try:
+            json.loads(payload)
+            return False
+        except RecursionError:
+            return True
+
+    low = 0
+    high = 0
+    depth = 1_000
+    ceiling = 2_000_000
+    while depth <= ceiling:
+        try:
+            if _overflows(depth):
+                high = depth
+                break
+            low = depth
+        except MemoryError:
+            pytest.skip("insufficient memory to induce a JSON RecursionError")
+        depth *= 2
+    if high == 0:
+        pytest.skip("could not induce a JSON RecursionError in this interpreter")
+    while high - low > 1:
+        mid = (low + high) // 2
+        try:
+            if _overflows(mid):
+                high = mid
+            else:
+                low = mid
+        except MemoryError:
+            pytest.skip("insufficient memory to induce a JSON RecursionError")
+    safe_depth = high * 2
+    return b"[" * safe_depth + b"0" + b"]" * safe_depth
+
+
+def _run_committed_pretooluse_dispatcher(
+    raw_input: bytes,
+) -> subprocess.CompletedProcess[bytes]:
+    dispatcher = (
+        REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_dispatch.py"
+    )
+    if not dispatcher.exists():
+        raise AssertionError(f"committed dispatcher missing: {dispatcher}")
+    env = dict(os.environ)
+    env["COPILOT_PLUGIN_ROOT"] = str(REPO_ROOT / "src" / "copilot-cli")
+    return subprocess.run(
+        [sys.executable, str(dispatcher)],
+        input=raw_input,
+        capture_output=True,
+        cwd=REPO_ROOT,
+        env=env,
+        timeout=30,
+    )
+
+
+def test_deeply_nested_json_fails_closed_direct_shim():
+    # Issue #3169: a standalone shim (run directly, not under the dispatcher)
+    # must fail closed on deeply nested JSON that raises RecursionError inside
+    # the parser, rather than leaking exit 1 and a full traceback. RecursionError
+    # is not a ValueError subclass, so it escaped the malformed-JSON handler.
+    transformed = inject_shim(_ECHO_SCRIPT, "Bash(git push*)")
+
+    proc = _run_shim_raw(transformed, _nested_json_overflowing_stdin())
+
+    assert proc.returncode == 2, proc.stderr.decode()
+    assert b"stdin JSON nesting too deep" in proc.stderr
+    assert b"Traceback" not in proc.stderr
+    assert b"RecursionError" not in proc.stderr
+    assert len(proc.stderr) < 512
+    assert proc.stdout == b""
+
+
+def test_shallow_json_still_parses_direct_shim():
+    # Negative control: nesting below the overflow threshold parses normally and
+    # does not trip the fail-closed path, so the RecursionError catch adds no
+    # false positives for well-formed input.
+    transformed = inject_shim(_ECHO_SCRIPT, "Bash(git push*)")
+    payload = {"tool_name": "Bash", "tool_input": {"command": "echo safe"}}
+
+    proc = _run_shim(transformed, payload)
+
+    assert proc.returncode == 0, proc.stderr.decode()
+    assert b"nesting too deep" not in proc.stderr
+
+
+def test_committed_shim_rejects_deeply_nested_json():
+    proc = _run_committed_git_push_shim(_nested_json_overflowing_stdin())
+
+    assert proc.returncode == 2, proc.stderr.decode()
+    assert b"stdin JSON nesting too deep" in proc.stderr
+    assert b"Traceback" not in proc.stderr
+    assert len(proc.stderr) < 4096
+
+
+def test_committed_dispatcher_rejects_deeply_nested_json():
+    # Dispatcher negative control: the production dispatcher already fails closed
+    # on RecursionError. This guards against regressing that path while fixing
+    # the standalone shim (issue #3169).
+    proc = _run_committed_pretooluse_dispatcher(_nested_json_overflowing_stdin())
+
+    assert proc.returncode == 2, proc.stderr.decode()
+    assert b"Traceback" not in proc.stderr

@@ -20,8 +20,12 @@ Evidence requirements (any one satisfies):
 Bypass conditions:
 - SKIP_COMPLETION_GATE=true environment variable
 - Documentation-only changes (*.md files only)
-- No session log present (fail-open), unless the completion claim was
-  inferred from an unreadable -F / --body-file (fail-closed)
+- No session log present (fail-open). Subagents legitimately have no
+  session log, so with no evidence store to check against the gate cannot
+  distinguish a true completion claim from a false one and fails open even
+  when the -F / --body-file body is un-inspectable (issue #3178). The
+  main-loop case (session log present) still requires evidence, so an
+  unreadable body cannot bypass the gate when a session exists.
 - Non-commit/non-PR/non-merge commands
 
 Hook Type: PreToolUse (blocking on match)
@@ -46,6 +50,7 @@ import tempfile
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 # --- Standard hook boilerplate ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -150,12 +155,12 @@ def _probe_worktree_root() -> str:
             timeout=_GIT_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return get_project_directory()
+        return str(get_project_directory())
     if result.returncode == 0:
         top = result.stdout.strip()
         if top:
             return str(Path(top).resolve())
-    return get_project_directory()
+    return str(get_project_directory())
 
 
 # Completion signal patterns in commit messages / PR titles
@@ -220,7 +225,7 @@ VERIFICATION_RESULT_PATTERNS = [
 ]
 
 
-def _read_stdin_json() -> dict | None:
+def _read_stdin_json() -> dict[str, Any] | None:
     """Read and parse JSON from stdin (Claude hook input)."""
     if sys.stdin.isatty():
         return None
@@ -228,12 +233,13 @@ def _read_stdin_json() -> dict | None:
         data = sys.stdin.read().strip()
         if not data:
             return None
-        return json.loads(data)
+        parsed = json.loads(data)
     except (json.JSONDecodeError, OSError):
         return None
+    return parsed if isinstance(parsed, dict) else None
 
 
-def _extract_command(hook_input: dict) -> str:
+def _extract_command(hook_input: dict[str, Any]) -> str:
     """Extract the command string from hook input.
 
     Defends against malformed input where ``hook_input``, ``tool_input``,
@@ -366,10 +372,16 @@ def _is_completion_claim_in_message_file(command: str) -> tuple[bool, bool]:
     Returns a tuple ``(has_claim, body_unreadable)``.
 
     ``body_unreadable`` is True when ``-F`` was specified but the file
-    could not be read (outside trusted paths or I/O error). Callers use
-    that signal to keep the fail-closed contract end-to-end: when the
-    body cannot be inspected, the gate cannot fall through to the
-    "no session log => allow" branch.
+    could not be read (outside trusted paths or I/O error). In that case
+    ``has_claim`` is also True so the command is still routed through the
+    session-log evidence check instead of being skipped.
+
+    The production caller in ``main`` consumes only ``has_claim`` and
+    discards ``body_unreadable`` (issue #3178): an un-inspectable body no
+    longer forces a block on its own. When a session log exists the
+    evidence check still gates the commit; when none exists (subagents),
+    the gate fails open. ``body_unreadable`` stays in the return contract
+    for callers and tests that assert the read outcome directly.
     """
     message_file = _extract_commit_message_file(command)
     if message_file is None:
@@ -400,9 +412,12 @@ def _is_completion_claim_in_pr_body_file(command: str) -> tuple[bool, bool]:
     """Check if a gh pr create --body-file contains completion signals.
 
     Uses the same path containment as commit message files (CWE-22).
-    Returns a tuple ``(has_claim, body_unreadable)`` so callers can keep
-    the fail-closed contract end-to-end (see
-    ``_is_completion_claim_in_message_file``).
+    Returns a tuple ``(has_claim, body_unreadable)`` mirroring
+    ``_is_completion_claim_in_message_file``: an unreadable body yields
+    ``(True, True)`` so the command is routed to the evidence check, and
+    the production caller consumes only ``has_claim`` (issue #3178). The
+    ``body_unreadable`` element stays in the contract for tests and
+    callers that inspect the read outcome directly.
     """
     body_file = _extract_pr_body_file(command)
     if body_file is None:
@@ -685,20 +700,13 @@ def main() -> None:
     # For `gh pr create --body-file <file>`, also check the body file contents.
     # `gh pr merge` is always treated as a completion claim since merging is
     # an inherent "done" action that requires verification evidence.
-    msg_claim, msg_unreadable = _is_completion_claim_in_message_file(command)
-    body_claim, body_unreadable = _is_completion_claim_in_pr_body_file(command)
+    msg_claim, _ = _is_completion_claim_in_message_file(command)
+    body_claim, _ = _is_completion_claim_in_pr_body_file(command)
     has_completion_claim = (
         _is_completion_claim(command) or msg_claim or body_claim or bool(is_pr_merge)
     )
     if not has_completion_claim:
         sys.exit(0)
-
-    # ``body_inferred`` is true when the completion claim was inferred from
-    # a body file that could not be read (commit -F / pr create --body-file
-    # pointing outside trusted paths). The fail-closed contract on those
-    # helpers must propagate: when we cannot read the body, we cannot fall
-    # through to the "no session log => allow" branch below.
-    body_inferred = msg_unreadable or body_unreadable
 
     # Resolve the CURRENT worktree, not the MAIN checkout. In a linked
     # worktree ``CLAUDE_PROJECT_DIR`` points at main, so the session dir and
@@ -718,11 +726,20 @@ def main() -> None:
     sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
     session_logs = get_today_session_logs(sessions_dir)
 
-    # Fail-open when no session logs exist, EXCEPT when the completion
-    # claim was inferred from an unreadable body file. In that case we
-    # honor the fail-closed contract on the body-file helpers and require
-    # verification before allowing the command through.
-    if not session_logs and not body_inferred:
+    # No today logs: fall through to the yesterday check below. The
+    # fail-open for subagents applies only when NO session log exists at
+    # all (neither today nor yesterday, or the sessions dir is unreadable).
+    # A subagent legitimately has no session log, and with no evidence
+    # store the gate cannot distinguish a true completion claim from a
+    # false one, so blocking only taxes legitimate subagent commits whose
+    # -F / --body-file body is un-inspectable (heredoc, shell variable,
+    # temp file, or a path outside the trusted allowlist). When yesterday's
+    # logs DO exist they are still evaluated: evidence there allows
+    # (cross-midnight continuation), its absence blocks. The main-loop case
+    # (today's logs present) is handled by the ``elif session_logs`` branch
+    # below, which still requires evidence, so an unreadable body cannot
+    # bypass the gate when a session exists (issue #3178).
+    if not session_logs:
         # No today logs: check yesterday (cross-midnight continuation).
         sessions_path = Path(sessions_dir)
         if sessions_path.is_dir():

@@ -412,16 +412,20 @@ class TestBodyFileFailClosed:
             'gh pr create --title "x"'
         ) == (False, False)
 
-    def test_unreadable_body_file_blocks_even_with_no_session_logs(
+    def test_unreadable_body_file_allows_when_no_session_logs(
         self, tmp_path: Path
     ) -> None:
-        """Regression for Cursor BugBot PRRT_kwDOQoWRls6EfZri.
+        """Subagent context (no session log) fails open (issue #3178).
 
-        When ``gh pr create --body-file`` points at a file outside the
-        trusted allowlist the helper returns the fail-closed claim. The
-        gate's caller MUST honor that signal even when there are no
-        session logs for today; otherwise the no-session fail-open path
-        silently bypasses the fail-closed contract.
+        Workflow subagents legitimately have no session log. When the
+        ``-F`` / ``--body-file`` body is un-inspectable (heredoc, shell
+        variable, temp file, or a path outside the trusted allowlist) the
+        helper infers a completion claim, but with no session log there is
+        no evidence store to check against, so the gate cannot distinguish
+        a true claim from a false one. Blocking only taxes legitimate
+        subagent commits, so the gate fails open. The main-loop case
+        (session log present) is covered by
+        ``test_unreadable_body_file_still_blocks_with_session_log``.
         """
         outside = tmp_path.parent / "definitely-outside" / "body.md"
         hook_input = {
@@ -439,6 +443,78 @@ class TestBodyFileFailClosed:
             invoke_false_completion_gate, "_is_documentation_only", return_value=False,
         ), patch.object(
             invoke_false_completion_gate, "get_today_session_logs", return_value=[],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
+
+    def test_subagent_commit_dash_f_unreadable_no_session_log_allowed(
+        self, tmp_path: Path
+    ) -> None:
+        """Acceptance (issue #3178): subagent ``git commit -F`` fails open.
+
+        A subagent commit using ``git commit -F <file>`` where the path is
+        un-inspectable at scan time (here a missing temp file standing in
+        for a shell variable or heredoc) and NO session log exists is
+        allowed, not blocked.
+        """
+        missing = tmp_path / "does-not-exist-msg.txt"
+        hook_input = {
+            "tool_input": {"command": f"git commit -F {missing}"},
+        }
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_resolve_worktree_root",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate, "_is_documentation_only", return_value=False,
+        ), patch.object(
+            invoke_false_completion_gate, "get_today_session_logs", return_value=[],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
+
+    def test_unreadable_body_file_still_blocks_with_session_log(
+        self, tmp_path: Path
+    ) -> None:
+        """No bypass (issue #3178): a session log keeps the gate enforced.
+
+        When a session log exists (interactive main-loop context), an
+        unreadable ``-F`` body cannot bypass the gate: verification
+        evidence must still be present in the session log. Without it the
+        commit is blocked, proving the #3178 fail-open only applies to the
+        genuine no-session-log subagent case.
+        """
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        log = sessions_dir / "2026-01-01-session-001.json"
+        log.write_text(json.dumps({"work": []}), encoding="utf-8")
+
+        missing = tmp_path / "does-not-exist-msg.txt"
+        hook_input = {
+            "tool_input": {"command": f"git commit -F {missing}"},
+        }
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_resolve_worktree_root",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate, "_is_documentation_only", return_value=False,
+        ), patch.object(
+            invoke_false_completion_gate, "get_today_session_logs", return_value=[log],
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_has_verification_evidence_across_logs",
+            return_value=False,
         ):
             with pytest.raises(SystemExit) as exc_info:
                 invoke_false_completion_gate.main()
