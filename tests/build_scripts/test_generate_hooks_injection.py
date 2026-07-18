@@ -207,7 +207,10 @@ def test_require_within_rejects_symlink_escape(tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()
     link = root / "link"
-    link.symlink_to(outside, target_is_directory=True)
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation not permitted on this platform")
     escaped = link / "owner.py"
     with pytest.raises(GenerateHooksError):
         _require_within(root, escaped)

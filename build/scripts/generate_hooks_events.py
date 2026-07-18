@@ -49,6 +49,7 @@ from generate_hooks_emit import (  # noqa: E402
     _resolve_script_path,
     _validate_event_name,
     _validate_event_target,
+    _validate_matcher,
 )
 from generate_hooks_expand import _expand_dispatch_groups  # noqa: E402,F401
 from generate_hooks_transaction import HookGenerationTransaction  # noqa: E402
@@ -450,6 +451,8 @@ def _copy_hook_group(
         owner_source,
         owner_target.parent,
     )
+    if matcher:
+        _validate_matcher(matcher)
     if what_if:
         return True, ""
 

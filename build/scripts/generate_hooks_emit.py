@@ -423,6 +423,8 @@ def _copy_script(
     reason = regen_detect_reason(target)
     if reason is not None:
         return False, f"NO-REGEN: {reason}"
+    if matcher:
+        _validate_matcher(matcher)
     if what_if:
         return True, ""
     _ensure_exact_case_dir(target.parent)
@@ -430,7 +432,6 @@ def _copy_script(
         shutil.copyfile(source, target)
         return True, ""
     body = source.read_text(encoding="utf-8")
-    _validate_matcher(matcher)
     transformed = inject_shim(body, matcher)
     target.write_text(transformed, encoding="utf-8")
     return True, ""
