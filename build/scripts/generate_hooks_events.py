@@ -47,6 +47,9 @@ from generate_hooks_emit import (  # noqa: E402
     _relative_script_target,
     _resolve_paths,
     _resolve_script_path,
+    _validate_event_name,
+    _validate_event_target,
+    _validate_matcher,
 )
 from generate_hooks_expand import _expand_dispatch_groups  # noqa: E402,F401
 from generate_hooks_transaction import HookGenerationTransaction  # noqa: E402
@@ -448,6 +451,8 @@ def _copy_hook_group(
         owner_source,
         owner_target.parent,
     )
+    if matcher:
+        _validate_matcher(matcher)
     if what_if:
         return True, ""
 
@@ -706,12 +711,45 @@ def generate_hooks(
         return 2, result
 
     event_remap_raw = stanza["eventRemap"]
-    event_remap: dict[str, str] = {
-        str(k): str(v) for k, v in event_remap_raw.items()
-    }
-    event_drop: set[str] = {
-        str(item) for item in (stanza.get("eventDrop") or [])
-    }
+    try:
+        event_remap: dict[str, str] = {}
+        for k, v in event_remap_raw.items():
+            # Reject non-string keys/values BEFORE any str() coercion. YAML
+            # parses `PreToolUse: false` to the bool False; a silent str(False)
+            # would yield the literal event name "False", which passes the
+            # alphanumeric event-name allowlist and misroutes the PreToolUse
+            # security hooks to a bogus hooks/False/ directory the host never
+            # fires (fail-open). A null, boolean, or numeric scalar here is a
+            # config error, not a remap to its stringified form (#3212 family,
+            # CWE-704 incorrect type conversion).
+            if not isinstance(k, str) or not isinstance(v, str):
+                raise GenerateHooksError(
+                    "eventRemap keys and values must be strings; a non-string "
+                    "YAML scalar (null 'PreToolUse:', boolean "
+                    "'PreToolUse: false', or number) is a config error, not a "
+                    "silent remap to its stringified form such as the literal "
+                    f"event 'None', 'False', or 'True': {k!r}: {v!r}"
+                )
+            event_remap[_validate_event_name(k)] = _validate_event_target(v)
+        # eventDrop carries the same non-string footgun: a bool `false` would
+        # coerce to a bogus drop of the literal event "False". Fail closed.
+        event_drop: set[str] = set()
+        for item in stanza.get("eventDrop") or []:
+            if not isinstance(item, str):
+                raise GenerateHooksError(
+                    "eventDrop entries must be strings; a non-string YAML "
+                    "scalar (e.g. boolean 'false') is a config error, not a "
+                    f"drop of the literal event 'False': {item!r}"
+                )
+            # Same allowlist as eventRemap keys: a drop entry names a Claude
+            # event, so validate it against _EVENT_NAME_RE to keep the
+            # fail-closed posture consistent. Drop values only feed set
+            # membership today, but validating here means a future path that
+            # renders them is already guarded (#3212, #3213).
+            event_drop.add(_validate_event_name(item))
+    except GenerateHooksError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2, result
     try:
         version_field = _int_field_or_default(
             stanza.get("versionField"), 1, "artifacts.hooks.versionField"
