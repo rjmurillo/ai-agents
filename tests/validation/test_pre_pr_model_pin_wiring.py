@@ -188,3 +188,32 @@ def test_pre_pr_under_size_ceiling() -> None:
         encoding="utf-8"
     )
     assert len(text.splitlines()) < 500
+
+
+def test_lazy_version_pin_import_resolves_after_module_eviction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression (#3073): the lazy version-pin import survives module eviction.
+
+    ``validate_copilot_version_pin`` runs a *function-local*
+    ``from check_copilot_version_pin import EXIT_OK, check_action`` that resolves
+    by bare name at call time. It works only because ``scripts/validation`` stays
+    on ``sys.path`` for the whole run (this module inserts it append-only,
+    mirroring production ``pre_pr``). Evict the module from ``sys.modules`` to
+    force the first-call import state and prove the lazy import re-resolves.
+
+    This is the true regression guard for the sys.path restore that merged in
+    PR #3227: if a future edit snapshots and restores ``sys.path`` after the
+    top-of-module imports, ``scripts/validation`` leaves the path and this lazy
+    import raises ``ModuleNotFoundError`` here (uncaught -> test fails). The
+    ``MissingScriptSkip`` branch is caught because the import at
+    ``checks_tooling.py`` runs *before* the ``action.yml`` existence check, so a
+    downstream install without the action still proves the import resolved.
+    """
+    monkeypatch.delitem(sys.modules, "check_copilot_version_pin", raising=False)
+    assert "check_copilot_version_pin" not in sys.modules
+    try:
+        pre_pr.validate_copilot_version_pin(REPO_ROOT)
+    except pre_pr.MissingScriptSkip:
+        pass
+    assert "check_copilot_version_pin" in sys.modules
