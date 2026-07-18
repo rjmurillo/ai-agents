@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-18-session-3061",
+  "session": "2026-07-18-session-3061",
+  "timestamp": "2026-07-18T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Draft ADR-062 amendment (#3214) and new ADR-083 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Grounded the ADR chain against the owner's #3197 decomposition",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drafted the ADR-062 amendment for #3214",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Authored new ADR-083 for #3215",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Routed both ADRs through the 6-agent adr-review debate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded adr-review consensus and prepared the joint PR",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}

@@ -51,3 +51,28 @@ This is a principled capability split, not an exemption. It removes the ambiguit
 ## Final Consensus
 
 **ACCEPTED-WITH-DC.** 5 of 6 cleared (4 Accept, 1 Disagree-and-Commit); zero unresolved prior P0s. The analyst's single new P0 (Read-gate capability binding) is closed by explicitly defining the Read-gate capability as `get_symbols_overview` (gating all 8 configured languages per user directive), with the exclusion preference recorded as dissent. Implementation-detail P1s (detection as pure config check not live probe, nav_required=2, repo-relative path citations, verbatim kit regex in module docstrings, gate-state outside the working tree, gate count 23 to 21, git-grep-allowed + bash-grep-sequencing tests, sub-100ms with cached detection) are folded into the ADR and the implementation plan. The warn-first timing dissent stands under User Sovereignty and is not re-litigated.
+
+## Amendment Review 2026-07-17: Retire the runtime enforcement layer
+
+**Artifact**: the `## Amendment 2026-07-17 (proposed)` section of ADR-062 (issue #3214).
+**Protocol**: 6-agent adr-review debate, one joint pass over this amendment and ADR-083 (issue #3215).
+**Context**: the #3197 vendored-hook ROI review measured the enforcement layer over 6.5 weeks. The repo owner approved retiring runtime enforcement while keeping the static steering. This debate records consensus; the status:accepted flip is owner-authorized.
+
+| Agent | Vote | Core position |
+|-------|------|---------------|
+| architect | Accept | All 8 enforcement hooks and 4 shared modules verified on disk; `.githooks/` real; `skip_if_consumer_repo` at 18 call sites confirms self-neutering. Retires a measured-counterproductive layer, keeps three independent steering carriers, no orphaned dependency. Original measure-then-flip dissent now settled by the measurement it asked for. |
+| critic | Accept | All 8 hook filenames and 4 shared-lib modules verified present; retained steering verified; evidence specific and checkable; "no security property change" supported by Section 7's existing CWE analysis. |
+| independent-thinker | Accept | The deterrence counter-case is refuted by #3091: the gate trained cargo-cult "LSP CONTEXT" incantations rather than deterring non-LSP navigation, so it was anti-deterrent. FP cost and per-Read spawn tax are concrete; the benefit is speculative and contradicted. |
+| security | Accept | STRIDE: the 8 hooks enforce a navigation preference, not a security property. Verified Section 4 line 203 and lsp_gate_state.py line 12 (gate-state not a security boundary, CWE-284 Low), Section 7 (CWE-78/77/22 safe by construction). The real security gates are separate hooks, not retired. Risk unchanged. |
+| analyst | Accept | All 8 named hook files, 4 shared modules, lsp-first.md, invoke_serena_reassertion.py, and the original debate log verified to exist at claimed locations. No unverifiable load-bearing claim. |
+| high-level-advisor | Accept | 1 true positive in 6.5 weeks against a documented FP stream is a negative-ROI surface; warn-only would keep the spawn tax and FP stream for no measurable gain. Bounded, reversible, serves the consumer by removing dead-code load. |
+
+**Consensus: ACCEPTED (6/6 Accept). Zero P0.**
+
+P1 findings recorded (all folded into the amendment or scoped to the implementation issue):
+
+- `.claude/rules/lsp-first.md` still describes the enforcement mechanics (env-var escape hatches, hook tiers) at its lines 13-14 and 57-79 (architect, critic, independent-thinker). Folded: the amendment's "does NOT change" section now states those enforcement-layer references are cleaned up by the #3216 removal when the hooks are deleted, while the three-tier preference content stays.
+- Enumerate which functions/classes of the shared modules are removed vs retained rather than "parts with no other caller" (architect, critic). Scoped to #3216: the amendment records the decision; the deletion issue enumerates the caller graph at implementation time.
+- ADR-062 carries no YAML frontmatter (it predates ADR-073), so the amendment status lives in prose only (critic). Left as-is: ADR-062 is a pre-frontmatter ADR; adding frontmatter is a separate modernization, not part of recording this amendment.
+- Monitor navigation patterns for four weeks post-removal; if drift returns to the session-16 baseline, revisit (independent-thinker). Recorded as a post-implementation watch item for #3216.
+

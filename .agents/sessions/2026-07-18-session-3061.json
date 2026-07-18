@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3061,
+    "date": "2026-07-18",
+    "branch": "docs/adr-chain-hook-roi-3214-3215",
+    "startingCommit": "41e93786",
+    "objective": "Draft ADR-062 amendment (#3214) and new ADR-083 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live in this Copilot CLI session: serena-initial_instructions returned the Serena manual and serena-find_symbol/get_symbols_overview tools are present. Project is the active ai-agents repo."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions at session start and read the returned operating manual (43.9 KB)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only reference per ADR-014) and the #3197 decomposition status from the owner before acting."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-07-17-session-3061.json"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported docs/adr-062-retire-lsp-enforcement-3214, rebased onto origin/main tip 41e93786."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/adr-062-retire-lsp-enforcement-3214, not main or master."
+      },
+      "constraintsRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS via AGENTS.md, the ADR conventions (ADR-073 frontmatter, ADR-054 amendment format), and the universal dash prohibition before editing."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart and sessionEnd items are complete for this session; Serena items are satisfied because Serena MCP is live."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session decision recorded via the durable session log and the adr-review debate logs; Serena memory index consulted at start."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 scoped set is empty: every changed Markdown file is under .agents/, which the repo .markdownlint-cli2 config excludes (Linting: 0 files). No lintable Markdown in this change."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-062 amendment, ADR-083, the adr-review debate logs, and this session log staged and committed together on the ADR branch for this session."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Docs-only change (ADR Markdown, adr-review debate logs, session log). No code modified so no unit tests apply; markdownlint scoped set is empty because .agents/ is config-excluded; byte check confirms 0 em/en dashes in every authored file; ADR uniqueness gate PASS (next free 084); adr-review 6-agent consensus recorded per debate logs."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo list tracked the ADR-chain steps; each marked in_progress then done as completed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-17T22:00:00Z",
+      "action": "Grounded the ADR chain against the owner's #3197 decomposition",
+      "result": "Confirmed issues #3214 (amend ADR-062) and #3215 (new vendored-hook ROI ADR) are OPEN, read both full bodies and acceptance criteria, and confirmed both record owner-approved decisions that require adr-review consensus before the #3216 purge can land."
+    },
+    {
+      "timestamp": "2026-07-17T22:20:00Z",
+      "action": "Drafted the ADR-062 amendment for #3214",
+      "result": "Added a proposed Amendment 2026-07-17 section retiring the eight LSP runtime-enforcement hooks and their single-consumer shared modules while keeping the static steering (.claude/rules/lsp-first.md, Serena Init, the #1993 reassertion). Cited the #3197 ROI evidence (1 true positive in 6.5 weeks vs #3091/#2200/#2454/#2622 false positives, the per-Read Windows spawn tax from #3075, the skip_if_consumer_repo self-neutering). Verified 0 em/en dashes."
+    },
+    {
+      "timestamp": "2026-07-17T22:40:00Z",
+      "action": "Authored new ADR-083 for #3215",
+      "result": "Created ADR-083 codifying the five-point vendored-hook ROI bar (consumer-repo value required, internal enforcement to githooks/CI, prefer host-native permissions over spawns, ban self-neutering hooks, one-line customer-value docstring with a CI presence check) with the project-toolkit org-scale distribution context. ADR-073 lifecycle frontmatter, status proposed."
+    },
+    {
+      "timestamp": "2026-07-17T23:00:00Z",
+      "action": "Routed both ADRs through the 6-agent adr-review debate",
+      "result": "Launched architect, critic, independent-thinker, security, analyst, and high-level-advisor reviewers over both ADRs; synthesized verdicts into per-ADR debate logs and recorded the consensus. Left the status:accepted flip to the repo owner per User Sovereignty."
+    },
+    {
+      "timestamp": "2026-07-18T04:55:27Z",
+      "action": "Recorded adr-review consensus and prepared the joint PR",
+      "result": "Ran the adr-review skill (/adr-review) as a 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) over both ADRs in one pass. Result: unanimous 6/6 Accept on ADR-062's amendment and ADR-083, zero P0. Every cited artifact verified on disk by multiple reviewers. Decision-neutral P1 clarifications folded into both ADRs. Debate logs written to .agents/critique/ADR-062-debate-log.md (amendment section appended) and .agents/critique/ADR-083-debate-log.md. Zero em/en dashes verified across all artifacts. Acceptance (status flip) is owner-authorized and out of scope for this PR."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Owner authorizes flipping ADR-062 amendment and ADR-083 to status accepted, bound to the adr-review debate-log consensus.",
+    "After acceptance, the #3216 purge and #3217/#3218 follow-ons can proceed; do not implement the hook deletions before acceptance."
+  ]
+}
