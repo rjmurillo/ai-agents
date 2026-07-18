@@ -47,6 +47,8 @@ from generate_hooks_emit import (  # noqa: E402
     _relative_script_target,
     _resolve_paths,
     _resolve_script_path,
+    _validate_event_name,
+    _validate_event_target,
 )
 from generate_hooks_expand import _expand_dispatch_groups  # noqa: E402,F401
 from generate_hooks_transaction import HookGenerationTransaction  # noqa: E402
@@ -706,9 +708,14 @@ def generate_hooks(
         return 2, result
 
     event_remap_raw = stanza["eventRemap"]
-    event_remap: dict[str, str] = {
-        str(k): str(v) for k, v in event_remap_raw.items()
-    }
+    try:
+        event_remap: dict[str, str] = {
+            _validate_event_name(str(k)): _validate_event_target(str(v))
+            for k, v in event_remap_raw.items()
+        }
+    except GenerateHooksError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2, result
     event_drop: set[str] = {
         str(item) for item in (stanza.get("eventDrop") or [])
     }
