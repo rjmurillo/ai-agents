@@ -74,7 +74,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Docs-only change (ADR Markdown, adr-review debate logs, session log). No code modified so no unit tests apply; markdownlint scoped set is empty because .agents/ is config-excluded; byte check confirms 0 em/en dashes in every authored file; ADR uniqueness gate PASS (next free 084); adr-review 6-agent consensus recorded per debate logs."
+        "Evidence": "Docs-only change (ADR Markdown, adr-review debate logs, session log). No code modified so no unit tests apply; markdownlint scoped set is empty because .agents/ is config-excluded; byte check confirms 0 em/en dashes in every authored file; ADR uniqueness gate PASS (ADR-084 allocated as the next free number); adr-review 6-agent consensus recorded per debate logs."
       },
       "tasksUpdated": {
         "level": "SHOULD",

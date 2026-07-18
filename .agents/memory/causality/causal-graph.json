@@ -13115,6 +13115,15 @@
         "episode-2026-07-18-session-3061"
       ],
       "created": "2026-07-18T07:51:32.359838+00:00"
+    },
+    {
+      "id": "c944cc045d32",
+      "type": "milestone",
+      "label": "milestone: Reconciled ADR-084 factual claim and debate-log status labels with reviewer feedback on PR #3221",
+      "episodes": [
+        "episode-2026-07-18-session-3061"
+      ],
+      "created": "2026-07-18T08:07:10.478503+00:00"
     }
   ],
   "patterns": [
