@@ -479,6 +479,20 @@ def _shim_dispatch():
         _sys.exit(2)
     try:
         payload = _shim_load_json(_raw or b"{{}}")
+    except RecursionError:
+        # Deeply nested JSON exhausts the parser recursion budget and raises
+        # RecursionError, which is NOT a ValueError subclass, so it would
+        # otherwise escape the malformed-JSON handler below, print a traceback,
+        # and exit 1. A standalone shim (run directly, not under the dispatcher)
+        # must fail closed the same way the dispatcher does: bounded diagnostic
+        # (no traceback, no payload bytes) and exit 2 (issue #3169).
+        print(
+            "matcher-shim [{{}}]: stdin JSON nesting too deep; refusing".format(
+                _MATCHER
+            ),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
     except ValueError as exc:
         print(
             "matcher-shim [{{}}]: malformed JSON on stdin: {{}}".format(_MATCHER, exc),
