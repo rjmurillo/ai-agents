@@ -46,13 +46,17 @@ class GenerateHooksError(Exception):
     """Domain error for hook generation."""
 
 
-# Hook event names are alphanumeric CamelCase (PreToolUse, PostToolUse,
-# UserPromptSubmit, Notification, Stop, SubagentStop, PreCompact,
-# SessionStart, SessionEnd). A remapped event name (eventRemap value) is
-# rendered into BOTH a filesystem path (the on-disk target write) and a
-# shell command string (the emitted bash/powershell command). Anything
-# other than a bare alphanumeric component is a path-traversal vector
-# (#3213, CWE-22) or a shell command-injection vector (#3212, CWE-78).
+# Hook event names are a single alphanumeric component that starts with an
+# ASCII letter (``[A-Za-z][A-Za-z0-9]*``): the Claude-side PascalCase source
+# names (PreToolUse, PostToolUse, UserPromptSubmit, Notification, Stop,
+# SubagentStop, PreCompact, SessionStart, SessionEnd) and the Copilot-side
+# camelCase eventRemap targets (preToolUse, postToolUse, ...). Case is not
+# constrained by the allowlist; only the alphanumeric-single-component shape
+# is. A remapped event name (eventRemap value) is rendered into BOTH a
+# filesystem path (the on-disk target write) and a shell command string (the
+# emitted bash/powershell command). Anything other than a bare alphanumeric
+# component is a path-traversal vector (#3213, CWE-22) or a shell
+# command-injection vector (#3212, CWE-78).
 _EVENT_NAME_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
 
 # Hook script names are Python module filenames, optionally carrying the
