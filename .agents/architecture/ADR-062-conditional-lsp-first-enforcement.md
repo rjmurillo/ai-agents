@@ -14,11 +14,10 @@ Amendment section below.
 ## Amendment 2026-07-17 (accepted): Retire the runtime enforcement layer, keep the static steering
 
 Status of this amendment: Accepted (repo-owner @rjmurillo, 2026-07-18).
-adr-review consensus recorded (6/6 Accept, see the debate log). Filed as issue #3214;
-unblocks the hook removal in issue #3216, part
-of the #3197 vendored-hook ROI review. This amendment records the decision. It
-does not delete any hook. The deletion is the implementation issue this
-unblocks.
+adr-review consensus recorded (6/6 Accept, see the debate log). This amendment
+is filed as issue #3214 and unblocks the hook removal in issue #3216, part of
+the #3197 vendored-hook ROI review. It records the decision only. It does not
+delete any hook. The deletion is the implementation issue this unblocks.
 
 Change: retire the LSP-first runtime enforcement hooks. That is the five
 PreToolUse guards (`invoke_lsp_read_guard.py`, `invoke_lsp_grep_guard.py`,
