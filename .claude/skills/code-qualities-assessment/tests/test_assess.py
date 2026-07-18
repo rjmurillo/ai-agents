@@ -432,7 +432,8 @@ def test_directory_scan_includes_all_supported_suffixes(tmp_path: Path) -> None:
 def test_changed_only_uses_base_for_clean_committed_branch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _run_git(tmp_path, "init", "-b", "main")
+    _run_git(tmp_path, "init")
+    _run_git(tmp_path, "checkout", "-b", "main")
     _run_git(tmp_path, "config", "user.email", "test@example.com")
     _run_git(tmp_path, "config", "user.name", "Test")
     _write(tmp_path, "base.py", "def base():\n    return 1\n")
@@ -842,7 +843,24 @@ def test_github_instructions_path_is_generated(tmp_path: Path) -> None:
     assert classify_file_category(path) == "generated"
 
 
-def test_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
+def test_classify_ignores_checkout_path_segments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Regression: a clone whose checkout directory itself contains a generated
+    # segment (e.g. .../src/copilot-cli/...) must not misclassify authored files
+    # as generated. classify uses CWD-relative parts, so the checkout prefix is
+    # stripped before the segment scan.
+    checkout = tmp_path / "src" / "copilot-cli" / "clone"
+    pkg = checkout / "pkg"
+    pkg.mkdir(parents=True)
+    authored = pkg / "module.py"
+    authored.write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.chdir(checkout)
+
+    # Absolute path under the checkout: relative parts are pkg/module.py.
+    assert classify_file_category(authored) == "authored"
+    # A genuinely repo-relative generated path is still caught.
+    assert classify_file_category(Path("src") / "copilot-cli" / "skill.py") == "generated"
     # A non-UTF-8 file read with content=None must not raise UnicodeDecodeError;
     # unreadable content classifies as authored (no markers detectable).
     binary = tmp_path / "blob.py"

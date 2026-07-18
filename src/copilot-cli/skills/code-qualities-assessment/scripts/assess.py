@@ -71,13 +71,30 @@ _GENERATED_MARKERS = (
 _GENERATED_MARKER_HEADER_LINES = 20
 
 
+def _repo_relative_parts(file_path: Path) -> tuple[str, ...]:
+    """Return path parts for segment matching, relative to CWD when possible.
+
+    ``_GENERATED_PATH_SEGMENTS`` are repo-root-anchored. An absolute path also
+    carries the checkout directory, so a clone under a path that itself contains
+    e.g. ``src/copilot-cli`` would false-match and misclassify authored files as
+    generated. Relativizing to CWD strips that prefix; already-relative paths, or
+    paths outside CWD, fall back to their own parts unchanged.
+    """
+    if file_path.is_absolute():
+        try:
+            return file_path.relative_to(Path.cwd()).parts
+        except ValueError:
+            return file_path.parts
+    return file_path.parts
+
+
 def classify_file_category(file_path: Path, content: str | None = None) -> str:
     """Classify a changed file as authored, test, or generated.
 
     Generated outputs are reviewed through their generator and drift checks,
     not as independent authored modules.
     """
-    parts = file_path.parts
+    parts = _repo_relative_parts(file_path)
     if any(
         any(parts[i : i + len(segment)] == segment for i in range(len(parts)))
         for segment in _GENERATED_PATH_SEGMENTS

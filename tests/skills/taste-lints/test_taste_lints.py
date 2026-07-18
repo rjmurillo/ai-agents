@@ -297,6 +297,43 @@ class TestRunLint:
             == "generated"
         )
 
+    def test_classify_ignores_checkout_path_segments(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Regression: a clone whose checkout directory itself contains a
+        # generated segment (e.g. .../src/copilot-cli/...) must not misclassify
+        # authored files as generated. classify uses CWD-relative parts.
+        checkout = tmp_path / "src" / "copilot-cli" / "clone"
+        authored = checkout / "pkg" / "module.py"
+        authored.parent.mkdir(parents=True)
+        authored.write_text("x = 1\n", encoding="utf-8")
+        monkeypatch.chdir(checkout)
+
+        # Absolute path under the checkout: relative parts are pkg/module.py.
+        assert classify_file_category(str(authored), ["x = 1\n"]) == "authored"
+        # A genuinely repo-relative generated path is still caught.
+        assert classify_file_category("src/copilot-cli/skill.py", []) == "generated"
+
+    def test_run_lint_skips_generated_by_path_without_reading(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # run_lint must classify path-generated files (mirrors) without reading
+        # them. Patch read_file_lines to raise so any read would fail the test.
+        monkeypatch.chdir(tmp_path)
+        mirror = tmp_path / "src" / "copilot-cli" / "skills" / "x" / "shim.py"
+        mirror.parent.mkdir(parents=True)
+        mirror.write_text("x = 1\n" * 600, encoding="utf-8")
+
+        def _boom(_path: str) -> list[str]:
+            raise AssertionError("read_file_lines must not run for path-generated files")
+
+        monkeypatch.setattr(mod, "read_file_lines", _boom)
+        result = run_lint([str(mirror)], ("file-size",))
+
+        assert result.files_scanned == 1
+        assert result.files_by_category == {"generated": 1}
+        assert result.violations == []
+
     def test_lint_skips_missing_files(self) -> None:
         result = run_lint(["/nonexistent/file.py"], ("file-size",))
         assert result.files_scanned == 0
