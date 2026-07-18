@@ -146,6 +146,7 @@ def glob_or_match(args_glob: str, tool_args_norm: str) -> bool:
     expect Claude semantics where each branch is a separate glob.
     """
     import fnmatch as _fn
+
     branches = args_glob.split("|") if args_glob else [""]
     for branch in branches:
         if _fn.fnmatchcase(tool_args_norm, branch):
@@ -163,9 +164,11 @@ def _build_shim(matcher: str) -> str:
     """
     # The shim is emitted as a single triple-quoted block so the indenting
     # is stable. The matcher is never raw-interpolated into the shim source:
-    # both the human-readable header comment and the runtime literal bind it
-    # via repr() so embedded quotes, and any control character such as a
-    # newline, stay inside a single Python literal and cannot escape into an
+    # both the ``# Matcher:`` header comment and the ``_MATCHER`` runtime
+    # assignment bind it via repr(). repr() escapes embedded quotes, newlines,
+    # and other control characters, so in the runtime assignment the value
+    # stays a single valid string literal, and in the header comment it renders
+    # on one physical line that cannot terminate the comment and start an
     # executable line (#3212 family, CWE-94).
     return f'''\
 {_SHIM_BEGIN}
