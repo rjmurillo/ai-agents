@@ -141,7 +141,7 @@
   ],
   "endingCommit": "7aec838c",
   "nextSteps": [
-    "Owner authorizes flipping ADR-062 amendment and ADR-084 to status accepted, bound to the adr-review debate-log consensus.",
-    "After acceptance, the #3216 purge and #3217/#3218 follow-ons can proceed; do not implement the hook deletions before acceptance."
+    "Both ADR-062 amendment and ADR-084 are now accepted (repo-owner @rjmurillo, 2026-07-18); the adr-review 6/6 consensus is final.",
+    "The #3216 purge and #3217/#3218 follow-ons can proceed; acceptance is complete and no longer blocks implementation."
   ]
 }
