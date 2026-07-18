@@ -327,10 +327,12 @@ class TestGetRecentSessionLog:
         good.write_text("{}")
         real_stat = Path.stat
 
-        def flaky_stat(self: Path, *args: object, **kwargs: object) -> object:
+        def flaky_stat(
+            self: Path, *, follow_symlinks: bool = True
+        ) -> os.stat_result:
             if self.name == bad.name:
                 raise OSError("transient stat failure")
-            return real_stat(self, *args, **kwargs)
+            return real_stat(self, follow_symlinks=follow_symlinks)
 
         monkeypatch.setattr(Path, "stat", flaky_stat)
         with pytest.warns(UserWarning, match="Skipping unreadable session log"):
@@ -456,28 +458,5 @@ class TestModuleExports:
             "lock_file",
             "skip_if_consumer_repo",
             "unlock_file",
-            # ADR-062 LSP-first enforcement lib (facade re-exports)
-            "FREE_READS",
-            "NAV_REQUIRED",
-            "PROVIDERS",
-            "SYMBOLS_OVERVIEW",
-            "SYMBOL_NAVIGATION",
-            "WARN_AT",
-            "detect_providers",
-            "extract_pattern_and_target",
-            "is_code_symbol",
-            "is_code_target",
-            "is_gated_target",
-            "is_git_grep",
-            "is_grep_search",
-            "normalize_path",
-            "read_state",
-            "record_nav",
-            "record_read",
-            "record_warmup",
-            "reset_state",
-            "state_path",
-            "strip_zero_width",
-            "write_state",
         }
         assert set(mod.__all__) == expected
