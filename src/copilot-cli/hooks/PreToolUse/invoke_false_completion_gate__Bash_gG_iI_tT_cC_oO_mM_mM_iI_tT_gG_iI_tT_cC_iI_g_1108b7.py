@@ -707,10 +707,16 @@ def _original_main(stdin_bytes):
         Returns a tuple ``(has_claim, body_unreadable)``.
 
         ``body_unreadable`` is True when ``-F`` was specified but the file
-        could not be read (outside trusted paths or I/O error). Callers use
-        that signal to keep the fail-closed contract end-to-end: when the
-        body cannot be inspected, the gate cannot fall through to the
-        "no session log => allow" branch.
+        could not be read (outside trusted paths or I/O error). In that case
+        ``has_claim`` is also True so the command is still routed through the
+        session-log evidence check instead of being skipped.
+
+        The production caller in ``main`` consumes only ``has_claim`` and
+        discards ``body_unreadable`` (issue #3178): an un-inspectable body no
+        longer forces a block on its own. When a session log exists the
+        evidence check still gates the commit; when none exists (subagents),
+        the gate fails open. ``body_unreadable`` stays in the return contract
+        for callers and tests that assert the read outcome directly.
         """
         message_file = _extract_commit_message_file(command)
         if message_file is None:
@@ -741,9 +747,12 @@ def _original_main(stdin_bytes):
         """Check if a gh pr create --body-file contains completion signals.
 
         Uses the same path containment as commit message files (CWE-22).
-        Returns a tuple ``(has_claim, body_unreadable)`` so callers can keep
-        the fail-closed contract end-to-end (see
-        ``_is_completion_claim_in_message_file``).
+        Returns a tuple ``(has_claim, body_unreadable)`` mirroring
+        ``_is_completion_claim_in_message_file``: an unreadable body yields
+        ``(True, True)`` so the command is routed to the evidence check, and
+        the production caller consumes only ``has_claim`` (issue #3178). The
+        ``body_unreadable`` element stays in the contract for tests and
+        callers that inspect the read outcome directly.
         """
         body_file = _extract_pr_body_file(command)
         if body_file is None:
