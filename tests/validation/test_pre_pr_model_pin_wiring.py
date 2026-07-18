@@ -33,20 +33,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # test scoped to the wiring it verifies.
 #
 # The three modules resolve their sibling imports at import time (cached in
-# ``sys.modules``); their only function-level imports are stdlib. Snapshot
-# ``sys.path`` and restore it in ``finally`` so the injected directory does not
-# leak into other test modules, while the already-imported modules keep working
-# at runtime from ``sys.modules``.
+# ``sys.modules``). Do NOT snapshot-and-restore ``sys.path`` after these imports.
+# Production ``pre_pr`` leaves ``scripts/validation`` on ``sys.path`` for the
+# whole run, and ``checks_tooling.validate_copilot_version_pin`` performs a
+# *function-local* ``from check_copilot_version_pin import EXIT_OK, check_action``
+# (checks_tooling.py, #3073) that resolves by bare name at call time. Restoring
+# ``sys.path`` here would remove that directory and make the lazy import fail
+# with ``ModuleNotFoundError`` when this test file runs in isolation (the full
+# suite masks it because test_check_copilot_version_pin.py imports the module
+# first). Mirror production: insert once, leave it.
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
-_SYS_PATH_SNAPSHOT = list(sys.path)
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
-try:
-    import checks_spec  # noqa: E402
-    import pre_pr  # noqa: E402
-    import pre_pr_sequence  # noqa: E402
-finally:
-    sys.path[:] = _SYS_PATH_SNAPSHOT
+import checks_spec  # noqa: E402
+import pre_pr  # noqa: E402
+import pre_pr_sequence  # noqa: E402
 
 
 def test_validate_model_pins_passes_in_warn_mode() -> None:
