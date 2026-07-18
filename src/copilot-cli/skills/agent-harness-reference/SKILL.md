@@ -77,10 +77,10 @@ Grade: CODE. Re-verify command in Provenance.
 | Dimension | Contract | Grade | Evidence |
 |-----------|----------|-------|----------|
 | stdin | One JSON object per invocation; PreToolUse carries `tool_name` (string) and `tool_input` (parsed dict) | CODE | `.claude/hooks/PreToolUse/invoke_skill_first_guard.py:372-375` reads exactly these keys |
-| Exit 0 | Allow. Plain stdout is injected as context (SessionStart, UserPromptSubmit); a JSON `{"systemMessage": ...}` on stdout is an advisory shown to the user | CODE | `.claude/hooks/PreToolUse/invoke_lsp_read_guard.py:187-188` emits the systemMessage form |
-| Exit 2 | Block the action. Repo hooks print the block message to BOTH stdout and stderr; stderr is the agent-visible channel for PreToolUse blocks | CODE / REPO-ASSERTED | `invoke_lsp_read_guard.py:202-204` (prints both, comment cites ADR-062) |
+| Exit 0 | Allow. Plain stdout is injected as context (SessionStart, UserPromptSubmit); a JSON `{"systemMessage": ...}` on stdout is an advisory shown to the user | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:12-13,342` prints plain stdout for context injection; the `systemMessage` JSON form is a Claude Code harness affordance |
+| Exit 2 | Block the action. stderr is the agent-visible channel for PreToolUse blocks; hooks emit the reason on stderr, a JSON decision payload on stdout, or both | CODE | `invoke_branch_protection_guard.py:27,63` (JSON block on stdout, reason on stderr); `invoke_skill_first_guard.py:368` (stderr-only reason) |
 | JSON decision payload | Alternative to exit 2: exit 0 plus a structured deny/allow JSON payload | CODE | `.claude/hooks/invoke_routing_gates.py` docstring: "0 = Always (uses JSON decision payload for deny/allow semantics)" |
-| Exit codes vs ADR-035 | Claude hooks are EXEMPT from ADR-035 exit-code taxonomy; non-blocking hook types must exit 0 | CODE | Exit-code blocks in hook docstrings, e.g. `invoke_lsp_read_guard.py` "ADR-035 exemption" |
+| Exit codes vs ADR-035 | Claude hooks are EXEMPT from ADR-035 exit-code taxonomy; non-blocking hook types must exit 0 | CODE | Exit-code blocks in hook docstrings, e.g. `invoke_skill_first_guard.py:13` "exempt from ADR-035" |
 | `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir; cwd is the USER working dir, not the plugin root | EMPIRICAL (Claude Code 2.1.159, session 1873) | ADR-071 "Verified Runtime Contract" section |
 | Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set, else manifest walk-up to `.claude-plugin/plugin.json` | CODE | Bootstrap block in `invoke_routing_gates.py` (works in `.claude/` source tree and installed copies) |
 
@@ -166,12 +166,12 @@ in `.mcp.json` (read 2026-07-03):
 
 | Server | Transport | What breaks when absent |
 |--------|-----------|-------------------------|
-| serena | stdio, `uvx --from git+https://github.com/oraios/serena ... --context claude-code --port 24282` | Symbol navigation and canonical memory (ADR-007). The LSP read gate fails OPEN on bootstrap failure (never wedges a turn) per `.claude/rules/lsp-first.md`; set `LSP_DOWN=true` when the server is configured but down |
+| serena | stdio, `uvx --from git+https://github.com/oraios/serena ... --context claude-code --port 24282` | Symbol navigation and canonical memory (ADR-007) |
 | deepwiki | http, `https://mcp.deepwiki.com/mcp` | External repo Q&A only; no gate depends on it |
 | forgetful | stdio, `uvx forgetful-ai` | Supplementary memory tier (ADR-007: Serena canonical, Forgetful supplementary); `memory` and `memory-search` degrade to Serena-only |
 
 Constraint: subagents cannot reach MCP tools; pre-resolve symbols (file:line)
-into delegation prompts (`.claude/rules/lsp-first.md:42`). Grade: CODE.
+into delegation prompts (`.claude/rules/lsp-first.md`). Grade: CODE.
 
 ## Anti-Patterns
 
@@ -213,8 +213,8 @@ Sources (path:line where load-bearing):
 - `.serena/memories/copilot-hooks-observations.md` (payload casing, exit 143, toolArgs JSON string)
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `2026-06-02-issue-2290-copilot-hook-payload-format.md`
 - `build/scripts/generate_hooks_emit.py:335-421`; `build/scripts/generate_hooks_events.py:381-385`; `templates/platforms/copilot-cli.yaml:52-62`
-- `.claude/rules/generated-artifacts.md`; `.claude/rules/lsp-first.md:42`; `.claude/rules/claude-agents.md` (MUST 2)
-- `.claude/hooks/PreToolUse/invoke_skill_first_guard.py:372-375`; `invoke_lsp_read_guard.py:187-204`; `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py:17`
+- `.claude/rules/generated-artifacts.md`; `.claude/rules/lsp-first.md`; `.claude/rules/claude-agents.md` (MUST 2)
+- `.claude/hooks/PreToolUse/invoke_skill_first_guard.py:372-375`; `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py:17`
 - Manifests and `.mcp.json` read directly 2026-07-03
 
 Re-verification one-liners for volatile facts:
