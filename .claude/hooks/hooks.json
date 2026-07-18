@@ -36,17 +36,6 @@
         ]
       },
       {
-        "matcher": "Bash([gG][rR][eE][pP] *|[rR][gG] *|[aA][gG] *|[aA][cC][kK] *|*[ ][gG][rR][eE][pP][ ]*|*[ ][rR][gG][ ]*|*[ ][aA][gG][ ]*|*[ ][aA][cC][kK][ ]*|*\\[gG][rR][eE][pP].exe *|*\\[rR][gG].exe *|*\\[aA][gG].exe *|*\\[aA][cC][kK].exe *|*/[gG][rR][eE][pP] *|*/[rR][gG] *|*/[aA][gG] *|*/[aA][cC][kK] *)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-lsp_bash_grep_guard",
-            "timeout": 60,
-            "statusMessage": "Running plugin-pretooluse-lsp_bash_grep_guard hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
         "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
         "hooks": [
           {
@@ -98,61 +87,6 @@
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-adr_architect_gate",
             "timeout": 60,
             "statusMessage": "Running plugin-pretooluse-adr_architect_gate hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Grep",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-lsp_grep_guard",
-            "timeout": 60,
-            "statusMessage": "Running plugin-pretooluse-lsp_grep_guard hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Glob",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-lsp_glob_guard",
-            "timeout": 60,
-            "statusMessage": "Running plugin-pretooluse-lsp_glob_guard hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-lsp_read_guard",
-            "timeout": 60,
-            "statusMessage": "Running plugin-pretooluse-lsp_read_guard hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-lsp_pre_delegation_guard",
-            "timeout": 60,
-            "statusMessage": "Running plugin-pretooluse-lsp_pre_delegation_guard hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-lsp_pre_delegation_guard-v2",
-            "timeout": 60,
-            "statusMessage": "Running plugin-pretooluse-lsp_pre_delegation_guard-v2 hooks (grouped, #3075)"
           }
         ]
       }
@@ -212,28 +146,6 @@
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-observation_sync",
             "timeout": 60,
             "statusMessage": "Running plugin-posttooluse-observation_sync hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "^(mcp__serena__(find_symbol|find_referencing_symbols|get_symbols_overview|find_implementations|get_diagnostics_for_file)|mcp__plugin_[^_]*serena[^_]*__(find_symbol|find_referencing_symbols|get_symbols_overview|find_implementations|get_diagnostics_for_file)|LSP)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-lsp_usage_tracker",
-            "timeout": 60,
-            "statusMessage": "Running plugin-posttooluse-lsp_usage_tracker hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-lsp_read_tracker",
-            "timeout": 60,
-            "statusMessage": "Running plugin-posttooluse-lsp_read_tracker hooks (grouped, #3075)"
           }
         ]
       }
