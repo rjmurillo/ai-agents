@@ -146,9 +146,7 @@ def test_cohesion_god_object_lower_than_focused(tmp_path: Path) -> None:
     focused = _write(
         tmp_path,
         "focused.py",
-        "class Focused:\n"
-        "    def a(self):\n        return 1\n"
-        "    def b(self):\n        return 2\n",
+        "class Focused:\n    def a(self):\n        return 1\n    def b(self):\n        return 2\n",
     )
     god_methods = "".join(
         f"    def m{i}(self):\n        x = {i}\n        return x\n" for i in range(40)
@@ -179,7 +177,7 @@ def test_testability_not_constant_across_languages(tmp_path: Path) -> None:
         "Dirty.cs",
         "public class Dirty {\n"
         "    private static int _counter = 0;\n"
-        "    public static string Cache = \"x\";\n"
+        '    public static string Cache = "x";\n'
         "    public int Next() => _counter++;\n"
         "}\n",
     )
@@ -366,15 +364,7 @@ def test_gate_fails_tightly_coupled_file(tmp_path: Path) -> None:
 def test_go_import_block_not_overcounted(tmp_path: Path) -> None:
     """A Go ``import ( ... )`` block must count only the specs inside it, not
     the block opener. A 3-import block is 3 imports (coupling 7), not 4."""
-    body = (
-        "package main\n\n"
-        "import (\n"
-        '    "fmt"\n'
-        '    "os"\n'
-        '    "strings"\n'
-        ")\n\n"
-        "func main() {}\n"
-    )
+    body = 'package main\n\nimport (\n    "fmt"\n    "os"\n    "strings"\n)\n\nfunc main() {}\n'
     path = _write(tmp_path, "main.go", body)
     coupling = assess_file(path, "production", False).coupling
     # 10 - 3 imports == 7; the block opener must not add a fourth.
@@ -462,8 +452,7 @@ def test_generated_matcher_shim_is_classified_as_generated(tmp_path: Path) -> No
     generated = _write(
         tmp_path,
         "invoke_guard__Bash_123.py",
-        "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n"
-        "# END MATCHER SHIM\n",
+        "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n# END MATCHER SHIM\n",
     )
 
     assert classify_file_category(generated) == "generated"
@@ -473,8 +462,7 @@ def test_generated_assessment_is_unscored(tmp_path: Path) -> None:
     generated = _write(
         tmp_path,
         "invoke_guard__Bash_123.py",
-        "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n"
-        "def generated():\n    return 1\n",
+        "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\ndef generated():\n    return 1\n",
     )
 
     assessment = assess_file(generated, "production", False)
@@ -497,9 +485,7 @@ def test_template_qualityrc_uses_coupling_min(tmp_path: Path) -> None:
     check_thresholds), not the legacy coupling.max that disabled the gate."""
     import json
 
-    template = (
-        Path(__file__).parent.parent / "templates" / ".qualityrc.json"
-    )
+    template = Path(__file__).parent.parent / "templates" / ".qualityrc.json"
     config = json.loads(template.read_text(encoding="utf-8"))
     coupling = config["thresholds"]["coupling"]
     assert "min" in coupling
@@ -589,13 +575,7 @@ def test_go_indented_local_var_block_not_counted_as_global_state(tmp_path: Path)
     path = _write(
         tmp_path,
         "local.go",
-        "package main\n\n"
-        "func main() {\n"
-        "    var (\n"
-        "        local int\n"
-        "    )\n"
-        "    _ = local\n"
-        "}\n",
+        "package main\n\nfunc main() {\n    var (\n        local int\n    )\n    _ = local\n}\n",
     )
 
     testability = assess_file(path, "production", False).testability
@@ -804,3 +784,51 @@ def test_load_config_reads_utf8_json(tmp_path: Path) -> None:
     config = load_config(str(config_path))
 
     assert config["label"] == "café"
+
+
+def test_marker_below_header_window_is_authored(tmp_path: Path) -> None:
+    # A generated marker string that appears only deep in the body (past the
+    # header window) must NOT reclassify an authored file as generated.
+    body = "\n".join(f"# line {n}" for n in range(30))
+    body += '\n_MARKERS = ("DO NOT EDIT BY HAND - regenerated",)\n'
+    authored = _write(tmp_path, "generator_like.py", body)
+
+    assert classify_file_category(authored) == "authored"
+
+
+def test_marker_in_header_window_is_generated(tmp_path: Path) -> None:
+    generated = _write(
+        tmp_path,
+        "shim.py",
+        "#!/usr/bin/env python3\n# GENERATED -- DO NOT EDIT\n\ndef x():\n    return 1\n",
+    )
+
+    assert classify_file_category(generated) == "generated"
+
+
+def test_github_instructions_path_is_generated(tmp_path: Path) -> None:
+    # .github/instructions/*.instructions.md are generated mirrors of
+    # .claude/rules/* and carry no in-file markers; classify by path.
+    path = tmp_path / ".github" / "instructions" / "universal.instructions.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("# Universal Rules\n", encoding="utf-8")
+
+    assert classify_file_category(path) == "generated"
+
+
+def test_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
+    # A non-UTF-8 file read with content=None must not raise UnicodeDecodeError;
+    # unreadable content classifies as authored (no markers detectable).
+    binary = tmp_path / "blob.py"
+    binary.write_bytes(b"\xff\xfe\x00\x01 not valid utf-8 \x80\x81")
+
+    assert classify_file_category(binary) == "authored"
+
+
+def test_assess_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
+    binary = tmp_path / "blob.py"
+    binary.write_bytes(b"\xff\xfe\x00\x01 not valid utf-8 \x80\x81")
+
+    assessment = assess_file(binary, "production", False)
+
+    assert assessment.category in {"authored", "test"}
