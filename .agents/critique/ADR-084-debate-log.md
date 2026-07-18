@@ -27,7 +27,7 @@ A hook may ship in a vendored plugin surface only if it delivers consumer-repo v
 Folded into the ADR:
 
 - Rule 3 read as a soft ban could foreclose legitimate dynamic hooks (independent-thinker). Added an explicit clause: when the host surface cannot express the required logic (runtime inspection, conditional branching), a spawning hook is the right tool and the rule does not apply.
-- A future reviewer could misapply the ROI bar to an actual security control (security). Added a bullet to "What this ADR does NOT do": the active security gates (`invoke_security_gate.py`, `invoke_security_commit_gate.py`) are not `skip_if_consumer_repo` gated, enforce a security property, and are out of scope for ROI-driven retirement.
+- A future reviewer could misapply the ROI bar to an actual security control (security). Added a bullet to "What this ADR does NOT do": a hook that enforces a security property in consumer repos is out of scope for ROI-driven retirement. Of the two current security gates, only `invoke_security_gate.py` is consumer-effective (not `skip_if_consumer_repo` gated, runs on consumer Write/Edit); `invoke_security_commit_gate.py` is `skip_if_consumer_repo` gated and does not run in consumer repos, so whether it should is the #3197/#3219 security-rebuild question, not this ROI bar.
 - Rule 5 did not specify the docstring format (critic). Added the `Customer value:` prefix convention so the CI check is a presence grep, not a semantic judge.
 - The "12 of 13" count is not enumerated in the ADR (critic, analyst, high-level-advisor). Added a citation that the per-hook enumeration and the single survivor live in the #3197 ROI review; this ADR sets the bar and does not restate the census.
 

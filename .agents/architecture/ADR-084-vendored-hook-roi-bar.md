@@ -95,13 +95,16 @@ hooks. Concretely, the bar is five rules:
    delivers no consumer value by construction. It does not belong in the
    vendored surface. If the logic is genuinely internal, it moves to `.githooks`
    or CI per rule 2; it is not shipped dead.
-5. **Every vendored hook carries a one-line customer-value justification, and CI
-   checks its presence.** The justification lives in the hook's module
-   docstring as a single line a plugin reader can find, by convention prefixed
-   `Customer value:` so the CI check is a simple presence grep, not a semantic
-   judge. A CI check asserts the line is present on every hook in a vendored
-   surface, so a new hook cannot land without stating who it helps; the human
-   review at ADR and PR time judges whether the stated value is real.
+5. **Every vendored hook carries a one-line customer-value justification, and a
+   planned CI check asserts its presence.** The justification lives in the
+   hook's module docstring as a single line a plugin reader can find, by
+   convention prefixed `Customer value:` so the check is a simple presence grep,
+   not a semantic judge. That CI presence check is new surface to build (see the
+   risks below; recommended for the #3216 to #3218 chain), not an existing gate.
+   Once it ships it asserts the line is present on every hook in a vendored
+   surface, so a new hook cannot land without stating who it helps. Until then,
+   human review at ADR and PR time enforces the rule and judges whether the
+   stated value is real.
 
 ## Consequences
 
@@ -109,8 +112,10 @@ hooks. Concretely, the bar is five rules:
 
 - The vendored surface trends toward customer value, not internal ceremony. A
   plugin reader can tell what each shipped hook does for them.
-- Rule 5 makes the bar mechanically enforced at the point a hook is added, not a
-  convention that erodes. The CI check is the ratchet that stops re-accretion.
+- Rule 5 is designed to make the bar mechanically enforced at the point a hook
+  is added, once its CI presence check ships, rather than a convention that
+  erodes. That check is the intended ratchet that stops re-accretion; until it
+  lands, human review at ADR and PR time holds the line.
 - Rules 3 and 4 push cost off the consumer's hot path: zero-spawn host-native
   surfaces where possible, and no dead hooks spawning per call to no-op.
 - Internal enforcement does not weaken. It moves to `.githooks` and CI. CI
