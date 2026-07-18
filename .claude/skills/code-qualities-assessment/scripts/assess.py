@@ -390,9 +390,15 @@ def get_files_to_assess(target: str, changed_only: bool, base: str | None = None
     from glob import glob
 
     if changed_only:
+        # CWE-88: a --base beginning with "-" would be parsed by git as an
+        # option rather than a revision (for example --output=FILE makes
+        # git diff write to FILE). Reject option-like bases and pass
+        # --end-of-options so git always treats the range as a revision.
+        if base is not None and base.startswith("-"):
+            raise ValueError(f"--base must be a git revision, not an option: {base!r}")
         revision_range = f"{base}...HEAD" if base else "HEAD"
         result = subprocess.run(
-            ["git", "diff", "--name-only", revision_range],
+            ["git", "diff", "--name-only", "--end-of-options", revision_range],
             capture_output=True,
             text=True,
             check=True,

@@ -448,6 +448,32 @@ def test_changed_only_uses_base_for_clean_committed_branch(
     assert changed.exists()
 
 
+def test_changed_only_rejects_option_like_base() -> None:
+    """CWE-88: an option-like --base is rejected before git runs."""
+    with pytest.raises(ValueError):
+        get_files_to_assess(".", True, "--output=/tmp/should_not_be_written")
+
+
+def test_changed_only_passes_end_of_options_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CWE-88: the git invocation pins --end-of-options before the range."""
+    captured: dict[str, list[str]] = {}
+
+    class _Result:
+        stdout = ""
+
+    def _fake_run(cmd: list[str], **_kwargs: Any) -> _Result:
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    get_files_to_assess(".", True, "origin/main")
+    cmd = captured["cmd"]
+    assert "--end-of-options" in cmd
+    assert cmd.index("--end-of-options") < cmd.index("origin/main...HEAD")
+
+
 def test_generated_matcher_shim_is_classified_as_generated(tmp_path: Path) -> None:
     generated = _write(
         tmp_path,
