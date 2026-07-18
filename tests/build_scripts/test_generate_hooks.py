@@ -2507,8 +2507,12 @@ def test_generator_distinct_shim_per_matcher(tmp_path: Path) -> None:
     assert len(targets) == 2
     body0 = targets[0].read_text()
     body1 = targets[1].read_text()
-    # Each carries a different matcher in its shim header.
-    assert ("Matcher: Bash(git commit*)" in body0) != ("Matcher: Bash(git commit*)" in body1)
+    # Each carries a different matcher in its shim header. The matcher is
+    # repr-bound in the header comment (CWE-94 hardening), so it appears
+    # single-quoted.
+    assert (
+        "Matcher: 'Bash(git commit*)'" in body0
+    ) != ("Matcher: 'Bash(git commit*)'" in body1)
     # And hooks.json points at both distinct filenames.
     out = json.loads((tmp_path / "out" / "hooks.json").read_text())
     bash_paths = {entry["bash"] for entry in out["hooks"]["PreToolUse"]}

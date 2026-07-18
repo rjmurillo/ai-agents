@@ -12,6 +12,7 @@ Run locally:
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -196,7 +197,17 @@ def _script_paths(plugin_root: Path, entry: dict[str, Any]) -> dict[str, Path]:
 def _read_matcher(script_path: Path) -> str:
     text = script_path.read_text(encoding="utf-8", errors="replace")
     match = _MATCHER_RE.search(text)
-    return match.group(1).strip() if match else ""
+    if not match:
+        return ""
+    raw = match.group(1).strip()
+    # The generator repr-binds the matcher in the header comment (CWE-94
+    # hardening), so the comment reads ``# Matcher: 'Bash(git commit*)'``.
+    # Recover the original matcher string from its Python literal.
+    try:
+        value = ast.literal_eval(raw)
+    except (ValueError, SyntaxError):
+        return raw
+    return value if isinstance(value, str) else raw
 
 
 def _create_git_fixture(tmp_path: Path) -> Path:
