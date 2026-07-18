@@ -119,7 +119,12 @@ class _PathModule(Protocol):
     containment comparison stays ``bool`` instead of decaying to ``Any``).
     """
 
+    sep: str
+    altsep: str | None
+
     def commonpath(self, paths: list[str], /) -> str: ...
+
+    def splitdrive(self, p: str, /) -> tuple[str, str]: ...
 
 
 def _is_within(child: str, root: str, pathmod: _PathModule = os.path) -> bool:
@@ -135,10 +140,15 @@ def _is_within(child: str, root: str, pathmod: _PathModule = os.path) -> bool:
     escaped the CWD sandbox (CWE-22). ``commonpath`` compares whole path
     components, so only true descendants match.
 
-    ``commonpath`` raises ``ValueError`` when the two paths cannot share a base
-    (different drives, drive-vs-UNC, or a bare UNC share root that ``ntpath``
-    treats as rootless). Those all mean "not contained", so the guard fails
-    closed and returns False.
+    ``commonpath`` raises ``ValueError`` when the two paths cannot form a common
+    base. Different drives or drive-vs-UNC genuinely mean "not contained". But a
+    bare UNC share root (``\\\\server\\share``) has an empty root-relative part,
+    so ``ntpath`` treats it as rootless and refuses to mix it with a rooted
+    child, even though real descendants of that share ARE contained. On that
+    ``ValueError`` the guard decides by drive identity: contained only when child
+    and root share the same drive/share and root is that drive/share root itself.
+    This keeps the CWE-22 sibling-share rejection while no longer false-rejecting
+    a legitimate SKILL.md that lives directly under a bare share root.
 
     ``pathmod`` is injected only so tests can pin ``posixpath`` or ``ntpath`` and
     exercise both platforms' root semantics deterministically on any host;
@@ -149,7 +159,14 @@ def _is_within(child: str, root: str, pathmod: _PathModule = os.path) -> bool:
     try:
         return pathmod.commonpath([child, root]) == root
     except ValueError:
-        return False
+        # See the docstring: distinguish a genuine different-drive mismatch from
+        # a bare UNC share root that ``ntpath`` cannot mix with a rooted child.
+        child_drive, _ = pathmod.splitdrive(child)
+        root_drive, root_rel = pathmod.splitdrive(root)
+        if child_drive != root_drive:
+            return False
+        separators = {pathmod.sep, pathmod.altsep or pathmod.sep}
+        return root_rel == "" or root_rel in separators
 
 
 def _contained_realpath(target: Path, root: str) -> str | None:
