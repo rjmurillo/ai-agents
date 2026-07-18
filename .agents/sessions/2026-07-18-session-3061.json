@@ -27,17 +27,17 @@
       "sessionLogCreated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This file: .agents/sessions/2026-07-17-session-3061.json"
+        "Evidence": "This file: .agents/sessions/2026-07-18-session-3061.json"
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git branch --show-current reported docs/adr-062-retire-lsp-enforcement-3214, rebased onto origin/main tip 41e93786."
+        "Evidence": "git branch --show-current reported docs/adr-chain-hook-roi-3214-3215, rebased onto origin/main tip 41e93786."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On docs/adr-062-retire-lsp-enforcement-3214, not main or master."
+        "Evidence": "On docs/adr-chain-hook-roi-3214-3215, not main or master."
       },
       "constraintsRead": {
         "level": "SHOULD",
