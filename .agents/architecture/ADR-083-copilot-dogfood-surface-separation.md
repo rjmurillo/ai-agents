@@ -130,9 +130,10 @@ customer installs the base.
    The test also asserts a real shipped skill script resolves under the plugin
    root. Loading the base alone is what catches base-only form-factor bugs; loading
    the `.claude` superset (today's behavior) never exercises the base by itself. A
-   second test loads base plus overlay to prove our runtime. Both wire into
-   `.github/workflows/nightly-cli-smoke.yml`, gated by `RUN_CLI_E2E`, on Linux and
-   Windows.
+   second test loads base plus overlay to prove our runtime; this overlay e2e is
+   deferred per Decision item 6 until an internal skill exists. The base-alone
+   test wires into `.github/workflows/nightly-cli-smoke.yml`, gated by
+   `RUN_CLI_E2E`, on Linux and Windows.
 
 5. **Hooks stay with #3197 (D3).** This ADR does not build a hook overlay.
    Internal hooks are deleted from the vendored surface and re-homed by #3197.
@@ -271,7 +272,7 @@ leak of a borderline item such as the session family.
 | `.github/plugin/marketplace.json` | Direct | Must NOT list the overlay; base entry unchanged | Low |
 | `build/scripts/check_plugin_manifest_parity.py` | Direct | Parity stays `.claude` version == `src/copilot-cli` base version (version strings, not content). Overlay is not in the parity pair | Low |
 | `build/scripts/validate_plugin_version_bump.py` | Direct | Add the overlay as a fourth version line; a content change under the overlay requires its own bump. The base pair bump is unchanged | Medium |
-| `.github/workflows/nightly-cli-smoke.yml` | Direct | Add the base-alone and base-plus-overlay e2e jobs, Linux and Windows | Low |
+| `.github/workflows/nightly-cli-smoke.yml` | Direct | Add the base-alone e2e job, Linux and Windows; the overlay e2e is deferred per Decision item 6 | Low |
 | `tests/e2e/` | Direct | New real-artifact tests replacing the synthetic marker probe for shipped-surface coverage | Medium |
 
 ## Implementation Notes
