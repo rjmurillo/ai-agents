@@ -190,8 +190,8 @@ def test_pre_pr_under_size_ceiling() -> None:
     assert len(text.splitlines()) < 500
 
 
-def test_lazy_version_pin_import_survives_sys_path_restore_in_isolation() -> None:
-    """Regression (#3073): the lazy version-pin import survives a sys.path restore.
+def test_lazy_version_pin_import_resolves_without_sys_path_restore() -> None:
+    """Regression (#3073): the lazy version-pin import resolves without a sys.path restore.
 
     ``validate_copilot_version_pin`` (checks_tooling.py) runs a *function-local*
     ``from check_copilot_version_pin import EXIT_OK, check_action`` that resolves
