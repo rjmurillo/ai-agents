@@ -92,6 +92,11 @@ _VALID_SCRIPTS = [
     "owner.py",
     "a_b-c.d.py",
     "invoke_x__Bash_git_commit_a1b2c3.py",
+    # Real generator emits these underscore-prefixed helpers; the validator
+    # must not reject them (regression: leading-underscore rejection broke
+    # generation of _dispatch.py and _bootstrap.py).
+    "_dispatch.py",
+    "_bootstrap.py",
 ]
 
 

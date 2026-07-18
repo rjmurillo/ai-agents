@@ -59,7 +59,7 @@ _EVENT_NAME_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
 # deterministic ``__<matcher>_<sha>`` disambiguation suffix. Allow only
 # ``[A-Za-z0-9._-]`` with a ``.py`` extension so no separator, ``..``
 # segment, whitespace, or shell metacharacter can reach the command string.
-_SCRIPT_NAME_RE = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.py$")
+_SCRIPT_NAME_RE = _re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*\.py$")
 
 
 def _validate_event_name(name: str) -> str:
