@@ -34,7 +34,7 @@ canonical rule `.claude/rules/lsp-first.md` shipped as context every session,
 the Serena Init BLOCKING step in AGENTS.md, and the per-turn
 `invoke_serena_reassertion.py` nudge (issue #1993). Note: that hook uses
 `skip_if_consumer_repo` and therefore self-neuters in consumer repos; per
-ADR-083 rule 4, when #3216 lands the hook should be relocated from the
+ADR-084 rule 4, when #3216 lands the hook should be relocated from the
 vendored surface to `.githooks/` or CI to comply with the vendored-hook
 ROI bar. The three-tier navigation
 preference (Decision, Section 1) survives as steering; only the blocking
@@ -78,7 +78,7 @@ What this amendment does NOT change:
   three-tier navigation preference the file carries is what stays.
 - Serena Init (AGENTS.md BLOCKING) and the #1993 re-assertion stay. The
   #1993 hook (`invoke_serena_reassertion.py`) self-neuters via
-  `skip_if_consumer_repo`, so per ADR-083 rule 4 it moves out of the
+  `skip_if_consumer_repo`, so per ADR-084 rule 4 it moves out of the
   vendored surface to `.githooks/` or CI when #3216 lands; the steering
   effect for this repository is retained.
 - No security property changes. Section 4 already states the gate-state is not a

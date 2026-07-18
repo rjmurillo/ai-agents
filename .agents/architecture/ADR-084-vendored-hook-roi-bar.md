@@ -1,5 +1,5 @@
 ---
-id: ADR-083
+id: ADR-084
 status: proposed
 date: 2026-07-17
 decision-makers: [rjmurillo]
@@ -9,7 +9,7 @@ explainer: null
 implemented: false
 ---
 
-# ADR-083: Vendored-Hook ROI Bar
+# ADR-084: Vendored-Hook ROI Bar
 
 ## Status
 
@@ -162,4 +162,4 @@ hooks. Concretely, the bar is five rules:
 - `.claude/lib/hook_utilities/guards.py` (`skip_if_consumer_repo`, the
   self-neutering surface rule 4 addresses).
 - The adr-review consensus for this ADR is recorded in
-  `.agents/critique/ADR-083-debate-log.md`.
+  `.agents/critique/ADR-084-debate-log.md`.

@@ -3,7 +3,7 @@
   "session": "2026-07-18-session-3061",
   "timestamp": "2026-07-18T00:00:00+00:00",
   "outcome": "success",
-  "task": "Draft ADR-062 amendment (#3214) and new ADR-083 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197.",
+  "task": "Draft ADR-062 amendment (#3214) and new ADR-084 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197.",
   "decisions": [],
   "events": [
     {
@@ -67,6 +67,22 @@
       "timestamp": "2026-07-18T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 16abc7b7",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Authored new ADR-084 for #3215",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renumbered vendored-hook ROI bar ADR-083 to ADR-084 and merged main into PR #3221",
       "caused_by": [],
       "leads_to": []
     }

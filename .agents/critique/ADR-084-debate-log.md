@@ -1,6 +1,6 @@
-# ADR-083 Review Debate Log: Vendored-Hook ROI Bar
+# ADR-084 Review Debate Log: Vendored-Hook ROI Bar
 
-**Artifact**: `.agents/architecture/ADR-083-vendored-hook-roi-bar.md` (Proposed)
+**Artifact**: `.agents/architecture/ADR-084-vendored-hook-roi-bar.md` (Proposed)
 **Protocol**: ADR Review Protocol, 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor)
 **Date**: 2026-07-17
 **Context**: issue #3215, part of the #3197 vendored-hook ROI review. One joint adr-review pass over this ADR and the ADR-062 amendment (issue #3214). The repo owner approved the ROI bar substance; this debate records consensus. The status:accepted flip is owner-authorized.

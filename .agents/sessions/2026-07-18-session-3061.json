@@ -5,7 +5,7 @@
     "date": "2026-07-18",
     "branch": "docs/adr-chain-hook-roi-3214-3215",
     "startingCommit": "41e93786",
-    "objective": "Draft ADR-062 amendment (#3214) and new ADR-083 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197."
+    "objective": "Draft ADR-062 amendment (#3214) and new ADR-084 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -69,7 +69,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR-062 amendment, ADR-083, the adr-review debate logs, and this session log staged and committed together on the ADR branch for this session."
+        "Evidence": "ADR-062 amendment, ADR-084, the adr-review debate logs, and this session log were committed across several commits on the ADR branch during this session: the initial ADR chain, two review-address rounds, and the ADR-084 renumber and main merge. Not a single commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -96,8 +96,8 @@
     },
     {
       "timestamp": "2026-07-17T22:40:00Z",
-      "action": "Authored new ADR-083 for #3215",
-      "result": "Created ADR-083 codifying the five-point vendored-hook ROI bar (consumer-repo value required, internal enforcement to githooks/CI, prefer host-native permissions over spawns, ban self-neutering hooks, one-line customer-value docstring with a CI presence check) with the project-toolkit org-scale distribution context. ADR-073 lifecycle frontmatter, status proposed."
+      "action": "Authored new ADR-084 for #3215",
+      "result": "Created ADR-084 codifying the five-point vendored-hook ROI bar (consumer-repo value required, internal enforcement to githooks/CI, prefer host-native permissions over spawns, ban self-neutering hooks, one-line customer-value docstring with a CI presence check) with the project-toolkit org-scale distribution context. ADR-073 lifecycle frontmatter, status proposed."
     },
     {
       "timestamp": "2026-07-17T23:00:00Z",
@@ -107,21 +107,31 @@
     {
       "timestamp": "2026-07-18T04:55:27Z",
       "action": "Recorded adr-review consensus and prepared the joint PR",
-      "result": "Ran the adr-review skill (/adr-review) as a 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) over both ADRs in one pass. Result: unanimous 6/6 Accept on ADR-062's amendment and ADR-083, zero P0. Every cited artifact verified on disk by multiple reviewers. Decision-neutral P1 clarifications folded into both ADRs. Debate logs written to .agents/critique/ADR-062-debate-log.md (amendment section appended) and .agents/critique/ADR-083-debate-log.md. Zero em/en dashes verified across all artifacts. Acceptance (status flip) is owner-authorized and out of scope for this PR."
+      "result": "Ran the adr-review skill (/adr-review) as a 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) over both ADRs in one pass. Result: unanimous 6/6 Accept on ADR-062's amendment and ADR-084, zero P0. Every cited artifact verified on disk by multiple reviewers. Decision-neutral P1 clarifications folded into both ADRs. Debate logs written to .agents/critique/ADR-062-debate-log.md (amendment section appended) and .agents/critique/ADR-084-debate-log.md. Zero em/en dashes verified across all artifacts. Acceptance (status flip) is owner-authorized and out of scope for this PR."
     },
     {
       "timestamp": "2026-07-18T06:35:00Z",
       "action": "Integrated upstream ADR conflict fix and addressed 5 reviewer accuracy threads on PR #3221",
-      "result": "A Cursor Agent commit (16abc7b7) landed on the branch addressing the Bugbot ADR-062/ADR-083 self-neutering contradiction (invoke_serena_reassertion.py uses skip_if_consumer_repo, banned by ADR-083 rule 4). Adopted that owner-triggered upstream fix as authoritative and dropped a local duplicate reconciliation to avoid redundant, inconsistent ADR text; replied and marked the Bugbot thread addressed. Then addressed 5 Copilot reviewer threads, all accuracy and clarity: ADR-062 status summary reworded to proposed tense (nothing retired until accepted) and the module-deletion scope reworded to 'any code with no other caller, enumerated during #3216'; ADR-083 security-gate bullet reworded so retention is not subject to an ROI cost-benefit veto while still bound by the bar's mechanical rules, and two .githooks bullets corrected to state CI gates unconditionally while deterministic .githooks activation is a dependency (issue #3182). All edits boundary safe: both ADRs stay status proposed, no hook deleted. Byte-verified 0 em or en dashes in both files.",
+      "result": "A Cursor Agent commit (16abc7b7) landed on the branch addressing the Bugbot ADR-062/ADR-084 self-neutering contradiction (invoke_serena_reassertion.py uses skip_if_consumer_repo, banned by ADR-084 rule 4). Adopted that owner-triggered upstream fix as authoritative and dropped a local duplicate reconciliation to avoid redundant, inconsistent ADR text; replied and marked the Bugbot thread addressed. Then addressed 5 Copilot reviewer threads, all accuracy and clarity: ADR-062 status summary reworded to proposed tense (nothing retired until accepted) and the module-deletion scope reworded to 'any code with no other caller, enumerated during #3216'; ADR-084 security-gate bullet reworded so retention is not subject to an ROI cost-benefit veto while still bound by the bar's mechanical rules, and two .githooks bullets corrected to state CI gates unconditionally while deterministic .githooks activation is a dependency (issue #3182). All edits boundary safe: both ADRs stay status proposed, no hook deleted. Byte-verified 0 em or en dashes in both files.",
       "filesModified": [
         ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
-        ".agents/architecture/ADR-083-vendored-hook-roi-bar.md"
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-18T07:05:00Z",
+      "action": "Renumbered vendored-hook ROI bar ADR-083 to ADR-084 and merged main into PR #3221",
+      "result": "origin/main merged a different ADR-083 (copilot-dogfood-surface-separation) first, colliding with this branch's ADR-083 (vendored-hook-roi-bar); the shared debate-log path .agents/critique/ADR-083-debate-log.md conflicted directly. Applied the standard convention: the ADR that merged to main keeps 083, the still-in-PR ADR renumbers to the next free number, ADR-084. Renamed the ADR file and its debate log to ADR-084 and updated every ADR-083 reference in this branch's files (ADR-062 reconciliation clause, the ADR body, both debate logs, this session log, the episode record). Both ADRs preserved; only the identifier changed. ADR-084 keeps status proposed and the sovereignty boundary holds (no status flip to accepted, no hook deleted). Also reworded the changesCommitted evidence to state the work spanned several commits, not one, per a reviewer thread.",
+      "filesModified": [
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
+        ".agents/critique/ADR-084-debate-log.md",
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md"
       ]
     }
   ],
   "endingCommit": "7aec838c",
   "nextSteps": [
-    "Owner authorizes flipping ADR-062 amendment and ADR-083 to status accepted, bound to the adr-review debate-log consensus.",
+    "Owner authorizes flipping ADR-062 amendment and ADR-084 to status accepted, bound to the adr-review debate-log consensus.",
     "After acceptance, the #3216 purge and #3217/#3218 follow-ons can proceed; do not implement the hook deletions before acceptance."
   ]
 }

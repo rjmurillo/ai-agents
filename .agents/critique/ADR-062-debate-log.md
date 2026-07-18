@@ -55,7 +55,7 @@ This is a principled capability split, not an exemption. It removes the ambiguit
 ## Amendment Review 2026-07-17: Retire the runtime enforcement layer
 
 **Artifact**: the `## Amendment 2026-07-17 (proposed)` section of ADR-062 (issue #3214).
-**Protocol**: 6-agent adr-review debate, one joint pass over this amendment and ADR-083 (issue #3215).
+**Protocol**: 6-agent adr-review debate, one joint pass over this amendment and ADR-084 (issue #3215).
 **Context**: the #3197 vendored-hook ROI review measured the enforcement layer over 6.5 weeks. The repo owner approved retiring runtime enforcement while keeping the static steering. This debate records consensus; the status:accepted flip is owner-authorized.
 
 | Agent | Vote | Core position |
