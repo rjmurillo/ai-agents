@@ -1,0 +1,123 @@
+{
+  "id": "episode-2026-07-18-session-3061",
+  "session": "2026-07-18-session-3061",
+  "timestamp": "2026-07-18T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Draft ADR-062 amendment (#3214) and new ADR-084 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Grounded the ADR chain against the owner's #3197 decomposition",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drafted the ADR-062 amendment for #3214",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Authored the vendored-hook ROI bar ADR (ADR-084) for #3215",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Routed both ADRs through the 6-agent adr-review debate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded adr-review consensus and prepared the joint PR",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7aec838c",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Integrated upstream ADR conflict fix and addressed 5 reviewer accuracy threads on PR #3221",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 16abc7b7",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renumbered vendored-hook ROI bar ADR-083 to ADR-084 and merged main into PR #3221",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded repo-owner acceptance of the ADR-062 amendment and ADR-084",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled the session-3061 episode timeline with reviewer feedback on PR #3221",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled ADR-084 factual claim and debate-log status labels with reviewer feedback on PR #3221",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 4d31c635",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 6
+  },
+  "lessons": []
+}

@@ -2,11 +2,92 @@
 
 ## Status
 
-Proposed
+Accepted as amended (repo-owner @rjmurillo, 2026-07-18). Originally proposed
+2026-05-31; amended 2026-07-17 (adr-review consensus 6/6 Accept) to retire the
+runtime enforcement layer and retain only the static steering. See the
+Amendment section below.
 
 ## Date
 
 2026-05-31
+
+## Amendment 2026-07-17 (accepted): Retire the runtime enforcement layer, keep the static steering
+
+Status of this amendment: Accepted (repo-owner @rjmurillo, 2026-07-18).
+adr-review consensus recorded (6/6 Accept, see the debate log). This amendment
+is filed as issue #3214 and unblocks the hook removal in issue #3216, part of
+the #3197 vendored-hook ROI review. It records the decision only. It does not
+delete any hook. The deletion is the implementation issue this unblocks.
+
+Change: retire the LSP-first runtime enforcement hooks. That is the five
+PreToolUse guards (`invoke_lsp_read_guard.py`, `invoke_lsp_grep_guard.py`,
+`invoke_lsp_bash_grep_guard.py`, `invoke_lsp_glob_guard.py`,
+`invoke_lsp_pre_delegation_guard.py`), the two PostToolUse trackers
+(`invoke_lsp_read_tracker.py`, `invoke_lsp_usage_tracker.py`), the SessionStart
+reset (`invoke_lsp_session_reset.py`), and the shared state and detection
+modules under `.claude/lib/hook_utilities/` that only those hooks consume
+(`lsp_gate_state.py`, plus any code in `lsp_provider.py`, `lsp_symbols.py`,
+and `lsp_health.py` with no other caller, enumerated during #3216). Keep the static steering: the
+canonical rule `.claude/rules/lsp-first.md` shipped as context every session,
+the Serena Init BLOCKING step in AGENTS.md, and the per-turn
+`invoke_serena_reassertion.py` nudge (issue #1993). Note: that hook uses
+`skip_if_consumer_repo` and therefore self-neuters in consumer repos; per
+ADR-084 rule 4, when #3216 lands the hook should be relocated from the
+vendored surface to `.githooks/` or CI to comply with the vendored-hook
+ROI bar. The three-tier navigation
+preference (Decision, Section 1) survives as steering; only the blocking
+behavior is withdrawn.
+
+Rationale: the #3197 ROI review measured the enforcement layer against three
+evidence streams (adversarial prosecution, 24 real Claude transcripts, 64
+Copilot logs). It found:
+
+- One true positive in 6.5 weeks. The single catch was a harmless grep redirect.
+  Against it stand documented false positives #3091 (a cargo-cult "LSP CONTEXT"
+  incantation agents emit to satisfy the gate), #2200, #2454 (merge-conflict
+  reads), and #2622 (LSP-down hard blocks), plus multiple blocks this week.
+- The Read gate fires on the hottest tool. `invoke_lsp_read_guard.py` runs on
+  every Read to enforce a preference, not a safety property, and pays the 250 ms
+  to 1 s Windows spawn tax measured in #3075 on every invocation.
+- The preference already has three enforcement-free carriers.
+  `.claude/rules/lsp-first.md` ships as context every session, Serena Init is
+  BLOCKING at session start (AGENTS.md), and #1993 re-asserts every turn. The
+  runtime block is a fourth, and most expensive, layer on a preference the first
+  three already carry.
+- Most of the family self-neuters in consumer repos. The guards gate on the git
+  origin being `ai-agents` (`skip_if_consumer_repo`), so they no-op in any
+  customer repo regardless of the block.
+
+This reverses the core Decision ("adopt a conditional, availability-gated
+LSP-first enforcement layer") on the enforcement axis only. The load-bearing
+conditioning that made the original design fail-open is preserved by removal:
+with no gate, there is no gate to wedge. The architect-review dissent recorded
+under Consequences ("ship warn-first / measure-then-flip given the #1993 soft
+layer is one day old and unmeasured") is now settled by the measurement the
+dissent asked for. Six and a half weeks of data show the flip should have gone
+the other way.
+
+What this amendment does NOT change:
+
+- `.claude/rules/lsp-first.md` and its two mirrors stay. The steering is
+  retained, not retired. The enforcement-layer mechanics that file currently
+  documents (the env-var escape hatches, the hook-tier description) are cleaned
+  up by the #3216 removal when the hooks they describe are deleted; the
+  three-tier navigation preference the file carries is what stays.
+- Serena Init (AGENTS.md BLOCKING) and the #1993 re-assertion stay. The
+  #1993 hook (`invoke_serena_reassertion.py`) self-neuters via
+  `skip_if_consumer_repo`, so per ADR-084 rule 4 it moves out of the
+  vendored surface to `.githooks/` or CI when #3216 lands; the steering
+  effect for this repository is retained.
+- No security property changes. Section 4 already states the gate-state is not a
+  security boundary and Section 7 shows the detection modules are CWE-78 and
+  CWE-22 safe by construction; the modules are removed with the hooks, not
+  weakened, and no security control depended on the gate.
+
+Refs: issue #3214 (this amendment), issue #3197 (ROI review), issue #3216 (hook
+removal this unblocks), issue #3075 (Windows spawn cost), issues #3091, #2200,
+#2454, #2622 (false positives). The amendment's adr-review consensus is recorded
+in `.agents/critique/ADR-062-debate-log.md` alongside the original debate.
 
 ## Context
 

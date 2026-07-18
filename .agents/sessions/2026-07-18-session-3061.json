@@ -1,0 +1,169 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3061,
+    "date": "2026-07-18",
+    "branch": "docs/adr-chain-hook-roi-3214-3215",
+    "startingCommit": "41e93786",
+    "objective": "Draft ADR-062 amendment (#3214) and new ADR-084 (#3215) capturing the owner-approved vendored-hook ROI decisions, and route both through adr-review to unblock #3197."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live in this Copilot CLI session: serena-initial_instructions returned the Serena manual and serena-find_symbol/get_symbols_overview tools are present. Project is the active ai-agents repo."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions at session start and read the returned operating manual (43.9 KB)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only reference per ADR-014) and the #3197 decomposition status from the owner before acting."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-07-18-session-3061.json"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported docs/adr-chain-hook-roi-3214-3215, rebased onto origin/main tip 41e93786."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/adr-chain-hook-roi-3214-3215, not main or master."
+      },
+      "constraintsRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS via AGENTS.md, the ADR conventions (ADR-073 frontmatter, ADR-054 amendment format), and the universal dash prohibition before editing."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart and sessionEnd items are complete for this session; Serena items are satisfied because Serena MCP is live."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session decision recorded via the durable session log and the adr-review debate logs; Serena memory index consulted at start."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 scoped set is empty: every changed Markdown file is under .agents/, which the repo .markdownlint-cli2 config excludes (Linting: 0 files). No lintable Markdown in this change."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-062 amendment, ADR-084, the adr-review debate logs, and this session log were committed across several commits on the ADR branch during this session: the initial ADR chain, two review-address rounds, and the ADR-084 renumber and main merge. Not a single commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Docs-only change (ADR Markdown, adr-review debate logs, session log). No code modified so no unit tests apply; markdownlint scoped set is empty because .agents/ is config-excluded; byte check confirms 0 em/en dashes in every authored file; ADR uniqueness gate PASS (ADR-084 allocated as the next free number); adr-review 6-agent consensus recorded per debate logs."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo list tracked the ADR-chain steps; each marked in_progress then done as completed."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-17T22:00:00Z",
+      "action": "Grounded the ADR chain against the owner's #3197 decomposition",
+      "result": "Confirmed issues #3214 (amend ADR-062) and #3215 (new vendored-hook ROI ADR) are OPEN, read both full bodies and acceptance criteria, and confirmed both record owner-approved decisions that require adr-review consensus before the #3216 purge can land."
+    },
+    {
+      "timestamp": "2026-07-17T22:20:00Z",
+      "action": "Drafted the ADR-062 amendment for #3214",
+      "result": "Added a proposed Amendment 2026-07-17 section retiring the eight LSP runtime-enforcement hooks and their single-consumer shared modules while keeping the static steering (.claude/rules/lsp-first.md, Serena Init, the #1993 reassertion). Cited the #3197 ROI evidence (1 true positive in 6.5 weeks vs #3091/#2200/#2454/#2622 false positives, the per-Read Windows spawn tax from #3075, the skip_if_consumer_repo self-neutering). Verified 0 em/en dashes."
+    },
+    {
+      "timestamp": "2026-07-17T22:40:00Z",
+      "action": "Authored the vendored-hook ROI bar ADR (ADR-084) for #3215",
+      "result": "Created ADR-084 codifying the five-point vendored-hook ROI bar (consumer-repo value required, internal enforcement to githooks/CI, prefer host-native permissions over spawns, ban self-neutering hooks, one-line customer-value docstring with a CI presence check) with the project-toolkit org-scale distribution context. ADR-073 lifecycle frontmatter, status proposed."
+    },
+    {
+      "timestamp": "2026-07-17T23:00:00Z",
+      "action": "Routed both ADRs through the 6-agent adr-review debate",
+      "result": "Launched architect, critic, independent-thinker, security, analyst, and high-level-advisor reviewers over both ADRs; synthesized verdicts into per-ADR debate logs and recorded the consensus. Left the status:accepted flip to the repo owner per User Sovereignty."
+    },
+    {
+      "timestamp": "2026-07-18T04:55:27Z",
+      "action": "Recorded adr-review consensus and prepared the joint PR",
+      "result": "Ran the adr-review skill (/adr-review) as a 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) over both ADRs in one pass. Result: unanimous 6/6 Accept on ADR-062's amendment and ADR-084, zero P0. Every cited artifact verified on disk by multiple reviewers. Decision-neutral P1 clarifications folded into both ADRs. Debate logs written to .agents/critique/ADR-062-debate-log.md (amendment section appended) and .agents/critique/ADR-084-debate-log.md. Zero em/en dashes verified across all artifacts. Acceptance (status flip) is owner-authorized and out of scope for this PR."
+    },
+    {
+      "timestamp": "2026-07-18T06:35:00Z",
+      "action": "Integrated upstream ADR conflict fix and addressed 5 reviewer accuracy threads on PR #3221",
+      "result": "A Cursor Agent commit (16abc7b7) landed on the branch addressing the Bugbot ADR-062/ADR-084 self-neutering contradiction (invoke_serena_reassertion.py uses skip_if_consumer_repo, banned by ADR-084 rule 4). Adopted that owner-triggered upstream fix as authoritative and dropped a local duplicate reconciliation to avoid redundant, inconsistent ADR text; replied and marked the Bugbot thread addressed. Then addressed 5 Copilot reviewer threads, all accuracy and clarity: ADR-062 status summary reworded to proposed tense (nothing retired until accepted) and the module-deletion scope reworded to 'any code with no other caller, enumerated during #3216'; ADR-084 security-gate bullet reworded so retention is not subject to an ROI cost-benefit veto while still bound by the bar's mechanical rules, and two .githooks bullets corrected to state CI gates unconditionally while deterministic .githooks activation is a dependency (issue #3182). All edits boundary safe: both ADRs stay status proposed, no hook deleted. Byte-verified 0 em or en dashes in both files.",
+      "filesModified": [
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-18T07:05:00Z",
+      "action": "Renumbered vendored-hook ROI bar ADR-083 to ADR-084 and merged main into PR #3221",
+      "result": "origin/main merged a different ADR-083 (copilot-dogfood-surface-separation) first, colliding with this branch's ADR-083 (vendored-hook-roi-bar); the shared debate-log path .agents/critique/ADR-083-debate-log.md conflicted directly. Applied the standard convention: the ADR that merged to main keeps 083, the still-in-PR ADR renumbers to the next free number, ADR-084. Renamed the ADR file and its debate log to ADR-084 and updated every ADR-083 reference in this branch's files (ADR-062 reconciliation clause, the ADR body, both debate logs, this session log, the episode record). Both ADRs preserved; only the identifier changed. ADR-084 keeps status proposed and the sovereignty boundary holds (no status flip to accepted, no hook deleted). Also reworded the changesCommitted evidence to state the work spanned several commits, not one, per a reviewer thread.",
+      "filesModified": [
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
+        ".agents/critique/ADR-084-debate-log.md",
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-18T07:41:43Z",
+      "action": "Recorded repo-owner acceptance of the ADR-062 amendment and ADR-084",
+      "result": "Repo owner (@rjmurillo) approved both ADRs in two messages this session: first \"approve 062\", then \"ADR 84 approved\". Flipped the ADR-062 amendment status from proposed to Accepted (repo-owner @rjmurillo, 2026-07-18) at all three status locations and reworded the top Status line to lead with the current effective state (Accepted as amended) while preserving the 2026-05-31 proposed history. Flipped ADR-084 frontmatter status from proposed to accepted and reworded its Status prose to Accepted (repo-owner @rjmurillo, 2026-07-18). The adr-review consensus text (6/6 Accept) is retained. No hook was deleted and implemented stays false: acceptance records the decisions and unblocks issues #3216, #3217, #3218, but the purge itself is separate implementation work not performed here.",
+      "filesModified": [
+        ".agents/architecture/ADR-062-conditional-lsp-first-enforcement.md",
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
+        ".agents/sessions/2026-07-18-session-3061.json"
+      ]
+    },
+    {
+      "timestamp": "2026-07-18T07:49:08Z",
+      "action": "Reconciled the session-3061 episode timeline with reviewer feedback on PR #3221",
+      "result": "Two Copilot review threads flagged the auto-generated episode: event e003 still read \"Authored new ADR-083\" after the renumber, and a second authoring milestone (\"Authored new ADR-084\") duplicated it. Root cause: the episode extractor is append-only and unions events by (type, content), so the frozen ADR-083 event and the duplicate ADR-084 event both survived while workLog[2] had already been updated to 084. Aligned workLog[2] and episode event e003 to one self-contained authoring milestone that names the final number ADR-084, and removed the duplicate so the renumber event stays the single record of the number change. Verified idempotent by running extract_session_episode.py --preserve: the event set is stable and no duplicate is re-added.",
+      "filesModified": [
+        ".agents/sessions/2026-07-18-session-3061.json",
+        ".agents/memory/episodes/episode-2026-07-18-session-3061.json"
+      ]
+    },
+    {
+      "timestamp": "2026-07-18T08:05:00Z",
+      "action": "Reconciled ADR-084 factual claim and debate-log status labels with reviewer feedback on PR #3221",
+      "result": "Copilot review flagged five threads after the acceptance push. Fixed the one factual error: ADR-084's non-goal bullet claimed both current security gates run in consumer repos and are not skip_if_consumer_repo gated, but invoke_security_commit_gate.py calls skip_if_consumer_repo(\"security-commit-gate\") at line 178 and does not run in consumer repos. Corrected the bullet so only invoke_security_gate.py is described as consumer-effective (ungated, runs on consumer Write/Edit), scoped the commit gate to the #3197/#3219 security-rebuild question, and kept the point that the ROI bar does not veto genuine security controls. Updated the ADR-084 and ADR-062 debate-log status labels from Proposed/proposed to Accepted 2026-07-18 so the historical logs reflect the current ADR status. The remaining threads (session-log nextSteps, PR body out-of-scope framing) are stale: both were already updated to reflect owner acceptance.",
+      "filesModified": [
+        ".agents/architecture/ADR-084-vendored-hook-roi-bar.md",
+        ".agents/critique/ADR-084-debate-log.md",
+        ".agents/critique/ADR-062-debate-log.md"
+      ]
+    }
+  ],
+  "endingCommit": "4d31c635",
+  "nextSteps": [
+    "Both ADR-062 amendment and ADR-084 are now accepted (repo-owner @rjmurillo, 2026-07-18); the adr-review 6/6 consensus is final.",
+    "The #3216 purge and #3217/#3218 follow-ons can proceed; acceptance is complete and no longer blocks implementation.",
+    "PR #3221 carries both ADRs to merge; the episode-3061 e012 milestone node and e013 commit node were reconciled to their canonical generate_node_id values so the causal graph and episode stream stay in parity.",
+    "Addressed three PR #3221 reviewer threads: reworded ADR-084 Rule 5 and its positive consequence so the CI presence check reads as planned future work (not an existing gate), and aligned the ADR-084 debate-log security-gate bullet with the accepted ADR wording (only invoke_security_gate.py is consumer-effective; invoke_security_commit_gate.py is skip_if_consumer_repo gated).",
+    "Reworded the ADR-062 amendment intro into complete sentences (PR #3221 reviewer nit): removed the dangling semicolon after the issue #3214 reference so the accepted-status paragraph scans as full sentences without changing its meaning."
+  ]
+}
