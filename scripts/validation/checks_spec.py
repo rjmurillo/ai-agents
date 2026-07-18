@@ -291,3 +291,28 @@ def validate_spec_contradiction(repo_root: Path) -> bool:
     # non-zero exit here is a config error (e.g. could not resolve repo). Do
     # not block the pre-PR cycle on it; surface the output and pass.
     return True
+
+
+def validate_model_pins(repo_root: Path) -> bool:
+    """Surface model-pin drift in warn mode (ADR-080; Issue #3073).
+
+    Wraps ``scripts/validation/check_model_pins.py --mode warn``. Warn mode
+    reports unpinned or mismatched model references and exits 0 even when
+    violations exist, so this gate never blocks the pre-PR cycle; enforcement
+    stays in CI. The wrapped script exits 2 only on a configuration error
+    (missing baseline or manifest), which is a real defect and is surfaced as a
+    failure here.
+    """
+    script = repo_root / "scripts" / "validation" / "check_model_pins.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_model_pins.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--mode", "warn"]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
