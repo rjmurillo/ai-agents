@@ -110,7 +110,7 @@
       "result": "Ran the adr-review skill (/adr-review) as a 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) over both ADRs in one pass. Result: unanimous 6/6 Accept on ADR-062's amendment and ADR-083, zero P0. Every cited artifact verified on disk by multiple reviewers. Decision-neutral P1 clarifications folded into both ADRs. Debate logs written to .agents/critique/ADR-062-debate-log.md (amendment section appended) and .agents/critique/ADR-083-debate-log.md. Zero em/en dashes verified across all artifacts. Acceptance (status flip) is owner-authorized and out of scope for this PR."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "7aec838c",
   "nextSteps": [
     "Owner authorizes flipping ADR-062 amendment and ADR-083 to status accepted, bound to the adr-review debate-log consensus.",
     "After acceptance, the #3216 purge and #3217/#3218 follow-ons can proceed; do not implement the hook deletions before acceptance."
