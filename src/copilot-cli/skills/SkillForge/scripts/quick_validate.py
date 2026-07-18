@@ -101,7 +101,20 @@ def _parse_frontmatter_fallback(frontmatter_text: str) -> dict[str, Any]:
     return frontmatter
 
 
-def validate_skill(skill_path):
+def _contained_realpath(target: Path, root: str) -> str | None:
+    """Resolve ``target`` and return its real path only if it stays within ``root``.
+
+    ``root`` must already be an ``os.path.realpath`` result. Returns ``None`` when
+    the resolved target escapes ``root`` (via a symlink or ``..``), letting the
+    caller reject an out-of-root read (CWE-22).
+    """
+    real = os.path.realpath(target)
+    if real == root or real.startswith(root + os.sep):
+        return real
+    return None
+
+
+def validate_skill(skill_path, root: str | None = None):
     """
     Basic validation of a skill for packaging compatibility.
 
@@ -113,6 +126,11 @@ def validate_skill(skill_path):
     - Name format (hyphen-case, ≤64 chars)
     - Description format (≤1024 chars, no angle brackets)
 
+    Args:
+        skill_path: Path to the skill directory containing SKILL.md.
+        root: When set, the realpath-resolved trusted root. SKILL.md must
+            resolve within it or validation fails (CWE-22 containment).
+
     Returns:
         tuple: (is_valid: bool, message: str)
     """
@@ -123,8 +141,19 @@ def validate_skill(skill_path):
     if not skill_md.exists():
         return False, "SKILL.md not found"
 
+    # SECURITY (CWE-22): when a trusted root is supplied, ensure SKILL.md resolves
+    # inside it before reading. A descendant SKILL.md symlink can point outside the
+    # guarded root even when the skill directory itself is contained; read the
+    # resolved real path so the check and the read target cannot diverge.
+    read_target = skill_md
+    if root is not None:
+        contained = _contained_realpath(skill_md, root)
+        if contained is None:
+            return False, "SKILL.md resolves outside the permitted root"
+        read_target = Path(contained)
+
     # Read and validate frontmatter (explicit UTF-8 encoding)
-    content = skill_md.read_text(encoding='utf-8')
+    content = read_target.read_text(encoding='utf-8')
     if not content.startswith('---'):
         return False, "No YAML frontmatter found"
 
@@ -222,7 +251,7 @@ def main():
         print(f"Error: Path not found: {skill_path}")
         sys.exit(1)
 
-    valid, message = validate_skill(skill_path)
+    valid, message = validate_skill(skill_path, root=cwd_root)
 
     if valid:
         print(f"✅ {message}")

@@ -93,3 +93,56 @@ def test_absolute_path_outside_cwd_is_rejected(script: Path, tmp_path: Path) -> 
     combined = result.stdout + result.stderr
     assert _TRAVERSAL_MARKER in combined, combined
     assert result.returncode == 1
+
+
+_OUTSIDE_ROOT_MARKER = "outside the permitted root"
+
+
+@pytest.mark.parametrize("script", _SCRIPTS, ids=lambda p: p.parts[-4])
+def test_descendant_symlink_skill_md_is_rejected(
+    script: Path, tmp_path: Path
+) -> None:
+    # CWE-22: even when the skill directory is contained under cwd, a SKILL.md
+    # symlink whose target is outside cwd must not be read or validated.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    secret = outside / "secret.md"
+    secret.write_text(
+        "---\nname: leaked\ndescription: out-of-root content\n---\n",
+        encoding="utf-8",
+    )
+    workdir = tmp_path / "work"
+    contained = workdir / "evil"
+    contained.mkdir(parents=True)
+    try:
+        (contained / "SKILL.md").symlink_to(secret)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this platform")
+    result = _run(script, cwd=workdir, arg="evil")
+    combined = result.stdout + result.stderr
+    assert _OUTSIDE_ROOT_MARKER in combined, combined
+    assert result.returncode == 1, combined
+    assert "Skill is valid" not in combined, combined
+
+
+@pytest.mark.parametrize("script", _SCRIPTS, ids=lambda p: p.parts[-4])
+def test_symlink_within_cwd_is_allowed(script: Path, tmp_path: Path) -> None:
+    # A SKILL.md symlink whose target stays inside cwd resolves within the root,
+    # so neither the traversal guard nor the containment check may fire.
+    workdir = tmp_path / "work"
+    real = workdir / "real"
+    real.mkdir(parents=True)
+    (real / "SKILL.md").write_text(
+        "---\nname: ok\ndescription: in-root content\n---\n",
+        encoding="utf-8",
+    )
+    skill = workdir / "skill"
+    skill.mkdir()
+    try:
+        (skill / "SKILL.md").symlink_to(real / "SKILL.md")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this platform")
+    result = _run(script, cwd=workdir, arg="skill")
+    combined = result.stdout + result.stderr
+    assert _OUTSIDE_ROOT_MARKER not in combined, combined
+    assert _TRAVERSAL_MARKER not in combined, combined
