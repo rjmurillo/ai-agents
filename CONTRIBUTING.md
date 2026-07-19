@@ -47,6 +47,32 @@ Thank you for your interest in contributing to this project. This guide explains
 
 **After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 
+### Dogfood the shipped Copilot base
+
+Copilot CLI runs plugin hooks from an installed plugin directory, not from your
+checkout. By default that directory holds a published copy of `project-toolkit`,
+so a local checkout does not exercise the hooks it ships to customers. A broken
+hook can then reach customers before anyone here notices (see issue #3247).
+
+To run the exact hooks, skills, and agents you ship, copy your working tree over
+the installed plugin (the same way the marketplace install puts it there):
+
+```bash
+# Copy src/copilot-cli over ~/.copilot/installed-plugins/ai-agents/project-toolkit
+python3 scripts/dev/dogfood_copilot_plugin.py --install
+
+# Confirm the current state (flags a stale copy)
+python3 scripts/dev/dogfood_copilot_plugin.py --status
+
+# Restore the published copy
+python3 scripts/dev/dogfood_copilot_plugin.py --uninstall
+```
+
+Re-run `--install` after editing `src/copilot-cli` to refresh the copy; the new
+hooks load on your next Copilot session. The prior installed copy is backed up
+once and restored by `--uninstall`. This implements ADR-083 decision item 3.
+Refs #3222.
+
 ## Git Configuration
 
 This repository enforces LF line endings for all files via `.gitattributes` to prevent cross-platform issues. To ensure smooth collaboration, configure your Git client based on your operating system:
