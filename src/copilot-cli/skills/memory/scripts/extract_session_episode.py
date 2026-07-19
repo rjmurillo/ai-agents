@@ -1217,6 +1217,27 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _link_sequential_events(events: list[dict[str, Any]]) -> None:
+    """Populate ``caused_by``/``leads_to`` as a linear chain over ordered events.
+
+    ADR-038 defines ``caused_by``/``leads_to`` as first-class event fields so
+    reflexion retrieval can walk a connected causal graph, but every
+    event-construction site emits them empty, leaving the graph flat
+    (issue #3245). The extractor appends events in session-progression order, so
+    linking each event to its immediate predecessor and successor is the
+    cheapest defensible causal signal. Boundary events (the first, the last)
+    keep the empty side.
+
+    Mutates in place. Must run on final ids, i.e. after any id reassignment by
+    ``_dedupe_events``, so the references never dangle.
+    """
+    ordered = [e for e in events if isinstance(e, dict) and e.get("id")]
+    last = len(ordered) - 1
+    for pos, evt in enumerate(ordered):
+        evt["caused_by"] = [ordered[pos - 1]["id"]] if pos > 0 else []
+        evt["leads_to"] = [ordered[pos + 1]["id"]] if pos < last else []
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if ".." in args.session_log_path.parts:
@@ -1368,6 +1389,8 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
+
+    _link_sequential_events(episode["events"])
 
     try:
         episode_file.write_text(
