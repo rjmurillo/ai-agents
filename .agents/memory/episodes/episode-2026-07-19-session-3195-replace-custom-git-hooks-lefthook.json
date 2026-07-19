@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook",
+  "session": "2026-07-19-session-3195-replace-custom-git-hooks-lefthook",
+  "timestamp": "2026-07-19T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Replace custom git hooks with Lefthook framework",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Relocated and configured hook execution",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repointed tests, setup, security classifiers, and generated surfaces",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated active guidance and closed legacy references",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran final validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 26d4a3e40b",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}

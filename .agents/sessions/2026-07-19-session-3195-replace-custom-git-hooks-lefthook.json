@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3195,
+    "date": "2026-07-19",
+    "branch": "chore/lefthook-migration",
+    "startingCommit": "e7b8657a9d",
+    "objective": "Replace custom git hooks with Lefthook framework"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP responded in the active repository; this harness exposes no separate activate_project endpoint."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed; full output saved by the tool."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only context."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts Python entry points."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, usage-mandatory, skills-git-hooks-index, and skills-implementation-index."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/lefthook-migration"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/lefthook-migration"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short --branch recorded inherited tracked and untracked changes."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e7b8657a9d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end requirements are complete; final operational docs and this log are staged together after the durable memory commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained read-only, and the parent-owned session 3194 file was not edited or staged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote .serena/memories/lefthook-migration-completion.md with canonical payload, setup, version, and residual-reference contracts."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 ran against every changed Markdown path; 27 in-scope files were linted with 0 issues."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All implementation changes and durable memory commit 26d4a3e40b are committed; the final three operational docs and this session log are staged as one four-path commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full pytest: 14091 passed, 22 skipped, 45 xfailed. Targeted security/worktree: 246 passed. Hook-removal suite: 972 passed. pre_pr: 30 passed, 0 failed, 4 skipped. Lefthook validate/install/check-install, build_all --check, committed plugin version gates, scoped markdownlint, and both changed workflow dry-runs passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Executed the complete Lefthook migration sequence, including runtime setup, classifiers, generated mirrors, active docs, wrapper deletion, and residual assertions."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-19T15:20:00Z",
+      "action": "Relocated and configured hook execution",
+      "result": "Moved all three payloads to scripts/hooks, added thin lefthook.yml dispatch, installed Lefthook 2.1.10, and deleted the custom installer and compatibility wrappers.",
+      "filesModified": [
+        "lefthook.yml",
+        "scripts/hooks/pre-commit",
+        "scripts/hooks/commit-msg",
+        "scripts/hooks/pre-push"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T15:35:00Z",
+      "action": "Repointed tests, setup, security classifiers, and generated surfaces",
+      "result": "Functional tests read canonical payloads, local setup uses Lefthook, security and infrastructure classifiers cover scripts/hooks, generated pairs were committed in five-plus-one batches, and plugin versions are 0.6.80 and 0.3.39.",
+      "filesModified": [
+        "tests/test_lefthook_integration.py",
+        "scripts/validation/checks_plugin.py",
+        ".github/actions/setup-code-env/action.yml",
+        ".claude/hooks/PreToolUse/invoke_security_commit_gate.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T15:50:00Z",
+      "action": "Updated active guidance and closed legacy references",
+      "result": "Active CI, documentation, skills, source comments, and generated mirrors now use Lefthook and scripts/hooks. Historical archives and controlled failure-archaeology records remain unchanged.",
+      "filesModified": [
+        "README.md",
+        "CONTRIBUTING.md",
+        "docs/technical-guardrails.md",
+        ".claude/skills/ai-agents-build-and-env/SKILL.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T16:00:00Z",
+      "action": "Ran final validation",
+      "result": "Dependency sync, Bash syntax, Lefthook runtime checks, explicit hook events, integration tests, targeted suites, generated drift, full pytest, plugin version validation, Markdown lint, and local workflow dry-runs passed. One parallel act port collision and one prompt-parity failure were resolved and revalidated.",
+      "filesModified": []
+    }
+  ],
+  "endingCommit": "26d4a3e40b",
+  "nextSteps": [
+    "Route the completed migration to qa and critic.",
+    "Route security-sensitive classifier and hook-manager changes for post-implementation verification before merge.",
+    "Do not push or create a pull request until the parent orchestrator closes its artifacts."
+  ]
+}

@@ -16,8 +16,8 @@ rejects blank lines elsewhere in `packed-refs`.
 The repository hooks run `scripts/maintenance/repair_packed_refs.py` before
 their first git ref operation:
 
-- `.githooks/pre-commit`
-- `.githooks/pre-push`
+- `scripts/hooks/pre-commit`
+- `scripts/hooks/pre-push`
 
 The helper resolves normal repositories and linked worktrees, locates the
 common git directory, and reads `packed-refs` directly. If it finds blank

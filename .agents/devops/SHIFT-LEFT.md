@@ -41,7 +41,7 @@ The runner executes validations in optimized order (fast checks first):
 | 5 | Planning Artifacts | Validate planning consistency | Yes | 10-20s |
 | 6 | Agent Drift | Detect semantic drift | Yes | 20-40s |
 
-**Note:** The pre-push hook (`.githooks/pre-push`) runs most of these checks automatically on every push. See [Pre-Push Hook](#pre-push-hook) below.
+**Note:** The pre-push hook (`scripts/hooks/pre-push`) runs most of these checks automatically on every push. See [Pre-Push Hook](#pre-push-hook) below.
 
 ### Total Duration
 
@@ -174,7 +174,7 @@ actionlint -format json .github/workflows/*.yml
 
 **Integration points**:
 
-- Pre-commit hook: `.githooks/pre-commit` (blocking)
+- Pre-commit hook: `scripts/hooks/pre-commit` (blocking)
 - Unified runner: `scripts/Validate-PrePR.ps1` (blocking)
 - Worktrunk pre-merge: `.config/wt.toml` (blocking)
 
@@ -231,7 +231,7 @@ python3 scripts/validate_workflows.py --act
 
 **Integration points**:
 
-- Pre-push hook: `.githooks/pre-push` (Phase 2, Check 8a, blocking)
+- Pre-push hook: `scripts/hooks/pre-push` (Phase 2, Check 8a, blocking)
 - Runs automatically when pushing changes to `.github/workflows/` or `.github/actions/`
 
 **Common errors**:
@@ -310,7 +310,7 @@ yamllint -f parsable .
 
 **Integration points**:
 
-- Pre-commit hook: `.githooks/pre-commit` (non-blocking warnings)
+- Pre-commit hook: `scripts/hooks/pre-commit` (non-blocking warnings)
 - Unified runner: `scripts/Validate-PrePR.ps1` (skipped if -Quick, non-blocking)
 
 **Behavior**:
@@ -390,7 +390,7 @@ Both tools should be used together: actionlint catches functional errors, yamlli
 
 ### Pre-Commit Hook
 
-The pre-commit hook (`.githooks/pre-commit`) runs a subset of validations automatically:
+The pre-commit hook (`scripts/hooks/pre-commit`) runs a subset of validations automatically:
 
 - Markdown linting (auto-fix enabled)
 - PowerShell script analysis
@@ -400,7 +400,7 @@ The pre-commit hook (`.githooks/pre-commit`) runs a subset of validations automa
 
 ### Pre-Push Hook
 
-The pre-push hook (`.githooks/pre-push`) runs comprehensive branch-wide validation before each push. It complements the pre-commit hook: pre-commit checks staged files per-commit; pre-push validates the entire push range.
+The pre-push hook (`scripts/hooks/pre-push`) runs comprehensive branch-wide validation before each push. It complements the pre-commit hook: pre-commit checks staged files per-commit; pre-push validates the entire push range.
 
 **Check phases (ordered by speed):**
 
@@ -412,11 +412,6 @@ The pre-push hook (`.githooks/pre-push`) runs comprehensive branch-wide validati
 | Tests | Full Pester suite, pytest | Bulk of time |
 | Security | Suppression comment detection, session log validation | < 10s |
 | Governance | Planning artifacts, ADR review reminder | < 10s |
-
-**Environment variables:**
-
-- `SKIP_PREPUSH=1`: Bypass all checks (emergency only)
-- `SKIP_TESTS=1`: Skip test phases (documentation-only pushes)
 
 **Relationship to other validation:**
 
@@ -686,7 +681,7 @@ Planned improvements:
 ## Related Documentation
 
 - **Session Protocol**: `.agents/SESSION-PROTOCOL.md`
-- **Pre-commit Hook**: `.githooks/pre-commit`
+- **Pre-commit Hook**: `scripts/hooks/pre-commit`
 - **CI Pipeline**: `.github/workflows/shift-left-validation.yml`
 - **DevOps Patterns**: `.agents/devops/validation-runner-pattern.md`
 
