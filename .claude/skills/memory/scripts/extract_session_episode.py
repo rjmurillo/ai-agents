@@ -1230,6 +1230,11 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
 
     Mutates in place. Must run on final ids, i.e. after any id reassignment by
     ``_dedupe_events``, so the references never dangle.
+
+    Overwrites ``caused_by``/``leads_to`` unconditionally. Under ``--preserve``,
+    ids reassigned by ``merge_preserving`` make prior edges invalid, so any
+    existing values (including curated edges on a loaded episode) are replaced
+    by the regenerated linear chain rather than retained.
     """
     ordered = [e for e in events if isinstance(e, dict) and e.get("id")]
     last = len(ordered) - 1
