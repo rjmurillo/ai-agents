@@ -125,6 +125,19 @@ def test_install_survives_dangling_backup_symlink(
     assert not backup.is_symlink()
 
 
+def test_install_replaces_corrupt_file_backup(source: Path, target: Path) -> None:
+    _make_plugin_root(target, "0.0.1")  # a real copy to back up
+    backup = target.with_name(target.name + ".marketplace-bak")
+    backup.write_text("not a backup", encoding="utf-8")  # corrupt: a regular file
+
+    note = dogfood.dogfood_install(source, target)
+
+    assert dogfood._plugin_version(target) == "9.9.9"
+    assert "backed up copy" in note
+    assert backup.is_dir()  # corrupt file replaced by the real backup
+    assert dogfood._plugin_version(backup) == "0.0.1"  # prior copy preserved
+
+
 # --- install (negative) ---
 
 
