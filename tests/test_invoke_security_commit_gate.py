@@ -67,10 +67,30 @@ class TestMatchSecurityPaths:
             "scripts/hooks/pre-push"
         ]
 
-    def test_only_root_lefthook_config_matches(self) -> None:
-        assert match_security_paths(
-            ["lefthook.yml", "nested/lefthook.yml"]
-        ) == ["lefthook.yml"]
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            f"{base}{suffix}{extension}"
+            for base in ("lefthook", ".lefthook", ".config/lefthook")
+            for suffix in ("", "-local")
+            for extension in (".yml", ".yaml", ".json", ".jsonc", ".toml")
+        ],
+    )
+    def test_auto_discovered_lefthook_configs_match(self, config_path: str) -> None:
+        assert match_security_paths([config_path]) == [config_path]
+
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            "config/lefthook.yml",
+            "nested/lefthook.yml",
+            "nested/.config/lefthook-local.jsonc",
+        ],
+    )
+    def test_non_discovered_lefthook_lookalikes_do_not_match(
+        self, config_path: str
+    ) -> None:
+        assert match_security_paths([config_path]) == []
 
     def test_does_not_match_removed_githooks_directory(self) -> None:
         assert match_security_paths([".githooks/pre-push"]) == []
@@ -147,7 +167,10 @@ class TestMain:
                 ):
                     assert main() == 0
 
-    @pytest.mark.parametrize("staged_file", ["src/Auth/login.py", "lefthook.yml"])
+    @pytest.mark.parametrize(
+        "staged_file",
+        ["src/Auth/login.py", "lefthook.yml", ".config/lefthook-local.jsonc"],
+    )
     def test_denies_commit_with_security_files_and_no_evidence(
         self,
         capsys: pytest.CaptureFixture[str],
