@@ -56,10 +56,8 @@ Test these scenarios to ensure path filters work correctly:
 
 #### copilot-setup-steps.yml
 
-- [ ] Runs when `.githooks/**` changed
-- [ ] Runs when `.github/workflows/copilot-setup-steps.yml` changed
-- [ ] Skips when unrelated files changed
 - [ ] Manual trigger works
+- [ ] Reusable `workflow_call` trigger works
 
 #### drift-detection.yml
 

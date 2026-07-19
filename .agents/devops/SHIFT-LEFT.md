@@ -41,7 +41,8 @@ The runner executes validations in optimized order (fast checks first):
 | 5 | Planning Artifacts | Validate planning consistency | Yes | 10-20s |
 | 6 | Agent Drift | Detect semantic drift | Yes | 20-40s |
 
-**Note:** The pre-push hook (`scripts/hooks/pre-push`) runs most of these checks automatically on every push. See [Pre-Push Hook](#pre-push-hook) below.
+**Note:** The Lefthook pre-push jobs in `lefthook.yml` run the applicable
+validators automatically. See [Pre-Push Hook](#pre-push-hook) below.
 
 ### Total Duration
 
@@ -174,7 +175,7 @@ actionlint -format json .github/workflows/*.yml
 
 **Integration points**:
 
-- Pre-commit hook: `scripts/hooks/pre-commit` (blocking)
+- Lefthook pre-commit job: see `lefthook.yml` (blocking)
 - Unified runner: `scripts/Validate-PrePR.ps1` (blocking)
 - Worktrunk pre-merge: `.config/wt.toml` (blocking)
 
@@ -231,7 +232,7 @@ python3 scripts/validate_workflows.py --act
 
 **Integration points**:
 
-- Pre-push hook: `scripts/hooks/pre-push` (Phase 2, Check 8a, blocking)
+- Lefthook pre-push job: see `lefthook.yml` (blocking)
 - Runs automatically when pushing changes to `.github/workflows/` or `.github/actions/`
 
 **Common errors**:
@@ -310,7 +311,7 @@ yamllint -f parsable .
 
 **Integration points**:
 
-- Pre-commit hook: `scripts/hooks/pre-commit` (non-blocking warnings)
+- Lefthook pre-commit job: see `lefthook.yml` (non-blocking warnings)
 - Unified runner: `scripts/Validate-PrePR.ps1` (skipped if -Quick, non-blocking)
 
 **Behavior**:
@@ -390,28 +391,16 @@ Both tools should be used together: actionlint catches functional errors, yamlli
 
 ### Pre-Commit Hook
 
-The pre-commit hook (`scripts/hooks/pre-commit`) runs a subset of validations automatically:
-
-- Markdown linting (auto-fix enabled)
-- PowerShell script analysis
-- Session End validation (if `.agents/` files staged)
+Lefthook filters staged files and runs the named pre-commit validators declared
+in `lefthook.yml`.
 
 **Recommendation**: Run `Validate-PrePR.ps1` before committing to catch issues earlier.
 
 ### Pre-Push Hook
 
-The pre-push hook (`scripts/hooks/pre-push`) runs comprehensive branch-wide validation before each push. It complements the pre-commit hook: pre-commit checks staged files per-commit; pre-push validates the entire push range.
-
-**Check phases (ordered by speed):**
-
-| Phase | Checks | Duration |
-|-------|--------|----------|
-| Fast Guards | Branch guard, commit count (max 20), file count, additions count | < 5s |
-| Linting | markdownlint, ruff, mypy, actionlint, validate_workflows.py, yamllint | < 30s |
-| Build Validation | Agent generation drift, agent drift detection, path normalization | < 30s |
-| Tests | Full Pester suite, pytest | Bulk of time |
-| Security | Suppression comment detection, session log validation | < 10s |
-| Governance | Planning artifacts, ADR review reminder | < 10s |
+Lefthook filters files in the push range and runs the named pre-push validators
+declared in `lefthook.yml`. Consult that file for the current jobs rather than
+maintaining a second checklist here.
 
 **Relationship to other validation:**
 
@@ -681,7 +670,7 @@ Planned improvements:
 ## Related Documentation
 
 - **Session Protocol**: `.agents/SESSION-PROTOCOL.md`
-- **Pre-commit Hook**: `scripts/hooks/pre-commit`
+- **Git Hook Configuration**: `lefthook.yml`
 - **CI Pipeline**: `.github/workflows/shift-left-validation.yml`
 - **DevOps Patterns**: `.agents/devops/validation-runner-pattern.md`
 
