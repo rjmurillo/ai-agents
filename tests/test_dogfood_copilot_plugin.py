@@ -31,7 +31,7 @@ def _require_symlinks(tmp_path: Path) -> None:
     """Skip when the platform forbids symlink creation (Windows without privilege)."""
     probe = tmp_path / "_symlink_probe"
     try:
-        probe.symlink_to(tmp_path)
+        probe.symlink_to(tmp_path, target_is_directory=True)
     except OSError:
         pytest.skip("symlinks not permitted on this platform")
     finally:
