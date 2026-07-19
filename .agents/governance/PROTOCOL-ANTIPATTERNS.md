@@ -102,13 +102,12 @@ Before ANY mutating git or GitHub operation, you MUST verify the current branch.
 
 **Verification-Based Approach (Succeeded)**:
 
-```powershell
-# Pre-commit hook: .githooks/pre-commit
-$currentBranch = git branch --show-current
-if ($currentBranch -ne $expectedBranch) {
-    Write-Error "E_WRONG_BRANCH: Expected $expectedBranch, got $currentBranch"
-    exit 1
-}
+```yaml
+# lefthook.yml
+pre-commit:
+  jobs:
+    - name: branch-policy
+      run: uv run --frozen python scripts/validation/git_hook_policy.py branch
 ```
 
 **Result**: Hook blocks commits to wrong branch. Zero violations since implementation.

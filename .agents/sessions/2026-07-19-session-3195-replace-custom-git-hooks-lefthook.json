@@ -84,7 +84,7 @@
       "changesCommitted": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Migration is staged for atomic commits."
+        "Evidence": "Implementation and first record batch committed; remaining records are staged next."
       },
       "validationPassed": {
         "level": "MUST",
