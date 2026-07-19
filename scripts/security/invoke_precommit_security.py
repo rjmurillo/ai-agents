@@ -93,7 +93,7 @@ class PreCommitSecurityCheck:
         r".*[/\\]Security[/\\].*",
         r".*\.env.*",
         r"(^|.*[/\\])scripts[/\\]hooks[/\\].*",
-        r"^lefthook\.yml$",
+        r"(?-i:^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$)",
         r".*[/\\]secrets[/\\].*",
         r".*[Pp]assword.*",
         r".*[Tt]oken.*",

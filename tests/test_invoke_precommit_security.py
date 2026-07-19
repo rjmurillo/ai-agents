@@ -219,15 +219,36 @@ class TestCriticalHookPaths:
 
         assert check._check_critical_patterns([payload]) == [payload]
 
-    def test_only_root_lefthook_config_is_critical(
-        self, check: PreCommitSecurityCheck
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            f"{base}{suffix}{extension}"
+            for base in ("lefthook", ".lefthook", ".config/lefthook")
+            for suffix in ("", "-local")
+            for extension in (".yml", ".yaml", ".json", ".jsonc", ".toml")
+        ],
+    )
+    def test_auto_discovered_lefthook_configs_are_critical(
+        self, check: PreCommitSecurityCheck, config_path: str
     ) -> None:
-        root_config = Path("/repo/lefthook.yml")
-        nested_config = Path("/repo/nested/lefthook.yml")
+        config = Path("/repo") / config_path
 
-        assert check._check_critical_patterns([root_config, nested_config]) == [
-            root_config
-        ]
+        assert check._check_critical_patterns([config]) == [config]
+
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            "config/lefthook.yml",
+            "nested/lefthook.yml",
+            "nested/.config/lefthook-local.jsonc",
+        ],
+    )
+    def test_non_discovered_lefthook_lookalikes_are_not_critical(
+        self, check: PreCommitSecurityCheck, config_path: str
+    ) -> None:
+        config = Path("/repo") / config_path
+
+        assert check._check_critical_patterns([config]) == []
 
     def test_removed_githooks_path_is_not_critical(
         self, check: PreCommitSecurityCheck
