@@ -64,6 +64,8 @@ _SECURITY_PATH_PATTERNS = [
     re.compile(r"(^|[/\\])[Ss]ecurity[/\\]"),
     re.compile(r"\.env($|\.)"),
     re.compile(r"(^|[/\\])scripts[/\\]hooks[/\\]"),
+    re.compile(r"(^|[/\\])\.githooks[/\\]"),
+    re.compile(r"(^|[/\\])lefthook\.ya?ml$"),
     re.compile(r"(^|[/\\])secrets[/\\]"),
     re.compile(r"(?i)password"),
     re.compile(r"(^|[/\\])token"),
