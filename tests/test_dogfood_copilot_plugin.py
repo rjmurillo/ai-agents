@@ -1,4 +1,4 @@
-"""Tests for the Copilot dogfood-install helper (ADR-083 item 3, #3222)."""
+"""Tests for the Copilot dogfood-install helper (ADR-083 item 3 need, copy-only; #3222)."""
 
 from __future__ import annotations
 
@@ -264,6 +264,13 @@ def test_default_target_honors_copilot_home(monkeypatch, tmp_path: Path) -> None
 
 def test_default_target_ignores_empty_copilot_home(monkeypatch) -> None:
     monkeypatch.setenv("COPILOT_HOME", "")
+    resolved = dogfood.default_target()
+    expected = Path.home() / ".copilot" / "installed-plugins" / "ai-agents" / "project-toolkit"
+    assert resolved == expected
+
+
+def test_default_target_ignores_whitespace_copilot_home(monkeypatch) -> None:
+    monkeypatch.setenv("COPILOT_HOME", "   ")
     resolved = dogfood.default_target()
     expected = Path.home() / ".copilot" / "installed-plugins" / "ai-agents" / "project-toolkit"
     assert resolved == expected

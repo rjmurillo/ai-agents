@@ -14,7 +14,9 @@ sessions load the exact hooks, skills, and agents that ship. Re-run it after
 changing ``src/copilot-cli`` to refresh the install. The prior installed
 directory is backed up once before replacement, so ``--uninstall`` restores it.
 
-Implements ADR-083 decision item 3. Refs #3222.
+Provides the dogfood install called for by ADR-083 decision item 3, copy-only
+on every platform. ADR-083's symlink-on-Unix wording is being reconciled in
+#3252. Refs #3222.
 
 Exit codes: 0 success, 2 configuration error.
 """
@@ -53,7 +55,7 @@ def default_source(root: Path) -> Path:
 
 def default_target() -> Path:
     """Return the installed-plugin directory Copilot CLI loads from."""
-    home_env = os.environ.get("COPILOT_HOME")
+    home_env = os.environ.get("COPILOT_HOME", "").strip()
     home = Path(home_env) if home_env else Path.home() / ".copilot"
     return home / "installed-plugins" / MARKETPLACE / PLUGIN_NAME
 

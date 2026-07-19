@@ -71,8 +71,9 @@ python3 scripts/dev/dogfood_copilot_plugin.py --uninstall
 Re-run `--install` after editing `src/copilot-cli` to refresh the copy; the new
 hooks load on your next Copilot session. The prior installed copy is backed up
 once and restored by `--uninstall`. Set `COPILOT_HOME` to target a Copilot home
-other than `~/.copilot` (the install path follows it). This implements ADR-083
-decision item 3. Refs #3222.
+other than `~/.copilot` (the install path follows it). This provides the dogfood
+install from ADR-083 decision item 3, copy-only on every platform; the ADR's
+platform-split wording is being reconciled in #3252. Refs #3222.
 
 ## Git Configuration
 
