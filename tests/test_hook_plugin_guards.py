@@ -28,7 +28,6 @@ PROJECT_SPECIFIC_HOOKS = [
     ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
     ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
     ".claude/hooks/invoke_adr_change_detection.py",
-    ".claude/hooks/invoke_routing_gates.py",
     ".claude/hooks/Stop/invoke_session_validator.py",
     ".claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py",
     ".claude/hooks/invoke_user_prompt_memory_check.py",
@@ -96,7 +95,6 @@ def _matches_configured_command(script_suffix: str, command: str) -> bool:
 
 
 _MATCHER_SCOPED_SCRIPTS = [
-    ".claude/hooks/invoke_routing_gates.py",
     ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
     ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
 ]
@@ -115,18 +113,13 @@ class TestShellHookMatcherScope:
         "script_suffix,commands",
         [
             (
-                ".claude/hooks/invoke_routing_gates.py",
-                [
-                    "gh pr create --fill",
-                    "echo ready && gh pr create --fill",
-                    r"C:\tools\bin\gh pr merge 42 --squash",
-                ],
-            ),
-            (
                 ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
                 [
                     "echo ready && gh pr view 42",
                     r"C:\tools\bin\gh issue list",
+                    "gh pr create --fill",
+                    "echo ready && gh pr create --fill",
+                    r"C:\tools\bin\gh pr merge 42 --squash",
                 ],
             ),
             (
