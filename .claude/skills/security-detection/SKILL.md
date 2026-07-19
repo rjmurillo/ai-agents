@@ -89,7 +89,7 @@ No infrastructure/security files detected.
 ### Critical (Review Required)
 
 - CI/CD workflows (`.github/workflows/*`)
-- Git hooks (`.githooks/*`, `.husky/*`)
+- Git hooks (`scripts/hooks/*`, `.husky/*`)
 - Authentication code (`**/Auth/**`, `**/Security/**`)
 - Environment files (`*.env*`)
 - Credentials and keys (`*.pem`, `*.key`, `*secret*`)
@@ -106,7 +106,7 @@ No infrastructure/security files detected.
 
 ### Pre-commit Hook
 
-Add to `.githooks/pre-commit`:
+Add to `scripts/hooks/pre-commit`:
 
 ```bash
 # Security detection (non-blocking warning)
