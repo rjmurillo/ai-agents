@@ -31,7 +31,7 @@ Every change belongs to at least one class. A mixed change inherits the union of
 | Investigation-only | Nothing outside the ADR-034 allowlist (below) | QA evidence row `SKIPPED: investigation-only` |
 | Code | Python, scripts, tests, libs | Full QA evidence per `.agents/governance/TESTING-RIGOR.md`; see `ai-agents-validation-and-qa` |
 | Plugin content | Anything under `.claude/`, `src/claude/`, or `src/copilot-cli/` | Strictly greater semver bump of that tree's `.claude-plugin/plugin.json` |
-| Hook | `.claude/hooks/**`, `.githooks/**`, hook generators | Dual-registration sync; runtime-contract tests; `scripts/validation/validate_hook_anchoring.py` |
+| Hook | `.claude/hooks/**`, `scripts/hooks/**`, hook generators | Dual-registration sync; runtime-contract tests; `scripts/validation/validate_hook_anchoring.py` |
 | Workflow | `.github/workflows/*.yml` | No logic in YAML (ADR-006); SHA-pinned actions; run changed workflows before push (AGENTS.md Always list) |
 | ADR / governance | Any `ADR-*.md` or `SESSION-PROTOCOL.md` create or edit | Fires the `adr-review` multi-agent debate gate (AGENTS.md "ADR Review"); governance changes need human approval plus an ADR |
 
@@ -75,14 +75,14 @@ The ladder is ordered by feedback cost. Catching a violation at rung 1 costs sec
 | Rung | Gate | Command or trigger | What runs |
 |------|------|--------------------|-----------|
 | 1 | Shift-left runner | `python3 scripts/validation/pre_pr.py` (`--quick` skips slow checks) | Roughly 30 validations: session end, tests, scoped markdownlint, workflow YAML, dash prohibition, plugin bump, install parity, hook anchoring. Exit codes per ADR-035: 0 pass, 1 logic failure, 2 config error (`scripts/validation/pre_pr.py` docstring) |
-| 2 | Pre-commit hook | Automatic on `git commit` (`.githooks/pre-commit`) | Per-file staged checks and session-protocol QA validation, including the ADR-034 allowlist check |
-| 3 | Pre-push hook | Automatic on `git push` (`.githooks/pre-push`, 1784 lines) | Phase 1 fast guards, Phase 2 lint and type checks, Phase 3 build validation, Phase 4 tests, Phase 5 security and governance, plus review-axes drift and bot-cascade warning (phase markers at lines 348, 540, 905, 1146, 1282; re-find with `grep -n "^# Phase" .githooks/pre-push`) |
+| 2 | Pre-commit hook | Automatic on `git commit` (`scripts/hooks/pre-commit`) | Per-file staged checks and session-protocol QA validation, including the ADR-034 allowlist check |
+| 3 | Pre-push hook | Automatic on `git push` (`scripts/hooks/pre-push`, 2002 lines) | Phase 1 fast guards, Phase 2 lint and type checks, Phase 3 build validation, Phase 4 tests, Phase 5 security and governance, plus review-axes drift and bot-cascade warning (phase markers at lines 348, 540, 905, 1146, 1282; re-find with `grep -n "^# Phase" scripts/hooks/pre-push`) |
 | 4 | CI required checks | Push and PR events | `pytest.yml`; `pr-validation.yml` (20-commit cap); `ai-pr-quality-gate.yml` (10 parallel LLM reviewers; the authoritative blocker is `scripts/quality_gate/check_critical_failures.py`, wired at `ai-pr-quality-gate.yml:735`); `ai-session-protocol.yml` (deterministic); drift and plugin-bump workflows |
 
 Two properties of the pre-push hook are policy, not accident:
 
-1. It has NO global bypass. `SKIP_PREPUSH` existed for one morning in February 2026 and was removed after being abused three times within hours (Phase 5, session 1187 row). Only narrow per-check escapes remain (`SKIP_WORKFLOW_LOCAL_TEST` at `.githooks/pre-push:775-787`, `SKIP_CLI_E2E` at `:1223`), each cataloged with its semantics in `ai-agents-config-catalog`.
-2. It only exists if installed. Run `python3 scripts/install_git_hooks.py`, then verify `git config core.hooksPath` prints `.githooks`. A clone left on the default `.git/hooks` silently bypasses every push guard, which is why `pre_pr.py` also validates hook installation (`scripts/validation/checks_plugin.py:127-134`).
+1. It has NO global bypass. `SKIP_PREPUSH` existed for one morning in February 2026 and was removed after being abused three times within hours (Phase 5, session 1187 row). Only narrow per-check escapes remain (`SKIP_WORKFLOW_LOCAL_TEST` at `scripts/hooks/pre-push:775-787`, `SKIP_CLI_E2E` at `:1223`), each cataloged with its semantics in `ai-agents-config-catalog`.
+2. It only exists if installed. Run `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. `pre_pr.py` also validates the binary, configuration, and installed shims (`scripts/validation/checks_plugin.py`).
 
 ### Phase 4: Respect commit discipline
 
@@ -101,7 +101,7 @@ Check this table before any push. The incident column is the answer to "why"; do
 
 | Rule | Enforcement mechanism | Incident / rationale |
 |------|----------------------|----------------------|
-| No new bash scripts; Python for all new scripts | Review + `.claude/rules/universal.md` SHOULD 3 ("MUST NOT create new bash scripts") | ADR-042 (Accepted). `.githooks/*` shell scripts are grandfathered exceptions, documented in-file |
+| No new bash scripts; Python for all new scripts | Review + `.claude/rules/universal.md` SHOULD 3 ("MUST NOT create new bash scripts") | ADR-042 (Accepted). `scripts/hooks/*` shell scripts are grandfathered exceptions, documented in-file |
 | No logic in YAML workflows | ADR-006 + `.claude/rules/universal.md` MUST NOT 4 | Workflow YAML cannot be tested locally. Amendment 2026-04-28 allows pure config-data YAML under 7 conditions in `templates/platforms/` and `build/` only; `run:` block logic stays banned |
 | No em or en dashes in authored text | `validate_dash_prohibition` (`scripts/validation/checks_dash.py` via `pre_pr.py`) + dash-guard hook; `tests/hooks/fixtures/` exempt | `.claude/rules/universal.md` MUST NOT 5: bot reviewers open one or more threads per dash, every PR (Issue #1923) |
 | SHA-pin all GitHub Actions | Pre-commit hook + workflow validation (`.agents/governance/PROJECT-CONSTRAINTS.md:162`) | Tags are mutable; SHA pinning blocks supply-chain tag-moving. See the documented tension below |
@@ -162,7 +162,7 @@ Before you push, confirm:
 
 - [ ] Change classified (Phase 1) and every class obligation from Phase 2 satisfied
 - [ ] `python3 scripts/validation/pre_pr.py` exits 0
-- [ ] `git config core.hooksPath` prints `.githooks` (hooks actually installed)
+- [ ] `uv run --frozen lefthook check-install` exits 0
 - [ ] Touched `.claude/`, `src/claude/`, or `src/copilot-cli/`? The matching `plugin.json` version strictly increased
 - [ ] Touched a canonical generation source? `python3 build/scripts/build_all.py --check` and `python3 build/generate_agents.py --validate` both pass
 - [ ] Commit count under 20 (`git rev-list --count HEAD ^origin/main`), each commit 5 files or fewer
@@ -179,7 +179,7 @@ Verified against the working tree on 2026-07-03. Volatile facts and their re-ver
 | Investigation allowlist (9 patterns; ADR-034 text lags at 5) | `scripts/modules/investigation_allowlist.py`; `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:79-83` | `uv run python -c "from scripts.modules.investigation_allowlist import get_investigation_allowlist_display as g; print(len(g()), g())"` |
 | build_all no-claude-writes invariant | `build/scripts/build_all.py:962-967` | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | 20-commit block threshold and bypass label | `.github/workflows/pr-validation.yml:369,483` | `grep -n "blockThreshold\|commit-limit-bypass" .github/workflows/pr-validation.yml` |
-| Pre-push has no global bypass; 1784 lines; phase markers | `.githooks/pre-push` | `grep -cn "" .githooks/pre-push; grep -n "SKIP_PREPUSH" .githooks/pre-push` (expect no matches) |
+| Pre-push has no global bypass; 2002 lines; phase markers | `scripts/hooks/pre-push` | `grep -cn "" scripts/hooks/pre-push; grep -n "SKIP_PREPUSH" scripts/hooks/pre-push` (expect no matches) |
 | Plugin versions (volatile; never hard-code them in prose) | the three `.claude-plugin/plugin.json` files | `grep -o '"version": "[^"]*"' .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` |
 | PR #1942 motivating failure | `build/scripts/validate_plugin_version_bump.py:10-12` | `sed -n 8,14p build/scripts/validate_plugin_version_bump.py` |
 | SHA-pin tension (Exceptions: None vs GP-006) | `.agents/governance/PROJECT-CONSTRAINTS.md:180`; `.agents/governance/golden-principles.md:63-69` | `grep -n "Exceptions" .agents/governance/PROJECT-CONSTRAINTS.md; sed -n 63,70p .agents/governance/golden-principles.md` |

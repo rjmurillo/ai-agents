@@ -61,7 +61,7 @@ The interpreter version has ONE source of truth: `.python-version` (currently
 Container or VM setup: `bash scripts/bootstrap-vm.sh` automates all of the above
 on Ubuntu (needs sudo; export `GH_TOKEN` first). It installs uv, the pinned
 Python via `uv python install --default`, Node 22, pwsh, gh, syncs dependencies,
-and sets `core.hooksPath`. It is a grandfathered bash exception; do not copy the
+and installs Lefthook. It is a grandfathered bash exception; do not copy the
 pattern for new scripts (ADR-042: Python only).
 
 Manual Python install when not using the bootstrap script:
@@ -76,7 +76,8 @@ From the repo root:
 
 ```bash
 uv sync --frozen --extra dev
-python3 scripts/install_git_hooks.py
+uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook check-install
 ```
 
 What these do:
@@ -85,22 +86,21 @@ What these do:
   locked (`--frozen` never rewrites the lockfile) with dev extras. The pre-push
   gate runs validation through `uv run --frozen`, so this `.venv` is the
   environment a push validates against (`scripts/bootstrap-vm.sh:109-115`).
-- `scripts/install_git_hooks.py` sets `git config core.hooksPath .githooks`
-  (idempotent) and verifies `pre-commit` and `pre-push` exist and are
-  executable. `.githooks/` also ships `commit-msg`. Without this step the
-  enforced hooks never run locally and bad pushes surface only in CI. Exit
-  codes per AGENTS.md: 0 ok, 1 logic, 2 config, 3 external.
+- `lefthook install --reset-hooks-path` removes legacy hook-manager config and
+  installs Git shims for the events in `lefthook.yml`. The thin configuration
+  dispatches to the executable payloads in `scripts/hooks/`. `check-install`
+  verifies that the shims are active.
 
 ### Phase 3: Verify the Install
 
 Run each; expected output shown. If any differs, stop and fix before working.
 
 ```bash
-git config core.hooksPath
-# expect: .githooks
+uv run --frozen lefthook version
+# expect: 2.1.10
 
-python3 scripts/install_git_hooks.py --check
-# expect: OK: core.hooksPath -> .githooks, hooks present  (exit 0)
+uv run --frozen lefthook check-install
+# expect: exit 0
 
 uv run pytest tests/test_paths.py --collect-only -q
 # expect: "28 tests collected" (count as of 2026-07-03)
@@ -156,8 +156,8 @@ Each row verified 2026-07-03. Longer stories live with the sibling skills
 
 The 15-minute smoke checklist. All boxes checked means the environment works.
 
-- [ ] `git config core.hooksPath` prints `.githooks`
-- [ ] `python3 scripts/install_git_hooks.py --check` prints `OK: core.hooksPath -> .githooks, hooks present` and exits 0
+- [ ] `uv run --frozen lefthook version` prints `2.1.10`
+- [ ] `uv run --frozen lefthook check-install` exits 0
 - [ ] `uv run python -c "import yaml"` exits silently (venv has project deps)
 - [ ] `uv run pytest tests/test_paths.py -q` passes (28 passed, under 1 second, as of 2026-07-03)
 - [ ] `uv run ruff --version` prints a version (0.15.16 as of 2026-07-03)
@@ -199,9 +199,9 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | pwsh 7.5.4+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "gh 2.60" AGENTS.md` |
 | Zero .ps1 files (ADR-042) | repo tree | `git ls-files "*.ps1"` prints nothing |
 | Stale pwsh commands | `CONTRIBUTING.md:155,741` | `grep -n pwsh CONTRIBUTING.md` |
-| Hooks: pre-commit, pre-push, commit-msg | `.githooks/` | `ls .githooks/` |
-| hooksPath mechanism and exit codes | `scripts/install_git_hooks.py` docstring | `python3 scripts/install_git_hooks.py --check` |
-| No SKIP_PREPUSH escape | `.githooks/pre-push` | `grep -c SKIP_PREPUSH .githooks/pre-push` prints 0 |
+| Hook payloads: pre-commit, pre-push, commit-msg | `scripts/hooks/` | `ls scripts/hooks/` |
+| Hook manager and dispatch | `lefthook.yml` | `uv run --frozen lefthook validate` |
+| No SKIP_PREPUSH escape | `scripts/hooks/pre-push` | `grep -c SKIP_PREPUSH scripts/hooks/pre-push` prints 0 |
 | MCP servers serena/deepwiki/forgetful | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `cat .env.example` |
 | Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |
