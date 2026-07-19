@@ -447,3 +447,83 @@ class TestPruneCli:
         ])
         assert rc == 0
         assert len(json.loads(graph_path.read_text())["edges"]) == 1
+
+
+class TestChangedLabelRetraction:
+    """Issue #3143: a failed commit's retry that corrects a milestone label
+    must not leave the stale node.
+
+    #3143 was filed 2026-07-17 01:13Z, about 18 hours before the #3039
+    reconcile fix (commit 3601bb1b, 2026-07-17 19:45Z) landed. The reported
+    symptom was two nodes for one episode after a pre-commit block, a milestone
+    correction, and a retry. The #3039 edit-shrink retraction covers this case:
+    the corrected label hashes to a new node id, so the prior node is present
+    in the episode's old membership but is not re-touched on reprocess, and so
+    it is retracted. These tests lock that behavior for the exact changed-label
+    scenario (acceptance criterion 4) and the unchanged reprocess (criterion 2).
+    """
+
+    def _write_episode(self, path: Path, milestone: str) -> None:
+        path.write_text(
+            json.dumps({
+                "id": "episode-2026-07-16-session-3056",
+                "task": "close 3097",
+                "outcome": "success",
+                "decisions": [],
+                "events": [{"type": "milestone", "content": milestone}],
+            }),
+            encoding="utf-8",
+        )
+
+    def _run(self, graph_path: Path, episode_path: Path) -> int:
+        return update_causal_graph.main([
+            "--episode-path", str(episode_path),
+            "--graph-path", str(graph_path),
+        ])
+
+    def _milestone_nodes(self, graph_path: Path) -> list[dict]:
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        return [n for n in graph["nodes"] if n["type"] == "milestone"]
+
+    def test_corrected_label_leaves_only_final_node(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        episode_path = tmp_path / "episode-3056.json"
+
+        # First commit attempt: milestone ends in #3141. The graph is written
+        # and staged before a later gate blocks the commit.
+        self._write_episode(
+            episode_path, "filed #3137, #3138, #3139, #3140, and #3141",
+        )
+        assert self._run(graph_path, episode_path) == 0
+        first = self._milestone_nodes(graph_path)
+        assert len(first) == 1
+        assert "#3141" in first[0]["label"]
+
+        # Retry after correcting the milestone to include newly filed #3142.
+        # The corrected content hashes to a new node id.
+        self._write_episode(
+            episode_path, "filed #3137, #3138, #3139, #3140, #3141, and #3142",
+        )
+        assert self._run(graph_path, episode_path) == 0
+        final = self._milestone_nodes(graph_path)
+
+        # Exactly one milestone node survives, and it is the corrected version.
+        # Pre-#3039 the stale #3141 node lingered, giving two nodes for one
+        # episode.
+        assert len(final) == 1, final
+        assert "#3141, and #3142" in final[0]["label"]
+        assert first[0]["id"] != final[0]["id"]
+
+    def test_unchanged_reprocess_is_byte_idempotent(self, tmp_path):
+        graph_path = tmp_path / "graph.json"
+        episode_path = tmp_path / "episode-3056.json"
+        self._write_episode(
+            episode_path, "filed #3137, #3138, #3139, #3140, and #3141",
+        )
+        assert self._run(graph_path, episode_path) == 0
+        first_bytes = graph_path.read_text(encoding="utf-8")
+
+        # Reprocessing the identical episode must not add a node or churn the
+        # `created` timestamps: the committed graph stays byte-stable.
+        assert self._run(graph_path, episode_path) == 0
+        assert graph_path.read_text(encoding="utf-8") == first_bytes
