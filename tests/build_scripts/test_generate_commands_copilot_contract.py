@@ -332,13 +332,23 @@ def test_committed_skills_have_no_bare_claude_include() -> None:
 
 
 def test_committed_skills_have_no_untranslated_calls() -> None:
-    """No shipped Copilot skill body may carry raw Skill()/Task() call syntax."""
+    """A shipped Copilot skill body must be a fixed point of translation.
+
+    Re-translating an already-translated body is a no-op. A substring check for
+    the exact `Skill(skill="` / `Task(subagent_type=` forms misses calls in any
+    other formatting the translator supports (extra spaces, single quotes).
+    Re-running the translator catches every residual translatable call: if one
+    survived, translation would rewrite the body and it would differ. Prose
+    mentions such as `Skill(...)` carry no valid argument, render to nothing, and
+    are left unchanged, so they do not trip this gate.
+    """
     offenders = [
         name
         for name, body in _committed_bodies()
-        if 'Skill(skill="' in body or "Task(subagent_type=" in body
+        if copilot_body_translation.translate_skill_file(body, _COPILOT_SKILLS)
+        != body
     ]
-    assert not offenders, f"untranslated Claude call syntax present in: {offenders}"
+    assert not offenders, f"untranslated Claude call present in: {offenders}"
 
 
 def test_gated_skill_mirrors_are_committed() -> None:
