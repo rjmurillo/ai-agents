@@ -5,7 +5,8 @@ paths:
   - "*.env*"
   - "**/*.secrets.*"
   - ".github/workflows/**"
-  - "scripts/hooks/**"
+  - "lefthook.yml"
+  - "scripts/validation/git_hook_policy.py"
   - ".claude/rules/security.md"
 priority: critical
 ---

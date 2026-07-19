@@ -4,7 +4,7 @@ version: 1.0.0
 description: >-
   Runbook to recreate the ai-agents dev environment from scratch and survive
   its traps, including the uv-pinned Python 3.14.6, git hooks install, MCP
-  layer setup, stale CONTRIBUTING.md commands, and PEP 668.
+  layer setup, contributor commands, and PEP 668.
   Use when you say `set up this repo`, `bootstrap the environment`, `fresh
   clone setup`, or you hit `ModuleNotFoundError yaml`. Do NOT use for the
   generation pipeline (use `ai-agents-generation-and-release`) or CI gate
@@ -61,8 +61,8 @@ The interpreter version has ONE source of truth: `.python-version` (currently
 Container or VM setup: `bash scripts/bootstrap-vm.sh` automates all of the above
 on Ubuntu (needs sudo; export `GH_TOKEN` first). It installs uv, the pinned
 Python via `uv python install --default`, Node 22, pwsh, gh, syncs dependencies,
-and installs Lefthook. It is a grandfathered bash exception; do not copy the
-pattern for new scripts (ADR-042: Python only).
+and installs Lefthook. Do not copy its shell implementation for new scripts;
+ADR-042 requires Python for new automation.
 
 Manual Python install when not using the bootstrap script:
 
@@ -76,7 +76,7 @@ From the repo root:
 
 ```bash
 uv sync --frozen --extra dev
-uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook install
 uv run --frozen lefthook check-install
 ```
 
@@ -86,10 +86,9 @@ What these do:
   locked (`--frozen` never rewrites the lockfile) with dev extras. The pre-push
   gate runs validation through `uv run --frozen`, so this `.venv` is the
   environment a push validates against (`scripts/bootstrap-vm.sh:109-115`).
-- `lefthook install --reset-hooks-path` removes legacy hook-manager config and
-  installs Git shims for the events in `lefthook.yml`. The thin configuration
-  dispatches to the executable payloads in `scripts/hooks/`. `check-install`
-  verifies that the shims are active.
+- `lefthook install` installs Git shims for the events in `lefthook.yml`.
+  `check-install` verifies that the shims are active. Lefthook reads the
+  configuration at runtime, so config edits do not require another install.
 
 ### Phase 3: Verify the Install
 
@@ -149,7 +148,7 @@ Each row verified 2026-07-03. Longer stories live with the sibling skills
 | Moving a worktree leaves the uv shebangs stale | Direct `.venv/bin/pytest` fails with "bad interpreter" after `mv`; the shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows) still name the old worktree path (issue #3170) | Run `scripts/maintenance/repair_worktree_venv.py` with `uv run python` (or `uv sync --frozen --extra dev --reinstall`: `--reinstall` recreates the launchers a bare `--frozen` sync would leave stale, `--extra dev` keeps pytest/ruff/mypy, `--frozen` matches CI); prefer `uv run python -m pytest` for move-safe validation |
 | Two floors, not one | `pyproject.toml:6` says `requires-python = ">=3.14"` (the dev/install contract), but plugin hooks run under the host's ambient interpreter, which may be older | Develop and test against `.python-version` (3.14.6). The blocking CI syntax gate parses every file at the hook-portability floor (3.10), NOT 3.14, so hooks stay portable to older hosts (issue #2655, decoupled from `requires-python` in issue #3008); see `ai-agents-debugging-playbook` |
 | LF line endings enforced | CRLF in YAML frontmatter breaks the Copilot CLI parser (github/copilot-cli#694); `.gitattributes:59` sets `* text=auto eol=lf` | Configure your editor for LF; never commit CRLF |
-| pre-push hook is un-skippable and slow | Push takes minutes: branch-wide validation (workflow validation, drift detection, agent drift, tests). No `SKIP_PREPUSH` exists; it was removed after being abused 3 times within hours of creation (session 1187) | Budget minutes per push; do not attempt `--no-verify` (prohibited, AGENTS.md Never list) |
+| Pre-push jobs can take minutes | Lefthook runs the named validators in `lefthook.yml` for matching push files | Budget minutes per push; do not attempt `--no-verify` (prohibited, AGENTS.md Never list) |
 | Skill tests not collected by default | `uv run pytest tests/ -x` skips `.claude/skills/*/tests/` (pyproject testpaths are `tests`, `test`) | Run skill tests explicitly: `uv run pytest .claude/skills/NAME/tests/`; details in `ai-agents-validation-and-qa` |
 
 ## Verification
@@ -199,9 +198,7 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | pwsh 7.5.4+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "gh 2.60" AGENTS.md` |
 | Zero .ps1 files (ADR-042) | repo tree | `git ls-files "*.ps1"` prints nothing |
 | Stale pwsh commands | `CONTRIBUTING.md:155,741` | `grep -n pwsh CONTRIBUTING.md` |
-| Hook payloads: pre-commit, pre-push, commit-msg | `scripts/hooks/` | `ls scripts/hooks/` |
-| Hook manager and dispatch | `lefthook.yml` | `uv run --frozen lefthook validate` |
-| No SKIP_PREPUSH escape | `scripts/hooks/pre-push` | `grep -c SKIP_PREPUSH scripts/hooks/pre-push` prints 0 |
+| Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | MCP servers serena/deepwiki/forgetful | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `cat .env.example` |
 | Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |

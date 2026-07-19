@@ -25,33 +25,26 @@ Related skills: `ai-agents-change-control` owns when a bypass is allowed; `agent
 1. Identify the axis type: env var, commit marker, text directive, frontmatter key, file, or verdict string.
 2. Find its row in the tables below. Read the effect AND the guard/abuse column before using it.
 3. If you are about to use an escape hatch, confirm the legitimate trigger condition holds (for example, a workflow actually unrunnable under act). Bypassing because a gate is slow or annoying is the session 1187 failure mode.
-4. Re-verify the flag still exists with the one-liner in Provenance. Stale docs happen here (CONTRIBUTING.md still documents two removed pre-push flags).
+4. Re-verify the flag in its defining validator with the one-liner in Provenance. Documentation can drift after validator changes.
 5. Adding a new flag? Follow the checklist in "How to Add a New Flag" and add a row plus a re-verify one-liner to this catalog.
 
 ## Environment Variables: LSP Gate (retired)
 
 The LSP-first runtime gate and its three environment escapes (`SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN`) were retired in #3216 when ADR-062 was amended to keep LSP-first navigation as static steering only. No environment variable governs it now; the guidance lives in `.claude/rules/lsp-first.md`. Nothing to set, nothing to escape.
 
-## Environment Variables: Git Hook Payloads (scripts/hooks/)
+## Git Hook Configuration
 
-All are scoped, single-check bypasses. Every bypass is printed to the hook output (WARN or SKIP line), never silent.
-
-| Name | Type | Effect | Status | Guard / abuse story | Where defined |
-|---|---|---|---|---|---|
-| `SKIP_AUTOFIX=1` | env var | pre-commit checks only, does not auto-fix (CI mode) | Production | Check still runs; only the fixer is disabled | `scripts/hooks/pre-commit:18,134` |
-| `SKIP_ACTIONLINT=1` | env var | Skips actionlint validation | Emergency only | Bypass is announced in output | `scripts/hooks/pre-commit:477-479` |
-| `SKIP_YAMLLINT=1` | env var | Skips yamllint validation | Emergency only | Bypass is announced in output | `scripts/hooks/pre-commit:578-580` |
-| `SKIP_MEMORY_SYNC=1` | env var | Skips the memory sync step in pre-commit | Production | Sync is advisory; skipping delays memory freshness only | `scripts/hooks/pre-commit:1784-1792` |
-| `SKIP_SCOPE_CHECK=1` | env var | Skips `scripts/detect_scope_explosion.py` cumulative-file scope gate in pre-commit | Escape hatch for justified large sets (generated-artifact bundles, approved oversized-PR repairs) | Prints a WARN naming the flag, not silent (issue #3142); only the literal `1` bypasses, any other value runs the detector; bypassing for convenience or a slow check is the abuse | `scripts/hooks/pre-commit:2137,2163-2167` |
-| `SKIP_WORKFLOW_LOCAL_TEST=true` | env var | Bypasses local `act` run of changed workflows in pre-push | Escape hatch for workflows that cannot run under act | Recorded as WARN in the pre-push summary, not silent | `scripts/hooks/pre-push:775-787` |
-| `SKIP_CLI_E2E=true` | env var | Opts out of hook-anchoring and plugin-load e2e smoke when a CLI is installed but unusable (unauthenticated, out of credits) | Escape hatch | Recorded as SKIP with named reason | `scripts/hooks/pre-push:1223-1257` |
+Lefthook is the sole Git hook manager. `lefthook.yml` declares the events,
+filters, named jobs, and validator commands. Do not infer a bypass from a
+deleted custom payload. Inspect the named validator's current interface before
+using or documenting an environment variable.
 
 ## Removed and Stale Flags (do not use, do not reintroduce)
 
 | Name | Status as of 2026-07-03 | Story |
 |---|---|---|
-| `SKIP_PREPUSH` | REMOVED. Zero hits in `scripts/hooks/pre-push` | Abused 3x within hours of creation (session 1187, retro `.agents/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md`). The pre-push hook is deliberately un-skippable as a whole; only scoped per-check escapes remain |
-| `SKIP_TESTS` | REMOVED. Absent from `scripts/hooks/pre-push` and active contributor guidance | The stale contributor-guide row was removed during the Lefthook migration |
+| `SKIP_PREPUSH` | REMOVED | Historical: abused 3x within hours of creation (session 1187, retro `.agents/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md`) |
+| `SKIP_TESTS` | REMOVED | Historical: stale contributor guidance was removed during the Lefthook migration |
 
 Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) will be reached for under pressure. New escape hatches must be narrow, announced in output, and observable.
 
@@ -110,7 +103,11 @@ Not a flag, but the config obligation most often tripped over. Any content chang
 | `src/claude/` | `src/claude/.claude-plugin/plugin.json` | 0.3.29 |
 | `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | 0.5.254 |
 
-Enforced twice: locally by pre-push section 11c calling `build/scripts/validate_plugin_version_bump.py` (`scripts/hooks/pre-push:1037-1050`) and in CI by `.github/workflows/validate-plugin-version-bump.yml`. A `plugin.json`-only edit needs no bump; any other file in the tree does.
+Enforced locally by the `pre-pr-validation` job in `lefthook.yml`, which runs
+`scripts/validation/pre_pr.py`; that runner invokes
+`build/scripts/validate_plugin_version_bump.py`. CI also enforces it through
+`.github/workflows/validate-plugin-version-bump.yml`. A `plugin.json`-only edit
+needs no bump; any other file in the tree does.
 
 ## Hook Registration Surfaces
 
@@ -157,15 +154,13 @@ Audited 2026-07-03 against the working tree. Sources: files and line numbers cit
 
 | Fact | Re-verify one-liner |
 |---|---|
-| pre-commit skips (AUTOFIX/ACTIONLINT/YAMLLINT/MEMORY_SYNC) | `grep -n "SKIP_AUTOFIX\|SKIP_ACTIONLINT\|SKIP_YAMLLINT\|SKIP_MEMORY_SYNC" scripts/hooks/pre-commit` |
-| pre-push skips (WORKFLOW_LOCAL_TEST/CLI_E2E) | `grep -n "SKIP_WORKFLOW_LOCAL_TEST\|SKIP_CLI_E2E" scripts/hooks/pre-push` |
-| SKIP_PREPUSH still removed | `grep -c "SKIP_PREPUSH" scripts/hooks/pre-push` (expect 0) |
+| Git hook jobs, filters, and validators | `uv run --frozen lefthook validate` |
 | [skip-drift-check] marker + obligations | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
 | size-exception | `grep -n "size-exception" scripts/validation/skill_size.py` |
 | orphan-ref directives + 50-line window | `grep -n "IGNORE_DIRECTIVE_RE" .claude/skills/orphan-ref-validator/scripts/patterns.py && grep -n "splitlines()\[:50\]" .claude/skills/orphan-ref-validator/scripts/scan.py` |
 | investigation allowlist | `grep -n "agents/" scripts/modules/investigation_allowlist.py` |
 | docs-only verdict | `grep -n "SKIPPED: docs-only" .agents/SESSION-PROTOCOL.md` |
-| plugin bump gate (local) | `grep -n "validate_plugin_version_bump" scripts/hooks/pre-push` |
+| plugin bump validator | `uv run python build/scripts/validate_plugin_version_bump.py --help` |
 | plugin versions | `grep -n "\"version\"" .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json` |
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
