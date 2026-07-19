@@ -282,7 +282,7 @@ When any changed file matches security trigger patterns, orchestrator MUST route
 # Mandatory routing for security-relevant changes
 # Trigger patterns:
 #   **/Auth/**, **/Security/**, *.env*
-#   scripts/hooks/*, **/secrets/**, *password*
+#   lefthook.yml, scripts/validation/git_hook_policy.py, **/secrets/**, *password*
 #   **/token*, **/oauth/**, **/jwt/**
 
 # When security-relevant files change:
@@ -311,7 +311,7 @@ Post-implementation verification REQUIRED when implementation includes:
 | File System Operations | File upload, path traversal prevention | High |
 | Environment Variables | Secret handling, config management | Critical |
 | Execution/Eval | Dynamic code execution, shell commands | Critical |
-| Path patterns: `**/Auth/**`, `scripts/hooks/*`, `*.env*` | Any changes to these paths | Critical |
+| Path patterns: `**/Auth/**`, `lefthook.yml`, `scripts/validation/git_hook_policy.py`, `*.env*` | Any changes to these paths | Critical |
 
 #### Post-Implementation Verification (PIV) Protocol
 
@@ -350,23 +350,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "[PASS] Security tests completed successfully"
 
-# Verify canonical hook payload syntax and Lefthook configuration
-$hookFiles = @(
-    "scripts/hooks/pre-commit"
-    "scripts/hooks/commit-msg"
-    "scripts/hooks/pre-push"
-)
-
-foreach ($hook in $hookFiles) {
-    if (-not (Test-Path -LiteralPath $hook -PathType Leaf)) {
-        throw "[FAIL] Hook payload not found: $hook"
-    }
-    bash -n -- $hook
-    if ($LASTEXITCODE -ne 0) {
-        throw "[FAIL] Bash syntax validation failed for $hook"
-    }
-}
-
+# Verify Git hook manager configuration
 uv run --frozen lefthook validate
 if ($LASTEXITCODE -ne 0) {
     throw "[FAIL] Lefthook configuration validation failed"
