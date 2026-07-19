@@ -26,6 +26,41 @@ When you learn a durable fact, convention, or decision procedure that future ses
 1. **Prefer an existing rule file**. Before adding a new `.claude/rules/*.md`, SHOULD add the item to the closest existing rule (a testing convention to `.claude/rules/testing.md`, a security convention to `.claude/rules/security.md`). Create a new file only when no existing rule owns the concern.
 2. **Cite the incident**. SHOULD name the failure, PR, or review that motivated the convention, so the next reader can weigh it (mirrors `.claude/rules/governance.md` "Evidence required").
 
+## When to write a Serena memory (tier 2 guidance)
+
+Write a Serena memory (`mcp__serena__write_memory`) when ALL of the following hold:
+
+- The information was derived during this session (observed behavior, a gotcha, a
+  project-specific pattern, a decision rationale, a non-obvious codebase fact).
+- It is NOT already expressed in a `.claude/rules/` file or an existing Serena memory
+  (check first: `mcp__serena__read_memory` or `mcp__serena__list_memories`).
+- A future session working on the same area would save 5+ minutes by having it.
+- It does NOT need to bind Codex or Copilot (those harnesses do not read Serena).
+
+Do NOT write a Serena memory when:
+
+- The same information is already in a `.claude/rules/` file, writing a duplicate
+  creates drift if the rule is later updated.
+- The convention must bind every harness or every contributor -> use `.claude/rules/` instead.
+- The information is ephemeral to this task only (no future session needs it).
+- It is trivially re-derivable from the codebase in under a minute.
+
+SHOULD check before writing: search Serena with 2-3 keywords from the insight. If a
+memory already covers it, augment the existing entry rather than creating a duplicate.
+
+## Net-new information decision checklist
+
+Before persisting anything, ask in order:
+
+1. **Already covered?** Search `.claude/rules/` and Serena memories. If yes, augment; do not duplicate.
+2. **Re-derivable easily?** If a `Grep` or `Read` would surface it in under a minute, skip.
+3. **Required investigation?** If it took failed attempts, non-obvious codebase traversal, or
+   cross-file reasoning to arrive at -> persist it.
+4. **Which surface?**
+   - Binds all harnesses / all contributors -> `.claude/rules/<name>.md` (+ mirrors + manifest bump)
+   - Retrieval context for Claude/Serena sessions only -> `mcp__serena__write_memory`
+   - Ephemeral / task-only -> neither; session log only if relevant for handoff
+
 ## MUST NOT
 
 1. MUST NOT rely on Serena memory or Copilot Memory alone to persist a convention that other harnesses or contributors must obey. Those are retrieval complements, not the cross-harness binding.
