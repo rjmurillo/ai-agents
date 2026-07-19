@@ -13187,6 +13187,15 @@
         "episode-2026-07-19-session-3248-adr033-routing-gates"
       ],
       "created": "2026-07-19T23:31:34.214616+00:00"
+    },
+    {
+      "id": "5e05edd88d7e",
+      "type": "milestone",
+      "label": "milestone: Converged the third Copilot review round on PR #3258 (exit-code + path accuracy)",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:47:30.142733+00:00"
     }
   ],
   "patterns": [

@@ -25,7 +25,7 @@ Consensus: 5 ACCEPT, 1 DISAGREE-AND-COMMIT, 0 BLOCK. Proceed.
 
 ## Ground-truth verification (this session)
 
-- `.claude/hooks/PreToolUse/invoke_routing_gates.py` absent on main; deleted by #3246 (commit 475961c4).
+- `.claude/hooks/invoke_routing_gates.py` absent on main; deleted by #3246.
 - `invoke_skill_first_guard.py` maps `pr create` to `new_pr.py` and `pr merge` to `merge_pr.py` (lines 79 to 99), so it denies the raw commands the retired matcher needed.
 - Surviving guards confirmed present: `invoke_session_log_guard.py`, `invoke_retrospective_gate.py` (docstring: "Block git push without retrospective evidence per ADR-033"), `invoke_adr_review_guard.py`.
 - No live code reference to `invoke_routing_gates` remains; only historical docs, session logs, and episode memory.

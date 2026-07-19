@@ -69,7 +69,7 @@
    "changesCommitted": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "Amendment shipped as one atomic docs commit: ADR-033, the ADR-033 debate log, and this session log, plus the memory episode file auto-extracted and auto-staged by the pre-commit episode hook (4 files, within the 5-file atomic limit)."
+    "Evidence": "The deliverable amendment shipped as one atomic docs commit: ADR-033, the ADR-033 debate log, this session log, and the auto-extracted memory episode (4 files, within the 5-file atomic limit). Later review-convergence commits added the brand-capitalization fix and this provenance fix; the causal-graph update rode along with the episode regeneration. Each commit independently stayed within the 5-file limit."
    },
    "validationPassed": {
     "level": "MUST",
@@ -120,6 +120,16 @@
    "action": "Converged the second Copilot review round on PR #3258 (episode + session-log findings)",
    "result": "The push resolved the brand thread (line moved) but Copilot opened three accurate threads: (1) the auto-generated episode listed the external #3246 retirement SHA as a session commit because the extractor _SHA_RE matches any hex token in workLog prose and only excludes startingCommit, not cited external SHAs; (2) consequently metrics.commits read 2 instead of 1; (3) nextSteps still said to backfill endingCommit though it was already set. Fixed by removing the redundant external hex SHA from the ground-truth workLog prose (the #3246 issue reference is sufficient provenance), so the pre-commit hook regenerates the episode with a single session commit event from endingCommit and metrics.commits 1; removed the stale backfill nextSteps line. The extractor gap itself (cited SHAs counted as session commits) is a separate robustness issue, not fixed in this docs PR.",
    "filesModified": [
+    ".agents/sessions/2026-07-19-session-3248-adr033-routing-gates.json"
+   ]
+  },
+  {
+   "timestamp": "2026-07-20T00:15:00Z",
+   "action": "Converged the third Copilot review round on PR #3258 (exit-code + path accuracy)",
+   "result": "Copilot opened five threads; three were genuine factual errors in prose I control, verified against ground truth: (1) the Gate Types table listed the Session Protocol gate enforcement as JSON deny, but invoke_session_log_guard.py blocks via exit code 2 (docstring: 2 = Block), so changed it to Exit code 2 to match the hook contract and the Retrospective row; (2) the What-still-enforces prose claimed the session-log guard covers gh pr merge, but its dispatch_groups.json registrations match only git commit and gh pr create (no merge matcher), so dropped the merge claim; (3) the debate log cited the retired hook path as .claude/hooks/PreToolUse/invoke_routing_gates.py, but the 516-line deletion in #3246 was at .claude/hooks/invoke_routing_gates.py, so removed the PreToolUse segment. The remaining two threads flagged files_changed 4 vs the PR-aggregate 5 (causal graph); made the changesCommitted evidence explicit that the 4-file count scopes the deliverable commit and later review-convergence commits added files, each within the 5-file limit. The exit-code correction directly serves the #3247 directive to make exit-code guidance accurate.",
+   "filesModified": [
+    ".agents/architecture/ADR-033-routing-level-enforcement-gates.md",
+    ".agents/critique/ADR-033-debate-log.md",
     ".agents/sessions/2026-07-19-session-3248-adr033-routing-gates.json"
    ]
   }

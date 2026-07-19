@@ -132,7 +132,7 @@ Instead of exit code 2, hooks can output JSON with `decision: "deny"` and exit 0
 
 | Gate | Trigger Pattern | Prerequisite | Enforcement |
 |------|-----------------|--------------|-------------|
-| **Session Protocol** | `git commit`, `gh pr create` | Session log exists with required sections | JSON deny |
+| **Session Protocol** | `git commit`, `gh pr create` | Session log exists with required sections | Exit code 2 |
 | **QA Validation** | `gh pr create` | `.agents/qa/` report exists | Retired 2026-07-19 (see Amendment) |
 | **Critic Review** | `gh pr merge` | Critic agent invoked in transcript | Retired 2026-07-19 (see Amendment) |
 | **ADR Existence** | `gh pr create --head feat/*` | ADR file exists for features | Retired 2026-07-19 (see Amendment) |
@@ -466,7 +466,7 @@ The hook was structurally dead, enforcing nothing while costing startup and disp
 
 ### What still enforces
 
-- Gate 1 (Session Protocol) remains, enforced by the session-log guard on `git commit`, `gh pr create`, and `gh pr merge`.
+- Gate 1 (Session Protocol) remains, enforced by the session-log guard on `git commit` and `gh pr create` (it has no `gh pr merge` matcher).
 - The Retrospective gate (Phase 3.5) remains on `git push`.
 - Architecture-change governance is enforced by the adr-review guard, which is a separate hook from the retired routing_gates hook.
 
