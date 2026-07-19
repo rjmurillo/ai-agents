@@ -77,8 +77,9 @@ class TestGetSecurityRiskLevel:
     def test_high_for_config_json(self) -> None:
         assert get_security_risk_level("config/database.json") == "high"
 
-    def test_critical_for_githooks(self) -> None:
-        assert get_security_risk_level(".githooks/pre-commit") == "critical"
+    def test_critical_for_hook_payloads(self) -> None:
+        assert get_security_risk_level("scripts/hooks/pre-commit") == "critical"
+        assert get_security_risk_level(".githooks/pre-commit") == "none"
 
 
 class TestDetectInfrastructure:

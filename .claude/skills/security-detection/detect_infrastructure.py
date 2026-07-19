@@ -19,7 +19,7 @@ import sys
 CRITICAL_PATTERNS = [
     r"^\.github/workflows/.*\.(yml|yaml)$",
     r"^\.github/actions/",
-    r"^\.githooks/",
+    r"^scripts/hooks/",
     r"^\.husky/",
     r".*/Auth/",
     r".*/Authentication/",
