@@ -100,7 +100,7 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-03
 | Gate | Catches | Local command | CI enforcement |
 |------|---------|---------------|----------------|
 | Agent template drift | templates edited without regen (or vice versa) | `python3 build/generate_agents.py --validate` | `validate-generated-agents.yml`, `agent-drift-detection.yml` |
-| Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; `.githooks/pre-push` section 11b |
+| Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; `scripts/hooks/pre-push` section 11b |
 | Lib mirror drift | `scripts/` package edited without sync | `python3 scripts/sync_plugin_lib.py --check` | `validate-generated-agents.yml` |
 | Install parity | plugin install layout broken | `python3 scripts/validation/run_install_parity_ci.py` | `validate-generated-agents.yml` |
 | Hook shim drift at push time | hook source vs generated shims | automatic: `invoke_hook_drift_guard.py` on `git push` | same class re-checked by build_all `--check` in CI |
@@ -186,7 +186,7 @@ Verified 2026-07-03 against the working tree. Volatile facts and how to re-check
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
 | Drift CI wiring | .github/workflows/validate-generated-agents.yml:123,132,151,164; agent-drift-detection.yml:143-168 | `grep -n "python3" .github/workflows/validate-generated-agents.yml` |
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666 | `grep -n "cron" .github/workflows/drift-detection.yml` |
-| Pre-push sections 11b/11c | .githooks/pre-push:973,1037 | `grep -n "11b\.\|11c\." .githooks/pre-push` |
+| Pre-push sections 11b/11c | scripts/hooks/pre-push:973,1037 | `grep -n "11b\.\|11c\." scripts/hooks/pre-push` |
 | Hook drift push guard | .claude/hooks/PreToolUse/invoke_hook_drift_guard.py:1-25 | `head -25 .claude/hooks/PreToolUse/invoke_hook_drift_guard.py` |
 | Ruff exemption for generated Python | pyproject.toml:99-100 | `grep -n "src/copilot-cli" pyproject.toml` |
 | npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:12-17 | `grep -n "tags" .github/workflows/publish.yml` |
