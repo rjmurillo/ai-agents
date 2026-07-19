@@ -286,3 +286,105 @@ class TestSizeExceptionProperty:
         assert any("Unexpected frontmatter" in e for e in v.errors), (
             f"unknown key must still be rejected, got: {v.errors}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Issue #3233: repo-wide latent trigger-phrase detection (decoupled from staging)
+# ---------------------------------------------------------------------------
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _trigger_safety_errors(errors: list[str]) -> list[str]:
+    """Filter validator errors down to the trigger-phrase safe-character check.
+
+    Isolating this one check keeps the repo-wide guard scoped to issue #3233 and
+    immune to unrelated latent failures (a missing Process section, a bad
+    frontmatter field) in other shipped skills.
+    """
+    return [e for e in errors if "unsafe characters" in e]
+
+
+def _iter_canonical_skill_dirs() -> list[Path]:
+    """Every shipped canonical skill directory (``.claude/skills/*/`` with SKILL.md)."""
+    base = _REPO_ROOT / ".claude" / "skills"
+    return sorted(p.parent for p in base.glob("*/SKILL.md"))
+
+
+class TestTriggerPhraseRepoWideGuard:
+    """Issue #3233: surface latent trigger-phrase violations repo-wide.
+
+    The pre-commit hook runs SkillForge validation only on *staged* SKILL.md
+    files, so a pre-existing unsafe trigger phrase stays latent until the file
+    is next staged for an unrelated reason, then blocks that unrelated commit
+    (the same class as the mypy latent-error pattern, #2949). This guard scans
+    every shipped skill on every test run, so a violation surfaces as its own
+    failure naming the offending file, decoupled from whoever next stages it.
+    """
+
+    def test_no_latent_trigger_phrase_violations_repo_wide(self) -> None:
+        """Positive: no shipped skill carries an unsafe trigger phrase today."""
+        skill_dirs = _iter_canonical_skill_dirs()
+        assert skill_dirs, "No canonical skills found; the glob or path is wrong"
+        orig = os.getcwd()
+        os.chdir(_REPO_ROOT)
+        try:
+            offenders: dict[str, list[str]] = {}
+            for skill_dir in skill_dirs:
+                validator: _ValidatorLike = SkillValidator(str(skill_dir))
+                validator.load_skill()
+                validator.validate_triggers()
+                errs = _trigger_safety_errors(validator.errors)
+                if errs:
+                    rel = skill_dir.relative_to(_REPO_ROOT).as_posix()
+                    offenders[rel] = errs
+        finally:
+            os.chdir(orig)
+        assert not offenders, (
+            "Latent SkillForge trigger-phrase violations found repo-wide "
+            "(issue #3233). Each file below has an unsafe trigger phrase that "
+            "would block the next unrelated commit that stages it:\n"
+            + "\n".join(
+                f"  {name}: {'; '.join(msgs)}" for name, msgs in offenders.items()
+            )
+        )
+
+    def test_guard_detects_injected_unsafe_trigger(self, tmp_path: Path) -> None:
+        """Negative: the guard's check flags a bracketed trigger phrase.
+
+        Proves the repo-wide assertion is not hollow: the same check it relies
+        on catches the exact defect from the #3233 reproduction (a ``[marker]``
+        trigger), which the safe_pattern allow-list rejects.
+        """
+        content = (
+            "---\nname: test-skill\ndescription: A valid skill for testing triggers\n---\n"
+            "# Title\n## Triggers\n`what does [skip-drift-check] do` `safe phrase`\n"
+            "## Process\nSteps.\n## Verification\n- [ ] a\n- [ ] b\n"
+        )
+        v = _make_skill(tmp_path, content)
+        v.load_skill()
+        v.validate_triggers()
+        assert _trigger_safety_errors(v.errors), (
+            f"Guard failed to flag a bracketed trigger; errors: {v.errors}"
+        )
+
+    def test_guard_ignores_other_latent_failures(self, tmp_path: Path) -> None:
+        """Edge: a skill invalid for unrelated reasons but with safe triggers is not flagged.
+
+        The guard isolates the trigger-safety concern, so a skill missing its
+        Process/Verification sections does not trip the repo-wide trigger-phrase
+        guard as long as its trigger phrases use allow-listed characters. This is
+        what lets the guard run across every shipped skill without coupling to
+        their other latent state.
+        """
+        content = (
+            "---\nname: test-skill\ndescription: A valid skill for testing triggers\n---\n"
+            "# Title\n## Triggers\n`run tests` `check {template}` `ref #123`\n"
+            # Deliberately no Process or Verification section.
+        )
+        v = _make_skill(tmp_path, content)
+        v.load_skill()
+        v.validate_triggers()
+        assert not _trigger_safety_errors(v.errors), (
+            f"Guard wrongly flagged safe triggers: {v.errors}"
+        )
