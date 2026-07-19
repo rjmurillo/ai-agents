@@ -397,7 +397,12 @@ def _check_yaml_naming(filepath: str, name: str, suffix: str) -> Violation | Non
 
 
 def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | None:
-    if name.startswith("invoke_") or name in ("__init__",):
+    # Entrypoint hooks require the invoke_ prefix so settings.json and the
+    # dispatcher can resolve them. Non-entrypoint modules that legitimately live
+    # in the hooks tree are exempt: private/dunder helpers (leading underscore,
+    # e.g. _bootstrap.py, __init__.py) and shared framework base classes
+    # (*_base.py, e.g. push_guard_base.py). See issue #3239.
+    if name.startswith("invoke_") or name.startswith("_") or name.endswith("_base"):
         return None
     return Violation(
         rule="naming",

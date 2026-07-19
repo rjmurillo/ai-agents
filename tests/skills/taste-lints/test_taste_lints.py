@@ -172,6 +172,25 @@ class TestCheckNaming:
         hook_violations = [v for v in result if "invoke_" in v.message]
         assert hook_violations == []
 
+    def test_hook_leading_underscore_helper_exempt(self) -> None:
+        # Private helper module in the hooks tree; not an entrypoint. #3239.
+        result = check_naming(".claude/hooks/PreToolUse/_bootstrap.py", [])
+        assert [v for v in result if v.rule == "naming"] == []
+
+    def test_hook_base_module_exempt(self) -> None:
+        # Shared framework base class (*_base.py); not an entrypoint. #3239.
+        result = check_naming(".claude/hooks/PreToolUse/push_guard_base.py", [])
+        assert [v for v in result if v.rule == "naming"] == []
+
+    def test_hook_exemption_does_not_suppress_python_naming(self) -> None:
+        # The invoke_ exemption is scoped to the hook-naming rule. A leading
+        # underscore silences hook naming but must not mask a bad Python name:
+        # _BadName is not valid snake_case, so python naming still flags it. #3239.
+        result = check_naming(".claude/hooks/PreToolUse/_BadName.py", [])
+        naming_violations = [v for v in result if v.rule == "naming"]
+        assert len(naming_violations) == 1
+        assert "snake_case" in naming_violations[0].message
+
     def test_suppression_skips_naming(self) -> None:
         lines = ["# taste-lint: ignore naming\n"]
         result = check_naming("src/BadName.py", lines)
