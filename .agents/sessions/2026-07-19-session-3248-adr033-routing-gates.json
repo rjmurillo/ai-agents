@@ -87,7 +87,7 @@
   {
    "timestamp": "2026-07-19T21:00:00Z",
    "action": "Verified the #3246 retirement facts against the tree before amending",
-   "result": "Confirmed .claude/hooks/invoke_routing_gates.py is deleted on main (commit 475961c4, #3246); its commit message states the hook was structurally dead. Confirmed invoke_skill_first_guard.py maps pr create to new_pr.py and pr merge to merge_pr.py (lines 79 to 99), so it denies the exact raw commands the retired matcher needed. Confirmed the surviving guards exist: invoke_session_log_guard.py, invoke_retrospective_gate.py (docstring: Block git push without retrospective evidence per ADR-033), invoke_adr_review_guard.py. Confirmed no live code path references invoke_routing_gates (only historical docs and session logs).",
+   "result": "Confirmed .claude/hooks/invoke_routing_gates.py is deleted on main (retired by #3246); its retirement message states the hook was structurally dead. Confirmed invoke_skill_first_guard.py maps pr create to new_pr.py and pr merge to merge_pr.py (lines 79 to 99), so it denies the exact raw commands the retired matcher needed. Confirmed the surviving guards exist: invoke_session_log_guard.py, invoke_retrospective_gate.py (docstring: Block git push without retrospective evidence per ADR-033), invoke_adr_review_guard.py. Confirmed no live code path references invoke_routing_gates (only historical docs and session logs).",
    "filesModified": []
   },
   {
@@ -114,13 +114,20 @@
    "filesModified": [
     ".agents/architecture/ADR-033-routing-level-enforcement-gates.md"
    ]
+  },
+  {
+   "timestamp": "2026-07-19T23:45:00Z",
+   "action": "Converged the second Copilot review round on PR #3258 (episode + session-log findings)",
+   "result": "The push resolved the brand thread (line moved) but Copilot opened three accurate threads: (1) the auto-generated episode listed the external #3246 retirement SHA as a session commit because the extractor _SHA_RE matches any hex token in workLog prose and only excludes startingCommit, not cited external SHAs; (2) consequently metrics.commits read 2 instead of 1; (3) nextSteps still said to backfill endingCommit though it was already set. Fixed by removing the redundant external hex SHA from the ground-truth workLog prose (the #3246 issue reference is sufficient provenance), so the pre-commit hook regenerates the episode with a single session commit event from endingCommit and metrics.commits 1; removed the stale backfill nextSteps line. The extractor gap itself (cited SHAs counted as session commits) is a separate robustness issue, not fixed in this docs PR.",
+   "filesModified": [
+    ".agents/sessions/2026-07-19-session-3248-adr033-routing-gates.json"
+   ]
   }
  ],
  "endingCommit": "5a472157",
  "nextSteps": [
   "Push docs/3248-adr033-routing-gates-retirement and open a PR: Refs #3194 #3246 #3248 (use Refs, not Closes, so #3248 stays under owner control and ai-spec-validation deep-validation is skipped).",
   "Babysit the Copilot review-convergence loop (fix -> resolve threads -> push until a push yields 0 new threads), then self-merge via squash once checks are green and threads resolved.",
-  "Backfill endingCommit into this log after the deliverable commit lands.",
   "Close #3248 with --verify-claims once merged.",
   "Continue epic #3197 triage: the remaining open children are parked on the harness Task/read-tool deny (#3247), adr-review or Sol review, or an anti-churn cleanup the owner warned against; re-scope or close-with-justification rather than open large new implementations."
  ]

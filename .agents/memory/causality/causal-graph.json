@@ -13153,15 +13153,6 @@
       "created": "2026-07-19T23:21:35.418183+00:00"
     },
     {
-      "id": "a52d79f42441",
-      "type": "commit",
-      "label": "commit: Commit: 475961c4",
-      "episodes": [
-        "episode-2026-07-19-session-3248-adr033-routing-gates"
-      ],
-      "created": "2026-07-19T23:21:35.418232+00:00"
-    },
-    {
       "id": "d9f479373a90",
       "type": "commit",
       "label": "commit: Commit: 5a472157",
@@ -13187,6 +13178,15 @@
         "episode-2026-07-19-session-3248-adr033-routing-gates"
       ],
       "created": "2026-07-19T23:21:35.418380+00:00"
+    },
+    {
+      "id": "2ed050b9375a",
+      "type": "milestone",
+      "label": "milestone: Converged the second Copilot review round on PR #3258 (episode + session-log findings)",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:31:34.214616+00:00"
     }
   ],
   "patterns": [
