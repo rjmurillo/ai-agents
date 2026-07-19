@@ -78,17 +78,6 @@
             "statusMessage": "Running plugin-pretooluse-8-branch_context_guard hooks (grouped, #3075)"
           }
         ]
-      },
-      {
-        "matcher": "^(Edit|Write)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-adr_architect_gate",
-            "timeout": 60,
-            "statusMessage": "Running plugin-pretooluse-adr_architect_gate hooks (grouped, #3075)"
-          }
-        ]
       }
     ],
     "SessionStart": [
@@ -124,17 +113,6 @@
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-1-markdown_auto_lint",
             "timeout": 60,
             "statusMessage": "Running plugin-posttooluse-1-markdown_auto_lint hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-adr_lifecycle_hook",
-            "timeout": 60,
-            "statusMessage": "Running plugin-posttooluse-adr_lifecycle_hook hooks (grouped, #3075)"
           }
         ]
       },
