@@ -62,6 +62,7 @@ from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 _SECURITY_PATH_PATTERNS = [
     re.compile(r"(^|[/\\])[Aa]uth[/\\]"),
     re.compile(r"(^|[/\\])[Ss]ecurity[/\\]"),
+    re.compile(r"^lefthook\.yml$"),
     re.compile(r"\.env($|\.)"),
     re.compile(r"(^|[/\\])scripts[/\\]hooks[/\\]"),
     re.compile(r"(^|[/\\])secrets[/\\]"),

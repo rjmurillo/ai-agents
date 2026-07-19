@@ -67,6 +67,11 @@ class TestMatchSecurityPaths:
             "scripts/hooks/pre-push"
         ]
 
+    def test_only_root_lefthook_config_matches(self) -> None:
+        assert match_security_paths(
+            ["lefthook.yml", "nested/lefthook.yml"]
+        ) == ["lefthook.yml"]
+
     def test_does_not_match_removed_githooks_directory(self) -> None:
         assert match_security_paths([".githooks/pre-push"]) == []
 
@@ -142,10 +147,12 @@ class TestMain:
                 ):
                     assert main() == 0
 
+    @pytest.mark.parametrize("staged_file", ["src/Auth/login.py", "lefthook.yml"])
     def test_denies_commit_with_security_files_and_no_evidence(
         self,
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
+        staged_file: str,
     ) -> None:
         monkeypatch.delenv("SKIP_SECURITY_GATE", raising=False)
         mock_stdin = StringIO(json.dumps({"tool_input": {"command": "git commit -m 'add auth'"}}))
@@ -153,7 +160,7 @@ class TestMain:
             with patch.object(mock_stdin, "isatty", return_value=False):
                 with patch(
                     "invoke_security_commit_gate.get_staged_files",
-                    return_value=["src/Auth/login.py"],
+                    return_value=[staged_file],
                 ):
                     with patch(
                         "invoke_security_commit_gate.find_security_evidence",
