@@ -70,7 +70,7 @@ def validate_session_end(repo_root: Path) -> bool:
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-SessionLogPath", str(session_log)]
     )
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_pester_tests(repo_root: Path, verbose: bool = False) -> bool:
@@ -85,11 +85,11 @@ def validate_pester_tests(repo_root: Path, verbose: bool = False) -> bool:
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-Verbosity", verbosity]
     )
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_markdown_lint(repo_root: Path) -> bool:
-    """Run markdownlint auto-fix and validate branch markdown changes."""
+    """Validate branch Markdown, auto-fixing unless SKIP_AUTOFIX=1."""
     if not shutil.which("npx"):
         print("[FAIL] npx not found (Node.js required)")
         print("  Install Node.js: https://nodejs.org/")
@@ -99,24 +99,31 @@ def validate_markdown_lint(repo_root: Path) -> bool:
     if targets == []:
         print("[PASS] Markdown linting (no markdown files on branch)")
         return True
-    if targets is None:
-        print("Auto-fixing markdown files...")
-        command = ["npx", "markdownlint-cli2", "--fix", "**/*.md"]
-    else:
-        print(f"Auto-fixing {len(targets)} changed markdown file(s)...")
-        command = ["npx", "markdownlint-cli2", "--fix", *targets]
+
+    autofix = os.environ.get("SKIP_AUTOFIX") != "1"
+    action = "Auto-fixing" if autofix else "Checking"
+    target_args = ["**/*.md"] if targets is None else targets
+    scope = (
+        "markdown files"
+        if targets is None
+        else f"{len(target_args)} changed markdown file(s)"
+    )
+    print(f"{action} {scope}...")
+    command = ["npx", "markdownlint-cli2"]
+    if autofix:
+        command.append("--fix")
+    command.extend(target_args)
 
     exit_code, _, _ = _run_subprocess(command, cwd=repo_root)
+    if exit_code == 0:
+        return True
 
-    if exit_code != 0:
-        print("[FAIL] Markdown linting failed (some issues cannot be auto-fixed)")
-        print()
-        print("Common unfixable issues:")
-        print("  - MD040: Add language identifier to code blocks")
-        print("  - MD033: Wrap generic types like ArrayPool<T> in backticks")
-        return False
-
-    return True
+    print("[FAIL] Markdown linting failed")
+    print()
+    print("Common issues:")
+    print("  - MD040: Add language identifier to code blocks")
+    print("  - MD033: Wrap generic types like ArrayPool<T> in backticks")
+    return False
 
 
 def _markdown_lint_targets(repo_root: Path) -> list[str] | None:
@@ -259,7 +266,7 @@ def validate_path_normalization(repo_root: Path) -> bool:
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-FailOnViolation"]
     )
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_planning_artifacts(repo_root: Path) -> bool:
@@ -273,7 +280,7 @@ def validate_planning_artifacts(repo_root: Path) -> bool:
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-FailOnError"]
     )
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_agent_drift(repo_root: Path) -> bool:
@@ -302,7 +309,7 @@ def validate_agent_drift(repo_root: Path) -> bool:
         if output.strip():
             for line in output.strip().splitlines()[:100]:
                 print(line)
-        return exit_code == 0
+        return bool(exit_code == 0)
 
     # Legacy fallback: if neither port nor original PS1 exist, SKIP rather than
     # report a misleading FAIL (ADR-042 expungement tolerance).
@@ -316,7 +323,7 @@ def validate_agent_drift(repo_root: Path) -> bool:
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(legacy)]
     )
-    return exit_code == 0
+    return bool(exit_code == 0)
 
 
 def validate_copilot_version_pin(repo_root: Path) -> bool:
@@ -334,4 +341,4 @@ def validate_copilot_version_pin(repo_root: Path) -> bool:
         raise MissingScriptSkip(
             "ai-review/action.yml not present (downstream install); nothing to pin-check"
         )
-    return check_action(action) == EXIT_OK
+    return bool(check_action(action) == EXIT_OK)
