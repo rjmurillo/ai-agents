@@ -16,18 +16,23 @@ Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
   - `Task(subagent_type="Y")`  -> NOT callable; real tool is `task`
                                   (param `agent_type`, persona `<plugin>:Y`)
 
-The translation applies three transforms:
+The translation applies three transforms, all in place:
 
-  1. `@file` includes  -> a Copilot note (instructions load via the plugin tree).
-  2. `$ARGUMENTS`       -> a conversation instruction (no argument vector).
-  3. an appended invocation reference mapping inline `Skill()`/`Task()` calls
-     to the Copilot `skill`/`task` tools.
+  1. `@file` includes -> a Copilot note (instructions load via the plugin tree).
+  2. `$ARGUMENTS`      -> a conversation instruction (no argument vector).
+  3. `Skill()`/`Task()` calls -> the Copilot tool-input span they map to:
+     `Skill(skill="X")`        -> `` `skill: "X"` ``
+     `Task(subagent_type="Y")` -> `` `agent_type: "<plugin>:Y"` ``
+     A `prompt="Z"` argument is preserved as ` with prompt "Z"`.
 
-Transforms 1 and 2 run inline. Transform 3 is appended rather than rewritten
-in place: the inline calls live inside blocks that
-`tests/commands/test_spec_step0.py::test_step{0,9}_block_identical` assert
-byte-identical between `.claude/commands/spec.md` and the Copilot SKILL.md.
-Appending keeps those parity blocks intact.
+Transform 3 rewrites each call where it sits (structural rework, #2743). The
+earlier design appended a reference table to sidestep the Step 0 / Step 9
+byte-parity tests in `tests/commands/test_spec_step0.py`; that indirection is
+gone. Those parity tests now apply this same translation to the source block
+before comparing, so the mirror is a pure in-place translation of the source
+with no appended section. Transform 3 runs over the whole body, fenced code
+included, because three skills (security-detection, slashcommandcreator,
+cva-analysis) carry their only calls inside fenced example blocks.
 """
 
 from __future__ import annotations
@@ -40,18 +45,20 @@ from pathlib import Path
 _PLUGIN_MANIFEST_RELATIVE = Path(".claude-plugin") / "plugin.json"
 _DEFAULT_PLUGIN_NAME = "project-toolkit"
 
-# Match the call's first keyword argument value, tolerating additional
-# arguments before the closing paren (for example
-# `Task(subagent_type="architect", prompt="...")`). The capture is only the
-# skill/persona name; trailing args are ignored for the mapping.
-_SKILL_CALL_RE = re.compile(r"Skill\(\s*skill\s*=\s*['\"]([^'\"]+)['\"]")
-_TASK_CALL_RE = re.compile(r"Task\(\s*subagent_type\s*=\s*['\"]([^'\"]+)['\"]")
 _INCLUDE_LINE_RE = re.compile(r"^@([A-Za-z0-9_.\-/]+\.md)\s*$", re.MULTILINE)
 _ARGUMENTS_TOKEN = "$ARGUMENTS"
 _FENCED_CODE_BLOCK_RE = re.compile(r"(```.*?```)", re.DOTALL)
 _INLINE_CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
 
 _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
+
+# Locate the start of a `Skill(` / `Task(` call. The matching close paren is
+# found by a quote-aware balanced scan (a `prompt="..."` argument can contain
+# parens), so this only anchors the opener.
+_CALL_START_RE = re.compile(r"(Skill|Task)\(")
+_SKILL_NAME_RE = re.compile(r"skill\s*=\s*(['\"])(?P<value>.*?)\1", re.DOTALL)
+_TASK_NAME_RE = re.compile(r"subagent_type\s*=\s*(['\"])(?P<value>.*?)\1", re.DOTALL)
+_PROMPT_ARG_RE = re.compile(r"prompt\s*=\s*(['\"])(?P<value>.*?)\1", re.DOTALL)
 
 
 def resolve_plugin_name(skills_output_dir: Path) -> str:
@@ -131,46 +138,89 @@ def _translate_arguments(body: str) -> str:
     )
 
 
-def _build_invocation_appendix(body: str, plugin_name: str) -> str:
-    """Build the Copilot CLI invocation-reference appendix for a body.
+def _find_matching_paren(text: str, open_index: int) -> int:
+    """Return the index of the ``)`` that closes the ``(`` at ``open_index``.
 
-    Returns an empty string when the body has no inline `Skill()`/`Task()`.
+    Quote-aware: parens inside single- or double-quoted argument strings do
+    not change the depth. Returns -1 when the call is unbalanced.
     """
-    skills = sorted({m.group(1) for m in _SKILL_CALL_RE.finditer(body)})
-    agents = sorted({m.group(1) for m in _TASK_CALL_RE.finditer(body)})
-    if not skills and not agents:
-        return ""
+    depth = 0
+    quote: str | None = None
+    index = open_index
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if quote is not None:
+            if char == "\\":
+                index += 2
+                continue
+            if char == quote:
+                quote = None
+        elif char in ("'", '"'):
+            quote = char
+        elif char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return -1
 
-    lines = [
-        "",
-        "## Copilot CLI invocation reference",
-        "",
-        "This skill body uses Claude Code call syntax. Under GitHub Copilot "
-        "CLI, translate as follows (verified against Copilot CLI 1.0.66-1).",
-        "",
-    ]
-    if skills:
-        lines += ["### Sub-skill calls", ""]
-        lines += ["| Claude Code syntax | Copilot CLI equivalent |", "| --- | --- |"]
-        lines += [
-            f'| `Skill(skill="{name}")` | `skill` tool, `skill: "{name}"` |'
-            for name in skills
-        ]
-        lines.append("")
-    if agents:
-        lines += ["### Sub-agent calls", ""]
-        lines += ["| Claude Code syntax | Copilot CLI equivalent |", "| --- | --- |"]
-        lines += [
-            f'| `Task(subagent_type="{name}")` | `task` tool, '
-            f'`agent_type: "{plugin_name}:{name}"` |'
-            for name in agents
-        ]
-        lines.append("")
-    lines.append(
-        "If a referenced skill or agent is unavailable in the Copilot CLI "
-        "environment, perform that step inline and note the reduced coverage."
-    )
-    return "\n".join(lines)
+
+def _render_invocation(kind: str, args: str, plugin_name: str) -> str | None:
+    """Render the Copilot tool-input span for one call, or None if unparseable."""
+    if kind == "Skill":
+        name = _SKILL_NAME_RE.search(args)
+        if name is None:
+            return None
+        return f'`skill: "{name.group("value")}"`'
+    name = _TASK_NAME_RE.search(args)
+    if name is None:
+        return None
+    rendered = f'`agent_type: "{plugin_name}:{name.group("value")}"`'
+    prompt = _PROMPT_ARG_RE.search(args)
+    if prompt is not None:
+        rendered += f' with prompt "{prompt.group("value")}"'
+    return rendered
+
+
+def _translate_invocations(body: str, plugin_name: str) -> str:
+    """Rewrite each ``Skill()``/``Task()`` call as its Copilot tool-input span.
+
+    A call already wrapped in backticks (`` `Skill(skill="X")` ``) has those
+    wrapping backticks absorbed, so the result is a single clean code span.
+    """
+    out: list[str] = []
+    cursor = 0
+    length = len(body)
+    for match in _CALL_START_RE.finditer(body):
+        call_start = match.start()
+        if call_start < cursor:
+            continue
+        open_index = match.end() - 1
+        close_index = _find_matching_paren(body, open_index)
+        if close_index == -1:
+            continue
+        rendered = _render_invocation(
+            match.group(1), body[open_index + 1 : close_index], plugin_name
+        )
+        if rendered is None:
+            continue
+        call_end = close_index + 1
+        if (
+            call_start - 1 >= cursor
+            and body[call_start - 1] == "`"
+            and call_end < length
+            and body[call_end] == "`"
+        ):
+            call_start -= 1
+            call_end += 1
+        out.append(body[cursor:call_start])
+        out.append(rendered)
+        cursor = call_end
+    out.append(body[cursor:])
+    return "".join(out)
 
 
 def translate_body(body: str, skills_output_dir: Path) -> str:
@@ -182,11 +232,7 @@ def translate_body(body: str, skills_output_dir: Path) -> str:
     translated = _translate_includes(body)
     translated = _translate_arguments(translated)
     plugin_name = resolve_plugin_name(skills_output_dir)
-    appendix = _build_invocation_appendix(translated, plugin_name)
-    if not appendix:
-        return translated
-    separator = "" if translated.endswith("\n") else "\n"
-    return f"{translated}{separator}{appendix}\n"
+    return _translate_invocations(translated, plugin_name)
 
 
 def translate_skill_file(content: str, skills_output_dir: Path) -> str:
