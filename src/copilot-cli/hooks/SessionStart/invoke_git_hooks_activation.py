@@ -50,6 +50,9 @@ INSTALLER_RELPATH = Path("scripts") / "install_git_hooks.py"
 MANUAL_FIX = "python3 scripts/install_git_hooks.py"
 # Bound the installer so a wedged git call never hangs session start.
 INSTALLER_TIMEOUT_SECONDS = 10
+# Drain stdin in fixed-size chunks so peak memory stays bounded even if an
+# upstream sends a large payload.
+_STDIN_DRAIN_CHUNK_BYTES = 65536
 
 
 def project_directory() -> str:
@@ -84,16 +87,26 @@ def project_directory() -> str:
 
 
 def _drain_stdin() -> None:
-    """Consume stdin so the harness pipe never blocks (fail-open)."""
-    if not sys.stdin.isatty():
-        try:
-            sys.stdin.read()
-        except OSError:
+    """Consume stdin in bounded chunks so the harness pipe never blocks.
+
+    Read-and-discard in fixed-size chunks caps peak memory at one chunk even
+    if an upstream sends a large payload, while still draining the pipe fully
+    so the writer never blocks. Fail-open: any read error is swallowed.
+    """
+    if sys.stdin.isatty():
+        return
+    try:
+        while sys.stdin.read(_STDIN_DRAIN_CHUNK_BYTES):
             pass
+    except OSError:
+        pass
 
 
 def _warn(message: str) -> None:
-    print(f"[WARNING] {HOOK_NAME}: {message}", file=sys.stderr)
+    # Collapse whitespace (newlines, tabs) so every warning is one
+    # grep-friendly line, even when message embeds subprocess output.
+    single_line = " ".join(message.split())
+    print(f"[WARNING] {HOOK_NAME}: {single_line}", file=sys.stderr)
 
 
 def _is_self_repository(root: Path) -> bool:
@@ -192,5 +205,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:  # fail-open: never block session start
-        print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
+        detail = " ".join(str(exc).split())
+        print(f"[WARNING] {HOOK_NAME} error: {detail}", file=sys.stderr)
     sys.exit(0)

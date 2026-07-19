@@ -203,6 +203,17 @@ def test_subprocess_timeout_warns(tmp_path: Path, monkeypatch, capsys, trusted_s
     assert hook.MANUAL_FIX in capsys.readouterr().err
 
 
+def test_warn_collapses_whitespace_to_single_line(capsys) -> None:
+    """The hook contract is one warning line; collapse embedded newlines
+    and tabs so a multi-line subprocess error or exception stays
+    grep-friendly on a single line."""
+    hook._warn("line one\nline two\tindented   spaced")
+
+    err = capsys.readouterr().err.rstrip("\n")
+    assert "\n" not in err
+    assert err == f"[WARNING] {hook.HOOK_NAME}: line one line two indented spaced"
+
+
 def test_project_directory_prefers_env(tmp_path: Path, monkeypatch) -> None:
     """project_directory honors CLAUDE_PROJECT_DIR over cwd."""
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
@@ -254,7 +265,8 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         timeout=30,
         check=False,
@@ -304,7 +316,8 @@ def _run_hook(
         env=env,
         stdin=subprocess.DEVNULL,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )

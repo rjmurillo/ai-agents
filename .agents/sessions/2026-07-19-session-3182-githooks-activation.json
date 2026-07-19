@@ -176,9 +176,19 @@
       "filesModified": [
         "tests/hooks/test_git_hooks_activation.py"
       ]
+    },
+    {
+      "timestamp": "2026-07-19T18:45:00Z",
+      "action": "Fixed four robustness findings from a later copilot-pull-request-reviewer round",
+      "result": "(1) _drain_stdin now reads in 64 KiB chunks so peak memory is bounded even on a large payload; verified draining 3 MB exits 0. (2) _warn collapses whitespace so every warning is one grep-friendly line, and the top-level fail-open handler does the same for the raw exception, honoring the single-warning-line contract; added test_warn_collapses_whitespace_to_single_line. (3,4) _git and _run_hook now pass encoding='utf-8', errors='replace' (dropping bare text=True) to match the hook's own subprocess settings and avoid Windows UnicodeDecodeError. Regenerated the mirror (byte-identical body); 17 tests pass; mypy and ruff clean.",
+      "filesModified": [
+        ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
+        "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py",
+        "tests/hooks/test_git_hooks_activation.py"
+      ]
     }
   ],
-  "endingCommit": "486c7fd2",
+  "endingCommit": "6d3ca1f7",
   "nextSteps": [
     "Open PR for #3182, noting the dispatch-group registration correction vs the stale settings.json/hooks.json plan. Self-merge once required reviews and threads clear.",
     "With #3182 landed, the epic can proceed to retire the PreToolUse commit/push guards it enabled (#3195, #3196, #3188, #3189).",
