@@ -81,6 +81,10 @@ class TestGetSecurityRiskLevel:
         assert get_security_risk_level("scripts/hooks/pre-commit") == "critical"
         assert get_security_risk_level(".githooks/pre-commit") == "none"
 
+    def test_only_root_lefthook_config_is_critical(self) -> None:
+        assert get_security_risk_level("lefthook.yml") == "critical"
+        assert get_security_risk_level("nested/lefthook.yml") == "none"
+
 
 class TestDetectInfrastructure:
     """Tests for detect_infrastructure function."""

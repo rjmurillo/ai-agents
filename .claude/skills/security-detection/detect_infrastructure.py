@@ -20,6 +20,7 @@ CRITICAL_PATTERNS = [
     r"^\.github/workflows/.*\.(yml|yaml)$",
     r"^\.github/actions/",
     r"^scripts/hooks/",
+    r"^lefthook\.yml$",
     r"^\.husky/",
     r".*/Auth/",
     r".*/Authentication/",
