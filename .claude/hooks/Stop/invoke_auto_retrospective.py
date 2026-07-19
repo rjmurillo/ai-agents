@@ -90,13 +90,10 @@ RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
 
 
 # Sentinel that suppresses skeleton generation while a tree-mutating
-# validation run is in flight (Issue #2327). The pre-push hook
-# (scripts/hooks/pre-push) creates this file under the gitignored
-# .agents/.hook-state/ directory at the start of a run and removes it on
-# exit (trap). If a Claude session ends while a pre-push run is active, this
-# Stop hook honors the sentinel and stays tree-neutral, so a failing pre-push
-# never leaves an untracked auto-retro file or a .agents/retrospective/INDEX.md
-# edit behind.
+# validation run is in flight (Issue #2327). A producer creates this file
+# under the gitignored .agents/.hook-state/ directory for the duration of its
+# run. If a Claude session ends while the sentinel exists, this Stop hook stays
+# tree-neutral.
 AUTO_RETRO_SUPPRESS_SENTINEL = "auto-retrospective.suppress"
 
 

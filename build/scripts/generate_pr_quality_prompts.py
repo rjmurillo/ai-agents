@@ -19,8 +19,8 @@ git SHA, env-dependent string) breaks idempotency and is forbidden.
 
 Drift detection: `--dry-run` exits 1 with a unified diff if any expected
 output differs from the file currently committed at the destination.
-This is the contract `scripts/hooks/pre-push` and the CI `drift-check` job
-rely on.
+The CI `drift-check` job relies on this contract. `lefthook.yml` is the
+authoritative list of local Git hook jobs.
 
 EXIT CODES (per ADR-035):
   0 - success (sync clean OR dry-run with no drift)

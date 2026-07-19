@@ -260,12 +260,26 @@ def generate_agents(
             agents_stanza: dict[str, object] = (
                 _stanza_raw if isinstance(_stanza_raw, dict) else {}
             )
-            output_dir_relative = str(
+            configured_output_dir = str(
                 legacy.get(
                     "outputDir",
                     agents_stanza.get("outputDir", platform.get("outputDir", "")),
                 )
             )
+            allowed_output_dirs = {
+                "src/copilot-cli",
+                "src/copilot-cli/agents",
+                "src/vs-code-agents",
+            }
+            if configured_output_dir not in allowed_output_dirs:
+                print(
+                    f"  Error: Agent output directory is not allowlisted: "
+                    f"{configured_output_dir}",
+                    file=sys.stderr,
+                )
+                errors += 1
+                continue
+            output_dir_relative = configured_output_dir
 
             # Remove src/ prefix if present since output_root is already src/
             prefix_match = re.match(r"^src/(.*)$", output_dir_relative)
@@ -273,6 +287,20 @@ def generate_agents(
                 output_dir_relative = prefix_match.group(1)
 
             output_dir = output_root / output_dir_relative
+            current = output_dir
+            has_symlink_ancestor = False
+            while current != repo_root:
+                if current.is_symlink():
+                    has_symlink_ancestor = True
+                    break
+                current = current.parent
+            if has_symlink_ancestor:
+                print(
+                    f"  Error: Agent output path cannot contain symlinks: {output_dir}",
+                    file=sys.stderr,
+                )
+                errors += 1
+                continue
             file_ext = str(
                 legacy.get(
                     "fileExtension",
