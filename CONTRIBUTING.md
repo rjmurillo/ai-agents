@@ -41,7 +41,7 @@ Thank you for your interest in contributing to this project. This guide explains
 3. **Install Python 3.14.x** (see Prerequisites above)
 4. **Set up Python environment**: `uv sync --frozen --extra dev` (creates `.venv` from `uv.lock` without re-resolving it). This matches the locked environment the pre-push gate and CI use. On managed containers, `scripts/bootstrap-vm.sh` runs this automatically.
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-6. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
+6. Install Git hooks: `uv run --frozen lefthook install`, then verify with `uv run --frozen lefthook check-install`
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
@@ -508,44 +508,26 @@ In rare cases (e.g., emergency hotfix), you may need to skip drift detection:
 Enable automated validation on commits:
 
 ```bash
-uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook install
 uv run --frozen lefthook check-install
 ```
 
-The reset option removes legacy `core.hooksPath` configuration before Lefthook
-installs shims under Git's hook directory. Linked worktrees share those shims
-through the common Git directory. Run the install command again after changing
-`lefthook.yml`.
+Lefthook installs shims under Git's hook directory. Linked worktrees share
+those shims through the common Git directory. Lefthook reads `lefthook.yml` at
+runtime, so configuration edits do not require another install.
 
 `pre_pr.py` runs `lefthook check-install` as a local gate. It verifies that the
 pinned binary, `lefthook.yml`, and installed shims are available. CI skips this
 local-clone check because workflows invoke validation directly.
 
-The pre-commit hook automatically runs checks including, depending on staged files:
-
-- **markdownlint**: Fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
-- **ruff**: Lints Python files for style and common issues when Python files are staged.
-- **actionlint**: Validates GitHub Actions workflow files (`.github/workflows/*.yml`) when they are staged.
-- **yamllint**: Validates general YAML files when they are staged.
-
-Refer to `scripts/hooks/pre-commit` for the authoritative, up-to-date list of all checks.
+Lefthook filters staged files and runs the named pre-commit validators declared
+in `lefthook.yml`. That file is the authoritative list of local Git hook jobs.
 
 ## Pre-Push Hooks
 
-The pre-push hook runs comprehensive branch-wide validation before each push. Unlike the pre-commit hook (which checks staged files), the pre-push hook validates all changes in the push range.
-
-**Checks run in order:**
-
-| Phase | Checks | Blocking |
-|-------|--------|----------|
-| **Fast Guards** | Branch guard, commit count (max 20), changed files count, total additions | Yes |
-| **Linting** | markdownlint, ruff, mypy, actionlint, yamllint | Yes (except yamllint) |
-| **Build Validation** | Agent generation drift, agent drift detection, path normalization | Yes |
-| **Tests** | Full pytest suite | Yes |
-| **Security** | Suppression comment detection, session log validation | Yes |
-| **Governance** | Planning artifacts, ADR review reminder | Warn only |
-
-Refer to `scripts/hooks/pre-push` for the authoritative, up-to-date list of all checks.
+The pre-push hook validates files in the push range. Lefthook filters the
+changed files and runs the named validators declared in `lefthook.yml`. Consult
+that file for the current jobs instead of relying on a duplicated checklist.
 
 ## Lifecycle Hooks (Claude Code)
 
@@ -1140,21 +1122,16 @@ The pre-push hook delegates to `scripts/security/run_semgrep.py`, which:
 | MEDIUM | Warning only, does not block |
 | LOW/INFO | Ignored |
 
-### Suppressing semgrep Findings
+### Security Scan Findings
 
-Use the `# nosemgrep` inline comment with a justification when a finding is a false positive:
-
-```python
-# nosemgrep: path-traversal-check
-# Justification: Input validated by sanitize_path() on line 42
-os.path.join(base, user_input)
-```
-
-Always include a justification comment explaining why the suppression is safe. Suppressions without justification will be flagged during code review.
+Inline scanner suppressions are prohibited. Fix the finding or rewrite the code
+so the scanner can prove the operation is safe. A false positive that cannot be
+removed without a suppression requires security review and a policy change
+before merge.
 
 ### Resolving Security Scan Findings
 
-Fix reported findings before pushing. For a verified false positive, use the scanner's scoped suppression format with a justification and obtain security review.
+Fix reported findings before pushing. Do not bypass the scanner.
 
 ## Questions?
 

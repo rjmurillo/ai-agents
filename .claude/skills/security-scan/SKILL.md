@@ -171,7 +171,8 @@ Machine-readable JSON format including scan timestamp, files scanned, vulnerabil
 
 ### Pre-commit Hook
 
-Add to `scripts/hooks/pre-commit` to run security scan before commits (blocking mode).
+Add a named validator job to `lefthook.yml` to run the security scan before
+commits in blocking mode.
 
 ### CI Integration
 

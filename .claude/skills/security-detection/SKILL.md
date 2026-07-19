@@ -89,7 +89,8 @@ No infrastructure/security files detected.
 ### Critical (Review Required)
 
 - CI/CD workflows (`.github/workflows/*`)
-- Git hooks (`scripts/hooks/*`, `.husky/*`)
+- Git hook configuration (`lefthook.yml`, `.husky/*`)
+- Git hook policy (`scripts/validation/git_hook_policy.py`)
 - Authentication code (`**/Auth/**`, `**/Security/**`)
 - Environment files (`*.env*`)
 - Credentials and keys (`*.pem`, `*.key`, `*secret*`)
@@ -106,7 +107,7 @@ No infrastructure/security files detected.
 
 ### Pre-commit Hook
 
-Add to `scripts/hooks/pre-commit`:
+Add a named validator job to `lefthook.yml`:
 
 ```bash
 # Security detection (non-blocking warning)
