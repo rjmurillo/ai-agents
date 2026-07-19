@@ -31,7 +31,7 @@ AGENT_PATTERNS = [
 INFRASTRUCTURE_PATTERNS = [
     r"^\.github/workflows/.*\.(yml|yaml)$",
     r"^\.github/actions/",
-    r"^\.githooks/",
+    r"^scripts/hooks/",
     r"^build/",
     r"^scripts/",
     r"Dockerfile",
