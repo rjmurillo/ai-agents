@@ -563,7 +563,6 @@ Claude Code runs lifecycle hooks at session boundaries. They are registered in `
 |------|------|---------|----------------|
 | SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
 | PreToolUse | `invoke_false_completion_gate.py` | Blocks `git commit`, `gh pr create`, or `gh pr merge` claiming "done/fixed" without test evidence in session log | `SKIP_COMPLETION_GATE=true` |
-| PostToolUse | `invoke_plan_state_sync.py` | Checkpoints plan/TODO state after Write/Edit | none (fail-open) |
 | PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
 | Stop | `invoke_auto_retrospective.py` | Auto-generates session retrospective on stop | `SKIP_AUTO_RETRO=true` |
 

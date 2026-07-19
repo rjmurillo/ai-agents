@@ -28,7 +28,6 @@ PROJECT_SPECIFIC_HOOKS = [
     ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
     ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
     ".claude/hooks/invoke_adr_change_detection.py",
-    ".claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
     ".claude/hooks/invoke_routing_gates.py",
     ".claude/hooks/Stop/invoke_session_validator.py",
     ".claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py",

@@ -3330,7 +3330,7 @@ def test_shim_preserves_fail_open_handler() -> None:
     synthetic ``return main()`` trailer in a try/except returning 0;
     otherwise an unexpected error from main() escapes the shim as a
     non-zero exit and breaks the fail-open contract for hooks like
-    invoke_false_completion_gate and invoke_plan_state_sync.
+    invoke_false_completion_gate.
     """
     body = (
         "#!/usr/bin/env python3\n"
