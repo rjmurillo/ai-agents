@@ -266,7 +266,7 @@ class TestRunLint:
 
     def test_generated_matcher_shim_is_skipped(self, tmp_path: Path) -> None:
         generated = tmp_path / "invoke_guard__Bash_123.py"
-        generated.write_text("# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n" + "x = 1\n" * 600)
+        generated.write_text("# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n" + "x = 1\n" * 600, encoding="utf-8")
 
         result = run_lint([str(generated)], ("file-size",))
 
