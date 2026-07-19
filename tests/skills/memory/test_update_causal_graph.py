@@ -464,13 +464,20 @@ class TestChangedLabelRetraction:
     """
 
     def _write_episode(self, path: Path, milestone: str) -> None:
+        # Schema-complete mock: episode.schema.json also requires session,
+        # timestamp, and metrics. Populating them keeps the fixture valid if a
+        # future --since run parses timestamp (missing-key files are silently
+        # skipped by get_episode_files).
         path.write_text(
             json.dumps({
                 "id": "episode-2026-07-16-session-3056",
+                "session": "session-3056",
+                "timestamp": "2026-07-16T00:00:00Z",
                 "task": "close 3097",
                 "outcome": "success",
                 "decisions": [],
                 "events": [{"type": "milestone", "content": milestone}],
+                "metrics": {},
             }),
             encoding="utf-8",
         )
@@ -511,7 +518,11 @@ class TestChangedLabelRetraction:
         # Pre-#3039 the stale #3141 node lingered, giving two nodes for one
         # episode.
         assert len(final) == 1, final
-        assert "#3141, and #3142" in final[0]["label"]
+        # The surviving node is the corrected label: it carries the newly filed
+        # #3142 and still lists #3141. Assert the ids individually rather than
+        # the exact join punctuation, which is incidental to the behavior.
+        label = final[0]["label"]
+        assert "#3141" in label and "#3142" in label
         assert first[0]["id"] != final[0]["id"]
 
     def test_unchanged_reprocess_is_byte_idempotent(self, tmp_path):
