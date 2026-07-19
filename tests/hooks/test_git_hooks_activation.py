@@ -39,6 +39,29 @@ HOOK_PATH = _REPO_ROOT / ".claude" / "hooks" / "SessionStart" / "invoke_git_hook
 REAL_INSTALLER = _REPO_ROOT / "scripts" / "install_git_hooks.py"
 
 
+@pytest.fixture(autouse=True)
+def _isolate_git_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutralize inherited git config so the activation assertions are hermetic.
+
+    ``tests/conftest.py`` injects ``GIT_CONFIG_COUNT``/``GIT_CONFIG_KEY_0`` for
+    commit signing, and an earlier test can leak a higher count carrying a
+    relative ``core.hooksPath``. Both ``_git`` and ``_run_hook`` snapshot
+    ``os.environ`` at call time, so cleaning it here makes every
+    ``git config --get core.hooksPath`` read only the temp repo. Without this,
+    ``test_end_to_end_no_githooks_leaves_config_unset`` is order-dependent: a
+    leaked relative hooksPath makes an unconfigured repo look configured. These
+    tests never commit, so dropping the whole ``GIT_CONFIG_*`` family is safe.
+    Mirrors ``tests/test_install_git_hooks.py::_isolate_git_global_config``.
+    """
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", os.devnull)
+    monkeypatch.delenv("GIT_CONFIG_PARAMETERS", raising=False)
+    for name in [k for k in os.environ if k.startswith("GIT_CONFIG_")]:
+        if name in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"):
+            continue
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def trusted_self(monkeypatch):
     """Treat activate()'s target as the self-repository (bypass the trust gate).

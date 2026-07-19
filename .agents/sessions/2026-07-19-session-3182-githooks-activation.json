@@ -168,9 +168,17 @@
       "filesModified": [
         "README.md"
       ]
+    },
+    {
+      "timestamp": "2026-07-19T18:30:00Z",
+      "action": "Hardened the activation tests against leaked git config (copilot-pull-request-reviewer, tests L238)",
+      "result": "Added an autouse _isolate_git_config fixture mirroring tests/test_install_git_hooks.py::_isolate_git_global_config. tests/conftest.py injects GIT_CONFIG_COUNT/KEY_0, and a leaked higher count carrying a relative core.hooksPath makes git config --get core.hooksPath return .githooks in an unconfigured repo (proven: `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=.githooks git config --get core.hooksPath` -> .githooks, exit 0). That made test_end_to_end_no_githooks_leaves_config_unset order-dependent. Both _git and _run_hook snapshot os.environ at call time, so the fixture fixes the direct git calls and the hook subprocess at once. 16 tests pass with the leak injected. Also filed #3245: the episode extractor hard-codes empty caused_by/leads_to at all 6 construction sites, so 179/181 episodes are flat; declined CodeRabbit's per-file hand-link as an inconsistent island that regeneration would wipe.",
+      "filesModified": [
+        "tests/hooks/test_git_hooks_activation.py"
+      ]
     }
   ],
-  "endingCommit": "8578c46d",
+  "endingCommit": "486c7fd2",
   "nextSteps": [
     "Open PR for #3182, noting the dispatch-group registration correction vs the stale settings.json/hooks.json plan. Self-merge once required reviews and threads clear.",
     "With #3182 landed, the epic can proceed to retire the PreToolUse commit/push guards it enabled (#3195, #3196, #3188, #3189).",
