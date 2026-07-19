@@ -42,8 +42,14 @@ SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
 # namespace from the tree's plugin.json.
 SKILLS_DIR = SKILL_MD.parent.parent
 
-sys.path.insert(0, str(PROJECT_ROOT / "build" / "scripts"))
-import copilot_body_translation  # noqa: E402
+_build_scripts_dir = str(PROJECT_ROOT / "build" / "scripts")
+_original_sys_path = sys.path.copy()
+try:
+    if _build_scripts_dir not in sys.path:
+        sys.path.insert(0, _build_scripts_dir)
+    import copilot_body_translation  # noqa: PLC0415
+finally:
+    sys.path[:] = _original_sys_path
 
 # ---------------------------------------------------------------------------
 # Fixtures
