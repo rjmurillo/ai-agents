@@ -102,16 +102,16 @@ Create production-ready custom slash commands following ai-agents quality standa
 
 ```python
 # Security review
-Task(subagent_type="security", prompt="Review allowed-tools for command: [spec]")
+`agent_type: "project-toolkit:security"` with prompt "Review allowed-tools for command: [spec]"
 
 # Architecture review
-Task(subagent_type="architect", prompt="Check for duplication: [spec]")
+`agent_type: "project-toolkit:architect"` with prompt "Check for duplication: [spec]"
 
 # Challenge necessity
-Task(subagent_type="independent-thinker", prompt="Is this command truly needed? [spec]")
+`agent_type: "project-toolkit:independent-thinker"` with prompt "Is this command truly needed? [spec]"
 
 # Frontmatter completeness
-Task(subagent_type="critic", prompt="Validate frontmatter completeness: [spec]")
+`agent_type: "project-toolkit:critic"` with prompt "Validate frontmatter completeness: [spec]"
 ```
 
 **Deliverable**: Validation report with approvals or revision requests
@@ -253,18 +253,3 @@ python3 "$SCRIPTS_DIR/validate_slash_command.py" <skill-dir>
 - `.serena/memories/slashcommand-best-practices.md`
 
 <!-- vendor-portability: declared. This skill writes research and analysis notes under .agents/analysis/ and .agents/planning/ and cites .agents/HANDOFF.md and a research doc. The analysis/planning paths are write targets created on demand; the HANDOFF and research references are documentation citations. Issue #2050. -->
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="architect")` | `task` tool, `agent_type: "project-toolkit:architect"` |
-| `Task(subagent_type="critic")` | `task` tool, `agent_type: "project-toolkit:critic"` |
-| `Task(subagent_type="independent-thinker")` | `task` tool, `agent_type: "project-toolkit:independent-thinker"` |
-| `Task(subagent_type="security")` | `task` tool, `agent_type: "project-toolkit:security"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

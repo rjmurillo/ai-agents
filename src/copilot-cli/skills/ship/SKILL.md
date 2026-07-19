@@ -56,10 +56,10 @@ Set the mode:
 
 ## Pre-flight Checks
 
-Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight checks below, branching by the `host` and `mode` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
+`agent_type: "project-toolkit:devops"`: You are a release engineer. Run all 4 pre-flight checks below, branching by the `host` and `mode` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
 
 1. **Pipeline health**
-   - `host=github`: Invoke Skill(skill="pipeline-validator"). All CI checks green? No suppressed failures?
+   - `host=github`: Invoke `skill: "pipeline-validator"`. All CI checks green? No suppressed failures?
    - `host=ado`: pipeline-validator does not apply. Evaluate ADO build policies for the branch behind a Bash step instead. List the active branch policies and the latest policy or build status, then confirm every required policy is satisfied:
 
      ```bash
@@ -73,7 +73,7 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
      ```
 
      PASS only when every required ADO build policy reports succeeded. No required policy queued, failed, or waiting.
-2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff? This check is host-agnostic: the scan is regex over the diff and applies identically to GitHub and ADO repos.
+2. **Security posture** - Invoke `skill: "security-scan"`. No new CWE findings? No secrets in diff? This check is host-agnostic: the scan is regex over the diff and applies identically to GitHub and ADO repos.
 3. **Reviewed on this SHA** - The shipped code must carry SHA-bound `/review` proof (Issue #1938). The proof shape depends on `mode`:
    - **`mode=owner` (marker commit required; behavior unchanged).** First confirm `git status --porcelain` is empty. If any file is staged or modified, this check FAILS: commit the change, re-run `/review`, then re-run `/ship`. `/push-pr` must only push the existing marker commit; it must not create a new commit after this check passes. Then run the review-skill validator:
      - Resolve the validator through the skill dir when available, otherwise through the portable plugin-root form:
@@ -147,22 +147,3 @@ NEXT: [monitoring, follow-up items]
 ```
 
 `RESULT: VALIDATED` is the contributor-mode terminal state: readiness checks and `/review` axes ran, no marker commit was written, no PR was created, and nothing was merged.
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-skill calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Skill(skill="pipeline-validator")` | `skill` tool, `skill: "pipeline-validator"` |
-| `Skill(skill="security-scan")` | `skill` tool, `skill: "security-scan"` |
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="devops")` | `task` tool, `agent_type: "project-toolkit:devops"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
