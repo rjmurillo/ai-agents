@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -56,6 +57,13 @@ from tests.commands.step0_5_parser import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
 SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
+# The skills output tree (two levels above the mirror) locates the plugin.json
+# that the #2743 translation reads for the agent_type namespace.
+SKILLS_DIR = SKILL_MD.parent.parent
+
+sys.path.insert(0, str(PROJECT_ROOT / "build" / "scripts"))
+import copilot_body_translation  # noqa: E402
+
 SPEC_SCENARIOS_JSON = PROJECT_ROOT / "tests" / "evals" / "spec-scenarios.json"
 
 CANONICAL_DEFERRAL_TEXT = (
@@ -852,15 +860,19 @@ def test_entity_adjudication_applies_aliases_to_entity_and_answer_spans():
 def test_step0_5_block_byte_identical_across_spec_and_skill(
     spec_text: str, skill_text: str
 ):
-    """The Step 0.5 block must be byte-identical in both files.
+    """The Step 0.5 block must match after the #2743 Copilot translation.
 
     The Copilot CLI twin at src/copilot-cli/skills/spec/SKILL.md mirrors
-    .claude/commands/spec.md. Drift between them would silently change
-    behavior depending on which entry point a user invoked.
+    .claude/commands/spec.md. The block carries an inline `Skill()` call, which
+    the mirror translates to its Copilot `skill:` tool-input span; applying the
+    production translation to the spec block must reproduce the mirror block.
+    Drift beyond that translation would silently change behavior depending on
+    which entry point a user invoked.
     """
-    assert extract_step0_5_block(spec_text) == extract_step0_5_block(
-        skill_text
+    expected = copilot_body_translation.translate_body(
+        extract_step0_5_block(spec_text), SKILLS_DIR
     )
+    assert extract_step0_5_block(skill_text) == expected
 
 
 # ---------------------------------------------------------------------------

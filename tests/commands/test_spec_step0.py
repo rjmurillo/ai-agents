@@ -15,6 +15,7 @@ spec, not the spec text itself.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -36,7 +37,13 @@ from tests.commands.step0_parser import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
 SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
+# The Copilot mirror lives under `.../skills/spec/SKILL.md`; the skills output
+# tree is two levels up. Translation needs it to resolve the agent_type plugin
+# namespace from the tree's plugin.json.
+SKILLS_DIR = SKILL_MD.parent.parent
 
+sys.path.insert(0, str(PROJECT_ROOT / "build" / "scripts"))
+import copilot_body_translation  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -210,28 +217,42 @@ def test_q1_q5_differentiation_in_spec_md(spec_text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Static-2: edited sections byte-identical between spec.md and SKILL.md
+# Static-2: edited sections match between spec.md and SKILL.md after translation
 # ---------------------------------------------------------------------------
+#
+# AC-10 originally asserted byte-identity. Issue #2743 makes the Copilot mirror
+# an in-place TRANSLATION of the Claude source (inline `Skill()`/`Task()` calls
+# become Copilot `skill:`/`agent_type:` tool-input spans). The contract still
+# holds one-to-one: applying the production translation to the source block must
+# reproduce the mirror block. Coupling these tests to the real translation keeps
+# a single source of truth and lets the parser anchors (which key on `### Step 0`,
+# `\n1. `, `\n9. `, not on call wording) survive the rewrite.
+
+
+def _translated(block: str) -> str:
+    return copilot_body_translation.translate_body(block, SKILLS_DIR)
 
 
 def test_step0_block_identical(spec_text: str, skill_text: str) -> None:
-    """AC-10: Step 0 block byte-identical between spec.md and SKILL.md."""
-    assert extract_step0_block(spec_text) == extract_step0_block(skill_text)
+    """AC-10: Step 0 block matches after translation (carries Skill() calls)."""
+    assert extract_step0_block(skill_text) == _translated(extract_step0_block(spec_text))
 
 
 def test_step1_paragraph_identical(spec_text: str, skill_text: str) -> None:
-    """AC-10: Step 1 narrowed paragraph identical."""
-    assert extract_step1_paragraph(spec_text) == extract_step1_paragraph(skill_text)
+    """AC-10: Step 1 narrowed paragraph matches after translation."""
+    assert extract_step1_paragraph(skill_text) == _translated(
+        extract_step1_paragraph(spec_text)
+    )
 
 
 def test_tier5_bullet_identical(spec_text: str, skill_text: str) -> None:
-    """AC-10: Tier 5 bullet identical."""
-    assert extract_tier5_bullet(spec_text) == extract_tier5_bullet(skill_text)
+    """AC-10: Tier 5 bullet matches after translation (identity: no calls)."""
+    assert extract_tier5_bullet(skill_text) == _translated(extract_tier5_bullet(spec_text))
 
 
 def test_step9_block_identical(spec_text: str, skill_text: str) -> None:
-    """AC-10: Step 9 critic block identical."""
-    assert extract_step9_block(spec_text) == extract_step9_block(skill_text)
+    """AC-10: Step 9 critic block matches after translation (Task()/Skill())."""
+    assert extract_step9_block(skill_text) == _translated(extract_step9_block(spec_text))
 
 
 # ---------------------------------------------------------------------------
