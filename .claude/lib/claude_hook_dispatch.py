@@ -161,8 +161,8 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes) -> _ShimOutcome:
     saved_stdout = sys.stdout
     sys.stdout = capture
     # Standalone execution puts the script's own directory at sys.path[0],
-    # which shims with sibling companion modules rely on (e.g.
-    # Stop/invoke_skill_learning.py importing skill_pattern_loader). runpy
+    # which shims with sibling companion modules rely on (e.g. a hook importing
+    # a sibling companion module placed next to it). runpy
     # does not, so restore that contract for the shim's run.
     shim_dir = str(shim_path.parent)
     sys.path.insert(0, shim_dir)

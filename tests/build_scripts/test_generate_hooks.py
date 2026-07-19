@@ -1151,8 +1151,20 @@ def _setup_full_fixture(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def _setup_skill_companion_fixture(
-    tmp_path: Path, *, include_owner: bool = True, include_loader: bool = True
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    include_owner: bool = True,
+    include_loader: bool = True,
 ) -> Path:
+    # Production _COMPANIONS_BY_OWNER is empty after issue #3184 removed every
+    # real companion pairing, so exercise the copy mechanism with a synthetic,
+    # fixture-local owner/companion mapping instead of a live production entry.
+    monkeypatch.setattr(
+        generate_hooks_events,
+        "_COMPANIONS_BY_OWNER",
+        {"Stop/invoke_owner.py": ("companion_module.py",)},
+    )
     cfg = _write_config(tmp_path)
     hooks_src = tmp_path / "hooks_src"
     hooks: dict[str, Any] = {}
@@ -1160,9 +1172,9 @@ def _setup_skill_companion_fixture(
         _write_script(
             hooks_src,
             "Stop",
-            "invoke_skill_learning.py",
+            "invoke_owner.py",
             "try:\n"
-            "    from skill_pattern_loader import TOKEN\n"
+            "    from companion_module import TOKEN\n"
             "except ModuleNotFoundError:\n"
             "    TOKEN = 'fallback'\n"
             "print(TOKEN)\n",
@@ -1175,7 +1187,7 @@ def _setup_skill_companion_fixture(
                             "type": "command",
                             "command": (
                                 "python3 -u .claude/hooks/Stop/"
-                                "invoke_skill_learning.py"
+                                "invoke_owner.py"
                             ),
                         }
                     ]
@@ -1186,31 +1198,37 @@ def _setup_skill_companion_fixture(
         _write_script(
             hooks_src,
             "Stop",
-            "skill_pattern_loader.py",
+            "companion_module.py",
             "TOKEN = 'portable-import'\n",
         )
     _write_settings(tmp_path / "settings.json", hooks)
     return cfg
 
 
-def test_generator_copies_skill_loader_without_dispatching_it(tmp_path: Path) -> None:
-    cfg = _setup_skill_companion_fixture(tmp_path)
+def test_generator_copies_skill_loader_without_dispatching_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
 
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
 
     assert rc == 0
-    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
     assert companion.read_text(encoding="utf-8") == "TOKEN = 'portable-import'\n"
     generated = json.loads((tmp_path / "out" / "hooks.json").read_text())
     entries = generated["hooks"]["SessionEnd"]
     assert len(entries) == 1
-    assert "skill_pattern_loader.py" not in json.dumps(entries)
+    assert "companion_module.py" not in json.dumps(entries)
 
 
-def test_generated_skill_owner_imports_companion_portably(tmp_path: Path) -> None:
-    cfg = _setup_skill_companion_fixture(tmp_path)
+def test_generated_skill_owner_imports_companion_portably(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
 
     process = subprocess.run(
         [sys.executable, str(owner)],
@@ -1227,31 +1245,34 @@ def test_generated_skill_owner_imports_companion_portably(tmp_path: Path) -> Non
 
 
 def test_generator_fails_when_declared_skill_loader_is_absent(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    cfg = _setup_skill_companion_fixture(tmp_path, include_loader=False)
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch, include_loader=False)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     captured = capsys.readouterr()
 
     assert rc == 2
     assert "declared runtime companion is missing" in captured.err
-    assert "skill_pattern_loader.py" in captured.err
+    assert "companion_module.py" in captured.err
     assert not (tmp_path / "out" / "hooks.json").exists()
     # #9: validation must run BEFORE the owner is copied, so a missing
     # companion never leaves a half-written owner script with no matching
     # hooks.json.
-    assert not (tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py").exists()
+    assert not (tmp_path / "out" / "SessionEnd" / "invoke_owner.py").exists()
 
 
 def test_generator_no_regen_owner_skip_validates_but_skips_companion_copy(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """NO-REGEN on the owner must not create or overwrite its companion (#2)."""
-    cfg = _setup_skill_companion_fixture(tmp_path)
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
-    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
+    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
 
     # Customer protects the owner and hand-edits the companion.
     owner.write_text("# NO-REGEN\nprint('customer fix')\n", encoding="utf-8")
@@ -1268,11 +1289,12 @@ def test_generator_no_regen_owner_skip_validates_but_skips_companion_copy(
 
 def test_generator_no_regen_owner_requires_existing_output_companion(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A protected owner cannot emit an entry without its runtime companion."""
-    cfg = _setup_skill_companion_fixture(tmp_path)
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
     owner.parent.mkdir(parents=True)
     owner.write_text("# NO-REGEN\nprint('customer fix')\n", encoding="utf-8")
 
@@ -1281,18 +1303,19 @@ def test_generator_no_regen_owner_requires_existing_output_companion(
 
     assert rc == 2
     assert "NO-REGEN owner requires an existing runtime companion" in captured.err
-    assert "skill_pattern_loader.py" in captured.err
+    assert "companion_module.py" in captured.err
     assert owner.read_text(encoding="utf-8").startswith("# NO-REGEN\n")
-    assert not (owner.parent / "skill_pattern_loader.py").exists()
+    assert not (owner.parent / "companion_module.py").exists()
     assert not (tmp_path / "out" / "hooks.json").exists()
 
 
 def test_generator_companion_only_no_regen_preserves_runtime_group(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A protected companion blocks all owner replacement before any write."""
-    cfg = _setup_skill_companion_fixture(tmp_path)
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
     hooks_source = tmp_path / "hooks_src"
     early_source = _write_script(
         hooks_source,
@@ -1318,8 +1341,8 @@ def test_generator_companion_only_no_regen_preserves_runtime_group(
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
     early_target = tmp_path / "out" / "PostToolUse" / "early_owner.py"
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
-    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
+    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
     hooks_json = tmp_path / "out" / "hooks.json"
     original_early = early_target.read_bytes()
     original_owner = owner.read_bytes()
@@ -1331,7 +1354,7 @@ def test_generator_companion_only_no_regen_preserves_runtime_group(
     protected_companion = companion.read_bytes()
     early_source.write_text("print('new early owner')\n", encoding="utf-8")
     source_owner = (
-        tmp_path / "hooks_src" / "Stop" / "invoke_skill_learning.py"
+        tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
     )
     source_owner.write_text("print('new owner')\n", encoding="utf-8")
 
@@ -1352,7 +1375,7 @@ def test_generator_companion_copy_failure_restores_earlier_events(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A later staging failure rolls back an earlier published event."""
-    cfg = _setup_skill_companion_fixture(tmp_path)
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
     hooks_source = tmp_path / "hooks_src"
     early_source = _write_script(
         hooks_source,
@@ -1378,8 +1401,8 @@ def test_generator_companion_copy_failure_restores_earlier_events(
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
     early_target = tmp_path / "out" / "PostToolUse" / "early_owner.py"
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
-    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
+    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
     hooks_json = tmp_path / "out" / "hooks.json"
     original_early = early_target.read_bytes()
     original_owner = owner.read_bytes()
@@ -1387,10 +1410,10 @@ def test_generator_companion_copy_failure_restores_earlier_events(
     original_hooks = hooks_json.read_bytes()
     early_source.write_text("print('new early owner')\n", encoding="utf-8")
     source_owner = (
-        tmp_path / "hooks_src" / "Stop" / "invoke_skill_learning.py"
+        tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
     )
     source_companion = (
-        tmp_path / "hooks_src" / "Stop" / "skill_pattern_loader.py"
+        tmp_path / "hooks_src" / "Stop" / "companion_module.py"
     )
     source_owner.write_text("print('new owner')\n", encoding="utf-8")
     source_companion.write_text("TOKEN = 'new'\n", encoding="utf-8")
@@ -1403,7 +1426,7 @@ def test_generator_companion_copy_failure_restores_earlier_events(
         matcher: str | None,
         what_if: bool,
     ) -> tuple[bool, str]:
-        if source.name == "skill_pattern_loader.py":
+        if source.name == "companion_module.py":
             raise OSError("simulated companion copy failure")
         return real_copy_script(
             source,
@@ -2123,19 +2146,19 @@ def test_generator_failed_rollback_retains_recovery_backup(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A failed restore keeps the prior bytes in a named recovery file."""
-    cfg = _setup_skill_companion_fixture(tmp_path)
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_skill_learning.py"
-    companion = tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py"
+    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
+    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
     hooks_json = tmp_path / "out" / "hooks.json"
     original_companion = companion.read_bytes()
     original_hooks = hooks_json.read_bytes()
     source_owner = (
-        tmp_path / "hooks_src" / "Stop" / "invoke_skill_learning.py"
+        tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
     )
     source_companion = (
-        tmp_path / "hooks_src" / "Stop" / "skill_pattern_loader.py"
+        tmp_path / "hooks_src" / "Stop" / "companion_module.py"
     )
     source_owner.write_text("print('new owner')\n", encoding="utf-8")
     source_companion.write_text("TOKEN = 'new'\n", encoding="utf-8")
@@ -2182,13 +2205,16 @@ def test_generator_failed_rollback_retains_recovery_backup(
     assert recovery_files[0].read_bytes() == original_companion
 
 
-def test_generator_does_not_copy_unowned_skill_loader(tmp_path: Path) -> None:
-    cfg = _setup_skill_companion_fixture(tmp_path, include_owner=False)
+def test_generator_does_not_copy_unowned_skill_loader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch, include_owner=False)
 
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
 
     assert rc == 0
-    assert not (tmp_path / "out" / "SessionEnd" / "skill_pattern_loader.py").exists()
+    assert not (tmp_path / "out" / "SessionEnd" / "companion_module.py").exists()
 
 
 def test_generator_two_owner_missing_companion_leaves_no_partial_output(
@@ -3304,7 +3330,7 @@ def test_shim_preserves_fail_open_handler() -> None:
     synthetic ``return main()`` trailer in a try/except returning 0;
     otherwise an unexpected error from main() escapes the shim as a
     non-zero exit and breaks the fail-open contract for hooks like
-    invoke_false_completion_gate and invoke_plan_state_sync.
+    invoke_false_completion_gate.
     """
     body = (
         "#!/usr/bin/env python3\n"

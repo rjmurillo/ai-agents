@@ -600,10 +600,8 @@ def is_subagent_stop(payload: dict[str, Any]) -> bool:
 
     A subagent return must not create or index a parent-session retrospective
     (Issue #3140). The Claude marker is ``subagent_type``, the field Claude
-    stamps on subagent payloads (verified in
-    .claude/hooks/SubagentStop/invoke_qa_agent_validator.py:61-63,
-    ``hook_input.get("subagent_type") == "qa"``). Any non-empty ``subagent_type``
-    marks a subagent stop.
+    stamps on subagent payloads (for example ``hook_input.get("subagent_type")
+    == "qa"``). Any non-empty ``subagent_type`` marks a subagent stop.
 
     VERIFIED COPILOT BEHAVIOR (Issue #3140, follow-up Issue #3160): on Copilot
     CLI, Claude's Stop maps to Copilot's SessionEnd (templates/platforms/

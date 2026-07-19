@@ -52,6 +52,66 @@ _LINE_COMMENT_PREFIXES = {
     "go": ("//",),
 }
 
+_GENERATED_PATH_SEGMENTS = (
+    ("src", "copilot-cli"),
+    ("src", "vs-code-agents"),
+    (".github", "instructions"),
+)
+_GENERATED_MARKERS = (
+    "AUTO-GENERATED MATCHER SHIM",
+    "GENERATED -- DO NOT EDIT",
+    "DO NOT EDIT BY HAND - regenerated",
+)
+# Generated files carry their markers in the file header. Authored files that
+# only mention a marker string deeper in the body (generator scripts, this
+# classifier's own marker tuple) must not be misread as generated, so match
+# markers within the leading window only. 20 lines clears every real generated
+# header (hook shims sit at lines 3-6) while excluding the marker literals in
+# generator scripts and this tuple.
+_GENERATED_MARKER_HEADER_LINES = 20
+
+
+def _repo_relative_parts(file_path: Path) -> tuple[str, ...]:
+    """Return path parts for segment matching, relative to CWD when possible.
+
+    ``_GENERATED_PATH_SEGMENTS`` are repo-root-anchored. An absolute path also
+    carries the checkout directory, so a clone under a path that itself contains
+    e.g. ``src/copilot-cli`` would false-match and misclassify authored files as
+    generated. Relativizing to CWD strips that prefix; already-relative paths, or
+    paths outside CWD, fall back to their own parts unchanged.
+    """
+    if file_path.is_absolute():
+        try:
+            return file_path.relative_to(Path.cwd()).parts
+        except ValueError:
+            return file_path.parts
+    return file_path.parts
+
+
+def classify_file_category(file_path: Path, content: str | None = None) -> str:
+    """Classify a changed file as authored, test, or generated.
+
+    Generated outputs are reviewed through their generator and drift checks,
+    not as independent authored modules.
+    """
+    parts = _repo_relative_parts(file_path)
+    if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
+        return "generated"
+    if file_path.name.startswith("pr-quality-gate-") and ".github" in parts:
+        return "generated"
+    if content is None:
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            content = ""
+    header = "\n".join(content.splitlines()[:_GENERATED_MARKER_HEADER_LINES])
+    if any(marker in header for marker in _GENERATED_MARKERS):
+        return "generated"
+    if "tests" in parts or file_path.name.startswith("test_"):
+        return "test"
+    return "authored"
+
+
 # Per-language import / dependency line patterns for the coupling heuristic.
 _IMPORT_PATTERNS = {
     "python": re.compile(r"^\s*(?:import\s+\S|from\s+\S+\s+import\s+)"),
@@ -218,10 +278,7 @@ def _count_public_fields_by_modifier(lines: list[str]) -> int:
             # Property (`{ get; set; }`) or type body, not a brace initializer
             # such as `public int[] xs = {1, 2};`, which is still a public field.
             continue
-        if any(
-            kw in stripped
-            for kw in ("class ", "interface ", "struct ", "enum ", "record ")
-        ):
+        if any(kw in stripped for kw in ("class ", "interface ", "struct ", "enum ", "record ")):
             continue
         if any(kw in stripped.split() for kw in ("const", "readonly", "final")):
             continue
@@ -249,6 +306,7 @@ class QualityScore:
     quality whose confidence is 0.0 rather than failing a file it could not
     measure.
     """
+
     value: float  # 1-10
     confidence: float  # 0-1
     reasons: list[str]
@@ -256,8 +314,10 @@ class QualityScore:
 
 @dataclass
 class FileAssessment:
-    """Assessment results for a single file"""
+    """Assessment results for a single file."""
+
     file_path: str
+    category: str
     cohesion: QualityScore
     coupling: QualityScore
     encapsulation: QualityScore
@@ -289,41 +349,30 @@ def parse_args() -> argparse.Namespace:
         description="Assess code quality across 5 foundational qualities"
     )
     parser.add_argument(
-        "--target",
-        required=True,
-        help="File, directory, or glob pattern to assess"
+        "--target", required=True, help="File, directory, or glob pattern to assess"
     )
     parser.add_argument(
         "--context",
         choices=["production", "test", "generated"],
         default="production",
-        help="Code context (affects thresholds)"
+        help="Code context (affects thresholds)",
     )
     parser.add_argument(
         "--changed-only",
         action="store_true",
-        help="Only assess changed files (git diff)"
+        help="Only assess files changed from --base, or uncommitted files without --base",
     )
+    parser.add_argument("--base", help="Base revision for --changed-only, such as origin/main")
     parser.add_argument(
-        "--format",
-        choices=["markdown", "json", "html"],
-        default="markdown",
-        help="Output format"
+        "--format", choices=["markdown", "json", "html"], default="markdown", help="Output format"
     )
-    parser.add_argument(
-        "--config",
-        default=".qualityrc.json",
-        help="Path to configuration file"
-    )
-    parser.add_argument(
-        "--output",
-        help="Output file path (default: stdout)"
-    )
+    parser.add_argument("--config", default=".qualityrc.json", help="Path to configuration file")
+    parser.add_argument("--output", help="Output file path (default: stdout)")
     parser.add_argument(
         "--use-serena",
         choices=["auto", "yes", "no"],
         default="auto",
-        help="Use Serena for symbol extraction"
+        help="Use Serena for symbol extraction",
     )
     return parser.parse_args()
 
@@ -342,39 +391,39 @@ def load_config(config_path: str) -> dict[str, Any]:
                 "coupling": {"min": 7},
                 "encapsulation": {"min": 7},
                 "testability": {"min": 6},
-                "nonRedundancy": {"min": 8}
+                "nonRedundancy": {"min": 8},
             },
-            "context": {
-                "test": {"testability": {"min": 3}}
-            },
-            "ignore": ["**/generated/**", "**/*.pb.py"]
+            "context": {"test": {"testability": {"min": 3}}},
+            "ignore": ["**/generated/**", "**/*.pb.py"],
         }
 
 
-def get_files_to_assess(target: str, changed_only: bool) -> list[Path]:
-    """Get list of files to assess"""
+def get_files_to_assess(target: str, changed_only: bool, base: str | None = None) -> list[Path]:
+    """Get files to assess, using the PR base when one is supplied."""
     import subprocess
     from glob import glob
 
     if changed_only:
-        # Get changed files from git
+        # CWE-88: a --base beginning with "-" would be parsed by git as an
+        # option rather than a revision (for example --output=FILE makes
+        # git diff write to FILE). Reject option-like bases and pass
+        # --end-of-options so git always treats the range as a revision.
+        if base is not None and base.startswith("-"):
+            raise ValueError(f"--base must be a git revision, not an option: {base!r}")
+        revision_range = f"{base}...HEAD" if base else "HEAD"
         result = subprocess.run(
-            ["git", "diff", "--name-only", "HEAD"],
+            ["git", "diff", "--name-only", "--end-of-options", revision_range],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
-        files = [Path(f) for f in result.stdout.strip().split('\n') if f]
+        files = [Path(f) for f in result.stdout.splitlines() if f]
     else:
         target_path = Path(target)
         if target_path.is_file():
             files = [target_path]
         elif target_path.is_dir():
-            files = [
-                f
-                for suffix in _LANGUAGE_BY_SUFFIX
-                for f in target_path.rglob(f"*{suffix}")
-            ]
+            files = [f for suffix in _LANGUAGE_BY_SUFFIX for f in target_path.rglob(f"*{suffix}")]
         else:
             # Glob pattern
             files = [Path(f) for f in glob(target, recursive=True)]
@@ -390,20 +439,16 @@ def _score_cohesion(language: str | None, code_lines: list[str], loc: int) -> Qu
     things (lower cohesion). Confidence is deliberately low.
     """
     pattern = _DEFINITION_PATTERNS.get(language) if language else None
-    def_count = (
-        sum(1 for line in code_lines if pattern.search(line)) if pattern else 0
-    )
+    def_count = sum(1 for line in code_lines if pattern.search(line)) if pattern else 0
     score = 10.0 - (loc / 120.0) - max(0, def_count - 1) * 0.3
     score = max(1.0, min(10.0, score))
     confidence = 0.4 if pattern else 0.0
     reasons = [
-        f"{loc} LOC, {def_count} definitions "
-        "(size+definition approximation, not LCOM)",
+        f"{loc} LOC, {def_count} definitions (size+definition approximation, not LCOM)",
         (
             "Definition count not scored for this language"
             if pattern is None
-            else
-            "Large file with many definitions suggests low cohesion"
+            else "Large file with many definitions suggests low cohesion"
             if score < 7
             else "Size and definition count are reasonable"
         ),
@@ -426,9 +471,7 @@ def _score_coupling(language: str | None, code_lines: list[str]) -> QualityScore
         confidence = 0.6
         tuned = True
     else:
-        import_count = sum(
-            1 for line in code_lines if _GENERIC_IMPORT_PATTERN.search(line)
-        )
+        import_count = sum(1 for line in code_lines if _GENERIC_IMPORT_PATTERN.search(line))
         confidence = 0.0
         tuned = False
     score = max(1.0, min(10.0, 10.0 - import_count))
@@ -460,10 +503,7 @@ def _score_encapsulation(language: str | None, code_lines: list[str]) -> Quality
         return QualityScore(
             value=10.0,
             confidence=0.0,
-            reasons=[
-                "Encapsulation not scored for this language "
-                "(no reliable visibility signal)"
-            ],
+            reasons=["Encapsulation not scored for this language (no reliable visibility signal)"],
         )
     public_fields = counter(code_lines)
     score = 10.0 if public_fields == 0 else max(1.0, 10.0 - public_fields * 2.5)
@@ -500,11 +540,7 @@ def _score_testability(language: str | None, code_lines: list[str]) -> QualitySc
     score = max(1.0, 10.0 - global_count * 2)
     reasons = [
         f"{global_count} global/static references",
-        (
-            "Global state hinders testability"
-            if global_count > 0
-            else "No global state detected"
-        ),
+        ("Global state hinders testability" if global_count > 0 else "No global state detected"),
     ]
     return QualityScore(value=round(score, 1), confidence=0.5, reasons=reasons)
 
@@ -532,6 +568,27 @@ def _score_non_redundancy(lines: list[str], scored: bool) -> QualityScore:
     return QualityScore(value=round(score, 1), confidence=confidence, reasons=reasons)
 
 
+def _unscored_generated_assessment(file_path: Path) -> FileAssessment:
+    """Return a generated artifact assessment excluded from local quality gates."""
+
+    def _unscored() -> QualityScore:
+        return QualityScore(
+            value=10.0,
+            confidence=0.0,
+            reasons=["Generated artifact, reviewed through its generator and drift checks"],
+        )
+
+    return FileAssessment(
+        file_path=str(file_path),
+        category="generated",
+        cohesion=_unscored(),
+        coupling=_unscored(),
+        encapsulation=_unscored(),
+        testability=_unscored(),
+        non_redundancy=_unscored(),
+    )
+
+
 def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
     """Return an all-unscored assessment for a file that could not be read.
 
@@ -539,6 +596,7 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
     rather than passing it on meaningless scores derived from empty content.
     The reason is carried so the report explains why the file was not scored.
     """
+
     def _unscored() -> QualityScore:
         # A fresh instance (and reasons list) per quality so a later mutation
         # of one metric cannot alias into the others.
@@ -550,6 +608,7 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
 
     return FileAssessment(
         file_path=str(file_path),
+        category=classify_file_category(file_path),
         cohesion=_unscored(),
         coupling=_unscored(),
         encapsulation=_unscored(),
@@ -573,24 +632,28 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
     comment_prefixes = _LINE_COMMENT_PREFIXES.get(language, ()) if language else ()
 
     try:
-        with open(file_path, encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
     except OSError as exc:
         return _unreadable_assessment(file_path, f"read failed: {exc}")
     except UnicodeDecodeError as exc:
         return _unreadable_assessment(file_path, f"decode failed: {exc}")
 
-    lines = content.split('\n')
+    category = classify_file_category(file_path, content)
+    if category == "generated":
+        return _unscored_generated_assessment(file_path)
+
+    lines = content.split("\n")
     code_lines = [
         line
         for line in lines
-        if line.strip()
-        and not (comment_prefixes and line.strip().startswith(comment_prefixes))
+        if line.strip() and not (comment_prefixes and line.strip().startswith(comment_prefixes))
     ]
     loc = len(code_lines)
 
     return FileAssessment(
         file_path=str(file_path),
+        category=category,
         cohesion=_score_cohesion(language, code_lines, loc),
         coupling=_score_coupling(language, code_lines),
         encapsulation=_score_encapsulation(language, code_lines),
@@ -654,7 +717,7 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
     # Per-file breakdown
     report.append("## File Assessments\n")
     for assessment in sorted(assessments, key=lambda a: a.overall):
-        report.append(f"### {assessment.file_path}\n")
+        report.append(f"### {assessment.file_path} ({assessment.category})\n")
         overall = _format_average(assessment.overall if assessment.overall > 0 else None)
         report.append(f"**Overall**: {overall}\n")
         quality_rows = (
@@ -681,21 +744,22 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
 
 def generate_json_report(assessments: list[FileAssessment]) -> str:
     """Generate JSON report"""
-    return json.dumps({
-        "files": [asdict(a) for a in assessments],
-        "summary": {
-            "file_count": len(assessments),
-            "average_scores": {
-                "cohesion": _average_scored([a.cohesion for a in assessments]),
-                "coupling": _average_scored([a.coupling for a in assessments]),
-                "encapsulation": _average_scored([a.encapsulation for a in assessments]),
-                "testability": _average_scored([a.testability for a in assessments]),
-                "non_redundancy": _average_scored(
-                    [a.non_redundancy for a in assessments]
-                ),
-            }
-        }
-    }, indent=2)
+    return json.dumps(
+        {
+            "files": [asdict(a) for a in assessments],
+            "summary": {
+                "file_count": len(assessments),
+                "average_scores": {
+                    "cohesion": _average_scored([a.cohesion for a in assessments]),
+                    "coupling": _average_scored([a.coupling for a in assessments]),
+                    "encapsulation": _average_scored([a.encapsulation for a in assessments]),
+                    "testability": _average_scored([a.testability for a in assessments]),
+                    "non_redundancy": _average_scored([a.non_redundancy for a in assessments]),
+                },
+            },
+        },
+        indent=2,
+    )
 
 
 def check_thresholds(
@@ -723,7 +787,7 @@ def check_thresholds(
             print(
                 f"❌ {assessment.file_path}: Cohesion {assessment.cohesion.value} "
                 f"< {thresholds['cohesion']['min']}",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return 11
 
@@ -737,9 +801,8 @@ def check_thresholds(
             and assessment.coupling.value < coupling_min
         ):
             print(
-                f"❌ {assessment.file_path}: Coupling {assessment.coupling.value} "
-                f"< {coupling_min}",
-                file=sys.stderr
+                f"❌ {assessment.file_path}: Coupling {assessment.coupling.value} < {coupling_min}",
+                file=sys.stderr,
             )
             return 11
 
@@ -750,7 +813,7 @@ def check_thresholds(
             print(
                 f"❌ {assessment.file_path}: Encapsulation {assessment.encapsulation.value} "
                 f"< {thresholds['encapsulation']['min']}",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return 11
 
@@ -761,7 +824,7 @@ def check_thresholds(
             print(
                 f"❌ {assessment.file_path}: Testability {assessment.testability.value} "
                 f"< {thresholds['testability']['min']}",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return 11
 
@@ -772,7 +835,7 @@ def check_thresholds(
             print(
                 f"❌ {assessment.file_path}: Non-Redundancy {assessment.non_redundancy.value} "
                 f"< {thresholds['nonRedundancy']['min']}",
-                file=sys.stderr
+                file=sys.stderr,
             )
             return 11
 
@@ -788,20 +851,19 @@ def main() -> int:
 
     # Validate target path to prevent path traversal (CWE-22)
     import os
+
     try:
         allowed_base = os.path.abspath(".")
         target_path = os.path.abspath(args.target)
         if not target_path.startswith(allowed_base):
-            raise ValueError(
-                f"Path traversal attempt detected in --target: {args.target}"
-            )
+            raise ValueError(f"Path traversal attempt detected in --target: {args.target}")
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
     # Get files to assess
     try:
-        files = get_files_to_assess(target_path, args.changed_only)
+        files = get_files_to_assess(target_path, args.changed_only, args.base)
     except Exception as e:
         print(f"Error getting files: {e}", file=sys.stderr)
         return 1
@@ -836,7 +898,7 @@ def main() -> int:
 
     # Output report
     if args.output:
-        with open(args.output, 'w') as f:
+        with open(args.output, "w", encoding="utf-8") as f:
             f.write(report)
         print(f"Report written to {args.output}")
     else:

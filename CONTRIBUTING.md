@@ -290,7 +290,7 @@ The shipped pattern:
    - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_session_log_guard.py`, `.claude/hooks/PreToolUse/invoke_skill_first_guard.py`, `.claude/hooks/Stop/invoke_session_validator.py`, `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py`
    - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/PreToolUse/invoke_branch_context_guard.py`, `.claude/hooks/PreToolUse/invoke_retrospective_gate.py`, `.claude/hooks/UserPromptSubmit/invoke_research_then_implement.py`
 
-   `invoke_correction_applier.py` and `invoke_topical_memory_injection.py` are retained implementation references, but neither is registered in `.claude/settings.json` or `.claude/hooks/hooks.json`. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` guards this registration state.
+   `invoke_correction_applier.py` and `invoke_topical_memory_injection.py` were removed in issue #3184 as unused, unregistered hooks. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` guards against their re-registration.
 
 5. **Run the platform regen after adding the hook.** `python3 build/scripts/build_all.py --platform copilot-cli` (and any other downstream platform) so the regenerated copy under `src/<provider>/hooks/` stays in sync.
 
@@ -563,7 +563,6 @@ Claude Code runs lifecycle hooks at session boundaries. They are registered in `
 |------|------|---------|----------------|
 | SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
 | PreToolUse | `invoke_false_completion_gate.py` | Blocks `git commit`, `gh pr create`, or `gh pr merge` claiming "done/fixed" without test evidence in session log | `SKIP_COMPLETION_GATE=true` |
-| PostToolUse | `invoke_plan_state_sync.py` | Checkpoints plan/TODO state after Write/Edit | none (fail-open) |
 | PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
 | Stop | `invoke_auto_retrospective.py` | Auto-generates session retrospective on stop | `SKIP_AUTO_RETRO=true` |
 

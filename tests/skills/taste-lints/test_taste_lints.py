@@ -31,6 +31,7 @@ parse_rules = mod.parse_rules
 main = mod.main
 is_safe_path = mod.is_safe_path
 get_diff_files = mod.get_diff_files
+classify_file_category = mod.classify_file_category
 LintResult = mod.LintResult
 Violation = mod.Violation
 EXIT_SUCCESS = mod.EXIT_SUCCESS
@@ -74,9 +75,7 @@ class TestCheckFileSize:
     def test_memory_data_file_exempt_despite_size(self) -> None:
         # .agents/memory/ holds append-only generated data (issue #2785).
         lines = ["{}\n"] * 9000
-        result = check_file_size(
-            ".agents/memory/causality/causal-graph.json", lines
-        )
+        result = check_file_size(".agents/memory/causality/causal-graph.json", lines)
         assert result == []
 
     def test_memory_data_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
@@ -173,6 +172,25 @@ class TestCheckNaming:
         hook_violations = [v for v in result if "invoke_" in v.message]
         assert hook_violations == []
 
+    def test_hook_leading_underscore_helper_exempt(self) -> None:
+        # Private helper module in the hooks tree; not an entrypoint. #3239.
+        result = check_naming(".claude/hooks/PreToolUse/_bootstrap.py", [])
+        assert [v for v in result if v.rule == "naming"] == []
+
+    def test_hook_base_module_exempt(self) -> None:
+        # Shared framework base class (*_base.py); not an entrypoint. #3239.
+        result = check_naming(".claude/hooks/PreToolUse/push_guard_base.py", [])
+        assert [v for v in result if v.rule == "naming"] == []
+
+    def test_hook_exemption_does_not_suppress_python_naming(self) -> None:
+        # The invoke_ exemption is scoped to the hook-naming rule. A leading
+        # underscore silences hook naming but must not mask a bad Python name:
+        # _BadName is not valid snake_case, so python naming still flags it. #3239.
+        result = check_naming(".claude/hooks/PreToolUse/_BadName.py", [])
+        naming_violations = [v for v in result if v.rule == "naming"]
+        assert len(naming_violations) == 1
+        assert "snake_case" in naming_violations[0].message
+
     def test_suppression_skips_naming(self) -> None:
         lines = ["# taste-lint: ignore naming\n"]
         result = check_naming("src/BadName.py", lines)
@@ -265,6 +283,106 @@ class TestRunLint:
         result = run_lint([str(test_file)], ("file-size",))
         assert result.files_scanned == 0
 
+    def test_generated_matcher_shim_is_skipped(self, tmp_path: Path) -> None:
+        generated = tmp_path / "invoke_guard__Bash_123.py"
+        generated.write_text(
+            "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n" + "x = 1\n" * 600,
+            encoding="utf-8",
+        )
+
+        result = run_lint([str(generated)], ("file-size",))
+
+        assert result.files_scanned == 1
+        assert result.files_by_category == {"generated": 1}
+        assert result.violations == []
+
+    def test_classifies_test_files(self) -> None:
+        assert classify_file_category("tests/test_example.py", []) == "test"
+
+    def test_marker_below_header_window_is_authored(self) -> None:
+        # A marker string that appears only past the header window must NOT
+        # reclassify an authored file (for example a generator script) as
+        # generated.
+        lines = [f"# line {n}\n" for n in range(30)]
+        lines.append('_MARKERS = ("DO NOT EDIT BY HAND - regenerated",)\n')
+        assert classify_file_category("build/scripts/generate_x.py", lines) == "authored"
+
+    def test_marker_in_header_window_is_generated(self) -> None:
+        lines = ["#!/usr/bin/env python3\n", "# GENERATED -- DO NOT EDIT\n"]
+        assert classify_file_category("scripts/shim.py", lines) == "generated"
+
+    def test_github_instructions_path_is_generated(self) -> None:
+        # .github/instructions/*.instructions.md are generated mirrors of
+        # .claude/rules/* and carry no in-file markers; classify by path.
+        assert (
+            classify_file_category(".github/instructions/universal.instructions.md", [])
+            == "generated"
+        )
+
+    def test_classify_ignores_checkout_path_segments(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Regression: a clone whose checkout directory itself contains a
+        # generated segment (e.g. .../src/copilot-cli/...) must not misclassify
+        # authored files as generated. classify uses CWD-relative parts.
+        checkout = tmp_path / "src" / "copilot-cli" / "clone"
+        authored = checkout / "pkg" / "module.py"
+        authored.parent.mkdir(parents=True)
+        authored.write_text("x = 1\n", encoding="utf-8")
+        monkeypatch.chdir(checkout)
+
+        # Absolute path under the checkout: relative parts are pkg/module.py.
+        assert classify_file_category(str(authored), ["x = 1\n"]) == "authored"
+        # A genuinely repo-relative generated path is still caught.
+        assert classify_file_category("src/copilot-cli/skill.py", []) == "generated"
+
+    def test_classify_anchors_generated_segments_at_repo_root(self) -> None:
+        # Regression: _GENERATED_PATH_SEGMENTS are repo-root-anchored, so a
+        # repo-relative path carrying a segment at a non-root position (a
+        # vendored or fixture dir) must not be misclassified as generated.
+        assert classify_file_category("vendor/pkg/src/copilot-cli/lib.py", []) == "authored"
+        # The genuine repo-root mirror is still classified generated.
+        assert classify_file_category("src/copilot-cli/skills/x.py", []) == "generated"
+
+    def test_classify_uses_git_root_not_cwd_for_absolute_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Regression: get_diff_files anchors diff paths to the git root (absolute)
+        # so they resolve from any working directory. Classification must
+        # relativize against that root, not CWD. Run from a subdirectory deeper
+        # than the root: a CWD-relative match would raise ValueError, fall back to
+        # the full absolute parts, and misclassify the mirror as authored.
+        repo_root = tmp_path / "repo"
+        generated = repo_root / "src" / "copilot-cli" / "skills" / "x" / "shim.py"
+        generated.parent.mkdir(parents=True)
+        generated.write_text("x = 1\n", encoding="utf-8")
+        subdir = repo_root / "tests" / "deep"
+        subdir.mkdir(parents=True)
+        monkeypatch.chdir(subdir)
+        monkeypatch.setattr(mod, "_git_root_for_cwd", lambda _cwd: str(repo_root))
+
+        assert classify_file_category(str(generated), []) == "generated"
+
+    def test_run_lint_skips_generated_by_path_without_reading(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # run_lint must classify path-generated files (mirrors) without reading
+        # them. Patch read_file_lines to raise so any read would fail the test.
+        monkeypatch.chdir(tmp_path)
+        mirror = tmp_path / "src" / "copilot-cli" / "skills" / "x" / "shim.py"
+        mirror.parent.mkdir(parents=True)
+        mirror.write_text("x = 1\n" * 600, encoding="utf-8")
+
+        def _boom(_path: str) -> list[str]:
+            raise AssertionError("read_file_lines must not run for path-generated files")
+
+        monkeypatch.setattr(mod, "read_file_lines", _boom)
+        result = run_lint([str(mirror)], ("file-size",))
+
+        assert result.files_scanned == 1
+        assert result.files_by_category == {"generated": 1}
+        assert result.violations == []
+
     def test_lint_skips_missing_files(self) -> None:
         result = run_lint(["/nonexistent/file.py"], ("file-size",))
         assert result.files_scanned == 0
@@ -282,14 +400,16 @@ class TestFormatText:
     def test_violations_include_remediation(self) -> None:
         result = LintResult(
             files_scanned=1,
-            violations=[Violation(
-                rule="file-size",
-                severity="error",
-                file="test.py",
-                line=501,
-                message="File exceeds 500 lines",
-                remediation="AGENT_REMEDIATION: Split this file",
-            )],
+            violations=[
+                Violation(
+                    rule="file-size",
+                    severity="error",
+                    file="test.py",
+                    line=501,
+                    message="File exceeds 500 lines",
+                    remediation="AGENT_REMEDIATION: Split this file",
+                )
+            ],
         )
         output = format_text(result)
         assert "AGENT_REMEDIATION" in output
@@ -302,14 +422,16 @@ class TestFormatJson:
     def test_json_output_structure(self) -> None:
         result = LintResult(
             files_scanned=1,
-            violations=[Violation(
-                rule="naming",
-                severity="warning",
-                file="test.py",
-                line=0,
-                message="Bad name",
-                remediation="Fix it",
-            )],
+            violations=[
+                Violation(
+                    rule="naming",
+                    severity="warning",
+                    file="test.py",
+                    line=0,
+                    message="Bad name",
+                    remediation="Fix it",
+                )
+            ],
         )
         data = json.loads(format_json(result))
         assert data["files_scanned"] == 1
@@ -421,10 +543,14 @@ class TestGetDiffFiles:
     def test_returns_sorted_changed_files(self) -> None:
         # get_diff_files sorts for deterministic, mode-consistent output.
         completed = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="z.py\na.py\nm.py\n",
+            args=[],
+            returncode=0,
+            stdout="z.py\na.py\nm.py\n",
         )
-        with patch.object(mod, "_git_root", return_value="/repo"), \
-                patch.object(mod.subprocess, "run", return_value=completed):
+        with (
+            patch.object(mod, "_git_root", return_value="/repo"),
+            patch.object(mod.subprocess, "run", return_value=completed),
+        ):
             result = get_diff_files("main")
         assert result == ["/repo/a.py", "/repo/m.py", "/repo/z.py"]
 
@@ -453,10 +579,14 @@ class TestGetDiffFiles:
 
     def test_drops_traversal_paths(self) -> None:
         completed = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
+            args=[],
+            returncode=0,
+            stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
         )
-        with patch.object(mod, "_git_root", return_value="/repo"), \
-                patch.object(mod.subprocess, "run", return_value=completed):
+        with (
+            patch.object(mod, "_git_root", return_value="/repo"),
+            patch.object(mod.subprocess, "run", return_value=completed),
+        ):
             result = get_diff_files("main")
         assert result == ["/repo/changed.py"]
 

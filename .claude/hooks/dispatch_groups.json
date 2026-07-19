@@ -26,11 +26,6 @@
           "file": "PreToolUse/invoke_security_commit_gate.py",
           "timeout": 10,
           "statusMessage": "Checking security gate for staged auth files (ADR-033)"
-        },
-        {
-          "file": "PreToolUse/invoke_prompt_eval_gate.py",
-          "timeout": 10,
-          "statusMessage": "Checking ADR-057 behavioral eval evidence for prompt changes"
         }
       ]
     },
@@ -138,14 +133,6 @@
         {
           "file": "PostToolUse/invoke_markdown_auto_lint.py",
           "statusMessage": "Auto-linting markdown files"
-        },
-        {
-          "file": "PostToolUse/invoke_adr_lifecycle_hook.py",
-          "statusMessage": "Checking for ADR changes"
-        },
-        {
-          "file": "PostToolUse/invoke_plan_state_sync.py",
-          "statusMessage": "Checkpointing plan/TODO state (#1703)"
         }
       ]
     },
@@ -154,10 +141,6 @@
       "mode": "gate_all",
       "matcher": null,
       "shims": [
-        {
-          "file": "Stop/invoke_skill_learning.py",
-          "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
-        },
         {
           "file": "Stop/invoke_session_validator.py",
           "statusMessage": "Validating session completeness"
@@ -176,11 +159,6 @@
         {
           "file": "PreToolUse/invoke_security_gate.py",
           "statusMessage": "Checking security gate for auth files (ADR-033)"
-        },
-        {
-          "file": "PreToolUse/invoke_adr_architect_gate.py",
-          "statusMessage": "Verifying architect review for ADR files (BLOCKING)",
-          "copilotMatcher": "^(Edit|Write)$"
         }
       ]
     },
@@ -248,11 +226,6 @@
           "file": "PreToolUse/invoke_security_commit_gate.py",
           "timeout": 10,
           "statusMessage": "Checking security gate for staged auth files (ADR-033)"
-        },
-        {
-          "file": "PreToolUse/invoke_prompt_eval_gate.py",
-          "timeout": 10,
-          "statusMessage": "Checking ADR-057 behavioral eval evidence for prompt changes"
         }
       ]
     },
@@ -319,18 +292,6 @@
         }
       ]
     },
-    "plugin-pretooluse-adr_architect_gate": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "^(Edit|Write)$",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_adr_architect_gate.py",
-          "statusMessage": "Verifying architect review for ADR files (BLOCKING)"
-        }
-      ]
-    },
     "plugin-sessionstart-1-session_initialization_enforcer": {
       "event": "SessionStart",
       "mode": "observe",
@@ -390,22 +351,6 @@
         {
           "file": "PostToolUse/invoke_markdown_auto_lint.py",
           "statusMessage": "Auto-linting markdown files"
-        },
-        {
-          "file": "PostToolUse/invoke_adr_lifecycle_hook.py",
-          "statusMessage": "Checking for ADR changes"
-        }
-      ]
-    },
-    "plugin-posttooluse-adr_lifecycle_hook": {
-      "event": "PostToolUse",
-      "mode": "observe",
-      "matcher": "Bash",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PostToolUse/invoke_adr_lifecycle_hook.py",
-          "statusMessage": "Checking for ADR changes"
         }
       ]
     },
@@ -429,24 +374,8 @@
       "surface": "plugin",
       "shims": [
         {
-          "file": "Stop/invoke_skill_learning.py",
-          "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
-        },
-        {
           "file": "Stop/invoke_session_validator.py",
           "statusMessage": "Validating session completeness"
-        }
-      ]
-    },
-    "plugin-subagentstop-qa_agent_validator": {
-      "event": "SubagentStop",
-      "mode": "gate_all",
-      "matcher": null,
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "SubagentStop/invoke_qa_agent_validator.py",
-          "statusMessage": "Validating QA agent output"
         }
       ]
     },

@@ -5,7 +5,7 @@
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/PostToolUse/_dispatch.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/PostToolUse/_dispatch.py\"",
-        "timeoutSec": 120,
+        "timeoutSec": 60,
         "type": "command"
       }
     ],
@@ -15,7 +15,7 @@
         "cwd": ".",
         "matcher": "Bash|Write|Edit",
         "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/PreToolUse/_dispatch.py\"",
-        "timeoutSec": 660,
+        "timeoutSec": 620,
         "type": "command"
       }
     ],
@@ -24,7 +24,7 @@
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/SessionEnd/_dispatch.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/SessionEnd/_dispatch.py\"",
-        "timeoutSec": 90,
+        "timeoutSec": 60,
         "type": "command"
       }
     ],
