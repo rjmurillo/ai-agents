@@ -74,7 +74,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted suites green: tests/hooks/test_git_hooks_activation.py (11 passed, incl. 3 real end-to-end runs that set core.hooksPath via the real installer); tests/test_install_git_hooks.py + TestValidateGitHooksInstalled (22 passed, REQ-5 preserved); dispatch/parity/generation suites (306 passed, 1 skipped). ruff + mypy clean on the new hook. build_all.py regenerates the Copilot tree; build_all.py --check clean after the generated files are committed. Both plugin manifests carry identical version 0.6.79."
+        "Evidence": "Targeted suites green: tests/hooks/test_git_hooks_activation.py (16 passed, incl. real end-to-end runs that set core.hooksPath via the real installer plus a foreign-repo RCE regression proving the shipped hook no-ops outside its own tree); tests/test_install_git_hooks.py + TestValidateGitHooksInstalled (22 passed, REQ-5 preserved); dispatch/parity/generation suites (306 passed, 1 skipped). ruff + mypy clean on the new hook. build_all.py regenerates the Copilot tree; build_all.py --check clean after the generated files are committed. Both plugin manifests carry identical version 0.6.79."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -87,7 +87,7 @@
     {
       "timestamp": "2026-07-19T14:00:00Z",
       "action": "Wrote the SessionStart activation hook and its tests",
-      "result": "Created .claude/hooks/SessionStart/invoke_git_hooks_activation.py: a self-contained, fail-open hook that no-ops when .githooks is absent (REQ-2) or already configured (REQ-3, via the installer's --quiet idempotency), delegates the write to scripts/install_git_hooks.py with a 10s timeout, and translates any failure into a one-line warning naming the manual fix (REQ-4). Created tests/hooks/test_git_hooks_activation.py: 11 tests (8 unit with mocked subprocess covering no-githooks no-op, missing installer, quiet invocation argv, non-zero exit, empty-output exit, OSError, timeout, env resolution; 3 real end-to-end runs against the real installer in a temp git repo proving core.hooksPath is set, idempotent second run is silent, and no-githooks leaves config unset). All 11 pass.",
+      "result": "Created .claude/hooks/SessionStart/invoke_git_hooks_activation.py: a self-contained, fail-open hook that no-ops when .githooks is absent (REQ-2) or already configured (REQ-3, via the installer's --quiet idempotency), delegates the write to scripts/install_git_hooks.py with a 10s timeout, and translates any failure into a one-line warning naming the manual fix (REQ-4). Created tests/hooks/test_git_hooks_activation.py: 11 tests (8 unit with mocked subprocess covering no-githooks no-op, missing installer, quiet invocation argv, non-zero exit, empty-output exit, OSError, timeout, env resolution; 3 real end-to-end runs against the real installer in a temp git repo proving core.hooksPath is set, idempotent second run is silent, and no-githooks leaves config unset). All 11 pass at this point; the suite was later expanded to 16 when the consumer-repo RCE hardening added the self-repository trust gate and its regression tests (see the later RCE-hardening workLog entry).",
       "filesModified": [
         ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
         "tests/hooks/test_git_hooks_activation.py"
@@ -150,9 +150,19 @@
         ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
         "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py"
       ]
+    },
+    {
+      "timestamp": "2026-07-19T18:00:00Z",
+      "action": "Addressed the second bot review round (copilot-pull-request-reviewer + CodeRabbit)",
+      "result": "Reworded 'tracked' language in the hook, its mirror, and the tests to say the hook file 'resolves to a path inside root' / 'located under root', matching what _is_self_repository actually checks (path containment via relative_to, not git tracking). Added '[WARNING]' not-in-stderr assertions to the two positive end-to-end tests so a partially-failed activation (which the hook only signals via a warning) cannot pass silently. Corrected the validationPassed evidence test count from 11 to 16 and added a forward-reference clarifier to the historical 14:00 workLog entry. Regenerated the mirror (bodies byte-identical); 16 tests pass. The episode causal-graph linkage flagged by CodeRabbit is the episode generator's default (all 15 events have empty caused_by/leads_to), not a PR-specific gap, so it is answered rather than hand-patched.",
+      "filesModified": [
+        ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
+        "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py",
+        "tests/hooks/test_git_hooks_activation.py"
+      ]
     }
   ],
-  "endingCommit": "989dbbb1",
+  "endingCommit": "5ce9c70c",
   "nextSteps": [
     "Open PR for #3182, noting the dispatch-group registration correction vs the stale settings.json/hooks.json plan. Self-merge once required reviews and threads clear.",
     "With #3182 landed, the epic can proceed to retire the PreToolUse commit/push guards it enabled (#3195, #3196, #3188, #3189).",

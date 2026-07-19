@@ -256,12 +256,12 @@ def _make_repo(tmp_path: Path, *, with_githooks: bool) -> Path:
 
 
 def _install_hook_copy(repo: Path) -> Path:
-    """Copy the hook into ``repo`` so ``__file__`` is tracked inside root.
+    """Copy the hook into ``repo`` so ``__file__`` resolves to a path under root.
 
     The self-repository trust gate only runs the installer when the hook lives
     inside the repo it activates. Positive end-to-end tests therefore run a copy
-    placed inside the temp repo, matching how a real ai-agents clone ships the
-    hook as tracked source.
+    placed inside the temp repo, matching how a real ai-agents clone keeps the
+    hook file under its own root.
     """
     dest_dir = repo / ".claude" / "hooks" / "SessionStart"
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -301,6 +301,7 @@ def test_end_to_end_sets_hookspath(tmp_path: Path) -> None:
     result = _run_hook(repo, hook_path=hook_copy)
 
     assert result.returncode == 0, result.stderr
+    assert "[WARNING]" not in result.stderr, result.stderr
     got = _git(repo, "config", "--get", "core.hooksPath")
     assert got.returncode == 0
     assert got.stdout.strip() == ".githooks"
@@ -311,12 +312,15 @@ def test_end_to_end_idempotent_second_run_silent(tmp_path: Path) -> None:
     """REQ-3: a second run on an already-configured repo writes nothing new."""
     repo = _make_repo(tmp_path, with_githooks=True)
     hook_copy = _install_hook_copy(repo)
-    assert _run_hook(repo, hook_path=hook_copy).returncode == 0
+    first = _run_hook(repo, hook_path=hook_copy)
+    assert first.returncode == 0
+    assert "[WARNING]" not in first.stderr, first.stderr
 
     result = _run_hook(repo, hook_path=hook_copy)
 
     assert result.returncode == 0
     assert result.stdout.strip() == ""
+    assert "[WARNING]" not in result.stderr, result.stderr
     assert _git(repo, "config", "--get", "core.hooksPath").stdout.strip() == (
         ".githooks"
     )

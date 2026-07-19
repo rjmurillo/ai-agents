@@ -97,7 +97,7 @@ def _warn(message: str) -> None:
 
 
 def _is_self_repository(root: Path) -> bool:
-    """True when this hook file is tracked inside ``root``.
+    """True when this hook file is located inside ``root``.
 
     The activation delegates to ``root/scripts/install_git_hooks.py``. Running a
     repo-relative script is only safe when this hook is part of the repository
@@ -107,8 +107,9 @@ def _is_self_repository(root: Path) -> bool:
     consumer-controlled, so a hostile repo shipping its own
     ``scripts/install_git_hooks.py`` could achieve code execution on session
     start. Refusing to run unless the hook lives inside ``root`` closes that
-    vector while keeping the self/dogfooding case working (the tracked hook and
-    installer share the same repo root). See PR #3244 / CodeRabbit review.
+    vector while keeping the self/dogfooding case working (the hook file and
+    installer both resolve to paths under the same repo root). See PR #3244 /
+    CodeRabbit review.
     """
     try:
         Path(__file__).resolve().relative_to(root.resolve())
@@ -125,8 +126,9 @@ def activate(project_dir: str) -> None:
     if not (root / HOOKS_DIR_NAME).is_dir():
         return
 
-    # Only run the repo-relative installer when this hook is tracked inside the
-    # repository being activated. A consumer running the shipped plugin against
+    # Only run the repo-relative installer when this hook file resolves to a
+    # path inside the repository being activated. A consumer running the shipped
+    # plugin against
     # an unrelated (possibly hostile) repo takes this no-op path.
     if not _is_self_repository(root):
         return
@@ -144,9 +146,10 @@ def activate(project_dir: str) -> None:
         # positive and a scoped suppression is the only clean silence: the call
         # is list-form argv (no shell, so command injection is impossible), the
         # executable is the fixed Python interpreter, and ``installer`` is only
-        # reached after ``_is_self_repository`` confirms this hook is tracked
-        # inside ``root`` -- so the installer is always this repository's own
-        # tracked scripts/install_git_hooks.py, never an attacker-controlled
+        # reached after ``_is_self_repository`` confirms this hook file resolves
+        # to a path inside ``root`` -- so the installer is always this
+        # repository's own scripts/install_git_hooks.py, never an
+        # attacker-controlled
         # path. Restructuring cannot remove the taint: the repo root must come
         # from the environment. See PR #3244. The directive uses the short rule
         # id (suffix match) because the platform scan reports a doubled check_id
