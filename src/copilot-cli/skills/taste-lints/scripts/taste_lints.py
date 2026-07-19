@@ -85,10 +85,7 @@ def _repo_relative_parts(path: Path) -> tuple[str, ...]:
 def _generated_by_path(path: Path) -> bool:
     """True when the path alone marks a file generated (no body read needed)."""
     parts = _repo_relative_parts(path)
-    if any(
-        any(parts[i : i + len(segment)] == segment for i in range(len(parts)))
-        for segment in _GENERATED_PATH_SEGMENTS
-    ):
+    if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
         return True
     return path.name.startswith("pr-quality-gate-") and ".github" in parts
 

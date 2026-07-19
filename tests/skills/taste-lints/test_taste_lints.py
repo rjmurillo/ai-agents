@@ -314,6 +314,17 @@ class TestRunLint:
         # A genuinely repo-relative generated path is still caught.
         assert classify_file_category("src/copilot-cli/skill.py", []) == "generated"
 
+    def test_classify_anchors_generated_segments_at_repo_root(self) -> None:
+        # Regression: _GENERATED_PATH_SEGMENTS are repo-root-anchored, so a
+        # repo-relative path carrying a segment at a non-root position (a
+        # vendored or fixture dir) must not be misclassified as generated.
+        assert (
+            classify_file_category("vendor/pkg/src/copilot-cli/lib.py", [])
+            == "authored"
+        )
+        # The genuine repo-root mirror is still classified generated.
+        assert classify_file_category("src/copilot-cli/skills/x.py", []) == "generated"
+
     def test_run_lint_skips_generated_by_path_without_reading(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -95,10 +95,7 @@ def classify_file_category(file_path: Path, content: str | None = None) -> str:
     not as independent authored modules.
     """
     parts = _repo_relative_parts(file_path)
-    if any(
-        any(parts[i : i + len(segment)] == segment for i in range(len(parts)))
-        for segment in _GENERATED_PATH_SEGMENTS
-    ):
+    if any(parts[: len(segment)] == segment for segment in _GENERATED_PATH_SEGMENTS):
         return "generated"
     if file_path.name.startswith("pr-quality-gate-") and ".github" in parts:
         return "generated"
