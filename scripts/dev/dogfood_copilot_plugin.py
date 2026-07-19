@@ -35,6 +35,17 @@ MARKETPLACE = "ai-agents"
 PLUGIN_NAME = "project-toolkit"
 _BACKUP_SUFFIX = ".marketplace-bak"
 
+# Match build_all.py's shipped-tree copy semantics (__pycache__, *.pyc, *.pyo)
+# and drop local tool caches so the dogfood copy mirrors what customers get.
+_COPY_IGNORE = shutil.ignore_patterns(
+    "__pycache__",
+    "*.pyc",
+    "*.pyo",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+)
+
 
 def _repo_root() -> Path:
     """Return the git top-level for the directory holding this script."""
@@ -133,7 +144,7 @@ def dogfood_install(source: Path, target: Path) -> str:
         )
     note = _stash_existing(target)
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, target)
+    shutil.copytree(source, target, ignore=_COPY_IGNORE)
     return f"copied {source} -> {target} ({note})"
 
 

@@ -61,6 +61,22 @@ def test_install_creates_copy(source: Path, target: Path) -> None:
     assert "copied" in note
 
 
+def test_install_excludes_local_caches(source: Path, target: Path) -> None:
+    cache_dir = source / "__pycache__"
+    cache_dir.mkdir()
+    (cache_dir / "mod.cpython-314.pyc").write_bytes(b"\x00")
+    (source / "skills" / ".ruff_cache").mkdir(parents=True)
+    (source / "skills" / ".ruff_cache" / "CACHEDIR.TAG").write_text("x", encoding="utf-8")
+    (source / "stale.pyc").write_bytes(b"\x00")
+
+    dogfood.dogfood_install(source, target)
+
+    assert not (target / "__pycache__").exists()
+    assert not (target / "skills" / ".ruff_cache").exists()
+    assert not (target / "stale.pyc").exists()
+    assert (target / ".claude-plugin" / "plugin.json").is_file()
+
+
 def test_install_refreshes_stale_copy(source: Path, target: Path) -> None:
     _make_plugin_root(target, "0.0.1")  # older install
     note = dogfood.dogfood_install(source, target)
