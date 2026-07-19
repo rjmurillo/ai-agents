@@ -1,5 +1,5 @@
 ---
-applyTo: .agents/security/**,**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,.githooks/**,.claude/rules/security.md
+applyTo: .agents/security/**,**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,scripts/hooks/**,.claude/rules/security.md
 ---
 
 # Security File Rules

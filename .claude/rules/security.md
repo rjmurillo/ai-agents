@@ -5,7 +5,7 @@ paths:
   - "*.env*"
   - "**/*.secrets.*"
   - ".github/workflows/**"
-  - ".githooks/**"
+  - "scripts/hooks/**"
   - ".claude/rules/security.md"
 priority: critical
 ---
