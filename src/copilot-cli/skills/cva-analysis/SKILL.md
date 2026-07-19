@@ -287,7 +287,7 @@ Use Abstract Factory pattern with `IPaymentFactory` per method.
 
    ```bash
    # Hand off ADR stub to architect agent
-   Task(subagent_type="architect", prompt="Create ADR from CVA analysis stub")
+   `agent_type: "project-toolkit:architect"` with prompt "Create ADR from CVA analysis stub"
    ```
 
 4. **Document reassessment triggers**:
@@ -342,7 +342,7 @@ CVA produces ADR stub with pattern rationale. Architect agent creates formal ADR
 **Handoff Protocol**:
 
 ```python
-Task(subagent_type="architect", prompt="Create ADR from CVA analysis at cva-payment-processing.md")
+`agent_type: "project-toolkit:architect"` with prompt "Create ADR from CVA analysis at cva-payment-processing.md"
 ```
 
 ### decision-critic Skill
@@ -362,7 +362,7 @@ Challenges whether abstraction is needed at all. Use when CVA is borderline (min
 **Usage**:
 
 ```python
-Task(subagent_type="independent-thinker", prompt="Challenge whether payment abstraction is justified given only 2 current methods")
+`agent_type: "project-toolkit:independent-thinker"` with prompt "Challenge whether payment abstraction is justified given only 2 current methods"
 ```
 
 ## Verification Checklist
@@ -455,16 +455,3 @@ Two helpers are designed in `references/SKILL_SPEC.md` but not yet built. Create
 
 4. **AI Integration**: Automated pattern suggestion
    - Route to decision-critic or independent-thinker for automated review
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="architect")` | `task` tool, `agent_type: "project-toolkit:architect"` |
-| `Task(subagent_type="independent-thinker")` | `task` tool, `agent_type: "project-toolkit:independent-thinker"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
