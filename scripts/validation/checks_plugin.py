@@ -124,46 +124,35 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
     ))
 
 
-def validate_git_hooks_installed(repo_root: Path) -> bool:
-    """Fail when the local clone is not wired to run the canonical githooks.
+def validate_lefthook_installed(repo_root: Path) -> bool:
+    """Fail when Lefthook is unavailable, unconfigured, or not installed locally.
 
-    Delegates to ``scripts/install_git_hooks.py --check``, which verifies that
-    ``core.hooksPath`` resolves to ``.githooks`` and the hook scripts exist and
-    are executable. A clone left on the default ``.git/hooks`` (or pointed at an
-    absolute path) silently bypasses every pre-push guard, including the plugin
-    version-bump gate, so drift here is a hard local failure on a primary clone.
-
-    Skipped under CI: a CI checkout neither has nor should have
-    ``core.hooksPath`` set to ``.githooks`` (the guards run as workflow steps,
-    not local hooks), so the check is irrelevant there.
-
-    Linked-worktree downgrade (Issue #2374): in a linked worktree the hook
-    configuration is shared with the primary clone via the common git dir, so a
-    contributor running pre_pr inside a worktree cannot fix ``core.hooksPath``
-    without touching the primary clone, which is out of scope for the change in
-    front of them. A failed check there is environmental, not a defect in the
-    diff, and used to block clean merge work on baseline. In a linked worktree
-    the gate emits a WARNING and passes instead of failing. Issue #2220 wired
-    the gate to run in worktrees to catch shared drift; this narrows that to a
-    warning in worktrees while keeping the hard failure on the primary clone,
-    where the developer owns the config.
+    CI skips this local-clone check because workflows invoke validation directly.
+    A linked worktree keeps the existing warning policy because its hook storage
+    is shared with the primary clone and may be outside the current change scope.
     """
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
         or os.environ.get("CI", "").lower() in ("true", "1")
     ):
-        raise MissingScriptSkip("git hooks check skipped under CI")
-    script = repo_root / "scripts" / "install_git_hooks.py"
-    if not script.exists():
+        raise MissingScriptSkip("lefthook installation check skipped under CI")
+
+    config = repo_root / "lefthook.yml"
+    if not config.is_file():
+        print("[ERROR] lefthook.yml is absent; installation cannot be verified.", file=sys.stderr)
+        return False
+
+    lefthook = shutil.which("lefthook")
+    if not lefthook:
         print(
-            "[ERROR] install_git_hooks.py absent; the git-hooks gate cannot "
-            "run. Hard failure: the gate is the point of registering "
-            "this validator.",
+            "[ERROR] Lefthook is unavailable. Run: uv sync --frozen --extra dev",
             file=sys.stderr,
         )
         return False
+
     exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script), "--check", "--repo-root", str(repo_root)]
+        [lefthook, "check-install"],
+        cwd=repo_root,
     )
     if stdout.strip():
         print(stdout.strip())
@@ -173,15 +162,15 @@ def validate_git_hooks_installed(repo_root: Path) -> bool:
         return True
     if _is_linked_worktree(repo_root):
         print(
-            "[WARNING] Local git hooks are not installed, but this is a linked "
-            "worktree. Hook config is shared with the primary clone; fix it "
-            "there with: python3 scripts/install_git_hooks.py "
+            "[WARNING] Lefthook is not installed in this linked worktree. "
+            "Install it from the primary clone with: "
+            "uv run --frozen lefthook install --reset-hooks-path "
             "(non-blocking here, Issue #2374)."
         )
         return True
     print(
-        "[FAIL] Local git hooks are not installed. "
-        "Run: python3 scripts/install_git_hooks.py"
+        "[FAIL] Lefthook is not installed. Run: "
+        "uv run --frozen lefthook install --reset-hooks-path"
     )
     return False
 

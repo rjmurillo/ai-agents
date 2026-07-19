@@ -766,159 +766,88 @@ class TestValidateDashProhibition:
 
 
 # ---------------------------------------------------------------------------
-# validate_git_hooks_installed
+# validate_lefthook_installed
 # ---------------------------------------------------------------------------
 
 
-class TestValidateGitHooksInstalled:
-    """The local-githooks gate delegates to install_git_hooks.py --check."""
+class TestValidateLefthookInstalled:
+    """The local hook gate delegates to ``lefthook check-install``."""
+
+    @staticmethod
+    def _write_config(repo_root: Path) -> None:
+        (repo_root / "lefthook.yml").write_text("pre-commit: {}\n", encoding="utf-8")
 
     def test_skipped_under_github_actions(self, tmp_path: Path) -> None:
         import pytest
 
-        from scripts.validation.pre_pr import (
-            MissingScriptSkip,
-            validate_git_hooks_installed,
-        )
+        from scripts.validation.pre_pr import MissingScriptSkip, validate_lefthook_installed
 
         with patch.dict("os.environ", {"GITHUB_ACTIONS": "true"}, clear=False):
             with pytest.raises(MissingScriptSkip):
-                validate_git_hooks_installed(tmp_path)
+                validate_lefthook_installed(tmp_path)
 
     def test_skipped_under_ci(self, tmp_path: Path) -> None:
         import pytest
 
-        from scripts.validation.pre_pr import (
-            MissingScriptSkip,
-            validate_git_hooks_installed,
-        )
+        from scripts.validation.pre_pr import MissingScriptSkip, validate_lefthook_installed
 
-        env = {"CI": "1"}
-        with patch.dict("os.environ", env, clear=False):
-            # Ensure GITHUB_ACTIONS does not mask the CI branch.
-            import os
-
-            os.environ.pop("GITHUB_ACTIONS", None)
+        with patch.dict("os.environ", {"CI": "1", "GITHUB_ACTIONS": "false"}):
             with pytest.raises(MissingScriptSkip):
-                validate_git_hooks_installed(tmp_path)
+                validate_lefthook_installed(tmp_path)
 
     def test_not_skipped_when_ci_is_false(self, tmp_path: Path) -> None:
-        """CI=false should not skip the check."""
-        import os
+        from scripts.validation.pre_pr import validate_lefthook_installed
 
-        from scripts.validation.pre_pr import validate_git_hooks_installed
+        self._write_config(tmp_path)
+        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
+            with patch("checks_plugin.shutil.which", return_value="/bin/lefthook"):
+                with patch("checks_plugin._run_subprocess", return_value=(0, "OK", "")):
+                    assert validate_lefthook_installed(tmp_path) is True
 
-        (tmp_path / "scripts").mkdir()
-        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
-        env = {"CI": "false"}
-        with patch.dict("os.environ", env, clear=False):
-            os.environ.pop("GITHUB_ACTIONS", None)
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (0, "OK", "")
-                assert validate_git_hooks_installed(tmp_path) is True
+    def test_missing_config_fails_closed(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_lefthook_installed
 
-    def test_missing_script_fails_closed(self, tmp_path: Path) -> None:
-        import os
+        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
+            assert validate_lefthook_installed(tmp_path) is False
 
-        from scripts.validation.pre_pr import validate_git_hooks_installed
+    def test_missing_binary_fails_closed(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_lefthook_installed
 
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("GITHUB_ACTIONS", None)
-            os.environ.pop("CI", None)
-            assert validate_git_hooks_installed(tmp_path) is False
+        self._write_config(tmp_path)
+        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
+            with patch("checks_plugin.shutil.which", return_value=None):
+                assert validate_lefthook_installed(tmp_path) is False
 
-    def test_passes_when_check_exits_zero(self, tmp_path: Path) -> None:
-        import os
+    def test_passes_when_check_install_exits_zero(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_lefthook_installed
 
-        from scripts.validation.pre_pr import validate_git_hooks_installed
+        self._write_config(tmp_path)
+        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
+            with patch("checks_plugin.shutil.which", return_value="/bin/lefthook"):
+                with patch("checks_plugin._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "OK", "")
+                    assert validate_lefthook_installed(tmp_path) is True
+        mock_run.assert_called_once_with(["/bin/lefthook", "check-install"], cwd=tmp_path)
 
-        (tmp_path / "scripts").mkdir()
-        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("GITHUB_ACTIONS", None)
-            os.environ.pop("CI", None)
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (0, "OK", "")
-                assert validate_git_hooks_installed(tmp_path) is True
+    def test_fails_when_check_install_exits_nonzero(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_lefthook_installed
 
-    def test_fails_when_check_exits_nonzero(self, tmp_path: Path) -> None:
-        import os
-
-        from scripts.validation.pre_pr import validate_git_hooks_installed
-
-        (tmp_path / "scripts").mkdir()
-        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("GITHUB_ACTIONS", None)
-            os.environ.pop("CI", None)
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (1, "", "core.hooksPath not set")
-                with patch(
-                    "checks_plugin._is_linked_worktree",
-                    return_value=False,
-                ):
-                    assert validate_git_hooks_installed(tmp_path) is False
+        self._write_config(tmp_path)
+        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
+            with patch("checks_plugin.shutil.which", return_value="/bin/lefthook"):
+                with patch("checks_plugin._run_subprocess", return_value=(1, "", "missing")):
+                    with patch("checks_plugin._is_linked_worktree", return_value=False):
+                        assert validate_lefthook_installed(tmp_path) is False
 
     def test_warns_not_fails_in_linked_worktree(self, tmp_path: Path) -> None:
-        """A failed check in a linked worktree downgrades to a warning (#2374)."""
-        import os
+        from scripts.validation.pre_pr import validate_lefthook_installed
 
-        from scripts.validation.pre_pr import validate_git_hooks_installed
-
-        (tmp_path / "scripts").mkdir()
-        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("GITHUB_ACTIONS", None)
-            os.environ.pop("CI", None)
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (1, "", "core.hooksPath not set")
-                with patch(
-                    "checks_plugin._is_linked_worktree",
-                    return_value=True,
-                ):
-                    assert validate_git_hooks_installed(tmp_path) is True
-
-    def test_primary_clone_still_fails_when_check_nonzero(
-        self, tmp_path: Path
-    ) -> None:
-        """On the primary clone a failed check is still a hard failure."""
-        import os
-
-        from scripts.validation.pre_pr import validate_git_hooks_installed
-
-        (tmp_path / "scripts").mkdir()
-        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("GITHUB_ACTIONS", None)
-            os.environ.pop("CI", None)
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (1, "", "core.hooksPath not set")
-                with patch(
-                    "checks_plugin._is_linked_worktree",
-                    return_value=False,
-                ):
-                    assert validate_git_hooks_installed(tmp_path) is False
-
-    def test_delegates_to_hook_installer_outside_ci(self, tmp_path: Path) -> None:
-        """Outside CI the gate delegates to the hook installer check."""
-        import os
-
-        from scripts.validation.pre_pr import validate_git_hooks_installed
-
-        (tmp_path / "scripts").mkdir()
-        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("GITHUB_ACTIONS", None)
-            os.environ.pop("CI", None)
-            with patch("checks_plugin._run_subprocess") as mock_run:
-                mock_run.return_value = (0, "OK", "")
-                assert validate_git_hooks_installed(tmp_path) is True
-
-            mock_run.assert_called_once()
-            command = mock_run.call_args.args[0]
-            repo_root_index = command.index("--repo-root")
-            assert "--check" in command
-            assert command[repo_root_index + 1] == str(tmp_path)
+        self._write_config(tmp_path)
+        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
+            with patch("checks_plugin.shutil.which", return_value="/bin/lefthook"):
+                with patch("checks_plugin._run_subprocess", return_value=(1, "", "missing")):
+                    with patch("checks_plugin._is_linked_worktree", return_value=True):
+                        assert validate_lefthook_installed(tmp_path) is True
 
 
 class TestIsLinkedWorktree:

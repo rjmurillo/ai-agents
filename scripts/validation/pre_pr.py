@@ -70,9 +70,9 @@ from checks_dash import (  # noqa: E402, F401
 from checks_plugin import (  # noqa: E402, F401
     _is_linked_worktree,
     validate_copilot_agent_frontmatter,
-    validate_git_hooks_installed,
     validate_hook_anchoring,
     validate_install_parity,
+    validate_lefthook_installed,
     validate_plugin_version_bump,
     validate_workflow_local_run,
 )
