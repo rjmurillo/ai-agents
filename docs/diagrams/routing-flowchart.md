@@ -101,7 +101,7 @@ flowchart TB
 ```mermaid
 flowchart TB
     CHECK[CHECK PATTERNS]
-    CHECK --> CRITICAL_CHECK{Matches critical patterns?<br/>**/Auth/**, .githooks/*, etc}
+    CHECK --> CRITICAL_CHECK{Matches critical patterns?<br/>**/Auth/**, scripts/hooks/*, etc}
 
     CRITICAL_CHECK -->|YES| CRITICAL[CRITICAL]
     CRITICAL_CHECK -->|NO| TYPE_CHECK{Task type security or infra?}
@@ -194,13 +194,13 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph Task["TASK"]
-        TASK_DESC["Fix shell injection vulnerability in .githooks/pre-commit"]
+        TASK_DESC["Fix shell injection vulnerability in scripts/hooks/pre-commit"]
     end
 
     subgraph Phase1["PHASE 1: CLASSIFY"]
         TYPE[Type:<br/>SECURITY<br/>injection,<br/>vulnerability]
         COMPLEXITY[Complexity:<br/>MULTI_DOMAIN<br/>security +<br/>infra + code]
-        RISK[Risk:<br/>CRITICAL<br/>.githooks/*<br/>pattern]
+        RISK[Risk:<br/>CRITICAL<br/>scripts/hooks/*<br/>pattern]
     end
 
     subgraph Phase2["PHASE 2: SELECT"]

@@ -606,14 +606,14 @@ def test_cli_directory_scan_finds_nested_file(tmp_path: Path) -> None:
 
 
 def test_cli_directory_scan_finds_extensionless_bash_hook(tmp_path: Path) -> None:
-    hooks = tmp_path / ".githooks"
-    hooks.mkdir()
+    hooks = tmp_path / "scripts" / "hooks"
+    hooks.mkdir(parents=True)
     (hooks / "pre-push").write_text(
         "#!/usr/bin/env bash\neval \"$cmd\"\n",
         encoding="utf-8",
     )
 
-    result = _run_cli("--directory", ".githooks", cwd=tmp_path)
+    result = _run_cli("--directory", "scripts/hooks", cwd=tmp_path)
 
     assert result.returncode == scanner.EXIT_VULNERABILITIES
     assert "pre-push:2" in result.stdout
@@ -837,10 +837,10 @@ def test_main_directory_scan_in_process(
 # ---------------------------------------------------------------------------
 # Extensionless shebang detection (issue #2367)
 # ---------------------------------------------------------------------------
-# .githooks/pre-push and other extensionless executables advertise their
+# scripts/hooks/pre-push and other extensionless executables advertise their
 # interpreter only via a shebang. The detector must read the first line and
 # treat bash/sh-family shebangs as bash, otherwise high-risk shell entry
-# points are silently skipped under `.githooks/**` per
+# points are silently skipped under `scripts/hooks/**` per
 # `.github/instructions/security.instructions.md`.
 
 
@@ -893,9 +893,9 @@ def test_get_language_invalid_utf8_shebang_returns_none(tmp_path: Path) -> None:
 
 
 def test_get_directory_files_includes_extensionless_bash(tmp_path: Path) -> None:
-    """Directory walk surfaces extensionless bash scripts under `.githooks/`-style layouts."""
-    hooks = tmp_path / ".githooks"
-    hooks.mkdir()
+    """Directory walk surfaces extensionless bash scripts under `scripts/hooks/`-style layouts."""
+    hooks = tmp_path / "scripts" / "hooks"
+    hooks.mkdir(parents=True)
     bash_hook = hooks / "pre-push"
     bash_hook.write_text("#!/usr/bin/env bash\necho hi\n", encoding="utf-8")
     (hooks / "README").write_text("just docs\n", encoding="utf-8")
@@ -927,8 +927,8 @@ def test_get_directory_files_prunes_noisy_directories(tmp_path: Path) -> None:
         "#!/usr/bin/env bash\neval $payload\n", encoding="utf-8"
     )
 
-    hooks = tmp_path / ".githooks"
-    hooks.mkdir()
+    hooks = tmp_path / "scripts" / "hooks"
+    hooks.mkdir(parents=True)
     hook = hooks / "pre-push"
     hook.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
 
