@@ -214,7 +214,15 @@ def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies()
     install = text.index("- name: Enable git hooks")
     assert "enable-git-hooks:" in text
     assert dependencies < install
+    assert (
+        "if: inputs.enable-git-hooks == 'true' && inputs.enable-python == 'true'"
+        in text
+    )
     assert "uv run --frozen --extra dev lefthook install --reset-hooks-path" in text
+    assert (
+        "if ($env:ENABLE_GIT_HOOKS -eq 'true' -and $env:ENABLE_PYTHON -eq 'true')"
+        in text
+    )
     assert "git config core.hooksPath" not in text
 
 

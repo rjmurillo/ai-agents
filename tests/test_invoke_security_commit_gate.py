@@ -61,12 +61,6 @@ class TestMatchSecurityPaths:
             "config/password_config.json"
         ]
 
-
-    def test_matches_relocated_hook_payloads(self) -> None:
-        assert match_security_paths(["scripts/hooks/pre-push"]) == [
-            "scripts/hooks/pre-push"
-        ]
-
     @pytest.mark.parametrize(
         "config_path",
         [

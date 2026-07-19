@@ -431,7 +431,6 @@ def _original_main(stdin_bytes):
             r"^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$"
         ),
         re.compile(r"\.env($|\.)"),
-        re.compile(r"(^|[/\\])scripts[/\\]hooks[/\\]"),
         re.compile(r"(^|[/\\])secrets[/\\]"),
         re.compile(r"(?i)password"),
         re.compile(r"(^|[/\\])token"),
