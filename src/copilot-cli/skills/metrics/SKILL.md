@@ -121,7 +121,7 @@ The utility detects agents in commit messages using these patterns:
 Infrastructure commits are identified by these patterns:
 
 - `.github/workflows/*.yml`
-- `scripts/hooks/*`
+- `lefthook.yml`
 - `Dockerfile*`
 - `*.tf`, `*.tfvars`
 - `.env*`

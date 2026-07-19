@@ -14,12 +14,13 @@ import json
 import re
 import subprocess
 import sys
+from typing import Any
 
 # Critical patterns - security review REQUIRED
 CRITICAL_PATTERNS = [
     r"^\.github/workflows/.*\.(yml|yaml)$",
     r"^\.github/actions/",
-    r"^scripts/hooks/",
+    r"^scripts/validation/git_hook_policy\.py$",
     r"^(?:lefthook|\.lefthook|\.config/lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
     r"^\.husky/",
     r".*/Auth/",
@@ -95,7 +96,7 @@ def get_staged_files() -> list[str]:
 def detect_infrastructure(
     changed_files: list[str] | None = None,
     use_git_staged: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Analyze files and return security risk findings."""
     if use_git_staged:
         changed_files = get_staged_files()
