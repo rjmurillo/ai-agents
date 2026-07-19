@@ -497,7 +497,7 @@ If you're contributing code or running tests locally:
    ```
 
 3. Set up environment variables (copy `.env.example` to `.env` and fill in your API keys)
-4. Enable pre-commit hooks: `python3 scripts/install_git_hooks.py`
+4. Enable git hooks (pre-commit, pre-push, commit-msg): `python3 scripts/install_git_hooks.py`
 5. Run tests to verify setup:
 
    ```bash
