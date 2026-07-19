@@ -53,7 +53,8 @@ def default_source(root: Path) -> Path:
 
 def default_target() -> Path:
     """Return the installed-plugin directory Copilot CLI loads from."""
-    home = Path(os.environ.get("COPILOT_HOME", Path.home() / ".copilot"))
+    home_env = os.environ.get("COPILOT_HOME")
+    home = Path(home_env) if home_env else Path.home() / ".copilot"
     return home / "installed-plugins" / MARKETPLACE / PLUGIN_NAME
 
 
@@ -120,7 +121,9 @@ def _stash_existing(target: Path) -> str:
 def dogfood_install(source: Path, target: Path) -> str:
     """Copy the working-tree plugin over target. Returns an action summary."""
     if not _is_plugin_root(source):
-        raise ValueError(f"not a plugin root (missing .claude-plugin/plugin.json): {source}")
+        raise ValueError(
+            f"not a plugin root (missing or invalid .claude-plugin/plugin.json): {source}"
+        )
     note = _stash_existing(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, target)

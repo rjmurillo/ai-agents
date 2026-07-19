@@ -27,6 +27,18 @@ def _make_plugin_root(path: Path, version: str) -> Path:
     return path
 
 
+def _require_symlinks(tmp_path: Path) -> None:
+    """Skip when the platform forbids symlink creation (Windows without privilege)."""
+    probe = tmp_path / "_symlink_probe"
+    try:
+        probe.symlink_to(tmp_path)
+    except OSError:
+        pytest.skip("symlinks not permitted on this platform")
+    finally:
+        if probe.is_symlink():
+            probe.unlink()
+
+
 @pytest.fixture
 def source(tmp_path: Path) -> Path:
     return _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
@@ -69,6 +81,7 @@ def test_install_backs_up_existing_copy_once(source: Path, target: Path) -> None
 
 
 def test_install_replaces_prior_symlink(source: Path, target: Path, tmp_path: Path) -> None:
+    _require_symlinks(tmp_path)
     other = _make_plugin_root(tmp_path / "other", "1.0.0")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.symlink_to(other, target_is_directory=True)
@@ -231,3 +244,10 @@ def test_default_target_honors_copilot_home(monkeypatch, tmp_path: Path) -> None
     monkeypatch.setenv("COPILOT_HOME", str(tmp_path / "cop"))
     resolved = dogfood.default_target()
     assert resolved == tmp_path / "cop" / "installed-plugins" / "ai-agents" / "project-toolkit"
+
+
+def test_default_target_ignores_empty_copilot_home(monkeypatch) -> None:
+    monkeypatch.setenv("COPILOT_HOME", "")
+    resolved = dogfood.default_target()
+    expected = Path.home() / ".copilot" / "installed-plugins" / "ai-agents" / "project-toolkit"
+    assert resolved == expected
