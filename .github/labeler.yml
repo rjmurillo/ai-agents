@@ -79,7 +79,7 @@ github-actions:
 automation:
   - changed-files:
       - any-glob-to-any-file:
-          - ".githooks/**/*"
+          - "scripts/hooks/**/*"
           - "scripts/**/*"
           - ".github/scripts/**/*"
   - head-branch:

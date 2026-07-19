@@ -166,7 +166,7 @@ jobs:
 # Review-axes drift check (REQ-008-03 backstop)
 # ==============================================================================
 #
-# Pre-push hook (.githooks/pre-push Phase 5b) is bypassable via --no-verify.
+# The local pre-push payload (scripts/hooks/pre-push Phase 5b) is developer-side.
 # This job is the non-bypassable backstop. It runs the canonical-to-CI
 # generator in --dry-run mode and fails the build if any committed
 # .github/prompts/pr-quality-gate-{role}.md differs from what the canonical
