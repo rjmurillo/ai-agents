@@ -1,6 +1,6 @@
 """Regression tests for #2376: pre-commit MERGE_HEAD detection in worktrees.
 
-`.githooks/pre-commit` set IS_MERGE by testing a hardcoded
+`scripts/hooks/pre-commit` set IS_MERGE by testing a hardcoded
 `$REPO_ROOT/.git/MERGE_HEAD` path. In a linked worktree, `.git` is a FILE that
 points at the worktree-specific git dir (`<common>/worktrees/<name>`), so the
 literal `.git/MERGE_HEAD` path never exists and merge state is missed. With
@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
 
 def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -60,7 +60,7 @@ def _init_repo(path: Path) -> None:
     _git(path, "commit", "-q", "-m", "seed")
 
 
-# The detection snippet under audit, extracted from .githooks/pre-commit. It
+# The detection snippet under audit, extracted from scripts/hooks/pre-commit. It
 # computes IS_MERGE the way the fixed hook does, then echoes the result so the
 # test can assert on it without invoking the whole hook.
 _DETECT_FIXED = (

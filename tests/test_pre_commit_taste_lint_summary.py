@@ -3,7 +3,7 @@ blocking success from advisory taste-lint errors.
 
 Background
 ----------
-`.githooks/pre-commit` runs taste-lints as a non-blocking advisory check
+`scripts/hooks/pre-commit` runs taste-lints as a non-blocking advisory check
 (exit code 10 means "violations detected" but the hook intentionally does
 NOT propagate that into ``EXIT_STATUS``). Pre-fix, the final summary
 unconditionally printed::
@@ -45,12 +45,12 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
 # Wording the fix MUST emit (and that pre-fix builds MUST NOT emit) when
 # taste-lints report non-blocking errors but every blocking check passed.
 # The full sentence lives in one place so a future wording tweak only has
-# to touch this constant and the corresponding line in `.githooks/pre-commit`.
+# to touch this constant and the corresponding line in `scripts/hooks/pre-commit`.
 ADVISORY_SUMMARY = (
     "Blocking pre-commit checks passed; "
     "non-blocking taste-lints reported errors."
@@ -213,7 +213,7 @@ def test_summary_advisory_flag_does_not_change_exit_code() -> None:
 
 
 def test_pre_commit_hook_summary_matches_fragment() -> None:
-    """The real ``.githooks/pre-commit`` must emit the new advisory wording.
+    """The real ``scripts/hooks/pre-commit`` must emit the new advisory wording.
 
     The behavioural tests above run an isolated bash fragment. This
     drift guard makes sure the canonical hook on disk wasn't edited to
@@ -223,7 +223,7 @@ def test_pre_commit_hook_summary_matches_fragment() -> None:
     """
     text = PRE_COMMIT.read_text(encoding="utf-8")
     assert ADVISORY_SUMMARY in text, (
-        "`.githooks/pre-commit` is missing the advisory summary wording "
+        "`scripts/hooks/pre-commit` is missing the advisory summary wording "
         f"({ADVISORY_SUMMARY!r}). #2436 regressed."
     )
 
@@ -242,7 +242,7 @@ def test_pre_commit_hook_sets_taste_lints_advisory_flag() -> None:
         re.MULTILINE,
     )
     assert init.search(text), (
-        "`.githooks/pre-commit` does not initialize TASTE_LINTS_ADVISORY=0; "
+        "`scripts/hooks/pre-commit` does not initialize TASTE_LINTS_ADVISORY=0; "
         "the summary block would treat the var as unset on shells that "
         "object to `set -u` even if the test harness defaults it."
     )
@@ -282,7 +282,7 @@ def test_pre_commit_hook_drops_unconditional_success_line() -> None:
         r'else[\s\S]{0,200}?All pre-commit checks passed',
     )
     assert summary_shape.search(text), (
-        "Final-summary block in `.githooks/pre-commit` is missing the "
+        "Final-summary block in `scripts/hooks/pre-commit` is missing the "
         "elif TASTE_LINTS_ADVISORY branch between FILES_FIXED and the "
         "unconditional success line (#2436)."
     )

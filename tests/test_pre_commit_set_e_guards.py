@@ -1,6 +1,6 @@
 """Regression tests for #2258: pre-commit substitutions must survive set -e.
 
-`.githooks/pre-commit` runs under `set -e`. A standalone command substitution
+`scripts/hooks/pre-commit` runs under `set -e`. A standalone command substitution
 `VAR=$(cmd)` whose `cmd` exits nonzero causes the hook to abort AT THAT LINE,
 before the following `EXIT=$?` capture and before any remediation message can
 print. The bug surfaced live: a scope-exploded commit died with no explanation.
@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
 
 def _run_bash(script: str) -> subprocess.CompletedProcess[str]:

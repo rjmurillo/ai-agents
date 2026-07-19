@@ -3,7 +3,7 @@ even when advisory findings remain.
 
 Background
 ----------
-`.githooks/pre-commit` runs ``ruff check --fix`` on staged Python files
+`scripts/hooks/pre-commit` runs ``ruff check --fix`` on staged Python files
 (non-blocking, ADR-042). Pre-fix, the re-stage loop lived only in the
 verify-success branch: when the post-fix ``ruff check`` still reported
 findings (the pre-existing #2194 advisory backlog), the hook warned and
@@ -31,9 +31,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
-# Mirrors the autofix + verify block of `.githooks/pre-commit`. Kept
+# Mirrors the autofix + verify block of `scripts/hooks/pre-commit`. Kept
 # behaviorally identical: fix, re-stage unconditionally, then verify.
 AUTOFIX_FRAGMENT = r"""
 set -e

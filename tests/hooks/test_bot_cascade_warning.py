@@ -1,4 +1,4 @@
-"""Tests for the bot-cascade warning Phase 5c in .githooks/pre-push (REQ-013).
+"""Tests for the bot-cascade warning Phase 5c in scripts/hooks/pre-push (REQ-013).
 
 Pattern: structural verification of the bash hook (string-presence and
 syntax). Same pattern as test_drift_check.py for Phase 5b. Bash hooks are
@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PRE_PUSH_HOOK = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH_HOOK = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 
 
 def _hook_text() -> str:
