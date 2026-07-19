@@ -13,7 +13,7 @@ If the problem statement from the conversation (under Copilot CLI the skill tool
 
 ## Complexity Assessment
 
-Before implementation, Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the task description. Classify as Tier 1-5. Return: tier, rationale, and recommended oversight level. Use this to calibrate implementation approach:
+Before implementation, `agent_type: "project-toolkit:analyst"`: Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the task description. Classify as Tier 1-5. Return: tier, rationale, and recommended oversight level. Use this to calibrate implementation approach:
 
 - Tier 1-2: Implement directly. Async code review sufficient.
 - Tier 3: Validate approach before coding. Active mentorship pattern (check in at milestones).
@@ -21,11 +21,11 @@ Before implementation, Task(subagent_type="analyst"): Read `.claude/skills/analy
 
 ## Pre-Mortem (Risk Identification)
 
-Before any code changes, invoke Skill(skill="pre-mortem") on the task as briefed. Capture the top 2-3 critical risks and their mitigations into the session log. Risks surfaced by reviewers late in the cycle are usually knowable up front. A 5-minute pre-mortem is cheaper than a 10-round bot review.
+Before any code changes, invoke `skill: "pre-mortem"` on the task as briefed. Capture the top 2-3 critical risks and their mitigations into the session log. Risks surfaced by reviewers late in the cycle are usually knowable up front. A 5-minute pre-mortem is cheaper than a 10-round bot review.
 
 ## Agent
 
-Task(subagent_type="implementer"): You are a senior engineer. Discover the project's tech stack, coding patterns, and test conventions by reading the codebase. Build in thin vertical slices. Test-first when the project has tests. Commit atomically.
+`agent_type: "project-toolkit:implementer"`: You are a senior engineer. Discover the project's tech stack, coding patterns, and test conventions by reading the codebase. Build in thin vertical slices. Test-first when the project has tests. Commit atomically.
 
 For each slice:
 
@@ -52,10 +52,10 @@ The build is not complete until all four gates below return clean. These are **h
 
 Run, in order:
 
-1. Skill(skill="code-qualities-assessment") with `--changed-only` against the changed files. Reject the build if any new or modified method scores below the configured thresholds in `.qualityrc.json`.
-2. Skill(skill="taste-lints") against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning surfaced on lines you touched.
-3. Skill(skill="doc-accuracy") with `--diff-base main` so it audits changed comments, docstrings, and prose. Reject the build on any critical or high finding in code or docs you authored.
-4. Skill(skill="orphan-ref-validator"). Reject the build on `VERDICT: CRITICAL_FAIL`. Catches references to deleted skills and missing script paths before they reach review. Manifest count-claim text is scanned by orphan-ref-validator; the old marketplace count validator has been retired. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. The first three gates run in `--changed-only` mode and ignore preexisting drift; gate 4 scans the default targets across the repo because skill-name and script-path orphans are repo-state global, not per-PR. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
+1. `skill: "code-qualities-assessment"` with `--changed-only` against the changed files. Reject the build if any new or modified method scores below the configured thresholds in `.qualityrc.json`.
+2. `skill: "taste-lints"` against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning surfaced on lines you touched.
+3. `skill: "doc-accuracy"` with `--diff-base main` so it audits changed comments, docstrings, and prose. Reject the build on any critical or high finding in code or docs you authored.
+4. `skill: "orphan-ref-validator"`. Reject the build on `VERDICT: CRITICAL_FAIL`. Catches references to deleted skills and missing script paths before they reach review. Manifest count-claim text is scanned by orphan-ref-validator; the old marketplace count validator has been retired. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. The first three gates run in `--changed-only` mode and ignore preexisting drift; gate 4 scans the default targets across the repo because skill-name and script-path orphans are repo-state global, not per-PR. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
 
 If a gate flags an item that is genuinely out of scope for this build, document the rationale in the session log and link to the follow-up issue. "I will fix it in review" is not an acceptable rationale.
 
@@ -64,34 +64,10 @@ If a gate flags an item that is genuinely out of scope for this build, document 
 - Atomic commits. Each commit is one logical change, rollback-safe.
 - No code without understanding the existing patterns first. Read memory via Serena when available; fall back to filesystem `Grep`/`Read` if Serena is not present. Read canonical source before writing code that touches it.
 - Before modifying an existing system (changing behavior of a validator, hook, ADR constraint,
-  or shared infrastructure component), invoke Skill(skill="memory-gate") to surface the "why"
+  or shared infrastructure component), invoke `skill: "memory-gate"` to surface the "why"
   behind the existing design. This is a soft BLOCKING check: if the gate returns findings, address
   or explicitly acknowledge them in the session log before proceeding.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Three similar lines beat a premature abstraction.
 - Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-skill calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Skill(skill="code-qualities-assessment")` | `skill` tool, `skill: "code-qualities-assessment"` |
-| `Skill(skill="doc-accuracy")` | `skill` tool, `skill: "doc-accuracy"` |
-| `Skill(skill="memory-gate")` | `skill` tool, `skill: "memory-gate"` |
-| `Skill(skill="orphan-ref-validator")` | `skill` tool, `skill: "orphan-ref-validator"` |
-| `Skill(skill="pre-mortem")` | `skill` tool, `skill: "pre-mortem"` |
-| `Skill(skill="taste-lints")` | `skill` tool, `skill: "taste-lints"` |
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="analyst")` | `task` tool, `agent_type: "project-toolkit:analyst"` |
-| `Task(subagent_type="implementer")` | `task` tool, `agent_type: "project-toolkit:implementer"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

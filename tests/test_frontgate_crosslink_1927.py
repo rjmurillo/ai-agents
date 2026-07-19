@@ -120,10 +120,10 @@ def test_plan_source_and_mirror_agree() -> None:
     # Issue #2743: the Copilot mirror is a TRANSLATION of the Claude source, not a
     # byte copy. The bare `@CLAUDE.md` include becomes a plugin-tree note,
     # `$ARGUMENTS` becomes a conversation instruction, and inline Skill()/Task()
-    # calls gain an appended invocation reference. The #1927 cross-link contract
-    # still holds: applying the production translation to the source body must
-    # reproduce the committed mirror body. Coupling the test to the real
-    # translation keeps a single source of truth for the contract.
+    # calls become Copilot `skill:`/`agent_type:` tool-input spans in place. The
+    # #1927 cross-link contract still holds: applying the production translation
+    # to the source body must reproduce the committed mirror body. Coupling the
+    # test to the real translation keeps a single source of truth for the contract.
     import sys
 
     build_scripts = str(REPO_ROOT / "build" / "scripts")

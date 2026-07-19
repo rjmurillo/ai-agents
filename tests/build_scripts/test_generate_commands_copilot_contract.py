@@ -115,34 +115,41 @@ def test_markdown_include_line_still_replaced(tmp_path: Path) -> None:
     assert "load via the plugin instructions tree" in out
 
 
-def test_skill_call_mapped_in_appendix(tmp_path: Path) -> None:
-    """Every inline Skill() call gets a `skill` tool row in the appendix."""
+def test_skill_call_translated_inline(tmp_path: Path) -> None:
+    """Every inline Skill() call becomes its Copilot `skill:` tool-input span."""
     out = copilot_body_translation.translate_body(_CLAUDE_BODY, tmp_path)
-    assert "## Copilot CLI invocation reference" in out
-    assert '| `Skill(skill="chestertons-fence")` | `skill` tool, ' in out
-    # Negative control: a body with no Skill/Task calls gets no appendix.
-    plain = copilot_body_translation.translate_body("No calls here.\n", tmp_path)
-    assert "Copilot CLI invocation reference" not in plain
+    assert '`skill: "chestertons-fence"`' in out
+    assert 'Skill(skill=' not in out
+    # The structural rework (#2743) drops the appended reference section.
+    assert "## Copilot CLI invocation reference" not in out
+    # Negative control: the raw body still carries the untranslated call.
+    assert 'Skill(skill="chestertons-fence")' in _CLAUDE_BODY
 
 
-def test_task_call_mapped_with_plugin_namespace(tmp_path: Path) -> None:
-    """Task() maps to the `task` tool with the plugin-namespaced agent_type."""
+def test_task_call_translated_with_plugin_namespace(tmp_path: Path) -> None:
+    """Task() becomes the plugin-namespaced `agent_type:` tool-input span."""
     out = copilot_body_translation.translate_body(_CLAUDE_BODY, tmp_path)
-    assert (
-        '| `Task(subagent_type="critic")` | `task` tool, '
-        '`agent_type: "project-toolkit:critic"` |' in out
-    )
+    assert '`agent_type: "project-toolkit:critic"`' in out
+    assert "Task(subagent_type=" not in out
+    # Negative control: the raw body still carries the untranslated call.
+    assert 'Task(subagent_type="critic")' in _CLAUDE_BODY
 
 
-def test_inline_calls_preserved_for_parity(tmp_path: Path) -> None:
-    """Inline Skill()/Task() syntax stays in the body (parity blocks intact).
+def test_inline_calls_translated_not_preserved(tmp_path: Path) -> None:
+    """Calls are rewritten in place, not preserved (structural rework, #2743).
 
-    The Step 0 / Step 9 byte-identity tests require the inline calls to match
-    the Claude source. The appendix is additive, not a rewrite.
+    The earlier design kept raw Skill()/Task() syntax in the body and appended
+    a reference table to protect the Step 0 / Step 9 byte-parity tests. The
+    rework translates each call where it sits, and those parity tests now apply
+    the same translation to the source block before comparing, so no raw
+    Claude call syntax ships in the Copilot mirror.
     """
     out = copilot_body_translation.translate_body(_CLAUDE_BODY, tmp_path)
-    assert 'Skill(skill="chestertons-fence")' in out
-    assert 'Task(subagent_type="critic")' in out
+    assert 'Skill(skill="chestertons-fence")' not in out
+    assert 'Task(subagent_type="critic")' not in out
+    # Negative control: the raw body still carries both calls.
+    assert 'Skill(skill="chestertons-fence")' in _CLAUDE_BODY
+    assert 'Task(subagent_type="critic")' in _CLAUDE_BODY
 
 
 def test_plugin_name_read_from_manifest(tmp_path: Path) -> None:
@@ -193,7 +200,8 @@ def test_translate_skill_file_preserves_frontmatter(tmp_path: Path) -> None:
     out = copilot_body_translation.translate_skill_file(content, tmp_path)
     assert out.startswith("---\nname: demo\ndescription: A demo skill.\n---\n")
     assert "$ARGUMENTS" not in out
-    assert "## Copilot CLI invocation reference" in out
+    assert '`agent_type: "project-toolkit:critic"`' in out
+    assert "## Copilot CLI invocation reference" not in out
 
 
 def test_translate_skill_file_preserves_crlf_frontmatter(tmp_path: Path) -> None:
@@ -208,7 +216,8 @@ def test_translate_skill_file_preserves_crlf_frontmatter(tmp_path: Path) -> None
     out = copilot_body_translation.translate_skill_file(content, tmp_path)
     assert out.startswith("---\r\nname: demo\r\ndescription: A demo skill.\r\n---\r\n")
     assert "$ARGUMENTS" not in out
-    assert "## Copilot CLI invocation reference" in out
+    assert '`agent_type: "project-toolkit:critic"`' in out
+    assert "## Copilot CLI invocation reference" not in out
 
 
 def test_translate_skill_file_matches_call_with_extra_args(tmp_path: Path) -> None:
@@ -216,14 +225,36 @@ def test_translate_skill_file_matches_call_with_extra_args(tmp_path: Path) -> No
     body = 'Task(subagent_type="architect", prompt="Create ADR")\n'
     out = copilot_body_translation.translate_body(body, tmp_path)
     assert '`agent_type: "project-toolkit:architect"`' in out
+    assert 'with prompt "Create ADR"' in out
+    assert "Task(subagent_type=" not in out
+
+
+def test_prompt_value_with_escaped_quotes_not_truncated(tmp_path: Path) -> None:
+    """A prompt value containing same-type escaped quotes must survive whole.
+
+    Regression for the lazy `.*?` extraction that stopped at the first escaped
+    quote, silently truncating the rendered prompt. The value carries two
+    escaped double-quotes inside a double-quoted argument.
+    """
+    body = 'Task(subagent_type="critic", prompt="Write \\"ADR-099\\" now")\n'
+    out = copilot_body_translation.translate_body(body, tmp_path)
+    assert 'with prompt "Write \\"ADR-099\\" now"' in out
+    assert "Task(subagent_type=" not in out
+    # Negative control: the buggy lazy `.*?` extraction truncated the value at
+    # the first escaped quote, dropping everything after it. Prove the tail of
+    # the prompt (which only exists past that escaped quote) survived.
+    assert "ADR-099" in out
+    assert "now" in out
 
 
 def test_inline_calls_allow_spaces_and_single_quotes(tmp_path: Path) -> None:
-    """Formatted Skill()/Task() calls still appear in the appendix."""
+    """Formatted Skill()/Task() calls (spaces, single quotes) still translate."""
     body = "Skill( skill = 'memory')\nTask( subagent_type = 'critic')\n"
     out = copilot_body_translation.translate_body(body, tmp_path)
-    assert '| `Skill(skill="memory")` | `skill` tool, `skill: "memory"` |' in out
+    assert '`skill: "memory"`' in out
     assert '`agent_type: "project-toolkit:critic"`' in out
+    assert "Skill(" not in out
+    assert "Task(" not in out
 
 
 # Committed-artifact gate ----------------------------------------------------
@@ -300,15 +331,24 @@ def test_committed_skills_have_no_bare_claude_include() -> None:
     assert not offenders, f"bare @CLAUDE.md include present in: {offenders}"
 
 
-def test_committed_skills_with_calls_have_appendix() -> None:
-    """Any shipped Copilot skill with inline Skill()/Task() carries the appendix."""
-    missing = [
+def test_committed_skills_have_no_untranslated_calls() -> None:
+    """A shipped Copilot skill body must be a fixed point of translation.
+
+    Re-translating an already-translated body is a no-op. A substring check for
+    the exact `Skill(skill="` / `Task(subagent_type=` forms misses calls in any
+    other formatting the translator supports (extra spaces, single quotes).
+    Re-running the translator catches every residual translatable call: if one
+    survived, translation would rewrite the body and it would differ. Prose
+    mentions such as `Skill(...)` carry no valid argument, render to nothing, and
+    are left unchanged, so they do not trip this gate.
+    """
+    offenders = [
         name
         for name, body in _committed_bodies()
-        if ('Skill(skill="' in body or "Task(subagent_type=" in body)
-        and "## Copilot CLI invocation reference" not in body
+        if copilot_body_translation.translate_skill_file(body, _COPILOT_SKILLS)
+        != body
     ]
-    assert not missing, f"invocation appendix missing in: {missing}"
+    assert not offenders, f"untranslated Claude call present in: {offenders}"
 
 
 def test_gated_skill_mirrors_are_committed() -> None:
