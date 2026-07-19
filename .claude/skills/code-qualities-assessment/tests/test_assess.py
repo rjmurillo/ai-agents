@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ assess_file = _mod.assess_file
 check_thresholds = _mod.check_thresholds
 detect_language = _mod.detect_language
 get_files_to_assess = _mod.get_files_to_assess
+classify_file_category = _mod.classify_file_category
 generate_json_report = _mod.generate_json_report
 generate_markdown_report = _mod.generate_markdown_report
 load_config = _mod.load_config
@@ -43,6 +45,16 @@ def _write(tmp_path: Path, name: str, body: str) -> Path:
     path = tmp_path / name
     path.write_text(body, encoding="utf-8")
     return path
+
+
+def _run_git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+    )
 
 
 def _default_config() -> dict[str, Any]:
@@ -134,9 +146,7 @@ def test_cohesion_god_object_lower_than_focused(tmp_path: Path) -> None:
     focused = _write(
         tmp_path,
         "focused.py",
-        "class Focused:\n"
-        "    def a(self):\n        return 1\n"
-        "    def b(self):\n        return 2\n",
+        "class Focused:\n    def a(self):\n        return 1\n    def b(self):\n        return 2\n",
     )
     god_methods = "".join(
         f"    def m{i}(self):\n        x = {i}\n        return x\n" for i in range(40)
@@ -167,7 +177,7 @@ def test_testability_not_constant_across_languages(tmp_path: Path) -> None:
         "Dirty.cs",
         "public class Dirty {\n"
         "    private static int _counter = 0;\n"
-        "    public static string Cache = \"x\";\n"
+        '    public static string Cache = "x";\n'
         "    public int Next() => _counter++;\n"
         "}\n",
     )
@@ -354,15 +364,7 @@ def test_gate_fails_tightly_coupled_file(tmp_path: Path) -> None:
 def test_go_import_block_not_overcounted(tmp_path: Path) -> None:
     """A Go ``import ( ... )`` block must count only the specs inside it, not
     the block opener. A 3-import block is 3 imports (coupling 7), not 4."""
-    body = (
-        "package main\n\n"
-        "import (\n"
-        '    "fmt"\n'
-        '    "os"\n'
-        '    "strings"\n'
-        ")\n\n"
-        "func main() {}\n"
-    )
+    body = 'package main\n\nimport (\n    "fmt"\n    "os"\n    "strings"\n)\n\nfunc main() {}\n'
     path = _write(tmp_path, "main.go", body)
     coupling = assess_file(path, "production", False).coupling
     # 10 - 3 imports == 7; the block opener must not add a fourth.
@@ -427,14 +429,90 @@ def test_directory_scan_includes_all_supported_suffixes(tmp_path: Path) -> None:
     assert {"a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"} <= found
 
 
+def test_changed_only_uses_base_for_clean_committed_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _run_git(tmp_path, "init")
+    _run_git(tmp_path, "checkout", "-b", "main")
+    _run_git(tmp_path, "config", "user.email", "test@example.com")
+    _run_git(tmp_path, "config", "user.name", "Test")
+    _write(tmp_path, "base.py", "def base():\n    return 1\n")
+    _run_git(tmp_path, "add", "base.py")
+    _run_git(tmp_path, "commit", "-m", "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    changed = _write(tmp_path, "changed.py", "def changed():\n    return 2\n")
+    _run_git(tmp_path, "add", "changed.py")
+    _run_git(tmp_path, "commit", "-m", "feature")
+    monkeypatch.chdir(tmp_path)
+
+    assert get_files_to_assess(".", True, "main") == [Path("changed.py")]
+    assert changed.exists()
+
+
+def test_changed_only_rejects_option_like_base() -> None:
+    """CWE-88: an option-like --base is rejected before git runs."""
+    with pytest.raises(ValueError):
+        get_files_to_assess(".", True, "--output=/tmp/should_not_be_written")
+
+
+def test_changed_only_passes_end_of_options_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CWE-88: the git invocation pins --end-of-options before the range."""
+    captured: dict[str, list[str]] = {}
+
+    class _Result:
+        stdout = ""
+
+    def _fake_run(cmd: list[str], **_kwargs: Any) -> _Result:
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+    get_files_to_assess(".", True, "origin/main")
+    cmd = captured["cmd"]
+    assert "--end-of-options" in cmd
+    assert cmd.index("--end-of-options") < cmd.index("origin/main...HEAD")
+
+
+def test_generated_matcher_shim_is_classified_as_generated(tmp_path: Path) -> None:
+    generated = _write(
+        tmp_path,
+        "invoke_guard__Bash_123.py",
+        "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n# END MATCHER SHIM\n",
+    )
+
+    assert classify_file_category(generated) == "generated"
+
+
+def test_generated_assessment_is_unscored(tmp_path: Path) -> None:
+    generated = _write(
+        tmp_path,
+        "invoke_guard__Bash_123.py",
+        "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\ndef generated():\n    return 1\n",
+    )
+
+    assessment = assess_file(generated, "production", False)
+
+    assert assessment.category == "generated"
+    assert all(
+        score.confidence == 0.0
+        for score in (
+            assessment.cohesion,
+            assessment.coupling,
+            assessment.encapsulation,
+            assessment.testability,
+            assessment.non_redundancy,
+        )
+    )
+
+
 def test_template_qualityrc_uses_coupling_min(tmp_path: Path) -> None:
     """The shipped template config must use coupling.min (matching
     check_thresholds), not the legacy coupling.max that disabled the gate."""
     import json
 
-    template = (
-        Path(__file__).parent.parent / "templates" / ".qualityrc.json"
-    )
+    template = Path(__file__).parent.parent / "templates" / ".qualityrc.json"
     config = json.loads(template.read_text(encoding="utf-8"))
     coupling = config["thresholds"]["coupling"]
     assert "min" in coupling
@@ -524,13 +602,7 @@ def test_go_indented_local_var_block_not_counted_as_global_state(tmp_path: Path)
     path = _write(
         tmp_path,
         "local.go",
-        "package main\n\n"
-        "func main() {\n"
-        "    var (\n"
-        "        local int\n"
-        "    )\n"
-        "    _ = local\n"
-        "}\n",
+        "package main\n\nfunc main() {\n    var (\n        local int\n    )\n    _ = local\n}\n",
     )
 
     testability = assess_file(path, "production", False).testability
@@ -739,3 +811,68 @@ def test_load_config_reads_utf8_json(tmp_path: Path) -> None:
     config = load_config(str(config_path))
 
     assert config["label"] == "café"
+
+
+def test_marker_below_header_window_is_authored(tmp_path: Path) -> None:
+    # A generated marker string that appears only deep in the body (past the
+    # header window) must NOT reclassify an authored file as generated.
+    body = "\n".join(f"# line {n}" for n in range(30))
+    body += '\n_MARKERS = ("DO NOT EDIT BY HAND - regenerated",)\n'
+    authored = _write(tmp_path, "generator_like.py", body)
+
+    assert classify_file_category(authored) == "authored"
+
+
+def test_marker_in_header_window_is_generated(tmp_path: Path) -> None:
+    generated = _write(
+        tmp_path,
+        "shim.py",
+        "#!/usr/bin/env python3\n# GENERATED -- DO NOT EDIT\n\ndef x():\n    return 1\n",
+    )
+
+    assert classify_file_category(generated) == "generated"
+
+
+def test_github_instructions_path_is_generated(tmp_path: Path) -> None:
+    # .github/instructions/*.instructions.md are generated mirrors of
+    # .claude/rules/* and carry no in-file markers; classify by path.
+    path = tmp_path / ".github" / "instructions" / "universal.instructions.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("# Universal Rules\n", encoding="utf-8")
+
+    assert classify_file_category(path) == "generated"
+
+
+def test_classify_ignores_checkout_path_segments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Regression: a clone whose checkout directory itself contains a generated
+    # segment (e.g. .../src/copilot-cli/...) must not misclassify authored files
+    # as generated. classify uses CWD-relative parts, so the checkout prefix is
+    # stripped before the segment scan.
+    checkout = tmp_path / "src" / "copilot-cli" / "clone"
+    pkg = checkout / "pkg"
+    pkg.mkdir(parents=True)
+    authored = pkg / "module.py"
+    authored.write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.chdir(checkout)
+
+    # Absolute path under the checkout: relative parts are pkg/module.py.
+    assert classify_file_category(authored) == "authored"
+    # A genuinely repo-relative generated path is still caught.
+    assert classify_file_category(Path("src") / "copilot-cli" / "skill.py") == "generated"
+    # A non-UTF-8 file read with content=None must not raise UnicodeDecodeError;
+    # unreadable content classifies as authored (no markers detectable).
+    binary = tmp_path / "blob.py"
+    binary.write_bytes(b"\xff\xfe\x00\x01 not valid utf-8 \x80\x81")
+
+    assert classify_file_category(binary) == "authored"
+
+
+def test_assess_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
+    binary = tmp_path / "blob.py"
+    binary.write_bytes(b"\xff\xfe\x00\x01 not valid utf-8 \x80\x81")
+
+    assessment = assess_file(binary, "production", False)
+
+    assert assessment.category in {"authored", "test"}
