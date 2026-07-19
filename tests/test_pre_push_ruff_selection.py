@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_PRE_PUSH = Path(__file__).resolve().parents[1] / ".githooks" / "pre-push"
+_PRE_PUSH = Path(__file__).resolve().parents[1] / "scripts" / "hooks" / "pre-push"
 
 
 def _ruff_section() -> str:

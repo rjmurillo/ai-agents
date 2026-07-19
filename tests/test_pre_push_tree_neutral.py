@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_PUSH = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 
 # Import the Stop hook to read the canonical sentinel constant so the two
 # files cannot drift (the bash hook writes what the Python hook reads).
