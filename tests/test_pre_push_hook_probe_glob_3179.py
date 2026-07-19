@@ -69,3 +69,25 @@ def test_existing_smoke_triggers_are_preserved() -> None:
     plugin_ere = _extract_glob("CHANGED_PLUGIN_LOAD")
     assert re.match(hooks_ere, "tests/e2e/test_cli_hook_e2e.py")
     assert re.match(plugin_ere, "tests/e2e/test_plugin_load_smoke.py")
+
+
+def test_hook_infrastructure_paths_match_changed_hooks_glob() -> None:
+    """Lefthook migration: scripts/hooks/ and lefthook.yml must trigger smokes.
+
+    After the Lefthook migration, hook payloads live in scripts/hooks/ and
+    scheduling is controlled by lefthook.yml. Changes to these files alter the
+    enforcement surface the CHANGED_HOOKS glob protects.
+    """
+    ere = _extract_glob("CHANGED_HOOKS")
+    assert re.match(ere, "scripts/hooks/pre-push"), (
+        "scripts/hooks/pre-push must match CHANGED_HOOKS"
+    )
+    assert re.match(ere, "scripts/hooks/pre-commit"), (
+        "scripts/hooks/pre-commit must match CHANGED_HOOKS"
+    )
+    assert re.match(ere, "scripts/hooks/commit-msg"), (
+        "scripts/hooks/commit-msg must match CHANGED_HOOKS"
+    )
+    assert re.match(ere, "lefthook.yml"), (
+        "lefthook.yml must match CHANGED_HOOKS"
+    )

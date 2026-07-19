@@ -410,7 +410,7 @@ CHANGED_AGENT_DRIFT_INPUTS=$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+
 # A change to any forces the real-CLI e2e (resolution under the live contract).
 # copilot_hook_probe.py is the shared fired-hook probe imported by the CLI hook
 # e2e and the plugin-load smoke (#3179); editing it alone must retrigger both.
-CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\.py|src/copilot-cli/hooks/|\.claude/hooks/|\.claude/settings\.json|scripts/validation/validate_hook_anchoring\.py|tests/e2e/test_cli_hook_e2e\.py|tests/e2e/copilot_hook_probe\.py)' || true)
+CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\.py|src/copilot-cli/hooks/|\.claude/hooks/|\.claude/settings\.json|scripts/validation/validate_hook_anchoring\.py|tests/e2e/test_cli_hook_e2e\.py|tests/e2e/copilot_hook_probe\.py|scripts/hooks/|lefthook\.yml)' || true)
 # Plugin-load relevant paths (#2736): sources, generated skill mirrors, plugin
 # manifests, generators, and the smoke itself. A change to any forces the real
 # CLI plugin-load smoke when a CLI is available. copilot_hook_probe.py is the
