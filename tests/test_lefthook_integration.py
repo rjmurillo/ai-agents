@@ -10,6 +10,24 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
+ACTIVE_REFERENCE_ROOTS = (
+    "README.md",
+    "CONTRIBUTING.md",
+    ".config",
+    "scripts",
+    ".github",
+    "docs",
+    "templates",
+    "build",
+    ".claude",
+    "src/claude",
+    "src/copilot-cli",
+    "src/vs-code-agents",
+)
+HISTORICAL_REFERENCE_PREFIXES = (
+    ".claude/skills/ai-agents-failure-archaeology/references/",
+    "src/copilot-cli/skills/ai-agents-failure-archaeology/references/",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -62,6 +80,26 @@ def _copy_config(repo: Path) -> None:
     shutil.copy2(PROJECT_ROOT / "lefthook.yml", repo / "lefthook.yml")
 
 
+def _active_legacy_references() -> list[str]:
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z", "--", *ACTIVE_REFERENCE_ROOTS],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    failures: list[str] = []
+    for raw_path in tracked:
+        if not raw_path:
+            continue
+        relative = raw_path.decode("utf-8")
+        if relative.startswith(HISTORICAL_REFERENCE_PREFIXES):
+            continue
+        text = (PROJECT_ROOT / relative).read_text(encoding="utf-8", errors="replace")
+        if ".githooks" in text or "install_git_hooks.py" in text:
+            failures.append(relative)
+    return failures
+
+
 def test_configuration_is_thin() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
@@ -83,6 +121,13 @@ def test_configuration_is_thin() -> None:
             }
         },
     }
+
+
+def test_no_active_legacy_hook_manager_references() -> None:
+    assert not (PROJECT_ROOT / ".githooks").exists()
+    assert not (PROJECT_ROOT / "scripts" / "install_git_hooks.py").exists()
+    assert not (PROJECT_ROOT / "tests" / "test_install_git_hooks.py").exists()
+    assert _active_legacy_references() == []
 
 
 def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:

@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -e
-HOOK_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-exec "$HOOK_DIR/../scripts/hooks/pre-push" "$@"
