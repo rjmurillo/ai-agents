@@ -92,7 +92,7 @@ curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo ba
 
 ### Automatic Pre-Push Validation
 
-Workflow validation is **automatically integrated** into the pre-push hook at `.githooks/pre-push`.
+Workflow validation is **automatically integrated** into the pre-push hook at `scripts/hooks/pre-push`.
 
 When you push changes to workflow files (`.github/workflows/*.yml` or `.github/actions/*/action.yml`), the hook will:
 
@@ -103,7 +103,7 @@ When you push changes to workflow files (`.github/workflows/*.yml` or `.github/a
 To enable the hooks:
 
 ```bash
-git config core.hooksPath .githooks
+uv run --frozen lefthook install --reset-hooks-path
 ```
 
 The validation runs as **Phase 2, Check 8a** in the pre-push sequence, immediately after actionlint.

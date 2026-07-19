@@ -41,7 +41,7 @@ Thank you for your interest in contributing to this project. This guide explains
 3. **Install Python 3.14.x** (see Prerequisites above)
 4. **Set up Python environment**: `uv sync --frozen --extra dev` (creates `.venv` from `uv.lock` without re-resolving it). This matches the locked environment the pre-push gate and CI use. On managed containers, `scripts/bootstrap-vm.sh` runs this automatically.
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-6. Set up git hooks (pre-commit + pre-push): `python3 scripts/install_git_hooks.py` (idempotent: sets `core.hooksPath`, verifies the hooks are executable, and flags a stale `.git/hooks/pre-push` shim; the bare `git config core.hooksPath .githooks` also works)
+6. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
@@ -508,19 +508,18 @@ In rare cases (e.g., emergency hotfix), you may need to skip drift detection:
 Enable automated validation on commits:
 
 ```bash
-python3 scripts/install_git_hooks.py
+uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook check-install
 ```
 
-This points `core.hooksPath` at `.githooks`, verifies the hook scripts are
-executable, and warns about a legacy `.git/hooks/pre-push` shim that would
-otherwise shadow the canonical hook. Because `core.hooksPath` is stored in the
-shared `.git/config` as the relative path `.githooks`, every `git worktree`
-inherits it and runs its own checked-out hooks automatically; no per-worktree
-setup is needed. The equivalent one-liner is `git config core.hooksPath .githooks`.
+The reset option removes legacy `core.hooksPath` configuration before Lefthook
+installs shims under Git's hook directory. Linked worktrees share those shims
+through the common Git directory. Run the install command again after changing
+`lefthook.yml`.
 
-`pre_pr.py` runs `install_git_hooks.py --check` as a local gate, so a desynced
-`core.hooksPath` (for example, a clone left on an absolute `.git/hooks` path)
-is caught before push instead of silently bypassing the pre-push guards.
+`pre_pr.py` runs `lefthook check-install` as a local gate. It verifies that the
+pinned binary, `lefthook.yml`, and installed shims are available. CI skips this
+local-clone check because workflows invoke validation directly.
 
 The pre-commit hook automatically runs checks including, depending on staged files:
 
@@ -529,7 +528,7 @@ The pre-commit hook automatically runs checks including, depending on staged fil
 - **actionlint**: Validates GitHub Actions workflow files (`.github/workflows/*.yml`) when they are staged.
 - **yamllint**: Validates general YAML files when they are staged.
 
-Refer to `.githooks/pre-commit` for the authoritative, up-to-date list of all checks.
+Refer to `scripts/hooks/pre-commit` for the authoritative, up-to-date list of all checks.
 
 ## Pre-Push Hooks
 
@@ -546,14 +545,7 @@ The pre-push hook runs comprehensive branch-wide validation before each push. Un
 | **Security** | Suppression comment detection, session log validation | Yes |
 | **Governance** | Planning artifacts, ADR review reminder | Warn only |
 
-**Environment variables:**
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `SKIP_PREPUSH` | 0 | Set to 1 to bypass all checks (emergency only) |
-| `SKIP_TESTS` | 0 | Skip pytest (for documentation-only pushes) |
-
-Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all checks.
+Refer to `scripts/hooks/pre-push` for the authoritative, up-to-date list of all checks.
 
 ## Lifecycle Hooks (Claude Code)
 
@@ -1160,9 +1152,9 @@ os.path.join(base, user_input)
 
 Always include a justification comment explaining why the suppression is safe. Suppressions without justification will be flagged during code review.
 
-### Bypassing the Security Scan
+### Resolving Security Scan Findings
 
-Use `git push --no-verify` to bypass all pre-push checks, including the security scan. Document the justification in the PR description when bypassing.
+Fix reported findings before pushing. For a verified false positive, use the scanner's scoped suppression format with a justification and obtain security review.
 
 ## Questions?
 

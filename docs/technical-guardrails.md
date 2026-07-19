@@ -20,7 +20,7 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 
 #### Session End Validation (BLOCKING)
 
-**Location**: `.githooks/pre-commit` (lines 430-491)
+**Location**: `scripts/hooks/pre-commit` (lines 430-491)
 
 **When**: Any `.agents/` files are staged
 
@@ -30,11 +30,11 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 - Session log must be staged
 - Session log must pass `validate_session_json.py`
 
-**Bypass**: `git commit --no-verify` (use sparingly, logged)
+**Bypass**: None
 
 #### Skill Violation Detection (WARNING)
 
-**Location**: `.githooks/pre-commit` (lines 493-511)
+**Location**: `scripts/hooks/pre-commit` (lines 493-511)
 
 **Script**: `scripts/detect_skill_violation.py`
 
@@ -51,7 +51,7 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 
 #### Test Coverage Detection (WARNING)
 
-**Location**: `.githooks/pre-commit` (lines 513-533)
+**Location**: `scripts/hooks/pre-commit` (lines 513-533)
 
 **Script**: `scripts/Detect-TestCoverageGaps.ps1`
 
@@ -205,10 +205,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 3. Commit: `git commit -m "feat: description"`
 4. Pre-commit hooks run automatically
 
-If hooks fail:
-
-- Fix the issue (preferred)
-- Or bypass with `git commit --no-verify` (logged)
+If hooks fail, fix the reported issue and retry the commit.
 
 #### Before Creating PR
 
@@ -317,10 +314,11 @@ uv run pytest tests/ -k stale_script_ref -q
 
 **Symptom**: Changes commit without validation
 
-**Solution**: Set git hooks path
+**Solution**: Reinstall and verify Lefthook
 
 ```bash
-git config core.hooksPath .githooks
+uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook check-install
 ```
 
 ### PowerShell Not Found
