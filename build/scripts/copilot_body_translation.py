@@ -56,9 +56,14 @@ _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 # found by a quote-aware balanced scan (a `prompt="..."` argument can contain
 # parens), so this only anchors the opener.
 _CALL_START_RE = re.compile(r"(Skill|Task)\(")
-_SKILL_NAME_RE = re.compile(r"skill\s*=\s*(['\"])(?P<value>.*?)\1", re.DOTALL)
-_TASK_NAME_RE = re.compile(r"subagent_type\s*=\s*(['\"])(?P<value>.*?)\1", re.DOTALL)
-_PROMPT_ARG_RE = re.compile(r"prompt\s*=\s*(['\"])(?P<value>.*?)\1", re.DOTALL)
+# Extract quoted argument values, escape-aware: a value may contain an escaped
+# quote of the same type (`prompt="say \"hi\""`). Matches non-quote/non-backslash
+# runs and `\.` escapes, mirroring the backslash handling in _find_matching_paren
+# so value extraction never truncates at an escaped quote.
+_QUOTED_VALUE = r"(?P<q>['\"])(?P<value>(?:(?!(?P=q))[^\\]|\\.)*)(?P=q)"
+_SKILL_NAME_RE = re.compile(r"skill\s*=\s*" + _QUOTED_VALUE, re.DOTALL)
+_TASK_NAME_RE = re.compile(r"subagent_type\s*=\s*" + _QUOTED_VALUE, re.DOTALL)
+_PROMPT_ARG_RE = re.compile(r"prompt\s*=\s*" + _QUOTED_VALUE, re.DOTALL)
 
 
 def resolve_plugin_name(skills_output_dir: Path) -> str:

@@ -229,6 +229,24 @@ def test_translate_skill_file_matches_call_with_extra_args(tmp_path: Path) -> No
     assert "Task(subagent_type=" not in out
 
 
+def test_prompt_value_with_escaped_quotes_not_truncated(tmp_path: Path) -> None:
+    """A prompt value containing same-type escaped quotes must survive whole.
+
+    Regression for the lazy `.*?` extraction that stopped at the first escaped
+    quote, silently truncating the rendered prompt. The value carries two
+    escaped double-quotes inside a double-quoted argument.
+    """
+    body = 'Task(subagent_type="critic", prompt="Write \\"ADR-099\\" now")\n'
+    out = copilot_body_translation.translate_body(body, tmp_path)
+    assert 'with prompt "Write \\"ADR-099\\" now"' in out
+    assert "Task(subagent_type=" not in out
+    # Negative control: the buggy lazy `.*?` extraction truncated the value at
+    # the first escaped quote, dropping everything after it. Prove the tail of
+    # the prompt (which only exists past that escaped quote) survived.
+    assert "ADR-099" in out
+    assert "now" in out
+
+
 def test_inline_calls_allow_spaces_and_single_quotes(tmp_path: Path) -> None:
     """Formatted Skill()/Task() calls (spaces, single quotes) still translate."""
     body = "Skill( skill = 'memory')\nTask( subagent_type = 'critic')\n"
