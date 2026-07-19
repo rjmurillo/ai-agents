@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-19-session-3194-retire-routing-gates",
+  "session": "2026-07-19-session-3194-retire-routing-gates",
+  "timestamp": "2026-07-19T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Execute issue #3194 (epic #3197 hook-ROI reduction): retire the structurally-dead invoke_routing_gates.py PreToolUse hook (ADR-033 Gates 2/3/4), remove its settings.json + hooks.json + dispatch_groups.json registrations and its Copilot shim, delete its two test files, repoint the agent-harness-reference doc, regenerate the Copilot mirror, and bump both plugin manifests. DEVIATION 1: retire rather than migrate the QA/critic/ADR evidence checks into new_pr.py/merge_pr.py (the issue's original proposal) because those skill scripts ship to customers; embedding ai-agents-internal evidence regexes would impose our workflow conventions on external repos (the same self-neutering failure the vendored hooks have). The three-gate advisory intent already lives in CI that does not ship to customers (pr-validation.yml QA report, ai-pr-quality-gate.yml 10-agent review). DEVIATION 2: the ADR-033 amendment #3194 calls for is deferred to a follow-up issue because it trips the adr-review governance gate, which requires the Task/subagent tool to run the 6-agent debate, and that tool is blocked (exit 2 from a harness-global preToolUse hook) in this Copilot CLI session. Fabricating review evidence or bypassing the gate is not acceptable.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed routing_gates from all three registration sources and deleted the hook",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deleted the two routing_gates test files and repointed the harness-reference doc",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot mirror after the hook removal",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped both project-toolkit plugin manifests and reverted the blocked ADR-033 amendment",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d967c2e8",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
