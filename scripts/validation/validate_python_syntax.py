@@ -2,8 +2,8 @@
 """Blocking gate: every tracked Python file must parse at the support floor.
 
 Root cause this prevents (issue #2655, regressed by PR #2640): code shipped to
-``main`` using ``except OSError, ValueError:`` in ``lsp_gate_state.py`` and
-``lsp_health.py``. This is PEP 758 syntax (unparenthesized ``except`` tuples),
+``main`` using ``except OSError, ValueError:`` (unparenthesized ``except``
+tuples). This is PEP 758 syntax,
 which Python 3.14 accepts but 3.13 and earlier reject as a ``SyntaxError``. The
 Copilot CLI runs plugin hooks under the host's ambient interpreter (``py -3`` /
 ``python3``); on a machine where that resolved to 3.13 the PreToolUse dispatcher

@@ -46,6 +46,91 @@ class GenerateHooksError(Exception):
     """Domain error for hook generation."""
 
 
+# Hook event names are a single alphanumeric component that starts with an
+# ASCII letter (``[A-Za-z][A-Za-z0-9]*``): the Claude-side PascalCase source
+# names (PreToolUse, PostToolUse, UserPromptSubmit, Notification, Stop,
+# SubagentStop, PreCompact, SessionStart, SessionEnd) and the Copilot-side
+# camelCase eventRemap targets (preToolUse, postToolUse, ...). Case is not
+# constrained by the allowlist; only the alphanumeric-single-component shape
+# is. A remapped event name (eventRemap value) is rendered into BOTH a
+# filesystem path (the on-disk target write) and a shell command string (the
+# emitted bash/powershell command). Anything other than a bare alphanumeric
+# component is a path-traversal vector (#3213, CWE-22) or a shell
+# command-injection vector (#3212, CWE-78).
+_EVENT_NAME_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+
+# Hook script names are Python module filenames, optionally carrying the
+# deterministic ``__<matcher>_<sha>`` disambiguation suffix. Allow only
+# ``[A-Za-z0-9._-]`` with a ``.py`` extension so no separator, ``..``
+# segment, whitespace, or shell metacharacter can reach the command string.
+_SCRIPT_NAME_RE = _re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*\.py$")
+
+
+def _validate_event_name(name: str) -> str:
+    """Return ``name`` when it is a safe single path component, else raise.
+
+    Guards the shared event-name value that flows into both the target
+    path and the rendered shell command (#3212, #3213).
+    """
+    if not _EVENT_NAME_RE.fullmatch(name):
+        raise GenerateHooksError(
+            "unsafe hook event name "
+            f"(must match {_EVENT_NAME_RE.pattern!r}): {name!r}"
+        )
+    return name
+
+
+def _validate_event_target(name: str) -> str:
+    """Validate a remapped *target* event, allowing the empty drop sentinel.
+
+    An empty ``eventRemap`` value means "drop this event"; it is handled by
+    the empty-target skip in the event loop and never reaches a path or a
+    command. Every non-empty target must be a safe event name (#3212, #3213).
+    """
+    if name == "":
+        return name
+    return _validate_event_name(name)
+
+
+def _validate_script_name(name: str) -> str:
+    """Return ``name`` when it is a safe ``.py`` basename, else raise.
+
+    Guards the script filename that flows into both the target path and
+    the rendered shell command (#3212, #3213).
+    """
+    if not _SCRIPT_NAME_RE.fullmatch(name):
+        raise GenerateHooksError(
+            "unsafe hook script name "
+            f"(must match {_SCRIPT_NAME_RE.pattern!r}): {name!r}"
+        )
+    return name
+
+
+# A matcher (settings.json "matcher") is a single-line glob, regex, or bare
+# tool name. It is embedded into the generated shim source. Both render sites
+# bind it via repr() so it stays inside a single Python literal, but a control
+# character (CR, LF, NUL, other C0/DEL) has no legitimate place in a matcher
+# and is rejected at the boundary so no injection vector reaches the shim
+# template in the first place (#3212 family, CWE-94).
+_MATCHER_CONTROL_RE = _re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _validate_matcher(matcher: str) -> str:
+    """Return ``matcher`` when it carries no control character, else raise.
+
+    Guards the matcher value embedded into the generated shim. A control
+    character is never valid in a single-line matcher and is a code-injection
+    vector into the shim source (CWE-94).
+    """
+    found = _MATCHER_CONTROL_RE.search(matcher)
+    if found is not None:
+        raise GenerateHooksError(
+            "unsafe hook matcher "
+            f"(contains control character {found.group()!r}): {matcher!r}"
+        )
+    return matcher
+
+
 @dataclass
 class HookAuditEntry:
     """One hook script's outcome, used by tests and audit."""
@@ -246,6 +331,36 @@ def _matcher_suffix(matcher: str | None) -> str:
     return digest
 
 
+def _require_within(target_root: Path, target: Path) -> Path:
+    """Return ``target`` only when it resolves under ``target_root``.
+
+    Mirrors the source-side :func:`_resolve_script_candidate` guard for the
+    write side: a remapped event name or crafted script name must never place
+    a generated file outside ``outputScripts`` (#3213, CWE-22). ``resolve``
+    collapses ``..`` segments and follows symlinks on both operands, so a
+    ``..`` traversal, an absolute-path leaf, or a symlinked component *below*
+    the root that escapes is rejected.
+
+    Trust boundary (PR #3225 review): ``target_root`` (the configured
+    ``outputScripts`` dir) is build-authored config joined to the repo root,
+    not attacker-controlled input. Both operands resolve through the same
+    root, so a legitimately symlinked root (for example ``/tmp`` ->
+    ``/private/tmp`` on macOS, which pytest's ``tmp_path`` uses) is
+    intentionally accepted. Rejecting a symlinked root would break those
+    checkouts while only defending against an actor who can already write a
+    symlink into the build output tree, a strictly greater capability than the
+    crafted-name threat this guard addresses.
+    """
+    resolved_base = target_root.resolve()
+    try:
+        target.resolve().relative_to(resolved_base)
+    except ValueError as exc:
+        raise GenerateHooksError(
+            f"hook target path escapes outputScripts: {target}"
+        ) from exc
+    return target
+
+
 def _relative_script_target(
     target_root: Path,
     target_event: str,
@@ -253,12 +368,18 @@ def _relative_script_target(
     *,
     matcher: str | None = None,
 ) -> Path:
+    _validate_event_name(target_event)
+    _validate_script_name(script_name)
     if matcher:
         suffix = _matcher_suffix(matcher)
         if suffix and script_name.endswith(".py"):
             stem = script_name[: -len(".py")]
-            return target_root / target_event / f"{stem}__{suffix}.py"
-    return target_root / target_event / script_name
+            target = target_root / target_event / f"{stem}__{suffix}.py"
+        else:
+            target = target_root / target_event / script_name
+    else:
+        target = target_root / target_event / script_name
+    return _require_within(target_root, target)
 
 
 def _ensure_exact_case_dir(directory: Path) -> None:
@@ -317,6 +438,8 @@ def _copy_script(
     reason = regen_detect_reason(target)
     if reason is not None:
         return False, f"NO-REGEN: {reason}"
+    if matcher:
+        _validate_matcher(matcher)
     if what_if:
         return True, ""
     _ensure_exact_case_dir(target.parent)
@@ -369,7 +492,7 @@ def _build_copilot_entry(
     in Windows PowerShell 5.1 and PowerShell 7+) provides the same
     fallback.
     """
-    rel = f"hooks/{target_event}/{script_name}"
+    rel = f"hooks/{_validate_event_name(target_event)}/{_validate_script_name(script_name)}"
     bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
     powershell_root = (
         "$(if ($env:COPILOT_PLUGIN_ROOT) "

@@ -37,6 +37,11 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
 
 # Reuse the single frontmatter parser rather than hand-rolling a second one.
+# ``skill_frontmatter`` imports ``scripts.validation.models`` (absolute), so the
+# repo root must be importable even when this runs as a plain script, not only
+# via ``python -m`` or from pre-commit's repo-root cwd (Issue #3073).
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_SCRIPT_DIR))
 from skill_frontmatter import parse_frontmatter  # noqa: E402  (path set above)
 

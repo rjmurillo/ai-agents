@@ -27,53 +27,11 @@ import scripts.ai_review_common.cache_guard as cache_guard
 import scripts.error_classification as error_classification
 import scripts.pr_branch_mapping as pr_branch_mapping
 import scripts.update_reviewer_signal_stats as urss
-from scripts.hook_utilities import lsp_gate_state
 
 
 def _tmp_files(directory: Path) -> list[Path]:
     """Return leftover atomic-write scratch files in ``directory``."""
     return list(directory.glob("*.tmp"))
-
-
-# ---------------------------------------------------------------------------
-# lsp_gate_state.write_state
-# ---------------------------------------------------------------------------
-class TestLspGateStateWriteState:
-    def test_positive_roundtrips_state(self, tmp_path, monkeypatch):
-        state_file = tmp_path / "gate.json"
-        monkeypatch.setattr(lsp_gate_state, "state_path", lambda cwd: state_file)
-
-        assert lsp_gate_state.write_state("/some/cwd", {"nav_count": 3}) is True
-        loaded = lsp_gate_state.read_state("/some/cwd")
-        assert loaded["nav_count"] == 3
-        assert _tmp_files(tmp_path) == []
-
-    def test_negative_replace_failure_returns_false_and_preserves_prior(
-        self, tmp_path, monkeypatch
-    ):
-        state_file = tmp_path / "gate.json"
-        monkeypatch.setattr(lsp_gate_state, "state_path", lambda cwd: state_file)
-        lsp_gate_state.write_state("/cwd", {"nav_count": 1})
-        prior = state_file.read_text(encoding="utf-8")
-
-        def boom(_src, _dst):
-            raise OSError("disk full")
-
-        monkeypatch.setattr(lsp_gate_state.os, "replace", boom)
-        assert lsp_gate_state.write_state("/cwd", {"nav_count": 99}) is False
-        assert state_file.read_text(encoding="utf-8") == prior
-
-    def test_edge_no_temp_file_left_after_replace_failure(self, tmp_path, monkeypatch):
-        state_file = tmp_path / "gate.json"
-        monkeypatch.setattr(lsp_gate_state, "state_path", lambda cwd: state_file)
-
-        monkeypatch.setattr(
-            lsp_gate_state.os,
-            "replace",
-            lambda _s, _d: (_ for _ in ()).throw(OSError("x")),
-        )
-        lsp_gate_state.write_state("/cwd", {"nav_count": 5})
-        assert _tmp_files(tmp_path) == []
 
 
 # ---------------------------------------------------------------------------

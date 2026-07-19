@@ -37,17 +37,6 @@
         ]
       },
       {
-        "matcher": "Bash([gG][rR][eE][pP] *|[rR][gG] *|[aA][gG] *|[aA][cC][kK] *|*[ ][gG][rR][eE][pP][ ]*|*[ ][rR][gG][ ]*|*[ ][aA][gG][ ]*|*[ ][aA][cC][kK][ ]*|*\\[gG][rR][eE][pP].exe *|*\\[rR][gG].exe *|*\\[aA][gG].exe *|*\\[aA][cC][kK].exe *|*/[gG][rR][eE][pP] *|*/[rR][gG] *|*/[aA][gG] *|*/[aA][cC][kK] *)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
-            "timeout": 5,
-            "statusMessage": "Enforcing LSP-first over bash grep on code symbols (ADR-062, conditional)"
-          }
-        ]
-      },
-      {
         "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
         "hooks": [
           {
@@ -76,61 +65,6 @@
             "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-2-branch_context_guard",
             "timeout": 300,
             "statusMessage": "Running pretooluse-2-branch_context_guard hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Grep",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_grep_guard.py",
-            "timeout": 5,
-            "statusMessage": "Enforcing LSP-first over Grep on code symbols (ADR-062, conditional)"
-          }
-        ]
-      },
-      {
-        "matcher": "Glob",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_glob_guard.py",
-            "timeout": 5,
-            "statusMessage": "Enforcing LSP-first over symbol-shaped Glob (ADR-062, conditional)"
-          }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_read_guard.py",
-            "timeout": 5,
-            "statusMessage": "Enforcing LSP-first navigation before code Read (ADR-062, graduated)"
-          }
-        ]
-      },
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_pre_delegation_guard.py",
-            "timeout": 5,
-            "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_pre_delegation_guard.py",
-            "timeout": 5,
-            "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
           }
         ]
       },
@@ -200,28 +134,6 @@
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
             "timeout": 30,
             "statusMessage": "Syncing observation memories to Forgetful"
-          }
-        ]
-      },
-      {
-        "matcher": "^(mcp__serena__(find_symbol|find_referencing_symbols|get_symbols_overview|find_implementations|get_diagnostics_for_file)|mcp__plugin_[^_]*serena[^_]*__(find_symbol|find_referencing_symbols|get_symbols_overview|find_implementations|get_diagnostics_for_file)|LSP)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PostToolUse/invoke_lsp_usage_tracker.py",
-            "timeout": 5,
-            "statusMessage": "Tracking LSP navigation calls for the LSP-first gate (ADR-062)"
-          }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PostToolUse/invoke_lsp_read_tracker.py",
-            "timeout": 5,
-            "statusMessage": "Tracking Read operations for the LSP-first gate (ADR-062)"
           }
         ]
       }

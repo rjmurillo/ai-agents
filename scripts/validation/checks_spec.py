@@ -291,3 +291,58 @@ def validate_spec_contradiction(repo_root: Path) -> bool:
     # non-zero exit here is a config error (e.g. could not resolve repo). Do
     # not block the pre-PR cycle on it; surface the output and pass.
     return True
+
+
+_MODEL_PIN_BACKLOG_PREFIX = "[model-pins]   backlog: "
+_MODEL_PIN_BACKLOG_SAMPLE = 10
+
+
+def _print_model_pin_report(output: str) -> None:
+    """Print the model-pin report, sampling only the grandfathered backlog.
+
+    ``check_model_pins.py`` prints the whole grandfathered backlog (currently
+    over one hundred lines) before any new violations and the summary footer. A
+    flat head truncation would bury the violation lines this warn gate exists to
+    surface, so cap only the per-item backlog lines and always print every other
+    line (the scan count, the backlog header, ``VIOLATION`` lines, the violation
+    count, the ``OK`` line, and the warn-mode footer).
+    """
+    lines = output.strip().splitlines()
+    if not lines:
+        return
+    backlog_seen = 0
+    for line in lines:
+        if line.startswith(_MODEL_PIN_BACKLOG_PREFIX):
+            backlog_seen += 1
+            if backlog_seen <= _MODEL_PIN_BACKLOG_SAMPLE:
+                print(line)
+            elif backlog_seen == _MODEL_PIN_BACKLOG_SAMPLE + 1:
+                print(
+                    f"{_MODEL_PIN_BACKLOG_PREFIX}... additional grandfathered "
+                    "pins omitted; run check_model_pins.py to see all"
+                )
+            continue
+        print(line)
+
+
+def validate_model_pins(repo_root: Path) -> bool:
+    """Surface model-pin drift in warn mode (ADR-080; Issue #3073).
+
+    Wraps ``scripts/validation/check_model_pins.py --mode warn``. Warn mode
+    reports unpinned or mismatched model references and exits 0 even when
+    violations exist, so this gate never blocks the pre-PR cycle; enforcement
+    stays in CI. The wrapped script exits 2 only when the baseline or manifest
+    is present but unreadable or malformed (a real configuration defect), which
+    is surfaced as a failure here. An absent baseline or manifest is treated as
+    empty by the check, so it does not exit 2 and does not fail this gate.
+    """
+    script = repo_root / "scripts" / "validation" / "check_model_pins.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_model_pins.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--mode", "warn"]
+    )
+    _print_model_pin_report((stdout or "") + (stderr or ""))
+    return exit_code == 0
