@@ -171,7 +171,7 @@ Machine-readable JSON format including scan timestamp, files scanned, vulnerabil
 
 ### Pre-commit Hook
 
-Add to `.githooks/pre-commit` to run security scan before commits (blocking mode).
+Add to `scripts/hooks/pre-commit` to run security scan before commits (blocking mode).
 
 ### CI Integration
 

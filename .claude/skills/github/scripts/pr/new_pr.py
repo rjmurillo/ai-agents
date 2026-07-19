@@ -352,7 +352,7 @@ def run_validations(
 
     # Validation 5: Em/en-dash check (CRITICAL, blocks creation)
     # PR descriptions live in GitHub and never reach `git commit`, so the
-    # .githooks/pre-commit and .githooks/commit-msg hooks cannot scan them.
+    # scripts/hooks/pre-commit and scripts/hooks/commit-msg hooks cannot scan them.
     # This is the shift-left guard that prevents dashes from being submitted
     # at all. Closes the gap that allowed PR #1930 to ship with em/en-dashes
     # in the description despite the hook implementation.
