@@ -4,7 +4,7 @@
 PR #3167 (fixes #3148) extracted the fired-hook probe into
 ``tests/e2e/copilot_hook_probe.py``, imported by both ``test_cli_hook_e2e.py``
 and ``test_plugin_load_smoke.py``. The ``CHANGED_HOOKS`` and
-``CHANGED_PLUGIN_LOAD`` trigger globs in ``.githooks/pre-push`` did not match
+``CHANGED_PLUGIN_LOAD`` trigger globs in ``scripts/hooks/pre-push`` did not match
 the helper, so editing it alone would ship without either smoke firing, a
 silent gap on a customer-facing push gate.
 
@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_PUSH = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 HELPER = "tests/e2e/copilot_hook_probe.py"
 
 

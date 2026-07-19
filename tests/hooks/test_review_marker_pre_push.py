@@ -1,4 +1,4 @@
-"""Tests for the review-marker guard in ``.githooks/pre-push``."""
+"""Tests for the review-marker guard in ``scripts/hooks/pre-push``."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PRE_PUSH_HOOK = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH_HOOK = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 
 
 def test_pre_push_has_review_marker_phase() -> None:

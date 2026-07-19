@@ -17,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_PUSH = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 
 
 def _pre_push_text() -> str:

@@ -1,4 +1,4 @@
-"""Tests for the review-skill drift-check phase in .githooks/pre-push (REQ-008-03 / REQ-008-07).
+"""Tests for the review-skill drift-check phase in scripts/hooks/pre-push (REQ-008-03 / REQ-008-07).
 
 The drift-check phase is bash that delegates to the Python generator's
 ``--dry-run`` mode. The full drift logic is tested at the generator level
@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PRE_PUSH_HOOK = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH_HOOK = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 GENERATOR = REPO_ROOT / "build" / "scripts" / "generate_pr_quality_prompts.py"
 
 
