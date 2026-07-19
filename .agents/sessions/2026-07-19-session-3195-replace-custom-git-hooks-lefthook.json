@@ -62,9 +62,9 @@
     },
     "sessionEnd": {
       "checklistComplete": {
-        "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Atomic commits remain."
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, validation, QA, retrospective, memories, and records completed."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -82,9 +82,9 @@
         "Evidence": "Scoped Markdown lint completed with zero issues."
       },
       "changesCommitted": {
-        "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Implementation and two record batches committed; final records remain."
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation and record changes committed in batches of five or fewer paths."
       },
       "validationPassed": {
         "level": "MUST",
@@ -121,6 +121,6 @@
       "result": "Behavioral, full-suite, drift, pre-PR, type, lint, workflow, and security checks passed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "a214488b93",
   "nextSteps": []
 }
