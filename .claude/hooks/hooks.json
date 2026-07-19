@@ -3,17 +3,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-routing_gates",
-            "timeout": 60,
-            "statusMessage": "Running plugin-pretooluse-routing_gates hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
         "matcher": "Bash([gG][hH] *|*\\[gG][hH].exe *|*\\[gG][hH] *|*/[gG][hH] *|*&& [gG][hH] *|*; [gG][hH] *|[eE][nN][vV] [gG][hH] *|[eE][nN][vV] * [gG][hH] *|[sS][uU][dD][oO] * [gG][hH] *|[eE][xX][eE][cC] [gG][hH] *|[cC][oO][mM][mM][aA][nN][dD] [gG][hH] *)",
         "hooks": [
           {
