@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation changes and durable memory commit 26d4a3e40b are committed; the final three operational docs and this session log are staged as one four-path commit."
+        "Evidence": "All implementation changes, durable memory, final operational docs, this session log, and its generated episode are committed. The final operational-guidance commit fbb040f48a changed five paths."
       },
       "validationPassed": {
         "level": "MUST",
@@ -154,7 +154,7 @@
       "filesModified": []
     }
   ],
-  "endingCommit": "26d4a3e40b",
+  "endingCommit": "fbb040f48a",
   "nextSteps": [
     "Route the completed migration to qa and critic.",
     "Route security-sensitive classifier and hook-manager changes for post-implementation verification before merge.",
