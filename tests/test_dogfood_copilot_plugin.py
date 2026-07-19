@@ -138,6 +138,20 @@ def test_install_replaces_corrupt_file_backup(source: Path, target: Path) -> Non
     assert dogfood._plugin_version(backup) == "0.0.1"  # prior copy preserved
 
 
+def test_install_replaces_stray_non_plugin_backup_dir(source: Path, target: Path) -> None:
+    _make_plugin_root(target, "0.0.1")  # a real copy to back up
+    backup = target.with_name(target.name + ".marketplace-bak")
+    backup.mkdir()  # stray directory, not a plugin root
+    (backup / "junk.txt").write_text("stray", encoding="utf-8")
+
+    note = dogfood.dogfood_install(source, target)
+
+    assert dogfood._plugin_version(target) == "9.9.9"
+    assert "backed up copy" in note
+    assert dogfood._plugin_version(backup) == "0.0.1"  # real prior copy backed up
+    assert not (backup / "junk.txt").exists()  # stray directory discarded
+
+
 # --- install (negative) ---
 
 

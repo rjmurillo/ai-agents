@@ -120,12 +120,15 @@ def _stash_existing(target: Path) -> str:
         return "removed prior symlink"
     if target.is_dir():
         backup = _backup_path(target)
-        # A backup we created is always a real directory (we only ever rename a
-        # directory there). Anything else at that path (symlink, regular file,
-        # fifo) is not our backup: remove it so backup can never be mistaken for
-        # a valid prior copy and so the rename() below can create a real one.
+        # A backup we created is always a real plugin-root directory (we only
+        # ever rename the prior marketplace copy there). Anything else at that
+        # path (symlink, regular file, fifo, or a stray non-plugin directory)
+        # is not our backup: remove it so it cannot be mistaken for a valid
+        # prior copy and so the rename() below can create a real one.
         if backup.is_symlink() or (backup.exists() and not backup.is_dir()):
             backup.unlink()
+        elif backup.is_dir() and not _is_plugin_root(backup):
+            shutil.rmtree(backup)
         if backup.is_dir():
             shutil.rmtree(target)
             return "discarded copy (backup already present)"
