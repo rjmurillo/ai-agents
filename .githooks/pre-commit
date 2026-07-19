@@ -2097,10 +2097,8 @@ fi
 # Prompt Behavioral Eval Reminder (Non-blocking, ADR-057)
 #
 # Detects prompt, command, and skill definition changes and reminds
-# developers to run behavioral evals before merging.
-# The Claude Code hook (invoke_prompt_eval_gate.py) provides the
-# blocking enforcement for AI agents. This git hook provides a
-# non-blocking reminder for human developers.
+# developers to run behavioral evals before merging. This git hook
+# provides a non-blocking reminder for human developers.
 #
 # Related: ADR-057, eval-suite.py, eval-prompt-change.py
 #

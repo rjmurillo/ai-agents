@@ -397,7 +397,7 @@ def _check_yaml_naming(filepath: str, name: str, suffix: str) -> Violation | Non
 
 
 def _check_hook_naming(filepath: str, name: str, suffix: str) -> Violation | None:
-    if name.startswith("invoke_") or name in ("__init__", "skill_pattern_loader"):
+    if name.startswith("invoke_") or name in ("__init__",):
         return None
     return Violation(
         rule="naming",

@@ -94,7 +94,7 @@ The dispatcher (ADR-068) exists because Copilot CLI ignores per-hook matchers, r
 
 - Canonical/supplementary split (ADR-007): `.serena/memories/` markdown files are the source of truth; Forgetful is a supplementary graph store. `scripts/memory_sync/sync_engine.py` mirrors Serena into Forgetful ("Serena-to-Forgetful synchronization ... to mirror Serena's canonical .serena/memories/ files").
 - Tiers (ADR-063, Accepted): Tier 1 semantic search, Tier 2 episodic session replay, Tier 3 causal graph. Front doors are the `memory` and `memory-search` skills.
-- Observation loop (issue #1345): the `reflect` skill and Stop hook detect corrections, observations land in Serena memories, and the skillbook agent graduates patterns. The retained `.claude/hooks/PreToolUse/invoke_correction_applier.py` and `invoke_topical_memory_injection.py` files are not registered in either Claude source manifest. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. The absence is guarded by `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent`.
+- Observation loop (issue #1345): the `reflect` skill detects corrections, observations land in Serena memories, and the skillbook agent graduates patterns. The advisory correction-applier and topical-memory-injection PreToolUse hooks were deleted (issue #3184) after being deregistered from both Claude source manifests. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. The absence is guarded by `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent`.
 
 Architectural consequence: memories are load-bearing runtime inputs, not documentation. Deleting or renaming a `.serena/memories/` file changes hook behavior in live sessions.
 
@@ -145,7 +145,7 @@ State these plainly when working near them; do not design as if they were sound.
 - Deleting a hook, skill, or script because "nothing references it". Dispatch is name-based; check string references and `orphan-ref-validator` first.
 - Copying a failure policy across hook families. Push-guard fail-open reasoning does not transfer to released hook artifacts (ADR-066), and vice versa.
 - Citing a Proposed ADR (069, 072) as settled architecture, or dismissing a live enforcement mechanism because its ADR reads Proposed (062, 066, 068).
-- Treating `.serena/memories/` as inert docs. `invoke_correction_applier.py` and `invoke_topical_memory_injection.py` are retained but unregistered in both Claude source manifests (see the Phase 4 observation-loop entry above); they are not active runtime inputs. Explicit retrieval through the `memory` or `memory-search` skill is what makes memories load-bearing, not an automatic hook.
+- Treating `.serena/memories/` as inert docs. The advisory correction-applier and topical-memory-injection hooks were deleted (issue #3184; see the Phase 4 observation-loop entry above); they were never active runtime inputs. Explicit retrieval through the `memory` or `memory-search` skill is what makes memories load-bearing, not an automatic hook.
 - Adding a rule without a gate. Verification-based governance means prose without enforcement is dead on arrival (route new rules through `ai-agents-change-control`).
 - Bumping the wrong plugin.json, or none. The bump belongs to the tree whose content changed, strictly greater.
 

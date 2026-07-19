@@ -315,10 +315,10 @@ def get_actionability_score(
 def _atomic_write_text(path: str | os.PathLike[str], text: str) -> None:
     """Write ``text`` to ``path`` atomically via a temp file plus ``os.replace``.
 
-    Mirrors ``skill_pattern_loader._atomic_json_write`` (temp file in the same
-    directory, then ``os.replace``) so a crash or two concurrent writers cannot
-    leave the file half-written or truncated. On failure the partial temp file
-    is removed and the ``OSError`` re-raised for the caller to handle.
+    Writes to a temp file in the same directory, then ``os.replace`` swaps it
+    into place, so a crash or two concurrent writers cannot leave the file
+    half-written or truncated. On failure the partial temp file is removed and
+    the ``OSError`` re-raised for the caller to handle.
     """
     directory = os.path.dirname(os.fspath(path)) or "."
     fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")

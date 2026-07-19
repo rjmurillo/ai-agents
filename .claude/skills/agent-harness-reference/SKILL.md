@@ -60,15 +60,15 @@ because both P0s above came from trusting an ungraded claim.
 
 ## Claude Code Hook Protocol
 
-### Registration surfaces (as of 2026-07-03)
+### Registration surfaces (as of 2026-07-19)
 
 Two registrations exist and are kept in sync BY HAND. Drift between them is a
 known weak point (see `ai-agents-architecture-contract`).
 
-| Surface | Consumer | Shape (verified 2026-07-03) |
+| Surface | Consumer | Shape (verified 2026-07-19) |
 |---------|----------|-----------------------------|
-| `.claude/settings.json` `hooks` key | Claude Code running in this repo | 8 events, 23 matcher groups: PreToolUse 11, PostToolUse 5, SessionStart 2, UserPromptSubmit 1, Stop 1, SubagentStop 1, PreCompact 1, PermissionRequest 1 |
-| `.claude/hooks/hooks.json` | Claude Code plugin install (project-toolkit) | Hand-ported twin: 7 events, 21 groups (no PreCompact); commands anchored as `python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/..."` |
+| `.claude/settings.json` `hooks` key | Claude Code running in this repo | 7 events, 15 matcher groups: PreToolUse 7, SessionStart 2, PostToolUse 2, UserPromptSubmit 1, Stop 1, PreCompact 1, PermissionRequest 1 |
+| `.claude/hooks/hooks.json` | Claude Code plugin install (project-toolkit) | Hand-ported twin: 6 events, 15 groups (no PreCompact); commands anchored as `python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/..."` |
 
 Grade: CODE. Re-verify command in Provenance.
 
@@ -88,8 +88,8 @@ Grade: CODE. Re-verify command in Provenance.
 
 | Event | Can block? | Grade | Evidence |
 |-------|-----------|-------|----------|
-| PreToolUse | Yes (exit 2 or deny payload stops the tool call) | CODE | The 11 PreToolUse matcher groups in `.claude/settings.json` (registering 16 guard scripts under `.claude/hooks/PreToolUse/`) are built on this |
-| UserPromptSubmit, Stop, SubagentStop | Treated as blockable here; registered with guard semantics | REPO-ASSERTED | `.claude/settings.json` registrations; not separately probed |
+| PreToolUse | Yes (exit 2 or deny payload stops the tool call) | CODE | The 7 PreToolUse matcher groups in `.claude/settings.json` (registering 16 guard scripts under `.claude/hooks/PreToolUse/`) are built on this |
+| UserPromptSubmit, Stop | Treated as blockable here; registered with guard semantics | REPO-ASSERTED | `.claude/settings.json` registrations; not separately probed |
 | PostToolUse | Cannot undo the tool call; output is feedback only | REPO-ASSERTED | Hook docstrings; the tool already ran by definition |
 | SessionStart | CANNOT block. "exit 2 only shows stderr as error" | REPO-ASSERTED | `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py:17` and `invoke_session_initialization_enforcer.py:14` state it verbatim |
 
@@ -189,7 +189,7 @@ into delegation prompts (`.claude/rules/lsp-first.md`). Grade: CODE.
 
 Run before relying on or updating any row in this reference:
 
-- [ ] Registration counts still match: `uv run python -c "import json; h=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in h.items()})"` shows 8 events / 23 total groups (else update the Claude table)
+- [ ] Registration counts still match: `uv run python -c "import json; h=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in h.items()})"` shows 7 events / 15 total groups (else update the Claude table)
 - [ ] Copilot anchor pattern unchanged: `grep -n 'COPILOT_PLUGIN_ROOT' build/scripts/generate_hooks_emit.py` still shows the bash fallback form
 - [ ] Runtime-contract suite green: `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` (Linux authoritative; one test is known-broken on Windows)
 - [ ] Dispatcher still one-entry-per-event: `uv run python -c "import json; h=json.load(open('src/copilot-cli/hooks/hooks.json'))['hooks']; print({k: len(v) for k, v in h.items()})"` shows 1 per event
