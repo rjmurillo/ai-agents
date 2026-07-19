@@ -13124,6 +13124,105 @@
         "episode-2026-07-18-session-3061"
       ],
       "created": "2026-07-18T07:51:32.359838+00:00"
+    },
+    {
+      "id": "fa4e6b921fde",
+      "type": "decision",
+      "label": "implementation: Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.126989+00:00"
+    },
+    {
+      "id": "7ff9a433bb74",
+      "type": "milestone",
+      "label": "milestone: Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127045+00:00"
+    },
+    {
+      "id": "4e4e61173f84",
+      "type": "milestone",
+      "label": "milestone: Migrated local hook management to lefthook.yml and scripts/hooks, then removed .githooks, the custom installer, and dead manager support.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127093+00:00"
+    },
+    {
+      "id": "cad37aaff7e6",
+      "type": "milestone",
+      "label": "milestone: Closed two review-discovered security routing gaps.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127140+00:00"
+    },
+    {
+      "id": "86066c4c1b74",
+      "type": "milestone",
+      "label": "milestone: Completed independent QA, security review, code review, simplification, and critic gates.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127186+00:00"
+    },
+    {
+      "id": "3df794a76702",
+      "type": "test",
+      "label": "test: Completed independent QA, security review, code review, simplification, and critic gates.      Full pytest reported 14091 passed, 22 skipped, and 45 expected failures; pre-PR reported 30 passed, 0 failed, and 4 environment skips.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127233+00:00"
+    },
+    {
+      "id": "e25a8c59dd00",
+      "type": "milestone",
+      "label": "milestone: Recorded a QA cleanup incident involving the unrelated pr3097-worktree directory.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127279+00:00"
+    },
+    {
+      "id": "633f659a9dcf",
+      "type": "commit",
+      "label": "commit: Commit: bec3e25b82",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127327+00:00"
+    },
+    {
+      "id": "f56f6c4d2c43",
+      "type": "outcome",
+      "label": "Outcome: success - Migrate the repository from custom .githooks to OSS Lefthook",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127374+00:00"
+    },
+    {
+      "id": "b65a173b41a7",
+      "type": "decision",
+      "label": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127503+00:00"
+    },
+    {
+      "id": "1282c02cb1a0",
+      "type": "milestone",
+      "label": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-19T17:58:45.127549+00:00"
     }
   ],
   "patterns": [
@@ -13200,12 +13299,18 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 398,
+      "occurrences": 3,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
         "episode-2026-07-13-session-3041-frontier-model",
-        "episode-2026-07-15-session-3042"
-      ]
+        "episode-2026-07-15-session-3042",
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "contributions": {
+        "episode-2026-07-13-session-3041-frontier-model": 1.0,
+        "episode-2026-07-15-session-3042": 1.0,
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 1.0
+      }
     },
     {
       "name": "recovery pattern",
@@ -13662,6 +13767,20 @@
         "episode-2026-07-15-session-3042"
       ],
       "created": "2026-07-15T19:13:40.609373+00:00"
+    },
+    {
+      "source": "b65a173b41a7",
+      "target": "1282c02cb1a0",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "contributions": {
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 0.6
+      },
+      "created": "2026-07-19T17:58:45.127556+00:00"
     }
   ]
 }

@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3194,
+    "date": "2026-07-19",
+    "branch": "chore/lefthook-migration",
+    "startingCommit": "ffecc861ad",
+    "objective": "Migrate the repository from custom .githooks to OSS Lefthook"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions and project memory tools are functional; no separate activation tool is exposed"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md and latest issue handoff read"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "49 GitHub skill scripts listed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index and task-relevant Git hook, autonomous execution, and validation memories loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/lefthook-migration"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Feature branch chore/lefthook-migration"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Working tree inspected; unrelated pre-existing untracked files preserved"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ffecc861ad"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session end requirements completed; session-owned artifacts included in final closeout commit"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1 files linted"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-owned changes committed or staged for the final closeout commit; unrelated pre-existing untracked files preserved"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository, hook, security, QA, and session validation passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "N/A: no project task checklist was associated with this issue-less migration"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Retrospective agent completed .agents/retrospective/2026-07-19-auto-retro.md"
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: none"
+        ]
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "result": "The probe verified commit-msg argument forwarding, byte-identical pre-push stdin, blocking exits, reset-hooks-path migration, and linked worktrees."
+    },
+    {
+      "action": "Migrated local hook management to lefthook.yml and scripts/hooks, then removed .githooks, the custom installer, and dead manager support.",
+      "result": "Bootstrap, CI setup, current documentation, tests, generated mirrors, security classifiers, and plugin manifests now use the Lefthook architecture."
+    },
+    {
+      "action": "Closed two review-discovered security routing gaps.",
+      "result": "All 30 primary and local config filenames auto-discovered by pinned Lefthook 2.1.10 now trigger all three security classification surfaces."
+    },
+    {
+      "action": "Completed independent QA, security review, code review, simplification, and critic gates.",
+      "result": "Full pytest reported 14091 passed, 22 skipped, and 45 expected failures; pre-PR reported 30 passed, 0 failed, and 4 environment skips."
+    },
+    {
+      "action": "Recorded a QA cleanup incident involving the unrelated pr3097-worktree directory.",
+      "result": "Tracked files were restored with the original branch and HEAD and zero tracked diff, but any prior untracked or ignored files cannot be proven recoverable."
+    }
+  ],
+  "endingCommit": "bec3e25b82",
+  "nextSteps": [
+    "Do not create a PR unless separately requested.",
+    "Disclose the pr3097-worktree cleanup incident to its owner because unknown untracked or ignored files may have been lost.",
+    "Track the inherited no-op informational classifier reference and inherited pre-push shell findings separately if cleanup is prioritized."
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "id": "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph",
+  "session": "2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph",
+  "timestamp": "2026-07-19T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Migrate the repository from custom .githooks to OSS Lefthook",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "implementation",
+      "context": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "chosen": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Migrated local hook management to lefthook.yml and scripts/hooks, then removed .githooks, the custom installer, and dead manager support.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed two review-discovered security routing gaps.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed independent QA, security review, code review, simplification, and critic gates.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "test",
+      "content": "Completed independent QA, security review, code review, simplification, and critic gates.      Full pytest reported 14091 passed, 22 skipped, and 45 expected failures; pre-PR reported 30 passed, 0 failed, and 4 environment skips.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded a QA cleanup incident involving the unrelated pr3097-worktree directory.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: bec3e25b82",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}
