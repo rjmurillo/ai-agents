@@ -620,6 +620,29 @@ class TestValidateMarkdownLint:
             cwd=tmp_path,
         )
 
+
+    def test_skip_autofix_runs_check_only(
+        self,
+        tmp_path: Path,
+        monkeypatch: Any,  # noqa: ANN401
+    ) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        monkeypatch.setenv("SKIP_AUTOFIX", "1")
+        with patch("checks_tooling.shutil.which", return_value="npx"):
+            with patch(
+                "checks_tooling._markdown_lint_targets",
+                return_value=["README.md"],
+            ):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "", "")
+                    assert validate_markdown_lint(tmp_path) is True
+
+        mock_run.assert_called_once_with(
+            ["npx", "markdownlint-cli2", "README.md"],
+            cwd=tmp_path,
+        )
+
     def test_falls_back_to_full_repo_when_scope_is_unknown(
         self, tmp_path: Path
     ) -> None:
@@ -829,7 +852,9 @@ class TestValidateLefthookInstalled:
                     assert validate_lefthook_installed(tmp_path) is True
         mock_run.assert_called_once_with(["/bin/lefthook", "check-install"], cwd=tmp_path)
 
-    def test_fails_when_check_install_exits_nonzero(self, tmp_path: Path) -> None:
+    def test_fails_when_check_install_exits_nonzero(
+        self, tmp_path: Path, capsys: Any
+    ) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed
 
         self._write_config(tmp_path)
@@ -839,7 +864,13 @@ class TestValidateLefthookInstalled:
                     with patch("checks_plugin._is_linked_worktree", return_value=False):
                         assert validate_lefthook_installed(tmp_path) is False
 
-    def test_warns_not_fails_in_linked_worktree(self, tmp_path: Path) -> None:
+        output = capsys.readouterr()
+        assert "uv run --frozen lefthook install" in output.out
+        assert "--reset-hooks-path" not in output.out
+
+    def test_warns_not_fails_in_linked_worktree(
+        self, tmp_path: Path, capsys: Any
+    ) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed
 
         self._write_config(tmp_path)
@@ -848,6 +879,10 @@ class TestValidateLefthookInstalled:
                 with patch("checks_plugin._run_subprocess", return_value=(1, "", "missing")):
                     with patch("checks_plugin._is_linked_worktree", return_value=True):
                         assert validate_lefthook_installed(tmp_path) is True
+
+        output = capsys.readouterr()
+        assert "uv run --frozen lefthook install" in output.out
+        assert "--reset-hooks-path" not in output.out
 
 
 class TestIsLinkedWorktree:
