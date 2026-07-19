@@ -69,7 +69,7 @@
    "changesCommitted": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "Amendment shipped as one atomic docs commit: ADR-083, the debate-log appendix, and this session log (3 files, within the 5-file atomic limit)."
+    "Evidence": "Amendment shipped as one atomic docs commit (a63c6ef1): ADR-083, the debate-log appendix, and this session log, plus the memory episode file auto-extracted and auto-staged by the pre-commit episode hook (4 files, within the 5-file atomic limit)."
    },
    "validationPassed": {
     "level": "MUST",
@@ -109,7 +109,7 @@
    ]
   }
  ],
- "endingCommit": "",
+ "endingCommit": "a63c6ef1",
  "nextSteps": [
   "Push docs/3252-adr083-copy-only and open a PR: Refs #3222 #3251 #3252 #3256 (use Refs, not Closes, so #3252 stays under owner control and ai-spec-validation deep-validation is skipped). Explain implemented: false (phases 1,2,4,5 unbuilt).",
   "Babysit the Copilot review-convergence loop (fix -> resolve threads -> push until a push yields 0 new threads), then self-merge via squash once checks are green and threads resolved.",
