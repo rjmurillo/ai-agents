@@ -325,6 +325,25 @@ class TestRunLint:
         # The genuine repo-root mirror is still classified generated.
         assert classify_file_category("src/copilot-cli/skills/x.py", []) == "generated"
 
+    def test_classify_uses_git_root_not_cwd_for_absolute_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Regression: get_diff_files anchors diff paths to the git root (absolute)
+        # so they resolve from any working directory. Classification must
+        # relativize against that root, not CWD. Run from a subdirectory deeper
+        # than the root: a CWD-relative match would raise ValueError, fall back to
+        # the full absolute parts, and misclassify the mirror as authored.
+        repo_root = tmp_path / "repo"
+        generated = repo_root / "src" / "copilot-cli" / "skills" / "x" / "shim.py"
+        generated.parent.mkdir(parents=True)
+        generated.write_text("x = 1\n", encoding="utf-8")
+        subdir = repo_root / "tests" / "deep"
+        subdir.mkdir(parents=True)
+        monkeypatch.chdir(subdir)
+        monkeypatch.setattr(mod, "_git_root_for_cwd", lambda _cwd: str(repo_root))
+
+        assert classify_file_category(str(generated), []) == "generated"
+
     def test_run_lint_skips_generated_by_path_without_reading(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

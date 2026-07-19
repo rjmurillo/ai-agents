@@ -7,6 +7,7 @@ Exit codes: 0 = clean, 1 = script error, 10 = violations detected.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -65,20 +66,38 @@ _GENERATED_MARKERS = (
 _GENERATED_MARKER_HEADER_LINES = 20
 
 
-def _repo_relative_parts(path: Path) -> tuple[str, ...]:
-    """Return path parts for segment matching, relative to CWD when possible.
+@functools.lru_cache(maxsize=8)
+def _git_root_for_cwd(cwd: str) -> str | None:
+    """Return the git working-tree root for ``cwd``, or None outside a repo.
 
-    ``_GENERATED_PATH_SEGMENTS`` are repo-root-anchored. An absolute path also
-    carries the checkout directory, so a clone under a path that itself contains
-    e.g. ``src/copilot-cli`` would false-match and misclassify authored files as
-    generated. Relativizing to CWD strips that prefix; already-relative paths, or
-    paths outside CWD, fall back to their own parts unchanged.
+    Cached per working directory so classifying many files does not spawn one
+    ``git rev-parse`` per file. ``cwd`` is an explicit cache key because the
+    root depends on the process working directory, which tests change.
+    """
+    try:
+        return _git_root()
+    except RuntimeError:
+        return None
+
+
+def _repo_relative_parts(path: Path) -> tuple[str, ...]:
+    """Return path parts for segment matching, relative to the repo root.
+
+    ``_GENERATED_PATH_SEGMENTS`` are repo-root-anchored, and ``get_diff_files``
+    anchors diff paths to the git root so they resolve regardless of the process
+    working directory. Relativizing here against the git root (not CWD) keeps the
+    anchored match correct from any subdirectory: the git root is tried first,
+    CWD second (non-repo callers and tests), and an unrelativizable path falls
+    back to its own parts unchanged.
     """
     if path.is_absolute():
-        try:
-            return path.relative_to(Path.cwd()).parts
-        except ValueError:
-            return path.parts
+        for anchor in (_git_root_for_cwd(os.getcwd()), os.getcwd()):
+            if anchor is None:
+                continue
+            try:
+                return path.relative_to(anchor).parts
+            except ValueError:
+                continue
     return path.parts
 
 
