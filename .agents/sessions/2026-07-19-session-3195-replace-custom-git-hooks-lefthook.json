@@ -84,7 +84,7 @@
       "changesCommitted": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Implementation and first record batch committed; remaining records are staged next."
+        "Evidence": "Implementation and two record batches committed; final records remain."
       },
       "validationPassed": {
         "level": "MUST",
