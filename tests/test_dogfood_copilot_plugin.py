@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -57,14 +58,14 @@ def test_install_refreshes_stale_copy(source: Path, target: Path) -> None:
 
 def test_install_backs_up_existing_copy_once(source: Path, target: Path) -> None:
     _make_plugin_root(target, "0.0.1")
-    original = (target / ".claude-plugin" / "plugin.json").read_text()
+    original = (target / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
 
     dogfood.dogfood_install(source, target)  # first install backs up
     dogfood.dogfood_install(source, target)  # second must not clobber the backup
 
     backup = target.with_name(target.name + ".marketplace-bak")
     assert backup.is_dir()
-    assert (backup / ".claude-plugin" / "plugin.json").read_text() == original
+    assert (backup / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8") == original
 
 
 def test_install_replaces_prior_symlink(source: Path, target: Path, tmp_path: Path) -> None:
@@ -89,12 +90,59 @@ def test_install_rejects_non_plugin_source(tmp_path: Path, target: Path) -> None
         dogfood.dogfood_install(not_a_plugin, target)
 
 
+def _write_manifest(root: Path, text: str) -> Path:
+    """Write a raw manifest body (possibly malformed) to a plugin root."""
+    (root / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+    (root / ".claude-plugin" / "plugin.json").write_text(text, encoding="utf-8")
+    return root
+
+
+def test_install_rejects_malformed_manifest(tmp_path: Path, target: Path) -> None:
+    bad = _write_manifest(tmp_path / "bad", "{not valid json")
+    with pytest.raises(ValueError, match="not a plugin root"):
+        dogfood.dogfood_install(bad, target)
+
+
+def test_install_rejects_non_object_manifest(tmp_path: Path, target: Path) -> None:
+    bad = _write_manifest(tmp_path / "list", "[]")
+    with pytest.raises(ValueError, match="not a plugin root"):
+        dogfood.dogfood_install(bad, target)
+
+
+def test_install_rejects_manifest_without_name(tmp_path: Path, target: Path) -> None:
+    bad = _write_manifest(tmp_path / "noname", json.dumps({"version": "1.0.0"}))
+    with pytest.raises(ValueError, match="not a plugin root"):
+        dogfood.dogfood_install(bad, target)
+
+
+def test_install_rejects_malformed_source_before_touching_target(
+    source: Path, target: Path, tmp_path: Path
+) -> None:
+    _make_plugin_root(target, "0.0.1")  # a healthy prior install
+    bad = _write_manifest(tmp_path / "bad", "null")
+    with pytest.raises(ValueError, match="not a plugin root"):
+        dogfood.dogfood_install(bad, target)
+    # The bad source must not have disturbed the existing install or made a backup.
+    assert dogfood._plugin_version(target) == "0.0.1"
+    assert not target.with_name(target.name + ".marketplace-bak").exists()
+
+
 def test_main_returns_config_error_on_bad_source(monkeypatch, tmp_path: Path, capsys) -> None:
     empty = tmp_path / "src" / "copilot-cli"
     empty.mkdir(parents=True)
     monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dogfood, "default_target", lambda: tmp_path / "installed" / "x")
     rc = dogfood.main([])
+    assert rc == 2
+    assert "error:" in capsys.readouterr().err
+
+
+def test_main_returns_config_error_on_git_failure(monkeypatch, capsys) -> None:
+    def _boom() -> Path:
+        raise subprocess.CalledProcessError(128, ["git", "rev-parse"])
+
+    monkeypatch.setattr(dogfood, "_repo_root", _boom)
+    rc = dogfood.main(["--status"])
     assert rc == 2
     assert "error:" in capsys.readouterr().err
 
@@ -123,6 +171,19 @@ def test_uninstall_when_nothing_installed(target: Path) -> None:
     assert "nothing installed" in note
 
 
+def test_uninstall_removes_regular_file_and_restores_backup(target: Path) -> None:
+    backup = _make_plugin_root(target.with_name(target.name + ".marketplace-bak"), "0.0.1")
+    assert backup.is_dir()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("stray file", encoding="utf-8")  # target is a plain file
+
+    note = dogfood.dogfood_uninstall(target)
+
+    assert "removed file" in note
+    assert target.is_dir()  # backup restored over the removed file
+    assert dogfood._plugin_version(target) == "0.0.1"
+
+
 # --- status (each state) ---
 
 
@@ -149,6 +210,21 @@ def test_status_reports_not_installed(source: Path, target: Path) -> None:
 
 def test_plugin_version_none_without_manifest(tmp_path: Path) -> None:
     assert dogfood._plugin_version(tmp_path) is None
+
+
+def test_plugin_version_none_on_non_object_manifest(tmp_path: Path) -> None:
+    root = _write_manifest(tmp_path / "list", "[1, 2, 3]")
+    assert dogfood._plugin_version(root) is None
+
+
+def test_plugin_version_none_on_malformed_manifest(tmp_path: Path) -> None:
+    root = _write_manifest(tmp_path / "bad", "{oops")
+    assert dogfood._plugin_version(root) is None
+
+
+def test_plugin_version_none_when_version_missing(tmp_path: Path) -> None:
+    root = _write_manifest(tmp_path / "noversion", json.dumps({"name": "x"}))
+    assert dogfood._plugin_version(root) is None
 
 
 def test_default_target_honors_copilot_home(monkeypatch, tmp_path: Path) -> None:

@@ -57,20 +57,38 @@ def default_target() -> Path:
     return home / "installed-plugins" / MARKETPLACE / PLUGIN_NAME
 
 
-def _plugin_version(root: Path) -> str | None:
-    """Return the version string from a plugin root, or None if absent."""
+def _read_manifest(root: Path) -> dict[str, object] | None:
+    """Return a plugin root's parsed manifest, or None if absent or malformed.
+
+    Guards against a manifest that parses to a non-object JSON value (a list,
+    string, or null), which would otherwise crash callers that expect a dict.
+    """
     manifest = root / ".claude-plugin" / "plugin.json"
     if not manifest.is_file():
         return None
     try:
-        return str(json.loads(manifest.read_text(encoding="utf-8")).get("version"))
+        data = json.loads(manifest.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return None
+    return data if isinstance(data, dict) else None
+
+
+def _plugin_version(root: Path) -> str | None:
+    """Return the version string from a plugin root, or None if absent."""
+    manifest = _read_manifest(root)
+    if manifest is None:
+        return None
+    version = manifest.get("version")
+    return str(version) if version is not None else None
 
 
 def _is_plugin_root(root: Path) -> bool:
-    """Return True when root looks like a valid plugin (has a manifest)."""
-    return (root / ".claude-plugin" / "plugin.json").is_file()
+    """Return True when root has a well-formed manifest naming a plugin."""
+    manifest = _read_manifest(root)
+    if manifest is None:
+        return False
+    name = manifest.get("name")
+    return isinstance(name, str) and bool(name)
 
 
 def _backup_path(target: Path) -> Path:
@@ -118,6 +136,9 @@ def dogfood_uninstall(target: Path) -> str:
     elif target.is_dir():
         shutil.rmtree(target)
         removed = "removed copy"
+    elif target.exists():
+        target.unlink()
+        removed = "removed file"
     else:
         removed = "nothing installed"
 
@@ -168,18 +189,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    root = _repo_root()
-    source = default_source(root)
-    target = default_target()
-
     try:
+        root = _repo_root()
+        source = default_source(root)
+        target = default_target()
         if args.status:
             print(dogfood_status(source, target))
         elif args.uninstall:
             print(dogfood_uninstall(target))
         else:
             print(dogfood_install(source, target))
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0
