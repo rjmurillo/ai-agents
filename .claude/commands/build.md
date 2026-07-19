@@ -62,6 +62,10 @@ If a gate flags an item that is genuinely out of scope for this build, document 
 
 - Atomic commits. Each commit is one logical change, rollback-safe.
 - No code without understanding the existing patterns first. Read memory via Serena when available; fall back to filesystem `Grep`/`Read` if Serena is not present. Read canonical source before writing code that touches it.
+- Before modifying an existing system (changing behavior of a validator, hook, ADR constraint,
+  or shared infrastructure component), invoke Skill(skill="memory-gate") to surface the "why"
+  behind the existing design. This is a soft BLOCKING check: if the gate returns findings, address
+  or explicitly acknowledge them in the session log before proceeding.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Three similar lines beat a premature abstraction.
 - Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.

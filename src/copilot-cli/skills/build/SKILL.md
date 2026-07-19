@@ -63,6 +63,10 @@ If a gate flags an item that is genuinely out of scope for this build, document 
 
 - Atomic commits. Each commit is one logical change, rollback-safe.
 - No code without understanding the existing patterns first. Read memory via Serena when available; fall back to filesystem `Grep`/`Read` if Serena is not present. Read canonical source before writing code that touches it.
+- Before modifying an existing system (changing behavior of a validator, hook, ADR constraint,
+  or shared infrastructure component), invoke Skill(skill="memory-gate") to surface the "why"
+  behind the existing design. This is a soft BLOCKING check: if the gate returns findings, address
+  or explicitly acknowledge them in the session log before proceeding.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Three similar lines beat a premature abstraction.
 - Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.
@@ -78,6 +82,7 @@ This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translat
 | --- | --- |
 | `Skill(skill="code-qualities-assessment")` | `skill` tool, `skill: "code-qualities-assessment"` |
 | `Skill(skill="doc-accuracy")` | `skill` tool, `skill: "doc-accuracy"` |
+| `Skill(skill="memory-gate")` | `skill` tool, `skill: "memory-gate"` |
 | `Skill(skill="orphan-ref-validator")` | `skill` tool, `skill: "orphan-ref-validator"` |
 | `Skill(skill="pre-mortem")` | `skill` tool, `skill: "pre-mortem"` |
 | `Skill(skill="taste-lints")` | `skill` tool, `skill: "taste-lints"` |
