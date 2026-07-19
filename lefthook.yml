@@ -1,15 +1,369 @@
-pre-commit:
-  commands:
-    repository-guardrails:
-      run: scripts/hooks/pre-commit
+min_version: 2.1.10
+glob_matcher: doublestar
 
 commit-msg:
-  commands:
-    message-dash-guard:
-      run: scripts/hooks/commit-msg "{1}"
+  jobs:
+    - name: commit-message-policy
+      run: uv run --frozen python scripts/validation/git_hook_policy.py commit-message "{1}"
+
+pre-commit:
+  piped: true
+  jobs:
+    - name: repair-packed-refs
+      run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
+
+    - name: branch-policy
+      run: uv run --frozen python scripts/validation/git_hook_policy.py branch
+
+    - group:
+        piped: true
+        jobs:
+          - name: markdown-autofix
+            run: npx markdownlint-cli2 --fix --no-globs -- {staged_files}
+            glob: "**/*.md"
+            stage_fixed: true
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+          - name: markdown-check
+            run: npx markdownlint-cli2 --no-globs -- {staged_files}
+            glob: "**/*.md"
+            skip:
+              - merge
+
+    - group:
+        parallel: true
+        jobs:
+          - name: handoff-protection
+            run: uv run --frozen python scripts/validation/git_hook_policy.py handoff {staged_files}
+            glob: ".agents/HANDOFF.md"
+
+          - name: session-policy
+            run: uv run --frozen python scripts/validation/git_hook_policy.py session {staged_files}
+            glob: ".agents/**"
+            skip:
+              - merge
+
+          - name: staged-dash-policy
+            run: uv run --frozen python scripts/validation/git_hook_policy.py staged-dashes {staged_files}
+            glob: "**/*.md"
+            exclude:
+              - "node_modules/**"
+              - ".venv/**"
+              - ".serena/cache/**"
+              - "tests/hooks/fixtures/**"
+            skip:
+              - merge
+
+          - name: action-pin-policy
+            run: uv run --frozen python scripts/validation/git_hook_policy.py staged-action-pins {staged_files}
+            glob:
+              - ".github/workflows/*.{yml,yaml}"
+              - ".github/actions/**/*.{yml,yaml}"
+
+          - name: python-autofix
+            run: uv run --frozen --extra dev ruff check --fix --exit-zero -- {staged_files}
+            glob: "**/*.py"
+            stage_fixed: true
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+          - name: python-check
+            run: uv run --frozen --extra dev ruff check --exit-zero -- {staged_files}
+            glob: "**/*.py"
+
+          - name: workflow-validation
+            run: uv run --frozen python scripts/validate_workflows.py {staged_files}
+            glob:
+              - ".github/workflows/*.{yml,yaml}"
+              - ".github/actions/**/*.{yml,yaml}"
+
+          - name: actionlint
+            run: actionlint {staged_files}
+            glob: ".github/workflows/**/*.{yml,yaml}"
+            skip:
+              - run: >-
+                  test "$SKIP_ACTIONLINT" = "1" ||
+                  ! command -v actionlint >/dev/null 2>&1
+
+          - name: yaml-advisory
+            run: uv run --frozen python scripts/validation/git_hook_policy.py yamllint {staged_files}
+            glob: "**/*.{yml,yaml}"
+
+          - name: skillforge
+            run: uv run --frozen python scripts/validation/git_hook_policy.py skillforge {staged_files}
+            glob: "**/SKILL.md"
+            exclude:
+              - "evals/**"
+              - "src/copilot-cli/skills/{spec,plan,build,test,ship,checkpoint,pr-review,retro,sync}/SKILL.md"
+
+          - name: skill-size
+            run: uv run --frozen python scripts/validation/skill_size.py --staged-only --ci
+            glob: "**/SKILL.md"
+
+          - name: planning-advisory
+            run: uv run --frozen python scripts/validation/git_hook_policy.py planning
+            glob: ".agents/planning/**/*.md"
+
+          - name: infrastructure-advisory
+            run: >-
+              uv run --frozen python
+              .claude/skills/security-detection/detect_infrastructure.py
+              --files {staged_files}
+            glob: "**/*"
+
+          - name: adr-change-advisory
+            run: uv run --frozen python scripts/validation/git_hook_policy.py adr-reminder
+            glob: ".agents/architecture/ADR-*.md"
+
+          - name: taste-advisory
+            run: uv run --frozen python scripts/validation/git_hook_policy.py taste {staged_files}
+            glob: "**/*.{py,ps1,psm1,sh,bash,yml,yaml,md,json}"
+
+    - group:
+        piped: true
+        jobs:
+          - name: generate-mcp-config
+            run: uv run --frozen python scripts/validation/git_hook_policy.py generate-mcp
+            glob: ".mcp.json"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+          - name: stage-mcp-config
+            run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated mcp
+            glob: ".mcp.json"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+    - group:
+        piped: true
+        jobs:
+          - name: generate-agents
+            run: uv run --frozen python scripts/validation/git_hook_policy.py generate-agents
+            glob:
+              - "templates/agents/*.shared.md"
+              - "templates/platforms/**"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+          - name: generate-agent-catalog
+            run: uv run --frozen python build/generate_agent_catalog.py
+            glob:
+              - "templates/agents/*.shared.md"
+              - "templates/platforms/**"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+          - name: stage-generated-agents
+            run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated agents
+            glob:
+              - "templates/agents/*.shared.md"
+              - "templates/platforms/**"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+    - group:
+        piped: true
+        jobs:
+          - name: memory-token-update
+            run: uv run --frozen python scripts/validation/git_hook_policy.py memory-token-update
+            glob: ".serena/memories/**/*.md"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+          - name: stage-memory-index
+            run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated memory-index
+            glob: ".serena/memories/**/*.md"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+    - group:
+        parallel: true
+        jobs:
+          - name: memory-size
+            run: uv run --frozen python scripts/validation/git_hook_policy.py memory-size
+            glob: ".serena/memories/**/*.md"
+
+          - name: memory-index
+            run: uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci
+            glob: ".serena/memories/**/*.md"
+
+          - name: memory-tier
+            run: uv run --frozen python scripts/validate_memory_tier.py --path .serena/memories
+            glob: ".serena/memories/**/*.md"
+
+    - group:
+        piped: true
+        jobs:
+          - name: memory-cross-reference
+            run: uv run --frozen python scripts/validation/git_hook_policy.py memory-cross-reference {staged_files}
+            glob: ".serena/memories/**/*.md"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+          - name: stage-memory-cross-references
+            run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated memory
+            glob: ".serena/memories/**/*.md"
+            skip:
+              - merge
+              - run: test "$SKIP_AUTOFIX" = "1"
+
+    - name: memory-skill-format
+      run: uv run --frozen python scripts/validate_skill_format.py --staged-only --ci
+      glob: ".serena/memories/**/*.md"
+
+    - name: memory-sync-advisory
+      run: uv run --frozen python scripts/validation/git_hook_policy.py memory-sync
+      glob: ".serena/memories/**/*.md"
+      skip:
+        - merge
+
+    - name: extract-session-episodes
+      run: uv run --frozen python scripts/validation/git_hook_policy.py extract-episodes {staged_files}
+      glob: ".agents/sessions/*.json"
+      skip:
+        - merge
+        - run: test "$SKIP_AUTOFIX" = "1"
+
+    - name: update-causal-graph
+      run: uv run --frozen python scripts/validation/git_hook_policy.py update-causal-graph
+      skip:
+        - merge
+        - run: test "$SKIP_AUTOFIX" = "1"
+
+    - name: github-bash-policy
+      run: uv run --frozen python scripts/validation/git_hook_policy.py github-bash {staged_files}
+      glob: ".github/scripts/**"
+
+    - name: scope-policy
+      run: uv run --frozen python scripts/detect_scope_explosion.py
 
 pre-push:
-  commands:
-    repository-guardrails:
-      run: scripts/hooks/pre-push
+  piped: true
+  jobs:
+    - name: repair-packed-refs
+      run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
+
+    - name: push-ref-policy
+      run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
       use_stdin: true
+
+    - group:
+        piped: true
+        jobs:
+          - name: security-scan
+            run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py semgrep-push
+            use_stdin: true
+
+          - name: security-suppression-policy
+            run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-push
+            use_stdin: true
+
+          - name: placeholder-identity
+            run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
+            use_stdin: true
+
+    - group:
+        parallel: true
+        jobs:
+          - name: pre-pr-validation
+            run: uv run --frozen python scripts/validation/pre_pr.py
+            env:
+              SKIP_AUTOFIX: "1"
+
+          - name: python-tests
+            run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
+
+          - name: python-lint-advisory
+            run: uv run --frozen --extra dev ruff check --exit-zero -- {push_files}
+            glob: "**/*.py"
+
+          - name: python-type-check
+            run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
+            glob: "**/*.py"
+            exclude:
+              - ".claude/lib/**"
+              - "src/copilot-cli/lib/**"
+              - "src/copilot-cli/hooks/**"
+              - "src/copilot-cli/skills/**"
+
+          - name: infrastructure-advisory
+            run: uv run --frozen python .claude/skills/security-detection/detect_infrastructure.py --files {push_files}
+            glob: "**/*"
+
+          - name: workflow-local-run
+            run: uv run --frozen python scripts/validation/git_hook_policy.py workflow-local {push_files}
+            glob: ".github/workflows/**/*.{yml,yaml}"
+
+          - name: path-normalization
+            run: >-
+              uv run --frozen python
+              build/scripts/validate_path_normalization.py
+              --path . --fail-on-violation
+            glob: "**/*.md"
+
+          - name: planning-artifacts
+            run: >-
+              uv run --frozen python
+              build/scripts/validate_planning_artifacts.py
+              --path . --fail-on-error
+            glob: ".agents/planning/**/*.md"
+
+          - name: build-all-check
+            run: uv run --frozen python build/scripts/build_all.py --check
+
+          - name: branch-scope
+            run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
+
+          - name: additions-advisory
+            run: uv run --frozen python scripts/validation/git_hook_policy.py additions
+
+          - name: hook-anchoring-e2e
+            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-hook-e2e
+            glob:
+              - "build/scripts/generate_hooks.py"
+              - "src/copilot-cli/hooks/**"
+              - ".claude/hooks/**"
+              - ".claude/settings.json"
+              - "scripts/validation/validate_hook_anchoring.py"
+              - "tests/e2e/test_cli_hook_e2e.py"
+              - "tests/e2e/copilot_hook_probe.py"
+
+          - name: plugin-load-e2e
+            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e
+            glob:
+              - ".claude/.claude-plugin/plugin.json"
+              - ".claude/commands/**"
+              - ".claude/skills/**"
+              - "src/copilot-cli/.claude-plugin/plugin.json"
+              - "src/copilot-cli/skills/**"
+              - "build/scripts/generate_commands.py"
+              - "build/scripts/generate_skills.py"
+              - "templates/platforms/copilot-cli.yaml"
+              - "tests/e2e/test_plugin_load_smoke.py"
+              - "tests/e2e/copilot_hook_probe.py"
+              - ".github/workflows/nightly-cli-smoke.yml"
+
+          - name: review-axis-drift
+            run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
+
+          - name: session-json-validation
+            run: uv run --frozen python scripts/validation/git_hook_policy.py sessions {push_files}
+            glob: ".agents/sessions/**/*.json"
+
+          - name: observation-sync-advisory
+            run: uv run --frozen python scripts/validation/git_hook_policy.py observations {push_files}
+            glob: ".serena/memories/**/*-observations.md"
+
+          - name: bot-cascade-advisory
+            run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade

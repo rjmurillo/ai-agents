@@ -166,8 +166,8 @@ jobs:
 # Review-axes drift check (REQ-008-03 backstop)
 # ==============================================================================
 #
-# The local pre-push payload (scripts/hooks/pre-push Phase 5b) is developer-side.
-# This job is the non-bypassable backstop. It runs the canonical-to-CI
+# The named local pre-push job in lefthook.yml is developer-side. This job is
+# the non-bypassable backstop. It runs the canonical-to-CI
 # generator in --dry-run mode and fails the build if any committed
 # .github/prompts/pr-quality-gate-{role}.md differs from what the canonical
 # .claude/skills/review/references/{role}.md would produce.

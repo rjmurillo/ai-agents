@@ -10,7 +10,7 @@
 #   - Bash scripts added under .github/scripts/ (ADR-042)
 #
 # Related: Issue #664 (--no-verify bypass logging)
-# Related: scripts/hooks/pre-commit (local enforcement payload)
+# Related: lefthook.yml (local named validator jobs)
 
 name: Audit Hook Bypass
 
