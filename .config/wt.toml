@@ -2,9 +2,8 @@
 # Documentation: https://worktrunk.dev/hook/
 
 [post-create]
-# Configure git hooks path to .githooks directory
-# This ensures pre-commit and other hooks work in worktrees
-configure-hooks = "git config core.hooksPath '.githooks'"
+# Install Lefthook shims after the project environment is available
+configure-hooks = "uv run --frozen lefthook install --reset-hooks-path"
 
 # Copy gitignored files from main worktree to eliminate cold starts
 # Files listed in .worktreeinclude (node_modules, .cache, etc.)

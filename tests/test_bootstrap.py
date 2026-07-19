@@ -26,6 +26,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP_PATH = REPO_ROOT / ".claude" / "lib" / "bootstrap.py"
 
 
+VM_BOOTSTRAP_PATH = REPO_ROOT / "scripts" / "bootstrap-vm.sh"
+SETUP_ACTION_PATH = REPO_ROOT / ".github" / "actions" / "setup-code-env" / "action.yml"
+WORKTRUNK_CONFIG_PATH = REPO_ROOT / ".config" / "wt.toml"
+
 def _load_bootstrap():
     spec = importlib.util.spec_from_file_location(
         "bootstrap_under_test", BOOTSTRAP_PATH
@@ -192,3 +196,30 @@ def test_setup_hook_lib_path_is_idempotent(
 
     while lib_dir in sys.path:
         sys.path.remove(lib_dir)
+
+
+def test_vm_bootstrap_installs_lefthook_after_dependency_sync() -> None:
+    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
+
+    sync = text.index("uv sync --frozen --extra dev")
+    install = text.index("uv run --frozen lefthook install --reset-hooks-path")
+    assert sync < install
+    assert "git config core.hooksPath" not in text
+
+
+def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies() -> None:
+    text = SETUP_ACTION_PATH.read_text(encoding="utf-8")
+
+    dependencies = text.index("- name: Install Python dependencies")
+    install = text.index("- name: Enable git hooks")
+    assert "enable-git-hooks:" in text
+    assert dependencies < install
+    assert "uv run --frozen --extra dev lefthook install --reset-hooks-path" in text
+    assert "git config core.hooksPath" not in text
+
+
+def test_worktrunk_post_create_installs_lefthook() -> None:
+    text = WORKTRUNK_CONFIG_PATH.read_text(encoding="utf-8")
+
+    assert 'configure-hooks = "uv run --frozen lefthook install --reset-hooks-path"' in text
+    assert "core.hooksPath" not in text

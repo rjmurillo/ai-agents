@@ -73,18 +73,6 @@ runs:
         echo "✓ GitHub CLI is available"
         echo "✓ GH_TOKEN is configured"
 
-    - name: Enable git hooks
-      if: inputs.enable-git-hooks == 'true'
-      shell: bash
-      run: |
-        echo "Configuring git hooks..."
-        git config core.hooksPath .githooks
-        echo "✓ Git hooks enabled at .githooks/"
-
-        # Verify hooks are configured
-        HOOKS_PATH=$(git config --get core.hooksPath)
-        echo "Current hooks path: $HOOKS_PATH"
-
     - name: Install markdownlint-cli2
       shell: bash
       run: |
@@ -132,6 +120,16 @@ runs:
           echo "⚠ No pyproject.toml found, skipping dependency installation"
         fi
 
+    - name: Enable git hooks
+      if: inputs.enable-git-hooks == 'true'
+      shell: bash
+      run: |
+        echo "Installing Lefthook..."
+        export PATH="$HOME/.local/bin:$PATH"
+        uv run --frozen --extra dev lefthook install --reset-hooks-path
+        uv run --frozen --extra dev lefthook check-install
+        echo "✓ Lefthook installed"
+
     - name: Verify Python tools
       if: inputs.enable-python == 'true'
       shell: bash
@@ -173,12 +171,16 @@ runs:
     - name: Verify setup
       shell: pwsh -NoProfile -Command "& '{0}'"
       env:
+        ENABLE_GIT_HOOKS: ${{ inputs.enable-git-hooks }}
         ENABLE_PESTER: ${{ inputs.enable-pester }}
         ENABLE_PYTHON: ${{ inputs.enable-python }}
       run: |
         Write-Host ""
         Write-Host "=== Setup Verification ===" -ForegroundColor Cyan
-        Write-Host "Git hooks path: $(git config --get core.hooksPath)"
+        if ($env:ENABLE_GIT_HOOKS -eq 'true') {
+          uv run --frozen --extra dev lefthook check-install
+          Write-Host "✓ Lefthook installation verified" -ForegroundColor Green
+        }
         Write-Host "SKIP_AUTOFIX: $($env:SKIP_AUTOFIX ?? '0') (0=enabled, 1=disabled)"
         Write-Host ""
 
