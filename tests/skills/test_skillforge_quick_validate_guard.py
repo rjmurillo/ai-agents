@@ -201,6 +201,25 @@ def test_is_within_handles_filesystem_root(script: Path) -> None:
             False,
             "win bare UNC sibling share (CWE-22)",
         ),
+        # Regression (adv review of #3226): a legitimate descendant directly
+        # under a bare UNC share root must be accepted. ``ntpath.commonpath``
+        # raises "Can't mix absolute and relative paths" here because the bare
+        # share root's root-relative part is empty; the drive-aware fallback
+        # keeps this contained instead of false-rejecting a real SKILL.md read.
+        (
+            ntpath,
+            r"\\srv\share\skill",
+            r"\\srv\share",
+            True,
+            "win bare UNC share root, valid child",
+        ),
+        (
+            ntpath,
+            r"\\srv\share",
+            r"\\srv\share",
+            True,
+            "win bare UNC share root, exact equal",
+        ),
     ]
     for pathmod, child, root, expected, label in cases:
         got = is_within(pathmod.normcase(child), pathmod.normcase(root), pathmod)

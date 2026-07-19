@@ -188,3 +188,56 @@ def test_pre_pr_under_size_ceiling() -> None:
         encoding="utf-8"
     )
     assert len(text.splitlines()) < 500
+
+
+def test_lazy_version_pin_import_resolves_without_sys_path_restore() -> None:
+    """Regression (#3073): the lazy version-pin import resolves without a sys.path restore.
+
+    ``validate_copilot_version_pin`` (checks_tooling.py) runs a *function-local*
+    ``from check_copilot_version_pin import EXIT_OK, check_action`` that resolves
+    by bare name at call time. It works only because this module inserts
+    ``scripts/validation`` on ``sys.path`` append-only and never restores it,
+    mirroring production ``pre_pr``. An earlier revision of this module
+    snapshotted and restored ``sys.path`` in a ``finally``, stripping the
+    directory back off and breaking the import in isolation; PR #3228 removed the
+    restore.
+
+    An in-process guard cannot catch a reintroduced restore: sibling test
+    modules (``test_check_skill_portability``, ``test_check_skill_md_portability``)
+    insert ``scripts/validation`` at collection and leave it on ``sys.path``, so
+    the directory stays reachable even if this module restores its own path, and
+    a reintroduced bug passes. The guard therefore runs in a clean subprocess
+    that scrubs ``scripts/validation`` from ``sys.path``, imports *only this
+    module* (whose append-only discipline is then the sole thing keeping the
+    directory reachable), evicts the lazy target, and calls the validator. If a
+    future edit reintroduces the restore, the lazy import raises
+    ``ModuleNotFoundError`` and the subprocess exits nonzero. The
+    ``MissingScriptSkip`` branch is caught because the import at
+    ``checks_tooling.py`` runs *before* the ``action.yml`` existence check, so a
+    downstream install without the action still proves the import resolved.
+    """
+    tests_validation_dir = REPO_ROOT / "tests" / "validation"
+    validation_dir = REPO_ROOT / "scripts" / "validation"
+    probe = (
+        "import importlib, sys\n"
+        f"val = {str(validation_dir)!r}\n"
+        "sys.path[:] = [p for p in sys.path if p != val]\n"
+        f"sys.path.insert(0, {str(tests_validation_dir)!r})\n"
+        'mod = importlib.import_module("test_pre_pr_model_pin_wiring")\n'
+        'sys.modules.pop("check_copilot_version_pin", None)\n'
+        "try:\n"
+        "    mod.pre_pr.validate_copilot_version_pin(mod.REPO_ROOT)\n"
+        "except mod.pre_pr.MissingScriptSkip:\n"
+        "    pass\n"
+        'assert "check_copilot_version_pin" in sys.modules, "lazy import failed"\n'
+        'print("LAZY_IMPORT_OK")\n'
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "LAZY_IMPORT_OK" in result.stdout
