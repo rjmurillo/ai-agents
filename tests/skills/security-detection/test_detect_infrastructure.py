@@ -77,8 +77,9 @@ class TestGetSecurityRiskLevel:
     def test_high_for_config_json(self) -> None:
         assert get_security_risk_level("config/database.json") == "high"
 
-    def test_critical_for_hook_payloads(self) -> None:
-        assert get_security_risk_level("scripts/hooks/pre-commit") == "critical"
+    def test_critical_only_for_git_hook_policy_path(self) -> None:
+        assert get_security_risk_level("scripts/validation/git_hook_policy.py") == "critical"
+        assert get_security_risk_level("scripts/validation/pre_pr.py") == "none"
         assert get_security_risk_level(".githooks/pre-commit") == "none"
 
     @pytest.mark.parametrize(
@@ -152,12 +153,12 @@ class TestDetectInfrastructure:
 class TestMain:
     """Tests for main entry point."""
 
-    def test_returns_zero_with_no_files(self, capsys: pytest.CaptureFixture) -> None:
+    def test_returns_zero_with_no_files(self, capsys: pytest.CaptureFixture[str]) -> None:
         with patch("sys.argv", ["detect_infrastructure.py"]):
             result = main()
         assert result == 0
 
-    def test_json_output(self, capsys: pytest.CaptureFixture) -> None:
+    def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         argv = [
             "detect_infrastructure.py", "--files",
             ".github/workflows/ci.yml", "--json",
@@ -168,7 +169,7 @@ class TestMain:
         captured = capsys.readouterr()
         assert '"critical"' in captured.out
 
-    def test_human_output_for_findings(self, capsys: pytest.CaptureFixture) -> None:
+    def test_human_output_for_findings(self, capsys: pytest.CaptureFixture[str]) -> None:
         with patch("sys.argv", ["detect_infrastructure.py", "--files", ".github/workflows/ci.yml"]):
             result = main()
         assert result == 0
