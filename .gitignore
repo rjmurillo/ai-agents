@@ -84,7 +84,6 @@ ENV/
 
 # Hook runtime logs and caches
 .claude/hooks/audit.log
-.claude/hooks/Stop/.skill_pattern_cache.json
 
 # Scheduled-task runtime lock (held while ScheduleWakeup-managed loops run)
 .claude/scheduled_tasks.lock
