@@ -150,17 +150,6 @@
         ]
       }
     ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/SubagentStop/invoke_qa_agent_validator.py",
-            "statusMessage": "Validating QA agent output"
-          }
-        ]
-      }
-    ],
     "PreCompact": [
       {
         "hooks": [

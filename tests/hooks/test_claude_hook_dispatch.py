@@ -231,8 +231,8 @@ def test_stdout_buffer_writes_are_captured(tmp_path, capsys):
 def test_shim_can_import_sibling_companion_module(tmp_path, capsys):
     # Standalone execution puts the script's directory on sys.path[0];
     # the dispatcher must preserve that contract or shims with sibling
-    # companions (Stop/invoke_skill_learning.py + skill_pattern_loader)
-    # fail with ModuleNotFoundError and block the event (observed live).
+    # companion modules fail with ModuleNotFoundError and block the
+    # event (observed live).
     _write_shim(tmp_path, "Sub/companion_mod.py", "VALUE = 'companion-ok'\n")
     shims = [
         _write_shim(

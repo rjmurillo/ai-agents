@@ -236,21 +236,6 @@ class TestDispatcherArtifacts:
                     stale.append(path.name)
             assert sorted(stale) == [], f"{event}: unregistered matcher shims: {stale}"
 
-    def test_session_end_skill_loader_is_shipped_but_not_dispatched(self):
-        event_dir = _COPILOT / "hooks" / "SessionEnd"
-        manifest = json.loads(
-            (event_dir / "_manifest.json").read_text(encoding="utf-8")
-        )
-        canonical = _REPO / ".claude" / "hooks" / "Stop" / "skill_pattern_loader.py"
-        shipped = event_dir / "skill_pattern_loader.py"
-
-        assert shipped.is_file()
-        assert "skill_pattern_loader.py" not in manifest["shims"]
-        # The companion is copied verbatim (no matcher shim is injected for
-        # unmatched hooks), so the shipped bytes must equal the canonical
-        # source exactly, not merely both exist (#12).
-        assert shipped.read_bytes() == canonical.read_bytes()
-
     def test_pretooluse_allows_non_matching_tool(self):
         proc = _run_entry(_GATING, {"tool_name": "____NoSuchTool____", "tool_input": {}})
         assert proc.returncode == 0, proc.stderr.decode()[:600]

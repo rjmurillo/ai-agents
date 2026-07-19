@@ -26,11 +26,6 @@
           "file": "PreToolUse/invoke_security_commit_gate.py",
           "timeout": 10,
           "statusMessage": "Checking security gate for staged auth files (ADR-033)"
-        },
-        {
-          "file": "PreToolUse/invoke_prompt_eval_gate.py",
-          "timeout": 10,
-          "statusMessage": "Checking ADR-057 behavioral eval evidence for prompt changes"
         }
       ]
     },
@@ -155,10 +150,6 @@
       "matcher": null,
       "shims": [
         {
-          "file": "Stop/invoke_skill_learning.py",
-          "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
-        },
-        {
           "file": "Stop/invoke_session_validator.py",
           "statusMessage": "Validating session completeness"
         },
@@ -248,11 +239,6 @@
           "file": "PreToolUse/invoke_security_commit_gate.py",
           "timeout": 10,
           "statusMessage": "Checking security gate for staged auth files (ADR-033)"
-        },
-        {
-          "file": "PreToolUse/invoke_prompt_eval_gate.py",
-          "timeout": 10,
-          "statusMessage": "Checking ADR-057 behavioral eval evidence for prompt changes"
         }
       ]
     },
@@ -429,24 +415,8 @@
       "surface": "plugin",
       "shims": [
         {
-          "file": "Stop/invoke_skill_learning.py",
-          "statusMessage": "Extracting skill learnings from session (LLM-enhanced)"
-        },
-        {
           "file": "Stop/invoke_session_validator.py",
           "statusMessage": "Validating session completeness"
-        }
-      ]
-    },
-    "plugin-subagentstop-qa_agent_validator": {
-      "event": "SubagentStop",
-      "mode": "gate_all",
-      "matcher": null,
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "SubagentStop/invoke_qa_agent_validator.py",
-          "statusMessage": "Validating QA agent output"
         }
       ]
     },
