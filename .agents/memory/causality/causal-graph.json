@@ -13124,6 +13124,69 @@
         "episode-2026-07-18-session-3061"
       ],
       "created": "2026-07-18T07:51:32.359838+00:00"
+    },
+    {
+      "id": "86f790c528f0",
+      "type": "milestone",
+      "label": "milestone: Verified the #3246 retirement facts against the tree before amending",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418063+00:00"
+    },
+    {
+      "id": "e8bc6c1f6aa8",
+      "type": "milestone",
+      "label": "milestone: Amended ADR-033 to record the Gates 2/3/4 hook retirement",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418131+00:00"
+    },
+    {
+      "id": "bffef0d32ff1",
+      "type": "milestone",
+      "label": "milestone: Ran the mandatory adr-review skill debate (6 agents) and recorded the result",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418183+00:00"
+    },
+    {
+      "id": "a52d79f42441",
+      "type": "commit",
+      "label": "commit: Commit: 475961c4",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418232+00:00"
+    },
+    {
+      "id": "d9f479373a90",
+      "type": "commit",
+      "label": "commit: Commit: 5a472157",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418280+00:00"
+    },
+    {
+      "id": "e25c31a7989d",
+      "type": "milestone",
+      "label": "milestone: Converged the Copilot review on PR #3258",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418329+00:00"
+    },
+    {
+      "id": "452cdf795d99",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve issue #3248: amend ADR-033 (Routing-Level Enforcement Gates) to record the already-shipped retirement of the invoke_routing_gates.py PreToolUse hook (Gates 2 QA Validation, 3 Critic Review, 4 ADR Existence), deleted in PR #3246 (Refs #3194). The hook was structurally dead: its matcher fired only on raw gh pr create / gh pr merge, which invoke_skill_first_guard.py already denies in the same PreToolUse event, and its legacy exit-0 deny payload was ignored by the harness. Documentation-accuracy amendment only, no behavior change. Run the mandatory adr-review skill debate, mark the retired gates in the Gate Types table, record where the advisory intent went, then commit and open a PR. ADR-only edit under .agents/, no .claude or src/copilot-cli files, so no plugin manifest bump expected.",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418380+00:00"
     }
   ],
   "patterns": [

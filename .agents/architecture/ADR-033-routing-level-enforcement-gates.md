@@ -461,7 +461,7 @@ PR #3246 (Refs #3194) deleted `invoke_routing_gates.py`, the PreToolUse hook tha
 
 The hook was structurally dead, enforcing nothing while costing startup and dispatch overhead:
 
-- Its matcher fired only on raw `gh pr create` and `gh pr merge`. In the same PreToolUse event, `invoke_skill_first_guard.py` already denies those raw commands and steers callers to the github skill scripts, so the routing_gates matcher never reached a live command.
+- Its matcher fired only on raw `gh pr create` and `gh pr merge`. In the same PreToolUse event, `invoke_skill_first_guard.py` already denies those raw commands and steers callers to the GitHub skill scripts, so the routing_gates matcher never reached a live command.
 - Its deny path used the legacy exit-0 JSON payload, which the current harness ignores, so even on a match it could not block.
 
 ### What still enforces
