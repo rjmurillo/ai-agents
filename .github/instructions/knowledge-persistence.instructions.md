@@ -26,18 +26,19 @@ When you learn a durable fact, convention, or decision procedure that future ses
 
 ## When to write a Serena memory (tier 2 guidance)
 
-Write a Serena memory (`mcp__serena__write_memory`) when ALL of the following hold:
+Write a Serena memory when ALL of the following hold:
 
 - The information was derived during this session (observed behavior, a gotcha, a
   project-specific pattern, a decision rationale, a non-obvious codebase fact).
-- It is NOT already expressed in a `.claude/rules/` file or an existing Serena memory
-  (check first: `mcp__serena__read_memory` or `mcp__serena__list_memories`).
+- It is NOT already expressed in an existing rule or Serena memory
+  (search existing Serena memories first).
 - A future session working on the same area would save 5+ minutes by having it.
-- It does NOT need to bind Codex or Copilot (those harnesses do not read Serena).
+- It does NOT need to be a guaranteed binding for every harness and contributor. Serena is
+  MCP-gated, so must-obey conventions belong in a rule file instead.
 
 Do NOT write a Serena memory when:
 
-- The same information is already in a `.claude/rules/` file, writing a duplicate
+- The same information is already in an existing rule, writing a duplicate
   creates drift if the rule is later updated.
 - The convention must bind every harness or every contributor -> use `.claude/rules/` instead.
 - The information is ephemeral to this task only (no future session needs it).
@@ -50,13 +51,13 @@ memory already covers it, augment the existing entry rather than creating a dupl
 
 Before persisting anything, ask in order:
 
-1. **Already covered?** Search `.claude/rules/` and Serena memories. If yes, augment; do not duplicate.
+1. **Already covered?** Search existing rules and Serena memories. If yes, augment; do not duplicate.
 2. **Re-derivable easily?** If a `Grep` or `Read` would surface it in under a minute, skip.
 3. **Required investigation?** If it took failed attempts, non-obvious codebase traversal, or
    cross-file reasoning to arrive at -> persist it.
 4. **Which surface?**
    - Binds all harnesses / all contributors -> `.claude/rules/<name>.md` (+ mirrors + manifest bump)
-   - Retrieval context for Claude/Serena sessions only -> `mcp__serena__write_memory`
+   - Retrieval context, useful to recall -> write a Serena memory
    - Ephemeral / task-only -> neither; session log only if relevant for handoff
 
 ## MUST NOT

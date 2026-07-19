@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3235,
+    "date": "2026-07-19",
+    "branch": "copilot/add-guidance-for-serena-memory",
+    "startingCommit": "a6969121",
+    "objective": "Rework PR #3235 review threads. Make the Serena tier-2 knowledge-persistence guidance harness-neutral in the source rule (drop Claude-only tool-name prefixes and reader-path instructions, fix the false claim that Copilot and Codex do not read Serena) and correct the 'behaviour' spelling in the build memory-gate guardrail. Regenerate both instruction mirrors and the Copilot build skill, then reply to and resolve the addressed threads."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live in this Copilot CLI session: serena-* tools (initial_instructions, list_memories, write_memory, find_referencing_symbols, find_implementations, edit_memory) are present and callable against the active ai-agents repo."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions this session and received the 43.9 KB Serena operating manual (saved to a tmp file by the harness)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only per ADR-014), confirming the 2025-12-22 protocol change directing session context to session logs plus Serena memory."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-07-19-session-3235-knowledge-persistence-rework.json"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported copilot/add-guidance-for-serena-memory at HEAD a69691211 (the PR #3235 merge commit)."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On copilot/add-guidance-for-serena-memory, not main or master."
+      },
+      "constraintsRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS and universal rules load via AGENTS.md and the instruction trees. Confirmed the generated-artifacts (regenerate-and-commit-in-same-change), plugin-parity, atomic-commit (<=5 files), and dash-prohibition rules before editing."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items complete; Serena is live so its items are genuinely satisfied."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only, not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Rework notes captured in this log's workLog; no net-new durable convention emerged that is not already covered by knowledge-persistence.md itself."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown changes are prose edits to .claude/rules/knowledge-persistence.md and .claude/commands/build.md plus their regenerated mirrors; no list or table structure changed. Scoped markdownlint reports no new violations."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Rework shipped across two atomic commits: (1) rule source plus two instruction mirrors, (2) build command source plus Copilot build skill mirror. Each commit re-stages this session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/commands tests/build_scripts reports 1417 passed, 1 skipped (includes generate_rules, generate_commands, and copilot command-syntax-translation parity). build_all.py --check confirms the only regen drift is the three intended mirror files. Dash byte-check on both source files returns 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Rework steps tracked inline: source edits, mirror regen, drift check, test run, session log, split commits, thread replies and resolution."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-19T18:00:00Z",
+      "action": "Made the Serena tier-2 guidance harness-neutral in the source rule",
+      "result": "Edited .claude/rules/knowledge-persistence.md: dropped the mcp__serena__write_memory / read_memory / list_memories tool-name prefixes from prose (they differ per harness and leak onto the verbatim GitHub mirror), neutralized reader-check path instructions ('.claude/rules/' file -> existing rule) while keeping the architectural canonical-source references, and reframed the false bullet 'It does NOT need to bind Codex or Copilot (those harnesses do not read Serena)' to 'It does NOT need to be a guaranteed binding for every harness and contributor. Serena is MCP-gated, so must-obey conventions belong in a rule file instead.' Serena is available on Copilot CLI and Claude, so the original claim was factually wrong and contradicted line 14 of the same file.",
+      "filesModified": [
+        ".claude/rules/knowledge-persistence.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T18:10:00Z",
+      "action": "Corrected the behavior spelling in the build memory-gate guardrail",
+      "result": "Edited .claude/commands/build.md line 65 'changing behaviour of a validator' -> 'changing behavior'. Left the inline Skill(skill=\"memory-gate\") call syntax intact: the Copilot skill mirror carries an appended 'Copilot CLI invocation reference' table (issue #2743, byte-parity tested) that maps every Skill() call to the Copilot skill tool, so inline Claude syntax is correct by design and rewriting it would break test_spec_step0.py.",
+      "filesModified": [
+        ".claude/commands/build.md"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T18:20:00Z",
+      "action": "Regenerated the affected mirrors and verified no unrelated drift",
+      "result": "Ran build/scripts/generate_rules.py (64 written) and build/scripts/generate_commands.py (14 skills). git status shows exactly five tracked changes: the two sources plus .github/instructions/knowledge-persistence.instructions.md, src/copilot-cli/instructions/knowledge-persistence.instructions.md, and src/copilot-cli/skills/build/SKILL.md. build_all.py --check lists only those three regenerated mirrors as drift.",
+      "filesModified": [
+        ".github/instructions/knowledge-persistence.instructions.md",
+        "src/copilot-cli/instructions/knowledge-persistence.instructions.md",
+        "src/copilot-cli/skills/build/SKILL.md"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push the branch to re-trigger CI on PR #3235 (synchronize event).",
+    "Reply to and resolve the addressed review threads; leave any thread that contests a tested design decision open with a grounded explanation.",
+    "Let armed auto-merge (squash) land the PR once CI is green and threads clear."
+  ]
+}
