@@ -92,7 +92,7 @@ class PreCommitSecurityCheck:
         r".*[/\\]Auth[/\\].*",
         r".*[/\\]Security[/\\].*",
         r".*\.env.*",
-        r".*[/\\]\.githooks[/\\].*",
+        r"(^|.*[/\\])scripts[/\\]hooks[/\\].*",
         r".*[/\\]secrets[/\\].*",
         r".*[Pp]assword.*",
         r".*[Tt]oken.*",

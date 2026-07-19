@@ -209,3 +209,19 @@ class TestStageSecurityReport:
             side_effect=subprocess.CalledProcessError(1, "git add"),
         ):
             assert check._stage_security_report(Path("/repo/x.md")) is False
+
+
+class TestCriticalHookPaths:
+    def test_relocated_hook_payload_is_critical(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        payload = Path("/repo/scripts/hooks/pre-push")
+
+        assert check._check_critical_patterns([payload]) == [payload]
+
+    def test_removed_githooks_path_is_not_critical(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        payload = Path("/repo/.githooks/pre-push")
+
+        assert check._check_critical_patterns([payload]) == []
