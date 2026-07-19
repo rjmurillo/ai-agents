@@ -4,7 +4,7 @@ Two U+2014 (em-dash) characters slipped into
 ``tests/evals/test_eval_agent_vs_baseline.py`` (lines 1312, 2535 on
 the offending revision) because the dash-prohibition guards
 (``scripts/validation/pre_pr.py::validate_dash_prohibition`` and the
-markdown-only loop in ``.githooks/pre-commit``) scan only ``*.md``
+markdown-only loop in ``scripts/hooks/pre-commit``) scan only ``*.md``
 files, not Python sources.
 
 This test gives the affected file a Python-side regression check so

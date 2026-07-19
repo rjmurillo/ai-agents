@@ -532,7 +532,7 @@ _DASH_RE: re.Pattern[str] = re.compile("[\u2013\u2014]")
 def validate_no_dashes(title: str, body: str) -> list[Issue]:
     """Reject U+2014 (em-dash) or U+2013 (en-dash) in PR title or description.
 
-    Closes the gap that the .githooks/pre-commit and .githooks/commit-msg
+    Closes the gap that the scripts/hooks/pre-commit and scripts/hooks/commit-msg
     hooks do not cover: PR descriptions live in GitHub, never reach `git
     commit`, and were the source of bot reviewer threads on PR #1930
     despite the hook implementation. See `.claude/rules/universal.md`
@@ -745,7 +745,7 @@ def main(argv: list[str] | None = None) -> int:
     issues = validate_pr_description(pr_files, mentioned_files)
 
     # Validate: no em/en-dashes in PR title or body (Issue #1923, REQ-006).
-    # The .githooks/pre-commit and .githooks/commit-msg hooks cover staged
+    # The scripts/hooks/pre-commit and scripts/hooks/commit-msg hooks cover staged
     # files and commit messages but cannot scan PR descriptions, which live
     # in GitHub and never reach `git commit`. This check closes that gap.
     title: str = pr_data.get("title", "") or ""

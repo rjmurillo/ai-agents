@@ -161,7 +161,7 @@ def run_check(push_range: str, repo_root: Path) -> CheckResult:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point for CLI use from .githooks/pre-push."""
+    """Entry point for CLI use from scripts/hooks/pre-push."""
     parser = argparse.ArgumentParser(
         description="Check push range for placeholder git identities.",
     )
