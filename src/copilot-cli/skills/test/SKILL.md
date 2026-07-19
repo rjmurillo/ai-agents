@@ -29,9 +29,9 @@ Skip non-applicable gates. Do not waste agent invocations on irrelevant dimensio
 
 ## Gate 1: Functional Testing
 
-Invoke Skill(skill="code-qualities-assessment") for quality baseline.
+Invoke `skill: "code-qualities-assessment"` for quality baseline.
 
-Task(subagent_type="qa"): You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
+`agent_type: "project-toolkit:qa"`: You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
 
 1. **Unit coverage** - Each method in isolation, dependencies injected. Every new function has at least 1 test.
 2. **Integration coverage** - Contracts between components verified. Cross-module boundaries exercised.
@@ -44,7 +44,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 2: Non-Functional Testing
 
-Task(subagent_type="analyst"): You are a performance and reliability engineer. Focus on failure modes, not the happy path. Use measurable criteria, not subjective judgments. Evaluate:
+`agent_type: "project-toolkit:analyst"`: You are a performance and reliability engineer. Focus on failure modes, not the happy path. Use measurable criteria, not subjective judgments. Evaluate:
 
 1. **Performance** - No N+1 queries, no O(n*m) in hot paths, no blocking calls in async context.
 2. **Scalability** - Will this bottleneck under load? Connection pooling, caching strategy, pagination.
@@ -56,9 +56,9 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 3: Security Testing
 
-Invoke Skill(skill="security-scan") for CWE pattern detection.
+Invoke `skill: "security-scan"` for CWE pattern detection.
 
-Task(subagent_type="security"): You are a security auditor performing OWASP Top 10 review. Assume every input is malicious. Reference CWE numbers for every finding. Evaluate:
+`agent_type: "project-toolkit:security"`: You are a security auditor performing OWASP Top 10 review. Assume every input is malicious. Reference CWE numbers for every finding. Evaluate:
 
 1. **Injection** - Shell (CWE-78), XSS (CWE-79), SQL (CWE-89). No string interpolation in queries.
 2. **Authentication** - Session handling, credential storage, token validation.
@@ -70,7 +70,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array including CWE ref
 
 ## Gate 4: DevOps Testing
 
-Task(subagent_type="devops"): You are a build and release engineer. Focus on pipeline safety, reproducibility, and supply chain security. Evaluate:
+`agent_type: "project-toolkit:devops"`: You are a build and release engineer. Focus on pipeline safety, reproducibility, and supply chain security. Evaluate:
 
 1. **Pipeline impact** - Do changes affect CI/CD? Are workflow files valid YAML?
 2. **Actions security** - Pinned to SHA? Permissions scoped minimally? No secrets in logs?
@@ -82,9 +82,9 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 5: Developer Experience (DX)
 
-Invoke Skill(skill="orphan-ref-validator"). Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors `/build` Mandatory Exit Gate 4 (per `.claude/commands/build.md:56`) so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count-claim text is scanned by orphan-ref-validator; the old marketplace count validator has been retired. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
+Invoke `skill: "orphan-ref-validator"`. Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors `/build` Mandatory Exit Gate 4 (per `.claude/commands/build.md:56`) so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count-claim text is scanned by orphan-ref-validator; the old marketplace count validator has been retired. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
 
-Task(subagent_type="critic"): You are a developer advocate reviewing from the consumer perspective. Would a new contributor understand this code? Would the API frustrate or delight? Evaluate:
+`agent_type: "project-toolkit:critic"`: You are a developer advocate reviewing from the consumer perspective. Would a new contributor understand this code? Would the API frustrate or delight? Evaluate:
 
 1. **API ergonomics** - Consumer perspective. Are signatures intuitive? Error messages helpful?
 2. **Documentation** - Is changed behavior documented? Are code comments accurate (not stale)?
@@ -96,7 +96,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 6: Observability and Monitoring
 
-Task(subagent_type="architect"): You are an SRE reviewing production readiness. If this code fails at 3am, can oncall diagnose it without reading the source? Evaluate:
+`agent_type: "project-toolkit:architect"`: You are an SRE reviewing production readiness. If this code fails at 3am, can oncall diagnose it without reading the source? Evaluate:
 
 1. **Logging** - Are meaningful events logged? Structured logging with correlation IDs?
 2. **Metrics** - Are SLIs defined for new features? Latency, error rate, throughput tracked?
@@ -120,7 +120,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 3. Run applicable gates sequentially. Each gate dispatches its own agent.
 4. If any gate produces CRITICAL_FAIL: continue remaining gates (findings are additive). Mark overall verdict as CRITICAL_FAIL immediately.
 5. For test failures: hypothesis, verify, fix (never change code without understanding why)
-6. Invoke Skill(skill="quality-grades") to synthesize gate verdicts into overall quality score.
+6. Invoke `skill: "quality-grades"` to synthesize gate verdicts into overall quality score.
 
 ## Output
 
@@ -145,29 +145,3 @@ Synthesize into overall report:
 | Observability | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 
 **Overall verdict**: CRITICAL_FAIL if any gate fails. WARN if any gate warns. PASS if all gates pass.
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-skill calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Skill(skill="code-qualities-assessment")` | `skill` tool, `skill: "code-qualities-assessment"` |
-| `Skill(skill="orphan-ref-validator")` | `skill` tool, `skill: "orphan-ref-validator"` |
-| `Skill(skill="quality-grades")` | `skill` tool, `skill: "quality-grades"` |
-| `Skill(skill="security-scan")` | `skill` tool, `skill: "security-scan"` |
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="analyst")` | `task` tool, `agent_type: "project-toolkit:analyst"` |
-| `Task(subagent_type="architect")` | `task` tool, `agent_type: "project-toolkit:architect"` |
-| `Task(subagent_type="critic")` | `task` tool, `agent_type: "project-toolkit:critic"` |
-| `Task(subagent_type="devops")` | `task` tool, `agent_type: "project-toolkit:devops"` |
-| `Task(subagent_type="qa")` | `task` tool, `agent_type: "project-toolkit:qa"` |
-| `Task(subagent_type="security")` | `task` tool, `agent_type: "project-toolkit:security"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

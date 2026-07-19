@@ -57,7 +57,7 @@ Do not auto-apply edits. Confirm each case with the author of the change before 
 
 ### Step 3: Propose spec patches (follow-up, not in this slice)
 
-Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `Task(subagent_type="spec-generator")` to draft REQ/DESIGN/TASK edits and write a record under `.agents/specs/sync-log/` with the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
+Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `agent_type: "project-toolkit:spec-generator"` to draft REQ/DESIGN/TASK edits and write a record under `.agents/specs/sync-log/` with the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
 
 ## Principles
 
@@ -91,15 +91,3 @@ Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wi
 - Patch proposal via `spec-generator`.
 - Additional reference roots in `scripts/sync/detect_spec_drift.py`.
 - Sync log artifacts under `.agents/specs/sync-log/`.
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="spec-generator")` | `task` tool, `agent_type: "project-toolkit:spec-generator"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
