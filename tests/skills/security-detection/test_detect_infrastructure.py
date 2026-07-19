@@ -81,9 +81,32 @@ class TestGetSecurityRiskLevel:
         assert get_security_risk_level("scripts/hooks/pre-commit") == "critical"
         assert get_security_risk_level(".githooks/pre-commit") == "none"
 
-    def test_only_root_lefthook_config_is_critical(self) -> None:
-        assert get_security_risk_level("lefthook.yml") == "critical"
-        assert get_security_risk_level("nested/lefthook.yml") == "none"
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            f"{base}{suffix}{extension}"
+            for base in ("lefthook", ".lefthook", ".config/lefthook")
+            for suffix in ("", "-local")
+            for extension in (".yml", ".yaml", ".json", ".jsonc", ".toml")
+        ],
+    )
+    def test_auto_discovered_lefthook_configs_are_critical(
+        self, config_path: str
+    ) -> None:
+        assert get_security_risk_level(config_path) == "critical"
+
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            "config/lefthook.yml",
+            "nested/lefthook.yml",
+            "nested/.config/lefthook-local.jsonc",
+        ],
+    )
+    def test_non_discovered_lefthook_lookalikes_are_not_critical(
+        self, config_path: str
+    ) -> None:
+        assert get_security_risk_level(config_path) != "critical"
 
 
 class TestDetectInfrastructure:
