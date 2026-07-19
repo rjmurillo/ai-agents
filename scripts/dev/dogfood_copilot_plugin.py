@@ -107,6 +107,11 @@ def _stash_existing(target: Path) -> str:
         return "removed prior symlink"
     if target.is_dir():
         backup = _backup_path(target)
+        if backup.is_symlink():
+            # A symlink at the backup path is never one we created (we only ever
+            # rename a real directory there). Remove it so a dangling link does
+            # not make backup.exists() lie and crash the rename below on Windows.
+            backup.unlink()
         if backup.exists():
             shutil.rmtree(target)
             return "discarded copy (backup already present)"

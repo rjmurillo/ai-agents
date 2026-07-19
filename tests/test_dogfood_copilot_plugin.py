@@ -93,6 +93,22 @@ def test_install_replaces_prior_symlink(source: Path, target: Path, tmp_path: Pa
     assert "removed prior symlink" in note
 
 
+def test_install_survives_dangling_backup_symlink(
+    source: Path, target: Path, tmp_path: Path
+) -> None:
+    _require_symlinks(tmp_path)
+    _make_plugin_root(target, "0.0.1")  # a real copy to back up
+    backup = target.with_name(target.name + ".marketplace-bak")
+    backup.symlink_to(tmp_path / "gone")  # dangling: points nowhere
+
+    note = dogfood.dogfood_install(source, target)
+
+    assert dogfood._plugin_version(target) == "9.9.9"
+    assert "backed up copy" in note
+    assert backup.is_dir()  # stray link replaced by the real backup
+    assert not backup.is_symlink()
+
+
 # --- install (negative) ---
 
 
