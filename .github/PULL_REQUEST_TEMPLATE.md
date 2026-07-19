@@ -116,7 +116,8 @@ Deliverables in this PR:
 
 <!-- List security-critical files if any:
 - .github/workflows/...
-- scripts/hooks/...
+- lefthook.yml
+- scripts/validation/git_hook_policy.py
 - **/Auth/**/...
 -->
 

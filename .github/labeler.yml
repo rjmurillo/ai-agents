@@ -79,7 +79,7 @@ github-actions:
 automation:
   - changed-files:
       - any-glob-to-any-file:
-          - "scripts/hooks/**/*"
+          - "lefthook.yml"
           - "scripts/**/*"
           - ".github/scripts/**/*"
   - head-branch:
