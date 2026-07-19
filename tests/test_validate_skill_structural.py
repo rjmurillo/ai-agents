@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from typing import Protocol
 
+import pytest
+
 # Add the SkillForge scripts directory to the import path
 _scripts_dir = os.path.join(
     os.path.dirname(__file__),
@@ -306,9 +308,37 @@ def _trigger_safety_errors(errors: list[str]) -> list[str]:
 
 
 def _iter_canonical_skill_dirs() -> list[Path]:
-    """Every shipped canonical skill directory (``.claude/skills/*/`` with SKILL.md)."""
+    """Every shipped canonical skill directory (``.claude/skills/*/``).
+
+    SkillValidator._find_skill_md accepts both ``SKILL.md`` and ``skill.md``, and
+    the glob is case-sensitive on Linux and macOS, so a lowercase-named skill
+    would be silently skipped by an uppercase-only glob. Match both names and
+    dedupe by parent directory so the repo-wide claim actually covers every
+    shipped skill.
+    """
     base = _REPO_ROOT / ".claude" / "skills"
-    return sorted(p.parent for p in base.glob("*/SKILL.md"))
+    dirs: set[Path] = set()
+    for name in ("SKILL.md", "skill.md"):
+        dirs.update(p.parent for p in base.glob(f"*/{name}"))
+    return sorted(dirs)
+
+
+def _scan_skill_dir(skill_dir: Path) -> list[str]:
+    """Return offender messages for one skill dir, empty when it is clean.
+
+    The caller must have chdir'd to an ancestor of ``skill_dir`` first, because
+    SkillValidator's CWE-22 guard rejects paths outside the current working
+    directory. A load failure (unreadable or missing SKILL.md) is reported as an
+    offender rather than filtered away, so a file that was never scanned cannot
+    let the repo-wide guarantee pass hollow.
+    """
+    validator: _ValidatorLike = SkillValidator(str(skill_dir))
+    if not validator.load_skill():
+        return [e for e in validator.errors if "read" in e.lower() or "not found" in e.lower()] or [
+            "load_skill() returned False"
+        ]
+    validator.validate_triggers()
+    return _trigger_safety_errors(validator.errors)
 
 
 class TestTriggerPhraseRepoWideGuard:
@@ -322,24 +352,22 @@ class TestTriggerPhraseRepoWideGuard:
     failure naming the offending file, decoupled from whoever next stages it.
     """
 
-    def test_no_latent_trigger_phrase_violations_repo_wide(self) -> None:
+    def test_no_latent_trigger_phrase_violations_repo_wide(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Positive: no shipped skill carries an unsafe trigger phrase today."""
         skill_dirs = _iter_canonical_skill_dirs()
         assert skill_dirs, "No canonical skills found; the glob or path is wrong"
-        orig = os.getcwd()
-        os.chdir(_REPO_ROOT)
-        try:
-            offenders: dict[str, list[str]] = {}
-            for skill_dir in skill_dirs:
-                validator: _ValidatorLike = SkillValidator(str(skill_dir))
-                validator.load_skill()
-                validator.validate_triggers()
-                errs = _trigger_safety_errors(validator.errors)
-                if errs:
-                    rel = skill_dir.relative_to(_REPO_ROOT).as_posix()
-                    offenders[rel] = errs
-        finally:
-            os.chdir(orig)
+        # monkeypatch.chdir auto-restores cwd on teardown, which is safer than a
+        # bare os.chdir under parallel runners (pytest-xdist). The chdir is
+        # required by SkillValidator's CWE-22 guard, which only accepts paths
+        # under the current working directory.
+        monkeypatch.chdir(_REPO_ROOT)
+        offenders: dict[str, list[str]] = {}
+        for skill_dir in skill_dirs:
+            msgs = _scan_skill_dir(skill_dir)
+            if msgs:
+                offenders[skill_dir.relative_to(_REPO_ROOT).as_posix()] = msgs
         assert not offenders, (
             "Latent SkillForge trigger-phrase violations found repo-wide "
             "(issue #3233). Each file below has an unsafe trigger phrase that "
@@ -387,4 +415,25 @@ class TestTriggerPhraseRepoWideGuard:
         v.validate_triggers()
         assert not _trigger_safety_errors(v.errors), (
             f"Guard wrongly flagged safe triggers: {v.errors}"
+        )
+
+    def test_scan_reports_unreadable_skill(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: a skill dir whose SKILL.md cannot be loaded is reported, not skipped.
+
+        Without this, a file that ``load_skill()`` fails to read would have its
+        error filtered out by ``_trigger_safety_errors`` and the repo-wide guard
+        would pass while never scanning that skill. ``_scan_skill_dir`` treats the
+        load failure as an offender so the "repo-wide scanned" claim stays honest.
+        """
+        skill_dir = tmp_path / "broken-skill"
+        skill_dir.mkdir()
+        # No SKILL.md written: _find_skill_md defaults to <dir>/SKILL.md, which
+        # does not exist, so load_skill() returns False.
+        monkeypatch.chdir(tmp_path)
+        msgs = _scan_skill_dir(skill_dir)
+        assert msgs, "A skill dir with no readable SKILL.md must be reported as an offender"
+        assert any("not found" in m.lower() or "returned False" in m for m in msgs), (
+            f"Offender message should name the load failure, got: {msgs}"
         )
