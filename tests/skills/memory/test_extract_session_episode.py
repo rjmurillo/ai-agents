@@ -1228,3 +1228,125 @@ class TestStringDecisionPreservation:
             ["Shared text"], [{"chosen": "Shared text"}]
         )
         assert len(out) == 1
+
+
+class TestSequentialEventLinks:
+    """Episode events form a connected causal chain, not a flat graph (#3245).
+
+    ADR-038 defines ``caused_by``/``leads_to`` as first-class fields; the
+    extractor links each event to its immediate neighbors so reflexion retrieval
+    can walk the graph. Linking runs on final ids (after ``_dedupe_events``
+    reassignment) so references never dangle.
+    """
+
+    @staticmethod
+    def _evt(eid, etype="milestone", content="x"):
+        return {
+            "id": eid,
+            "timestamp": "2026-07-19T00:00:00+00:00",
+            "type": etype,
+            "content": content,
+            "caused_by": [],
+            "leads_to": [],
+        }
+
+    def test_multi_event_chain(self):
+        events = [self._evt("e001"), self._evt("e002", "test"), self._evt("e003", "commit")]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == ["e003"]
+        assert events[2]["caused_by"] == ["e002"] and events[2]["leads_to"] == []
+
+    def test_single_event_has_no_links(self):
+        events = [self._evt("e001")]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == []
+        assert events[0]["leads_to"] == []
+
+    def test_empty_list_does_not_crash(self):
+        events: list[dict] = []
+        extract_session_episode._link_sequential_events(events)
+        assert events == []
+
+    def test_events_without_id_are_skipped(self):
+        # Defensive: a malformed entry with no id must not enter the chain or crash.
+        malformed = {"type": "milestone", "content": "no id"}
+        events = [self._evt("e001"), malformed, self._evt("e002", "commit")]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["leads_to"] == ["e002"]
+        assert events[2]["caused_by"] == ["e001"]
+        assert "caused_by" not in malformed
+
+    def test_relinking_is_idempotent(self):
+        events = [self._evt("e001"), self._evt("e002", "commit")]
+        extract_session_episode._link_sequential_events(events)
+        once = [dict(e) for e in events]
+        extract_session_episode._link_sequential_events(events)
+        assert events == once
+
+    def _write_json_log(self, tmp_path, tasks, sha="abc1234def5678"):
+        log = tmp_path / "2026-07-19-session-999.json"
+        log.write_text(
+            json.dumps(
+                {
+                    "session": {"date": "2026-07-19", "number": 999},
+                    "protocolCompliance": {"sessionEnd": {}},
+                    "workLog": [{"task": t} for t in tasks],
+                    "endingCommit": sha,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return log
+
+    def test_cli_generated_episode_is_linked(self, tmp_path):
+        # Acceptance (#3245): a newly generated multi-event episode populates
+        # caused_by/leads_to for non-boundary events.
+        out = tmp_path / "episodes"
+        out.mkdir()
+        log = self._write_json_log(tmp_path, ["First", "Second", "Third"])
+        rc = extract_session_episode.main([str(log), "--output-path", str(out), "--force"])
+        assert rc == 0
+        episode = json.loads(
+            (out / "episode-2026-07-19-session-999.json").read_text(encoding="utf-8")
+        )
+        events = episode["events"]
+        assert len(events) >= 3
+        assert events[0]["caused_by"] == []
+        assert events[-1]["leads_to"] == []
+        for i in range(1, len(events)):
+            assert events[i]["caused_by"] == [events[i - 1]["id"]]
+        for i in range(len(events) - 1):
+            assert events[i]["leads_to"] == [events[i + 1]["id"]]
+
+    def test_links_reference_existing_ids_after_preserve(self, tmp_path):
+        # Links must reference final ids: _dedupe_events reassigns ids on merge,
+        # so a preserve pass must not leave dangling references (#3245).
+        out = tmp_path / "episodes"
+        out.mkdir()
+        ep = out / "episode-2026-07-19-session-999.json"
+        ep.write_text(
+            json.dumps(
+                {
+                    "id": "episode-2026-07-19-session-999",
+                    "session": "2026-07-19-session-999",
+                    "timestamp": "2026-07-19T00:00:00+00:00",
+                    "outcome": "success",
+                    "task": "prior",
+                    "decisions": [],
+                    "events": [self._evt("e001", content="Prior")],
+                    "metrics": {},
+                    "lessons": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        log = self._write_json_log(tmp_path, ["Fresh one", "Fresh two"])
+        rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
+        assert rc == 0
+        episode = json.loads(ep.read_text(encoding="utf-8"))
+        ids = {e["id"] for e in episode["events"]}
+        assert len(episode["events"]) >= 2
+        for e in episode["events"]:
+            for ref in e["caused_by"] + e["leads_to"]:
+                assert ref in ids, f"dangling reference {ref} in {e['id']}"

@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-19-session-3245-episode-causal-links",
+  "session": "2026-07-19-session-3245-episode-causal-links",
+  "timestamp": "2026-07-19T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue #3245 (independent bug, not part of epic #3197): the memory-skill episode extractor emits a flat causal graph. Every event was constructed with caused_by=[] and leads_to=[], so downstream reflexion/knowledge-graph consumers saw no temporal ordering between events in a session episode. Fix links the events into a linear chain at the single write choke point in main() (after any _dedupe_events/merge_preserving id reassignment), so caused_by/leads_to always reference final event ids in both the preserve and non-preserve paths. Mirror the change byte-for-byte to the Copilot copy and bump both project-toolkit plugin manifests.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a linear-chain causal-link pass to the episode extractor",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote 7 regression tests for the causal-link pass",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "test",
+      "content": "Wrote 7 regression tests for the causal-link pass      Appended TestSequentialEventLinks to tests/skills/memory/test_extract_session_episode.py: multi-event chain ordering, single-event (both sides empty), empty list, no-id entry skipped, idempotency, CLI end-to-end acceptance (4 events chained e001->e002->e003->e004), and no-dangling-links after merge_preserving. Full file: 131 passed. Debugged a smoke false alarm: looks_like_json_session requires BOTH session AND protocolCompliance keys, so the CLI fixture needed protocolCompliance to avoid silently parsing as markdown.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mirrored the script to the Copilot copy and bumped both plugin manifests",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared the pre-push per-file mypy gate on the touched extractor",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fc9fd054",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
