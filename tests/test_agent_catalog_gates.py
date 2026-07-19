@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 VALIDATE_GENERATED = REPO_ROOT / ".github" / "workflows" / "validate-generated-agents.yml"
 
 

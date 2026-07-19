@@ -13,7 +13,7 @@ that intentionally do not follow the SkillForge structure:
 
 The filter is a bash grep pipeline with no Python seam. To avoid duplicating
 the pipeline (which would drift from the hook), this test extracts the exact
-``STAGED_SKILL_FILES=...`` assignment from ``.githooks/pre-commit`` and runs it
+``STAGED_SKILL_FILES=...`` assignment from ``scripts/hooks/pre-commit`` and runs it
 under bash against sample staged-file lists.
 """
 
@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
 
 def _extract_filter_block() -> str:

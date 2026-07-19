@@ -9,7 +9,7 @@ the staged YAML files via a bash-3-safe array build that also rejects symlinks
 (MEDIUM-002) and skips paths no longer on disk.
 
 To avoid duplicating the loop (which would drift from the hook), these tests
-extract the exact ``YAML_FILES`` array-build block from ``.githooks/pre-commit``
+extract the exact ``YAML_FILES`` array-build block from ``scripts/hooks/pre-commit``
 and run it under bash against controlled inputs, plus a structural assertion
 that the whole-tree scan is gone.
 """
@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
 
 def _hook_text() -> str:
@@ -61,7 +61,7 @@ def _run_block(paths: list[str], cwd: Path) -> list[str]:
     """
     block = _extract_target_block()
     script = (
-        # Run under the same error mode as the hook (`.githooks/pre-commit`
+        # Run under the same error mode as the hook (`scripts/hooks/pre-commit`
         # sets `set -e`) so the block's exit behavior matches production.
         "set -e\n"
         "echo_warning() { :; }\n"

@@ -1,6 +1,6 @@
 """Regression tests for #2442: pre-commit grep-count fallback produces "0\\n0".
 
-`.githooks/pre-commit` counted upstream-filtered staged files using the idiom
+`scripts/hooks/pre-commit` counted upstream-filtered staged files using the idiom
 `grep -c . || echo 0`. When the input is empty, `grep -c .` prints `0` and
 exits 1, then `|| echo 0` appends a second `0`. Command substitution then
 yields `"0\\n0"`, which fails `$(( ))` arithmetic with
@@ -30,7 +30,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
 
 def _run_bash(snippet: str) -> subprocess.CompletedProcess[str]:
@@ -51,7 +51,7 @@ def _run_bash(snippet: str) -> subprocess.CompletedProcess[str]:
 _BUGGY_COUNT = 'COUNT=$(echo "$INPUT" | grep -c . || echo 0)\nprintf "%s" "$COUNT"\n'
 
 # The fix: a helper that normalizes to a single integer for any input shape.
-# This is the same shape committed to .githooks/pre-commit (see hook for the
+# This is the same shape committed to scripts/hooks/pre-commit (see hook for the
 # canonical definition; this is a copy for unit-level coverage that does not
 # depend on the rest of the hook running).
 _HELPER = """

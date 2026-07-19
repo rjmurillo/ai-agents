@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regression test for issue #2346.
 
-`.githooks/pre-commit` must not feed `.github/actions/**/action.yml` to
+`scripts/hooks/pre-commit` must not feed `.github/actions/**/action.yml` to
 `actionlint`. actionlint validates workflows under `.github/workflows/`;
 composite-action metadata produces spurious "missing jobs section" and
 "missing on section" errors when scanned as a workflow.
@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-HOOK_PATH = REPO_ROOT / ".githooks" / "pre-commit"
+HOOK_PATH = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
 
 def _filter_regex() -> str:
