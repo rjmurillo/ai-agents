@@ -43,8 +43,8 @@
     {
       "id": "e004",
       "timestamp": "2026-07-19T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Converged the Copilot review on PR #3258",
+      "type": "commit",
+      "content": "Commit: 5a472157",
       "caused_by": [
         "e003"
       ],
@@ -56,7 +56,7 @@
       "id": "e005",
       "timestamp": "2026-07-19T00:00:00+00:00",
       "type": "milestone",
-      "content": "Converged the second Copilot review round on PR #3258 (episode + session-log findings)",
+      "content": "Converged the Copilot review on PR #3258",
       "caused_by": [
         "e004"
       ],
@@ -67,8 +67,8 @@
     {
       "id": "e006",
       "timestamp": "2026-07-19T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 5a472157",
+      "type": "milestone",
+      "content": "Converged the second Copilot review round on PR #3258 (episode + session-log findings)",
       "caused_by": [
         "e005"
       ],
