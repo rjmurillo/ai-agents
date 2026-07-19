@@ -1,0 +1,120 @@
+{
+ "schemaVersion": "1.0",
+ "session": {
+  "number": 3252,
+  "date": "2026-07-19",
+  "branch": "docs/3252-adr083-copy-only",
+  "startingCommit": "66e6ffe5",
+  "objective": "Resolve issue #3252: reconcile ADR-083 Decision item 3 with the actually-shipped dogfood installer. PR #3251 shipped copy-on-all-platforms (scripts/dev/dogfood_copilot_plugin.py) instead of the ADR's original symlink-on-Unix / copy-on-Windows plus automatic session-start freshness check. Owner locked copy-only for consistency with the existing copy-based skill/agent mirroring (one way to do it, not two). Amend the ADR text to match shipped behavior, run the mandatory adr-review skill debate, file a follow-up for the one recurring non-blocking finding, then commit and open a PR. ADR-only edit under .agents/, no .claude or src/copilot-cli files, so no plugin manifest bump expected."
+ },
+ "protocolCompliance": {
+  "sessionStart": {
+   "serenaActivated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Serena MCP is live this Copilot CLI session: serena-* tools resolve (loaded via tool_search_tool); serena-initial_instructions returned the Serena manual this turn."
+   },
+   "serenaInstructions": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Called serena-initial_instructions this session and read the returned manual."
+   },
+   "handoffRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Read .agents/HANDOFF.md head (read-only per ADR-014); confirmed the read-only-since-2025-12-22 notice and that session context goes to session logs plus Serena memory."
+   },
+   "sessionLogCreated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "This file: .agents/sessions/2026-07-19-session-3252-adr083-copy-only.json."
+   },
+   "branchVerified": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "git branch --show-current reported docs/3252-adr083-copy-only."
+   },
+   "notOnMain": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "On docs/3252-adr083-copy-only, not main or master."
+   },
+   "constraintsRead": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "PROJECT-CONSTRAINTS and universal rules load via AGENTS.md; confirmed ADR-only edits under .agents/ touch no .claude or src/copilot-cli plugin files, so the plugin-version-bump parity gate does not apply."
+   }
+  },
+  "sessionEnd": {
+   "checklistComplete": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "All MUST sessionStart items complete; Serena live so its items are genuine."
+   },
+   "handoffPreserved": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": ".agents/HANDOFF.md read only, not modified (ADR-014)."
+   },
+   "serenaMemoryUpdated": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "The copy-only reconciliation rationale (owner-locked, freshness auto-check dropped and tracked in #3256) is recorded in this log and the ADR-083 debate appendix; a Copilot memory captures the adr-review-guard commit-evidence requirement for ADR-touching commits."
+   },
+   "markdownLintRun": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Changed files are Markdown (ADR-083 + debate log) and JSON; scoped markdownlint runs on the two .md files at pre-commit; both are dash-free (byte-checked 0 U+2014/U+2013)."
+   },
+   "changesCommitted": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Amendment shipped as one atomic docs commit: ADR-083, the debate-log appendix, and this session log (3 files, within the 5-file atomic limit)."
+   },
+   "validationPassed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "pre-commit gates pass: validate_session_json on this log, scoped markdownlint on the two .md files, dash prohibition, and the adr-review guard (this log records the adr-review skill debate + .agents/analysis debate artifact precondition)."
+   },
+   "tasksUpdated": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "Session steps followed the #3252 plan: amend ADR, run adr-review debate, file follow-up, append debate log, session log, commit, push, PR."
+   }
+  }
+ },
+ "workLog": [
+  {
+   "timestamp": "2026-07-19T20:00:00Z",
+   "action": "Amended ADR-083 to describe the shipped copy-only dogfood installer",
+   "result": "Reconciled ADR-083 with PR #3251's shipped behavior: copytree with cache-ignore, one-time .bak stash, --install/--uninstall/--status, exit 0/2. Replaced the original symlink-on-Unix / copy-on-Windows design with copy-on-all-platforms and recorded the owner rationale (consistency with existing copy-based skill/agent mirroring; one mechanism, not two). Kept the intentional 'why not symlink' contrast and the gstack _link_or_copy reference as historical context, and fixed the dangling 'freshness check above' reference in the gate-reconciliation paragraph. Kept implemented: false because only phase 3 of 5 shipped (1=ADR, 2=base e2e, 3=copy install SHIPPED, 4=surface tag, 5=two-plugin split). 70 lines changed, 0 dashes.",
+   "filesModified": [
+    ".agents/architecture/ADR-083-copilot-dogfood-surface-separation.md"
+   ]
+  },
+  {
+   "timestamp": "2026-07-19T20:20:00Z",
+   "action": "Ran the mandatory adr-review skill debate (6 agents) and recorded the result",
+   "result": "Invoked the /adr-review workflow: launched architect, critic, independent-thinker, security, analyst, and high-level-advisor as parallel read-only subagents with the amendment diff, owner rationale, and shipped installer behavior. Verdict: 6/6 ACCEPT, 0 BLOCK. All six converged on one recurring non-blocking P1: copy-only silently dropped the automatic session-start freshness check (--status reports drift on demand, but nothing invokes it automatically, so a developer can run stale). Security noted copy-only REDUCES attack surface (removes CWE-59 symlink-follow and CWE-367 TOCTOU). Analyst verified ADR-text-to-code alignment line by line. Appended an 'Amendment Debate: Copy-Only Reconciliation' section to .agents/critique/ADR-083-debate-log.md with the verdict table, the recurring finding, and disposition.",
+   "filesModified": [
+    ".agents/critique/ADR-083-debate-log.md"
+   ]
+  },
+  {
+   "timestamp": "2026-07-19T20:35:00Z",
+   "action": "Filed follow-up #3256 for the dropped staleness guard and acknowledged it in the ADR",
+   "result": "Filed issue #3256 (automatic dogfood-plugin staleness guard) via the github skill new_issue.py because raw gh is blocked by the skill-first guard. Edited ADR-083 Decision item 3 to explicitly acknowledge that the automatic freshness check was dropped in the copy-only implementation and to point at #3256 for the on-session-start guard, so the ADR does not silently claim a capability that did not ship.",
+   "filesModified": [
+    ".agents/architecture/ADR-083-copilot-dogfood-surface-separation.md"
+   ]
+  }
+ ],
+ "endingCommit": "",
+ "nextSteps": [
+  "Push docs/3252-adr083-copy-only and open a PR: Refs #3222 #3251 #3252 #3256 (use Refs, not Closes, so #3252 stays under owner control and ai-spec-validation deep-validation is skipped). Explain implemented: false (phases 1,2,4,5 unbuilt).",
+  "Babysit the Copilot review-convergence loop (fix -> resolve threads -> push until a push yields 0 new threads), then self-merge via squash once checks are green and threads resolved.",
+  "Backfill endingCommit into this log if session-end protocol requires it after the merge commit lands.",
+  "#3248: amend ADR-033 for the routing_gates hook retirement (shipped in #3246); same pattern (edit + adr-review skill debate + session-log-with-evidence + PR).",
+  "Continue epic #3197 triage: assess each remaining open child (#3196, #3217, #3218, #3183, #3185, #2840, #2967, #2993) for relevance vs. what shipped; close-with-justification when moot, else fix on a Task-capable harness where adr-review and the Sol review are available."
+ ]
+}

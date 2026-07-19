@@ -18,11 +18,21 @@ in that issue thread (D1, D2, D3 below); this ADR is the design of record they
 point to. Validated by a 6-agent adr-review debate: 3 Accept, 3 Disagree-and-Commit,
 no blocks, all P0 and P1 findings resolved. Evidence:
 `.agents/critique/ADR-083-debate-log.md`. The review added an overlay decision gate
-(Decision item 6) and reordered the phases so the symlink dogfood install and the
+(Decision item 6) and reordered the phases so the dogfood install and the
 base-alone e2e ship before the two-plugin split. The owner confirmed decision A on
 2026-07-18: the four session skills (`session-init`, `session-end`, `session`,
 `session-log-fixer`) stay `surface: ship`, so the initial internal partition is
 empty and the overlay stays deferred until a skill is tagged `surface: internal`.
+
+Amended (2026-07-19) by issue #3252 to match the shipped installer. PR #3251 shipped
+the phase 3 dogfood install as copy on all platforms, not the symlink-on-Unix plus
+copy-on-Windows split with an automatic session-start freshness check that this ADR
+first proposed. A second 6-agent adr-review debate ratified the reconciliation:
+6 Accept, no blocks. The one recurring finding (copy-only drops the automatic
+staleness guard) is tracked in issue #3256, not a blocker. Evidence:
+`.agents/critique/ADR-083-debate-log.md` (Amendment section). Only phase 3 has
+shipped; phases 2, 4, and 5 remain, so `implemented: false` reflects partial
+delivery.
 
 ## Date
 
@@ -106,17 +116,26 @@ customer installs the base.
    items into a new `src/copilot-cli-internal` overlay plugin. The overlay is
    never added to any `marketplace.json`. Customers receive the base only.
 
-3. **Dogfood by loading both plugins locally.** A dogfood-install step links the
+3. **Dogfood by loading both plugins locally.** A dogfood-install step copies the
    base (and the overlay, once it exists) into `~/.copilot/installed-plugins/` so
    our Copilot sessions run the real packaged artifacts. Copilot CLI already loads
-   multiple plugins at once. The install uses a symlink on
-   Unix and a copy on Windows, matching the gstack `_link_or_copy` pattern. The
-   symlink tracks the repo, which kills the 0.5.248 copy rot. Windows cannot rely on
-   a symlink by default, so instead of an advisory note the install script runs a
-   freshness check: on session start (and as a CI step) it compares the
-   `plugin.json` version in the installed copy against the repo `HEAD` version, then
-   re-copies when they differ or blocks with an actionable message. That closes the
-   Windows staleness path rather than trusting a developer to read a note.
+   multiple plugins at once. The install copies the tree on every platform, the
+   same mechanism every other artifact in this repo already uses (marketplace
+   install, build pipeline). The repo has no symlinked artifact, and a symlink
+   cannot be universal because Windows needs elevation to create one, so one
+   consistent copy mechanism beats a platform split. A copy does not auto-track the
+   repo, so the refresh is explicit: edit the source, re-run the install, and the
+   next session loads the change. The install step
+   (`scripts/dev/dogfood_copilot_plugin.py --install`) stashes any prior copy as a
+   one-time backup and re-copies, so a version bump in the source is picked up by
+   re-running install. This trades the symlink's automatic tracking for a single
+   uniform path and a one-command refresh, and it ends the 0.5.248 rot that came
+   from untracked manual copies rather than from copying itself. It also drops the
+   automatic session-start freshness check the original design proposed. Staleness
+   is now surfaced on demand: `--status` reports when the installed version trails
+   the working tree, and re-running `--install` closes the gap. Nothing blocks
+   automatically, so keeping the dogfood copy current is an explicit developer step
+   (tracked for an opt-in or CI guard in issue #3256).
 
 4. **e2e the base first, then base plus overlay (D1).** A durable CI test loads
    the shipped `src/copilot-cli` base in isolation and asserts customer-visible
@@ -199,8 +218,8 @@ customer installs the base.
 - **Has the original problem changed?** Yes. The Copilot artifact grew to 109
   skills and a full hook and agent surface. The crude excludes cannot express the
   ship-vs-internal boundary, and nothing exercises the shipped Copilot artifact.
-- **Is there a better solution now?** Yes. gstack demonstrates a symlink-based
-  local install that tracks the repo. Copilot CLI's multi-plugin loading makes a
+- **Is there a better solution now?** Yes. gstack demonstrates a scripted local
+  install that loads the packaged tree. Copilot CLI's multi-plugin loading makes a
   base-plus-overlay merge a load-time concern, not a build-time concatenation.
 - **What are the risks of change?** The parity gate and version-bump gate assume
   the `.claude` and `src/copilot-cli` pair. A third plugin tree
@@ -213,11 +232,11 @@ customer installs the base.
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| Per-item `surface` tag + two-plugin split + symlink dogfood (chosen) | Real dogfood of the shipped base; declared per-item boundary; internal items still run for us; kills copy rot | Two mechanisms (git/CI for hooks, overlay for skills); third manifest to gate | Selected: fits each surface to its correct delivery mechanism |
+| Per-item `surface` tag + two-plugin split + copy dogfood (chosen) | Real dogfood of the shipped base; declared per-item boundary; internal items still run for us; one uniform copy mechanism ends the untracked-copy rot | Two mechanisms (git/CI for hooks, overlay for skills); third manifest to gate; copy needs an explicit re-run to refresh | Selected: fits each surface to its correct delivery mechanism |
 | Keep filename/name-pattern excludes (status quo) | Zero new machinery | Cannot express borderline items; no dogfood of the base; silent leaks | Rejected: it is the problem |
 | Delete internal from the vendored surface entirely | Simplest ship base; matches #3197 for hooks | Skills have no `.githooks`/CI home; deleting an internal skill removes it from our own Copilot runtime | Rejected for skills; adopted for hooks by #3197 |
 | Single merged plugin with runtime filtering | One plugin to install | Copilot has no per-item runtime include/exclude; plugin load is all-or-nothing | Rejected: the host cannot filter within a plugin |
-| gstack live team-mode clone | Auto-updating, no vendored files | Couples the customer install path to repo internals; the base must stay a clean vendored artifact | Rejected for the customer base; the symlink idea is adopted for the local dogfood install only |
+| gstack live team-mode clone | Auto-updating, no vendored files | Couples the customer install path to repo internals; the base must stay a clean vendored artifact | Rejected for the customer base; the scripted local-install idea is adopted for the dogfood install, copy-based rather than symlinked |
 | Tag now, defer the overlay split (build-time exclude only) | Declares the boundary; zero third-tree cost while the internal set is empty | Loses an internal skill from our own Copilot runtime the moment one is tagged internal | Partially adopted: this is Decision item 6, the overlay is designed but deferred until an internal skill exists |
 
 ### Trade-offs
@@ -241,7 +260,8 @@ leak of a borderline item such as the session family.
 - Our Copilot sessions can run the real shipped base, so form-factor bugs surface
   in our own use instead of in a customer install.
 - The base-alone e2e catches base-only failures that the `.claude` superset masks.
-- The symlink dogfood install tracks the repo and ends the 0.5.248 copy rot.
+- The copy dogfood install is scripted in-repo and ends the 0.5.248 untracked-copy
+  rot: re-running `--install` refreshes it to repo `HEAD`.
 - Customers receive a clean base without this repo's internal session and
   governance machinery.
 - The `surface` tag is one declarative source consumed by #3197's hook purge,
@@ -288,8 +308,8 @@ plugin-version-bump rules.
    D1 dogfood-verification value before any tag or split exists, and it establishes
    the assertion primitives (fired hook primary, `skill list` co-primary,
    enumeration secondary, real skill script resolves under the plugin root).
-3. The symlink dogfood install (Unix symlink, Windows copy plus the freshness check
-   above). This kills the 0.5.248 rot and is the highest-value, lowest-risk phase,
+3. The copy dogfood install (copy on every platform via an explicit install step).
+   This kills the 0.5.248 rot and is the highest-value, lowest-risk phase,
    so it ships early rather than last. It depends on nothing in the tag or split.
 4. `surface` tag reader plus build hard-fail on untagged, with strict enum
    validation and CI enforcement, and all current items tagged. Default posture
@@ -311,9 +331,9 @@ fourth `PluginManifest` entry (`source_dir="src/copilot-cli-internal"`,
 existing entries (`.claude`, `src/claude`, `src/copilot-cli`). The overlay carries
 its own independent version line that bumps only when content under
 `src/copilot-cli-internal` changes; it is never forced to equal the base version.
-Because the local Unix dogfood install is a symlink to live source, the overlay's
-version-based cache-busting is moot on Unix; the version line matters only for the
-Windows copy install, addressed by the freshness check above. This wiring exists
+Because the local dogfood install copies the tree, the overlay's version line
+drives cache-busting on every platform equally: a version bump is picked up when
+the developer re-runs the install. This wiring exists
 only once the overlay decision gate (Decision item 6) fires; until then the gates
 are unchanged.
 
@@ -331,7 +351,7 @@ name that appears in both trees so the overlay can never silently shadow a base 
 ## Reversibility
 
 Each phase is independently revertible and ordered so the irreversible-looking
-pieces come last. The base-alone e2e and the symlink dogfood install (the
+pieces come last. The base-alone e2e and the copy dogfood install (the
 early-value phases) are pure additions: reverting them removes a CI job and an
 install script with no effect on the shipped base. The `surface` tag is additive
 frontmatter; reverting it means deleting a key and restoring the filename excludes.
@@ -353,7 +373,7 @@ any `marketplace.json`.
 - CI asserts both shipped security hooks (`invoke_security_gate`,
   `invoke_security_commit_gate`) are present in the base and classified
   `surface: ship`; the run fails if either is missing or reclassified `internal`.
-- The symlink dogfood install makes `copilot` load the repo `HEAD` version in an
+- The copy dogfood install makes `copilot` load the repo `HEAD` version in an
   interactive session, verified by the loaded `plugin.json` version matching `HEAD`
   rather than 0.5.248.
 - If the overlay gate fires, the parity gate stays green (two-way) and the
@@ -382,7 +402,9 @@ dogfood install (not the split) were the durable outcome.
 
 - `.claude-plugin/marketplace.json` and `.github/plugin/marketplace.json`: the
   two marketplace sources whose `project-toolkit` entries expose the asymmetry.
-- gstack (`github.com/garrytan/gstack`): the `_link_or_copy` symlink-on-Unix,
-  copy-on-Windows install pattern adopted for the local dogfood install.
+- gstack (`github.com/garrytan/gstack`): the scripted local-install idea. This repo
+  adopts a copy-on-all-platforms variant rather than gstack's symlink-on-Unix,
+  copy-on-Windows `_link_or_copy`, because the repo has no other symlinked artifact
+  and a symlink cannot be universal on Windows.
 - `build/scripts/build_all.py`, `build/scripts/generate_skills.py`: the generation
   seam this ADR extends.
