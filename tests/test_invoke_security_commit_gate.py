@@ -61,6 +61,15 @@ class TestMatchSecurityPaths:
             "config/password_config.json"
         ]
 
+
+    def test_matches_relocated_hook_payloads(self) -> None:
+        assert match_security_paths(["scripts/hooks/pre-push"]) == [
+            "scripts/hooks/pre-push"
+        ]
+
+    def test_does_not_match_removed_githooks_directory(self) -> None:
+        assert match_security_paths([".githooks/pre-push"]) == []
+
     def test_no_match_for_normal_files(self) -> None:
         assert match_security_paths(["src/main.py", "README.md", "tests/test_app.py"]) == []
 

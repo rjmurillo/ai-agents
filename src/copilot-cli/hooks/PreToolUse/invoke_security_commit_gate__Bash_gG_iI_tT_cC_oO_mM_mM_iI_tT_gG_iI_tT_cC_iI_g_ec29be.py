@@ -428,7 +428,7 @@ def _original_main(stdin_bytes):
         re.compile(r"(^|[/\\])[Aa]uth[/\\]"),
         re.compile(r"(^|[/\\])[Ss]ecurity[/\\]"),
         re.compile(r"\.env($|\.)"),
-        re.compile(r"(^|[/\\])\.githooks[/\\]"),
+        re.compile(r"(^|[/\\])scripts[/\\]hooks[/\\]"),
         re.compile(r"(^|[/\\])secrets[/\\]"),
         re.compile(r"(?i)password"),
         re.compile(r"(^|[/\\])token"),
