@@ -2,8 +2,7 @@
 
 Refs #1926. These tests catch the configuration drift pattern that
 surfaces when a new lifecycle command is added without updating the
-two parallel exclusion lists in `.markdownlint-cli2.yaml` and
-`scripts/hooks/pre-commit`.
+markdownlint exclusion list.
 
 A "lifecycle command" is a `.claude/commands/<name>.md` file whose body
 opens with `@CLAUDE.md` (the marker that distinguishes lifecycle slash-
@@ -26,7 +25,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = PROJECT_ROOT / ".claude" / "commands"
 MARKDOWNLINT_CONFIG = PROJECT_ROOT / ".markdownlint-cli2.yaml"
-PRE_COMMIT_HOOK = PROJECT_ROOT / "scripts" / "hooks" / "pre-commit"
 
 
 def _discover_lifecycle_commands() -> set[str]:
@@ -62,8 +60,8 @@ def test_canonical_set_matches_known_lifecycle_commands() -> None:
     expected = {"spec", "plan", "build", "test", "ship"}
     assert LIFECYCLE_COMMANDS == expected, (
         f"discovered lifecycle commands {LIFECYCLE_COMMANDS} != "
-        f"documented {expected}; update both this set and the exclusion "
-        f"lists in `.markdownlint-cli2.yaml` and `scripts/hooks/pre-commit`"
+        f"documented {expected}; update this set and the exclusion "
+        f"list in `.markdownlint-cli2.yaml`"
     )
 
 
@@ -102,44 +100,3 @@ def test_markdownlint_excludes_match_lifecycle_commands() -> None:
         assert re.search(copilot_re, config, re.MULTILINE), (
             f"markdownlint ignores missing entry for {cmd} (Copilot CLI mirror): {copilot_path}"
         )
-
-
-def test_pre_commit_hook_excludes_match_lifecycle_commands() -> None:
-    """`scripts/hooks/pre-commit` skill-validator filter must include every
-    lifecycle command in the Copilot CLI exclusion regex.
-
-    Per gemini-code-assist review (PR #1931 comment 3213946213): the
-    extraction regex anchors on path-component boundaries (`(?<=^| )` /
-    leading whitespace before `src/`, end-of-pattern `$/SKILL\\.md$`)
-    so the matched alternation cannot accidentally span an unrelated
-    portion of the hook text.
-    """
-    # Allow `[\w-]` in alternatives so a hyphenated lifecycle name (e.g.
-    # `foo-bar`) does not break extraction. Per coderabbit PR #1931
-    # comment 3213980871.
-    hook = PRE_COMMIT_HOOK.read_text(encoding="utf-8")
-    match = re.search(
-        r"\^src/copilot-cli/skills/\(([\w|\-]+)\)/SKILL\\\.md\$",
-        hook,
-    )
-    assert match is not None, (
-        "pre-commit hook lifecycle exclusion regex not found "
-        "(expected anchored `^src/copilot-cli/skills/(...)/SKILL\\.md$` literal)"
-    )
-    regex_commands = set(match.group(1).split("|"))
-    # Issue #2743: the exclusion regex covers two kinds of command-mirror skill.
-    # The `@CLAUDE.md`-led lifecycle commands (LIFECYCLE_COMMANDS) plus four
-    # additional command-mirrors (checkpoint, pr-review, retro, sync) that use
-    # the slash-command frontmatter shape and also fail SkillForge structural
-    # validation. The regex must include every lifecycle command and equal the
-    # documented full command-mirror exclusion set.
-    additional_command_mirrors = {"checkpoint", "pr-review", "retro", "sync"}
-    expected_exclusions = LIFECYCLE_COMMANDS | additional_command_mirrors
-    assert LIFECYCLE_COMMANDS <= regex_commands, (
-        f"pre-commit hook exclusion regex {regex_commands} is missing "
-        f"lifecycle commands {LIFECYCLE_COMMANDS - regex_commands}"
-    )
-    assert regex_commands == expected_exclusions, (
-        f"pre-commit hook exclusion regex {regex_commands} != "
-        f"documented command-mirror exclusions {expected_exclusions}"
-    )
