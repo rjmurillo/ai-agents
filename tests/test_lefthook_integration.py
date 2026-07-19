@@ -1478,6 +1478,41 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
     assert policy.scan_pushed_heads(stream, repo) == 1
 
 
+def test_pushed_semgrep_scan_rejects_export_ignored_changed_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "nested/source.py", "value = 1\n")
+    (repo / "nested/source.py").write_text("dangerous = True\n", encoding="utf-8")
+    (repo / ".gitattributes").write_text(
+        "nested/source.py export-ignore\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "nested/source.py", ".gitattributes")
+    _git(repo, "commit", "-qm", "test: hide pushed finding")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
+    monkeypatch.setattr(
+        policy,
+        "_run_semgrep_tree",
+        lambda *_args: pytest.fail("Semgrep must not run on an incomplete snapshot"),
+    )
+
+    assert policy.scan_pushed_heads(stream, repo) == 2
+
+
+def test_materialized_path_validation_rejects_non_regular_file(tmp_path: Path) -> None:
+    (tmp_path / "source.py").mkdir()
+
+    assert not policy._materialized_paths_complete(tmp_path, ["source.py"])
+
+
+def test_materialized_path_validation_rejects_unsafe_path(tmp_path: Path) -> None:
+    assert not policy._materialized_paths_complete(tmp_path, ["../source.py"])
+
+
 def _archive_bytes(member: tarfile.TarInfo, content: bytes = b"") -> bytes:
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w") as archive:
@@ -1914,6 +1949,17 @@ def test_github_bash_policy_blocks_extensions_and_shebangs(tmp_path: Path) -> No
         repo,
     ) == 1
     assert policy.check_github_bash_scripts([".github/scripts/allowed.py"], repo) == 0
+
+
+def test_github_bash_policy_handles_non_candidates_and_missing_blobs(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    assert policy.check_github_bash_scripts(["../escape.sh"], repo) == 2
+    assert policy.check_github_bash_scripts(["scripts/allowed.sh"], repo) == 0
+    assert policy.check_github_bash_scripts([".github/scripts/deleted.sh"], repo) == 0
 
 
 def test_generated_agent_candidates_expand_allowlisted_globs(tmp_path: Path) -> None:
@@ -2944,6 +2990,7 @@ def test_old_bot_review_does_not_warn(
         ("session", ["session.json"], "check_sessions"),
         ("staged-dashes", ["doc.md"], "check_staged_dashes"),
         ("staged-action-pins", ["action.yml"], "check_staged_action_pins"),
+        ("github-bash", [".github/scripts/check.py"], "check_github_bash_scripts"),
         ("security-suppressions", ["source.py"], "check_security_suppressions"),
         ("mypy", ["source.py"], "run_mypy"),
         ("yamllint", ["config.yml"], "run_yamllint"),

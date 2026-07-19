@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -855,7 +856,27 @@ def _materialize_commit_tree(
     except (OSError, tarfile.TarError, ValueError) as error:
         print(f"ERROR: unsafe pushed archive: {error}", file=sys.stderr)
         return 2
+    if paths and not _materialized_paths_complete(destination, paths):
+        return 2
     return 0
+
+
+def _materialized_paths_complete(destination: Path, paths: Sequence[str]) -> bool:
+    for raw_path in paths:
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe requested archive path: {raw_path}", file=sys.stderr)
+            return False
+        output = destination / path
+        try:
+            mode = output.lstat().st_mode
+        except OSError as error:
+            print(f"ERROR: pushed archive omitted {path}: {error}", file=sys.stderr)
+            return False
+        if not stat.S_ISREG(mode):
+            print(f"ERROR: pushed archive path is not a regular file: {path}", file=sys.stderr)
+            return False
+    return True
 
 
 def _extract_safe_archive(archive_bytes: bytes, destination: Path) -> None:
