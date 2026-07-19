@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3182,
+    "date": "2026-07-19",
+    "branch": "feat/3182-githooks-activation",
+    "startingCommit": "006a0764",
+    "objective": "Implement issue #3182 (foundation of the hook-ROI epic #3197): add a SessionStart hook that deterministically activates .githooks by delegating to the idempotent installer scripts/install_git_hooks.py, so core.hooksPath is guaranteed set in any clone an agent works in. This unblocks retiring the ~9 PreToolUse commit/push guards that only exist because the git-hook layer is not guaranteed active."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was activated earlier in this session (serena-initial_instructions returned the operating manual; see the sibling 2026-07-19-session-3193 log). Tools remained available across this continuation; no re-activation was required."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions were loaded earlier this session (same session lineage as the 2026-07-19-session-3193 log)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only per ADR-014) and the epic-#3197 hook-ROI context earlier this session; #3182 is the foundation child of that epic."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-07-19-session-3182-githooks-activation.json"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported feat/3182-githooks-activation, created from origin/main at HEAD 006a0764."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/3182-githooks-activation, not main or master."
+      },
+      "constraintsRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS and universal rules load via AGENTS.md and the instruction trees. Confirmed the generated-artifacts (regenerate-and-commit-in-same-change), plugin-parity, atomic-commit, and dash-prohibition rules before editing. Verified the issue's written settings.json/hooks.json registration plan is stale post-#3075 (SessionStart shims now register in .claude/hooks/dispatch_groups.json)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items complete. Implementation, tests, regeneration, plugin bump, and doc alignment recorded in workLog below."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only, not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The stale-registration-plan correction (#3182 references settings.json/hooks.json direct entries, but post-#3075 registration is via dispatch_groups.json shims) is captured in this log and the PR body for the next session."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Only Markdown change is README.md line 500 (raw git config one-liner -> python3 scripts/install_git_hooks.py). Single inline-code substitution; no table or structural change."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Shipped across atomic commits on feat/3182-githooks-activation: (1) hook + tests, (2) dispatch registration + regenerated Copilot tree, (3) plugin manifest bump 0.6.78 -> 0.6.79 + README alignment."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted suites green: tests/hooks/test_git_hooks_activation.py (11 passed, incl. 3 real end-to-end runs that set core.hooksPath via the real installer); tests/test_install_git_hooks.py + TestValidateGitHooksInstalled (22 passed, REQ-5 preserved); dispatch/parity/generation suites (306 passed, 1 skipped). ruff + mypy clean on the new hook. build_all.py regenerates the Copilot tree; build_all.py --check clean after the generated files are committed. Both plugin manifests carry identical version 0.6.79."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Followed the #3182 plan (with the dispatch-group registration correction): write hook + tests, register shim in both SessionStart groups, regenerate, bump manifests, align README, verify, commit, push, PR."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-19T14:00:00Z",
+      "action": "Wrote the SessionStart activation hook and its tests",
+      "result": "Created .claude/hooks/SessionStart/invoke_git_hooks_activation.py: a self-contained, fail-open hook that no-ops when .githooks is absent (REQ-2) or already configured (REQ-3, via the installer's --quiet idempotency), delegates the write to scripts/install_git_hooks.py with a 10s timeout, and translates any failure into a one-line warning naming the manual fix (REQ-4). Created tests/hooks/test_git_hooks_activation.py: 11 tests (8 unit with mocked subprocess covering no-githooks no-op, missing installer, quiet invocation argv, non-zero exit, empty-output exit, OSError, timeout, env resolution; 3 real end-to-end runs against the real installer in a temp git repo proving core.hooksPath is set, idempotent second run is silent, and no-githooks leaves config unset). All 11 pass.",
+      "filesModified": [
+        ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
+        "tests/hooks/test_git_hooks_activation.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T14:20:00Z",
+      "action": "Registered the shim in both SessionStart dispatch groups and regenerated the Copilot tree",
+      "result": "The issue's written plan (hand-edit .claude/settings.json + .claude/hooks/hooks.json) is stale: post-#3075, SessionStart hooks register as shims in .claude/hooks/dispatch_groups.json and settings.json holds only the per-group dispatcher call. Added the activation shim to both sessionstart-1-session_initialization_enforcer (source) and plugin-sessionstart-1-session_initialization_enforcer (plugin surface; REQ-2 makes it a strict no-op in consumer repos). Ran build_all.py: regenerated src/copilot-cli/hooks/SessionStart/_manifest.json, src/copilot-cli/hooks/hooks.json, and the generated hook copy. dispatch/parity/generation suites stayed green (306 passed).",
+      "filesModified": [
+        ".claude/hooks/dispatch_groups.json",
+        "src/copilot-cli/hooks/SessionStart/_manifest.json",
+        "src/copilot-cli/hooks/hooks.json",
+        "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T14:35:00Z",
+      "action": "Bumped both plugin manifests and aligned the README setup command",
+      "result": "Bumped .claude and src/copilot-cli plugin.json from 0.6.78 to 0.6.79 (identical, parity gate; strictly greater than main 0.6.78 and the only open plugin PR #3235 at 0.6.75). Replaced README.md line 500 raw 'git config core.hooksPath .githooks' with 'python3 scripts/install_git_hooks.py' (REQ-6), so README and CONTRIBUTING.md agree on one canonical, verifying setup command.",
+      "filesModified": [
+        ".claude/.claude-plugin/plugin.json",
+        "src/copilot-cli/.claude-plugin/plugin.json",
+        "README.md"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR for #3182, noting the dispatch-group registration correction vs the stale settings.json/hooks.json plan. Self-merge once required reviews and threads clear.",
+    "With #3182 landed, the epic can proceed to retire the PreToolUse commit/push guards it enabled (#3195, #3196, #3188, #3189).",
+    "Continue the issue sweep: #3183 (single registration home), #3222, and surface #3194 (architecture fork) rather than implement."
+  ]
+}

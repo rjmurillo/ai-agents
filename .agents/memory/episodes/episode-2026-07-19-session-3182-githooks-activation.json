@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-07-19-session-3182-githooks-activation",
+  "session": "2026-07-19-session-3182-githooks-activation",
+  "timestamp": "2026-07-19T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Implement issue #3182 (foundation of the hook-ROI epic #3197): add a SessionStart hook that deterministically activates .githooks by delegating to the idempotent installer scripts/install_git_hooks.py, so core.hooksPath is guaranteed set in any clone an agent works in. This unblocks retiring the ~9 PreToolUse commit/push guards that only exist because the git-hook layer is not guaranteed active.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote the SessionStart activation hook and its tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Registered the shim in both SessionStart dispatch groups and regenerated the Copilot tree",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "test",
+      "content": "Registered the shim in both SessionStart dispatch groups and regenerated the Copilot tree      The issue's written plan (hand-edit .claude/settings.json + .claude/hooks/hooks.json) is stale: post-#3075, SessionStart hooks register as shims in .claude/hooks/dispatch_groups.json and settings.json holds only the per-group dispatcher call. Added the activation shim to both sessionstart-1-session_initialization_enforcer (source) and plugin-sessionstart-1-session_initialization_enforcer (plugin surface; REQ-2 makes it a strict no-op in consumer repos). Ran build_all.py: regenerated src/copilot-cli/hooks/SessionStart/_manifest.json, src/copilot-cli/hooks/hooks.json, and the generated hook copy. dispatch/parity/generation suites stayed green (306 passed).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped both plugin manifests and aligned the README setup command",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
