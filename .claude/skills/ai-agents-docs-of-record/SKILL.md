@@ -201,7 +201,7 @@ Prose rules (canonical: `.claude/rules/voice.md`, `.claude/rules/universal.md`):
 Markdown lint is SCOPED to files you changed. The PR #908 Five Whys traced 53
 unrelated memory-file changes to `markdownlint --fix **/*.md` run repo-wide
 (retro, Q1-Q4). The pre-commit hook already auto-fixes staged markdown only
-(`.githooks/pre-commit`, "Markdown Linting with markdownlint-cli2"). Config is
+(`scripts/hooks/pre-commit`, "Markdown Linting with markdownlint-cli2"). Config is
 `.markdownlint-cli2.yaml`. Never widen the glob.
 
 Mirror claims (FM-9): any statement that a file "matches", "mirrors", or
