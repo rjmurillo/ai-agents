@@ -254,7 +254,7 @@ Every task is classified across three dimensions:
 | README/docs | Documentation | Simple | Low |
 | "Clean up X" | Refactoring | Multi-Step | Medium |
 | Epic planning | Strategic | Multi-Domain | Low |
-| `scripts/hooks/*` | Infrastructure | Multi-Step | Critical |
+| `lefthook.yml`, `scripts/validation/git_hook_policy.py` | Infrastructure | Multi-Step | Critical |
 | Shell scripts | Infrastructure | Multi-Step | Critical |
 | Package URLs, "we should add" | Ideation | Multi-Domain | Low |
 | Vague feature idea | Ideation | Multi-Domain | Low |
