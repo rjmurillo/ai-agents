@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-07-19-session-3193-hook-roi-writeedit-cleanup",
+  "session": "2026-07-19-session-3193-hook-roi-writeedit-cleanup",
+  "timestamp": "2026-07-19T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Execute issue #3193 phase A of the hook-ROI reduction epic (#3197): delete three non-customer Write/Edit-triggered hooks (invoke_adr_architect_gate, invoke_adr_lifecycle_hook, invoke_plan_state_sync) from the vendored surface, remove their dispatch registrations, delete their tests, clean all references, regenerate the Copilot mirror, and bump both plugin manifests.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the three phase-A hook shims from dispatch_groups.json",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the two deleted-group dispatchers from the canonical plugin manifest",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deleted the 3 hook files and 5 test files and cleaned all live references",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot mirror and bumped both plugin manifests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: db7ab3d3de1c29f2f66b16cdc6e240970795a50a",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

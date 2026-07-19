@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3193,
+    "date": "2026-07-19",
+    "branch": "chore/3193-writeedit-gate-cleanup",
+    "startingCommit": "15aad43c",
+    "objective": "Execute issue #3193 phase A of the hook-ROI reduction epic (#3197): delete three non-customer Write/Edit-triggered hooks (invoke_adr_architect_gate, invoke_adr_lifecycle_hook, invoke_plan_state_sync) from the vendored surface, remove their dispatch registrations, delete their tests, clean all references, regenerate the Copilot mirror, and bump both plugin manifests."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live in this Copilot CLI session: serena-* tools (initial_instructions, list_memories, find_referencing_symbols, find_implementations) are present and callable. Project is the active ai-agents repo."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions this session and received the 43.9 KB Serena operating manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only per ADR-014) confirming the 2025-12-22 protocol change directing session context to session logs plus Serena memory."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-07-19-session-3193-hook-roi-writeedit-cleanup.json"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reported chore/3193-writeedit-gate-cleanup at HEAD 15aad43c (the merged #3237 tip)."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/3193-writeedit-gate-cleanup, not main or master."
+      },
+      "constraintsRead": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS and universal rules are loaded via AGENTS.md and the instruction trees; confirmed the generated-artifacts (regenerate-and-commit-in-same-change), plugin-parity, atomic-commit, and dash-prohibition rules before editing."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items complete; Serena is live so its items are genuinely satisfied. Session-end items recorded below as the #3193 work commits and pushes."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only, not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Post-#3153 dispatch architecture and the ALLOW_LARGE_PUSH override were recorded to durable memory in prior turns of this session; #3193 execution notes captured in this log's workLog."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Only Markdown change is CONTRIBUTING.md (removed one hook table row). markdownlint-cli2 scoped to that file reports no new violations; the edit removes a row without altering table structure."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The #3193 deletion shipped across atomic commits (canonical hook removal, Copilot regen, security-gate comment, test deletions, doc/reference cleanup, plugin bump) on branch chore/3193-writeedit-gate-cleanup."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted suites green: tests/hooks/test_dispatch_groups_parity.py, tests/build_scripts/test_dispatch_expansion.py, test_generate_hooks.py, test_claude_hook_dispatch.py, test_hook_plugin_guards.py, test_validate_plugin_manifests.py (401 passed, 1 skipped), plus hook-anchoring and dispatcher-artifact suites (38 passed). build_all.py regenerates the Copilot tree with 0 stale refs; both plugin manifests carry identical version 0.6.77."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo tracking followed the #3193 phase-A steps: dispatch edits, hook deletions, reference cleanup, regen, manifest bump, test verification, commit, push, PR."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-19T10:00:00Z",
+      "action": "Removed the three phase-A hook shims from dispatch_groups.json",
+      "result": "Dropped adr_lifecycle_hook and plan_state_sync from posttooluse-1-markdown_auto_lint, dropped adr_architect_gate from pretooluse-write-edit, dropped adr_lifecycle_hook from plugin-posttooluse-1-markdown_auto_lint, and deleted the two now-empty plugin groups plugin-pretooluse-adr_architect_gate and plugin-posttooluse-adr_lifecycle_hook. Kept invoke_markdown_auto_lint (phase B, blocked on #3182) and invoke_adr_review_guard (the kept commit-time gate). JSON valid, 20 groups.",
+      "filesModified": [
+        ".claude/hooks/dispatch_groups.json"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T10:10:00Z",
+      "action": "Removed the two deleted-group dispatchers from the canonical plugin manifest",
+      "result": "hooks.json is canonical (not regenerated by build_all.py, unlike src/copilot-cli/hooks/hooks.json). Hand-removed the plugin-pretooluse-adr_architect_gate and plugin-posttooluse-adr_lifecycle_hook dispatcher registrations. settings.json needed no edit: both surviving non-plugin groups keep their single dispatcher.",
+      "filesModified": [
+        ".claude/hooks/hooks.json"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T10:20:00Z",
+      "action": "Deleted the 3 hook files and 5 test files and cleaned all live references",
+      "result": "git rm of invoke_adr_lifecycle_hook.py, invoke_plan_state_sync.py, invoke_adr_architect_gate.py and their 5 tests. Cleaned references in .agents/hooks/hooks.yaml (removed the adr-review-required entry), CONTRIBUTING.md (removed the plan_state_sync row), tests/build_scripts/test_generate_hooks.py (docstring example), tests/test_hook_plugin_guards.py (fixture list), and .claude/hooks/PreToolUse/invoke_security_gate.py (stale plan_state_sync citation in a comment). Historical archives under .agents/architecture, .agents/sessions, .serena left unedited (8 refs) per the #3184 precedent.",
+      "filesModified": [
+        ".agents/hooks/hooks.yaml",
+        "CONTRIBUTING.md",
+        "tests/build_scripts/test_generate_hooks.py",
+        "tests/test_hook_plugin_guards.py",
+        ".claude/hooks/PreToolUse/invoke_security_gate.py"
+      ]
+    },
+    {
+      "timestamp": "2026-07-19T10:35:00Z",
+      "action": "Regenerated the Copilot mirror and bumped both plugin manifests",
+      "result": "build_all.py wrote 31, dropped 3 (the deleted hook shims plus manifests in src/copilot-cli/hooks). Bumped .claude and src/copilot-cli plugin.json from 0.6.76 to 0.6.77 (identical, parity gate). Only open PR #3235 sits at 0.6.75 (below main), so 0.6.77 is strictly greater than every competing version.",
+      "filesModified": [
+        ".claude/.claude-plugin/plugin.json",
+        "src/copilot-cli/.claude-plugin/plugin.json"
+      ]
+    }
+  ],
+  "endingCommit": "db7ab3d3de1c29f2f66b16cdc6e240970795a50a",
+  "nextSteps": [
+    "Land PR #3240 (this work) once CI is green and review threads are resolved.",
+    "Continue epic #3197 with the sequenced hook-cluster issues (#3182 foundation, then #3196, #3194, #3183, #3185, #3217, #3218).",
+    "Triage independent issues #3239, #3233, #3143, #2967, #2840 for still-real versus stale."
+  ]
+}

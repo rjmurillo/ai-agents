@@ -60,13 +60,6 @@ hooks:
     script: .claude/hooks/PreToolUse/invoke_branch_protection_guard.py
     on_fail: block
 
-  - id: pre-tool-use.adr-review-required
-    event: PreToolUse
-    tool: "^(Write|Edit)$"
-    path: "**/ADR-*.md"
-    script: .claude/hooks/PreToolUse/invoke_adr_architect_gate.py
-    on_fail: block
-
   - id: pre-tool-use.retrospective-before-push
     event: PreToolUse
     tool: "Bash(git push*)"

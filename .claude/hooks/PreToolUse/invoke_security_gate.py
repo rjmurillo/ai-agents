@@ -344,8 +344,7 @@ def main() -> int:
 
         # Resolve the target path across harness key spellings. Claude Code's
         # Write/Edit tools use "file_path"; GitHub Copilot CLI's native
-        # create/edit tools use "path" (same mapping documented in
-        # invoke_plan_state_sync.py). Reading only "file_path" made this gate
+        # create/edit tools use "path". Reading only "file_path" made this gate
         # fail closed on every Copilot create/edit, denying all writes (#2610).
         file_path = ""
         for _path_key in ("file_path", "path"):
