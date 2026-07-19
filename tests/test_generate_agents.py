@@ -346,6 +346,23 @@ class TestGenerateAgents:
         assert exit_code == 1
         assert not (repo_root / ".git/hooks/test-agent.agent.md").exists()
 
+    def test_rejects_agent_output_suffix_with_path_traversal(
+        self, tmp_path: Path
+    ) -> None:
+        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
+        platform = templates_path / "platforms" / "vscode.yaml"
+        platform.write_text(
+            "platform: vscode\n"
+            "outputDir: src/vs-code-agents\n"
+            "fileExtension: /../../../.git/hooks/pre-push\n",
+            encoding="utf-8",
+        )
+
+        exit_code = generate_agents(templates_path, output_root, repo_root)
+
+        assert exit_code == 1
+        assert not (repo_root / ".git/hooks/pre-push").exists()
+
 
 class TestMain:
     """Tests for main entry point."""

@@ -307,7 +307,27 @@ def generate_agents(
                     agents_stanza.get("outputSuffix", platform.get("fileExtension", ".md")),
                 )
             )
+            if file_ext not in {".agent.md", ".md"}:
+                print(
+                    f"  Error: Agent output suffix is not allowlisted: {file_ext}",
+                    file=sys.stderr,
+                )
+                errors += 1
+                continue
             output_file = output_dir / f"{agent_name}{file_ext}"
+            resolved_output_dir = output_dir.resolve(strict=False)
+            resolved_output_file = output_file.resolve(strict=False)
+            if (
+                not resolved_output_file.is_relative_to(resolved_output_dir)
+                or output_file.is_symlink()
+            ):
+                print(
+                    f"  Error: Agent output file escapes its allowlisted directory: "
+                    f"{output_file}",
+                    file=sys.stderr,
+                )
+                errors += 1
+                continue
 
             # Security check
             if not is_path_within_root(str(output_file), str(repo_root)):
