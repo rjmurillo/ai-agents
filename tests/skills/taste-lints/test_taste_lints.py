@@ -266,7 +266,10 @@ class TestRunLint:
 
     def test_generated_matcher_shim_is_skipped(self, tmp_path: Path) -> None:
         generated = tmp_path / "invoke_guard__Bash_123.py"
-        generated.write_text("# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n" + "x = 1\n" * 600, encoding="utf-8")
+        generated.write_text(
+            "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)\n" + "x = 1\n" * 600,
+            encoding="utf-8",
+        )
 
         result = run_lint([str(generated)], ("file-size",))
 
@@ -318,10 +321,7 @@ class TestRunLint:
         # Regression: _GENERATED_PATH_SEGMENTS are repo-root-anchored, so a
         # repo-relative path carrying a segment at a non-root position (a
         # vendored or fixture dir) must not be misclassified as generated.
-        assert (
-            classify_file_category("vendor/pkg/src/copilot-cli/lib.py", [])
-            == "authored"
-        )
+        assert classify_file_category("vendor/pkg/src/copilot-cli/lib.py", []) == "authored"
         # The genuine repo-root mirror is still classified generated.
         assert classify_file_category("src/copilot-cli/skills/x.py", []) == "generated"
 
