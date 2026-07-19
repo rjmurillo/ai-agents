@@ -141,9 +141,18 @@
         ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
         "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py"
       ]
+    },
+    {
+      "timestamp": "2026-07-19T17:30:00Z",
+      "action": "Relocated nosemgrep directive above the tainted list argument (correct finding start line)",
+      "result": "The scan still failed on 989dbbb1 because Semgrep anchors this taint finding to the list argument literal (start column 13 = the opening bracket), not the subprocess.run call line. The directive was one line too high. Moved it inside the call, immediately above the list literal. Also corrected the mini-ADR comment which had wrongly said 'above the call'. Regenerated the mirror (bodies byte-identical); 16 tests pass.",
+      "filesModified": [
+        ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
+        "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py"
+      ]
     }
   ],
-  "endingCommit": "999fed45",
+  "endingCommit": "989dbbb1",
   "nextSteps": [
     "Open PR for #3182, noting the dispatch-group registration correction vs the stale settings.json/hooks.json plan. Self-merge once required reviews and threads clear.",
     "With #3182 landed, the epic can proceed to retire the PreToolUse commit/push guards it enabled (#3195, #3196, #3188, #3189).",

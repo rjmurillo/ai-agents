@@ -150,10 +150,11 @@ def activate(project_dir: str) -> None:
         # path. Restructuring cannot remove the taint: the repo root must come
         # from the environment. See PR #3244. The directive uses the short rule
         # id (suffix match) because the platform scan reports a doubled check_id
-        # (rule.rule) that a fully qualified id would not match, and it must sit
-        # on the line immediately above the call for Semgrep to bind it.
-        # nosemgrep: dangerous-subprocess-use-tainted-env-args
+        # (rule.rule) that a fully qualified id would not suffix-match. Semgrep
+        # anchors the finding to the tainted list argument, so the directive
+        # must sit on the line immediately above the list literal to bind.
         result = subprocess.run(
+            # nosemgrep: dangerous-subprocess-use-tainted-env-args
             [
                 sys.executable,
                 str(installer),

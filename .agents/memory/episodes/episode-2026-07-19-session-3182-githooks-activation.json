@@ -109,6 +109,22 @@
       "content": "Commit: 999fed45",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Relocated nosemgrep directive above the tainted list argument (correct finding start line)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 989dbbb1",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -116,7 +132,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 6
   },
   "lessons": []
