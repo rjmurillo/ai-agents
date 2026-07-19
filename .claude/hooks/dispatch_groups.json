@@ -97,10 +97,6 @@
         {
           "file": "SessionStart/invoke_context_loader.py",
           "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
-        },
-        {
-          "file": "SessionStart/invoke_git_hooks_activation.py",
-          "statusMessage": "Activating .githooks (core.hooksPath, #3182)"
         }
       ]
     },
@@ -304,10 +300,6 @@
         {
           "file": "invoke_adr_change_detection.py",
           "statusMessage": "Checking for ADR changes"
-        },
-        {
-          "file": "SessionStart/invoke_git_hooks_activation.py",
-          "statusMessage": "Activating .githooks (core.hooksPath, #3182)"
         }
       ]
     },
