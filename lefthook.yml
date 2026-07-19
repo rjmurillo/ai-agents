@@ -1,0 +1,15 @@
+pre-commit:
+  commands:
+    repository-guardrails:
+      run: scripts/hooks/pre-commit
+
+commit-msg:
+  commands:
+    message-dash-guard:
+      run: scripts/hooks/commit-msg "{1}"
+
+pre-push:
+  commands:
+    repository-guardrails:
+      run: scripts/hooks/pre-push
+      use_stdin: true
