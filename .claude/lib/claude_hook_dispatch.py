@@ -35,10 +35,11 @@ Stricter/looser/different than canonical (``hook_dispatch.py``):
   ``.agents/analysis/2026-07-14-hook-batching-determination.md``,
   "Rejected code path").
 - gate mode additionally treats a *structured decision document* on
-  stdout (deny/ask JSON emitted with exit 0 by a PreToolUse gate) as
-  terminal: it is emitted verbatim and
-  later shims are skipped. Streaming it alongside sibling output would
-  corrupt the host's JSON parse.
+  stdout (a JSON object carrying a decision key, emitted with exit 0 by a
+  PreToolUse gate; see the merge rules below for the exact shapes that
+  count) as terminal: it is emitted verbatim and later shims are skipped.
+  Streaming it alongside sibling output would corrupt the host's JSON
+  parse.
 - Per-shim timeout metadata is carried in the manifest for the generator
   and parity tests but is NOT enforced in-process, same as canonical: the
   host owns the group registration's cumulative timeout.
