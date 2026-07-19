@@ -53,6 +53,30 @@
       "content": "Commit: 0e5a5432",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed PR #3244 bot review findings: RCE vector, non-deterministic root, Windows decode, semgrep",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "test",
+      "content": "Fixed PR #3244 bot review findings: RCE vector, non-deterministic root, Windows decode, semgrep      Added _is_self_repository trust gate so the shipped plugin hook never executes a consumer repo relative scripts/install_git_hooks.py (CodeRabbit L83 RCE Major). Rewrote project_directory to walk up to the git top level via git rev-parse --show-toplevel with fail-open fallback (Copilot L58 determinism). Replaced text=True with encoding=utf-8, errors=replace on both subprocess.run calls (Gemini/CodeRabbit L101 Windows UnicodeDecodeError). Added a scoped nosemgrep with a mini-ADR for the false-positive tainted-env-args (list-form argv, no shell, installer is the repos own tracked file). Regenerated the copilot mirror (build_all --check clean). Tests: 16 passed, including RCE regression (foreign repo installer never runs) and walk-up.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3b8cf763",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -60,7 +84,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

@@ -15,8 +15,11 @@ absolute-path rejection). This hook only decides WHEN to run it and always
 exits 0.
 
 Behavior (Issue #3182 requirements):
-    REQ-2: no ``.githooks/`` at the project root (a plugin consumer repo) ->
-        exit 0 without touching git config.
+    REQ-2: no ``.githooks/`` at the project root -> exit 0 without touching git
+        config. The hook also no-ops when it is not tracked inside the repo it
+        would activate (a downstream consumer running the shipped plugin against
+        an unrelated repo), so the repo-relative installer is never
+        consumer-controlled. See ``_is_self_repository``.
     REQ-3: ``core.hooksPath`` already resolves to ``.githooks`` -> the
         installer is a no-op and prints nothing under ``--quiet``.
     REQ-4: any activation failure (git missing, write error, installer absent)
@@ -50,11 +53,34 @@ INSTALLER_TIMEOUT_SECONDS = 10
 
 
 def project_directory() -> str:
-    """Resolve the session's project root (CLAUDE_PROJECT_DIR, else cwd)."""
-    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
-    if env_dir:
-        return str(Path(env_dir).resolve())
-    return str(Path.cwd())
+    """Resolve the repository root for this session.
+
+    Anchor on ``CLAUDE_PROJECT_DIR`` when the harness sets it, else the current
+    directory, then walk up to the git top level so activation is deterministic
+    even when the session starts in a subdirectory. A fresh clone leaves
+    ``core.hooksPath`` unset regardless of cwd, so anchoring on a bare cwd would
+    silently no-op the REQ-2 ``.githooks`` check from a nested directory.
+    ``git rev-parse --show-toplevel`` is a Layer-1 built-in; on any failure fall
+    back to the anchor unchanged (fail-open).
+    """
+    anchor = os.environ.get("CLAUDE_PROJECT_DIR", "").strip() or str(Path.cwd())
+    anchor = str(Path(anchor).resolve())
+    try:
+        result = subprocess.run(
+            ["git", "-C", anchor, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=INSTALLER_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return anchor
+    if result.returncode == 0:
+        top = result.stdout.strip()
+        if top:
+            return str(Path(top).resolve())
+    return anchor
 
 
 def _drain_stdin() -> None:
@@ -70,12 +96,39 @@ def _warn(message: str) -> None:
     print(f"[WARNING] {HOOK_NAME}: {message}", file=sys.stderr)
 
 
+def _is_self_repository(root: Path) -> bool:
+    """True when this hook file is tracked inside ``root``.
+
+    The activation delegates to ``root/scripts/install_git_hooks.py``. Running a
+    repo-relative script is only safe when this hook is part of the repository
+    being activated (an ai-agents working copy). When the hook runs from an
+    installed plugin whose directory sits outside ``root`` (a downstream
+    consumer opening an unrelated repo), that installer path would be
+    consumer-controlled, so a hostile repo shipping its own
+    ``scripts/install_git_hooks.py`` could achieve code execution on session
+    start. Refusing to run unless the hook lives inside ``root`` closes that
+    vector while keeping the self/dogfooding case working (the tracked hook and
+    installer share the same repo root). See PR #3244 / CodeRabbit review.
+    """
+    try:
+        Path(__file__).resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
 def activate(project_dir: str) -> None:
     """Ensure core.hooksPath is set for ``project_dir`` via the installer."""
     root = Path(project_dir)
-    # REQ-2: repositories that do not ship the hook layer (plugin consumers)
-    # get a no-op. Never write git config in a repo without .githooks.
+    # REQ-2: repositories that do not ship the hook layer get a no-op. Never
+    # write git config in a repo without .githooks.
     if not (root / HOOKS_DIR_NAME).is_dir():
+        return
+
+    # Only run the repo-relative installer when this hook is tracked inside the
+    # repository being activated. A consumer running the shipped plugin against
+    # an unrelated (possibly hostile) repo takes this no-op path.
+    if not _is_self_repository(root):
         return
 
     installer = root / INSTALLER_RELPATH
@@ -86,6 +139,17 @@ def activate(project_dir: str) -> None:
     # Delegate to the idempotent installer. --quiet keeps an already-configured
     # clone silent (REQ-3); a fresh clone is activated exactly once.
     try:
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args
+        # Dear future maintainer: Semgrep taints this call because --repo-root
+        # derives from CLAUDE_PROJECT_DIR / cwd (env-sourced). It is a false
+        # positive and a scoped suppression is the only clean silence: the call
+        # is list-form argv (no shell, so command injection is impossible), the
+        # executable is the fixed Python interpreter, and ``installer`` is only
+        # reached after ``_is_self_repository`` confirms this hook is tracked
+        # inside ``root`` -- so the installer is always this repository's own
+        # tracked scripts/install_git_hooks.py, never an attacker-controlled
+        # path. Restructuring cannot remove the taint: the repo root must come
+        # from the environment. See PR #3244.
         result = subprocess.run(
             [
                 sys.executable,
@@ -95,7 +159,8 @@ def activate(project_dir: str) -> None:
                 str(root),
             ],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=INSTALLER_TIMEOUT_SECONDS,
             check=False,
         )

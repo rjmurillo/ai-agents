@@ -39,6 +39,17 @@ HOOK_PATH = _REPO_ROOT / ".claude" / "hooks" / "SessionStart" / "invoke_git_hook
 REAL_INSTALLER = _REPO_ROOT / "scripts" / "install_git_hooks.py"
 
 
+@pytest.fixture
+def trusted_self(monkeypatch):
+    """Treat activate()'s target as the self-repository (bypass the trust gate).
+
+    ``_is_self_repository`` is exercised by dedicated tests; the installer-path
+    unit tests below assume the self case so they can focus on installer
+    invocation and error handling.
+    """
+    monkeypatch.setattr(hook, "_is_self_repository", lambda root: True)
+
+
 # --------------------------------------------------------------------------- #
 # Unit tests: activate() with a mocked installer subprocess                    #
 # --------------------------------------------------------------------------- #
@@ -64,7 +75,7 @@ def test_no_githooks_dir_is_noop(tmp_path: Path, monkeypatch, capsys) -> None:
     assert capsys.readouterr().err == ""
 
 
-def test_missing_installer_warns(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_missing_installer_warns(tmp_path: Path, monkeypatch, capsys, trusted_self) -> None:
     """Edge: .githooks present but installer absent -> warn, no subprocess."""
     (tmp_path / ".githooks").mkdir()
     run = MagicMock(side_effect=AssertionError("subprocess must not run"))
@@ -79,7 +90,7 @@ def test_missing_installer_warns(tmp_path: Path, monkeypatch, capsys) -> None:
 
 
 def test_installer_invoked_quiet_when_present(
-    tmp_path: Path, monkeypatch, capsys
+    tmp_path: Path, monkeypatch, capsys, trusted_self
 ) -> None:
     """REQ-1/REQ-3: installer runs with --quiet --repo-root; success is silent."""
     (tmp_path / ".githooks").mkdir()
@@ -105,7 +116,7 @@ def test_installer_invoked_quiet_when_present(
 
 
 def test_installer_nonzero_exit_warns(
-    tmp_path: Path, monkeypatch, capsys
+    tmp_path: Path, monkeypatch, capsys, trusted_self
 ) -> None:
     """REQ-4: a non-zero installer exit surfaces one warning, no raise."""
     (tmp_path / ".githooks").mkdir()
@@ -127,7 +138,7 @@ def test_installer_nonzero_exit_warns(
 
 
 def test_installer_nonzero_exit_no_detail_warns(
-    tmp_path: Path, monkeypatch, capsys
+    tmp_path: Path, monkeypatch, capsys, trusted_self
 ) -> None:
     """REQ-4: non-zero exit with empty output still names the exit code."""
     (tmp_path / ".githooks").mkdir()
@@ -144,7 +155,7 @@ def test_installer_nonzero_exit_no_detail_warns(
     assert hook.MANUAL_FIX in err
 
 
-def test_subprocess_oserror_warns(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_subprocess_oserror_warns(tmp_path: Path, monkeypatch, capsys, trusted_self) -> None:
     """Edge: an OSError launching the installer warns and does not raise."""
     (tmp_path / ".githooks").mkdir()
     _stub_installer(tmp_path)
@@ -157,7 +168,7 @@ def test_subprocess_oserror_warns(tmp_path: Path, monkeypatch, capsys) -> None:
     assert hook.MANUAL_FIX in err
 
 
-def test_subprocess_timeout_warns(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_subprocess_timeout_warns(tmp_path: Path, monkeypatch, capsys, trusted_self) -> None:
     """Edge: a hung installer (timeout) warns and does not raise."""
     (tmp_path / ".githooks").mkdir()
     _stub_installer(tmp_path)
@@ -172,7 +183,38 @@ def test_subprocess_timeout_warns(tmp_path: Path, monkeypatch, capsys) -> None:
 def test_project_directory_prefers_env(tmp_path: Path, monkeypatch) -> None:
     """project_directory honors CLAUDE_PROJECT_DIR over cwd."""
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        hook.subprocess, "run", MagicMock(side_effect=OSError("no git"))
+    )
     assert hook.project_directory() == str(tmp_path.resolve())
+
+
+def test_is_self_repository_true_when_hook_inside_root() -> None:
+    """The real hook lives under the repo root -> trusted self case."""
+    assert hook._is_self_repository(_REPO_ROOT) is True
+
+
+def test_is_self_repository_false_for_foreign_root(tmp_path: Path) -> None:
+    """A root that does not contain this hook file -> untrusted (consumer)."""
+    assert hook._is_self_repository(tmp_path) is False
+
+
+def test_foreign_repo_with_installer_is_noop(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """RCE mitigation: .githooks and an installer are present but the running
+    hook is not tracked inside root -> no subprocess, no warning, no write."""
+    (tmp_path / ".githooks").mkdir()
+    _stub_installer(tmp_path)
+    run = MagicMock(
+        side_effect=AssertionError("installer must not run in a foreign repo")
+    )
+    monkeypatch.setattr(hook.subprocess, "run", run)
+
+    hook.activate(str(tmp_path))
+
+    run.assert_not_called()
+    assert capsys.readouterr().err == ""
 
 
 # --------------------------------------------------------------------------- #
@@ -191,6 +233,7 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         env=env,
+        timeout=30,
         check=False,
     )
 
@@ -212,27 +255,50 @@ def _make_repo(tmp_path: Path, *, with_githooks: bool) -> Path:
     return repo
 
 
-def _run_hook(repo: Path) -> subprocess.CompletedProcess[str]:
+def _install_hook_copy(repo: Path) -> Path:
+    """Copy the hook into ``repo`` so ``__file__`` is tracked inside root.
+
+    The self-repository trust gate only runs the installer when the hook lives
+    inside the repo it activates. Positive end-to-end tests therefore run a copy
+    placed inside the temp repo, matching how a real ai-agents clone ships the
+    hook as tracked source.
+    """
+    dest_dir = repo / ".claude" / "hooks" / "SessionStart"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / "invoke_git_hooks_activation.py"
+    shutil.copy(HOOK_PATH, dest)
+    return dest
+
+
+def _run_hook(
+    repo: Path, *, hook_path: Path | None = None
+) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["CLAUDE_PROJECT_DIR"] = str(repo)
     return subprocess.run(
-        [sys.executable, str(HOOK_PATH)],
+        [sys.executable, str(hook_path or HOOK_PATH)],
         cwd=str(repo),
         env=env,
         stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
+        timeout=30,
         check=False,
     )
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
 def test_end_to_end_sets_hookspath(tmp_path: Path) -> None:
-    """REQ-1: real hook + real installer set core.hooksPath in a fresh repo."""
+    """REQ-1: real hook + real installer set core.hooksPath in a fresh repo.
+
+    Runs a copy of the hook placed inside the repo so the self-repository trust
+    gate treats it as the dogfooding (self) case.
+    """
     repo = _make_repo(tmp_path, with_githooks=True)
+    hook_copy = _install_hook_copy(repo)
     assert _git(repo, "config", "--get", "core.hooksPath").returncode != 0
 
-    result = _run_hook(repo)
+    result = _run_hook(repo, hook_path=hook_copy)
 
     assert result.returncode == 0, result.stderr
     got = _git(repo, "config", "--get", "core.hooksPath")
@@ -244,9 +310,10 @@ def test_end_to_end_sets_hookspath(tmp_path: Path) -> None:
 def test_end_to_end_idempotent_second_run_silent(tmp_path: Path) -> None:
     """REQ-3: a second run on an already-configured repo writes nothing new."""
     repo = _make_repo(tmp_path, with_githooks=True)
-    assert _run_hook(repo).returncode == 0
+    hook_copy = _install_hook_copy(repo)
+    assert _run_hook(repo, hook_path=hook_copy).returncode == 0
 
-    result = _run_hook(repo)
+    result = _run_hook(repo, hook_path=hook_copy)
 
     assert result.returncode == 0
     assert result.stdout.strip() == ""
@@ -259,8 +326,45 @@ def test_end_to_end_idempotent_second_run_silent(tmp_path: Path) -> None:
 def test_end_to_end_no_githooks_leaves_config_unset(tmp_path: Path) -> None:
     """REQ-2: a consumer repo without .githooks is untouched and exits 0."""
     repo = _make_repo(tmp_path, with_githooks=False)
+    hook_copy = _install_hook_copy(repo)
+
+    result = _run_hook(repo, hook_path=hook_copy)
+
+    assert result.returncode == 0
+    assert _git(repo, "config", "--get", "core.hooksPath").returncode != 0
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_project_directory_walks_up_to_repo_root(tmp_path: Path, monkeypatch) -> None:
+    """project_directory resolves the git top level from a nested subdirectory."""
+    repo = _make_repo(tmp_path, with_githooks=False)
+    nested = repo / "a" / "b"
+    nested.mkdir(parents=True)
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.chdir(nested)
+
+    assert hook.project_directory() == str(repo.resolve())
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_end_to_end_foreign_repo_does_not_execute_installer(tmp_path: Path) -> None:
+    """RCE regression: the shipped hook (outside the target repo) must not run a
+    hostile repo's scripts/install_git_hooks.py.
+
+    Runs the real HOOK_PATH (which lives in the ai-agents checkout, outside the
+    temp repo) against a temp repo whose installer writes a sentinel. The trust
+    gate must refuse to run it, leaving core.hooksPath unset and no sentinel.
+    """
+    repo = _make_repo(tmp_path, with_githooks=True)
+    sentinel = repo / "PWNED"
+    (repo / "scripts" / "install_git_hooks.py").write_text(
+        "from pathlib import Path\n"
+        f"Path({str(sentinel)!r}).write_text('x')\n",
+        encoding="utf-8",
+    )
 
     result = _run_hook(repo)
 
     assert result.returncode == 0
+    assert not sentinel.exists()
     assert _git(repo, "config", "--get", "core.hooksPath").returncode != 0
