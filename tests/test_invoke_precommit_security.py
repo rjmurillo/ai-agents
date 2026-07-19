@@ -219,6 +219,16 @@ class TestCriticalHookPaths:
 
         assert check._check_critical_patterns([payload]) == [payload]
 
+    def test_only_root_lefthook_config_is_critical(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        root_config = Path("/repo/lefthook.yml")
+        nested_config = Path("/repo/nested/lefthook.yml")
+
+        assert check._check_critical_patterns([root_config, nested_config]) == [
+            root_config
+        ]
+
     def test_removed_githooks_path_is_not_critical(
         self, check: PreCommitSecurityCheck
     ) -> None:
