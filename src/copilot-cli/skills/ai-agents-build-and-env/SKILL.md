@@ -4,7 +4,7 @@ version: 1.0.0
 description: >-
   Runbook to recreate the ai-agents dev environment from scratch and survive
   its traps, including the uv-pinned Python 3.14.6, git hooks install, MCP
-  layer setup, stale CONTRIBUTING.md commands, PEP 668, and the LSP read gate.
+  layer setup, stale CONTRIBUTING.md commands, and PEP 668.
   Use when you say `set up this repo`, `bootstrap the environment`, `fresh
   clone setup`, or you hit `ModuleNotFoundError yaml`. Do NOT use for the
   generation pipeline (use `ai-agents-generation-and-release`) or CI gate
@@ -118,7 +118,7 @@ and fill keys (`ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`,
 
 | Server | Transport | Role | When absent |
 |--------|-----------|------|-------------|
-| serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-007) plus LSP symbol navigation | LSP read gate misfires on code files: set `LSP_DOWN=true` for graceful degradation. Memories stay readable as plain files under `.serena/memories/` (122 files as of 2026-07-03) |
+| serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-007) plus LSP symbol navigation | Memories stay readable as plain files under `.serena/memories/` (122 files as of 2026-07-03). The LSP read gate that could misfire on code files was retired in #3216 |
 | forgetful | stdio, `uvx forgetful-ai` | Supplementary semantic memory search | ADR-007 fallback: use the Serena `memory-index` memory for keyword discovery. MUST NOT block work or skip memory retrieval because Forgetful is down (ADR-007 "Graceful degradation") |
 | deepwiki | http, `https://mcp.deepwiki.com/mcp` | External GitHub repo documentation | No local impact; fall back to web search |
 
@@ -130,21 +130,11 @@ deprecated as of uv 0.11.26). Never disable TLS verification.
 
 ### Phase 5: Editor and LSP Reality
 
-This repo enforces LSP-first navigation (ADR-062, `.claude/rules/lsp-first.md`):
-a PreToolUse gate blocks Read/Grep/Glob on symbol-capable code files until
-Serena is warmed up (a `get_symbols_overview` call plus 2 navigation calls).
-Expect blocked Read calls in a fresh session; that is the gate working, not a
-broken install. Dot-directories (`.claude/`, `.serena/`) are exempt.
-
-Escape hatches, each with distinct semantics (details and abuse history in
-`ai-agents-config-catalog`):
-
-| Variable | Semantics |
-|----------|-----------|
-| `SKIP_LSP_GATE=true` | Kill switch: gate fully off |
-| `LSP_GATE_MODE=warn` | Gate downgrades to advisory |
-| `LSP_DOWN=true` | Graceful degradation while the language server cannot serve queries; gate re-arms when it recovers |
-| (automatic) | Merge/rebase in flight bypasses the read gate (issue #2454) |
+This repo prefers LSP-first navigation (ADR-062, `.claude/rules/lsp-first.md`):
+use Serena symbol tools over grep for code navigation. This is static steering
+now, not a runtime gate. The PreToolUse LSP gate and its environment escapes
+(`SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN`) were retired in #3216; no Read
+call is blocked and there is nothing to set.
 
 ## Known Traps
 
@@ -215,7 +205,6 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | MCP servers serena/deepwiki/forgetful | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `cat .env.example` |
 | Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |
-| LSP gate escapes | `.claude/rules/lsp-first.md` | `grep -n "SKIP_LSP_GATE\|LSP_DOWN\|LSP_GATE_MODE" .claude/rules/lsp-first.md` |
 | LF enforcement rationale | `.gitattributes:59` and header comments | `grep -n "eol=lf" .gitattributes` |
 | Serena memory file count (122) | `.serena/memories/` | `ls .serena/memories/ | wc -l` |
 | tests/test_paths.py count (28) | pytest | `uv run pytest tests/test_paths.py --collect-only -q` |

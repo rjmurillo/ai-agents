@@ -60,7 +60,7 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 | Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Proposed; implementation exists (`build/scripts/generate_dispatcher.py`) | Copilot ignores matchers and kills hooks at 2-3s; 40 shims per event blew the budget |
 | JTBD plugin slicing, per-harness emission | ADR-072 | Proposed, five approval conditions unmet, "No code moves on this ADR alone" | Plugins are sliced by directory today, not by job-to-be-done |
 | Context corpus is the product | ADR-069 | Proposed | Thesis only; do not cite as settled |
-| LSP-first navigation enforcement | ADR-062 | Proposed; hooks are live anyway | Symbol queries beat grep on token cost |
+| LSP-first navigation (static steering) | ADR-062 | Amended 2026-07; runtime enforcement retired (#3216) | Symbol queries beat grep on token cost |
 
 Two meta-patterns bind these together:
 
@@ -83,13 +83,12 @@ Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 | Family | Policy | Where stated |
 |---|---|---|
 | Push guards | fail-open on infrastructure errors, emitting `EVENT={...}` telemetry with `outcome="fail_open"`; bootstrap failure (missing plugin lib) exits 2, NOT fail-open | `.claude/hooks/PreToolUse/push_guard_base.py:20` and `:28` |
-| LSP gate guards (ADR-062) | fail-open on bootstrap and state errors: never wedge a turn over navigation enforcement | `scripts/hook_utilities/lsp_gate_state.py` docstrings, `lsp_health.py` |
 | Generated/released hook artifacts | prevention-first, fail-closed-and-loud: validate anchoring pre-release, and a novel runtime escape exits non-zero with actionable stderr | ADR-066 D1, ADR-071 |
 | Copilot dispatcher | `gate` mode (PreToolUse) short-circuits on first non-zero exit, fail-closed; `observe` mode (PostToolUse, SessionStart, SessionEnd, UserPromptSubmit) runs every shim, always exits 0 | `build/scripts/generate_dispatcher.py` docstring |
 
-The rationale for the split: guards that ASSERT AN INVARIANT on shipped artifacts must fail loud (a silent exit 0 disabled a hook for 33 days in #2205); guards that add ADVICE OR STEERING inside a session must not block the user's turn when their own machinery breaks. Older ADRs (008, 033, 035, 062) still carry blanket fail-open language; ADR-066 is the reconciliation and the binding direction even while its status field reads Proposed. SessionStart hooks cannot block regardless.
+The rationale for the split: guards that ASSERT AN INVARIANT on shipped artifacts must fail loud (a silent exit 0 disabled a hook for 33 days in #2205); guards that add ADVICE OR STEERING inside a session must not block the user's turn when their own machinery breaks. Older ADRs (008, 033, 035) still carry blanket fail-open language; ADR-066 is the reconciliation and the binding direction even while its status field reads Proposed. SessionStart hooks cannot block regardless.
 
-The dispatcher (ADR-068) exists because Copilot CLI ignores per-hook matchers, runs every registered entry on every tool call, and kills at 2-3s. One dispatcher per (plugin, event) replaces one process per shim; the docstring records ~75% spawn reduction (#2342). Harness behavior details (payload casing, plugin-root env vars, cwd) are `agent-harness-reference` territory; the flags and escape hatches (SKIP_LSP_GATE, LSP_DOWN, and the rest) are cataloged in `ai-agents-config-catalog`.
+The dispatcher (ADR-068) exists because Copilot CLI ignores per-hook matchers, runs every registered entry on every tool call, and kills at 2-3s. One dispatcher per (plugin, event) replaces one process per shim; the docstring records ~75% spawn reduction (#2342). Harness behavior details (payload casing, plugin-root env vars, cwd) are `agent-harness-reference` territory; the flags and escape hatches are cataloged in `ai-agents-config-catalog`.
 
 ### Phase 4: Understand the memory architecture
 

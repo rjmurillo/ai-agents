@@ -1,6 +1,6 @@
 ---
 name: ai-agents-config-catalog
-description: Catalog of every configuration axis in this repo, env vars, commit markers, frontmatter keys, QA skip verdicts, and escape hatches, each with its enforcement point and abuse story, plus the checklist for adding a new flag safely. Use when you say `what does SKIP_LSP_GATE do`, `list escape hatches`, `can I skip this gate`, `add a config flag`. Do NOT use for hook runtime behavior (use `agent-harness-reference`) or change gating policy (use `ai-agents-change-control`).
+description: Catalog of every configuration axis in this repo, env vars, commit markers, frontmatter keys, QA skip verdicts, and escape hatches, each with its enforcement point and abuse story, plus the checklist for adding a new flag safely. Use when you say `what does a skip flag do`, `list escape hatches`, `can I skip this gate`, `add a config flag`. Do NOT use for hook runtime behavior (use `agent-harness-reference`) or change gating policy (use `ai-agents-change-control`).
 version: 1.0.0
 license: MIT
 ---
@@ -14,7 +14,7 @@ Related skills: `ai-agents-change-control` owns when a bypass is allowed; `agent
 
 ## Triggers
 
-- `what does SKIP_LSP_GATE do`
+- `what does the skip-drift-check marker do`
 - `list escape hatches`
 - `can I skip this gate`
 - `add a config flag`
@@ -24,22 +24,13 @@ Related skills: `ai-agents-change-control` owns when a bypass is allowed; `agent
 
 1. Identify the axis type: env var, commit marker, text directive, frontmatter key, file, or verdict string.
 2. Find its row in the tables below. Read the effect AND the guard/abuse column before using it.
-3. If you are about to use an escape hatch, confirm the legitimate trigger condition holds (for example, LSP actually down, workflow actually unrunnable under act). Bypassing because a gate is slow or annoying is the session 1187 failure mode.
+3. If you are about to use an escape hatch, confirm the legitimate trigger condition holds (for example, a workflow actually unrunnable under act). Bypassing because a gate is slow or annoying is the session 1187 failure mode.
 4. Re-verify the flag still exists with the one-liner in Provenance. Stale docs happen here (CONTRIBUTING.md still documents two removed pre-push flags).
 5. Adding a new flag? Follow the checklist in "How to Add a New Flag" and add a row plus a re-verify one-liner to this catalog.
 
-## Environment Variables: LSP Gate (ADR-062)
+## Environment Variables: LSP Gate (retired)
 
-The LSP gate blocks Read/Grep/Glob on symbol-capable files until Serena warmup plus 2 navigation calls (`NAV_REQUIRED = 2`, `.claude/hooks/PreToolUse/invoke_lsp_read_guard.py:46`). Three escapes with distinct semantics; do not substitute one for another.
-
-| Name | Type | Effect | Status | Guard / abuse story | Where defined |
-|---|---|---|---|---|---|
-| `SKIP_LSP_GATE=true` | env var | Kill switch: bypasses ALL LSP guards for the process | Production escape hatch | Whole-session blunt instrument; prefer `LSP_DOWN` when the runtime is merely down | `.claude/hooks/PreToolUse/invoke_lsp_read_guard.py:126` |
-| `LSP_GATE_MODE=warn` | env var | Downgrades would-be blocks (exit 2) to advisory warnings (exit 0) | Production | Gate still evaluates and prints guidance; nothing is silently allowed | `.claude/hooks/PreToolUse/invoke_lsp_read_guard.py:127,192,273` |
-| `LSP_DOWN=true` | env var | Graceful degradation: guards ALLOW native tools with a one-time warning while the language server cannot serve queries | Production | Pure env read, no live probe (ADR-062 Section 8); truthy = case-insensitive `true`/`1`/`yes`/`on` (`lsp_health.py:60` `_TRUTHY`; the nearby comment omits `on`, stale); distinct from the kill switch, relaxes only while LSP is down (issue #2622 per `.claude/rules/lsp-first.md`) | `scripts/hook_utilities/lsp_health.py:57-73` |
-| merge/rebase auto-bypass | automatic (not a flag) | Read gate self-bypasses when `MERGE_HEAD`, `rebase-merge`, or `rebase-apply` exists in the git admin dir, or the file's leading window has conflict markers (issue #2454) | Production | No action needed during conflict resolution; do not set the kill switch for merges | `scripts/hook_utilities/lsp_gate_state.py:301,349-350` |
-
-`scripts/hook_utilities/lsp_health.py` is canonical; `.claude/lib/hook_utilities/` is its generated mirror via `scripts/sync_plugin_lib.py`. Never edit the mirror.
+The LSP-first runtime gate and its three environment escapes (`SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN`) were retired in #3216 when ADR-062 was amended to keep LSP-first navigation as static steering only. No environment variable governs it now; the guidance lives in `.claude/rules/lsp-first.md`. Nothing to set, nothing to escape.
 
 ## Environment Variables: Git Hooks (.githooks/)
 
@@ -147,7 +138,6 @@ If you register a hook in one file only, one harness silently lacks it. Check bo
 
 | Anti-pattern | Why it fails | Do instead |
 |---|---|---|
-| `SKIP_LSP_GATE=true` because the language server is down | Kills the whole gate for the session | `LSP_DOWN=true` (graceful degradation, auto-recovers) |
 | Reintroducing a global bypass | Session 1187: abused 3x in hours; user verdict "You can't be trusted" | Narrow, announced, per-check escapes |
 | `[skip-drift-check]` without the checklist | Marker skips the CI job but the bypass job posts unmet obligations; reviewers will bounce it | Document reason, update `templates/README.md`, get code-owner approval |
 | Documenting a flag only in CONTRIBUTING.md | Docs drift; `SKIP_PREPUSH`/`SKIP_TESTS` rows are already stale there | The defining script is the source of truth; docs quote it (FM-9) |
@@ -157,7 +147,7 @@ If you register a hook in one file only, one harness silently lacks it. Check bo
 ## Verification
 
 - [ ] The flag you plan to use still exists: run its Provenance one-liner and get a non-empty hit in the defining file (not only in docs).
-- [ ] You used the narrowest applicable escape (per-check env var, line directive over file directive, `LSP_DOWN` over kill switch).
+- [ ] You used the narrowest applicable escape (per-check env var, line directive over file directive).
 - [ ] The bypass is visible in output (WARN/SKIP line, bypass job summary, or validator notice), not silent.
 - [ ] If you added a flag: tests cover honored/absent/bad-value, this catalog has the new row, and the plugin version is bumped if the flag lives in a packaged tree.
 
@@ -167,9 +157,6 @@ Audited 2026-07-03 against the working tree. Sources: files and line numbers cit
 
 | Fact | Re-verify one-liner |
 |---|---|
-| SKIP_LSP_GATE, LSP_GATE_MODE | `grep -n "SKIP_LSP_GATE\|LSP_GATE_MODE" .claude/hooks/PreToolUse/invoke_lsp_read_guard.py` |
-| LSP_DOWN semantics | `grep -n "LSP_DOWN_ENV" scripts/hook_utilities/lsp_health.py` |
-| merge/rebase auto-bypass | `grep -n "MERGE_HEAD" scripts/hook_utilities/lsp_gate_state.py` |
 | pre-commit skips (AUTOFIX/ACTIONLINT/YAMLLINT/MEMORY_SYNC) | `grep -n "SKIP_AUTOFIX\|SKIP_ACTIONLINT\|SKIP_YAMLLINT\|SKIP_MEMORY_SYNC" .githooks/pre-commit` |
 | pre-push skips (WORKFLOW_LOCAL_TEST/CLI_E2E) | `grep -n "SKIP_WORKFLOW_LOCAL_TEST\|SKIP_CLI_E2E" .githooks/pre-push` |
 | SKIP_PREPUSH still removed | `grep -c "SKIP_PREPUSH" .githooks/pre-push` (expect 0) |

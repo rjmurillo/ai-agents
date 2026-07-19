@@ -2,7 +2,7 @@
 name: ai-agents-debugging-playbook
 version: 1.0.0
 license: MIT
-description: Symptom-to-triage playbook for this repo's recurring failures. Blocked pushes, LSP warmup blocks, drift gate reds, plugin bump reds, coverage pin trips, hook exit 143, session NON_COMPLIANT. Maps each symptom to a first command, discriminating experiment, fix path, and trap. Use when you say `triage this failure`, `why is my push blocked`, `debug this CI red`. Do NOT use for incident history (use `ai-agents-failure-archaeology`) or measurement tools (use `ai-agents-diagnostics-toolkit`).
+description: Symptom-to-triage playbook for this repo's recurring failures. Blocked pushes, drift gate reds, plugin bump reds, coverage pin trips, hook exit 143, session NON_COMPLIANT. Maps each symptom to a first command, discriminating experiment, fix path, and trap. Use when you say `triage this failure`, `why is my push blocked`, `debug this CI red`. Do NOT use for incident history (use `ai-agents-failure-archaeology`) or measurement tools (use `ai-agents-diagnostics-toolkit`).
 ---
 
 # ai-agents Debugging Playbook
@@ -45,7 +45,6 @@ Find your symptom in the master table. Run the first command exactly as written 
 | Symptom | First command | Discriminating experiment | Fix path | Trap |
 |---------|---------------|---------------------------|----------|------|
 | Push rejected by a guard, stderr shows `EVENT={...}` | Read the EVENT JSON on stderr; the `guard` field names which of `.claude/hooks/PreToolUse/invoke_*_guard.py` fired | Is `outcome` a block or `fail_open`? A block means the guard did its job; `fail_open` means guard infra broke | Fix the underlying violation, then re-push. Guard telemetry: `guard-maturity` | Bypassing instead of fixing. SKIP_PREPUSH was abused 3x within an hour of creation and removed (retro `2026-02-08-session-1187-skip-prepush-abuse.md`) |
-| Read/Grep/Glob blocked with `warmup-block` message | Run the copy-pasteable warmup call the block message prints (`mcp__serena__get_symbols_overview` on the file) | Is Serena actually up? If the LSP is configured but down, that is `LSP_DOWN=true` territory, not a bypass | Warmup, then 2 nav calls unlock free reads (`.claude/hooks/PreToolUse/invoke_lsp_read_guard.py`) | Three escapes with distinct semantics; the triage discriminator is `LSP_DOWN=true` (LSP down, graceful) vs `SKIP_LSP_GATE=true` (kill switch). Full semantics: `ai-agents-config-catalog` and `.claude/rules/lsp-first.md`. Merge/rebase auto-bypasses (issue #2454) |
 | `ModuleNotFoundError: No module named 'yaml'` running a skill script | Re-run with `uv run python <script>` | Does `uv run python -c "import yaml"` succeed while `python3 -c "import yaml"` fails? Then it is interpreter resolution, not a missing dep | Always use `uv run python` for `.claude/skills/*/scripts/`; they import `github_core` which needs PyYAML from the project venv | Bare `pip install` fails under PEP 668 on this machine. Everything goes through uv |
 | markdownlint guard blocks push, or lint "fixed" files you never touched | `git status` to see the blast radius | Did you run `markdownlint --fix '**/*.md'` (unscoped)? | Revert unrelated files; lint ONLY changed files. The guard itself is scoped to changed .md files (`.claude/hooks/PreToolUse/invoke_markdownlint_guard.py:2`) | PR #908: an unscoped `markdownlint --fix **/*.md` reformatted memory files repo-wide; the PR hit 59 commits / 95 files (retro `2026-01-15-pr-908-comprehensive-retrospective.md`) |
 | Bot review thread flags an em-dash or en-dash | `grep -rnP '[\x{2013}\x{2014}]' <your changed files>` | Is the hit under `tests/hooks/fixtures/`? That prefix is exempt | Replace with comma, colon, parentheses, or hyphen (`.claude/rules/universal.md` MUST NOT 5; validator `scripts/validation/checks_dash.py`) | Each dash costs one or more bot threads per PR. Fix all occurrences, not just the flagged one |
@@ -87,7 +86,7 @@ If three read-only commands have not identified the cause, stop and escalate to 
    - Full shift-left sweep: `python3 scripts/validation/pre_pr.py` (exit codes per ADR-035: 0 ok, 1 logic, 2 config)
    - Drift: the specific surface command from the table above
 3. Commit with the discipline gates expect: 5 files or fewer per commit, 20 commits or fewer per PR (`git rev-list --count HEAD ^origin/main`).
-4. Escape hatches (`[skip-drift-check]`, `SKIP_LSP_GATE`, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
+4. Escape hatches (`[skip-drift-check]`, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
 
 ## Traps That Cost Real Time
 
@@ -108,7 +107,7 @@ Deeper history and the settled-battles list live in `ai-agents-failure-archaeolo
 ## Anti-Patterns
 
 - Editing a generated tree to make a drift gate green. The gate reads difference, not direction; you may be destroying the source of truth.
-- Reaching for an escape hatch (`SKIP_LSP_GATE`, `[skip-drift-check]`) as a first move. Escapes are for infrastructure failure, not friction.
+- Reaching for an escape hatch (`[skip-drift-check]`, etc.) as a first move. Escapes are for infrastructure failure, not friction.
 - Debugging your branch before checking main. Reproduce-on-main is the cheapest discriminator in this playbook.
 - Treating exit 2 and exit 143 as the same hook failure. They have different root causes and different fixes.
 - Switching `--cov` between module-name and file-path forms to "fix" a coverage red. Only the module-name form resolves correctly here.
@@ -132,8 +131,6 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
 | EVENT= stderr telemetry schema | `.claude/hooks/PreToolUse/push_guard_base.py:19,49-53,421` | `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py` |
-| warmup-block message and tiers | `.claude/hooks/PreToolUse/invoke_lsp_read_guard.py:248-251` | `grep -n "warmup-block" .claude/hooks/PreToolUse/invoke_lsp_read_guard.py` |
-| LSP escapes and distinct semantics | `.claude/rules/lsp-first.md`; `invoke_lsp_read_guard.py:126-127` | `grep -rn "LSP_DOWN\|SKIP_LSP_GATE" .claude/rules/lsp-first.md` |
 | 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:119-166` | `grep -n "run_install_parity\|sync_plugin_lib\|build_all\|generate_agents" .github/workflows/validate-generated-agents.yml` |
 | `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
 | Strictly-greater plugin bump rule | `build/scripts/validate_plugin_version_bump.py:20,46` | `grep -n "strictly greater" build/scripts/validate_plugin_version_bump.py` |

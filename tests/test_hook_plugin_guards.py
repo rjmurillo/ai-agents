@@ -102,7 +102,6 @@ _MATCHER_SCOPED_SCRIPTS = [
     ".claude/hooks/invoke_routing_gates.py",
     ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
     ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
-    ".claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
 ]
 
 _COMMIT_GATE_SCRIPTS = [
@@ -140,16 +139,6 @@ class TestShellHookMatcherScope:
                     "git -C repo commit -m fix",
                     r"C:\tools\git.exe -C repo commit -m fix",
                     "env gh pr create --fill",
-                ],
-            ),
-            (
-                ".claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
-                [
-                    "echo x | grep parseConfig",
-                    r"C:\tools\rg.exe parseConfig src",
-                    "GREP parseConfig",
-                    "Rg parseConfig",
-                    "aCk parseConfig",
                 ],
             ),
         ],
@@ -319,7 +308,7 @@ class TestRemoteRepoName:
 
         ``skip_if_consumer_repo`` calls ``_remote_repo_name`` on every tool use,
         and several PreToolUse Bash hooks invoke it (correction-applier,
-        routing-gates, lsp-bash-grep-guard). If this git subprocess timeout is
+        routing-gates). If this git subprocess timeout is
         >= a host hook's timeout, a slow or hung git lets the host SIGKILL the
         whole hook before the caller can fail open, which Copilot surfaces as a
         hard "hook errored" deny of every command (repo-settings Bash-hook
