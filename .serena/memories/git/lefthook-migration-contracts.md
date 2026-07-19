@@ -1,46 +1,41 @@
 # Lefthook Migration Contracts
 
-As of branch `chore/lefthook-migration` (2026-07-19), OSS Lefthook 2.1.10 is the repository's only local Git hook manager.
+As of branch `chore/lefthook-migration` on 2026-07-19, Lefthook 2.1.10 is the
+repository's sole local Git hook manager.
 
-## Canonical paths
+## Authority
 
-- Configuration: `lefthook.yml`
-- Payloads: `scripts/hooks/pre-commit`, `scripts/hooks/commit-msg`, `scripts/hooks/pre-push`
-- The legacy `.githooks` directory and `scripts/install_git_hooks.py` are removed.
+- `lefthook.yml` owns hook events, named jobs, filters, ordering, stdin, skips,
+  and staging behavior.
+- `scripts/validation/git_hook_policy.py` contains only Git object and index
+  policies that Lefthook cannot express.
+- No custom shell payload directory or SessionStart activation fallback exists.
 
 ## Installation
 
-Lefthook is pinned through the `dev` dependency set in `pyproject.toml` and `uv.lock`.
+Human setup:
 
 ```bash
 uv sync --frozen --extra dev
-uv run --frozen --extra dev lefthook install --reset-hooks-path
-uv run --frozen --extra dev lefthook check-install
+uv run --frozen lefthook install
+uv run --frozen lefthook check-install
 ```
 
-`--reset-hooks-path` is required to migrate clones that still have `core.hooksPath=.githooks`. Linked worktrees use the installed Lefthook shims correctly.
+Automated setup may use Lefthook's native `--reset-hooks-path` option to repair
+old clones. Configuration changes do not require another install.
 
-## Runtime contracts
+## Runtime
 
 - `commit-msg` receives the message path through `{1}`.
-- `pre-push` requires `use_stdin: true`; multi-ref and deletion-ref input is forwarded byte-for-byte.
-- Lefthook normalizes nonzero payload exits to its own failure exit while preserving blocking behavior and payload output.
-- Payload scripts retain their own staged-file, restaging, environment-control, warning, and fail-closed policies. Do not add Lefthook globs, broad restaging, or parallel execution around them.
-
-## Security classification
-
-Pinned Lefthook 2.1.10 auto-discovers 30 primary/local names from these factors:
-
-- Bases: `lefthook`, `.lefthook`, `.config/lefthook`
-- Suffixes: empty and `-local`
-- Extensions: `.yml`, `.yaml`, `.json`, `.jsonc`, `.toml`
-
-All 30 names are classified as security-sensitive across the commit gate, pre-commit security scan, and infrastructure risk detector. Arbitrary `LEFTHOOK_CONFIG` and `extends` targets are not pathname-auto-discovery surfaces.
+- Pre-push file jobs use Lefthook's native `{push_files}` selection.
+- Raw pushed refs are parsed once by a sequential stdin group.
+- Security scans read immutable blobs from pushed commits.
+- Generator and staging jobs run sequentially. Failed generators cannot stage
+  stale output.
+- `SKIP_AUTOFIX=1` disables mutators but keeps check-only jobs active.
 
 ## Validation
 
-Use `lefthook validate`, `lefthook check-install`, `tests/test_lefthook_integration.py`, `tests/hooks`, `build/scripts/build_all.py --check`, `scripts/validation/pre_pr.py`, and `build/scripts/validate_plugin_version_bump.py --base origin/main`.
-
-## Process learning
-
-Never clean scratch paths by basename inside a repository. Use an absolute temporary directory, verify ownership, and refuse deletion when the resolved path is inside a repository or registered worktree. A QA cleanup accidentally deleted a sibling worktree and restored tracked files, but any prior untracked or ignored files could not be proven recoverable.
+Use `lefthook validate`, `lefthook check-install`, the behavioral integration
+suite, `build/scripts/build_all.py --check`, and
+`scripts/validation/pre_pr.py`.
