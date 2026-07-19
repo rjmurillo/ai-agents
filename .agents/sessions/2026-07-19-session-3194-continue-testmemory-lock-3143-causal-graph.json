@@ -140,7 +140,7 @@
       "result": "Tracked files were restored with the original branch and HEAD and zero tracked diff, but any prior untracked or ignored files cannot be proven recoverable."
     }
   ],
-  "endingCommit": "305dcd19a6",
+  "endingCommit": "83222cf299",
   "nextSteps": [
     "Do not create a PR unless separately requested.",
     "Disclose the pr3097-worktree cleanup incident to its owner because unknown untracked or ignored files may have been lost.",
