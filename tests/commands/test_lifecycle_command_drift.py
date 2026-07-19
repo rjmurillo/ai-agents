@@ -3,7 +3,7 @@
 Refs #1926. These tests catch the configuration drift pattern that
 surfaces when a new lifecycle command is added without updating the
 two parallel exclusion lists in `.markdownlint-cli2.yaml` and
-`.githooks/pre-commit`.
+`scripts/hooks/pre-commit`.
 
 A "lifecycle command" is a `.claude/commands/<name>.md` file whose body
 opens with `@CLAUDE.md` (the marker that distinguishes lifecycle slash-
@@ -26,7 +26,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = PROJECT_ROOT / ".claude" / "commands"
 MARKDOWNLINT_CONFIG = PROJECT_ROOT / ".markdownlint-cli2.yaml"
-PRE_COMMIT_HOOK = PROJECT_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT_HOOK = PROJECT_ROOT / "scripts" / "hooks" / "pre-commit"
 
 
 def _discover_lifecycle_commands() -> set[str]:
@@ -63,7 +63,7 @@ def test_canonical_set_matches_known_lifecycle_commands() -> None:
     assert LIFECYCLE_COMMANDS == expected, (
         f"discovered lifecycle commands {LIFECYCLE_COMMANDS} != "
         f"documented {expected}; update both this set and the exclusion "
-        f"lists in `.markdownlint-cli2.yaml` and `.githooks/pre-commit`"
+        f"lists in `.markdownlint-cli2.yaml` and `scripts/hooks/pre-commit`"
     )
 
 
@@ -105,7 +105,7 @@ def test_markdownlint_excludes_match_lifecycle_commands() -> None:
 
 
 def test_pre_commit_hook_excludes_match_lifecycle_commands() -> None:
-    """`.githooks/pre-commit` skill-validator filter must include every
+    """`scripts/hooks/pre-commit` skill-validator filter must include every
     lifecycle command in the Copilot CLI exclusion regex.
 
     Per gemini-code-assist review (PR #1931 comment 3213946213): the

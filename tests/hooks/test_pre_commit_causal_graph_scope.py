@@ -26,7 +26,7 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 SCRIPT = (
     REPO_ROOT
     / ".claude"

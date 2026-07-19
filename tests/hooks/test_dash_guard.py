@@ -76,15 +76,14 @@ def test_node_modules_fixture_has_em_dash(fixture_dir: Path) -> None:
 # M3a integration tests: pre-commit dash-check section
 # ---------------------------------------------------------------------------
 #
-# The dash-check section in .githooks/pre-commit reuses two variables from
+# The dash-check section in scripts/hooks/pre-commit reuses two variables from
 # earlier in the hook: IS_MERGE (line 136) and STAGED_MD_FILES (line 186).
 # These tests reproduce that section in isolation by invoking bash with the
 # two variables pre-set and capturing exit code and stderr.
 
 import subprocess
 
-
-# Bash fragment adapted from .githooks/pre-commit (the dash-check section).
+# Bash fragment adapted from scripts/hooks/pre-commit (the dash-check section).
 # Intentionally simplified for testing:
 #   - Omits informational output lines (file header, fix instructions,
 #     rule reference) that don't affect detection logic.
@@ -289,13 +288,13 @@ def test_hook_blocks_multiple_files(fixture_dir: Path, tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# M3b integration tests: .githooks/commit-msg hook
+# M3b integration tests: scripts/hooks/commit-msg payload
 # ---------------------------------------------------------------------------
 #
 # The commit-msg hook receives the draft commit message file path as $1.
 # These tests write a temporary file and invoke the hook directly.
 
-COMMIT_MSG_HOOK = REPO_ROOT / ".githooks" / "commit-msg"
+COMMIT_MSG_HOOK = REPO_ROOT / "scripts" / "hooks" / "commit-msg"
 
 
 def _run_commit_msg_hook(

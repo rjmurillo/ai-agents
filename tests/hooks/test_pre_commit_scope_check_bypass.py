@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Behavioral tests for the pre-commit ``SKIP_SCOPE_CHECK`` bypass observability.
 
-Regression guard for #3142. The scope-explosion wrapper in ``.githooks/pre-commit``
+Regression guard for #3142. The scope-explosion wrapper in ``scripts/hooks/pre-commit``
 supported ``SKIP_SCOPE_CHECK=1`` but the bypass was silent: the ``if [ ... != "1" ]``
 guard had no ``else`` branch, so with the flag set the wrapper skipped
 ``scripts/detect_scope_explosion.py`` entirely and the detector's own bypass
@@ -12,7 +12,7 @@ The Python detector already prints a bypass line and is covered by
 ``tests/test_detect_scope_explosion.py``. Those tests do NOT exercise the hook
 wrapper, which bypasses before the detector runs. To close that gap without
 duplicating the wrapper (which would drift from the hook), these tests extract
-the exact ``SKIP_SCOPE_CHECK`` guard block from ``.githooks/pre-commit`` and run
+the exact ``SKIP_SCOPE_CHECK`` guard block from ``scripts/hooks/pre-commit`` and run
 it under bash with stubbed hook helpers against controlled flag values.
 """
 
@@ -22,7 +22,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+PRE_COMMIT = REPO_ROOT / "scripts" / "hooks" / "pre-commit"
 
 _GUARD_LINE = 'if [ "$SKIP_SCOPE_CHECK" != "1" ]; then'
 _MARKER = "SCOPE_RAN"
@@ -68,7 +68,7 @@ def _run_block(skip_value: str | None, cwd: Path) -> str:
     detect_stub = cwd / "detect_scope_explosion.py"
     detect_stub.write_text("# stub\n", encoding="utf-8")
     script = (
-        # Match the hook's error mode (`.githooks/pre-commit` sets `set -e`).
+        # Match the hook's error mode (`scripts/hooks/pre-commit` sets `set -e`).
         "set -e\n"
         "echo_warning() { echo \"WARN:$*\"; }\n"
         "echo_error() { echo \"ERR:$*\"; }\n"
