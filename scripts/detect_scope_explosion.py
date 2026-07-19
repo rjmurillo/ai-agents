@@ -2,7 +2,7 @@
 """Detect scope explosion by counting files changed since branch diverged from main.
 
 Tracks cumulative PR size and provides early warnings before PRs grow too large.
-Designed to run as a pre-commit check, delegated from scripts/hooks/pre-commit.
+Designed to run as a named pre-commit validator from lefthook.yml.
 
 Thresholds:
   10 files: Warning (suggest reviewing scope)

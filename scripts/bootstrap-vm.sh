@@ -107,10 +107,9 @@ python3 --version
 
 echo "=== Python Dependencies ==="
 if [[ -f "uv.lock" ]]; then
-    # Sync the project venv from the lockfile, dev extras included. The
-    # pre-push payload (scripts/hooks/pre-push) runs validation through
-    # `uv run --frozen`, so .venv is the environment that must exist for a
-    # push to validate without on-the-fly downloads.
+    # Sync the project venv from the lockfile, dev extras included. Named
+    # Lefthook jobs run validators through `uv run --frozen`, so .venv is the
+    # environment that must exist for a push to validate without downloads.
     uv sync --frozen --extra dev
     echo "✓ Python dependencies synced into .venv (uv sync --frozen --extra dev)"
 
