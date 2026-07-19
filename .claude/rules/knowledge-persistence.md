@@ -17,14 +17,14 @@ When you learn a durable fact, convention, or decision procedure that future ses
 ## MUST
 
 1. **Canonical rule lives in `.claude/rules/`**. A convention that must bind across Claude, Codex, and Copilot MUST be written to `.claude/rules/<name>.md`, not only to Serena memory or Copilot Memory. `AGENTS.md` directs every harness to read `.claude/rules/*.md` first, so Claude (reads the tree directly) and Codex (reads `AGENTS.md`) both resolve to it, and Copilot reads the generated mirror.
-2. **Regenerate the mirrors in the same change**. Adding or editing a `.claude/rules/*.md` file MUST regenerate `.github/instructions/<name>.instructions.md` and `src/copilot-cli/instructions/<name>.instructions.md` with `build/scripts/generate_rules.py`, committed in the same change. A stale mirror is torn state (see `generated-artifacts.md`).
-3. **Bump the plugin manifests**. `.claude/` and `src/copilot-cli/` ship in the project-toolkit plugin, so a rule change MUST bump both `.claude-plugin/plugin.json` manifests to the same strictly-greater version (see `plugin-version-bump.md`, parity gate). One bump covers all rule changes in the same PR.
+2. **Regenerate the mirrors in the same change**. Adding or editing a `.claude/rules/*.md` file MUST regenerate `.github/instructions/<name>.instructions.md` and `src/copilot-cli/instructions/<name>.instructions.md` with `build/scripts/generate_rules.py`, committed in the same change. A stale mirror is torn state (see `.claude/rules/generated-artifacts.md`).
+3. **Bump the plugin manifests**. `.claude/` and `src/copilot-cli/` ship in the project-toolkit plugin, so a rule change MUST bump both `.claude-plugin/plugin.json` manifests to the same strictly-greater version (see `.claude/rules/plugin-version-bump.md`, parity gate). One bump covers all rule changes in the same PR.
 4. **Scope by `paths:`**. Set `paths:` to the narrowest glob that fires where the convention applies (`tests/**`, `**/*.ps1`). A universally-binding convention sets `paths: ["**"]`.
 
 ## SHOULD
 
-1. **Prefer an existing rule file**. Before adding a new `.claude/rules/*.md`, SHOULD add the item to the closest existing rule (a testing convention to `testing.md`, a security convention to `security.md`). Create a new file only when no existing rule owns the concern.
-2. **Cite the incident**. SHOULD name the failure, PR, or review that motivated the convention, so the next reader can weigh it (mirrors `governance.md` "Evidence required").
+1. **Prefer an existing rule file**. Before adding a new `.claude/rules/*.md`, SHOULD add the item to the closest existing rule (a testing convention to `.claude/rules/testing.md`, a security convention to `.claude/rules/security.md`). Create a new file only when no existing rule owns the concern.
+2. **Cite the incident**. SHOULD name the failure, PR, or review that motivated the convention, so the next reader can weigh it (mirrors `.claude/rules/governance.md` "Evidence required").
 
 ## MUST NOT
 
