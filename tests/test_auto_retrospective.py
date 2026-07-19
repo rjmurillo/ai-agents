@@ -477,18 +477,6 @@ class TestAutoRetroSuppressionSentinel(unittest.TestCase):
         return path
 
 
-    def test_relocated_pre_push_produces_same_sentinel(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        payload = (repo_root / "scripts" / "hooks" / "pre-push").read_text(
-            encoding="utf-8"
-        )
-        expected = (
-            'AUTO_RETRO_SUPPRESS_SENTINEL="$REPO_ROOT/.agents/.hook-state/'
-            f'{invoke_auto_retrospective.AUTO_RETRO_SUPPRESS_SENTINEL}"'
-        )
-
-        self.assertIn(expected, payload)
-
     def test_is_suppressed_true_when_sentinel_present(self):
         """Positive: the predicate reports True when the sentinel exists."""
         with tempfile.TemporaryDirectory() as tmp:

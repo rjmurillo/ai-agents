@@ -329,6 +329,23 @@ class TestGenerateAgents:
         copilot_content = copilot_file.read_text(encoding="utf-8")
         assert "name: test-agent" in copilot_content
 
+    def test_rejects_non_allowlisted_agent_output_directory(
+        self, tmp_path: Path
+    ) -> None:
+        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
+        platform = templates_path / "platforms" / "vscode.yaml"
+        platform.write_text(
+            "platform: vscode\n"
+            "outputDir: .git/hooks\n"
+            "fileExtension: .agent.md\n",
+            encoding="utf-8",
+        )
+
+        exit_code = generate_agents(templates_path, output_root, repo_root)
+
+        assert exit_code == 1
+        assert not (repo_root / ".git/hooks/test-agent.agent.md").exists()
+
 
 class TestMain:
     """Tests for main entry point."""
