@@ -48,6 +48,18 @@
       "caused_by": [
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5a472157",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": []
     }
   ],
@@ -56,7 +68,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 4
   },
   "lessons": []
