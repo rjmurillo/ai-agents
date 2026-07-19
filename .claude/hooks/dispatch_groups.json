@@ -166,19 +166,6 @@
         }
       ]
     },
-    "plugin-pretooluse-routing_gates": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "invoke_routing_gates.py",
-          "timeout": 5,
-          "statusMessage": "Checking routing-level gates (ADR-033)"
-        }
-      ]
-    },
     "plugin-pretooluse-skill_first_guard": {
       "event": "PreToolUse",
       "mode": "gate",
