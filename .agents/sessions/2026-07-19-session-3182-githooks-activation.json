@@ -123,9 +123,18 @@
         "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py",
         "tests/hooks/test_git_hooks_activation.py"
       ]
+    },
+    {
+      "timestamp": "2026-07-19T16:40:00Z",
+      "action": "Fixed semgrep gate: moved nosemgrep directive to the line immediately above the subprocess.run call",
+      "result": "The semgrep-cloud-platform/scan gate stayed red because the # nosemgrep directive sat above a multi-line mini-ADR comment block, so Semgrep did not bind it to the subprocess.run match (suppression only binds on the same line or the line immediately above). Reordered the comment block so the mini-ADR explanation comes first and the # nosemgrep line is last, immediately above result = subprocess.run(. Regenerated the copilot mirror (bodies byte-identical). Also rewrote the PR body to reflect the final changeset and clear the Validate PR gate (non-diff paths moved to a fenced References block; validator now PASS, 0 dashes).",
+      "filesModified": [
+        ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
+        "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py"
+      ]
     }
   ],
-  "endingCommit": "3b8cf763",
+  "endingCommit": "7e461011",
   "nextSteps": [
     "Open PR for #3182, noting the dispatch-group registration correction vs the stale settings.json/hooks.json plan. Self-merge once required reviews and threads clear.",
     "With #3182 landed, the epic can proceed to retire the PreToolUse commit/push guards it enabled (#3195, #3196, #3188, #3189).",

@@ -139,7 +139,6 @@ def activate(project_dir: str) -> None:
     # Delegate to the idempotent installer. --quiet keeps an already-configured
     # clone silent (REQ-3); a fresh clone is activated exactly once.
     try:
-        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args
         # Dear future maintainer: Semgrep taints this call because --repo-root
         # derives from CLAUDE_PROJECT_DIR / cwd (env-sourced). It is a false
         # positive and a scoped suppression is the only clean silence: the call
@@ -149,7 +148,9 @@ def activate(project_dir: str) -> None:
         # inside ``root`` -- so the installer is always this repository's own
         # tracked scripts/install_git_hooks.py, never an attacker-controlled
         # path. Restructuring cannot remove the taint: the repo root must come
-        # from the environment. See PR #3244.
+        # from the environment. See PR #3244. The nosemgrep directive must sit
+        # on the line immediately above the call for Semgrep to bind it.
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args
         result = subprocess.run(
             [
                 sys.executable,
