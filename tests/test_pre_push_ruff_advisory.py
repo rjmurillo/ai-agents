@@ -46,7 +46,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_PUSH = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 
 
 def _text() -> str:
@@ -108,8 +108,8 @@ def _make_hook_repo(
         encoding="utf-8",
     )
 
-    hook_dir = repo / ".githooks"
-    hook_dir.mkdir()
+    hook_dir = repo / "scripts" / "hooks"
+    hook_dir.mkdir(parents=True)
     _write_executable(hook_dir / "pre-push", _text())
 
     (repo / "pyproject.toml").write_text(
@@ -206,7 +206,7 @@ def _run_pre_push(
     env: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [str(repo / ".githooks" / "pre-push")],
+        [str(repo / "scripts" / "hooks" / "pre-push")],
         cwd=repo,
         input=f"refs/heads/feature/ruff-advisory {head_sha} "
         f"refs/heads/feature/ruff-advisory {base_sha}\n",

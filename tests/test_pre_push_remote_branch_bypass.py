@@ -7,7 +7,7 @@ branch, not the local one. Before the fix the hook derived the branch passed to
 ``check_pr_bypass_label.py`` from the local ref, queried a branch with no PR, and
 blocked the repair push, forcing ``SKIP_SCOPE_CHECK=1``.
 
-These tests run the real ``.githooks/pre-push`` against a throwaway repo whose
+These tests run the real ``scripts/hooks/pre-push`` against a throwaway repo whose
 commit count exceeds the limit, with ``check_pr_bypass_label.py`` stubbed to echo
 the ``--branch`` value it received (mock at the process boundary). The assertion
 is which branch the hook actually queries.
@@ -19,7 +19,7 @@ import os
 import subprocess
 from pathlib import Path
 
-PRE_PUSH = Path(__file__).resolve().parents[1] / ".githooks" / "pre-push"
+PRE_PUSH = Path(__file__).resolve().parents[1] / "scripts" / "hooks" / "pre-push"
 
 _BYPASS_STUB = """#!/usr/bin/env python3
 import sys
@@ -60,8 +60,8 @@ def _make_over_limit_repo(tmp_path: Path) -> tuple[Path, str, str, dict[str, str
     _run_git(repo, "config", "user.name", "Pre Push Test")
     _run_git(repo, "config", "user.email", "pre-push-test@example.invalid")
 
-    (repo / ".githooks").mkdir()
-    _write_executable(repo / ".githooks" / "pre-push", PRE_PUSH.read_text(encoding="utf-8"))
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    _write_executable(repo / "scripts" / "hooks" / "pre-push", PRE_PUSH.read_text(encoding="utf-8"))
 
     # Stub the bypass-label helper to echo the branch the hook queries.
     validation_dir = repo / "scripts" / "validation"
@@ -99,7 +99,7 @@ def _make_over_limit_repo(tmp_path: Path) -> tuple[Path, str, str, dict[str, str
 
 def _run_pre_push(repo: Path, stdin: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [str(repo / ".githooks" / "pre-push")],
+        [str(repo / "scripts" / "hooks" / "pre-push")],
         cwd=repo,
         input=stdin,
         capture_output=True,

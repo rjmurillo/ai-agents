@@ -35,7 +35,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_PUSH = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 
 

@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRE_PUSH = REPO_ROOT / ".githooks" / "pre-push"
+PRE_PUSH = REPO_ROOT / "scripts" / "hooks" / "pre-push"
 
 
 def _run_git(repo: Path, *args: str) -> str:
@@ -37,8 +37,8 @@ def _make_repo(tmp_path: Path, *, pytest_mode: str) -> tuple[Path, str, str, dic
     _run_git(repo, "config", "user.name", "Pre Push Test")
     _run_git(repo, "config", "user.email", "pre-push-test@example.invalid")
 
-    hook_dir = repo / ".githooks"
-    hook_dir.mkdir()
+    hook_dir = repo / "scripts" / "hooks"
+    hook_dir.mkdir(parents=True)
     _write_executable(hook_dir / "pre-push", PRE_PUSH.read_text(encoding="utf-8"))
 
     (repo / "README.md").write_text("# fixture\n", encoding="utf-8")
@@ -110,7 +110,7 @@ def _run_pre_push(
     env: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [str(repo / ".githooks" / "pre-push")],
+        [str(repo / "scripts" / "hooks" / "pre-push")],
         cwd=repo,
         input=f"refs/heads/feature/pytest-abort {head_sha} "
         f"refs/heads/feature/pytest-abort {base_sha}\n",
