@@ -148,9 +148,11 @@ def activate(project_dir: str) -> None:
         # inside ``root`` -- so the installer is always this repository's own
         # tracked scripts/install_git_hooks.py, never an attacker-controlled
         # path. Restructuring cannot remove the taint: the repo root must come
-        # from the environment. See PR #3244. The nosemgrep directive must sit
+        # from the environment. See PR #3244. The directive uses the short rule
+        # id (suffix match) because the platform scan reports a doubled check_id
+        # (rule.rule) that a fully qualified id would not match, and it must sit
         # on the line immediately above the call for Semgrep to bind it.
-        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args
+        # nosemgrep: dangerous-subprocess-use-tainted-env-args
         result = subprocess.run(
             [
                 sys.executable,

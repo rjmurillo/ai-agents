@@ -132,9 +132,18 @@
         ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
         "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py"
       ]
+    },
+    {
+      "timestamp": "2026-07-19T17:05:00Z",
+      "action": "Corrected nosemgrep rule id to the short suffix form so it binds on the platform scan",
+      "result": "The semgrep-cloud-platform/scan gate stayed red on 999fed45 even with the directive placed immediately above the call. Root cause: the AppSec Platform reports a doubled check_id (python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args); Semgrep suppression matching is suffix-based, and the fully qualified single-suffix id I used is not a suffix of the doubled id, so it never bound. Confirmed the suffix-match semantics from Semgrep docs. Switched the directive to the short rule id dangerous-subprocess-use-tainted-env-args, which is a valid suffix of both the single and doubled forms. Regenerated the mirror (bodies byte-identical); 16 tests still pass.",
+      "filesModified": [
+        ".claude/hooks/SessionStart/invoke_git_hooks_activation.py",
+        "src/copilot-cli/hooks/SessionStart/invoke_git_hooks_activation.py"
+      ]
     }
   ],
-  "endingCommit": "7e461011",
+  "endingCommit": "999fed45",
   "nextSteps": [
     "Open PR for #3182, noting the dispatch-group registration correction vs the stale settings.json/hooks.json plan. Self-merge once required reviews and threads clear.",
     "With #3182 landed, the epic can proceed to retire the PreToolUse commit/push guards it enabled (#3195, #3196, #3188, #3189).",

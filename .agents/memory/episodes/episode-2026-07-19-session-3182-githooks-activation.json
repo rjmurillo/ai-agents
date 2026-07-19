@@ -93,6 +93,22 @@
       "content": "Commit: 7e461011",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected nosemgrep rule id to the short suffix form so it binds on the platform scan",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-19T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 999fed45",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -100,7 +116,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 6
   },
   "lessons": []
