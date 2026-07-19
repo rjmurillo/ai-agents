@@ -217,7 +217,9 @@ Or install manually:
 pip install semgrep
 ```
 
-Semgrep runs automatically in `scripts/hooks/pre-push` and scans Python, PowerShell, JavaScript, and YAML files for security issues. It blocks push on HIGH/CRITICAL findings.
+The Lefthook pre-push jobs in `lefthook.yml` run the named security validators
+for matching changed files. Consult that configuration for the current command
+and blocking behavior.
 
 ### Worktrunk Setup (Optional)
 

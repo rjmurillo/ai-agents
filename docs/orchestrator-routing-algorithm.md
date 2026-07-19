@@ -68,7 +68,8 @@ def determine_risk(task_type, file_patterns):
     # Critical risk patterns
     critical_patterns = [
         "**/Auth/**", "**/Security/**", "*.env*",
-        "scripts/hooks/*", "build/scripts/*"
+        "lefthook.yml", "scripts/validation/git_hook_policy.py",
+        "build/scripts/*"
     ]
 
     # High risk patterns
@@ -457,7 +458,8 @@ def resolve_conflicts(conflicts):
 **File Patterns**:
 
 - `.github/workflows/*`
-- `scripts/hooks/*`
+- `lefthook.yml` (Git hook manager configuration)
+- `scripts/validation/git_hook_policy.py`
 - `build/**`
 - `Dockerfile*`
 - `docker-compose*.yml`
@@ -495,18 +497,20 @@ def resolve_conflicts(conflicts):
 
 ---
 
-## Validation Against CWE-78 Incident
+## Validation Against Historical CWE-78 Incident
 
-The CWE-78 shell injection incident in `scripts/hooks/pre-commit` should route correctly:
+The deleted custom payload path is preserved below because it identifies where
+the historical incident occurred. Current Git hook authority lives in
+`lefthook.yml`.
 
 ### Classification
 
 ```python
-task = "Fix shell injection vulnerability in scripts/hooks/pre-commit"
+task = "Historical: fix shell injection vulnerability in scripts/hooks/pre-commit"
 
 task_type = "security"  # Contains "injection", "vulnerability"
 complexity = "multi_domain"  # Infrastructure + security + code
-risk = "critical"  # scripts/hooks/* pattern, shell injection
+risk = "critical"  # Shell injection vulnerability
 ```
 
 ### Agent Sequence

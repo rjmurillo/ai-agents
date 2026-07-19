@@ -212,11 +212,12 @@ This repository includes an automated pre-commit hook that runs markdown linting
 Install the Lefthook shims:
 
 ```bash
-uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook install
 uv run --frozen lefthook check-install
 ```
 
-Lefthook dispatches the pre-commit event to `scripts/hooks/pre-commit`.
+Lefthook filters staged Markdown files and runs the named pre-commit validators
+declared in `lefthook.yml`.
 
 ### How It Works
 
