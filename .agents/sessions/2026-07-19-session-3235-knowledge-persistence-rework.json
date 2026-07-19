@@ -111,7 +111,7 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "ca02c360c",
   "nextSteps": [
     "Push the branch to re-trigger CI on PR #3235 (synchronize event).",
     "Reply to and resolve the addressed review threads; leave any thread that contests a tested design decision open with a grounded explanation.",
