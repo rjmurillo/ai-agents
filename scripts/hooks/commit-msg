@@ -6,10 +6,9 @@
 # (human, Claude Code via Bash tool, CI). Independent of Claude Code's
 # settings.json hook system, which does not support a commit-msg event.
 #
-# ADR-042 exception: New bash scripts are normally prohibited, but the
-# .githooks/ directory is the declared exception because git hooks
-# require shell on non-Windows platforms (see existing pre-commit and
-# pre-push hooks). This hook follows the same exception pattern.
+# ADR-042 exception: New bash scripts are normally prohibited, but these
+# extensionless Lefthook payloads are grandfathered for cross-platform Git
+# integration (see existing pre-commit and pre-push payloads).
 #
 # Locale safety: LC_ALL=C.UTF-8 ensures UTF-8 byte matching on both
 # GNU grep (Linux) and BSD grep (macOS) regardless of user locale.

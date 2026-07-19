@@ -12,7 +12,7 @@
 # Linter:
 #   - markdownlint-cli2 for markdown files (auto-fix enabled)
 #
-# To enable: git config core.hooksPath .githooks
+# To enable: uv run --frozen lefthook install --reset-hooks-path
 #
 # Environment variables:
 #   SKIP_AUTOFIX=1 - Check only, don't auto-fix (CI mode)

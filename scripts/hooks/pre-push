@@ -7,13 +7,13 @@
 # Rationale: Git hooks require shell scripts on non-Windows platforms. A PowerShell
 # implementation would require pwsh to be installed and in PATH, creating a barrier
 # to contribution. This is a grandfathered exception for cross-platform git integration.
-# The hook delegates to PowerShell scripts for all logic beyond basic file detection.
+# The hook delegates to Python scripts for logic beyond basic file detection.
 #
 # Complements pre-commit: pre-commit does per-file staged checks; pre-push does
 # comprehensive branch-wide checks including full test suites, drift detection,
 # and security scans.
 #
-# To enable: git config core.hooksPath .githooks
+# To enable: uv run --frozen lefthook install --reset-hooks-path
 #
 #
 # Intentionally NOT using set -e. This script uses an accumulator pattern:
