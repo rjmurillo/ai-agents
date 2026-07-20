@@ -1064,6 +1064,154 @@ def test_branch_policy_blocks_main(tmp_path: Path) -> None:
     assert policy.check_branch(repo) == 1
 
 
+def _write_session_log(
+    repo: Path,
+    *,
+    branch: str | None,
+    name: str = "session-1",
+    legacy: bool = False,
+    date: str | None = None,
+    mtime: float | None = None,
+    raw: str | None = None,
+) -> Path:
+    """Create a session log under .agents/sessions for branch-context tests.
+
+    ``legacy`` writes the pre-schema top-level ``branch`` instead of the
+    canonical ``session.branch``. ``raw`` bypasses JSON construction to
+    exercise malformed input. ``mtime`` pins the modification time so the
+    newest-by-mtime selection can be steered.
+    """
+    if date is None:
+        date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    sessions = repo / ".agents" / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    path = sessions / f"{date}-{name}.json"
+    if raw is not None:
+        path.write_text(raw, encoding="utf-8")
+    else:
+        payload: dict[str, object] = {}
+        if branch is not None:
+            payload = {"branch": branch} if legacy else {"session": {"branch": branch}}
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    if mtime is not None:
+        os.utime(path, (mtime, mtime))
+    return path
+
+
+def test_branch_context_allows_matching_branch(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/x")
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_blocks_mismatched_branch(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other")
+
+    assert policy.check_branch_context(repo) == 1
+
+
+def test_branch_context_fails_open_without_sessions_directory(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_fails_open_without_today_log(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other", date="2000-01-01")
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_fails_open_without_branch_field(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch=None)
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_reads_legacy_top_level_branch(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other", legacy=True)
+
+    assert policy.check_branch_context(repo) == 1
+
+
+def test_branch_context_fails_open_on_detached_head(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other")
+    _git(repo, "checkout", "--detach", "-q")
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_selects_newest_log_by_mtime(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/x", name="session-1", mtime=1000.0)
+    _write_session_log(repo, branch="feature/other", name="session-2", mtime=2000.0)
+
+    assert policy.check_branch_context(repo) == 1
+
+    _write_session_log(repo, branch="feature/x", name="session-3", mtime=3000.0)
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_fails_open_on_malformed_log(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch=None, raw="{not valid json")
+
+    assert policy.check_branch_context(repo) == 0
+
+    _write_session_log(repo, branch=None, name="session-2", raw="[]", mtime=9999.0)
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_cli_propagates_exit_codes(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    script = PROJECT_ROOT / "scripts" / "validation" / "git_hook_policy.py"
+
+    _write_session_log(repo, branch="feature/x", mtime=1000.0)
+    match = subprocess.run(
+        [sys.executable, str(script), "--repo-root", str(repo), "branch-context"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert match.returncode == 0, match.stderr
+
+    _write_session_log(repo, branch="feature/other", name="session-2", mtime=2000.0)
+    mismatch = subprocess.run(
+        [sys.executable, str(script), "--repo-root", str(repo), "branch-context"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert mismatch.returncode == 1
+    assert "branch context mismatch" in mismatch.stderr
+
+
 def test_commit_message_policy_handles_clean_dirty_and_missing(tmp_path: Path) -> None:
     message = tmp_path / "message"
     message.write_text("fix: clean\n", encoding="utf-8")

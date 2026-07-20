@@ -101,7 +101,6 @@ _MATCHER_SCOPED_SCRIPTS = [
 
 _COMMIT_GATE_SCRIPTS = [
     ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
-    ".claude/hooks/PreToolUse/invoke_branch_context_guard.py",
     ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
     ".claude/hooks/PreToolUse/invoke_security_commit_gate.py",
 ]
