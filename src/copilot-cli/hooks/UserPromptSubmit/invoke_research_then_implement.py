@@ -135,8 +135,12 @@ SKIP_PATTERNS: list[re.Pattern[str]] = [
 MIN_PROMPT_LENGTH = 20
 
 
-def detect_complexity(prompt: str) -> list[str]:
-    """Return list of matched complexity reasons, empty if none."""
+def detect_complexity(prompt: str | None) -> list[str]:
+    """Return list of matched complexity reasons, empty if none.
+
+    Accepts None: the `not prompt` guard returns [] before any string op, so
+    None is a valid (empty-result) input, not a contract violation.
+    """
     if not prompt or len(prompt.strip()) < MIN_PROMPT_LENGTH:
         return []
 
@@ -156,16 +160,27 @@ def detect_complexity(prompt: str) -> list[str]:
 
 
 def build_research_guidance(reasons: list[str]) -> str:
-    """Build the advisory message injected into context."""
+    """Build the advisory message injected into context.
+
+    Carries the Search Before Building discipline (builder-ethos.md section 2,
+    search-before-building.md) so an agent gets it even in a project that does
+    not load those rule files. Three layers of knowledge, search-first.
+    """
     signals = ", ".join(reasons)
     return (
-        f"\nResearch-then-Implement advisory (signals: {signals}). "
-        "Before writing code, consider:\n"
-        "1. Search Serena memories and ADRs for prior art on this topic.\n"
-        "2. Identify constraints, dependencies, and affected consumers.\n"
-        "3. Evaluate multiple approaches if applicable.\n"
-        "4. Create a brief plan or spec before implementation.\n"
-        "Use the brainstorming or planner skill if the task is non-trivial.\n"
+        f"\nSearch-Before-Building advisory (signals: {signals}). "
+        "Search first, build second:\n"
+        "1. Layer 1 (this codebase): reuse an existing helper, type, ADR, or "
+        "runtime built-in before adding anything new. Do not reinvent what "
+        "already exists a few files over.\n"
+        "2. Layer 2 (new and popular): for an unfamiliar library or API, read "
+        "current docs (Context7 or official) before guessing. Scrutinize; the "
+        "crowd can be wrong.\n"
+        "3. Layer 3 (first principles): reason from this specific problem. "
+        "Prize this above the other two.\n"
+        "4. If first-principles reasoning contradicts the conventional answer, "
+        "name why before proceeding (log the eureka).\n"
+        "Prefer the smallest complete solution that reuses what exists.\n"
     )
 
 
