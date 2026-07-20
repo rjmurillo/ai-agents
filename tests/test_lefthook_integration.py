@@ -1529,6 +1529,34 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
     assert policy.scan_pushed_heads(stream, repo) == 1
 
 
+@pytest.mark.parametrize("mode", ["120000", "160000"])
+def test_pushed_semgrep_scan_rejects_non_regular_type_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "source.py", "value = 1\n")
+    if mode == "120000":
+        target = repo / "link-target"
+        target.write_text("payload.txt", encoding="utf-8")
+        object_id = _git(repo, "hash-object", "-w", str(target)).stdout.strip()
+    else:
+        object_id = base
+    _git(repo, "update-index", "--cacheinfo", mode, object_id, "source.py")
+    _git(repo, "commit", "-qm", "test: replace source type")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
+    monkeypatch.setattr(
+        policy,
+        "_run_semgrep_tree",
+        lambda *_args: pytest.fail("Semgrep must not run on a non-regular snapshot"),
+    )
+
+    assert policy.scan_pushed_heads(stream, repo) == 2
+
+
 def test_semgrep_missing_executable_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

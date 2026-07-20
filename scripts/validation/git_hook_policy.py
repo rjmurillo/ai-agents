@@ -745,7 +745,7 @@ def _changed_commit_paths(
         [
             "diff",
             "--name-only",
-            "--diff-filter=ACMR",
+            "--diff-filter=ACMRT",
             "-z",
             update.range_spec,
         ],
