@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3279,
+    "date": "2026-07-20",
+    "branch": "chore/3279-pin-markdownlint-cli2",
+    "startingCommit": "14701788",
+    "objective": "Pin markdownlint-cli2 to an exact version in the main-side setup action (#3279) and add a config-file-scoped regression guard so future markdownlint invocations stay pinned to a single owned version. Defer the lefthook.yml half to #3259."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP live this session-family: serena-* tools loaded; serena-initial_instructions returned the manual earlier this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual this session-family."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only dashboard (ADR-014) during epic #3197 triage."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "resumeCheck": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Resumed from compaction summary; #3196 shipped via PR #3281, now starting #3279 main-side pin."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md available via Serena; skill-first honored (github skill for PR ops)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md conventions applied (Python-first, atomic commits, pinned versions)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository + user Copilot memories loaded via prompt context; Serena memory index reachable."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current confirmed chore/3279-pin-markdownlint-cli2 before every git operation."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/3279-pin-markdownlint-cli2, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain inspected before staging; retrospective side-effect files intentionally excluded."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "14701788 (origin/main HEAD at branch creation)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items complete and genuine (Serena live, files read directly)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only, not modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No novel 5-minute-saving learning beyond memories already stored this session-family; markdownlint pin is a bounded known-shape change."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed in this slice (action.yml + Python test only); scoped markdownlint N/A."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pin + regression guard shipped as atomic commits."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "New regression guard passes (pos+neg+edge); ruff clean on touched files; git_hook_policy untouched."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Followed the plan: pin action, add guard, validate, commit, PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Pinned markdownlint-cli2 to an exact version in the composite setup action: the global install and the Windows npx smoke check.",
+      "files": [
+        ".github/actions/setup-code-env/action.yml"
+      ]
+    },
+    {
+      "action": "Added a config-file-scoped regression guard that scans workflow/action/lefthook config for active markdownlint-cli2 invocations and asserts each is pinned to a single shared version.",
+      "files": [
+        "tests/validation/test_markdownlint_pin.py"
+      ]
+    }
+  ],
+  "endingCommit": "01a74645",
+  "nextSteps": [
+    "Push and open PR (Refs #3279); byte-check body for 0 U+2014/U+2013 dashes; paths under ## References.",
+    "Drive CI green; resolve bot review threads; self-merge once mergeStateStatus CLEAN.",
+    "Comment on #3279 documenting the delivered main-side pin + guard and the deferred lefthook.yml half (on #3259).",
+    "Continue epic #3197 remaining owner/harness-blocked issues."
+  ]
+}

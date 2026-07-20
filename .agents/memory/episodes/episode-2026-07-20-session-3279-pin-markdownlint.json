@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-07-20-session-3279-pin-markdownlint",
+  "session": "2026-07-20-session-3279-pin-markdownlint",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Pin markdownlint-cli2 to an exact version in the main-side setup action (#3279) and add a config-file-scoped regression guard so future markdownlint invocations stay pinned to a single owned version. Defer the lefthook.yml half to #3259.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pinned markdownlint-cli2 to an exact version in the composite setup action: the global install and the Windows npx smoke check.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a config-file-scoped regression guard that scans workflow/action/lefthook config for active markdownlint-cli2 invocations and asserts each is pinned to a single shared version.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 01a74645",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
