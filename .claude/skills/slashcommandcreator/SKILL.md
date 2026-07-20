@@ -100,7 +100,7 @@ Create production-ready custom slash commands following ai-agents quality standa
 
 **Invocation Pattern**:
 
-```python
+```text
 # Security review
 Task(subagent_type="security", prompt="Review allowed-tools for command: [spec]")
 

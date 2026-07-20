@@ -30,7 +30,7 @@ The skill ships with vendored installs. When a target path is not present (for e
 
 ## Path conventions
 
-Absolute paths in this document (e.g. `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`) assume the canonical Claude install layout under `.claude/`. The Copilot CLI mirror at `src/copilot-cli/skills/orphan-ref-validator/scripts/scan.py` is byte-identical Python; on Copilot CLI, replace `.claude/` with the install root the platform uses. The `Skill(skill="orphan-ref-validator")` invocation form is platform-agnostic and is what the `/build` gate uses.
+Absolute paths in this document (e.g. `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`) assume the canonical Claude install layout under `.claude/`. The Copilot CLI mirror at `src/copilot-cli/skills/orphan-ref-validator/scripts/scan.py` is byte-identical Python; on Copilot CLI, replace `.claude/` with the install root the platform uses. The `skill: "orphan-ref-validator"` invocation form is platform-agnostic and is what the `/build` gate uses.
 
 ## Inputs
 
@@ -333,15 +333,3 @@ Repos that want a tighter feedback loop can add a pre-push hook that runs the sk
 - Companion validators: `build/scripts/validate_plugin_manifests.py`
 
 <!-- vendor-portability: declared. This skill already degrades gracefully: it states that when a target path such as .agents/ is absent it logs INFO and continues. The .agents/specs/ and .agents/architecture/ defaults are scan targets, not preconditions; a vendored install scans only the paths that exist. Issue #2050. -->
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-skill calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Skill(skill="orphan-ref-validator")` | `skill` tool, `skill: "orphan-ref-validator"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
