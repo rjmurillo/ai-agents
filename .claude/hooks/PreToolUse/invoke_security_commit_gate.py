@@ -63,7 +63,8 @@ _SECURITY_PATH_PATTERNS = [
     re.compile(r"(^|[/\\])[Aa]uth[/\\]"),
     re.compile(r"(^|[/\\])[Ss]ecurity[/\\]"),
     re.compile(
-        r"^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$"
+        r"^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
+        re.IGNORECASE,
     ),
     re.compile(r"\.env($|\.)"),
     re.compile(r"(^|[/\\])secrets[/\\]"),

@@ -223,6 +223,8 @@ def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies()
         "if ($env:ENABLE_GIT_HOOKS -eq 'true' -and $env:ENABLE_PYTHON -eq 'true')"
         in text
     )
+    assert "if ($LASTEXITCODE -ne 0)" in text
+    assert "exit $LASTEXITCODE" in text
     assert "git config core.hooksPath" not in text
 
 

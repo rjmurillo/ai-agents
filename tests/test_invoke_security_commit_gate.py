@@ -68,7 +68,8 @@ class TestMatchSecurityPaths:
             for base in ("lefthook", ".lefthook", ".config/lefthook")
             for suffix in ("", "-local")
             for extension in (".yml", ".yaml", ".json", ".jsonc", ".toml")
-        ],
+        ]
+        + ["LEFTHOOK.YML", ".CONFIG/LEFTHOOK-LOCAL.JSONC"],
     )
     def test_auto_discovered_lefthook_configs_match(self, config_path: str) -> None:
         assert match_security_paths([config_path]) == [config_path]
