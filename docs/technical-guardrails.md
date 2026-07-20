@@ -241,7 +241,7 @@ uv run pytest tests/ -k stale_script_ref -q
 **Solution**: Install and verify Lefthook
 
 ```bash
-uv run --frozen lefthook install
+uv run --frozen lefthook install --reset-hooks-path
 uv run --frozen lefthook check-install
 ```
 

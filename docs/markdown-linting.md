@@ -212,7 +212,7 @@ This repository includes an automated pre-commit hook that runs markdown linting
 Install the Lefthook shims:
 
 ```bash
-uv run --frozen lefthook install
+uv run --frozen lefthook install --reset-hooks-path
 uv run --frozen lefthook check-install
 ```
 

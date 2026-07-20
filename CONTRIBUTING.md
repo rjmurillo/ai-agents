@@ -41,7 +41,7 @@ Thank you for your interest in contributing to this project. This guide explains
 3. **Install Python 3.14.x** (see Prerequisites above)
 4. **Set up Python environment**: `uv sync --frozen --extra dev` (creates `.venv` from `uv.lock` without re-resolving it). This matches the locked environment the pre-push gate and CI use. On managed containers, `scripts/bootstrap-vm.sh` runs this automatically.
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-6. Install Git hooks: `uv run --frozen lefthook install`, then verify with `uv run --frozen lefthook check-install`
+6. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
@@ -508,7 +508,7 @@ In rare cases (e.g., emergency hotfix), you may need to skip drift detection:
 Enable automated validation on commits:
 
 ```bash
-uv run --frozen lefthook install
+uv run --frozen lefthook install --reset-hooks-path
 uv run --frozen lefthook check-install
 ```
 

@@ -99,7 +99,7 @@ the named validators.
 To enable the hooks:
 
 ```bash
-uv run --frozen lefthook install
+uv run --frozen lefthook install --reset-hooks-path
 uv run --frozen lefthook check-install
 ```
 
