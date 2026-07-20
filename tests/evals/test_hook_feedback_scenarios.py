@@ -54,14 +54,39 @@ _ORCHESTRATOR_MARKERS = (
 _DASH_PATTERN = re.compile(r"[\u2013\u2014]")
 
 
-def _load_scenarios() -> list[dict]:
-    assert _SCENARIOS.is_file(), f"scenarios file missing: {_SCENARIOS}"
-    payload = json.loads(_SCENARIOS.read_text(encoding="utf-8"))
+def _shaped_scenarios(payload: object) -> list[dict]:
+    """Validate the parsed payload shape and return the scenarios list.
+
+    Pure function (no I/O) so the shape checks can be exercised directly by a
+    negative-control test. Mirrors the harness
+    (``scripts/eval/eval-prompt-change.py``) so a malformed file fails with an
+    actionable ``AssertionError`` instead of a raw AttributeError / KeyError /
+    TypeError in a downstream test. Every scenario is guaranteed to be a dict
+    carrying a non-empty string ``id``, so downstream ``scenario["id"]`` and
+    ``set(scenario)`` uses are safe.
+    """
+    assert isinstance(payload, dict), (
+        f"scenarios file root must be a JSON object, got {type(payload).__name__}"
+    )
     scenarios = payload.get("scenarios")
     assert isinstance(scenarios, list) and scenarios, (
         "scenarios file must have a non-empty 'scenarios' list"
     )
+    for i, scenario in enumerate(scenarios):
+        assert isinstance(scenario, dict), (
+            f"scenario at index {i} must be a JSON object, got {type(scenario).__name__}"
+        )
+        scenario_id = scenario.get("id")
+        assert isinstance(scenario_id, str) and scenario_id, (
+            f"scenario at index {i} must carry a non-empty string 'id'"
+        )
     return scenarios
+
+
+def _load_scenarios() -> list[dict]:
+    assert _SCENARIOS.is_file(), f"scenarios file missing: {_SCENARIOS}"
+    payload = json.loads(_SCENARIOS.read_text(encoding="utf-8"))
+    return _shaped_scenarios(payload)
 
 
 def test_scenarios_conform_to_harness_schema() -> None:
@@ -82,6 +107,10 @@ def test_expected_verdict_in_verdict_options() -> None:
         options = scenario.get("verdict_options")
         if options is None:
             continue
+        assert isinstance(options, list) and options, (
+            f"scenario {scenario['id']!r}: verdict_options must be a "
+            f"non-empty list, got {options!r}"
+        )
 
         opts_upper: list[str] = []
         seen_opts: set[str] = set()
@@ -177,3 +206,33 @@ def test_dash_pattern_negative_control() -> None:
     assert _DASH_PATTERN.search("\u2014")
     assert _DASH_PATTERN.search("\u2013")
     assert not _DASH_PATTERN.search("plain ASCII - hyphen")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],  # root is a list, not an object
+        "not-a-dict",  # root is a string
+        {},  # missing 'scenarios' key
+        {"scenarios": []},  # empty scenarios list
+        {"scenarios": "nope"},  # scenarios is not a list
+        {"scenarios": [{"id": "ok"}, "not-a-dict"]},  # a scenario is not a dict
+        {"scenarios": [{"desc": "no id"}]},  # scenario missing string 'id'
+        {"scenarios": [{"id": ""}]},  # scenario has an empty 'id'
+    ],
+)
+def test_shaped_scenarios_rejects_malformed_payloads(payload: object) -> None:
+    """Negative control: the shape guard fires on malformed payloads.
+
+    Ensures the hardening in _shaped_scenarios is not vacuous, so a future
+    malformed scenarios file fails with a clear AssertionError rather than a
+    raw AttributeError / KeyError / TypeError downstream.
+    """
+    with pytest.raises(AssertionError):
+        _shaped_scenarios(payload)
+
+
+def test_shaped_scenarios_accepts_the_real_file() -> None:
+    """Positive control: the real file passes the shape guard."""
+    scenarios = _shaped_scenarios(json.loads(_SCENARIOS.read_text(encoding="utf-8")))
+    assert [s["id"] for s in scenarios] == ["HF1", "HF2"]
