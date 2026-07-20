@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3196,
+    "date": "2026-07-20",
+    "branch": "chore/lefthook-migration",
+    "startingCommit": "dcb1381528",
+    "objective": "Finish Lefthook Semgrep hardening and merge PR 3259"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP project tools were active; list_memories returned the ai-agents memory index"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; no current issue handoff exists under .agents/handoffs"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed 106 files under .claude/skills/*/scripts, including session, security, PR, and memory tooling"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena memory usage-mandatory; GitHub operations remain skill-first"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed Serena memories and read usage-mandatory; prior Lefthook context restored from session checkpoint"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/lefthook-migration"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/lefthook-migration"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified chore/lefthook-migration with only scoped staged changes plus pre-existing untracked files"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "dcb1381528"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end MUST items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote Serena memory semgrep-powershell-parser-errors"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran markdownlint-cli2 on the changed Serena memory; repository configuration excludes .serena paths and reported 0 files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation committed as 24298fe68d1efe8f45e72c0579b0685024db381b"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "256 tests passed; git_hook_policy reached 100% statement and branch coverage; Ruff and mypy passed; security review approved"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Remaining work is PR #3259 push, review response, CI convergence, and merge"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-20T03:58:00Z",
+      "action": "Completed Semgrep PowerShell parser-error hardening",
+      "evidence": "256 tests passed with 100% statement and branch coverage; Ruff and mypy passed"
+    },
+    {
+      "timestamp": "2026-07-20T03:59:00Z",
+      "action": "Completed independent security review",
+      "evidence": "Security agent approved exact rule attribution, full span containment, mixed-shell rejection, and linear Unicode matching"
+    },
+    {
+      "timestamp": "2026-07-20T04:00:00Z",
+      "action": "Committed final Semgrep attribution hardening",
+      "evidence": "24298fe68d1efe8f45e72c0579b0685024db381b"
+    }
+  ],
+  "endingCommit": "24298fe68d1efe8f45e72c0579b0685024db381b",
+  "nextSteps": [
+    "Push chore/lefthook-migration and monitor PR #3259 through merge"
+  ]
+}

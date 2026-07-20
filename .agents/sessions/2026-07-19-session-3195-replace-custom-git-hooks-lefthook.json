@@ -125,6 +125,6 @@
       "result": "Blocked Git metadata overrides, Semgrep target omissions, and cross-filesystem path collisions."
     }
   ],
-  "endingCommit": "75d93623c66596a39b5a9a7ed48f47b51b98c4ec",
+  "endingCommit": "24298fe68d1efe8f45e72c0579b0685024db381b",
   "nextSteps": []
 }

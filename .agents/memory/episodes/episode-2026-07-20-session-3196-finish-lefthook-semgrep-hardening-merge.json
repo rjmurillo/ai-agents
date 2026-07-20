@@ -1,0 +1,63 @@
+{
+  "id": "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+  "session": "2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Finish Lefthook Semgrep hardening and merge PR 3259",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed Semgrep PowerShell parser-error hardening",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed independent security review",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed final Semgrep attribution hardening",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 24298fe68d1efe8f45e72c0579b0685024db381b",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}
