@@ -176,14 +176,16 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     if _is_linked_worktree(repo_root):
         print(
             "[WARNING] Lefthook is not installed in this linked worktree. "
-            "Install it from the primary clone with: "
-            "uv run --frozen lefthook install "
+            "Install it from the primary clone with:\n"
+            "  uv run --frozen lefthook install --reset-hooks-path\n"
+            "  uv run --frozen lefthook check-install\n"
             "(non-blocking here, Issue #2374)."
         )
         return True
     print(
-        "[FAIL] Lefthook is not installed. Run: "
-        "uv run --frozen lefthook install"
+        "[FAIL] Lefthook is not installed. Run:\n"
+        "  uv run --frozen lefthook install --reset-hooks-path\n"
+        "  uv run --frozen lefthook check-install"
     )
     return False
 

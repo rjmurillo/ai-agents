@@ -884,8 +884,10 @@ class TestValidateLefthookInstalled:
                         assert validate_lefthook_installed(tmp_path) is False
 
         output = capsys.readouterr()
-        assert "uv run --frozen lefthook install" in output.out
-        assert "--reset-hooks-path" not in output.out
+        assert (
+            "uv run --frozen lefthook install --reset-hooks-path" in output.out
+        )
+        assert "uv run --frozen lefthook check-install" in output.out
 
     def test_warns_not_fails_in_linked_worktree(
         self, tmp_path: Path, capsys: Any
@@ -900,8 +902,10 @@ class TestValidateLefthookInstalled:
                         assert validate_lefthook_installed(tmp_path) is True
 
         output = capsys.readouterr()
-        assert "uv run --frozen lefthook install" in output.out
-        assert "--reset-hooks-path" not in output.out
+        assert (
+            "uv run --frozen lefthook install --reset-hooks-path" in output.out
+        )
+        assert "uv run --frozen lefthook check-install" in output.out
 
 
 class TestIsLinkedWorktree:
