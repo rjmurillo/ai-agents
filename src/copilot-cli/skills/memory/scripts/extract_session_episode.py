@@ -1217,12 +1217,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# Lifecycle precedence for the causal chain. A commit records work that was
-# already done, so it is a cause, not an effect; tests, errors, and review or CI
-# milestones follow the commit they validate or report on. Ranking events by
-# this lifecycle (within a shared timestamp) stops a commit that the extractor
-# appends last from being linked as ``caused_by`` a later PR-review milestone
-# (issue #3260). Types absent here sort at ``_CAUSAL_DEFAULT_RANK``.
+# Lifecycle precedence for the causal chain. Every extractor event shares one
+# session timestamp, so this rank, not the timestamp, is the real tie-breaker.
+# It enforces the invariant that a commit is never linked as ``caused_by`` a
+# later review milestone (issue #3260): a commit is created and pushed before
+# the tests, errors, and review or CI milestones that report on it, so it must
+# sort ahead of them. Types absent here sort at ``_CAUSAL_DEFAULT_RANK``.
 _CAUSAL_TYPE_RANK: dict[str, int] = {
     "implementation": 0,
     "commit": 1,
