@@ -215,8 +215,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: --pr-number must be positive, got {args.pr_number}", file=sys.stderr)
         return 2
 
-    # resolve_repo_params exits 2 on an unresolvable/invalid repo.
-    repo_info = resolve_repo_params(args.owner, args.repo)
+    # resolve_repo_params exits 2 on an unresolvable/invalid repo. Its shared
+    # remediation text names PowerShell-style -Owner/-Repo flags, so add a hint
+    # naming this script's actual --owner/--repo flags (PR #3264 review).
+    try:
+        repo_info = resolve_repo_params(args.owner, args.repo)
+    except SystemExit as exc:
+        print(
+            "Hint: pass --owner and --repo to this script when the repository "
+            "cannot be inferred from the git remote.",
+            file=sys.stderr,
+        )
+        return exc.code if isinstance(exc.code, int) else 2
 
     try:
         outcome = fetch_commit_count(args.pr_number, repo_info.owner, repo_info.repo)

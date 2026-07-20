@@ -261,6 +261,17 @@ def test_main_missing_gh_returns_2(
     assert "not installed or not found on PATH" in capsys.readouterr().err
 
 
+def test_main_unresolvable_repo_emits_flag_hint_and_returns_2(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def _exit_2(owner: str, repo: str) -> object:
+        raise SystemExit(2)
+
+    monkeypatch.setattr(mod, "resolve_repo_params", _exit_2)
+    assert mod.main(["--pr-number", "42"]) == 2
+    assert "--owner and --repo" in capsys.readouterr().err
+
+
 def test_main_invalid_pr_number_returns_2(monkeypatch: pytest.MonkeyPatch) -> None:
     assert mod.main(["--pr-number", "0"]) == 2
 
