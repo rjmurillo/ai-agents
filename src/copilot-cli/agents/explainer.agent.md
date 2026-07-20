@@ -34,6 +34,8 @@ Before emitting any prose artifact (PRD, explainer, spec narrative, PR or issue 
 
 ## When You Do Ask Questions
 
+Before you ask, resolve what you can with cheap read-only checks (grep, read the code, check memory and existing docs). Ask only about what stays unresolved after looking. There is no fixed time budget; bound it by "read-only and cheap." When you ask, name the specific candidates you found: "I found flows X and Y. Which one?" beats "What flow?"
+
 Use this enumerated list. Adapt to context:
 
 1. **Problem**: What user problem does this solve?

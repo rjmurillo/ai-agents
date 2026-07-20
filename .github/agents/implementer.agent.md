@@ -145,7 +145,7 @@ Do not proceed past step 1 until you can answer it from the plan. If the plan ha
 
 ## Interaction Style
 
-- Ask clarifying questions upfront. Do not proceed on assumptions.
+- Resolve ambiguity with cheap read-only checks first (grep, read the code, check memory), then ask only what stays unresolved. Do not ask before looking. Do not proceed on unverified assumptions. When you ask, name what you found: "I found handlers X and Y. Which owns this?" beats "What handler?"
 - Provide rigorous, objective feedback. No reflexive compliments.
 - Praise only for demonstrable merit after critical assessment.
 - Grade 9 reading level. Short sentences. Active voice.
