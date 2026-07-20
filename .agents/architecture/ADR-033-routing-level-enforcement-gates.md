@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (amended 2026-07-19: the dedicated PreToolUse hook implementing Gates 2, 3, and 4 was retired as structurally dead. See the "Amendment (2026-07-19)" section below. Refs #3194, #3246, #3248.)
 
 ## Date
 
@@ -132,10 +132,10 @@ Instead of exit code 2, hooks can output JSON with `decision: "deny"` and exit 0
 
 | Gate | Trigger Pattern | Prerequisite | Enforcement |
 |------|-----------------|--------------|-------------|
-| **Session Protocol** | `git commit`, `gh pr create` | Session log exists with required sections | JSON deny |
-| **QA Validation** | `gh pr create` | `.agents/qa/` report exists | JSON deny |
-| **Critic Review** | `gh pr merge` | Critic agent invoked in transcript | JSON deny |
-| **ADR Existence** | `gh pr create --head feat/*` | ADR file exists for features | JSON deny |
+| **Session Protocol** | `git commit`, `gh pr create` | Session log exists with required sections | Exit code 2 |
+| **QA Validation** | `gh pr create` | `.agents/qa/` report exists | Retired 2026-07-19 (see Amendment) |
+| **Critic Review** | `gh pr merge` | Critic agent invoked in transcript | Retired 2026-07-19 (see Amendment) |
+| **ADR Existence** | `gh pr create --head feat/*` | ADR file exists for features | Retired 2026-07-19 (see Amendment) |
 | **Retrospective** | `git push` | Retrospective evidence in session or file | Exit code 2 |
 
 ### Hook Configuration
@@ -453,6 +453,34 @@ flowchart TB
 - **Complementary**: MCP could consume gate status
 - **Future integration**: Hook → MCP → Dashboard visibility
 
+## Amendment (2026-07-19): Gates 2, 3, and 4 Dedicated Hook Retired
+
+PR #3246 (Refs #3194) deleted `invoke_routing_gates.py`, the PreToolUse hook that implemented Gates 2 (QA Validation), 3 (Critic Review), and 4 (ADR Existence) from the Gate Types table above. This amendment records that retirement; the code change already shipped. The original PowerShell design in this ADR (`Invoke-RoutingGates.ps1`) had been superseded by that Python hook, so no ADR text referenced the deleted path and the deletion orphaned no references.
+
+### Why the hook was retired
+
+The hook was structurally dead, enforcing nothing while costing startup and dispatch overhead:
+
+- Its matcher fired only on raw `gh pr create` and `gh pr merge`. In the same PreToolUse event, `invoke_skill_first_guard.py` already denies those raw commands and steers callers to the GitHub skill scripts, so the routing_gates matcher never reached a live command.
+- Its deny path used the legacy exit-0 JSON payload, which the current harness ignores, so even on a match it could not block.
+
+### What still enforces
+
+- Gate 1 (Session Protocol) remains, enforced by the session-log guard on `git commit` and `gh pr create` (it has no `gh pr merge` matcher).
+- The Retrospective gate (Phase 3.5) remains on `git push`.
+- Architecture-change governance is enforced by the adr-review guard, which is a separate hook from the retired routing_gates hook.
+
+### Where the advisory intent went
+
+Because the hook enforced nothing, its retirement removed no live enforcement. The advisory intents behind Gates 2, 3, and 4 are handled without a dedicated PreToolUse blocker:
+
+- ADR existence and review: the separate adr-review guard blocks ADR-touching commits that lack adr-review evidence, the pre-push hook emits a non-blocking reminder when ADR files change, and CI runs spec validation on pull requests.
+- QA validation and critic review: these are advisory quality signals, not agentic-harness blockers. They are left to CI and to code review rather than a per-tool-call PreToolUse gate. This matches the hook ROI reduction program (epic #3197): a hook ships to customers only when it delivers blocking value that CI cannot.
+
+### adr-review consensus
+
+This retirement amendment was validated by the six-agent adr-review debate (architect, critic, independent-thinker, security, analyst, high-level-advisor). See the ADR-033 debate log under the architecture critique directory.
+
 ## References
 
 - vexjoy: "Everything That Can Be Deterministic" - https://vexjoy.com/posts/everything-that-can-be-deterministic-should-be-my-claude-code-setup/
@@ -464,7 +492,8 @@ flowchart TB
 
 ---
 
-*ADR Version: 1.3*
+*ADR Version: 1.4*
 *Created: 2025-12-30*
 *Updated: 2026-02-20 - Added Retrospective Gate implementation (Issue #618)*
+*Updated: 2026-07-19 - Recorded retirement of the Gates 2/3/4 dedicated PreToolUse hook (Issues #3194, #3246, #3248)*
 *Note: ADR-032 reserved for Exit Code Standardization (PR #557)*
