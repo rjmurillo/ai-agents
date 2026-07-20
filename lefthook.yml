@@ -251,6 +251,9 @@ pre-commit:
 pre-push:
   piped: true
   jobs:
+    - name: auto-retro-suppress-start
+      run: uv run --frozen python scripts/validation/git_hook_policy.py auto-retro-suppress-start
+
     - name: repair-packed-refs
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
@@ -367,3 +370,6 @@ pre-push:
 
           - name: bot-cascade-advisory
             run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade
+
+    - name: auto-retro-suppress-end
+      run: uv run --frozen python scripts/validation/git_hook_policy.py auto-retro-suppress-end

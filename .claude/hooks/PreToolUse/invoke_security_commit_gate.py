@@ -66,7 +66,7 @@ _SECURITY_PATH_PATTERNS = [
         r"^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
         re.IGNORECASE,
     ),
-    re.compile(r"^scripts[/\\]validation[/\\]git_hook_policy\.py$"),
+    re.compile(r"^scripts[/\\]validation[/\\]git_hook_policy\.py$", re.IGNORECASE),
     re.compile(r"\.env($|\.)"),
     re.compile(r"(^|[/\\])secrets[/\\]"),
     re.compile(r"(?i)password"),

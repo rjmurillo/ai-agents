@@ -99,6 +99,8 @@ GENERATED_GLOBS = {
     "memory": (".serena/memories/**/*.md",),
 }
 
+AUTO_RETRO_SUPPRESS_SENTINEL = "auto-retrospective.suppress"
+
 
 @dataclass(frozen=True, slots=True)
 class PushRef:
@@ -123,6 +125,54 @@ class PushUpdate:
     head: str
     range_spec: str
     destination_branch: str | None
+
+
+def _auto_retro_suppress_sentinel_path(repo_root: Path) -> Path:
+    """Return the path to the auto-retro suppression sentinel.
+
+    Issue #2327: this sentinel prevents the Stop hook from mutating the
+    worktree during pre-push validation.
+    """
+    return repo_root / ".agents" / ".hook-state" / AUTO_RETRO_SUPPRESS_SENTINEL
+
+
+def create_auto_retro_suppress_sentinel(repo_root: Path) -> int:
+    """Create the auto-retro suppression sentinel for pre-push (Issue #2327).
+
+    The sentinel prevents the Stop hook (invoke_auto_retrospective.py) from
+    writing retrospective files during pre-push validation. Without this,
+    a session ending during a long pre-push run could leave untracked files
+    or index edits mid-validation.
+
+    Returns 0 on success, 2 on configuration/path errors.
+    """
+    sentinel_path = _auto_retro_suppress_sentinel_path(repo_root)
+    try:
+        sentinel_path.parent.mkdir(parents=True, exist_ok=True)
+        sentinel_path.touch(exist_ok=True)
+    except OSError as error:
+        print(
+            f"WARNING: could not create auto-retro suppress sentinel: {error}",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def remove_auto_retro_suppress_sentinel(repo_root: Path) -> int:
+    """Remove the auto-retro suppression sentinel after pre-push (Issue #2327).
+
+    Always succeeds (returns 0) even if the sentinel does not exist or cannot
+    be removed, to avoid blocking pushes due to cleanup issues.
+    """
+    sentinel_path = _auto_retro_suppress_sentinel_path(repo_root)
+    try:
+        sentinel_path.unlink(missing_ok=True)
+    except OSError as error:
+        print(
+            f"WARNING: could not remove auto-retro suppress sentinel: {error}",
+            file=sys.stderr,
+        )
+    return 0
 
 
 def _clean_git_env() -> dict[str, str]:
@@ -2317,6 +2367,14 @@ def _handle_pre_push(args: argparse.Namespace) -> int:
     return check_push_refs(sys.stdin, _repo_root(args))
 
 
+def _handle_auto_retro_suppress_start(args: argparse.Namespace) -> int:
+    return create_auto_retro_suppress_sentinel(_repo_root(args))
+
+
+def _handle_auto_retro_suppress_end(args: argparse.Namespace) -> int:
+    return remove_auto_retro_suppress_sentinel(_repo_root(args))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
@@ -2358,6 +2416,8 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
         ("pre-push", _handle_pre_push),
+        ("auto-retro-suppress-start", _handle_auto_retro_suppress_start),
+        ("auto-retro-suppress-end", _handle_auto_retro_suppress_end),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)
