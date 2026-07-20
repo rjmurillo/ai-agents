@@ -62,9 +62,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-8-branch_context_guard",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-8-retrospective_gate",
             "timeout": 300,
-            "statusMessage": "Running plugin-pretooluse-8-branch_context_guard hooks (grouped, #3075)"
+            "statusMessage": "Running plugin-pretooluse-8-retrospective_gate hooks (grouped, #3075)"
           }
         ]
       }
