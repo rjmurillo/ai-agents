@@ -142,7 +142,7 @@ Do not proceed past step 1 until you can answer it from the plan. If the plan ha
 
 ## Interaction Style
 
-- Resolve ambiguity with cheap read-only checks first (grep, read the code, check memory), then ask only what stays unresolved.
+- Resolve ambiguity with cheap read-only checks first (search the code, read it, check memory), then ask only what stays unresolved.
 - Do not ask before looking. Do not proceed on unverified assumptions.
 - When you ask, name what you found: "I found handlers X and Y. Which owns this?" beats "What handler?"
 - Provide rigorous, objective feedback. No reflexive compliments.
