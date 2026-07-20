@@ -13216,698 +13216,94 @@
       "created": "2026-07-20T04:43:30.191943+00:00"
     },
     {
-      "id": "fa4e6b921fde",
-      "type": "decision",
-      "label": "implementation: Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-20T13:20:29.450471+00:00"
-    },
-    {
-      "id": "7ff9a433bb74",
+      "id": "979e31affaa2",
       "type": "milestone",
-      "label": "milestone: Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "label": "milestone: Root-caused the persistent git-commit deny to project-toolkit's branch_context_guard (a legitimate branch-mismatch verdict: the newest today session log expected docs/3217-ratify-adr-085 while the working branch is docs/3217-adr085-upstream-citation). Corrected the earlier theories (harness bug #3247, copilot-cli-toolkit branch_protection_guard, copilot-cli-agents) by confirming via ~/.copilot/config.json that only project-toolkit v0.6.89 is registered.",
       "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-20-session-3217-citation"
       ],
-      "created": "2026-07-20T13:20:29.450531+00:00"
+      "created": "2026-07-20T18:26:32.479210+00:00"
     },
     {
-      "id": "4e4e61173f84",
+      "id": "9ae13414c8b4",
       "type": "milestone",
-      "label": "milestone: Migrated local hook management to lefthook.yml and scripts/hooks, then removed .githooks, the custom installer, and dead manager support.",
+      "label": "milestone: Added the upstream citation paragraph to ADR-085 Finding 1: references github/copilot-cli#3176 (proposes a committed .github/copilot-permissions.json with denyTools), epic #316, related #2398, and the trigger to re-evaluate the internal-only skill_first_guard relocation if the upstream surface lands. 0 dashes.",
       "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-20-session-3217-citation"
       ],
-      "created": "2026-07-20T13:20:29.450583+00:00"
+      "created": "2026-07-20T18:26:32.479270+00:00"
     },
     {
-      "id": "cad37aaff7e6",
+      "id": "e2182352ecdf",
       "type": "milestone",
-      "label": "milestone: Closed two review-discovered security routing gaps.",
+      "label": "milestone: Rebased the branch onto origin/main e5d8f199 via stash + reset --hard + stash pop (ADR-085 is byte-identical on main, so the reapply is clean), then created this branch-matching session log so branch_context_guard passes and the commit can land.",
       "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-20-session-3217-citation"
       ],
-      "created": "2026-07-20T13:20:29.450631+00:00"
+      "created": "2026-07-20T18:26:32.479319+00:00"
     },
     {
-      "id": "86066c4c1b74",
-      "type": "milestone",
-      "label": "milestone: Completed independent QA, security review, code review, simplification, and critic gates.",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-20T13:20:29.450689+00:00"
-    },
-    {
-      "id": "3df794a76702",
-      "type": "test",
-      "label": "test: Completed independent QA, security review, code review, simplification, and critic gates.      Full pytest reported 14091 passed, 22 skipped, and 45 expected failures; pre-PR reported 30 passed, 0 failed, and 4 environment skips.",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-20T13:20:29.450736+00:00"
-    },
-    {
-      "id": "e25a8c59dd00",
-      "type": "milestone",
-      "label": "milestone: Recorded a QA cleanup incident involving the unrelated pr3097-worktree directory.",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-20T13:20:29.450783+00:00"
-    },
-    {
-      "id": "633f659a9dcf",
+      "id": "8cc432aa075f",
       "type": "commit",
-      "label": "commit: Commit: bec3e25b82",
+      "label": "commit: Commit: 11869274",
       "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-20-session-3217-citation"
       ],
-      "created": "2026-07-20T13:20:29.450830+00:00"
+      "created": "2026-07-20T18:26:32.479366+00:00"
     },
     {
-      "id": "d308c6266ac4",
-      "type": "commit",
-      "label": "commit: Commit: 305dcd19a6",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-20T13:20:29.450884+00:00"
-    },
-    {
-      "id": "d0b54c0c14af",
-      "type": "commit",
-      "label": "commit: Commit: 83222cf299",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-20T13:20:29.450930+00:00"
-    },
-    {
-      "id": "f56f6c4d2c43",
+      "id": "b389ae4bcb3d",
       "type": "outcome",
-      "label": "Outcome: success - Migrate the repository from custom .githooks to OSS Lefthook",
+      "label": "Outcome: success - Land the ADR-085 Finding 1 upstream citation edit: reference github/copilot-cli#3176 (proposed committed .github/copilot-permissions.json with denyTools), epic #316, and related #2398, plus the re-evaluation trigger. Citation-only edit to the already-accepted ADR-085 under epic #3197.",
       "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-20-session-3217-citation"
       ],
-      "created": "2026-07-20T13:20:29.450978+00:00"
+      "created": "2026-07-20T18:26:32.479414+00:00"
     },
     {
-      "id": "b65a173b41a7",
-      "type": "decision",
-      "label": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-20T13:20:29.451116+00:00"
-    },
-    {
-      "id": "1282c02cb1a0",
+      "id": "a5c221002855",
       "type": "milestone",
-      "label": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "label": "milestone: Surfaced ADR-085 open owner decisions D-A and D-B via AskUserQuestion. Owner ruled D-A internal-only (relocate skill_first_guard to .githooks/CI, stop shipping on the vendored surface) and D-B keep-as-hook (test_auto_approval unchanged), and directed flipping ADR-085 to accepted.",
       "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+        "episode-2026-07-20-session-3217-ratify"
       ],
-      "created": "2026-07-20T13:20:29.451164+00:00"
+      "created": "2026-07-20T19:51:35.538265+00:00"
     },
     {
-      "id": "eefaa4c8e205",
+      "id": "94448e74df48",
       "type": "milestone",
-      "label": "milestone: Relocated and configured hook execution",
+      "label": "milestone: Recorded the rulings in ADR-085: flipped frontmatter status proposed to accepted, rewrote the Status section, added Resolution notes to Decision 2 and Decision 3 and to the Open Owner Decisions D-A and D-B, and updated the now-resolved conditional language in Consequences, Impact on Dependent Components, and Implementation Notes. D-A internal-only differs from the adr-review recommendation (customer-facing); the owner ruled under User Sovereignty on a branch Decision 2 already blessed as ADR-084 rule-4 compliant.",
       "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+        "episode-2026-07-20-session-3217-ratify"
       ],
-      "created": "2026-07-20T13:20:29.539132+00:00"
+      "created": "2026-07-20T19:51:35.538325+00:00"
     },
     {
-      "id": "94fd2f847e70",
+      "id": "135bf1e79995",
       "type": "milestone",
-      "label": "milestone: Repointed tests, setup, security classifiers, and generated surfaces",
+      "label": "milestone: Relocated the ADR-085 debate log from .agents/critique/ to the conventional .agents/analysis/ path (ADR-080, ADR-081, ADR-082 debate logs all live there; the adr-review guard globs .agents/analysis/*debate*.md).",
       "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+        "episode-2026-07-20-session-3217-ratify"
       ],
-      "created": "2026-07-20T13:20:29.539192+00:00"
+      "created": "2026-07-20T19:51:35.538374+00:00"
     },
     {
-      "id": "e1ef8d46249b",
-      "type": "milestone",
-      "label": "milestone: Updated active guidance and closed legacy references",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539241+00:00"
-    },
-    {
-      "id": "acb4f008811e",
-      "type": "milestone",
-      "label": "milestone: Ran final validation",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539289+00:00"
-    },
-    {
-      "id": "069d5c1e2a2b",
+      "id": "a41f8e86e5fc",
       "type": "commit",
-      "label": "commit: Commit: 26d4a3e40b",
+      "label": "commit: Commit: 8be1ed29",
       "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+        "episode-2026-07-20-session-3217-ratify"
       ],
-      "created": "2026-07-20T13:20:29.539336+00:00"
+      "created": "2026-07-20T19:51:35.538422+00:00"
     },
     {
-      "id": "ec53b0592081",
-      "type": "commit",
-      "label": "commit: Commit: fbb040f48a",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539384+00:00"
-    },
-    {
-      "id": "9f70f572bc2e",
-      "type": "milestone",
-      "label": "milestone: Replaced the custom hook engine",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539431+00:00"
-    },
-    {
-      "id": "7eee4053b9e8",
-      "type": "milestone",
-      "label": "milestone: Removed custom activation and payload systems",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539478+00:00"
-    },
-    {
-      "id": "601dda32c337",
-      "type": "milestone",
-      "label": "milestone: Added the Git policy boundary",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539527+00:00"
-    },
-    {
-      "id": "155fd5b3fe92",
-      "type": "milestone",
-      "label": "milestone: Validated the migration",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539575+00:00"
-    },
-    {
-      "id": "3f845cb59b42",
-      "type": "milestone",
-      "label": "milestone: Hardened immutable pushed-ref scanning",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539622+00:00"
-    },
-    {
-      "id": "ccd094c81e05",
-      "type": "commit",
-      "label": "commit: Commit: 75d93623c66596a39b5a9a7ed48f47b51b98c4ec",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T13:20:29.539676+00:00"
-    },
-    {
-      "id": "3b9e2c94a69f",
-      "type": "commit",
-      "label": "commit: Commit: 24298fe68d1efe8f45e72c0579b0685024db381b",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook",
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.539726+00:00"
-    },
-    {
-      "id": "73becafcebcd",
+      "id": "eca0e26a9998",
       "type": "outcome",
-      "label": "Outcome: success - Replace the custom Git hook system with OSS Lefthook",
+      "label": "Outcome: success - Ratify ADR-085 after owner decision: flip status proposed to accepted and record the two owner rulings (D-A internal-only for skill_first_guard, D-B keep-as-hook for test_auto_approval). Relocate the misfiled debate log to the conventional .agents/analysis/ path. Unblock #3217 implementation and the #3218 rescope under epic #3197.",
       "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+        "episode-2026-07-20-session-3217-ratify"
       ],
-      "created": "2026-07-20T13:20:29.539774+00:00"
-    },
-    {
-      "id": "dafdce1022dc",
-      "type": "milestone",
-      "label": "milestone: Completed Semgrep PowerShell parser-error hardening",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.617706+00:00"
-    },
-    {
-      "id": "729b9593ec70",
-      "type": "milestone",
-      "label": "milestone: Completed independent security review",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.617767+00:00"
-    },
-    {
-      "id": "b51a154cd7d7",
-      "type": "milestone",
-      "label": "milestone: Committed final Semgrep attribution hardening",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.617817+00:00"
-    },
-    {
-      "id": "16f5fa72e1b7",
-      "type": "milestone",
-      "label": "milestone: Integrated concurrent branch updates and pushed PR 3259",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.617911+00:00"
-    },
-    {
-      "id": "400b2acac555",
-      "type": "milestone",
-      "label": "milestone: Addressed the 23-thread PR review round",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.617959+00:00"
-    },
-    {
-      "id": "6ade00bd9e06",
-      "type": "commit",
-      "label": "commit: Commit: d500641aa2437ee455b2b64b616a7b1ad67874a8",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618006+00:00"
-    },
-    {
-      "id": "d54703a870d8",
-      "type": "commit",
-      "label": "commit: Commit: fc4630123c",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618053+00:00"
-    },
-    {
-      "id": "d3de9ecf9f8a",
-      "type": "milestone",
-      "label": "milestone: Rejected unsafe start and end sentinel cleanup",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618100+00:00"
-    },
-    {
-      "id": "6374fb334c2f",
-      "type": "commit",
-      "label": "commit: Commit: 8512726a77cb634ec12606f6059672b0f76e07f7",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618156+00:00"
-    },
-    {
-      "id": "ca127860d693",
-      "type": "milestone",
-      "label": "milestone: Merged origin/main and resolved four conflicts",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618211+00:00"
-    },
-    {
-      "id": "b23618a53b2c",
-      "type": "milestone",
-      "label": "milestone: Closed pushed security-suppression coverage gaps",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618258+00:00"
-    },
-    {
-      "id": "07ce012745c9",
-      "type": "milestone",
-      "label": "milestone: Addressed five new PR review threads",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618306+00:00"
-    },
-    {
-      "id": "0e4b91997f1c",
-      "type": "commit",
-      "label": "commit: Commit: 087671362479c80f89956446ac24e3ef59e8b7fa",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618353+00:00"
-    },
-    {
-      "id": "731a557cc813",
-      "type": "commit",
-      "label": "commit: Commit: 6ab3b8ecdf",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618401+00:00"
-    },
-    {
-      "id": "bbab433f3082",
-      "type": "commit",
-      "label": "commit: Commit: 4455884de7",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618449+00:00"
-    },
-    {
-      "id": "b4cf7b3c0640",
-      "type": "commit",
-      "label": "commit: Commit: 0876713624",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618496+00:00"
-    },
-    {
-      "id": "0aef44881b32",
-      "type": "outcome",
-      "label": "Outcome: success - Finish Lefthook Semgrep hardening and merge PR 3259",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T13:20:29.618545+00:00"
-    },
-    {
-      "id": "f737e8fd15f4",
-      "type": "milestone",
-      "label": "milestone: Merged current main and pushed the hardened branch",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.278633+00:00"
-    },
-    {
-      "id": "63765ba0b5d2",
-      "type": "milestone",
-      "label": "milestone: Addressed four additional PR review threads",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.278698+00:00"
-    },
-    {
-      "id": "ebcc03060aae",
-      "type": "milestone",
-      "label": "milestone: Removed vulnerable Semgrep transitive dependencies",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.278747+00:00"
-    },
-    {
-      "id": "1e4da9c072b9",
-      "type": "milestone",
-      "label": "milestone: Resolved three incorrect uv dependency comments",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.278795+00:00"
-    },
-    {
-      "id": "f5b75ff03b1b",
-      "type": "milestone",
-      "label": "milestone: Added a seven-day uv dependency cooldown",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.278842+00:00"
-    },
-    {
-      "id": "f6fcdb7518db",
-      "type": "commit",
-      "label": "commit: Commit: e362c5199b44152c2334f17a48737e4c074469ac",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.278890+00:00"
-    },
-    {
-      "id": "0010bfb8754f",
-      "type": "commit",
-      "label": "commit: Commit: f1f356926e",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.278938+00:00"
-    },
-    {
-      "id": "33079b8115c6",
-      "type": "commit",
-      "label": "commit: Commit: 329699a64e",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.278985+00:00"
-    },
-    {
-      "id": "aac28f16aca7",
-      "type": "commit",
-      "label": "commit: Commit: bbc7285ab5",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.279033+00:00"
-    },
-    {
-      "id": "0ebb079a5b9b",
-      "type": "commit",
-      "label": "commit: Commit: 104cd32072",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:00:29.279083+00:00"
-    },
-    {
-      "id": "7e659ea70bb1",
-      "type": "milestone",
-      "label": "milestone: Closed the final two Copilot review comments",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:23:16.719779+00:00"
-    },
-    {
-      "id": "561d0c438ae7",
-      "type": "milestone",
-      "label": "milestone: Confirmed PR 3259 is ready to merge",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:23:16.719842+00:00"
-    },
-    {
-      "id": "b5fac1ed120e",
-      "type": "test",
-      "label": "test: Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:23:16.719896+00:00"
-    },
-    {
-      "id": "7a94c5b421eb",
-      "type": "commit",
-      "label": "commit: Commit: fd5bfba041771f1656c5d4a2b69b179559ff19a4",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:23:16.719946+00:00"
-    },
-    {
-      "id": "05a796dc976a",
-      "type": "commit",
-      "label": "commit: Commit: fd5bfba041",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T14:23:16.720002+00:00"
-    },
-    {
-      "id": "6f2546d85941",
-      "type": "milestone",
-      "label": "milestone: Closed three late Copilot review findings in code",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T15:09:23.516562+00:00"
-    },
-    {
-      "id": "3af5a8e1fba2",
-      "type": "milestone",
-      "label": "milestone: Validated the final Lefthook review fixes",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T15:09:23.516620+00:00"
-    },
-    {
-      "id": "23be5bfd2fc2",
-      "type": "commit",
-      "label": "commit: Commit: 226b6c2f0a9ef824063c59bbfcb1f10770322414",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T15:09:23.516679+00:00"
-    },
-    {
-      "id": "92269fc99b81",
-      "type": "commit",
-      "label": "commit: Commit: 9e83c42659",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T15:09:23.516728+00:00"
-    },
-    {
-      "id": "57d13231497a",
-      "type": "commit",
-      "label": "commit: Commit: ac736f3d98",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T15:09:23.516776+00:00"
-    },
-    {
-      "id": "66124354d760",
-      "type": "commit",
-      "label": "commit: Commit: 226b6c2f0a",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T15:09:23.516825+00:00"
-    },
-    {
-      "id": "c8c81729e3bb",
-      "type": "milestone",
-      "label": "milestone: Completed the six-role Lefthook architecture review",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:37:07.060685+00:00"
-    },
-    {
-      "id": "f39ea06c9ec7",
-      "type": "milestone",
-      "label": "milestone: Accepted ADR-086 and recorded review consensus",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:39:00.398249+00:00"
-    },
-    {
-      "id": "d2cd80d9347c",
-      "type": "milestone",
-      "label": "milestone: Updated the superseded and dependent hook records",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:39:42.746561+00:00"
-    },
-    {
-      "id": "8831096cde20",
-      "type": "milestone",
-      "label": "milestone: Aligned workflow and generated-agent records",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:40:10.384369+00:00"
-    },
-    {
-      "id": "f3726253bbd4",
-      "type": "milestone",
-      "label": "milestone: Aligned memory routing and architecture citations",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:41:13.920492+00:00"
-    },
-    {
-      "id": "b2e1ceb768b4",
-      "type": "milestone",
-      "label": "milestone: Aligned eval and Copilot dogfood records",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:41:45.690610+00:00"
-    },
-    {
-      "id": "1523c22c91c9",
-      "type": "milestone",
-      "label": "milestone: Aligned vendored-hook and permission-surface records",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:42:19.552774+00:00"
-    },
-    {
-      "id": "ed46b85d0f5a",
-      "type": "milestone",
-      "label": "milestone: Committed the final timeout and governance hardening",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:50:14.907706+00:00"
-    },
-    {
-      "id": "b687f5adc32e",
-      "type": "milestone",
-      "label": "milestone: Ran the final Lefthook pre-push gate",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:50:14.907765+00:00"
-    },
-    {
-      "id": "89293e0a1542",
-      "type": "commit",
-      "label": "commit: Commit: f6a65861cb6f359d7764f878b3922bba5e9a2079",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:50:14.907815+00:00"
-    },
-    {
-      "id": "6f36b48ff2c1",
-      "type": "commit",
-      "label": "commit: Commit: d5ab4d93a1",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:50:14.907864+00:00"
-    },
-    {
-      "id": "bcab4e276d8b",
-      "type": "commit",
-      "label": "commit: Commit: f6a65861cb",
-      "episodes": [
-        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T19:50:14.907913+00:00"
+      "created": "2026-07-20T19:51:35.538470+00:00"
     }
   ],
   "patterns": [
@@ -13984,18 +13380,12 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 3,
+      "occurrences": 398,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
         "episode-2026-07-13-session-3041-frontier-model",
-        "episode-2026-07-15-session-3042",
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "contributions": {
-        "episode-2026-07-13-session-3041-frontier-model": 1.0,
-        "episode-2026-07-15-session-3042": 1.0,
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 1.0
-      }
+        "episode-2026-07-15-session-3042"
+      ]
     },
     {
       "name": "recovery pattern",
@@ -14452,20 +13842,6 @@
         "episode-2026-07-15-session-3042"
       ],
       "created": "2026-07-15T19:13:40.609373+00:00"
-    },
-    {
-      "source": "b65a173b41a7",
-      "target": "1282c02cb1a0",
-      "type": "causes",
-      "weight": 0.6,
-      "evidence_count": 1,
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "contributions": {
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 0.6
-      },
-      "created": "2026-07-20T13:20:29.451172+00:00"
     }
   ]
 }
