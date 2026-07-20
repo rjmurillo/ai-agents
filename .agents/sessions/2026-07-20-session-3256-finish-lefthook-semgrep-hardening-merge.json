@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed all scoped migration, governance, main-integration, active-index regression, and Windows CI changes through 45e305d6bb; pre-existing unrelated user files remain untouched"
+        "Evidence": "Committed all scoped migration, governance, main-integration, active-index regression, Windows CI, and ADR review changes through ae1fd30ce3; pre-existing unrelated user files remain untouched"
       },
       "validationPassed": {
         "level": "MUST",
@@ -279,11 +279,21 @@
       "timestamp": "2026-07-20T21:39:00Z",
       "action": "Completed the ADR-086 active-index delta review",
       "evidence": "All six roles accepted the corrected framework-native design; the full Lefthook integration suite passed 275 tests and the Windows workflow contract passed 7 tests"
+    },
+    {
+      "timestamp": "2026-07-20T21:41:00Z",
+      "action": "Committed the ADR-086 active-index evidence",
+      "evidence": "ae1fd30ce3 records the framework-native decision, 6 of 6 delta consensus, session evidence, episode, and causal graph"
+    },
+    {
+      "timestamp": "2026-07-20T21:42:00Z",
+      "action": "Aligned the security infrastructure guide with Lefthook",
+      "evidence": "Removed stale custom-hook paths, documented all six supported Lefthook configuration families, and passed 59 security-detection tests"
     }
   ],
-  "endingCommit": "45e305d6bb389a9d19ba208a16ed4a4a2cae8f3a",
+  "endingCommit": "ae1fd30ce37c95cc373eb8de86ce988a019eb7ba",
   "nextSteps": [
-    "Commit the ADR review evidence and security guide correction, then push the final commits",
+    "Commit the security guide correction, then push the final commits",
     "Resolve the three remaining PR review threads",
     "Wait for required checks, run the repository merge gate, merge PR #3259, and confirm the merged state"
   ]

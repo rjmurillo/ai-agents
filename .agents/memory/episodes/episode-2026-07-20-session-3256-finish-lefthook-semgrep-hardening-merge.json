@@ -358,7 +358,7 @@
       "type": "test",
       "content": "Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
       "caused_by": [
-        "e060"
+        "e064"
       ],
       "leads_to": [
         "e001"
@@ -684,7 +684,9 @@
       "caused_by": [
         "e056"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e061"
+      ]
     },
     {
       "id": "e058",
@@ -719,6 +721,52 @@
         "e059"
       ],
       "leads_to": [
+        "e063"
+      ]
+    },
+    {
+      "id": "e061",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed the ADR-086 active-index evidence",
+      "caused_by": [
+        "e057"
+      ],
+      "leads_to": [
+        "e062"
+      ]
+    },
+    {
+      "id": "e062",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned the security infrastructure guide with Lefthook",
+      "caused_by": [
+        "e061"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e063",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ae1fd30ce37c95cc373eb8de86ce988a019eb7ba",
+      "caused_by": [
+        "e060"
+      ],
+      "leads_to": [
+        "e064"
+      ]
+    },
+    {
+      "id": "e064",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ae1fd30ce3",
+      "caused_by": [
+        "e063"
+      ],
+      "leads_to": [
         "e030"
       ]
     }
@@ -728,7 +776,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 28,
+    "commits": 30,
     "files_changed": 27
   },
   "lessons": []

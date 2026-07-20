@@ -13853,6 +13853,42 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T21:40:48.521458+00:00"
+    },
+    {
+      "id": "07d60463380d",
+      "type": "milestone",
+      "label": "milestone: Committed the ADR-086 active-index evidence",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:42:21.407914+00:00"
+    },
+    {
+      "id": "3ae25ee76ab8",
+      "type": "milestone",
+      "label": "milestone: Aligned the security infrastructure guide with Lefthook",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:42:21.407973+00:00"
+    },
+    {
+      "id": "e0c1eb4b68f2",
+      "type": "commit",
+      "label": "commit: Commit: ae1fd30ce37c95cc373eb8de86ce988a019eb7ba",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:42:21.408023+00:00"
+    },
+    {
+      "id": "35a8c50acf27",
+      "type": "commit",
+      "label": "commit: Commit: ae1fd30ce3",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:42:21.408071+00:00"
     }
   ],
   "patterns": [
