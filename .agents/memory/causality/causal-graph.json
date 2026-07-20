@@ -13214,6 +13214,51 @@
         "episode-2026-07-20-session-3246-hook-exit-code-governance-apply-adr-review"
       ],
       "created": "2026-07-20T04:43:30.191943+00:00"
+    },
+    {
+      "id": "979e31affaa2",
+      "type": "milestone",
+      "label": "milestone: Root-caused the persistent git-commit deny to project-toolkit's branch_context_guard (a legitimate branch-mismatch verdict: the newest today session log expected docs/3217-ratify-adr-085 while the working branch is docs/3217-adr085-upstream-citation). Corrected the earlier theories (harness bug #3247, copilot-cli-toolkit branch_protection_guard, copilot-cli-agents) by confirming via ~/.copilot/config.json that only project-toolkit v0.6.89 is registered.",
+      "episodes": [
+        "episode-2026-07-20-session-3217-citation"
+      ],
+      "created": "2026-07-20T18:26:32.479210+00:00"
+    },
+    {
+      "id": "9ae13414c8b4",
+      "type": "milestone",
+      "label": "milestone: Added the upstream citation paragraph to ADR-085 Finding 1: references github/copilot-cli#3176 (proposes a committed .github/copilot-permissions.json with denyTools), epic #316, related #2398, and the trigger to re-evaluate the internal-only skill_first_guard relocation if the upstream surface lands. 0 dashes.",
+      "episodes": [
+        "episode-2026-07-20-session-3217-citation"
+      ],
+      "created": "2026-07-20T18:26:32.479270+00:00"
+    },
+    {
+      "id": "e2182352ecdf",
+      "type": "milestone",
+      "label": "milestone: Rebased the branch onto origin/main e5d8f199 via stash + reset --hard + stash pop (ADR-085 is byte-identical on main, so the reapply is clean), then created this branch-matching session log so branch_context_guard passes and the commit can land.",
+      "episodes": [
+        "episode-2026-07-20-session-3217-citation"
+      ],
+      "created": "2026-07-20T18:26:32.479319+00:00"
+    },
+    {
+      "id": "8cc432aa075f",
+      "type": "commit",
+      "label": "commit: Commit: 11869274",
+      "episodes": [
+        "episode-2026-07-20-session-3217-citation"
+      ],
+      "created": "2026-07-20T18:26:32.479366+00:00"
+    },
+    {
+      "id": "b389ae4bcb3d",
+      "type": "outcome",
+      "label": "Outcome: success - Land the ADR-085 Finding 1 upstream citation edit: reference github/copilot-cli#3176 (proposed committed .github/copilot-permissions.json with denyTools), epic #316, and related #2398, plus the re-evaluation trigger. Citation-only edit to the already-accepted ADR-085 under epic #3197.",
+      "episodes": [
+        "episode-2026-07-20-session-3217-citation"
+      ],
+      "created": "2026-07-20T18:26:32.479414+00:00"
     }
   ],
   "patterns": [

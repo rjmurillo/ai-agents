@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3217,
+    "date": "2026-07-20",
+    "branch": "docs/3217-adr085-upstream-citation",
+    "startingCommit": "e5d8f199",
+    "objective": "Land the ADR-085 Finding 1 upstream citation edit: reference github/copilot-cli#3176 (proposed committed .github/copilot-permissions.json with denyTools), epic #316, and related #2398, plus the re-evaluation trigger. Citation-only edit to the already-accepted ADR-085 under epic #3197."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP live this turn: serena-* tools reachable (serena-initial_instructions, serena-write_memory, serena-find_symbol surfaced via tool search); project ai-agents2 is the active Serena context."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions called this turn; the Serena manual (symbolic-first navigation, memory-relevance-by-name, 0-based lines) was returned and internalized."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read head-first as the read-only dashboard (ADR-014) during epic #3197 triage this session-family."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr-generator skill active this turn; github, autoplan, security-review skills invoked earlier this session-family."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first enforced live: project-toolkit skill_first_guard blocked a raw gh pr list this session-family; complied by using git-only commands and the github skill / gh api JSON-body pattern per usage-mandatory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS applied: 0-dash byte-check on the ADR and commit message, atomic single-file change under the 5-file limit, Python-first, never staged .agents/retrospective/* (INDEX.md reset to origin/main; two untracked auto-retro files left untracked)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository + user Copilot memories loaded via prompt context; the plugin-registry memory (only project-toolkit v0.6.89 is registered) and the branch_context_guard mechanism memory were applied to root-cause and clear the commit deny this turn."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current confirmed docs/3217-adr085-upstream-citation before staging; branch reset onto origin/main e5d8f199 with the citation edit reapplied via stash."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committing on docs/3217-adr085-upstream-citation, never main; branch based on origin/main e5d8f199."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short inspected; only the ADR and this session log staged; the two untracked .agents/retrospective/* auto-retro files intentionally excluded."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e5d8f199 (origin/main HEAD after the rebase-via-reset)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items complete and genuine (Serena live and initial_instructions called this turn, HANDOFF read, branch verified, retrospective files excluded)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only, not modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The definitive commit-deny mechanism (project-toolkit branch_context_guard branch-mismatch; only project-toolkit is registered; run _dispatch.py to see the blocking reason) is recorded as a repository memory this session-family, correcting the earlier #3247 harness-bug framing."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint does not apply: the only files touched are the ADR under .agents/** and this JSON session log, both outside the .markdownlint-cli2.yaml glob, so no markdown lint was required or run."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on branch docs/3217-adr085-upstream-citation as commit 11869274: the ADR-085 Finding 1 upstream citation edit and this session log. Single non-retrospective change, under the 5-file limit. endingCommit records 11869274 (this session's substantive commit); a small follow-up commit records this value per repo convention, matching the 2026-07-20-session-3217-ratify.json pattern."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "0 U+2014/U+2013 dashes byte-checked on the ADR and the commit message. branch_context_guard passes because this log is the newest today log and its session.branch matches the current branch. Citation-only edit to the already-accepted ADR-085; the /adr-review 6-agent consensus ran in the authoring session 2026-07-20-session-3217 (debate log .agents/analysis/ADR-085-permission-surface-debate.md), and adding an external upstream reference to an accepted ADR does not warrant a re-debate."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Followed the plan: root-cause the deny, rebase onto origin/main, create a branch-matching session log, commit the citation, open and babysit the PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Root-caused the persistent git-commit deny to project-toolkit's branch_context_guard (a legitimate branch-mismatch verdict: the newest today session log expected docs/3217-ratify-adr-085 while the working branch is docs/3217-adr085-upstream-citation). Corrected the earlier theories (harness bug #3247, copilot-cli-toolkit branch_protection_guard, copilot-cli-agents) by confirming via ~/.copilot/config.json that only project-toolkit v0.6.89 is registered.",
+      "files": []
+    },
+    {
+      "action": "Added the upstream citation paragraph to ADR-085 Finding 1: references github/copilot-cli#3176 (proposes a committed .github/copilot-permissions.json with denyTools), epic #316, related #2398, and the trigger to re-evaluate the internal-only skill_first_guard relocation if the upstream surface lands. 0 dashes.",
+      "files": [
+        ".agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md"
+      ]
+    },
+    {
+      "action": "Rebased the branch onto origin/main e5d8f199 via stash + reset --hard + stash pop (ADR-085 is byte-identical on main, so the reapply is clean), then created this branch-matching session log so branch_context_guard passes and the commit can land.",
+      "files": [
+        ".agents/sessions/2026-07-20-session-3217-citation.json"
+      ]
+    }
+  ],
+  "endingCommit": "11869274",
+  "nextSteps": [
+    "Push the branch and open a PR (Refs #3217, #3197); byte-check the body for 0 U+2014/U+2013 dashes; put file paths under a ## References H2 for the Validate PR gate.",
+    "Babysit Copilot review rounds until a push yields 0 new threads, then self-merge once checks pass.",
+    "Post the #3217 upstream-reference comment citing github/copilot-cli#3176, epic #316, related #2398, tied to ADR-085.",
+    "Continue the remaining epic #3197 issues on a Task-capable harness where adr-review and the Sol pass are available."
+  ]
+}
