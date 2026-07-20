@@ -132,7 +132,7 @@ def get_commit_type(subject: str) -> str:
 def is_infrastructure_file(file_path: str) -> bool:
     """Check if a file matches infrastructure patterns."""
     for pattern in INFRASTRUCTURE_PATTERNS:
-        if re.search(pattern, file_path):
+        if re.search(pattern, file_path, re.IGNORECASE):
             return True
     return False
 
