@@ -13746,6 +13746,60 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T14:23:16.720002+00:00"
+    },
+    {
+      "id": "6f2546d85941",
+      "type": "milestone",
+      "label": "milestone: Closed three late Copilot review findings in code",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T15:09:23.516562+00:00"
+    },
+    {
+      "id": "3af5a8e1fba2",
+      "type": "milestone",
+      "label": "milestone: Validated the final Lefthook review fixes",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T15:09:23.516620+00:00"
+    },
+    {
+      "id": "23be5bfd2fc2",
+      "type": "commit",
+      "label": "commit: Commit: 226b6c2f0a9ef824063c59bbfcb1f10770322414",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T15:09:23.516679+00:00"
+    },
+    {
+      "id": "92269fc99b81",
+      "type": "commit",
+      "label": "commit: Commit: 9e83c42659",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T15:09:23.516728+00:00"
+    },
+    {
+      "id": "57d13231497a",
+      "type": "commit",
+      "label": "commit: Commit: ac736f3d98",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T15:09:23.516776+00:00"
+    },
+    {
+      "id": "66124354d760",
+      "type": "commit",
+      "label": "commit: Commit: 226b6c2f0a",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T15:09:23.516825+00:00"
     }
   ],
   "patterns": [
