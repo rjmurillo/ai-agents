@@ -257,7 +257,7 @@ class TestDispatcherArtifacts:
             ["git", "init", str(on_main)], check=True, capture_output=True, timeout=30
         )
         subprocess.run(
-            ["git", "-C", str(on_main), "checkout", "-b", "main"],
+            ["git", "-C", str(on_main), "checkout", "-B", "main"],
             check=True,
             capture_output=True,
             timeout=30,
