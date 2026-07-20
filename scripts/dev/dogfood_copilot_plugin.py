@@ -18,7 +18,8 @@ Provides the dogfood install called for by ADR-083 decision item 3, copy-only
 on every platform. ADR-083's symlink-on-Unix wording is being reconciled in
 #3252. Refs #3222.
 
-Exit codes: 0 success, 2 configuration error.
+Exit codes: 0 success (or ``--check`` found no drift), 1 ``--check`` found the
+installed dogfood copy out of sync with the working tree, 2 configuration error.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from pathlib import Path
 MARKETPLACE = "ai-agents"
 PLUGIN_NAME = "project-toolkit"
 _BACKUP_SUFFIX = ".marketplace-bak"
+_DOGFOOD_MARKER = ".dogfood"
 
 # Match build_all.py's shipped-tree copy semantics (__pycache__, *.pyc, *.pyo)
 # and drop local tool caches so the dogfood copy mirrors what customers get.
@@ -149,6 +151,7 @@ def dogfood_install(source: Path, target: Path) -> str:
     note = _stash_existing(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, target, ignore=_COPY_IGNORE)
+    (target / _DOGFOOD_MARKER).write_text("", encoding="utf-8")
     return f"copied {source} -> {target} ({note})"
 
 
@@ -174,18 +177,87 @@ def dogfood_uninstall(target: Path) -> str:
     return f"{removed}; no backup to restore (reinstall with: {reinstall})"
 
 
+def _is_dogfood_copy(target: Path) -> bool:
+    """Return True when target carries the ``.dogfood`` opt-in marker.
+
+    ``dogfood_install`` writes the marker; a stock marketplace install at the
+    same path never has it. The marker is the sole discriminator between an
+    opted-in dogfood copy and a plain marketplace install (ADR-083).
+    """
+    return (target / _DOGFOOD_MARKER).is_file()
+
+
+def _is_stale(source: Path, target: Path) -> bool:
+    """Return True when an installed dogfood copy is out of sync with the tree.
+
+    Any version mismatch counts, in either direction. Dogfooding demands the
+    installed copy exactly match the working tree, so a copy that is newer
+    than ``HEAD`` (a developer on an older branch) is just as wrong as one
+    that is older; both mislead local hook behavior. Ordering is deliberately
+    not used. Only a real installed directory can be stale: a live symlink
+    always tracks the working tree, and a missing target means nothing was
+    dogfooded, so both are reported as not stale (no advisory warranted).
+
+    Dogfooding is opt-in (ADR-083): a directory is only considered a dogfood
+    copy when the dogfood marker (``.dogfood``) exists inside the target,
+    indicating the user explicitly ran ``--install``. A stock marketplace
+    install at the same path (no marker) is not a dogfood copy and cannot be
+    stale, even if an orphan backup exists from a prior dogfood session.
+    """
+    if target.is_symlink() or not target.is_dir():
+        return False
+    if not _is_dogfood_copy(target):
+        return False
+    return _plugin_version(target) != _plugin_version(source)
+
+
 def dogfood_status(source: Path, target: Path) -> str:
     """Return a one-line description of the current install state."""
     if target.is_symlink():
         return f"symlinked -> {os.readlink(target)}"
     if target.is_dir():
         installed = _plugin_version(target)
-        shipped = _plugin_version(source)
-        marker = ""
-        if installed != shipped:
-            marker = f" (working tree ships v{shipped}; re-run --install to refresh)"
-        return f"installed copy at {target} [v{installed}]{marker}"
+        if not _is_dogfood_copy(target):
+            return (
+                f"marketplace copy at {target} [v{installed}] (no .dogfood marker; not dogfooded)"
+            )
+        hint = ""
+        if _is_stale(source, target):
+            shipped = _plugin_version(source)
+            hint = f" (working tree ships v{shipped}; re-run --install to refresh)"
+        return f"dogfood copy at {target} [v{installed}]{hint}"
     return f"not installed at {target}"
+
+
+def dogfood_check(source: Path, target: Path) -> tuple[bool, str]:
+    """Return whether the installed copy is stale and an advisory message.
+
+    Powers the ``--check`` mode used by the pre-push staleness advisory
+    (issue #3256): the message is human-readable and the boolean drives the
+    exit code so a git hook can warn (never block) when a local dogfood copy
+    is out of sync with ``HEAD``. The message distinguishes stale, symlinked,
+    not-installed, and current states so manual ``--check`` output is honest.
+    """
+    if _is_stale(source, target):
+        installed = _plugin_version(target)
+        shipped = _plugin_version(source)
+        message = (
+            f"dogfood copy at {target} is v{installed}; working tree ships "
+            f"v{shipped}. Re-run 'python3 scripts/dev/dogfood_copilot_plugin.py "
+            f"--install' to refresh before trusting local hook behavior."
+        )
+        return True, message
+    if target.is_symlink():
+        return False, f"dogfood copy symlinked to the working tree at {target}"
+    if not target.is_dir():
+        return False, f"no dogfood copy installed at {target}"
+    if not _is_dogfood_copy(target):
+        return (
+            False,
+            f"install at {target} is a marketplace copy, not a dogfood copy "
+            "(no .dogfood marker); staleness advisory skipped",
+        )
+    return False, f"dogfood copy current at {target}"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -209,6 +281,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="show the current install state and exit",
     )
+    group.add_argument(
+        "--check",
+        action="store_true",
+        help=(
+            "exit 1 (with an advisory) when the dogfood copy differs from the "
+            "working tree (in either direction)"
+        ),
+    )
     return parser
 
 
@@ -220,6 +300,10 @@ def main(argv: list[str] | None = None) -> int:
         target = default_target()
         if args.status:
             print(dogfood_status(source, target))
+        elif args.check:
+            stale, message = dogfood_check(source, target)
+            print(message)
+            return 1 if stale else 0
         elif args.uninstall:
             print(dogfood_uninstall(target))
         else:

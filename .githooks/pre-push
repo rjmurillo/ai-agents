@@ -462,6 +462,28 @@ else
     record_skip "Placeholder identity check (no push range)"
 fi
 
+# 1c. Dogfood staleness advisory (issue #3256): warn (never block) when a
+# local Copilot dogfood install is out of sync with the working tree. A stale
+# copy can silently produce a false "works on my machine" result for the hooks
+# and permissions we ship to customers, the same silent-staleness class that
+# caused the 0.5.248 rot. Warns only when an opted-in dogfood copy (one
+# carrying the .dogfood marker written by --install) differs from the working
+# tree in either direction; a stock marketplace install is left alone. The
+# drift logic lives in the Python --check mode so this hook stays free of
+# business logic.
+DOGFOOD_SCRIPT="$REPO_ROOT/scripts/dev/dogfood_copilot_plugin.py"
+if [ -f "$DOGFOOD_SCRIPT" ] && set_python_cmd; then
+    DOGFOOD_ADVISORY=$("${PYTHON_CMD[@]}" "$DOGFOOD_SCRIPT" --check 2>/dev/null)
+    DOGFOOD_RC=$?
+    if [ "$DOGFOOD_RC" -eq 1 ]; then
+        # Double backslashes so echo -e in record_warn does not interpret
+        # Windows path segments (e.g. \temp, \name) as escape sequences.
+        record_warn "Dogfood copy stale (non-blocking): ${DOGFOOD_ADVISORY//\\/\\\\}"
+    elif [ "$DOGFOOD_RC" -eq 2 ]; then
+        record_warn "Dogfood staleness check could not run (non-blocking; config error)"
+    fi
+fi
+
 # Detect merge commits from main in the push range. Merges from upstream
 # naturally inflate commit/file counts with already-reviewed changes, so
 # limits are relaxed to avoid blocking legitimate merge-and-push workflows.
