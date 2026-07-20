@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "adr-review consensus and P1 resolutions recorded in .agents/critique/ADR-085-debate-log.md; Copilot repository memory carries the ADR-085 findings."
+        "Evidence": "Serena memory decision-adr-085-permission-surface-asymmetry written this session (serena-write_memory) capturing the two findings, the two open owner decisions, and the invoke_adr_review_guard directory-mismatch finding; adr-review consensus and P1 resolutions also recorded in .agents/critique/ADR-085-debate-log.md."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR-085 + debate log + this session log committed atomically (3 files) on the feature branch."
+        "Evidence": "Committed on the feature branch as one atomic commit of 4 files: ADR-085, the debate log, this session log, and .agents/memory/episodes/episode-2026-07-20-session-3217.json (auto-generated and re-staged by a pre-commit hook). Under the 5-file limit."
       },
       "validationPassed": {
         "level": "MUST",

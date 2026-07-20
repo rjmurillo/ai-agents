@@ -14,8 +14,11 @@ implemented: false
 ## Status
 
 Proposed (2026-07-20). Requested by issue #3217 as part of the issue #3197
-vendored-hook ROI review. Awaiting adr-review consensus and owner ratification.
-This ADR records a decision only. It deletes no hook and migrates no permission.
+vendored-hook ROI review. adr-review reached consensus (5 ACCEPT plus 1
+Disagree-and-Commit, 0 P0, all P1 threads addressed); the debate log is at
+`.agents/critique/ADR-085-debate-log.md`. Frontmatter `status` stays `proposed`
+pending owner ratification. This ADR records a decision only. It deletes no hook
+and migrates no permission.
 
 It carries two open owner decisions (D-A and D-B, in the Open Owner Decisions
 section). Both are named there with a recommendation and the evidence behind it.
