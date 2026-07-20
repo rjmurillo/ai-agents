@@ -11,7 +11,9 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Completed Semgrep PowerShell parser-error hardening",
-      "caused_by": [],
+      "caused_by": [
+        "e027"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -154,7 +156,9 @@
       "caused_by": [
         "e012"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e018"
+      ]
     },
     {
       "id": "e014",
@@ -200,7 +204,127 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e023"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and pushed the hardened branch",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e019"
+      ]
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed four additional PR review threads",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ]
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed vulnerable Semgrep transitive dependencies",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ]
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved three incorrect uv dependency comments",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a seven-day uv dependency cooldown",
+      "caused_by": [
+        "e021"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e362c5199b44152c2334f17a48737e4c074469ac",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e024"
+      ]
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f1f356926e",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ]
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 329699a64e",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ]
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: bbc7285ab5",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e027"
+      ]
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 104cd32072",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -208,7 +332,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 13,
     "files_changed": 27
   },
   "lessons": []
