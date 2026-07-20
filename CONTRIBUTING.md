@@ -1116,39 +1116,46 @@ license compatibility matrix, and compliance checklist.
 
 ## Security Scanning
 
-The pre-push hook runs lightweight security scanning on changed code files using [semgrep](https://semgrep.dev/docs/). This catches common vulnerabilities (CWE-22 path traversal, CWE-78 command injection, CWE-079 XSS) locally before PR creation. See [ADR-054](.agents/architecture/ADR-054-local-security-scanning.md) for the decision rationale.
+Lefthook's pre-push `security-scan` job runs
+[Semgrep](https://semgrep.dev/docs/) on changed code files. It catches local
+security findings before PR creation. See
+[ADR-054](.agents/architecture/ADR-054-local-security-scanning.md) for the
+decision rationale.
 
-### Installing semgrep
+### Restoring the Pinned Scanner
 
 ```bash
-# macOS
-brew install semgrep
+# Restore every development and hook dependency
+uv sync --frozen --extra dev
 
-# Linux/Windows (via pip)
-pip install semgrep
-
-# Verify installation
-semgrep --version
+# Verify the pinned Semgrep executable
+uv run --frozen --extra dev semgrep --version
 ```
 
-semgrep is recommended but not required. The pre-push hook skips the scan gracefully if semgrep is not installed, matching existing patterns for optional tools (ruff, mypy, actionlint).
+Do not install or select a separate Semgrep version for repository hooks. The
+frozen uv environment is the supported runtime. A missing scanner blocks the
+push as an environment failure.
 
 ### Security Scan Process
 
-The pre-push hook delegates to `scripts/security/run_semgrep.py`, which:
+The Lefthook job delegates to
+`scripts/validation/git_hook_policy.py semgrep-push`, which:
 
-1. Detects changed files via `git diff --name-only` against the merge-base with `origin/main`
-2. Filters to supported extensions: `.py`, `.ps1`, `.psm1`, `.js`, `.ts`, `.yaml`, `.yml`
-3. Runs `semgrep scan --config auto --json --no-git-ignore` on matched files
-4. Classifies findings by severity
+1. Reads every ref update from Git's pre-push standard input
+2. Resolves the exact commits and changed files being pushed
+3. Materializes pushed trees without trusting the working tree
+4. Filters to supported extensions: `.py`, `.ps1`, `.psm1`, `.js`, `.ts`, `.yaml`, `.yml`
+5. Runs the pinned scanner with native suppressions and ignore files disabled
+6. Enforces a 15-minute Lefthook timeout and a 14-minute (840-second) Python
+   subprocess timeout, leaving 60 seconds for captured diagnostics and Python
+   exit-code propagation
 
 **Severity thresholds:**
 
-| Severity | Action |
-|----------|--------|
-| HIGH/CRITICAL | Blocks push (exit code 1) |
-| MEDIUM | Warning only, does not block |
-| LOW/INFO | Ignored |
+| Semgrep severity | Local action |
+|------------------|--------------|
+| `ERROR` | Selected by `--severity ERROR`; a finding blocks push with a nonzero exit |
+| Other severities | Not selected by the local command; CI and security review retain their own policies |
 
 ### Security Scan Findings
 
