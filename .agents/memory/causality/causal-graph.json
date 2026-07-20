@@ -13818,6 +13818,15 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T19:39:00.398249+00:00"
+    },
+    {
+      "id": "d2cd80d9347c",
+      "type": "milestone",
+      "label": "milestone: Updated the superseded and dependent hook records",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:39:42.746561+00:00"
     }
   ],
   "patterns": [

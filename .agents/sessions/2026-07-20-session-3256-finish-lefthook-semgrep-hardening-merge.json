@@ -213,6 +213,11 @@
       "timestamp": "2026-07-20T19:39:00Z",
       "action": "Accepted ADR-086 and recorded review consensus",
       "evidence": "The decision is accepted and implemented; the debate log records 6 of 6 approval and every blocking resolution"
+    },
+    {
+      "timestamp": "2026-07-20T19:40:00Z",
+      "action": "Updated the superseded and dependent hook records",
+      "evidence": "ADR-004 now points to ADR-086, and ADR-014 names Lefthook as the local orchestration owner"
     }
   ],
   "endingCommit": "226b6c2f0a9ef824063c59bbfcb1f10770322414",

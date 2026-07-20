@@ -480,6 +480,18 @@
       "caused_by": [
         "e039"
       ],
+      "leads_to": [
+        "e041"
+      ]
+    },
+    {
+      "id": "e041",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated the superseded and dependent hook records",
+      "caused_by": [
+        "e040"
+      ],
       "leads_to": []
     }
   ],

@@ -1,8 +1,22 @@
+---
+id: ADR-004
+status: superseded
+date: 2026-07-20
+decision-makers: []
+supersedes: []
+superseded-by: ADR-086
+explainer: null
+implemented: true
+---
+
 # ADR-004: Pre-Commit Hook as Validation Orchestration Point
 
 ## Status
 
-Accepted
+Superseded by
+[ADR-086](ADR-086-lefthook-local-hook-orchestration.md) on 2026-07-20.
+The body below is retained as historical rationale. It is not current setup or
+implementation guidance.
 
 ## Date
 
