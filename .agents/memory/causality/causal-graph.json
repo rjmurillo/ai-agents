@@ -13207,24 +13207,6 @@
       "created": "2026-07-19T17:58:45.127374+00:00"
     },
     {
-      "id": "b65a173b41a7",
-      "type": "decision",
-      "label": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-19T17:58:45.127503+00:00"
-    },
-    {
-      "id": "1282c02cb1a0",
-      "type": "milestone",
-      "label": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-19T17:58:45.127549+00:00"
-    },
-    {
       "id": "d308c6266ac4",
       "type": "commit",
       "label": "commit: Commit: 305dcd19a6",
@@ -13939,20 +13921,6 @@
         "episode-2026-07-15-session-3042"
       ],
       "created": "2026-07-15T19:13:40.609373+00:00"
-    },
-    {
-      "source": "b65a173b41a7",
-      "target": "1282c02cb1a0",
-      "type": "causes",
-      "weight": 0.6,
-      "evidence_count": 1,
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "contributions": {
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 0.6
-      },
-      "created": "2026-07-19T17:58:45.127556+00:00"
     }
   ]
 }
