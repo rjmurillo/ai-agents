@@ -586,10 +586,10 @@ class TestConsolidate:
         }
         new_out = gd.consolidate(out, hooks_dir)
 
-        # Gating event: one dispatcher entry, cumulative timeout, mode=gate.
+        # Gating event: one dispatcher entry, cumulative timeout plus headroom.
         assert len(new_out["PreToolUse"]) == 1
         assert "/hooks/PreToolUse/_dispatch.py" in new_out["PreToolUse"][0]["bash"]
-        assert new_out["PreToolUse"][0]["timeoutSec"] == 95
+        assert new_out["PreToolUse"][0]["timeoutSec"] == 100
         pre_manifest = json.loads((hooks_dir / "PreToolUse" / "_manifest.json").read_text())
         assert pre_manifest["mode"] == "gate"
         assert pre_manifest["shims"] == ["a.py", "b.py"]
@@ -598,7 +598,7 @@ class TestConsolidate:
         # Observational event: ALSO consolidated, but mode=observe.
         assert len(new_out["PostToolUse"]) == 1
         assert "/hooks/PostToolUse/_dispatch.py" in new_out["PostToolUse"][0]["bash"]
-        assert new_out["PostToolUse"][0]["timeoutSec"] == 30
+        assert new_out["PostToolUse"][0]["timeoutSec"] == 35
         post_manifest = json.loads((hooks_dir / "PostToolUse" / "_manifest.json").read_text())
         assert post_manifest["mode"] == "observe"
         assert post_manifest["shims"] == ["c.py"]
