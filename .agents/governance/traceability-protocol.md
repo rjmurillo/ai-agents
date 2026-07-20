@@ -346,7 +346,7 @@ Install PowerShell:
 Install and verify the pinned Lefthook shims:
 
 ```bash
-uv run --frozen lefthook install
+uv run --frozen lefthook install --reset-hooks-path
 uv run --frozen lefthook check-install
 ```
 
