@@ -504,6 +504,18 @@
       "caused_by": [
         "e041"
       ],
+      "leads_to": [
+        "e043"
+      ]
+    },
+    {
+      "id": "e043",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned memory routing and architecture citations",
+      "caused_by": [
+        "e042"
+      ],
       "leads_to": []
     }
   ],

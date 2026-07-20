@@ -223,6 +223,11 @@
       "timestamp": "2026-07-20T19:41:00Z",
       "action": "Aligned workflow and generated-agent records",
       "evidence": "ADR-016 and ADR-036 now describe Lefthook scheduling without the removed custom hook engine"
+    },
+    {
+      "timestamp": "2026-07-20T19:42:00Z",
+      "action": "Aligned memory routing and architecture citations",
+      "evidence": "ADR-037 and CITATION-SCHEMA now reference the accepted Lefthook orchestration decision"
     }
   ],
   "endingCommit": "226b6c2f0a9ef824063c59bbfcb1f10770322414",
