@@ -89,31 +89,6 @@ except ImportError:
 RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
 
 
-# Sentinel that suppresses skeleton generation while a tree-mutating
-# validation run is in flight (Issue #2327). A producer creates this file
-# under the gitignored .agents/.hook-state/ directory for the duration of its
-# run. If a Claude session ends while the sentinel exists, this Stop hook stays
-# tree-neutral.
-AUTO_RETRO_SUPPRESS_SENTINEL = "auto-retrospective.suppress"
-
-
-def _suppress_sentinel_path(project_dir: Path) -> Path:
-    """Path to the auto-retro suppression sentinel under .hook-state/."""
-    return project_dir / ".agents" / ".hook-state" / AUTO_RETRO_SUPPRESS_SENTINEL
-
-
-def is_auto_retro_suppressed(project_dir: Path) -> bool:
-    """Return True when a suppression sentinel is present (Issue #2327).
-
-    Fail-open: any error checking the sentinel returns False so the hook
-    keeps its existing behavior rather than silently disabling itself.
-    """
-    try:
-        return _suppress_sentinel_path(project_dir).is_file()
-    except OSError:
-        return False
-
-
 def has_retro_today(retro_dir: Path, today: str) -> bool:
     """Check if a retrospective already exists for today."""
     if not retro_dir.is_dir():
@@ -781,18 +756,6 @@ def main() -> int:
     # retrospective. Skip before any tree mutation and record the reason.
     if is_subagent_stop(payload):
         write_audit_log(project_dir, "skipped", skip_reason="subagent stop")
-        return 0
-
-    # Suppress while a tree-mutating validation run is in flight (Issue #2327).
-    # The pre-push hook drops a sentinel for the duration of its run; honoring
-    # it here keeps a failing pre-push from leaving an untracked auto-retro file
-    # or a .agents/retrospective/INDEX.md edit in the worktree.
-    if is_auto_retro_suppressed(project_dir):
-        write_audit_log(
-            project_dir,
-            "skipped",
-            skip_reason="suppress sentinel present",
-        )
         return 0
 
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
