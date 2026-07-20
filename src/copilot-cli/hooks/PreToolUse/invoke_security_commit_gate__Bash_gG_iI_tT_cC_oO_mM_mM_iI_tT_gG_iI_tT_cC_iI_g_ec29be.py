@@ -431,6 +431,7 @@ def _original_main(stdin_bytes):
             r"^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
             re.IGNORECASE,
         ),
+        re.compile(r"^scripts[/\\]validation[/\\]git_hook_policy\.py$"),
         re.compile(r"\.env($|\.)"),
         re.compile(r"(^|[/\\])secrets[/\\]"),
         re.compile(r"(?i)password"),
