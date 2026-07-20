@@ -170,6 +170,68 @@ def _semgrep_completed(
     )
 
 
+def _powershell_semgrep_error(
+    path: Path,
+    rule_id: str,
+    script: str = 'Write-Host "safe"',
+) -> dict[str, object]:
+    return {
+        "code": 2,
+        "level": "warn",
+        "message": f"Internal matching error: {policy.SEMGREP_POWERSHELL_ERROR_MARKER} {script}",
+        "path": str(path),
+        "rule_id": rule_id,
+        "type": "Internal matching error",
+    }
+
+
+def _powershell_partial_parsing_error(
+    path: Path,
+    *,
+    line: int,
+    rule_id: str = "yaml.github-actions.security.curl-eval.curl-eval",
+) -> dict[str, object]:
+    content = path.read_text(encoding="utf-8")
+    source_lines = content.splitlines(keepends=True)
+    start_offset = 0
+    start_col = 1
+    if 1 <= line <= len(source_lines):
+        source_line = source_lines[line - 1]
+        line_offset = sum(len(value) for value in source_lines[: line - 1])
+        run_marker = source_line.find("run:")
+        if run_marker >= 0:
+            value_offset = run_marker + len("run:")
+            while value_offset < len(source_line) and source_line[value_offset].isspace():
+                value_offset += 1
+            start_offset = line_offset + value_offset
+            start_col = value_offset + 1
+    return {
+        "code": 3,
+        "level": "warn",
+        "message": (f"When parsing a snippet as Bash for metavariable-pattern in rule '{rule_id}'"),
+        "path": str(path),
+        "rule_id": None,
+        "type": [
+            "PartialParsing",
+            [
+                {
+                    "path": str(path),
+                    "start": {
+                        "line": line,
+                        "col": start_col,
+                        "offset": start_offset,
+                    },
+                    "end": {
+                        "line": line,
+                        "col": start_col + 1,
+                        "offset": start_offset + 1,
+                    },
+                }
+            ],
+        ],
+    }
+
+
 def _push_update(
     destination_branch: str | None = "a",
     *,
@@ -253,18 +315,12 @@ def test_configuration_uses_named_native_jobs() -> None:
     }
     assert expected_pre_commit <= set(_job_map(config, "pre-commit"))
     assert expected_pre_push <= set(_job_map(config, "pre-push"))
-    pre_commit_names = [
-        str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])
-    ]
-    assert pre_commit_names.index("memory-token-update") < pre_commit_names.index(
-        "memory-size"
+    pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
+    assert pre_commit_names.index("memory-token-update") < pre_commit_names.index("memory-size")
+    assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
+    assert pre_commit_names.index("memory-cross-reference") < pre_commit_names.index(
+        "memory-skill-format"
     )
-    assert pre_commit_names.index("memory-size") < pre_commit_names.index(
-        "memory-cross-reference"
-    )
-    assert pre_commit_names.index(
-        "memory-cross-reference"
-    ) < pre_commit_names.index("memory-skill-format")
     assert pre_commit_names.index("memory-skill-format") < pre_commit_names.index(
         "memory-sync-advisory"
     )
@@ -337,10 +393,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         item["group"]
         for item in pre_push["jobs"]
         if isinstance(item.get("group"), dict)
-        and any(
-            bool(job.get("use_stdin"))
-            for job in item["group"].get("jobs", [])
-        )
+        and any(bool(job.get("use_stdin")) for job in item["group"].get("jobs", []))
     ]
     assert len(stdin_groups) == 1
     assert stdin_groups[0].get("piped") is True
@@ -349,10 +402,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         item["group"]
         for item in pre_commit["jobs"]
         if isinstance(item.get("group"), dict)
-        and {
-            str(job.get("name"))
-            for job in item["group"].get("jobs", [])
-        }
+        and {str(job.get("name")) for job in item["group"].get("jobs", [])}
         == {"markdown-autofix", "markdown-check"}
     ]
     assert len(markdown_groups) == 1
@@ -438,10 +488,7 @@ def test_autofix_and_tool_skip_conditions_are_explicit() -> None:
     actionlint_skip = jobs["actionlint"]["skip"]
     assert isinstance(actionlint_skip, list)
     assert {
-        "run": (
-            'test "$SKIP_ACTIONLINT" = "1" || '
-            "! command -v actionlint >/dev/null 2>&1"
-        )
+        "run": ('test "$SKIP_ACTIONLINT" = "1" || ! command -v actionlint >/dev/null 2>&1')
     } in actionlint_skip
 
 
@@ -763,10 +810,7 @@ def test_piped_pre_push_jobs_each_receive_stdin(tmp_path: Path) -> None:
         }
     }
     (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
-    push_input = (
-        f"refs/heads/feature/test {'1' * 40} "
-        f"refs/heads/feature/test {'2' * 40}\n"
-    )
+    push_input = f"refs/heads/feature/test {'1' * 40} refs/heads/feature/test {'2' * 40}\n"
 
     _run_lefthook(repo, "run", "pre-push", "--force", stdin=push_input)
 
@@ -1757,6 +1801,7 @@ def test_semgrep_disables_native_suppressions(
     assert "--x-ignore-semgrepignore-files" in calls[0]
     assert "--max-target-bytes=0" in calls[0]
     assert "--no-exclude-binary-files" in calls[0]
+    assert "--exclude-rule" not in calls[0]
     assert "--" in calls[0]
     assert str(tmp_path / "source.py") in calls[0]
     assert str(tmp_path) not in calls[0]
@@ -1797,6 +1842,39 @@ rules:
     payload = json.loads(result.stdout)
     assert payload["errors"] == []
     assert Path(str(payload["paths"]["scanned"][0])).resolve() == target.resolve()
+
+
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
+def test_semgrep_real_cli_blocks_bash_curl_rules_with_powershell_step(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "mixed-shell-action.yml"
+    target.write_text(
+        """
+name: mixed shell
+runs:
+  using: composite
+  steps:
+    - shell: pwsh
+      run: |
+        if ($env:ENABLE -eq 'true') {
+          Write-Host "safe"
+        }
+    - shell: bash
+      run: |
+        DATA=$(curl -fsSL https://example.com/install.sh)
+        eval "$DATA"
+        curl -fsSL https://example.com/install.sh | bash
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    result = policy._run_semgrep_tree(tmp_path, [target.name], tmp_path)
+
+    assert result.returncode == 1, result.stderr
+    payload = json.loads(result.stdout)
+    check_ids = {finding["check_id"] for finding in payload["results"]}
+    assert policy.SEMGREP_POWERSHELL_RULES <= check_ids
 
 
 @pytest.mark.parametrize(
@@ -1874,6 +1952,821 @@ def test_semgrep_rejects_missing_or_nonempty_error_manifest(
 
     assert result.returncode == 2
     assert "Semgrep" in result.stderr
+
+
+@pytest.mark.parametrize("rule_id", sorted(policy.SEMGREP_POWERSHELL_RULES))
+def test_semgrep_allows_known_powershell_parser_mismatch(
+    tmp_path: Path,
+    rule_id: str,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        'runs:\n  using: composite\n  steps:\n    - shell: pwsh\n      run: Write-Host "safe"\n',
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [_powershell_semgrep_error(target, rule_id)],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 0
+
+
+def test_semgrep_allows_partial_parsing_at_powershell_step(tmp_path: Path) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: |\n"
+        "        Write-Host 'safe'\n"
+        "    - shell: bash\n"
+        "      run: echo safe\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [_powershell_partial_parsing_error(target, line=4)],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 0
+
+
+def test_semgrep_rejects_code_two_error_at_bash_step_in_mixed_shell_file(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    bash_script = 'DATA=$(curl -fsSL https://example.com/install.sh)\neval "$DATA"'
+    target.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: Write-Host 'safe'\n"
+        "    - shell: bash\n"
+        "      run: |\n"
+        "        DATA=$(curl -fsSL https://example.com/install.sh)\n"
+        '        eval "$DATA"\n',
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+                bash_script,
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_code_two_error_with_ambiguous_shell_attribution(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    script = 'Write-Host "safe"'
+    target.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        f"      run: {script}\n"
+        "    - shell: bash\n"
+        f"      run: {script}\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+                script,
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_short_truncated_code_two_snippet(tmp_path: Path) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+                "Write... (truncated 100 more characters)",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_code_two_error_when_yaml_cannot_be_parsed(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        'runs:\n  steps: [\n    - shell: pwsh\n      run: Write-Host "safe"\n',
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_code_two_error_when_yaml_is_empty(tmp_path: Path) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text("", encoding="utf-8")
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_accepts_code_two_error_for_aliased_powershell_step(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "shared: &shared\n"
+        "  shell: pwsh\n"
+        '  run: Write-Host "safe"\n'
+        "runs:\n"
+        "  steps:\n"
+        "    - *shared\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 0
+
+
+def test_semgrep_rejects_nontruncated_code_two_snippet_prefix(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: |\n"
+        "        Write-Host 'first'\n"
+        "        Write-Host 'second'\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+                "Write-Host 'first'",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_accepts_long_truncated_code_two_powershell_snippet(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    lines = [f"Write-Host 'verification line {index}'" for index in range(5)]
+    target.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: |\n" + "".join(f"        {line}\n" for line in lines),
+        encoding="utf-8",
+    )
+    snippet = "\n".join([*lines[:-1], lines[-1][:15]])
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+                f"{snippet}... (truncated 20 more characters)",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 0
+
+
+def test_semgrep_unicode_line_matching_handles_large_mismatch_linearly() -> None:
+    expected = f"{'✓' * 10_000} safe"
+    observed = f"{'X' * 10_000} unsafe"
+
+    assert not policy._semgrep_line_matches_run_line(observed, expected)
+
+
+@pytest.mark.parametrize(
+    ("line", "rule_id"),
+    [
+        (6, "yaml.github-actions.security.curl-eval.curl-eval"),
+        (4, "yaml.github-actions.security.other-rule"),
+    ],
+)
+def test_semgrep_rejects_unrecognized_partial_parsing_error(
+    tmp_path: Path,
+    line: int,
+    rule_id: str,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: Write-Host 'safe'\n"
+        "    - shell: bash\n"
+        "      run: echo safe\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_partial_parsing_error(
+                target,
+                line=line,
+                rule_id=rule_id,
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_allowlisted_rule_id_only_in_target_path(
+    tmp_path: Path,
+) -> None:
+    allowed_rule = "yaml.github-actions.security.curl-eval.curl-eval"
+    target = tmp_path / f"When parsing in rule '{allowed_rule}', action.yml"
+    target.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
+        encoding="utf-8",
+    )
+    error = _powershell_partial_parsing_error(
+        target,
+        line=4,
+        rule_id="yaml.github-actions.security.other-rule",
+    )
+    error["message"] = (
+        f"Syntax error at line {target}:4:\n "
+        "When parsing a snippet as Bash for metavariable-pattern "
+        "in rule 'yaml.github-actions.security.other-rule'"
+    )
+    payload = {
+        "errors": [error],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_partial_parsing_location_for_other_target(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
+        encoding="utf-8",
+    )
+    error = _powershell_partial_parsing_error(target, line=4)
+    error_type = error["type"]
+    assert isinstance(error_type, list)
+    locations = error_type[1]
+    assert isinstance(locations, list)
+    location = locations[0]
+    assert isinstance(location, dict)
+    location["path"] = str(tmp_path / "other.yml")
+    payload = {
+        "errors": [error],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_partial_parsing_span_crossing_into_bash_step(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    content = (
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: |\n"
+        "        Write-Host 'safe'\n"
+        "    - shell: bash\n"
+        "      run: echo unsafe\n"
+    )
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=4)
+    error_type = error["type"]
+    assert isinstance(error_type, list)
+    locations = error_type[1]
+    assert isinstance(locations, list)
+    location = locations[0]
+    assert isinstance(location, dict)
+    bash_offset = content.index("echo unsafe") + len("echo")
+    location["end"] = {
+        "line": 7,
+        "col": 16,
+        "offset": bash_offset,
+    }
+    payload = {
+        "errors": [error],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_allows_partial_parsing_span_inside_powershell_step(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    content = (
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: |\n"
+        "        Write-Host 'safe'\n"
+        "    - shell: bash\n"
+        "      run: echo safe\n"
+    )
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=4)
+    error_type = error["type"]
+    assert isinstance(error_type, list)
+    locations = error_type[1]
+    assert isinstance(locations, list)
+    location = locations[0]
+    assert isinstance(location, dict)
+    powershell_offset = content.index("Write-Host") + len("Write-Host")
+    location["end"] = {
+        "line": 5,
+        "col": 19,
+        "offset": powershell_offset,
+    }
+    payload = {
+        "errors": [error],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 0
+
+
+def test_semgrep_allows_partial_parsing_span_ending_at_scalar_eof(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    content = (
+        "runs:\n"
+        "  steps:\n"
+        "    - shell: pwsh\n"
+        "      run: |\n"
+        "        Write-Host 'first'\n"
+        "        Write-Host 'last'"
+    )
+    target.write_text(content, encoding="utf-8")
+    error = _powershell_partial_parsing_error(target, line=4)
+    error_type = error["type"]
+    assert isinstance(error_type, list)
+    locations = error_type[1]
+    assert isinstance(locations, list)
+    location = locations[0]
+    assert isinstance(location, dict)
+    location["end"] = {
+        "line": 6,
+        "col": len("        Write-Host 'last'") + 1,
+        "offset": len(content),
+    }
+    payload = {
+        "errors": [error],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 0
+
+
+@pytest.mark.parametrize(
+    ("shell", "rule_id"),
+    [
+        ("bash", "yaml.github-actions.security.curl-eval.curl-eval"),
+        ("pwsh", "other.rule"),
+    ],
+)
+def test_semgrep_rejects_unrecognized_internal_matching_error(
+    tmp_path: Path,
+    shell: str,
+    rule_id: str,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        f"runs:\n  using: composite\n  steps:\n    - shell: {shell}\n      run: echo safe\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [_powershell_semgrep_error(target, rule_id)],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        "not-an-object",
+        {
+            "level": "warn",
+            "message": None,
+            "path": "action.yml",
+        },
+        {
+            "level": "warn",
+            "message": "parser failed",
+            "path": None,
+        },
+        {
+            "code": 3,
+            "level": "warn",
+            "type": ["PartialParsing", {}],
+            "path": "action.yml",
+            "message": (
+                "When parsing a snippet as Bash for metavariable-pattern "
+                "in rule 'yaml.github-actions.security.curl-eval.curl-eval'"
+            ),
+        },
+        {
+            "code": 3,
+            "level": "warn",
+            "type": ["PartialParsing", [None]],
+            "path": "action.yml",
+            "message": (
+                "When parsing a snippet as Bash for metavariable-pattern "
+                "in rule 'yaml.github-actions.security.curl-eval.curl-eval'"
+            ),
+        },
+        {
+            "code": 3,
+            "level": "warn",
+            "type": ["PartialParsing", [{"start": {}}]],
+            "path": "action.yml",
+            "message": (
+                "When parsing a snippet as Bash for metavariable-pattern "
+                "in rule 'yaml.github-actions.security.curl-eval.curl-eval'"
+            ),
+        },
+        {
+            "code": 3,
+            "level": "warn",
+            "type": [
+                "PartialParsing",
+                [
+                    {
+                        "path": "action.yml",
+                        "start": {"line": "4", "col": 1, "offset": 0},
+                        "end": {"line": 4, "col": 2, "offset": 1},
+                    }
+                ],
+            ],
+            "path": "action.yml",
+            "message": (
+                "When parsing a snippet as Bash for metavariable-pattern "
+                "in rule 'yaml.github-actions.security.curl-eval.curl-eval'"
+            ),
+        },
+    ],
+)
+def test_semgrep_rejects_malformed_partial_parsing_error(
+    tmp_path: Path,
+    error: object,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [error],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_error_outside_requested_targets(tmp_path: Path) -> None:
+    target = tmp_path / "action.yml"
+    outside = tmp_path / "outside.yml"
+    target.write_text("name: safe\n", encoding="utf-8")
+    outside.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                outside,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_partial_parsing_without_shell_declaration(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text("name: safe\n", encoding="utf-8")
+    payload = {
+        "errors": [_powershell_partial_parsing_error(target, line=1)],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_partial_parsing_at_default_shell_step(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n    - run: echo safe\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [_powershell_partial_parsing_error(target, line=5)],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+@pytest.mark.parametrize("line", [-1, 0, 999])
+def test_semgrep_rejects_partial_parsing_with_invalid_line(
+    tmp_path: Path,
+    line: int,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [_powershell_partial_parsing_error(target, line=line)],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_unreadable_error_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
+        encoding="utf-8",
+    )
+    original_read_text = Path.read_text
+
+    def fail_for_target(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if path == target:
+            raise OSError("unreadable")
+        return original_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", fail_for_target)
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+
+
+def test_semgrep_rejects_non_utf8_error_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "action.yml"
+    target.write_text(
+        "runs:\n  steps:\n    - shell: pwsh\n      run: Write-Host 'safe'\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "errors": [
+            _powershell_semgrep_error(
+                target,
+                "yaml.github-actions.security.curl-eval.curl-eval",
+            )
+        ],
+        "paths": {"scanned": [str(target)]},
+    }
+
+    def fail_decode(
+        _path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        del encoding, errors
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid")
+
+    monkeypatch.setattr(Path, "read_text", fail_decode)
+
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(target)],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
 
 
 def test_semgrep_preserves_finding_exit_after_target_verification(tmp_path: Path) -> None:
@@ -2321,14 +3214,17 @@ def test_github_bash_policy_blocks_extensions_and_shebangs(tmp_path: Path) -> No
     python_script.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
     _git(repo, "add", ".github/scripts")
 
-    assert policy.check_github_bash_scripts(
-        [
-            ".github/scripts/blocked.sh",
-            ".github/scripts/blocked",
-            ".github/scripts/allowed.py",
-        ],
-        repo,
-    ) == 1
+    assert (
+        policy.check_github_bash_scripts(
+            [
+                ".github/scripts/blocked.sh",
+                ".github/scripts/blocked",
+                ".github/scripts/allowed.py",
+            ],
+            repo,
+        )
+        == 1
+    )
     assert policy.check_github_bash_scripts([".github/scripts/allowed.py"], repo) == 0
 
 
@@ -2823,9 +3719,7 @@ def test_memory_size_blocks_new_files_but_warns_for_modified_files(
     monkeypatch.setattr(
         policy,
         "_staged_memory_paths",
-        lambda _root, diff_filter: (
-            [".serena/memories/large.md"] if diff_filter == "A" else []
-        ),
+        lambda _root, diff_filter: [".serena/memories/large.md"] if diff_filter == "A" else [],
     )
     monkeypatch.setattr(
         policy,
@@ -2837,9 +3731,7 @@ def test_memory_size_blocks_new_files_but_warns_for_modified_files(
     monkeypatch.setattr(
         policy,
         "_staged_memory_paths",
-        lambda _root, diff_filter: (
-            [".serena/memories/large.md"] if diff_filter == "M" else []
-        ),
+        lambda _root, diff_filter: [".serena/memories/large.md"] if diff_filter == "M" else [],
     )
     assert policy.validate_memory_sizes(tmp_path) == 0
 
@@ -3094,17 +3986,9 @@ def test_materialize_commit_reads_raw_blob_and_rejects_bad_paths(
         )
         == 0
     )
-    assert (destination / "nested/source.py").read_text(encoding="utf-8") == (
-        "raw content\n"
-    )
-    assert (
-        policy._materialize_commit_tree(head, tmp_path / "unsafe", repo, ["../x.py"])
-        == 2
-    )
-    assert (
-        policy._materialize_commit_tree(head, tmp_path / "missing", repo, ["x.py"])
-        == 2
-    )
+    assert (destination / "nested/source.py").read_text(encoding="utf-8") == ("raw content\n")
+    assert policy._materialize_commit_tree(head, tmp_path / "unsafe", repo, ["../x.py"]) == 2
+    assert policy._materialize_commit_tree(head, tmp_path / "missing", repo, ["x.py"]) == 2
 
 
 @pytest.mark.parametrize(
@@ -3411,11 +4295,14 @@ def test_remaining_policy_success_and_error_branches(
     assert policy._merge_in_progress(tmp_path)
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
-    assert policy._prune_deleted_episodes(
-        [".agents/memory/episodes/episode-one.json"],
-        tmp_path / "graph.json",
-        tmp_path,
-    ) == 0
+    assert (
+        policy._prune_deleted_episodes(
+            [".agents/memory/episodes/episode-one.json"],
+            tmp_path / "graph.json",
+            tmp_path,
+        )
+        == 0
+    )
 
     update = policy.PushUpdate(
         policy.PushRef("refs/tags/local", "1" * 40, "refs/tags/remote", "2" * 40),
@@ -3542,9 +4429,7 @@ def test_memory_size_validation_error_and_success_branches(
         "_run_git",
         lambda *_args: _completed(0, ".serena/memories/good.md\0\0"),
     )
-    assert policy._staged_memory_paths(tmp_path, "A") == [
-        ".serena/memories/good.md"
-    ]
+    assert policy._staged_memory_paths(tmp_path, "A") == [".serena/memories/good.md"]
 
     good = tmp_path / ".serena/memories/good.md"
     good.parent.mkdir(parents=True)

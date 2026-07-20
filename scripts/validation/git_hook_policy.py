@@ -16,7 +16,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import TextIO
+from typing import TextIO, cast
+
+import yaml
+from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
@@ -30,6 +33,22 @@ SECURITY_SUPPRESSION_RE = re.compile(
     r"#\s*(?:lgtm\[|nosec|nosem(?:grep)?|noqa:\s*S|type:\s*ignore\[|cwe-suppress)"
 )
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
+SEMGREP_POWERSHELL_RULES = frozenset(
+    {
+        "yaml.github-actions.security.curl-eval.curl-eval",
+        "yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell",
+    },
+)
+SEMGREP_POWERSHELL_ERROR_MARKER = (
+    "metavariable-pattern failed when parsing $SHELL's content as Bash:"
+)
+SEMGREP_PARTIAL_RULE_RE = re.compile(
+    r"When parsing a snippet as Bash for metavariable-pattern "
+    r"in rule '([^'\r\n]+)'(?:,|$)"
+)
+POWERSHELL_SHELL_RE = re.compile(r"^\s*(?:pwsh|powershell)(?:\s|$)", re.IGNORECASE)
+SEMGREP_TRUNCATION_RE = re.compile(r"\.\.\. \(truncated \d+ more characters\)$")
+SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH = 80
 SEMGREP_BATCH_TARGET_LIMIT = 100
 SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 SKIPPED_DASH_PREFIXES = (
@@ -201,10 +220,7 @@ def _safe_output_path(repo_root: Path, relative_path: str) -> Path | None:
 
 def check_generated_paths(kind: str, repo_root: Path) -> int:
     paths = list(GENERATED_PATHS.get(kind, ()))
-    paths.extend(
-        pattern.split("*", 1)[0].rstrip("/")
-        for pattern in GENERATED_GLOBS.get(kind, ())
-    )
+    paths.extend(pattern.split("*", 1)[0].rstrip("/") for pattern in GENERATED_GLOBS.get(kind, ()))
     for relative_path in paths:
         if _safe_output_path(repo_root, relative_path) is None:
             print(f"ERROR: unsafe generated output path: {relative_path}", file=sys.stderr)
@@ -905,9 +921,7 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         if tree_paths is None or _validate_materialization_paths(tree_paths) is None:
             return 2
         scan_paths = [
-            path
-            for path in paths
-            if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
+            path for path in paths if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
         ]
         if not scan_paths:
             continue
@@ -975,8 +989,7 @@ def _validate_materialization_paths(paths: Sequence[str]) -> list[str] | None:
             return None
         destination_parts = destination_key.split("/")
         parent_destinations = {
-            "/".join(destination_parts[:index])
-            for index in range(1, len(destination_parts))
+            "/".join(destination_parts[:index]) for index in range(1, len(destination_parts))
         }
         if (
             destination_key in file_destinations
@@ -1122,18 +1135,287 @@ def _verify_semgrep_targets(
     scanned = path_data.get("scanned") if isinstance(path_data, dict) else None
     if not isinstance(scanned, list) or not all(isinstance(path, str) for path in scanned):
         return _semgrep_target_failure(result, "Semgrep JSON lacks scanned target paths")
-    errors = payload.get("errors")
-    if not isinstance(errors, list):
-        return _semgrep_target_failure(result, "Semgrep JSON lacks an error manifest")
-    if errors:
-        return _semgrep_target_failure(result, "Semgrep reported scan errors")
     expected = {_resolved_target_path(path, repo_root) for path in targets}
     actual = {_resolved_target_path(path, repo_root) for path in scanned}
     missing = expected - actual
     if missing:
         omitted = ", ".join(sorted(str(path) for path in missing))
         return _semgrep_target_failure(result, f"Semgrep omitted requested targets: {omitted}")
+    errors = payload.get("errors")
+    if not isinstance(errors, list):
+        return _semgrep_target_failure(result, "Semgrep JSON lacks an error manifest")
+    if any(not _is_known_powershell_semgrep_error(error, expected, repo_root) for error in errors):
+        return _semgrep_target_failure(result, "Semgrep reported scan errors")
     return result
+
+
+def _is_known_powershell_semgrep_error(
+    error: object,
+    targets: set[Path],
+    repo_root: Path,
+) -> bool:
+    if not isinstance(error, dict):
+        return False
+    if error.get("level") != "warn":
+        return False
+    message = error.get("message")
+    raw_path = error.get("path")
+    if not isinstance(message, str) or not isinstance(raw_path, str):
+        return False
+    target = _resolved_target_path(raw_path, repo_root)
+    if target not in targets:
+        return False
+    try:
+        content = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return False
+    scripts = _yaml_run_scripts(content)
+    if (
+        error.get("code") == 2
+        and error.get("type") == "Internal matching error"
+        and error.get("rule_id") in SEMGREP_POWERSHELL_RULES
+        and SEMGREP_POWERSHELL_ERROR_MARKER in message
+    ):
+        return _message_matches_powershell_run(message, scripts)
+    spans = _powershell_partial_parsing_spans(error, message, target, repo_root)
+    return bool(spans) and all(_span_belongs_to_powershell_step(scripts, span) for span in spans)
+
+
+def _yaml_run_scripts(content: str) -> list[tuple[str | None, str, ScalarNode]]:
+    try:
+        root = yaml.compose(content, Loader=yaml.BaseLoader)
+    except yaml.YAMLError:
+        return []
+    if root is None:
+        return []
+    scripts: list[tuple[str | None, str, ScalarNode]] = []
+    stack: list[Node] = [root]
+    visited: set[int] = set()
+    while stack:
+        node = stack.pop()
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
+        if isinstance(node, MappingNode):
+            fields = {key.value: value for key, value in node.value if isinstance(key, ScalarNode)}
+            shell_node = fields.get("shell")
+            run_node = fields.get("run")
+            if isinstance(run_node, ScalarNode):
+                shell = shell_node.value if isinstance(shell_node, ScalarNode) else None
+                scripts.append((shell, run_node.value, run_node))
+            stack.extend(value for _, value in node.value)
+        elif isinstance(node, SequenceNode):
+            stack.extend(node.value)
+    return scripts
+
+
+def _message_matches_powershell_run(
+    message: str,
+    scripts: Sequence[tuple[str | None, str, ScalarNode]],
+) -> bool:
+    raw_snippet = message.partition(SEMGREP_POWERSHELL_ERROR_MARKER)[2]
+    truncated = SEMGREP_TRUNCATION_RE.search(raw_snippet) is not None
+    snippet = SEMGREP_TRUNCATION_RE.sub("", raw_snippet).strip()
+    if truncated and len(snippet) < SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH:
+        return False
+    matching_shells = [
+        shell
+        for shell, run, _ in scripts
+        if _semgrep_snippet_matches_run(snippet, run, truncated=truncated)
+    ]
+    return bool(matching_shells) and all(_is_powershell_shell(shell) for shell in matching_shells)
+
+
+def _semgrep_snippet_matches_run(
+    snippet: str,
+    run: str,
+    *,
+    truncated: bool,
+) -> bool:
+    snippet_lines = snippet.splitlines()
+    run_lines = run.splitlines()
+    if not snippet_lines or len(snippet_lines) > len(run_lines):
+        return False
+    complete_lines = snippet_lines[:-1] if truncated else snippet_lines
+    if not truncated and len(snippet_lines) != len(run_lines):
+        return False
+    if any(
+        not _semgrep_line_matches_run_line(observed, expected)
+        for observed, expected in zip(
+            complete_lines,
+            run_lines[: len(complete_lines)],
+            strict=True,
+        )
+    ):
+        return False
+    if not truncated:
+        return True
+    final_run_line = run_lines[len(snippet_lines) - 1]
+    return _semgrep_line_matches_run_prefix(snippet_lines[-1], final_run_line)
+
+
+def _semgrep_line_matches_run_line(observed: str, expected: str) -> bool:
+    return _semgrep_line_matches_pattern(
+        observed,
+        expected,
+        allow_expected_suffix=False,
+    )
+
+
+def _semgrep_line_matches_run_prefix(observed: str, expected: str) -> bool:
+    return _semgrep_line_matches_pattern(
+        observed,
+        expected,
+        allow_expected_suffix=True,
+    )
+
+
+def _semgrep_line_matches_pattern(
+    observed: str,
+    expected: str,
+    *,
+    allow_expected_suffix: bool,
+) -> bool:
+    observed_index = 0
+    expected_index = 0
+    wildcard_expected_index: int | None = None
+    wildcard_observed_end = 0
+    while observed_index < len(observed):
+        if (
+            expected_index < len(expected)
+            and expected[expected_index].isascii()
+            and expected[expected_index] == observed[observed_index]
+        ):
+            observed_index += 1
+            expected_index += 1
+            continue
+        if expected_index < len(expected) and not expected[expected_index].isascii():
+            while expected_index < len(expected) and not expected[expected_index].isascii():
+                expected_index += 1
+            wildcard_expected_index = expected_index
+            wildcard_observed_end = observed_index + 1
+            observed_index = wildcard_observed_end
+            continue
+        if wildcard_expected_index is None or wildcard_observed_end >= len(observed):
+            return False
+        wildcard_observed_end += 1
+        observed_index = wildcard_observed_end
+        expected_index = wildcard_expected_index
+    if allow_expected_suffix:
+        return expected_index > 0 and expected[expected_index - 1].isascii()
+    return expected_index == len(expected)
+
+
+def _is_powershell_shell(shell: str | None) -> bool:
+    return shell is not None and bool(POWERSHELL_SHELL_RE.match(shell))
+
+
+def _powershell_partial_parsing_spans(
+    error: dict[object, object],
+    message: str,
+    target: Path,
+    repo_root: Path,
+) -> list[tuple[int, int, int, int]]:
+    error_type = error.get("type")
+    rule_ids = SEMGREP_PARTIAL_RULE_RE.findall(message)
+    if (
+        error.get("code") != 3
+        or not isinstance(error_type, list)
+        or len(error_type) != 2
+        or error_type[0] != "PartialParsing"
+        or len(rule_ids) != 1
+        or rule_ids[0] not in SEMGREP_POWERSHELL_RULES
+    ):
+        return []
+    locations = error_type[1]
+    if not isinstance(locations, list):
+        return []
+    spans: list[tuple[int, int, int, int]] = []
+    for location in locations:
+        if not isinstance(location, dict):
+            return []
+        location_path = location.get("path")
+        start = location.get("start")
+        end = location.get("end")
+        if (
+            not isinstance(location_path, str)
+            or _resolved_target_path(location_path, repo_root) != target
+            or not isinstance(start, dict)
+            or not isinstance(end, dict)
+        ):
+            return []
+        start_line = start.get("line")
+        start_col = start.get("col")
+        start_offset = start.get("offset")
+        end_line = end.get("line")
+        end_col = end.get("col")
+        end_offset = end.get("offset")
+        positions = (
+            start_line,
+            start_col,
+            start_offset,
+            end_line,
+            end_col,
+            end_offset,
+        )
+        if any(type(position) is not int for position in positions):
+            return []
+        (
+            start_line,
+            start_col,
+            start_offset,
+            end_line,
+            end_col,
+            end_offset,
+        ) = (cast(int, position) for position in positions)
+        if (
+            start_line < 1
+            or start_col < 1
+            or start_offset < 0
+            or end_line < start_line
+            or end_col < 1
+            or end_offset <= start_offset
+            or (end_line == start_line and end_col < start_col)
+        ):
+            return []
+        spans.append((start_line, end_line, start_offset, end_offset))
+    return spans
+
+
+def _span_belongs_to_powershell_step(
+    scripts: Sequence[tuple[str | None, str, ScalarNode]],
+    span: tuple[int, int, int, int],
+) -> bool:
+    start_line, end_line, start_offset, end_offset = span
+    matching_shells = [
+        shell
+        for shell, _, node in scripts
+        if _yaml_node_contains_span(
+            node,
+            start_line,
+            end_line,
+            start_offset,
+            end_offset,
+        )
+    ]
+    return bool(matching_shells) and all(_is_powershell_shell(shell) for shell in matching_shells)
+
+
+def _yaml_node_contains_span(
+    node: ScalarNode,
+    start_line: int,
+    end_line: int,
+    start_offset: int,
+    end_offset: int,
+) -> bool:
+    node_start_line = int(node.start_mark.line) + 1
+    node_end_line = int(node.end_mark.line) + 1
+    node_end_column = int(node.end_mark.column)
+    node_start_offset = int(node.start_mark.index)
+    node_end_offset = int(node.end_mark.index)
+    node_last_line = node_end_line if node_end_column > 0 else node_end_line - 1
+    lines_contained = node_start_line <= start_line <= end_line <= node_last_line
+    return lines_contained and node_start_offset <= start_offset and end_offset <= node_end_offset
 
 
 def _resolved_target_path(path: str, repo_root: Path) -> Path:
