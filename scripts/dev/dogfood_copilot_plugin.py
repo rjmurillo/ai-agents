@@ -19,7 +19,7 @@ on every platform. ADR-083's symlink-on-Unix wording is being reconciled in
 #3252. Refs #3222.
 
 Exit codes: 0 success (or ``--check`` found no drift), 1 ``--check`` found the
-installed dogfood copy trailing the working tree, 2 configuration error.
+installed dogfood copy out of sync with the working tree, 2 configuration error.
 """
 
 from __future__ import annotations
@@ -176,10 +176,14 @@ def dogfood_uninstall(target: Path) -> str:
 
 
 def _is_stale(source: Path, target: Path) -> bool:
-    """Return True when an installed dogfood copy trails the working tree.
+    """Return True when an installed dogfood copy is out of sync with the tree.
 
-    Only a real installed directory can be stale. A live symlink always
-    tracks the working tree, and a missing target means nothing was
+    Any version mismatch counts, in either direction. Dogfooding demands the
+    installed copy exactly match the working tree, so a copy that is newer
+    than ``HEAD`` (a developer on an older branch) is just as wrong as one
+    that is older; both mislead local hook behavior. Ordering is deliberately
+    not used. Only a real installed directory can be stale: a live symlink
+    always tracks the working tree, and a missing target means nothing was
     dogfooded, so both are reported as not stale (no advisory warranted).
     """
     if target.is_symlink() or not target.is_dir():
@@ -207,18 +211,23 @@ def dogfood_check(source: Path, target: Path) -> tuple[bool, str]:
     Powers the ``--check`` mode used by the pre-push staleness advisory
     (issue #3256): the message is human-readable and the boolean drives the
     exit code so a git hook can warn (never block) when a local dogfood copy
-    trails ``HEAD``.
+    is out of sync with ``HEAD``. The message distinguishes stale, symlinked,
+    not-installed, and current states so manual ``--check`` output is honest.
     """
-    if not _is_stale(source, target):
-        return False, f"dogfood copy current at {target}"
-    installed = _plugin_version(target)
-    shipped = _plugin_version(source)
-    message = (
-        f"dogfood copy at {target} is v{installed}; working tree ships "
-        f"v{shipped}. Re-run 'python3 scripts/dev/dogfood_copilot_plugin.py "
-        f"--install' to refresh before trusting local hook behavior."
-    )
-    return True, message
+    if _is_stale(source, target):
+        installed = _plugin_version(target)
+        shipped = _plugin_version(source)
+        message = (
+            f"dogfood copy at {target} is v{installed}; working tree ships "
+            f"v{shipped}. Re-run 'python3 scripts/dev/dogfood_copilot_plugin.py "
+            f"--install' to refresh before trusting local hook behavior."
+        )
+        return True, message
+    if target.is_symlink():
+        return False, f"dogfood copy symlinked to the working tree at {target}"
+    if not target.is_dir():
+        return False, f"no dogfood copy installed at {target}"
+    return False, f"dogfood copy current at {target}"
 
 
 def _build_parser() -> argparse.ArgumentParser:

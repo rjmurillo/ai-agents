@@ -472,8 +472,13 @@ fi
 DOGFOOD_SCRIPT="$REPO_ROOT/scripts/dev/dogfood_copilot_plugin.py"
 if [ -f "$DOGFOOD_SCRIPT" ] && set_python_cmd; then
     DOGFOOD_ADVISORY=$("${PYTHON_CMD[@]}" "$DOGFOOD_SCRIPT" --check 2>/dev/null)
-    if [ $? -eq 1 ]; then
-        record_warn "Dogfood copy stale (non-blocking): $DOGFOOD_ADVISORY"
+    DOGFOOD_RC=$?
+    if [ "$DOGFOOD_RC" -eq 1 ]; then
+        # Double backslashes so echo -e in record_warn does not interpret
+        # Windows path segments (e.g. \temp, \name) as escape sequences.
+        record_warn "Dogfood copy stale (non-blocking): ${DOGFOOD_ADVISORY//\\/\\\\}"
+    elif [ "$DOGFOOD_RC" -eq 2 ]; then
+        record_warn "Dogfood staleness check could not run (non-blocking; config error)"
     fi
 fi
 

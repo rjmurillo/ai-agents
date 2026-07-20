@@ -318,8 +318,18 @@ def test_check_flags_stale_copy(source: Path, target: Path) -> None:
 
 
 def test_check_reports_current_when_not_installed(source: Path, target: Path) -> None:
-    stale, _ = dogfood.dogfood_check(source, target)
+    stale, message = dogfood.dogfood_check(source, target)
     assert stale is False
+    assert "no dogfood copy installed" in message
+
+
+def test_check_reports_symlink_state(source: Path, target: Path, tmp_path: Path) -> None:
+    _require_symlinks(tmp_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.symlink_to(source, target_is_directory=True)
+    stale, message = dogfood.dogfood_check(source, target)
+    assert stale is False
+    assert "symlinked" in message
 
 
 def test_main_check_returns_1_on_stale(monkeypatch, tmp_path: Path, capsys) -> None:
