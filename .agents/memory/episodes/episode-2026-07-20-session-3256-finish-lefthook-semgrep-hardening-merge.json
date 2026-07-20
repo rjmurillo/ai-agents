@@ -11,9 +11,7 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Completed Semgrep PowerShell parser-error hardening",
-      "caused_by": [
-        "e017"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e002"
       ]
@@ -202,9 +200,7 @@
       "caused_by": [
         "e016"
       ],
-      "leads_to": [
-        "e001"
-      ]
+      "leads_to": []
     }
   ],
   "metrics": {
