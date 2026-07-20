@@ -1161,6 +1161,61 @@ def test_act_full_pr_context_real_failure_still_blocks(monkeypatch, tmp_path):
     assert "reading 'sha'" in res.detail
 
 
+def test_act_full_downgrades_empty_pr_title_env_to_warning(monkeypatch, tmp_path):
+    # PR_TITLE mapped from an empty github.event.pull_request.title under act
+    # makes parse_pr_standards.py exit non-zero; downgrade for pull_request. #3265
+    wf = _write_wf(tmp_path, "name: x\non: pull_request\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            2,
+            "",
+            "PR_TITLE environment variable is required",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+    assert "PR_NUMBER, PR_TITLE" in res.detail
+
+
+def test_act_full_downgrades_empty_pr_number_env_to_warning(monkeypatch, tmp_path):
+    # PR_NUMBER mapped from an empty github.event.pull_request.number under act
+    # makes pr_description.py's int("") raise; downgrade for pull_request. #3265
+    wf = _write_wf(tmp_path, "name: x\non: pull_request\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            1,
+            "",
+            "ValueError: invalid literal for int() with base 10: ''",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert "[WARN]" in res.detail
+
+
+def test_act_full_workflow_dispatch_empty_pr_env_still_blocks(monkeypatch, tmp_path):
+    # The empty PR-context env signatures downgrade only for pull_request runs.
+    # Under workflow_dispatch the same failure can be a real defect and blocks.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    monkeypatch.setattr(
+        w,
+        "_run",
+        lambda cmd, *, timeout, cwd=None, env=None: (
+            2,
+            "",
+            "PR_TITLE environment variable is required",
+        ),
+    )
+    res = w._act_full_stage([wf.name], tmp_path)
+    assert res.ok is False
+    assert "PR_TITLE environment variable is required" in res.detail
+
+
 def test_act_limitation_hint_matches_known_patterns() -> None:
     assert w._act_limitation_hint("fatal: not a git repository") is not None
     assert (
@@ -1192,6 +1247,42 @@ def test_act_limitation_hint_matches_known_patterns() -> None:
         is None
     )
     assert w._act_limitation_hint("Error: job 'build' exited 2") is None
+
+
+def test_act_limitation_hint_matches_empty_pr_env_patterns() -> None:
+    # Empty PR-context env-var manifestations (#3265), event-scoped to
+    # pull_request; workflow_dispatch keeps them blocking.
+    assert (
+        w._act_limitation_hint(
+            "PR_TITLE environment variable is required",
+            "pull_request",
+        )
+        is not None
+    )
+    assert (
+        w._act_limitation_hint(
+            "ValueError: invalid literal for int() with base 10: ''",
+            "pull_request",
+        )
+        is not None
+    )
+    assert (
+        w._act_limitation_hint(
+            "PR_TITLE environment variable is required",
+            "workflow_dispatch",
+        )
+        is None
+    )
+    # A non-empty int parse error is a real defect, not the empty-env signature.
+    assert (
+        w._act_limitation_hint(
+            "ValueError: invalid literal for int() with base 10: 'abc'",
+            "pull_request",
+        )
+        is None
+    )
+
+
 
 
 def test_format_text_surfaces_warning_detail_on_ok() -> None:
