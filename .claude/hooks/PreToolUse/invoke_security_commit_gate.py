@@ -12,7 +12,7 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
     2 = block: security-sensitive files staged without review, or an
         infrastructure error reading the index. Paired with a top-level
         {"decision": "block"} payload, the recognized Claude Code PreToolUse
-        contract (see invoke_branch_protection_guard.py). A previous version
+        contract. A previous version
         emitted {"decision": "deny"} with exit 0, which the harness ignored, so
         the gate never actually blocked (Issue #2521).
 """
@@ -166,7 +166,7 @@ def find_security_evidence(project_dir: str) -> bool:
 
 
 def write_block_response(reason: str) -> None:
-    """Emit a PreToolUse block decision (matches invoke_branch_protection_guard.py).
+    """Emit a PreToolUse block decision.
 
     Claude Code recognizes a top-level ``{"decision": "block"}`` payload, paired
     with exit code 2, to deny a tool call. The previous ``{"decision": "deny"}``

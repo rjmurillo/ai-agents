@@ -13428,7 +13428,8 @@
       "label": "commit: Commit: 24298fe68d1efe8f45e72c0579b0685024db381b",
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook",
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.714462+00:00"
     },
@@ -13446,7 +13447,8 @@
       "type": "milestone",
       "label": "milestone: Completed Semgrep PowerShell parser-error hardening",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790392+00:00"
     },
@@ -13455,7 +13457,8 @@
       "type": "milestone",
       "label": "milestone: Completed independent security review",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790453+00:00"
     },
@@ -13464,7 +13467,8 @@
       "type": "milestone",
       "label": "milestone: Committed final Semgrep attribution hardening",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790505+00:00"
     },
@@ -13473,7 +13477,8 @@
       "type": "milestone",
       "label": "milestone: Integrated concurrent branch updates and pushed PR 3259",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790600+00:00"
     },
@@ -13482,7 +13487,8 @@
       "type": "milestone",
       "label": "milestone: Addressed the 23-thread PR review round",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790657+00:00"
     },
@@ -13491,7 +13497,8 @@
       "type": "commit",
       "label": "commit: Commit: d500641aa2437ee455b2b64b616a7b1ad67874a8",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790704+00:00"
     },
@@ -13500,7 +13507,8 @@
       "type": "commit",
       "label": "commit: Commit: fc4630123c",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790752+00:00"
     },
@@ -13509,7 +13517,8 @@
       "type": "milestone",
       "label": "milestone: Rejected unsafe start and end sentinel cleanup",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790800+00:00"
     },
@@ -13518,7 +13527,8 @@
       "type": "commit",
       "label": "commit: Commit: 8512726a77cb634ec12606f6059672b0f76e07f7",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790848+00:00"
     },
@@ -13527,7 +13537,8 @@
       "type": "outcome",
       "label": "Outcome: success - Finish Lefthook Semgrep hardening and merge PR 3259",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T12:37:15.790896+00:00"
     },
@@ -13536,7 +13547,8 @@
       "type": "milestone",
       "label": "milestone: Merged origin/main and resolved four conflicts",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T13:06:54.422768+00:00"
     },
@@ -13545,7 +13557,8 @@
       "type": "milestone",
       "label": "milestone: Closed pushed security-suppression coverage gaps",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T13:06:54.422826+00:00"
     },
@@ -13554,7 +13567,8 @@
       "type": "milestone",
       "label": "milestone: Addressed five new PR review threads",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T13:06:54.422875+00:00"
     },
@@ -13563,7 +13577,8 @@
       "type": "commit",
       "label": "commit: Commit: 087671362479c80f89956446ac24e3ef59e8b7fa",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T13:06:54.422924+00:00"
     },
@@ -13572,7 +13587,8 @@
       "type": "commit",
       "label": "commit: Commit: 6ab3b8ecdf",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T13:06:54.422972+00:00"
     },
@@ -13581,7 +13597,8 @@
       "type": "commit",
       "label": "commit: Commit: 4455884de7",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T13:06:54.423020+00:00"
     },
@@ -13590,9 +13607,55 @@
       "type": "commit",
       "label": "commit: Commit: 0876713624",
       "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T13:06:54.423070+00:00"
+    },
+    {
+      "id": "e76e6f9deb22",
+      "type": "milestone",
+      "label": "milestone: Retired invoke_branch_protection_guard: deleted the PreToolUse hook, removed its four dispatch-group shim registrations, and deleted its two unit-test files.",
+      "episodes": [
+        "episode-2026-07-20-session-3196"
+      ],
+      "created": "2026-07-20T13:10:27.818790+00:00"
+    },
+    {
+      "id": "f90f49d1b6dc",
+      "type": "milestone",
+      "label": "milestone: Regenerated the Copilot per-hook expansion (dropped two matcher-scoped shims; refreshed manifest and hooks.json) and repointed the two negative-control canaries plus the matcher/hard-gate rosters to branch_context_guard.",
+      "episodes": [
+        "episode-2026-07-20-session-3196"
+      ],
+      "created": "2026-07-20T13:10:27.818848+00:00"
+    },
+    {
+      "id": "bb28522091c1",
+      "type": "milestone",
+      "label": "milestone: Repointed citations/comments to surviving guards, dropped the stale branch-is-not-main entry from the legacy hooks.yaml manifest, and bumped both project-toolkit plugin manifests 0.6.86 to 0.6.87.",
+      "episodes": [
+        "episode-2026-07-20-session-3196"
+      ],
+      "created": "2026-07-20T13:10:27.818898+00:00"
+    },
+    {
+      "id": "4f36c3ee5d50",
+      "type": "commit",
+      "label": "commit: Commit: 8bb7b246",
+      "episodes": [
+        "episode-2026-07-20-session-3196"
+      ],
+      "created": "2026-07-20T13:10:27.818947+00:00"
+    },
+    {
+      "id": "d6b81216b0b9",
+      "type": "outcome",
+      "label": "Outcome: success - Retire invoke_branch_protection_guard PreToolUse hook (slice 1 of #3196); it duplicates the git-layer branch protection already enforced by .githooks/pre-commit, pre-push, and GitHub rules. Continue epic #3197.",
+      "episodes": [
+        "episode-2026-07-20-session-3196"
+      ],
+      "created": "2026-07-20T13:10:27.818996+00:00"
     }
   ],
   "patterns": [

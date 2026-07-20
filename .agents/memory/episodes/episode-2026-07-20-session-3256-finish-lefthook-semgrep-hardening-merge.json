@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
-  "session": "2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge",
+  "id": "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge",
+  "session": "2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge",
   "timestamp": "2026-07-20T00:00:00+00:00",
   "outcome": "success",
   "task": "Finish Lefthook Semgrep hardening and merge PR 3259",
@@ -213,7 +213,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 8,
-    "files_changed": 6
+    "files_changed": 27
   },
   "lessons": []
 }

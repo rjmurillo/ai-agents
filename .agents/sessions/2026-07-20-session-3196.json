@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3196,
+    "date": "2026-07-20",
+    "branch": "chore/3196-retire-branch-protection-guard",
+    "startingCommit": "c13f2162",
+    "objective": "Retire invoke_branch_protection_guard PreToolUse hook (slice 1 of #3196); it duplicates the git-layer branch protection already enforced by .githooks/pre-commit, pre-push, and GitHub rules. Continue epic #3197."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP live this session: serena-* tools loaded via tool search; serena-initial_instructions returned the manual."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only dashboard (ADR-014) during epic #3197 triage."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "code-review-and-quality, autoplan, github, security-review skills invoked this session-family."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md available via Serena; skill-first honored (github skill for PR ops)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md conventions applied (Python-first, atomic commits, plugin parity)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository + user Copilot memories loaded via prompt context; Serena memory index reachable."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current confirmed chore/3196-retire-branch-protection-guard before every git operation."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/3196-retire-branch-protection-guard, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain inspected before staging each atomic commit; retrospective files intentionally excluded."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "c13f2162 (merge-base with origin/main)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items complete and genuine (Serena live, files read directly)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only, not modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote Serena memory session-protocol-precommit-gate and a repository memory on the .agents/-triggered session-log gate this session."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit markdownlint ran on staged SKILL.md files (0 issues); no other Markdown changed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Retirement shipped as atomic commits: hook+registrations+tests, Copilot regen, canary tests, citations, plugin bumps, and this .agents commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "135 targeted hook/dispatch tests pass; ruff clean; build_all.py rc=0; each commit passed pre-commit gates."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Followed the slice-1 plan: delete hook, fix registrations, regenerate, repoint canaries, bump manifests, validate, commit."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Retired invoke_branch_protection_guard: deleted the PreToolUse hook, removed its four dispatch-group shim registrations, and deleted its two unit-test files.",
+      "files": [
+        ".claude/hooks/dispatch_groups.json",
+        ".claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
+        "tests/hooks/test_branch_protection_guard.py",
+        "tests/test_invoke_branch_protection_guard.py"
+      ]
+    },
+    {
+      "action": "Regenerated the Copilot per-hook expansion (dropped two matcher-scoped shims; refreshed manifest and hooks.json) and repointed the two negative-control canaries plus the matcher/hard-gate rosters to branch_context_guard.",
+      "files": [
+        "src/copilot-cli/hooks/PreToolUse/_manifest.json",
+        "src/copilot-cli/hooks/hooks.json",
+        "tests/hooks/test_claude_hook_dispatch.py",
+        "tests/test_hook_plugin_guards.py",
+        "tests/build_scripts/test_copilot_dispatcher_artifact.py"
+      ]
+    },
+    {
+      "action": "Repointed citations/comments to surviving guards, dropped the stale branch-is-not-main entry from the legacy hooks.yaml manifest, and bumped both project-toolkit plugin manifests 0.6.86 to 0.6.87.",
+      "files": [
+        ".claude/skills/agent-harness-reference/SKILL.md",
+        ".claude/hooks/PreToolUse/invoke_security_commit_gate.py",
+        ".agents/hooks/hooks.yaml",
+        ".claude/.claude-plugin/plugin.json",
+        "src/copilot-cli/.claude-plugin/plugin.json"
+      ]
+    }
+  ],
+  "endingCommit": "8bb7b246",
+  "nextSteps": [
+    "Commit this session log with .agents/hooks/hooks.yaml (final atomic commit).",
+    "Push and open PR (Refs #3196, slice 1 of 5); byte-check body for 0 U+2014/U+2013 dashes.",
+    "Babysit Copilot review rounds until a push yields 0 new threads; self-merge once mergeStateStatus CLEAN; sync main ff-only.",
+    "Continue epic #3197 remaining slices and parallel ADR tracks."
+  ]
+}

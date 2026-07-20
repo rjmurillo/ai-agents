@@ -15,6 +15,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -66,9 +67,13 @@ def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> l
     return commands
 
 
-def _run_entry(event: str, payload: dict[str, Any]) -> subprocess.CompletedProcess[bytes]:
+def _run_entry(
+    event: str,
+    payload: dict[str, Any],
+    project_dir: Path | None = None,
+) -> subprocess.CompletedProcess[bytes]:
     env = dict(os.environ)
-    env["CLAUDE_PROJECT_DIR"] = str(_REPO)
+    env["CLAUDE_PROJECT_DIR"] = str(project_dir if project_dir is not None else _REPO)
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
     env["AI_AGENTS_PROJECT_REPO"] = "1"
@@ -110,7 +115,6 @@ class TestDispatcherArtifacts:
         )
         required_hard_gates = (
             "invoke_branch_context_guard.py",
-            "invoke_branch_protection_guard.py",
             "invoke_security_commit_gate.py",
             "invoke_security_gate.py",
             "invoke_session_log_guard.py",
@@ -243,18 +247,57 @@ class TestDispatcherArtifacts:
         proc = _run_entry(_GATING, {"tool_name": "____NoSuchTool____", "tool_input": {}})
         assert proc.returncode == 0, proc.stderr.decode()[:600]
 
-    def test_pretooluse_denies_blocked_tool(self):
-        # An unresolvable cwd trips branch protection fail-closed; the dispatcher
-        # must deny (#2295 preserved end-to-end through consolidation).
+    def test_pretooluse_denies_blocked_tool(self, tmp_path):
+        # The consolidated gate dispatcher must propagate a member guard's deny
+        # end-to-end (#2295 preserved through consolidation). branch_context_guard
+        # blocks a git push whose current branch differs from the branch recorded
+        # in today's session log. Point CLAUDE_PROJECT_DIR at a scratch repo on
+        # `main` with a session log expecting a different branch so the deny is
+        # deterministic and independent of this repo's live session state.
+        on_main = tmp_path / "on-main"
+        on_main.mkdir()
+        subprocess.run(
+            ["git", "init", str(on_main)], check=True, capture_output=True, timeout=30
+        )
+        subprocess.run(
+            ["git", "-C", str(on_main), "checkout", "-B", "main"],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+        # A born HEAD makes `git branch --show-current` resolve deterministically;
+        # an unborn HEAD returns empty on some git versions and fails the guard open.
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(on_main),
+                "-c",
+                "user.email=test@example.com",
+                "-c",
+                "user.name=Test",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "init",
+            ],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+        sessions_dir = on_main / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        (sessions_dir / f"{today}-session-01.json").write_text(
+            json.dumps({"session": {"branch": "feature/mismatch"}}), encoding="utf-8"
+        )
         proc = _run_entry(
             _GATING,
             {
-                "cwd": str(_REPO / "missing-dispatcher-test-repo"),
                 "tool_name": "Bash",
-                "tool_input": {
-                    "command": "git push origin fix/workflow-local-test-secrets-2841"
-                },
+                "tool_input": {"command": "git push --force origin main"},
             },
+            project_dir=on_main,
         )
         assert proc.returncode != 0, "dispatcher allowed a tool a guard blocks"
         combined = proc.stdout + proc.stderr
