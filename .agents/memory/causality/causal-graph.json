@@ -13800,6 +13800,15 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T15:09:23.516825+00:00"
+    },
+    {
+      "id": "c8c81729e3bb",
+      "type": "milestone",
+      "label": "milestone: Completed the six-role Lefthook architecture review",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:37:07.060685+00:00"
     }
   ],
   "patterns": [

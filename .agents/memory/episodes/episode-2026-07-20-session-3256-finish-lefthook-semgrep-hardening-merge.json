@@ -408,7 +408,9 @@
       "caused_by": [
         "e033"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e039"
+      ]
     },
     {
       "id": "e035",
@@ -457,6 +459,16 @@
       "leads_to": [
         "e030"
       ]
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed the six-role Lefthook architecture review",
+      "caused_by": [
+        "e034"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

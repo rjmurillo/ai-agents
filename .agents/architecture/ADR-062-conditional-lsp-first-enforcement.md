@@ -29,12 +29,12 @@ modules under `.claude/lib/hook_utilities/` that only those hooks consume
 (`lsp_gate_state.py`, plus any code in `lsp_provider.py`, `lsp_symbols.py`,
 and `lsp_health.py` with no other caller, enumerated during #3216). Keep the static steering: the
 canonical rule `.claude/rules/lsp-first.md` shipped as context every session,
-the Serena Init BLOCKING step in AGENTS.md, and the per-turn
-`invoke_serena_reassertion.py` nudge (issue #1993). Note: that hook uses
-`skip_if_consumer_repo` and therefore self-neuters in consumer repos; per
-ADR-084 rule 4, when #3216 lands the hook should be relocated from the
-vendored surface to `.githooks/` or CI to comply with the vendored-hook
-ROI bar. The three-tier navigation
+the Serena Init BLOCKING step in AGENTS.md, and, while it remains present, the
+per-turn `invoke_serena_reassertion.py` nudge (issue #1993). Lefthook handles
+Git events and has no user-prompt lifecycle event. Issue #3216 classified this
+advisory nudge for removal because static steering and Serena Init already carry
+the behavior. The hook still exists pending that removal. If removed from the
+vendored surface, it needs no Lefthook replacement. The three-tier navigation
 preference (Decision, Section 1) survives as steering; only the blocking
 behavior is withdrawn.
 
@@ -74,11 +74,12 @@ What this amendment does NOT change:
   documents (the env-var escape hatches, the hook-tier description) are cleaned
   up by the #3216 removal when the hooks they describe are deleted; the
   three-tier navigation preference the file carries is what stays.
-- Serena Init (AGENTS.md BLOCKING) and the #1993 re-assertion stay. The
-  #1993 hook (`invoke_serena_reassertion.py`) self-neuters via
-  `skip_if_consumer_repo`, so per ADR-084 rule 4 it moves out of the
-  vendored surface to `.githooks/` or CI when #3216 lands; the steering
-  effect for this repository is retained.
+- Serena Init (AGENTS.md BLOCKING) and the #1993 re-assertion stay while the
+  hook remains present. Lefthook handles Git events and has no user-prompt
+  lifecycle event. Issue #3216 classified the advisory nudge for removal because
+  static steering and Serena Init already carry the behavior. The hook has not
+  yet been removed. If removed from the vendored surface, it needs no Lefthook
+  replacement.
 - No security property changes. Section 4 already states the gate-state is not a
   security boundary and Section 7 shows the detection modules are CWE-78 and
   CWE-22 safe by construction; the modules are removed with the hooks, not

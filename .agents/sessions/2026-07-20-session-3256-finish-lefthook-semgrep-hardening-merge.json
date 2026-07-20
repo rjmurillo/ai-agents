@@ -203,6 +203,11 @@
       "timestamp": "2026-07-20T15:12:00Z",
       "action": "Validated the final Lefthook review fixes",
       "evidence": "Pre-push passed 14,314 tests, 22 skipped, and 45 xfailed; pre-PR, generation, install parity, semantic drift, manifest parity, and plugin version checks passed"
+    },
+    {
+      "timestamp": "2026-07-20T19:36:00Z",
+      "action": "Completed the six-role Lefthook architecture review",
+      "evidence": "ADR-086 reached 6 of 6 approval after runtime pinning, timeout, deletion staging, and governance corrections"
     }
   ],
   "endingCommit": "226b6c2f0a9ef824063c59bbfcb1f10770322414",
