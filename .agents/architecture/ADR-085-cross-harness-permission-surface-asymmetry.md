@@ -66,7 +66,13 @@ Three survivor hooks were named in #3217:
 Copilot CLI 1.0.72-1 exposes no repo-committed, fine-grained permission surface
 comparable to Claude's `.claude/settings.json` `permissions` block. The surface
 table below reflects the 1.0.72-1 probe of 2026-07-20; Copilot's permission model
-may evolve, which is one of the re-evaluation triggers in Consequences.
+may evolve, which is one of the re-evaluation triggers in Consequences. The
+gap is tracked upstream as a feature request for a repo-committed, per-repo
+permissions config (`github/copilot-cli#3176`, which proposes a committed
+`.github/copilot-permissions.json` with `denyTools`, under the permissions
+epic `github/copilot-cli#316`; related `github/copilot-cli#2398` requests a
+default permissions config file). If Copilot ships a committed permission
+surface, the asymmetry closes and this finding should be revisited.
 
 | Harness | Surface | Repo-committed | Fine-grained | Ships with plugin |
 |---------|---------|----------------|--------------|-------------------|
