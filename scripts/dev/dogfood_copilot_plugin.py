@@ -189,14 +189,14 @@ def _is_stale(source: Path, target: Path) -> bool:
     dogfooded, so both are reported as not stale (no advisory warranted).
 
     Dogfooding is opt-in (ADR-083): a directory is only considered a dogfood
-    copy when the dogfood marker (``.dogfood``) or backup marker
-    (``.marketplace-bak``) exists, indicating the user explicitly ran
-    ``--install``. A stock marketplace install at the same path (no marker)
-    is not a dogfood copy and cannot be stale.
+    copy when the dogfood marker (``.dogfood``) exists inside the target,
+    indicating the user explicitly ran ``--install``. A stock marketplace
+    install at the same path (no marker) is not a dogfood copy and cannot be
+    stale, even if an orphan backup exists from a prior dogfood session.
     """
     if target.is_symlink() or not target.is_dir():
         return False
-    is_dogfood_copy = (target / _DOGFOOD_MARKER).exists() or _backup_path(target).exists()
+    is_dogfood_copy = (target / _DOGFOOD_MARKER).exists()
     if not is_dogfood_copy:
         return False
     return _plugin_version(target) != _plugin_version(source)
