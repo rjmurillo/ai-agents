@@ -15,7 +15,7 @@ import sys
 import warnings
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 _GIT_COMMIT_PATTERN = re.compile(r"(?:^|\s)git\s+(commit|ci)")
 _GIT_PUSH_PATTERN = re.compile(r"(?:^|\s)git\s+push(?:\s|$)")
@@ -35,7 +35,7 @@ _win_lock_positions: dict[int, int] = {}
 if sys.platform == "win32":
     import msvcrt
 
-    def lock_file(f) -> None:
+    def lock_file(f: IO[Any]) -> None:
         """Acquire an exclusive lock on a file (Windows implementation)."""
         fd = f.fileno()
         _win_lock_positions[fd] = f.tell()
@@ -44,7 +44,7 @@ if sys.platform == "win32":
         pos = _win_lock_positions.get(fd, 0)
         f.seek(pos)
 
-    def unlock_file(f) -> None:
+    def unlock_file(f: IO[Any]) -> None:
         """Release an exclusive lock on a file (Windows implementation)."""
         fd = f.fileno()
         write_pos = f.tell()
@@ -55,11 +55,11 @@ if sys.platform == "win32":
 else:
     import fcntl
 
-    def lock_file(f) -> None:
+    def lock_file(f: IO[Any]) -> None:
         """Acquire an exclusive lock on a file (POSIX implementation)."""
         fcntl.flock(f.fileno(), fcntl.LOCK_EX)
 
-    def unlock_file(f) -> None:
+    def unlock_file(f: IO[Any]) -> None:
         """Release an exclusive lock on a file (POSIX implementation)."""
         fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
@@ -106,11 +106,6 @@ def is_git_push_command(command: str | None) -> bool:
     if not command:
         return False
     return _GIT_PUSH_PATTERN.search(command) is not None
-
-
-def is_git_commit_or_push_command(command: str | None) -> bool:
-    """Check if a command string is a git commit, ci, or push command."""
-    return is_git_commit_command(command) or is_git_push_command(command)
 
 
 def is_pr_create_command(command: str | None) -> bool:
@@ -266,7 +261,7 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
     return _newest_by_mtime(yesterday_candidates)
 
 
-def coerce_to_list(value) -> list[Any]:
+def coerce_to_list(value: object) -> list[Any]:
     """Normalize work/outcomes to a list, regardless of session schema shape.
 
     Session logs in this repo have used several shapes over time:

@@ -256,6 +256,113 @@ def check_branch(repo_root: Path) -> int:
     return 1
 
 
+def _current_branch(repo_root: Path) -> str | None:
+    """Return the current branch name, or None when it cannot be determined.
+
+    Empty output is a detached HEAD; a nonzero exit means git could not
+    answer. Both collapse to None so the caller fails open.
+    """
+    result = _run_git(repo_root, ["branch", "--show-current"])
+    if result.returncode != 0:
+        return None
+    branch = result.stdout.strip()
+    return branch or None
+
+
+def _today_session_log(sessions_dir: Path) -> Path | None:
+    """Return today's newest session log by mtime, or None.
+
+    Mirrors hook_utilities.get_today_session_log: glob the UTC-dated
+    session logs and pick the most recently modified. Any stat failure or
+    empty match yields None so branch-context checking fails open.
+    """
+    if not sessions_dir.is_dir():
+        return None
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    try:
+        logs = sorted(
+            sessions_dir.glob(f"{today}-session-*.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return None
+    return logs[0] if logs else None
+
+
+def _session_branch(session_log: Path) -> str | None:
+    """Extract the expected branch from a session log.
+
+    Canonical logs nest the branch at ``session.branch`` (see
+    .agents/schemas/session-log.schema.json); pre-schema logs carry a
+    top-level ``branch``. The nested value wins, then the top level.
+    """
+    try:
+        data = json.loads(session_log.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    candidates: list[object] = []
+    session = data.get("session")
+    if isinstance(session, dict):
+        candidates.append(session)
+    candidates.append(data)
+    for container in candidates:
+        if isinstance(container, dict):
+            branch = container.get("branch")
+            if isinstance(branch, str):
+                return branch
+    return None
+
+
+def check_branch_context(repo_root: Path) -> int:
+    """Block a commit or push when the branch contradicts today's session log.
+
+    Ported from the retired Claude PreToolUse hook
+    ``invoke_branch_context_guard.py`` so the branch-mismatch safety net
+    survives the move to Lefthook. Root cause: PR co-mingling from the
+    PR #669 retrospective (Issue #682).
+
+    The check is deliberately fail-open: it returns 0 (pass) on every
+    ambiguous input and only returns 1 (block) when it can prove a
+    mismatch. Retired-hook contract preserved verbatim:
+
+        # Skip if no sessions directory (consumer repo)
+        # Cannot determine branch, fail open
+        # No session log, let session_log_guard handle this
+        # No branch in session log, skip check
+
+    Only a determinate ``current_branch != session_branch`` blocks.
+    """
+    sessions_dir = repo_root / ".agents" / "sessions"
+    if not sessions_dir.is_dir():
+        return 0
+    current_branch = _current_branch(repo_root)
+    if current_branch is None:
+        return 0
+    session_log = _today_session_log(sessions_dir)
+    if session_log is None:
+        return 0
+    session_branch = _session_branch(session_log)
+    if session_branch is None:
+        return 0
+    if current_branch == session_branch:
+        return 0
+    print(
+        "ERROR: branch context mismatch: "
+        f"current='{current_branch}', session='{session_branch}' "
+        f"(log: {session_log.name})",
+        file=sys.stderr,
+    )
+    print(
+        "  Fix: switch to the expected branch, update the session log branch "
+        "field, or run /session-init for the current branch.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def check_handoff(paths: Sequence[str], repo_root: Path) -> int:
     del repo_root
     normalized = {_safe_relative_path(path) for path in paths}
@@ -2178,6 +2285,10 @@ def _handle_branch(args: argparse.Namespace) -> int:
     return check_branch(_repo_root(args))
 
 
+def _handle_branch_context(args: argparse.Namespace) -> int:
+    return check_branch_context(_repo_root(args))
+
+
 def _handle_handoff(args: argparse.Namespace) -> int:
     return check_handoff(args.paths, _repo_root(args))
 
@@ -2341,6 +2452,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     simple_commands = (
         ("branch", _handle_branch),
+        ("branch-context", _handle_branch_context),
         ("planning", _handle_planning),
         ("adr-reminder", _handle_adr_reminder),
         ("generate-mcp", _handle_generate_mcp),
