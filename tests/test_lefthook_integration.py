@@ -1419,6 +1419,86 @@ def test_alternate_index_controls_staged_blob_and_generated_staging(
     assert default_staged == ""
 
 
+def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
+    assert LEFTHOOK is not None
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    recorder = repo / "record_staged.py"
+    recorder.write_text(
+        "import os\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "Path('observed.txt').write_text(\n"
+        "    os.environ.get('GIT_INDEX_FILE', '') + '\\n' + '\\n'.join(sys.argv[1:]),\n"
+        "    encoding='utf-8',\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    config = {
+        "pre-commit": {
+            "jobs": [
+                {
+                    "name": "record-staged",
+                    "glob": "*.md",
+                    "run": f'"{sys.executable}" record_staged.py {{staged_files}}',
+                }
+            ]
+        }
+    }
+    (repo / "lefthook.yml").write_text(
+        yaml.safe_dump(config, sort_keys=False),
+        encoding="utf-8",
+    )
+    (repo / "default.md").write_text("base\n", encoding="utf-8")
+    (repo / "alternate.md").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "lefthook.yml", "record_staged.py", "default.md", "alternate.md")
+    _git(repo, "commit", "-qm", "test: add active-index probe")
+
+    alternate_index = repo / ".git/alternate-index"
+    shutil.copy2(repo / ".git/index", alternate_index)
+    (repo / "default.md").write_text("default change\n", encoding="utf-8")
+    _git(repo, "add", "default.md")
+
+    _run_lefthook(
+        repo,
+        "run",
+        "pre-commit",
+        env={"GIT_INDEX_FILE": str(alternate_index)},
+    )
+    observed = repo / "observed.txt"
+    assert not observed.exists()
+
+    (repo / "alternate.md").write_text("alternate change\n", encoding="utf-8")
+    process_env = os.environ.copy()
+    process_env["GIT_INDEX_FILE"] = str(alternate_index)
+    process_env["LEFTHOOK_BIN"] = LEFTHOOK
+    subprocess.run(
+        ["git", "add", "--", "alternate.md"],
+        cwd=repo,
+        env=process_env,
+        check=True,
+    )
+    _run_lefthook(repo, "install", "--reset-hooks-path")
+
+    result = subprocess.run(
+        ["git", "commit", "-m", "test: alternate index"],
+        cwd=repo,
+        env=process_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert observed.read_text(encoding="utf-8").splitlines() == [
+        str(alternate_index),
+        "alternate.md",
+    ]
+    assert _git(repo, "show", "HEAD:alternate.md").stdout == "alternate change\n"
+    assert _git(repo, "show", ":alternate.md").stdout == "base\n"
+    assert _git(repo, "show", ":default.md").stdout == "default change\n"
+
+
 def test_staged_dash_policy_skips_vendored_paths(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
