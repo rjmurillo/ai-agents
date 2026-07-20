@@ -217,11 +217,15 @@ def dogfood_status(source: Path, target: Path) -> str:
         return f"symlinked -> {os.readlink(target)}"
     if target.is_dir():
         installed = _plugin_version(target)
-        marker = ""
+        if not _is_dogfood_copy(target):
+            return (
+                f"marketplace copy at {target} [v{installed}] (no .dogfood marker; not dogfooded)"
+            )
+        hint = ""
         if _is_stale(source, target):
             shipped = _plugin_version(source)
-            marker = f" (working tree ships v{shipped}; re-run --install to refresh)"
-        return f"installed copy at {target} [v{installed}]{marker}"
+            hint = f" (working tree ships v{shipped}; re-run --install to refresh)"
+        return f"dogfood copy at {target} [v{installed}]{hint}"
     return f"not installed at {target}"
 
 

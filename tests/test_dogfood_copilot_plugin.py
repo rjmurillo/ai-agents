@@ -262,9 +262,19 @@ def test_uninstall_removes_regular_file_and_restores_backup(target: Path) -> Non
 def test_status_reports_current_copy(source: Path, target: Path) -> None:
     dogfood.dogfood_install(source, target)
     status = dogfood.dogfood_status(source, target)
-    assert "installed copy" in status
+    assert "dogfood copy" in status
     assert "9.9.9" in status
     assert "re-run" not in status  # matches the shipped version
+
+
+def test_status_labels_marketplace_copy(source: Path, target: Path) -> None:
+    # A markerless install is a marketplace copy; --status must not describe it
+    # as a dogfood copy (issue #3256).
+    _make_plugin_root(target, "0.0.1")
+    status = dogfood.dogfood_status(source, target)
+    assert "marketplace copy" in status
+    assert "not dogfooded" in status
+    assert "re-run" not in status
 
 
 def test_status_flags_stale_copy(source: Path, target: Path) -> None:
