@@ -135,8 +135,12 @@ SKIP_PATTERNS: list[re.Pattern[str]] = [
 MIN_PROMPT_LENGTH = 20
 
 
-def detect_complexity(prompt: str) -> list[str]:
-    """Return list of matched complexity reasons, empty if none."""
+def detect_complexity(prompt: str | None) -> list[str]:
+    """Return list of matched complexity reasons, empty if none.
+
+    Accepts None: the `not prompt` guard returns [] before any string op, so
+    None is a valid (empty-result) input, not a contract violation.
+    """
     if not prompt or len(prompt.strip()) < MIN_PROMPT_LENGTH:
         return []
 
