@@ -1088,6 +1088,7 @@ def test_git_command_boundary_forces_utf8_replacement(
 
     assert captured["encoding"] == "utf-8"
     assert captured["errors"] == "replace"
+    assert captured["env"]["GIT_NO_REPLACE_OBJECTS"] == "1"
 
 
 def test_alternate_index_controls_staged_blob_and_generated_staging(
@@ -1523,6 +1524,33 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
     def fake_scan(tree: Path, _root: Path) -> subprocess.CompletedProcess[str]:
         content = (tree / "source.js").read_text(encoding="utf-8")
         return _completed(1 if "$Format:a%eval(userInput);$" in content else 0)
+
+    monkeypatch.setattr(policy, "_run_semgrep_tree", fake_scan)
+
+    assert policy.scan_pushed_heads(stream, repo) == 1
+
+
+def test_pushed_semgrep_scan_ignores_local_replacement_blob(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "source.py", "dangerous = False\n")
+    (repo / "source.py").write_text("dangerous = True\n", encoding="utf-8")
+    _git(repo, "add", "source.py")
+    _git(repo, "commit", "-qm", "test: pushed finding")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    dangerous_blob = _git(repo, "rev-parse", f"{head}:source.py").stdout.strip()
+    benign = repo / "benign.py"
+    benign.write_text("dangerous = False\n", encoding="utf-8")
+    benign_blob = _git(repo, "hash-object", "-w", str(benign)).stdout.strip()
+    _git(repo, "replace", dangerous_blob, benign_blob)
+    stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
+
+    def fake_scan(tree: Path, _root: Path) -> subprocess.CompletedProcess[str]:
+        content = (tree / "source.py").read_text(encoding="utf-8")
+        return _completed(1 if "dangerous = True" in content else 0)
 
     monkeypatch.setattr(policy, "_run_semgrep_tree", fake_scan)
 

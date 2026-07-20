@@ -90,6 +90,7 @@ def _clean_git_env() -> dict[str, str]:
     env = os.environ.copy()
     for key in GIT_ENV_KEYS:
         env.pop(key, None)
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
     return env
 
 
