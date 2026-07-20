@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -448,19 +449,19 @@ def test_runtime_contract_prompt_group_allows():
     assert result.returncode == 0, result.stderr.decode(errors="replace")
 
 
-def test_runtime_contract_force_push_to_main_blocks(tmp_path):
-    # Negative control: branch protection must still block a push made from a
-    # protected branch through the push-chain group, proving group members
-    # really execute under the live manifest.
+def test_runtime_contract_branch_mismatch_blocks_via_push_group(tmp_path):
+    # Negative control: a git push issued from a branch that does not match the
+    # session log's recorded branch must be blocked through the push-chain
+    # group, proving group members really execute under the live manifest and a
+    # member's exit-2 block propagates out of the real dispatch entry point.
     #
-    # invoke_branch_protection_guard keys off the *current* branch of the
-    # resolved project directory, not the push target parsed from the command.
-    # A detached-HEAD checkout (CI's PR merge-commit checkout, or a --detach
-    # worktree) reports no current branch, so the guard fails open and the
-    # control becomes vacuous. Point CLAUDE_PROJECT_DIR at a scratch repo that
-    # is on `main` so the guard deterministically fires; the scratch repo has
-    # no .agents/sessions, so branch_context_guard (the group's first shim)
-    # allows and the block comes from branch_protection_guard.
+    # branch_context_guard (the group's first shim) keys off the *current*
+    # branch of the resolved project directory versus the branch recorded in
+    # today's session log. A detached-HEAD checkout (CI's PR merge-commit
+    # checkout, or a --detach worktree) reports no current branch, so the guard
+    # fails open and the control becomes vacuous. Point CLAUDE_PROJECT_DIR at a
+    # scratch repo on `main` with a session log that expects a different branch
+    # so the guard deterministically fires.
     on_main = tmp_path / "on-main"
     on_main.mkdir()
     subprocess.run(
@@ -474,7 +475,7 @@ def test_runtime_contract_force_push_to_main_blocks(tmp_path):
     )
     # An unborn HEAD (branch created, no commit) makes `git branch
     # --show-current` return an empty string on some git versions, which would
-    # let branch_protection_guard fail open and reintroduce the very
+    # let branch_context_guard fail open and reintroduce the very
     # non-determinism this negative control exists to remove. A single empty
     # commit gives HEAD a born ref so the branch name resolves deterministically.
     subprocess.run(
@@ -494,6 +495,14 @@ def test_runtime_contract_force_push_to_main_blocks(tmp_path):
         check=True,
         capture_output=True,
         timeout=30,
+    )
+    # A today-dated session log whose recorded branch differs from the scratch
+    # repo's current branch (`main`) is what branch_context_guard blocks on.
+    sessions_dir = on_main / ".agents" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    (sessions_dir / f"{today}-session-01.json").write_text(
+        json.dumps({"branch": "feature/mismatch"}), encoding="utf-8"
     )
     payload = json.dumps(
         {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}}
