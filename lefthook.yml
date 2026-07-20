@@ -15,6 +15,9 @@ pre-commit:
     - name: branch-policy
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch
 
+    - name: branch-context-policy
+      run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
+
     - group:
         piped: true
         jobs:
@@ -324,6 +327,9 @@ pre-push:
 
           - name: branch-scope
             run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
+
+          - name: branch-context-policy
+            run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
           - name: additions-advisory
             run: uv run --frozen python scripts/validation/git_hook_policy.py additions

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3196,
+    "date": "2026-07-20",
+    "branch": "chore/3196-branch-context-lefthook",
+    "startingCommit": "16d6085786",
+    "objective": "Port branch-context guard from PreToolUse hook to the Lefthook git-hook layer (issue #3196), retire the PreToolUse copy and its dispatch/mirror registrations, and repoint tests and docs"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools are live in this Copilot CLI session (serena-find_symbol, serena-get_symbols_overview, serena-initial_instructions all exposed and callable)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prior session context restored from checkpoint summary; HANDOFF.md is read-only and unchanged"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used the project-toolkit github skill scripts under .claude/skills/github/scripts/pr for PR-state checks this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub operations routed through the github skill scripts (test_pr_merged.py), not raw gh"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied PROJECT-CONSTRAINTS boundaries: atomic commits, Python-first, no logic in YAML, generated artifacts committed with the change"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded repository and user memories from the session prompt, including plugin-parity, ruff-floor, and branch-context-guard facts, and verified them against the working tree"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/3196-branch-context-lefthook"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/3196-branch-context-lefthook, stacked on origin/chore/lefthook-migration"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified working tree holds only the scoped #3196 change set plus untracked auto-retro artifacts that are never staged"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "16d6085786"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end MUST items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored a repository memory on the ruff ratchet fix-on-touch obligation and the IO[Any]/object idiomatic annotation fix for hook_utilities"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran markdownlint-cli2 on the changed CONTRIBUTING.md (0 issues); agent-harness-reference SKILL.md is config-excluded under .claude/skills/**"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed the #3196 change set in atomic commits of five or fewer files each, generated artifacts in their own commits"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff, mypy per-file gate, and 488 targeted tests passed; sync_plugin_lib --check and build_all --check clean after commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Opened the stacked PR for #3196 and drove it to green"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-07-20T21:00:00Z",
+      "action": "Fixed pre-existing ANN001/ANN401 debt in hook_utilities on touch (ruff ratchet obligates cleaning changed files): annotated lock_file/unlock_file file args as IO[Any] and coerce_to_list value as object",
+      "evidence": "ruff check clean on all three hook_utilities mirrors; mypy no issues; synced via sync_plugin_lib.py and build_all.py"
+    },
+    {
+      "timestamp": "2026-07-20T21:20:00Z",
+      "action": "Repointed dispatcher/schema/skill tests and docs off the retired branch_context_guard, added lefthook check_branch_context integration tests",
+      "evidence": "488 targeted tests passed across the six changed test modules; per-file mypy gate passed on all changed Python files"
+    },
+    {
+      "timestamp": "2026-07-20T21:40:00Z",
+      "action": "Bumped project-toolkit manifests 0.6.90 to 0.6.91 (strictly greater than the lefthook base branch) and confirmed manifest parity",
+      "evidence": "check_plugin_manifest_parity.py reported matching version 0.6.91"
+    }
+  ],
+  "endingCommit": "b0247bade50edaf92fa611500c339b68768e5fda",
+  "nextSteps": [
+    "Drive the stacked #3196 PR to green and self-merge once the base chore/lefthook-migration (PR #3259) lands",
+    "Continue epic #3197 remaining children on a Task-capable harness where adr-review and Sol are available"
+  ]
+}

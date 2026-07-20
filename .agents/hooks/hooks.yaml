@@ -48,12 +48,6 @@ hooks:
     script: .claude/hooks/PreToolUse/invoke_session_log_guard.py
     on_fail: block
 
-  - id: pre-tool-use.branch-context-matches
-    event: PreToolUse
-    tool: "Bash(git (commit|push)*)"
-    script: .claude/hooks/PreToolUse/invoke_branch_context_guard.py
-    on_fail: block
-
   - id: pre-tool-use.retrospective-before-push
     event: PreToolUse
     tool: "Bash(git push*)"
