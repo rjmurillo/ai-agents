@@ -165,7 +165,7 @@ def test_fetch_missing_gh_binary_raises(monkeypatch: pytest.MonkeyPatch) -> None
         raise FileNotFoundError("gh")
 
     monkeypatch.setattr(subprocess, "run", _raise_missing)
-    with pytest.raises(RuntimeError, match="Failed to fetch commits"):
+    with pytest.raises(FileNotFoundError, match="not installed or not found on PATH"):
         mod.fetch_commit_count(42, "o", "r")
 
 
@@ -250,6 +250,15 @@ def test_main_genuine_failure_returns_3(monkeypatch: pytest.MonkeyPatch) -> None
     _stub_repo(monkeypatch)
     monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(1, "", "HTTP 401: Bad credentials"))
     assert mod.main(["--pr-number", "42"]) == 3
+
+
+def test_main_missing_gh_returns_2(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _stub_repo(monkeypatch)
+    monkeypatch.setattr(mod, "_run_gh", lambda argv: _completed(127, "", ""))
+    assert mod.main(["--pr-number", "42"]) == 2
+    assert "not installed or not found on PATH" in capsys.readouterr().err
 
 
 def test_main_invalid_pr_number_returns_2(monkeypatch: pytest.MonkeyPatch) -> None:

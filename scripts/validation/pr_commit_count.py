@@ -18,10 +18,19 @@ Behavior:
 * On a *genuine* error (auth failure, PR not found, bad arguments), exit
   non-zero so the failure stays visible. Transient tolerance must never swallow
   a real policy or auth failure.
+* A missing ``gh`` binary is a *config* error (ADR-035 exit 2), not an external
+  or transient one: the environment is misconfigured, so the run cannot proceed.
+
+The commit count is fetched with ``per_page=100`` (the GitHub REST maximum for
+a single page) and is not paginated, so the reported count saturates at 100.
+Classification is unaffected: any PR at or above ``BLOCK_THRESHOLD`` (20) is
+``BLOCKED``, and 100 far exceeds 20, so a PR with more than 100 commits is
+always ``BLOCKED`` regardless of the exact count. For such PRs the emitted
+``commit_count`` is a floor.
 
 Exit codes follow ADR-035:
     0 - Success (a status was classified, including transient UNKNOWN)
-    2 - Config error (missing/invalid arguments, unresolvable repo)
+    2 - Config error (missing/invalid arguments, unresolvable repo, missing gh)
     3 - External error (non-transient gh/API failure)
 """
 
@@ -104,8 +113,11 @@ def is_transient_error(stderr: str) -> bool:
 def _run_gh(argv: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a gh command, returning the completed process.
 
-    A timeout or a missing gh binary is surfaced as a transient-looking
-    CompletedProcess so the caller degrades rather than crashing the gate.
+    A timeout is surfaced as a transient CompletedProcess (returncode 124,
+    ``timeout was reached`` stderr) so the caller degrades rather than crashing.
+    A missing gh binary is a config error (ADR-035 exit 2), not transient: it is
+    signalled with returncode 127 and empty stderr so ``is_transient_error``
+    stays False and ``fetch_commit_count`` maps it to a config failure.
     """
     try:
         return subprocess.run(
@@ -130,10 +142,21 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
 
     Returns a CountResult. Transient transport failures yield
     ``CountResult(STATUS_UNKNOWN, None, transient=True)``; a non-transient gh
-    failure raises RuntimeError so the caller can exit 3.
+    failure raises RuntimeError so the caller can exit 3; a missing gh binary
+    raises FileNotFoundError so the caller can exit 2 (config error, ADR-035).
+
+    The count is fetched with ``per_page=100`` and is not paginated, so it
+    saturates at 100. This does not change classification: any count at or above
+    BLOCK_THRESHOLD (20) is BLOCKED, and 100 >> 20.
     """
     endpoint = f"repos/{owner}/{repo}/pulls/{pr_number}/commits?per_page=100"
     result = _run_gh(["gh", "api", endpoint])
+
+    if result.returncode == 127:
+        raise FileNotFoundError(
+            "GitHub CLI (gh) is not installed or not found on PATH; cannot fetch "
+            f"the commit count for PR #{pr_number}."
+        )
 
     if result.returncode != 0:
         if is_transient_error(result.stderr):
@@ -197,6 +220,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         outcome = fetch_commit_count(args.pr_number, repo_info.owner, repo_info.repo)
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
     except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 3
