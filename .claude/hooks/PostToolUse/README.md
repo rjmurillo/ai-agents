@@ -17,6 +17,7 @@ PostToolUse hooks must never fail the primary operation. All errors should be lo
 | Hook | Purpose | File Types | Performance |
 |------|---------|------------|-------------|
 | `invoke_markdown_auto_lint.py` | Auto-format markdown files | `*.md` | <2s |
+| `invoke_codeql_quick_scan.py` | Security scan for code files | `*.py`, `*.yml` (workflows) | 5-30s |
 
 ## Hook Input Format
 
@@ -265,5 +266,6 @@ python3 .claude/hooks/PostToolUse/your_hook.py --verbose
 ## References
 
 - **invoke_markdown_auto_lint.py**: Reference implementation for simple hooks
+- **invoke_codeql_quick_scan.py**: Reference implementation for complex hooks with timeouts
 - **ADR-035**: Exit code standardization
 - **Claude Code Hooks Documentation**: <https://code.claude.com/docs/en/hooks>
