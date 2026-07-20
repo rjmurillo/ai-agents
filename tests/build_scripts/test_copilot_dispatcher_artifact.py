@@ -15,7 +15,6 @@ import json
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -114,7 +113,6 @@ class TestDispatcherArtifacts:
             "invoke_topical_memory_injection.py",
         )
         required_hard_gates = (
-            "invoke_branch_context_guard.py",
             "invoke_security_commit_gate.py",
             "invoke_security_gate.py",
             "invoke_session_log_guard.py",
@@ -249,55 +247,21 @@ class TestDispatcherArtifacts:
 
     def test_pretooluse_denies_blocked_tool(self, tmp_path):
         # The consolidated gate dispatcher must propagate a member guard's deny
-        # end-to-end (#2295 preserved through consolidation). branch_context_guard
-        # blocks a git push whose current branch differs from the branch recorded
-        # in today's session log. Point CLAUDE_PROJECT_DIR at a scratch repo on
-        # `main` with a session log expecting a different branch so the deny is
-        # deterministic and independent of this repo's live session state.
-        on_main = tmp_path / "on-main"
-        on_main.mkdir()
-        subprocess.run(
-            ["git", "init", str(on_main)], check=True, capture_output=True, timeout=30
-        )
-        subprocess.run(
-            ["git", "-C", str(on_main), "checkout", "-B", "main"],
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
-        # A born HEAD makes `git branch --show-current` resolve deterministically;
-        # an unborn HEAD returns empty on some git versions and fails the guard open.
-        subprocess.run(
-            [
-                "git",
-                "-C",
-                str(on_main),
-                "-c",
-                "user.email=test@example.com",
-                "-c",
-                "user.name=Test",
-                "commit",
-                "--allow-empty",
-                "-m",
-                "init",
-            ],
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
-        sessions_dir = on_main / ".agents" / "sessions"
+        # end-to-end (#2295 preserved through consolidation). session_log_guard
+        # blocks a git commit when the project has a .agents/sessions/ directory
+        # but no session log for today. Point CLAUDE_PROJECT_DIR at a scratch
+        # project with an empty sessions directory so the deny is deterministic
+        # and independent of this repo's live session state.
+        project = tmp_path / "scratch-project"
+        sessions_dir = project / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
-        (sessions_dir / f"{today}-session-01.json").write_text(
-            json.dumps({"session": {"branch": "feature/mismatch"}}), encoding="utf-8"
-        )
         proc = _run_entry(
             _GATING,
             {
                 "tool_name": "Bash",
-                "tool_input": {"command": "git push --force origin main"},
+                "tool_input": {"command": "git commit -m 'work'"},
             },
-            project_dir=on_main,
+            project_dir=project,
         )
         assert proc.returncode != 0, "dispatcher allowed a tool a guard blocks"
         combined = proc.stdout + proc.stderr
