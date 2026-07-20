@@ -11,9 +11,7 @@
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "milestone",
       "content": "Authored ADR-085 documenting two verified findings that falsify the #3217 clean-migration premise: Copilot has no repo-committed permission surface and skill_first_guard self-neuters in consumer repos (Finding 1); Claude permissions.allow splits on separators but not command substitution or redirects, so migrating test_auto_approval widens an auto-approve path (Finding 2, risk 7/10). Added a portability-and-fidelity eligibility test and two open owner decisions D-A and D-B.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e002"
       ]
@@ -26,17 +24,19 @@
       "caused_by": [
         "e001"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e003"
+      ]
     },
     {
       "id": "e003",
       "timestamp": "2026-07-20T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 6114d7e0",
-      "caused_by": [],
-      "leads_to": [
-        "e001"
-      ]
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
