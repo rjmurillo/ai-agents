@@ -37,7 +37,16 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # CI require. A plain ``uv sync`` and ``uv pip install -e ".[dev]"`` must each
 # make all of these importable/runnable.
 REQUIRED_DEV_TOOLS = frozenset(
-    {"pytest", "pytest-cov", "bandit", "pip-audit", "ruff", "mypy"}
+    {
+        "bandit",
+        "lefthook",
+        "mypy",
+        "pip-audit",
+        "pytest",
+        "pytest-cov",
+        "ruff",
+        "semgrep",
+    }
 )
 SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "mcp==1.28.1"})
 COOLDOWN_EXEMPT_PACKAGES = frozenset(
@@ -179,8 +188,10 @@ def test_missing_required_tools_empty_when_all_present() -> None:
         "pytest>=9.0.3",
         "pytest-cov>=7.1.0",
         "bandit[sarif]>=1.9.4",
+        "lefthook==2.1.10",
         "pip-audit>=2.10.0",
         "ruff>=0.15.16",
+        "semgrep==1.170.0",
         "mypy>=2.1.0",
     ]
 

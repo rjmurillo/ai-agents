@@ -17,12 +17,12 @@ Human setup:
 
 ```bash
 uv sync --frozen --extra dev
-uv run --frozen lefthook install
+uv run --frozen lefthook install --reset-hooks-path
 uv run --frozen lefthook check-install
 ```
 
-Automated setup may use Lefthook's native `--reset-hooks-path` option to repair
-old clones. Configuration changes do not require another install.
+The native `--reset-hooks-path` option repairs old clones. Configuration changes
+do not require another install.
 
 ## Runtime
 
