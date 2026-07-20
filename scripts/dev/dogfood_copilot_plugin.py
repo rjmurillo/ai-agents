@@ -35,6 +35,7 @@ from pathlib import Path
 MARKETPLACE = "ai-agents"
 PLUGIN_NAME = "project-toolkit"
 _BACKUP_SUFFIX = ".marketplace-bak"
+_DOGFOOD_MARKER = ".dogfood"
 
 # Match build_all.py's shipped-tree copy semantics (__pycache__, *.pyc, *.pyo)
 # and drop local tool caches so the dogfood copy mirrors what customers get.
@@ -150,6 +151,7 @@ def dogfood_install(source: Path, target: Path) -> str:
     note = _stash_existing(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, target, ignore=_COPY_IGNORE)
+    (target / _DOGFOOD_MARKER).write_text("", encoding="utf-8")
     return f"copied {source} -> {target} ({note})"
 
 
@@ -187,13 +189,15 @@ def _is_stale(source: Path, target: Path) -> bool:
     dogfooded, so both are reported as not stale (no advisory warranted).
 
     Dogfooding is opt-in (ADR-083): a directory is only considered a dogfood
-    copy when the backup marker (``.marketplace-bak``) exists, indicating the
-    user explicitly ran ``--install``. A stock marketplace install at the same
-    path (no backup) is not a dogfood copy and cannot be stale.
+    copy when the dogfood marker (``.dogfood``) or backup marker
+    (``.marketplace-bak``) exists, indicating the user explicitly ran
+    ``--install``. A stock marketplace install at the same path (no marker)
+    is not a dogfood copy and cannot be stale.
     """
     if target.is_symlink() or not target.is_dir():
         return False
-    if not _backup_path(target).exists():
+    is_dogfood_copy = (target / _DOGFOOD_MARKER).exists() or _backup_path(target).exists()
+    if not is_dogfood_copy:
         return False
     return _plugin_version(target) != _plugin_version(source)
 

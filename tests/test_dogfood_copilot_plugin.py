@@ -311,6 +311,37 @@ def test_is_stale_false_when_marketplace_install(source: Path, target: Path) -> 
     assert dogfood._is_stale(source, target) is False
 
 
+def test_is_stale_true_after_first_install_with_version_change(
+    source: Path, target: Path
+) -> None:
+    # First install (no prior copy) must still be detected as stale when the
+    # source version changes (issue #3256 regression: backup-only detection
+    # missed first installs because no backup was created).
+    dogfood.dogfood_install(source, target)
+    # Simulate a version bump in the working tree
+    (source / ".claude-plugin" / "plugin.json").write_text(
+        json.dumps({"name": "project-toolkit", "version": "10.0.0"}), encoding="utf-8"
+    )
+    assert dogfood._is_stale(source, target) is True
+
+
+def test_is_stale_true_after_symlink_replacement_with_version_change(
+    source: Path, target: Path, tmp_path: Path
+) -> None:
+    # Replacing a symlink must still be detected as stale when the source
+    # version changes (issue #3256 regression: no backup created for symlinks).
+    _require_symlinks(tmp_path)
+    other = _make_plugin_root(tmp_path / "other", "1.0.0")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.symlink_to(other, target_is_directory=True)
+    dogfood.dogfood_install(source, target)
+    # Simulate a version bump in the working tree
+    (source / ".claude-plugin" / "plugin.json").write_text(
+        json.dumps({"name": "project-toolkit", "version": "10.0.0"}), encoding="utf-8"
+    )
+    assert dogfood._is_stale(source, target) is True
+
+
 def test_is_stale_false_when_not_installed(source: Path, target: Path) -> None:
     assert dogfood._is_stale(source, target) is False
 
