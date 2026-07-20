@@ -277,6 +277,77 @@ def test_status_reports_not_installed(source: Path, target: Path) -> None:
     assert "not installed" in dogfood.dogfood_status(source, target)
 
 
+# --- check (--check drift signal, issue #3256) ---
+
+
+def test_is_stale_false_when_versions_match(source: Path, target: Path) -> None:
+    dogfood.dogfood_install(source, target)
+    assert dogfood._is_stale(source, target) is False
+
+
+def test_is_stale_true_when_installed_trails(source: Path, target: Path) -> None:
+    _make_plugin_root(target, "0.0.1")
+    assert dogfood._is_stale(source, target) is True
+
+
+def test_is_stale_false_when_not_installed(source: Path, target: Path) -> None:
+    assert dogfood._is_stale(source, target) is False
+
+
+def test_is_stale_false_when_symlinked(source: Path, target: Path, tmp_path: Path) -> None:
+    _require_symlinks(tmp_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.symlink_to(source, target_is_directory=True)
+    assert dogfood._is_stale(source, target) is False
+
+
+def test_check_reports_current_when_in_sync(source: Path, target: Path) -> None:
+    dogfood.dogfood_install(source, target)
+    stale, message = dogfood.dogfood_check(source, target)
+    assert stale is False
+    assert "current" in message
+
+
+def test_check_flags_stale_copy(source: Path, target: Path) -> None:
+    _make_plugin_root(target, "0.0.1")
+    stale, message = dogfood.dogfood_check(source, target)
+    assert stale is True
+    assert "0.0.1" in message  # installed version
+    assert "9.9.9" in message  # shipped version
+    assert "--install" in message
+
+
+def test_check_reports_current_when_not_installed(source: Path, target: Path) -> None:
+    stale, _ = dogfood.dogfood_check(source, target)
+    assert stale is False
+
+
+def test_main_check_returns_1_on_stale(monkeypatch, tmp_path: Path, capsys) -> None:
+    _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
+    tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "0.0.1")
+    monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dogfood, "default_target", lambda: tgt)
+    rc = dogfood.main(["--check"])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "0.0.1" in out and "9.9.9" in out
+
+
+def test_main_check_returns_0_when_current(monkeypatch, tmp_path: Path) -> None:
+    _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
+    tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "9.9.9")
+    monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dogfood, "default_target", lambda: tgt)
+    assert dogfood.main(["--check"]) == 0
+
+
+def test_main_check_returns_0_when_not_installed(monkeypatch, tmp_path: Path) -> None:
+    _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
+    monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dogfood, "default_target", lambda: tmp_path / "installed" / "nope")
+    assert dogfood.main(["--check"]) == 0
+
+
 # --- helpers ---
 
 

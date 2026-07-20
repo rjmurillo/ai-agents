@@ -18,7 +18,8 @@ Provides the dogfood install called for by ADR-083 decision item 3, copy-only
 on every platform. ADR-083's symlink-on-Unix wording is being reconciled in
 #3252. Refs #3222.
 
-Exit codes: 0 success, 2 configuration error.
+Exit codes: 0 success (or ``--check`` found no drift), 1 ``--check`` found the
+installed dogfood copy trailing the working tree, 2 configuration error.
 """
 
 from __future__ import annotations
@@ -174,18 +175,50 @@ def dogfood_uninstall(target: Path) -> str:
     return f"{removed}; no backup to restore (reinstall with: {reinstall})"
 
 
+def _is_stale(source: Path, target: Path) -> bool:
+    """Return True when an installed dogfood copy trails the working tree.
+
+    Only a real installed directory can be stale. A live symlink always
+    tracks the working tree, and a missing target means nothing was
+    dogfooded, so both are reported as not stale (no advisory warranted).
+    """
+    if target.is_symlink() or not target.is_dir():
+        return False
+    return _plugin_version(target) != _plugin_version(source)
+
+
 def dogfood_status(source: Path, target: Path) -> str:
     """Return a one-line description of the current install state."""
     if target.is_symlink():
         return f"symlinked -> {os.readlink(target)}"
     if target.is_dir():
         installed = _plugin_version(target)
-        shipped = _plugin_version(source)
         marker = ""
-        if installed != shipped:
+        if _is_stale(source, target):
+            shipped = _plugin_version(source)
             marker = f" (working tree ships v{shipped}; re-run --install to refresh)"
         return f"installed copy at {target} [v{installed}]{marker}"
     return f"not installed at {target}"
+
+
+def dogfood_check(source: Path, target: Path) -> tuple[bool, str]:
+    """Return whether the installed copy is stale and an advisory message.
+
+    Powers the ``--check`` mode used by the pre-push staleness advisory
+    (issue #3256): the message is human-readable and the boolean drives the
+    exit code so a git hook can warn (never block) when a local dogfood copy
+    trails ``HEAD``.
+    """
+    if not _is_stale(source, target):
+        return False, f"dogfood copy current at {target}"
+    installed = _plugin_version(target)
+    shipped = _plugin_version(source)
+    message = (
+        f"dogfood copy at {target} is v{installed}; working tree ships "
+        f"v{shipped}. Re-run 'python3 scripts/dev/dogfood_copilot_plugin.py "
+        f"--install' to refresh before trusting local hook behavior."
+    )
+    return True, message
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -209,6 +242,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="show the current install state and exit",
     )
+    group.add_argument(
+        "--check",
+        action="store_true",
+        help="exit 1 (with an advisory) when the installed copy trails the working tree",
+    )
     return parser
 
 
@@ -220,6 +258,10 @@ def main(argv: list[str] | None = None) -> int:
         target = default_target()
         if args.status:
             print(dogfood_status(source, target))
+        elif args.check:
+            stale, message = dogfood_check(source, target)
+            print(message)
+            return 1 if stale else 0
         elif args.uninstall:
             print(dogfood_uninstall(target))
         else:
