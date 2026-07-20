@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-07-20-session-3217-ratify",
+  "session": "2026-07-20-session-3217-ratify",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Ratify ADR-085 after owner decision: flip status proposed to accepted and record the two owner rulings (D-A internal-only for skill_first_guard, D-B keep-as-hook for test_auto_approval). Relocate the misfiled debate log to the conventional .agents/analysis/ path. Unblock #3217 implementation and the #3218 rescope under epic #3197.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Surfaced ADR-085 open owner decisions D-A and D-B via AskUserQuestion. Owner ruled D-A internal-only (relocate skill_first_guard to .githooks/CI, stop shipping on the vendored surface) and D-B keep-as-hook (test_auto_approval unchanged), and directed flipping ADR-085 to accepted.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the rulings in ADR-085: flipped frontmatter status proposed to accepted, rewrote the Status section, added Resolution notes to Decision 2 and Decision 3 and to the Open Owner Decisions D-A and D-B, and updated the now-resolved conditional language in Consequences, Impact on Dependent Components, and Implementation Notes. D-A internal-only differs from the adr-review recommendation (customer-facing); the owner ruled under User Sovereignty on a branch Decision 2 already blessed as ADR-084 rule-4 compliant.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Relocated the ADR-085 debate log from .agents/critique/ to the conventional .agents/analysis/ path (ADR-080, ADR-081, ADR-082 debate logs all live there; the adr-review guard globs .agents/analysis/*debate*.md).",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

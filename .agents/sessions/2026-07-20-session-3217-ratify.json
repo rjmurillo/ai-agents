@@ -1,0 +1,140 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3217,
+    "date": "2026-07-20",
+    "branch": "docs/3217-ratify-adr-085",
+    "startingCommit": "05bee580",
+    "objective": "Ratify ADR-085 after owner decision: flip status proposed to accepted and record the two owner rulings (D-A internal-only for skill_first_guard, D-B keep-as-hook for test_auto_approval). Relocate the misfiled debate log to the conventional .agents/analysis/ path. Unblock #3217 implementation and the #3218 rescope under epic #3197."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP live this session-family: serena-* tools reachable (serena-list_memories, serena-write_memory surfaced via tool search in prior turns)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena manual internalized earlier this session-family; serena-* tool schemas confirmed live."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only dashboard (ADR-014) during epic #3197 triage."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr-generator, adr-review, github, autoplan, security-review skills invoked this session-family."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first honored: gh api used for issue/comment ops per usage-mandatory; github skill scripts used for PR ops."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md conventions applied: Python-first, atomic commits <=5 files, no dashes, ADRs stay proposed until owner ratifies (owner ratified this session via AskUserQuestion)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository + user Copilot memories loaded via prompt context; provenance memory on session-log endingCommit and the gh api @file gotcha applied this session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current confirmed docs/3217-ratify-adr-085 before every git operation."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created feature branch off main at 05bee580; committed on docs/3217-ratify-adr-085, never main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short inspected before staging; .agents/retrospective/* intentionally excluded from every commit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "05bee580 (branch point, merge-base with origin/main)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items complete and genuine (Serena live, files read directly, branch verified)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only, not modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory decision-adr-085-permission-surface-asymmetry updated this session-family; the owner ratification (D-A internal-only, D-B keep-as-hook) is recorded in the ADR Status and Open Owner Decisions sections."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 ran on the edited ADR (0 issues; .agents/** is excluded by the repo config, so the ADR path lints clean by exclusion)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on the feature branch: ADR-085 edit, the relocated debate log, and this session log. Under the 5-file limit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "0 em/en dashes byte-checked on the ADR, debate log, and commit message. The ADR-085 /adr-review 6-agent consensus (5 ACCEPT + 1 Disagree-and-Commit, 0 P0) ran in the authoring session 2026-07-20-session-3217; the debate log is at .agents/analysis/ADR-085-permission-surface-debate.md. The owner ratified a pre-blessed Decision-2 branch via AskUserQuestion, so no re-debate was required for this status flip."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Followed the plan: surface D-A/D-B via AskUserQuestion, record the rulings, flip status, relocate debate log, commit, open PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Surfaced ADR-085 open owner decisions D-A and D-B via AskUserQuestion. Owner ruled D-A internal-only (relocate skill_first_guard to .githooks/CI, stop shipping on the vendored surface) and D-B keep-as-hook (test_auto_approval unchanged), and directed flipping ADR-085 to accepted.",
+      "files": []
+    },
+    {
+      "action": "Recorded the rulings in ADR-085: flipped frontmatter status proposed to accepted, rewrote the Status section, added Resolution notes to Decision 2 and Decision 3 and to the Open Owner Decisions D-A and D-B, and updated the now-resolved conditional language in Consequences, Impact on Dependent Components, and Implementation Notes. D-A internal-only differs from the adr-review recommendation (customer-facing); the owner ruled under User Sovereignty on a branch Decision 2 already blessed as ADR-084 rule-4 compliant.",
+      "files": [
+        ".agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md"
+      ]
+    },
+    {
+      "action": "Relocated the ADR-085 debate log from .agents/critique/ to the conventional .agents/analysis/ path (ADR-080, ADR-081, ADR-082 debate logs all live there; the adr-review guard globs .agents/analysis/*debate*.md).",
+      "files": [
+        ".agents/analysis/ADR-085-permission-surface-debate.md"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push the branch and open a PR (Refs #3217, #3218, #3197); byte-check the body for 0 U+2014/U+2013 dashes; put file paths under a ## References H2 for the Validate PR gate.",
+    "Babysit Copilot review rounds until a push yields 0 new threads, then self-merge once checks pass.",
+    "After merge, implement #3217 D-A internal-only relocation of skill_first_guard and rescope #3218 as follow-up work."
+  ]
+}
