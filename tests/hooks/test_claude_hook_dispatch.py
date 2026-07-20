@@ -502,7 +502,7 @@ def test_runtime_contract_branch_mismatch_blocks_via_push_group(tmp_path):
     sessions_dir.mkdir(parents=True)
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     (sessions_dir / f"{today}-session-01.json").write_text(
-        json.dumps({"branch": "feature/mismatch"}), encoding="utf-8"
+        json.dumps({"session": {"branch": "feature/mismatch"}}), encoding="utf-8"
     )
     payload = json.dumps(
         {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}}

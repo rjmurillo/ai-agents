@@ -286,7 +286,7 @@ class TestDispatcherArtifacts:
         sessions_dir.mkdir(parents=True)
         today = datetime.now(UTC).strftime("%Y-%m-%d")
         (sessions_dir / f"{today}-session-01.json").write_text(
-            json.dumps({"branch": "feature/mismatch"}), encoding="utf-8"
+            json.dumps({"session": {"branch": "feature/mismatch"}}), encoding="utf-8"
         )
         proc = _run_entry(
             _GATING,
