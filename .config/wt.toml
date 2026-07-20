@@ -2,12 +2,12 @@
 # Documentation: https://worktrunk.dev/hook/
 
 [post-create]
-# Install Lefthook shims after the project environment is available
-configure-hooks = "uv run --frozen --extra dev lefthook install \"--reset-hooks-path\""
-
 # Copy gitignored files from main worktree to eliminate cold starts
 # Files listed in .worktreeinclude (node_modules, .cache, etc.)
 copy = "wt step copy-ignored"
+
+# Install Lefthook shims after the project environment is available
+configure-hooks = "uv run --frozen --extra dev lefthook install \"--reset-hooks-path\""
 
 [pre-merge]
 # Run markdown linting before merge to catch documentation issues
