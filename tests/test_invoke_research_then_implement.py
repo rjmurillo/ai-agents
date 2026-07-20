@@ -100,9 +100,9 @@ class TestBuildResearchGuidance:
 
     def test_includes_action_steps(self) -> None:
         msg = build_research_guidance(["architectural change"])
-        assert "Search Serena memories" in msg
-        assert "constraints" in msg
-        assert "plan or spec" in msg
+        assert "Layer 1" in msg
+        assert "reuse" in msg
+        assert "first principles" in msg
 
 
 class TestExtractPrompt:
@@ -166,7 +166,7 @@ class TestMain:
             result = main()
             assert result == 0
             output = mock_stdout.getvalue()
-            assert "Research-then-Implement advisory" in output
+            assert "Search-Before-Building advisory" in output
             assert "new subsystem" in output
 
     def test_no_output_for_simple_prompt(self) -> None:
@@ -204,4 +204,4 @@ class TestMain:
         ):
             result = main()
             assert result == 0
-            assert "Research-then-Implement advisory" in mock_stdout.getvalue()
+            assert "Search-Before-Building advisory" in mock_stdout.getvalue()

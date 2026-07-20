@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-07-20-session-3246-hook-exit-code-governance-apply-adr-review",
+  "session": "2026-07-20-session-3246-hook-exit-code-governance-apply-adr-review",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Hook exit-code governance: apply 6 adr-review edits to ADR-066 and flip to accepted, realign ADR-035 hook section on accepted ADR-071/008/066/084 stack, rewrite research_then_implement search-before-building, prune dead codeql_quick_scan. adr-review run this session via Task subagent_type=architect debate on ADR-035 and ADR-066.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c0e613c056591eccc9cf8356bf04049b33b8cbb2",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
