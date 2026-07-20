@@ -358,7 +358,7 @@
       "type": "test",
       "content": "Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
       "caused_by": [
-        "e038"
+        "e050"
       ],
       "leads_to": [
         "e001"
@@ -457,7 +457,7 @@
         "e037"
       ],
       "leads_to": [
-        "e030"
+        "e048"
       ]
     },
     {
@@ -540,7 +540,67 @@
       "caused_by": [
         "e044"
       ],
+      "leads_to": [
+        "e046"
+      ]
+    },
+    {
+      "id": "e046",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed the final timeout and governance hardening",
+      "caused_by": [
+        "e045"
+      ],
+      "leads_to": [
+        "e047"
+      ]
+    },
+    {
+      "id": "e047",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the final Lefthook pre-push gate",
+      "caused_by": [
+        "e046"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e048",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f6a65861cb6f359d7764f878b3922bba5e9a2079",
+      "caused_by": [
+        "e038"
+      ],
+      "leads_to": [
+        "e049"
+      ]
+    },
+    {
+      "id": "e049",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d5ab4d93a1",
+      "caused_by": [
+        "e048"
+      ],
+      "leads_to": [
+        "e050"
+      ]
+    },
+    {
+      "id": "e050",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f6a65861cb",
+      "caused_by": [
+        "e049"
+      ],
+      "leads_to": [
+        "e030"
+      ]
     }
   ],
   "metrics": {
@@ -548,7 +608,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 19,
+    "commits": 22,
     "files_changed": 27
   },
   "lessons": []

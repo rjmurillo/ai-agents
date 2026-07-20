@@ -13863,6 +13863,51 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T19:42:19.552774+00:00"
+    },
+    {
+      "id": "ed46b85d0f5a",
+      "type": "milestone",
+      "label": "milestone: Committed the final timeout and governance hardening",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:50:14.907706+00:00"
+    },
+    {
+      "id": "b687f5adc32e",
+      "type": "milestone",
+      "label": "milestone: Ran the final Lefthook pre-push gate",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:50:14.907765+00:00"
+    },
+    {
+      "id": "89293e0a1542",
+      "type": "commit",
+      "label": "commit: Commit: f6a65861cb6f359d7764f878b3922bba5e9a2079",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:50:14.907815+00:00"
+    },
+    {
+      "id": "6f36b48ff2c1",
+      "type": "commit",
+      "label": "commit: Commit: d5ab4d93a1",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:50:14.907864+00:00"
+    },
+    {
+      "id": "bcab4e276d8b",
+      "type": "commit",
+      "label": "commit: Commit: f6a65861cb",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:50:14.907913+00:00"
     }
   ],
   "patterns": [

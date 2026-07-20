@@ -74,42 +74,53 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All session-start and session-end MUST items completed"
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md remained unchanged"
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Wrote Serena memories semgrep-powershell-parser-errors and decision-lefthook-no-finally-cleanup"
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ran markdownlint-cli2 on the changed Serena memory; repository configuration excludes .serena paths and reported 0 files"
+        "Evidence": "1 files linted"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed all scoped late-review fixes through 226b6c2f0a; pre-existing unrelated user files remain untouched"
+        "Evidence": "Committed all scoped migration and governance changes through f6a65861cb; pre-existing unrelated user files remain untouched"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final pre-push passed 14,314 tests, 22 skipped, and 45 xfailed; focused Lefthook tests passed 10 tests; Ruff, mypy, generation, install parity, semantic drift, manifest parity, and plugin version gates passed"
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Three late Copilot threads are fixed in 9e83c42659, ac736f3d98, and 226b6c2f0a; replies and resolutions follow the final push"
+        "Evidence": "ADR-086 reached 6 of 6 approval; the three remaining PR threads have fixes committed and await replies after the final push"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: .agents/memory/causality/causal-graph.json edited 20 times",
+          "rework-warning: tests/test_lefthook_integration.py edited 15 times",
+          "rework-warning: scripts/validation/git_hook_policy.py edited 12 times",
+          "rework-warning: .claude/.claude-plugin/plugin.json edited 9 times",
+          "rework-warning: src/copilot-cli/.claude-plugin/plugin.json edited 9 times",
+          "rework-warning: .claude/hooks/PreToolUse/invoke_security_commit_gate.py edited 7 times",
+          "rework-warning: lefthook.yml edited 6 times"
+        ]
       }
     }
   },
@@ -238,11 +249,22 @@
       "timestamp": "2026-07-20T19:44:00Z",
       "action": "Aligned vendored-hook and permission-surface records",
       "evidence": "ADR-084 and ADR-085 now preserve harness boundaries while recognizing Lefthook as the local Git hook framework"
+    },
+    {
+      "timestamp": "2026-07-20T19:54:00Z",
+      "action": "Committed the final timeout and governance hardening",
+      "evidence": "Nine atomic commits from d5ab4d93a1 through f6a65861cb contain the runtime, test, contributor, ADR, and debate-log changes"
+    },
+    {
+      "timestamp": "2026-07-20T19:55:00Z",
+      "action": "Ran the final Lefthook pre-push gate",
+      "evidence": "The gate passed security scans, pre-PR validation, generated drift checks, CLI E2E, mypy, and 14,325 tests with 22 skipped and 45 xfailed"
     }
   ],
-  "endingCommit": "226b6c2f0a9ef824063c59bbfcb1f10770322414",
+  "endingCommit": "f6a65861cb6f359d7764f878b3922bba5e9a2079",
   "nextSteps": [
-    "Push the final commits and resolve the three late Copilot review threads",
+    "Fetch origin/main and the remote feature branch, then merge current main if it advanced",
+    "Push the final commits and resolve the three remaining PR review threads",
     "Wait for required checks, run the repository merge gate, merge PR #3259, and confirm the merged state"
   ]
 }
