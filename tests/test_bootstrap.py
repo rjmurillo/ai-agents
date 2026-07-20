@@ -231,5 +231,8 @@ def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies()
 def test_worktrunk_post_create_installs_lefthook() -> None:
     text = WORKTRUNK_CONFIG_PATH.read_text(encoding="utf-8")
 
-    assert 'configure-hooks = "uv run --frozen lefthook install --reset-hooks-path"' in text
+    assert (
+        'configure-hooks = "uv run --frozen --extra dev lefthook install '
+        '\\"--reset-hooks-path\\""' in text
+    )
     assert "core.hooksPath" not in text
