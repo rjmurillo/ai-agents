@@ -1231,12 +1231,17 @@ class TestStringDecisionPreservation:
 
 
 class TestSequentialEventLinks:
-    """Episode events form a connected causal chain, not a flat graph (#3245).
+    """Episode events form a lifecycle-ordered causal chain, not a flat graph.
 
-    ADR-038 defines ``caused_by``/``leads_to`` as first-class fields; the
-    extractor links each event to its immediate neighbors so reflexion retrieval
-    can walk the graph. Linking runs on final ids (after ``_dedupe_events``
-    reassignment) so references never dangle.
+    ADR-038 defines ``caused_by``/``leads_to`` as first-class fields (#3245); the
+    extractor links events so reflexion retrieval can walk the graph. The chain
+    follows the session lifecycle (a commit is a cause; tests, errors, and review
+    milestones are effects), not physical append order, so a commit that
+    ``json_events`` appends last is never ``caused_by`` a later milestone (#3260).
+    Linking runs on final ids (after ``_dedupe_events`` reassignment) so
+    references never dangle. Ordering keys on ``(timestamp, lifecycle rank,
+    original position)`` so genuine time order still dominates and rank only
+    breaks ties within a shared timestamp.
     """
 
     @staticmethod
@@ -1251,11 +1256,15 @@ class TestSequentialEventLinks:
         }
 
     def test_multi_event_chain(self):
+        # Physical order is milestone, test, commit; the causal chain reorders by
+        # lifecycle (commit first) without touching the physical list order.
         events = [self._evt("e001"), self._evt("e002", "test"), self._evt("e003", "commit")]
         extract_session_episode._link_sequential_events(events)
-        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == ["e002"]
-        assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == ["e003"]
-        assert events[2]["caused_by"] == ["e002"] and events[2]["leads_to"] == []
+        assert [e["id"] for e in events] == ["e001", "e002", "e003"]
+        # commit (e003) is the root cause; test (e002) then milestone (e001) follow.
+        assert events[2]["caused_by"] == [] and events[2]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e003"] and events[1]["leads_to"] == ["e001"]
+        assert events[0]["caused_by"] == ["e002"] and events[0]["leads_to"] == []
 
     def test_single_event_has_no_links(self):
         events = [self._evt("e001")]
@@ -1273,9 +1282,58 @@ class TestSequentialEventLinks:
         malformed = {"type": "milestone", "content": "no id"}
         events = [self._evt("e001"), malformed, self._evt("e002", "commit")]
         extract_session_episode._link_sequential_events(events)
-        assert events[0]["leads_to"] == ["e002"]
-        assert events[2]["caused_by"] == ["e001"]
+        # commit (e002) is the cause of milestone (e001); malformed is untouched.
+        assert events[2]["caused_by"] == [] and events[2]["leads_to"] == ["e001"]
+        assert events[0]["caused_by"] == ["e002"] and events[0]["leads_to"] == []
         assert "caused_by" not in malformed
+
+    def test_commit_is_never_caused_by_a_milestone(self):
+        # #3260 regression: json_events appends commits last, so a positional
+        # chain linked the commit as caused_by the final milestone, inverting
+        # cause and effect. The commit must be a root cause, not a milestone's
+        # effect.
+        events = [
+            self._evt("e001", "milestone", "Did work"),
+            self._evt("e002", "milestone", "Reviewed"),
+            self._evt("e003", "commit", "Commit: abc1234"),
+        ]
+        extract_session_episode._link_sequential_events(events)
+        by_id = {e["id"]: e for e in events}
+        milestone_ids = {"e001", "e002"}
+        assert not (set(by_id["e003"]["caused_by"]) & milestone_ids)
+        assert by_id["e003"]["caused_by"] == []
+
+    def test_same_rank_events_keep_original_order(self):
+        # Same lifecycle rank and timestamp must preserve append order (stable sort).
+        events = [self._evt(f"e{n:03d}") for n in range(1, 4)]  # three milestones
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == ["e003"]
+        assert events[2]["caused_by"] == ["e002"] and events[2]["leads_to"] == []
+
+    def test_unknown_type_sorts_at_default_rank(self):
+        # An unknown type ranks with tests (default), between commit and error.
+        events = [
+            self._evt("e001", "error", "boom"),
+            self._evt("e002", "mystery", "?"),
+            self._evt("e003", "commit", "Commit: abc"),
+        ]
+        extract_session_episode._link_sequential_events(events)
+        by_id = {e["id"]: e for e in events}
+        assert by_id["e003"]["caused_by"] == [] and by_id["e003"]["leads_to"] == ["e002"]
+        assert by_id["e002"]["caused_by"] == ["e003"] and by_id["e002"]["leads_to"] == ["e001"]
+        assert by_id["e001"]["caused_by"] == ["e002"] and by_id["e001"]["leads_to"] == []
+
+    def test_timestamp_dominates_lifecycle_rank(self):
+        # A commit with a later timestamp must not be reordered before an earlier
+        # milestone; lifecycle rank only breaks ties within one timestamp.
+        early = self._evt("e001", "milestone", "early")
+        late = self._evt("e002", "commit", "late")
+        late["timestamp"] = "2026-07-19T09:00:00+00:00"  # after the milestone
+        events = [early, late]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == []
 
     def test_relinking_is_idempotent(self):
         events = [self._evt("e001"), self._evt("e002", "commit")]
@@ -1300,8 +1358,8 @@ class TestSequentialEventLinks:
         return log
 
     def test_cli_generated_episode_is_linked(self, tmp_path):
-        # Acceptance (#3245): a newly generated multi-event episode populates
-        # caused_by/leads_to for non-boundary events.
+        # Acceptance (#3245 + #3260): a generated multi-event episode is a single
+        # connected chain whose root cause is the commit, not a milestone.
         out = tmp_path / "episodes"
         out.mkdir()
         log = self._write_json_log(tmp_path, ["First", "Second", "Third"])
@@ -1311,13 +1369,37 @@ class TestSequentialEventLinks:
             (out / "episode-2026-07-19-session-999.json").read_text(encoding="utf-8")
         )
         events = episode["events"]
-        assert len(events) >= 3
-        assert events[0]["caused_by"] == []
-        assert events[-1]["leads_to"] == []
-        for i in range(1, len(events)):
-            assert events[i]["caused_by"] == [events[i - 1]["id"]]
-        for i in range(len(events) - 1):
-            assert events[i]["leads_to"] == [events[i + 1]["id"]]
+        assert len(events) >= 4  # 3 milestones + 1 commit
+        by_id = {e["id"]: e for e in events}
+        ids = set(by_id)
+
+        # Exactly one root (no cause) and one tail (no effect); all links resolve.
+        roots = [e for e in events if not e["caused_by"]]
+        tails = [e for e in events if not e["leads_to"]]
+        assert len(roots) == 1 and len(tails) == 1
+        for e in events:
+            for ref in e["caused_by"] + e["leads_to"]:
+                assert ref in ids, f"dangling reference {ref}"
+
+        # #3260: the root cause is the commit and no commit is caused_by a milestone.
+        milestone_ids = {e["id"] for e in events if e["type"] == "milestone"}
+        commit_ids = {e["id"] for e in events if e["type"] == "commit"}
+        assert commit_ids, "expected at least one commit event"
+        assert roots[0]["type"] == "commit"
+        for cid in commit_ids:
+            assert not (set(by_id[cid]["caused_by"]) & milestone_ids)
+
+        # The chain is a single connected path visiting every event once.
+        walked: list[str] = []
+        seen: set[str] = set()
+        cur = roots[0]
+        while cur is not None:
+            assert cur["id"] not in seen, "cycle in causal chain"
+            seen.add(cur["id"])
+            walked.append(cur["id"])
+            nxt = cur["leads_to"]
+            cur = by_id[nxt[0]] if nxt else None
+        assert len(walked) == len(events)
 
     def test_links_reference_existing_ids_after_preserve(self, tmp_path):
         # Links must reference final ids: _dedupe_events reassigns ids on merge,
