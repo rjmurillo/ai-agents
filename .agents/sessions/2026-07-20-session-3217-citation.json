@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed on branch docs/3217-adr085-upstream-citation: the ADR-085 Finding 1 upstream citation edit and this session log. Single non-retrospective change, under the 5-file limit. endingCommit left empty here because this log ships inside the commit it describes; the PR head SHA is the record of the commit."
+        "Evidence": "Committed on branch docs/3217-adr085-upstream-citation as commit 11869274: the ADR-085 Finding 1 upstream citation edit and this session log. Single non-retrospective change, under the 5-file limit. endingCommit records 11869274 (this session's substantive commit); a small follow-up commit records this value per repo convention, matching the 2026-07-20-session-3217-ratify.json pattern."
       },
       "validationPassed": {
         "level": "MUST",
@@ -131,7 +131,7 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "11869274",
   "nextSteps": [
     "Push the branch and open a PR (Refs #3217, #3197); byte-check the body for 0 U+2014/U+2013 dashes; put file paths under a ## References H2 for the Validate PR gate.",
     "Babysit Copilot review rounds until a push yields 0 new threads, then self-merge once checks pass.",
