@@ -494,15 +494,32 @@ _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
     r"|assignee|assignees|requested_reviewers|milestone)'\)"
 )
 
+# The pull_request context is also consumed indirectly: workflows map
+# github.event.pull_request.* into step ``env:`` vars (PR_NUMBER, PR_TITLE) that
+# feed validation scripts. act leaves those vars empty on a local run, so the
+# scripts fail with their own signatures rather than the JS "Cannot read
+# properties of undefined" form above. These are the same act-only limitation,
+# event-scoped to pull_request:
+#   * PR_TITLE empty  -> parse_pr_standards.py prints "PR_TITLE environment
+#     variable is required".
+#   * PR_NUMBER empty -> pr_description.py's int("") raises "invalid literal for
+#     int() with base 10: ''".
+# Under a real pull_request run both env vars are populated, so neither signature
+# can arise in CI; downgrading them for pull_request events is safe. See #3265.
+_ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
+    r"PR_TITLE environment variable is required"
+    r"|invalid literal for int\(\) with base 10: ''"
+)
+
 # Known act-only limitation signatures. A nonzero act exit whose combined output
 # matches one of these rules can be a local environment gap, not a workflow
-# defect. The pull_request context rule is event-scoped in _act_limitation_hint;
+# defect. The pull_request context rules are event-scoped in _act_limitation_hint;
 # every other nonzero exit still blocks.
 def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     """Return the WARN hint when ``combined`` matches a known act limitation.
 
     Returns a hint for a known act-only limitation, or None when no known
-    limitation is present. The pull_request context TypeError is downgraded only
+    limitation is present. The pull_request context errors are downgraded only
     for pull_request runs. Under workflow_dispatch, the same error can be a real
     workflow defect and must remain blocking.
     """
@@ -515,6 +532,12 @@ def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
         return (
             "act does not populate the pull_request event context on a local run, so "
             "workflows reading github.event.pull_request properties fail only in local "
+            "act, not in CI."
+        )
+    if event == "pull_request" and _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN.search(combined):
+        return (
+            "act leaves env vars mapped from github.event.pull_request (PR_NUMBER, "
+            "PR_TITLE) empty on a local run, so validation scripts fail only in local "
             "act, not in CI."
         )
     return None
@@ -530,12 +553,12 @@ def _run_act_stage(
     """Run an ``act`` invocation per workflow file, with act-limitation downgrade.
 
     A nonzero exit whose output carries a known act-only limitation signature
-    (a missing .git in the container, or an unpopulated ``pull_request`` event
-    context during a pull_request run) is a local environment gap, not a
-    workflow defect: actionlint and the act dry-run already validated the
-    workflow shape. Downgrade it to a passing stage with a ``[WARN]`` detail
-    instead of a hard FAIL so the act limitation does not block an otherwise
-    valid push. Every other nonzero exit still blocks.
+    (a missing .git in the container, an unpopulated ``pull_request`` event
+    context, or an empty PR-context env var during a pull_request run) is a
+    local environment gap, not a workflow defect: actionlint and the act dry-run
+    already validated the workflow shape. Downgrade it to a passing stage with a
+    ``[WARN]`` detail instead of a hard FAIL so the act limitation does not block
+    an otherwise valid push. Every other nonzero exit still blocks.
     """
     env = _act_env(repo_root)
     warnings: list[str] = []
