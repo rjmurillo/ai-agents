@@ -506,7 +506,7 @@ the historical incident occurred. Current Git hook authority lives in
 ### Classification
 
 ```python
-task = "Historical: fix shell injection vulnerability in scripts/hooks/pre-commit"
+task = "Historical: fix shell injection vulnerability in .githooks/pre-commit"
 
 task_type = "security"  # Contains "injection", "vulnerability"
 complexity = "multi_domain"  # Infrastructure + security + code

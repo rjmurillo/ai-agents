@@ -198,7 +198,7 @@ where the historical incident occurred. Current Git hook authority lives in
 ```mermaid
 flowchart TB
     subgraph Task["TASK"]
-        TASK_DESC["Historical: fix shell injection vulnerability in scripts/hooks/pre-commit"]
+        TASK_DESC["Historical: fix shell injection vulnerability in .githooks/pre-commit"]
     end
 
     subgraph Phase1["PHASE 1: CLASSIFY"]
