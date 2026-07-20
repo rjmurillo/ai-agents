@@ -13413,6 +13413,24 @@
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T06:12:38.761515+00:00"
+    },
+    {
+      "id": "d3de9ecf9f8a",
+      "type": "milestone",
+      "label": "milestone: Rejected unsafe start and end sentinel cleanup",
+      "episodes": [
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T06:35:00.741032+00:00"
+    },
+    {
+      "id": "6374fb334c2f",
+      "type": "commit",
+      "label": "commit: Commit: 8512726a77cb634ec12606f6059672b0f76e07f7",
+      "episodes": [
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T06:35:00.741091+00:00"
     }
   ],
   "patterns": [

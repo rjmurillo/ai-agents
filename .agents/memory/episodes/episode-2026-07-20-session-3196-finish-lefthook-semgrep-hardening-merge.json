@@ -96,6 +96,30 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected unsafe start and end sentinel cleanup",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8512726a77cb634ec12606f6059672b0f76e07f7",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     }
   ],
@@ -104,7 +128,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 6
   },
   "lessons": []
