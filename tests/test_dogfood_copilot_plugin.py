@@ -285,8 +285,15 @@ def test_is_stale_false_when_versions_match(source: Path, target: Path) -> None:
     assert dogfood._is_stale(source, target) is False
 
 
-def test_is_stale_true_when_installed_trails(source: Path, target: Path) -> None:
+def test_is_stale_true_when_installed_older(source: Path, target: Path) -> None:
     _make_plugin_root(target, "0.0.1")
+    assert dogfood._is_stale(source, target) is True
+
+
+def test_is_stale_true_when_installed_newer(source: Path, target: Path) -> None:
+    # Any mismatch is stale, in either direction: a copy newer than the tree
+    # (older branch checked out) is just as wrong for dogfood fidelity.
+    _make_plugin_root(target, "99.0.0")
     assert dogfood._is_stale(source, target) is True
 
 

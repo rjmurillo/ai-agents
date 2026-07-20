@@ -463,9 +463,9 @@ else
 fi
 
 # 1c. Dogfood staleness advisory (issue #3256): warn (never block) when a
-# local Copilot dogfood install trails the working tree. A stale copy can
-# silently produce a false "works on my machine" result for the hooks and
-# permissions we ship to customers, the same silent-staleness class that
+# local Copilot dogfood install is out of sync with the working tree. A stale
+# copy can silently produce a false "works on my machine" result for the hooks
+# and permissions we ship to customers, the same silent-staleness class that
 # caused the 0.5.248 rot. Fires only for developers who opted into
 # dogfooding (an installed copy is present); the drift logic lives in the
 # Python --check mode so this hook stays free of business logic.
