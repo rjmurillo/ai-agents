@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from scripts.validation.pre_pr import (
     ValidationState,
@@ -840,6 +840,25 @@ class TestValidateLefthookInstalled:
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
             with patch("checks_plugin.shutil.which", return_value=None):
                 assert validate_lefthook_installed(tmp_path) is False
+
+    def test_uses_uv_when_lefthook_is_not_on_path(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_lefthook_installed
+
+        self._write_config(tmp_path)
+        with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
+            with patch(
+                "checks_plugin.shutil.which", side_effect=[None, "/bin/uv"]
+            ) as mock_which:
+                with patch(
+                    "checks_plugin._run_subprocess", return_value=(0, "OK", "")
+                ) as mock_run:
+                    assert validate_lefthook_installed(tmp_path) is True
+
+        assert mock_which.call_args_list == [call("lefthook"), call("uv")]
+        mock_run.assert_called_once_with(
+            ["/bin/uv", "run", "--frozen", "lefthook", "check-install"],
+            cwd=tmp_path,
+        )
 
     def test_passes_when_check_install_exits_zero(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed

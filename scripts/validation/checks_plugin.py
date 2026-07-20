@@ -124,6 +124,18 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
     ))
 
 
+def _lefthook_check_command() -> list[str] | None:
+    lefthook = shutil.which("lefthook")
+    if lefthook:
+        return [lefthook, "check-install"]
+
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "run", "--frozen", "lefthook", "check-install"]
+
+    return None
+
+
 def validate_lefthook_installed(repo_root: Path) -> bool:
     """Fail when Lefthook is unavailable, unconfigured, or not installed locally.
 
@@ -142,16 +154,17 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
         print("[ERROR] lefthook.yml is absent; installation cannot be verified.", file=sys.stderr)
         return False
 
-    lefthook = shutil.which("lefthook")
-    if not lefthook:
+    command = _lefthook_check_command()
+    if command is None:
         print(
-            "[ERROR] Lefthook is unavailable. Run: uv sync --frozen --extra dev",
+            "[ERROR] Lefthook and uv are unavailable. "
+            "Install uv, then run: uv sync --frozen --extra dev",
             file=sys.stderr,
         )
         return False
 
     exit_code, stdout, stderr = _run_subprocess(
-        [lefthook, "check-install"],
+        command,
         cwd=repo_root,
     )
     if stdout.strip():
