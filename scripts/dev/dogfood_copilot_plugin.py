@@ -185,8 +185,15 @@ def _is_stale(source: Path, target: Path) -> bool:
     not used. Only a real installed directory can be stale: a live symlink
     always tracks the working tree, and a missing target means nothing was
     dogfooded, so both are reported as not stale (no advisory warranted).
+
+    Dogfooding is opt-in (ADR-083): a directory is only considered a dogfood
+    copy when the backup marker (``.marketplace-bak``) exists, indicating the
+    user explicitly ran ``--install``. A stock marketplace install at the same
+    path (no backup) is not a dogfood copy and cannot be stale.
     """
     if target.is_symlink() or not target.is_dir():
+        return False
+    if not _backup_path(target).exists():
         return False
     return _plugin_version(target) != _plugin_version(source)
 
