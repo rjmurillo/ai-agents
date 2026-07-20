@@ -13701,6 +13701,51 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T14:00:29.279083+00:00"
+    },
+    {
+      "id": "7e659ea70bb1",
+      "type": "milestone",
+      "label": "milestone: Closed the final two Copilot review comments",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T14:23:16.719779+00:00"
+    },
+    {
+      "id": "561d0c438ae7",
+      "type": "milestone",
+      "label": "milestone: Confirmed PR 3259 is ready to merge",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T14:23:16.719842+00:00"
+    },
+    {
+      "id": "b5fac1ed120e",
+      "type": "test",
+      "label": "test: Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T14:23:16.719896+00:00"
+    },
+    {
+      "id": "7a94c5b421eb",
+      "type": "commit",
+      "label": "commit: Commit: fd5bfba041771f1656c5d4a2b69b179559ff19a4",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T14:23:16.719946+00:00"
+    },
+    {
+      "id": "05a796dc976a",
+      "type": "commit",
+      "label": "commit: Commit: fd5bfba041",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T14:23:16.720002+00:00"
     }
   ],
   "patterns": [

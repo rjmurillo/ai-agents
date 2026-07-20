@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Completed Semgrep PowerShell parser-error hardening",
       "caused_by": [
-        "e027"
+        "e030"
       ],
       "leads_to": [
         "e002"
@@ -264,7 +264,9 @@
       "caused_by": [
         "e021"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e028"
+      ]
     },
     {
       "id": "e023",
@@ -323,7 +325,65 @@
         "e026"
       ],
       "leads_to": [
+        "e031"
+      ]
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the final two Copilot review comments",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e029"
+      ]
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed PR 3259 is ready to merge",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "test",
+      "content": "Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
+      "caused_by": [
+        "e032"
+      ],
+      "leads_to": [
         "e001"
+      ]
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fd5bfba041771f1656c5d4a2b69b179559ff19a4",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e032"
+      ]
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fd5bfba041",
+      "caused_by": [
+        "e031"
+      ],
+      "leads_to": [
+        "e030"
       ]
     }
   ],
@@ -332,7 +392,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
+    "commits": 15,
     "files_changed": 27
   },
   "lessons": []
