@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3217,
+    "date": "2026-07-20",
+    "branch": "docs/3217-adr-085-permission-asymmetry",
+    "startingCommit": "b309e66f",
+    "objective": "Author ADR-085 (cross-harness permission-surface asymmetry) for issue #3217: record why migrating the two survivor guard hooks (skill_first_guard, test_auto_approval) to host-native permissions is not the clean swap #3217 assumed. Run the 6-agent adr-review and land the ADR plus debate log. Continue epic #3197."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP live this session: serena-* tools reachable (serena-find_symbol, serena-get_symbols_overview, serena-edit_memory, serena-write_memory surfaced via tool search)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena manual internalized in prior turns of this session-family; serena-* tool schemas confirmed live via tool search this turn."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only dashboard (ADR-014) during epic #3197 triage."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr-generator, adr-review, github, autoplan, security-review skills invoked this session-family."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first honored: gh issue view blocked by skill-first guard, fell back to gh api per usage-mandatory; github skill scripts used for PR ops."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md conventions applied: Python-first, atomic commits <=5 files, no dashes, ADRs stay proposed until owner ratifies."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository + user Copilot memories loaded via prompt context; Serena memory index reachable; provenance memory on session-log endingCommit applied."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current confirmed docs/3217-adr-085-permission-asymmetry before every git operation."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created feature branch off main at b309e66f; committed on docs/3217-adr-085-permission-asymmetry, never main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short inspected before staging; .agents/retrospective/* intentionally excluded from every commit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "b309e66f (branch point, merge-base with origin/main)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items complete and genuine (Serena live, files read directly, branch verified)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only, not modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "adr-review consensus and P1 resolutions recorded in .agents/critique/ADR-085-debate-log.md; Copilot repository memory carries the ADR-085 findings."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit markdownlint ran on the staged ADR and debate log (0 issues)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-085 + debate log + this session log committed atomically (3 files) on the feature branch."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "0 em/en dashes (byte-checked); check_adr_uniqueness.py PASS (next free 086); detect_adr_changes.py exit 0 HasChanges true; adr-review consensus 5 ACCEPT + 1 D&C, 0 P0, all P1 resolved."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Followed the plan: byte-check, 6-agent adr-review, resolve P1s in the ADR, write debate log, commit, open PR, surface D-A/D-B to owner."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Authored ADR-085 documenting two verified findings that falsify the #3217 clean-migration premise: Copilot has no repo-committed permission surface and skill_first_guard self-neuters in consumer repos (Finding 1); Claude permissions.allow splits on separators but not command substitution or redirects, so migrating test_auto_approval widens an auto-approve path (Finding 2, risk 7/10). Added a portability-and-fidelity eligibility test and two open owner decisions D-A and D-B.",
+      "files": [
+        ".agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md"
+      ]
+    },
+    {
+      "action": "Ran the mandated 6-agent adr-review skill (architect, critic, security, analyst, high-level-advisor, independent-thinker) as parallel subagents. Consensus 5 ACCEPT + 1 Disagree-and-Commit, 0 P0. Resolved all 11 P1 threads in the ADR (added the delete option, made the ADR-084 rule 4 tension explicit, led Finding 2 with the deny-scope argument, added risk score, staleness trigger, confirmation mechanism, and rule 3 basis). Captured the dissent and verified provenance dates via git log.",
+      "files": [
+        ".agents/critique/ADR-085-debate-log.md"
+      ]
+    }
+  ],
+  "endingCommit": "6114d7e0",
+  "nextSteps": [
+    "Push the branch and open a PR (Refs #3217, #3197); byte-check the body for 0 U+2014/U+2013 dashes; put file paths under a ## References H2 for the Validate PR gate.",
+    "Surface D-A and D-B to the owner (rjmurillo) for ratification prominently in the PR body; do NOT self-merge the ADR to accepted (owner ratifies).",
+    "Babysit Copilot review rounds until a push yields 0 new threads.",
+    "Continue epic #3197 remaining slices on a Task-capable harness where adr-review and Sol are reachable."
+  ]
+}
