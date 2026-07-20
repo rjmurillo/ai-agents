@@ -1,5 +1,5 @@
 ---
-applyTo: .agents/security/**,**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.yml,scripts/validation/git_hook_policy.py,.claude/rules/security.md
+applyTo: .agents/security/**,**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.yml,lefthook.yaml,lefthook.json,lefthook.jsonc,lefthook.toml,.lefthook.yml,.lefthook.yaml,.lefthook.json,.lefthook.jsonc,.lefthook.toml,lefthook-local.yml,lefthook-local.yaml,lefthook-local.json,lefthook-local.jsonc,lefthook-local.toml,.lefthook-local.yml,.lefthook-local.yaml,.lefthook-local.json,.lefthook-local.jsonc,.lefthook-local.toml,.config/lefthook.yml,.config/lefthook.yaml,.config/lefthook.json,.config/lefthook.jsonc,.config/lefthook.toml,.config/lefthook-local.yml,.config/lefthook-local.yaml,.config/lefthook-local.json,.config/lefthook-local.jsonc,.config/lefthook-local.toml,scripts/validation/git_hook_policy.py,.claude/rules/security.md
 ---
 
 # Security File Rules
