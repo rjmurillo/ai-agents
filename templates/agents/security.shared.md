@@ -281,7 +281,9 @@ When any changed file matches security trigger patterns, orchestrator MUST route
 # Mandatory routing for security-relevant changes
 # Trigger patterns:
 #   **/Auth/**, **/Security/**, *.env*
-#   lefthook.yml, scripts/validation/git_hook_policy.py, **/secrets/**, *password*
+#   {lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}
+#   .config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}
+#   scripts/validation/git_hook_policy.py, **/secrets/**, *password*
 #   **/token*, **/oauth/**, **/jwt/**
 
 # When security-relevant files change:
@@ -310,7 +312,7 @@ Post-implementation verification REQUIRED when implementation includes:
 | File System Operations | File upload, path traversal prevention | High |
 | Environment Variables | Secret handling, config management | Critical |
 | Execution/Eval | Dynamic code execution, shell commands | Critical |
-| Path patterns: `**/Auth/**`, `lefthook.yml`, `scripts/validation/git_hook_policy.py`, `*.env*` | Any changes to these paths | Critical |
+| Path patterns: `**/Auth/**`, `{lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}`, `.config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}`, `scripts/validation/git_hook_policy.py`, `*.env*` | Any changes to these paths | Critical |
 
 #### Post-Implementation Verification (PIV) Protocol
 
