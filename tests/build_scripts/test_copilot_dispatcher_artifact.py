@@ -30,6 +30,7 @@ _GATING = "PreToolUse"
 _OBSERVE_EVENTS = ("PostToolUse", "SessionStart", "SessionEnd", "UserPromptSubmit")
 _ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
 _DISPATCH_TEST_TIMEOUT_CAP_SEC = 60
+_DISPATCHER_TIMEOUT_HEADROOM_SEC = 5
 
 
 def _hooks() -> dict[str, list[dict[str, Any]]]:
@@ -216,7 +217,9 @@ class TestDispatcherArtifacts:
             manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
             assert manifest["shims"], f"{event}: empty manifest"
             assert set(manifest["timeouts"]) == set(manifest["shims"])
-            assert _hooks()[event][0]["timeoutSec"] == sum(manifest["timeouts"].values())
+            assert _hooks()[event][0]["timeoutSec"] == (
+                sum(manifest["timeouts"].values()) + _DISPATCHER_TIMEOUT_HEADROOM_SEC
+            )
             for shim in manifest["shims"]:
                 assert (event_dir / shim).is_file(), f"{event}: manifest shim {shim} missing"
 

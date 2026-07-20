@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -99,7 +100,7 @@ def _materialize(tmp_path: Path) -> Path:
     return cfg
 
 
-def _generate(tmp_path: Path) -> dict[str, object]:
+def _generate(tmp_path: Path) -> dict[str, Any]:
     cfg = _materialize(tmp_path)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0, "generator returned non-zero"
@@ -107,7 +108,7 @@ def _generate(tmp_path: Path) -> dict[str, object]:
     return json.loads(out.read_text(encoding="utf-8"))
 
 
-def _all_entries(doc: dict[str, object]) -> list[dict[str, str]]:
+def _all_entries(doc: dict[str, Any]) -> list[dict[str, str]]:
     hooks = doc["hooks"]
     assert isinstance(hooks, dict), "hooks must be a dict"
     entries: list[dict[str, str]] = []
