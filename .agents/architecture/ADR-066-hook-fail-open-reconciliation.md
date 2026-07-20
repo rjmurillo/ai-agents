@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "accepted"
 date: 2026-06-02
 decision-makers: [architect]
 consulted: [analyst, critic, independent-thinker, security, high-level-advisor]
@@ -10,7 +10,9 @@ informed: [implementer, qa, devops]
 
 ## Status
 
-Proposed. Requires adr-review per `AGENTS.md` ("Any `ADR-*.md` ... create/edit fires adr-review"). Refs #2205, #2230, #2263, #2271.
+Accepted (repo-owner @rjmurillo, 2026-07-19). adr-review consensus 6/6 ACCEPT_WITH_CHANGES (architect, critic, independent-thinker, security, analyst, high-level-advisor); the six bounded edits from that review are applied below. Refs #2205, #2230, #2263, #2271.
+
+**Division of authority.** [ADR-071](./ADR-071-plugin-hook-runtime-contract-verification.md) (Accepted 2026-06-02) is the binding rule that hooks MUST fail closed and loud (its Decision item 5). This ADR is the detailed reconciliation of prior guidance (ADR-008, ADR-033, ADR-035, ADR-062) to that rule: the D1 and D2 failure-mode detail, the exit-code table, and the #2205 incident rationale. Where a prior ADR still states fail-open, this ADR governs until the #2271 sweep amends it (precedence clause in D5).
 
 ## Context and Problem Statement
 
@@ -69,7 +71,7 @@ The canonical exit-code table for hooks is:
 | Exit Code | Meaning for hooks | Required behavior |
 |-----------|-------------------|-------------------|
 | 0 | Hook ran and asserted no violation | Allow action |
-| 1 | Hook logic or runtime error | Fail closed and emit actionable stderr |
+| 1 | Hook logic or runtime error | Emit actionable stderr. NOTE: on a Claude blocking event exit 1 does NOT block (the tool proceeds); a gate that must fail closed uses exit 2 (see notes) |
 | 2 | Configuration, bootstrap, or policy-gate block | Fail closed and emit actionable stderr |
 | 3 | External dependency unavailable | Fail closed and emit actionable stderr |
 | 4 | Authentication or authorization failure | Fail closed and emit actionable stderr |
@@ -79,15 +81,11 @@ Notes:
 - Exit 3 separates external dependency failures from logic errors. It does not create a fail-open lane.
 - Blocking hooks, including PreToolUse policy gates, continue to use non-zero exits to block unsafe actions.
 - Non-blocking lifecycle hook hosts that ignore non-zero exits do not change the policy. The repository still treats the hook as failed. Pre-push and CI MUST catch bad artifacts before release, and runtime-contract tests MUST prove the generated hook path is valid.
+- Which exit code BLOCKS is host-specific, so "fail closed" is not a single number. On a Claude blocking event (PreToolUse and the other blocking events) only exit 2, or a nested `hookSpecificOutput.permissionDecision:"deny"` at exit 0, blocks; exit 1 lets the tool proceed (see the ADR-035 Claude hook section). On Copilot preToolUse any non-zero exit denies. A gate that must fail closed on a blocking event therefore MUST use exit 2, never exit 1: an exit-1 "fail closed" on a Claude PreToolUse gate is the #2205 silent-disable in a new place.
 
-#### D3. ADR-062 reconciliation
+#### D3. ADR-062 reconciliation (completed)
 
-ADR-062's "universal fail-open convention" framing is wrong after this ADR. ADR-062 MUST be amended to:
-
-- Replace "the repo's universal fail-open convention" with "ADR-066's prevention-first hook policy."
-- Remove the claim that fail-closed behavior is generally a deadlock.
-- Keep any LSP recovery mechanism framed as a bounded, tested operational escape, not as launcher-level fail-open.
-- Add tests that prove the LSP hook path either enforces the invariant or fails loud.
+This is done, and went further than the original draft directed. The ADR-062 amendment (issue #3214, Accepted 2026-07-18) RETIRED the LSP-first runtime enforcement hooks entirely (the five guards), and #3232 deleted them from the vendored surface, keeping only the static steering in `.claude/rules/lsp-first.md`. So the "LSP recovery mechanism" the June draft directed to reframe as a bounded escape no longer exists; there is nothing left to fail-open or fail-closed at that layer. The surviving static steering is a class-3 advisory (see D4) and enforces nothing at runtime. ADR-084 (the vendored-hook ROI bar) records why: the family added one true positive in 6.5 weeks against a running tally of false blocks. No further ADR-062 action is required by #2271.
 
 #### D4. Graceful-degradation guidance reconciliation
 
@@ -95,19 +93,27 @@ Graceful-degradation guidance applies to user-facing integration points where a 
 
 Hook authors MUST NOT cite graceful degradation as a reason to return success after a hook launcher, bootstrap path, runtime import, or invariant check failed.
 
+**Three hook classes, three failure modes.** Fail-closed-and-loud is the default for hooks that ASSERT AN INVARIANT. It is not universal. Classify a hook before choosing its failure mode:
+
+1. **Invariant / policy gate** (blocks a specific unsafe action: a secret commit, a protected-branch push, a completion claim with no test evidence). Fail closed and loud. On a blocking event use exit 2. A silent success disables the gate (#2205).
+2. **Integration point** (a user-facing call where a reduced response is meaningful to the caller). Graceful degradation is allowed, scoped to the caller per the guidance above.
+3. **Advisory / steering / precondition hook** (injects context, nudges a preference, or checks a soft precondition, and does NOT block a specific unsafe action). Fail OPEN. A false block from an advisory hook wedges the agent loop with no safety benefit. This is the #3247 and #3232 class: the LSP runtime-enforcement family was retired (ADR-062 amendment #3214) because a false block on a core tool cost more than its one true positive in 6.5 weeks (ADR-084 ROI bar). An advisory hook that hits its own error MUST surface a loud stderr note and MUST NOT deny. Where a class-3 concern genuinely needs enforcement, move it to generation-time, pre-push, and CI, where a block cannot wedge a live loop.
+
+The failure mode follows the hook's job, not a blanket runtime default: fail closed for class 1, degrade for class 2, fail open for class 3. This resolves the apparent conflict between D1 (no silent success) and the do-not-wedge-the-loop lesson: both hold, on different hook classes.
+
 #### D5. Implementation plan for issue #2271
 
 The implementer follow-up PR for #2271 MUST update prior governance surfaces to match this ADR:
 
-| Surface | Required action |
-|---------|-----------------|
-| ADR-008 | Replace fail-open runtime hook prose with D1 and D2 policy. |
-| ADR-033 | Remove recommendations that downgrade blocking hook failures to advisory success. |
-| ADR-035 | Update hook exit-code guidance to D2 and remove fail-open semantics. |
-| ADR-062 LSP-first ADR | Reframe LSP handling per D3. |
-| ADR-070 memory-first gate ADR | Reframe fallback language as prevention and loud failure, not success-shaped degradation. |
-| Release It guidance | Scope graceful degradation away from hook invariants per D4. |
-| Memory cross-reference hooks | Remove launcher-level fail-open behavior and add fail-closed runtime-contract coverage. |
+| Surface | Required action | Status |
+|---------|-----------------|--------|
+| ADR-008 | Replace fail-open runtime hook prose with D1 and D2 policy. | DONE (amended 2026-06-11) |
+| ADR-033 | Remove recommendations that downgrade blocking hook failures to advisory success. | Pending #2271 |
+| ADR-035 | Align the hook exit-code section to D2 and the D4 three-class model (fail-closed for invariant gates, fail-open for class-3 advisory), not a blanket "remove fail-open." | In progress (this change) |
+| ADR-062 LSP-first ADR | Reframe LSP handling per D3. | DONE (amendment #3214; runtime layer retired, deleted in #3232) |
+| ADR-070 memory-first gate ADR | Reframe fallback language as prevention and loud failure, not success-shaped degradation. | Pending #2271 |
+| Release It guidance | Scope graceful degradation away from hook invariants per D4. | Pending #2271 |
+| Memory cross-reference hooks | Remove launcher-level fail-open behavior and add fail-closed runtime-contract coverage. Classify the `push_guard_base.py` telemetry fail-open and the `guards.py` consumer-repo skip as legitimate class-3 exit-0 per D4 and D6, not banned fail-open. | Pending #2271 |
 
 The follow-up PR closes #2271. This ADR does not close #2271 by itself.
 
@@ -118,17 +124,24 @@ This ADR mandates a prevention contract:
 1. `scripts/validation/validate_hook_anchoring.py` is the canonical validator for generated hook anchoring.
 2. The validator runs in pre-push and CI.
 3. Runtime-contract tests assert that generated hooks resolve their anchored target paths and fail non-zero with actionable stderr when the invariant cannot be proven.
-4. A repo-wide governance test rejects hook failure paths that contain success-shaped suppression, including:
+4. A repo-wide governance test rejects success-shaped suppression in hook failure paths. It scans by AST, scoped to failure branches (except handlers and post-invariant-check branches), for:
    - bare `try/except: pass` in a failure path,
    - `|| true` after a hook invocation,
-   - `exit 0` in a failure branch,
-   - `return 0` or `sys.exit(0)` annotated as fail-open,
+   - `exit 0` or `return 0` in a failure branch of a class-1 invariant gate (D4),
+   - a `permissionDecision: "allow"` or top-level `decision: "allow"` printed to stdout from an except handler. The exit code alone does not catch this: a hook can exit non-zero yet have already emitted an allow decision, which the host honors. The scan MUST inspect stdout decisions emitted from error paths, not exit codes alone,
    - comments that endorse hook fail-open or graceful degradation for invariant enforcement.
-5. Any exception to this policy requires a later ADR. Inline comments alone are not enough.
+5. Legitimate class-3 exit-0 (D4) is distinguished from banned fail-open by a REQUIRED structured marker, not by inference. A class-3 advisory hook, a consumer-repo skip (`guards.py` `skip_if_consumer_repo`), or a bounded telemetry fail-open (`push_guard_base.py` and the roughly ten guards behind it) that legitimately exits 0 on its own path MUST carry a machine-readable marker (for example `# fail-open: class-3 advisory, ADR-066 D4`) and appear on the governance-test allowlist. The scan treats an unmarked, unlisted exit-0-in-failure-path as banned. This keeps the legitimate guards from tripping the lint while still catching a new silent fail-open.
+6. Any exception beyond the item-5 marked-and-allowlisted class-3 case requires a later ADR. Inline comments alone are not enough.
 
 #### D7. Scope exclusion
 
 Third-party vendored code is outside this ADR unless it is wrapped by a first-party hook launcher. First-party wrappers remain governed by ADR-066.
+
+#### D8. Precedence and break-glass
+
+**Precedence.** Until the #2271 sweep lands, this ADR governs the failure-mode question wherever a prior ADR still states fail-open. A reader who finds "fail-open" prose in ADR-033, ADR-070, or the Release It guidance follows D1, D2, and D4 here instead; the stale prose is known #2271 debt, not a live contradiction. This closes the contradiction window at zero ADR-edit cost, and the sweep then removes the stale prose. ADR-071 (Accepted) remains the binding rule above this reconciliation.
+
+**Break-glass.** Fail-closed-and-loud must never leave an operator with only the banned escape (`git commit --no-verify`, which this repo forbids). Every fail-closed gate that can block a developer MUST honor an explicit, named, logged environment valve of the form `SKIP_<GATE>_GATE` (the existing pattern, for example `SKIP_LSP_GATE`). The valve is a documented, auditable escape for a false positive or a novel wedge, visible in the environment, unlike `--no-verify`. It is not a silent fail-open path. A fail-closed gate that can wedge a live loop and offers no such valve is non-conformant and MUST gain one.
 
 ### Consequences
 

@@ -1,5 +1,7 @@
 # ADR-035: Exit Code Standardization
 
+<!-- # taste-lint: ignore file-size (long-form ADR; the 500-line code-cohesion limit does not apply to prose ADRs, cf. ADR-013 at 597, ADR-022 at 604, ADR-037 at 593, all accepted over the limit) -->
+
 **Status**: Accepted
 **Date**: 2025-12-30
 **Deciders**: User, Architect Agent, ADR Review Protocol
@@ -348,102 +350,144 @@ Describe "Exit Codes" {
 
 ## Claude Code Hook Exit Codes
 
-Claude Code hooks have **predefined exit code semantics** defined by Claude Code itself. Hook scripts (`.claude/hooks/*.ps1`) are **exempt** from this ADR's standard because Claude interprets these codes specially.
+Claude Code hooks have predefined exit code semantics defined by Claude Code itself. Hook scripts under `.claude/hooks/**/*.py` (Python per ADR-042) are exempt from this ADR's POSIX exit-code table because Claude interprets these codes specially. They are NOT exempt from the blocking discipline below. A hook that blocks the wrong thing is worse than a script that returns the wrong number: it can wedge the agent loop (issue #3247).
 
 ### Hook Exit Code Reference
 
-Exit code semantics vary by hook type. Exit 2 blocks for some hook types but
-not others. The table below shows the complete categorization.
+Exit code semantics vary by hook event. Exit 2 blocks for some events and not others.
 
-**Blocking hooks** (exit 2 blocks the action):
-PreToolUse, PermissionRequest, UserPromptSubmit, Stop, SubagentStop,
-TeammateIdle, TaskCompleted
+**Blocking events** (exit 2 blocks the action): PreToolUse, PermissionRequest, UserPromptSubmit, Stop, SubagentStop.
 
-**Non-blocking hooks** (exit 2 is an error, not a block):
-PostToolUse, PostToolUseFailure, Notification, SubagentStart,
-SessionStart, SessionEnd, PreCompact
+**Non-blocking events** (exit 2 is an error, not a block): PostToolUse, PostToolUseFailure, Notification, SubagentStart, SessionStart, SessionEnd, PreCompact.
 
-| Exit Code | Blocking Hooks | Non-Blocking Hooks |
-|-----------|----------------|---------------------|
+| Exit Code | Blocking events | Non-blocking events |
+|-----------|-----------------|---------------------|
 | 0 | Allow action, stdout injected as context | Success, stdout injected as context |
-| 1 | Hook error (fail-open) | Hook error (stderr shown in verbose mode) |
-| 2 | **Block action immediately** | Error only (no blocking, stderr shown to user) |
+| 1 | Hook error; Claude lets the tool proceed | Hook error, stderr shown in verbose mode |
+| 2 | Block action immediately | Error only (no block), stderr shown, stdout context dropped |
 
-**Key constraint**: Non-blocking hooks (SessionStart, PostToolUse, etc.) MUST
-always exit 0. Exit 2 does not block these hooks. It shows stderr to the user
-as an error and prevents stdout from being injected into Claude's context,
-losing any guidance the hook intended to provide.
+This table is Claude's mechanical interpretation of the exit code. Two things layer on top:
 
-### JSON Decision Mode (Recommended for PreToolUse)
+- Policy (ADR-066, proposed) requires a hook to surface a loud stderr note on its own error rather than a silent success. On a blocking event a gate that must fail closed does so with exit 2 and stderr, not exit 1: exit 1 lets the tool proceed on Claude.
+- Copilot diverges. Its preToolUse denies on any non-zero exit (see Cross-Harness). Exit 1 as a proceed-anyway lane is a Claude-only mechanic, not a portable one.
 
-To align hook scripts with this ADR while maintaining Claude semantics, use **JSON decision mode**:
+### PreToolUse deny: nested shape at exit 0, or exit 2
 
-```powershell
-# Block action using JSON decision (ADR-035 aligned)
-$Output = @{
-    decision = "deny"
-    reason = "Validation failed: missing session log"
-}
-$Output | ConvertTo-Json -Compress
-exit 0  # Success exit code, but action blocked via JSON
+A PreToolUse hook has two ways to deny. They are mutually exclusive; pick one per hook.
+
+**Exit 0 with a nested JSON decision (Claude only):**
+
+```python
+import json, sys
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": "Blocked: no session log for this branch. Run session-init first.",
+    }
+}))
+sys.exit(0)  # the nested permissionDecision carries the block at exit 0
 ```
 
-This approach:
+Claude honors ONLY the nested form. Top-level `{"decision": "deny"}` is invalid for PreToolUse and is silently ignored: the tool proceeds. Top-level `decision` is not a PreToolUse shape. This is not theoretical: issue #2521 shipped a security gate that emitted top-level `{"decision":"deny"}` at exit 0, the harness ignored it, and the gate never blocked until it was rewritten to exit 2 (commit 3e5d8495).
 
-- Uses exit 0 (aligned with this ADR's "success" semantic)
-- Blocks the action via JSON `decision: "deny"`
-- Provides structured error messages to Claude
-- Only works for PreToolUse hooks (the only type that processes JSON decisions)
+**Exit 2 (portable, both harnesses):**
 
-### When Exit 2 Is Appropriate
+Exit 2 blocks on Claude and forces deny on Copilot. Put the reason on stderr. Claude processes hook stdout JSON only at exit 0; at exit 2 any JSON the hook prints is ignored, so the two paths do not combine. Do not emit a nested `permissionDecision` and also exit 2 expecting richer UX: at exit 2 the JSON is inert and renders nothing. Some existing gates print a top-level `{"decision":"block"}` next to their exit 2; that JSON is vestigial, and the block comes from exit 2 alone.
 
-Only use exit 2 in **blocking hooks** (PreToolUse, PermissionRequest,
-UserPromptSubmit, Stop, SubagentStop, TeammateIdle, TaskCompleted) when:
+Because the exit-0 JSON shape is harness-specific (see Cross-Harness) and neither harness accepts the other's, exit 2 is the tested, portable block. Use exit 2 for any gate that must block on both harnesses. Use the nested exit-0 form only for a Claude-only gate that wants the richer reason surfaced to the model.
 
-1. **Immediate block required** without structured message
-2. **Fallback** when JSON output fails
+### Hook Blocking Discipline (STRICT)
 
-```powershell
-# Emergency block (blocking hooks only, not ADR-035 aligned)
-Write-Error "CRITICAL: Cannot proceed"
-exit 2  # Claude blocks action
+Binding on every hook under `.claude/hooks/`. These rules override any convenience default.
+
+**Do not wedge the loop.** A hook MUST NOT block, by exit 2 or by a JSON deny, a core agentic-loop tool for an advisory concern (token efficiency, a preferred alternative, style). One false positive on a core tool halts the whole loop. Issue #3247 illustrates the class: a preToolUse deny landed on the Task tool and stalled the agent (that deny came from a harness-global default, not a repo hook, but the failure mode is the one this rule guards against). The LSP runtime-enforcement family (Read, Grep, Glob, Task guards) was retired for the same availability cost (#3232, ADR-062). The rule is strongest for the read-only navigation tools, where a block leaves the agent unable to even look; for mutation tools a narrow, certain, hard-to-reverse action may still block per the bar below.
+
+**Core tools and "broad Bash."** Core agentic-loop tools are Read, Grep, Glob, Task, Agent, Write, Edit, and broad Bash. "Broad Bash" means matching the Bash tool as a whole. Matching a specific dangerous command inside Bash (a push to `main`, a commit on a protected branch) is narrow, and a narrow match on a certain, hard-to-reverse action may block. A blocking Bash gate MUST detect that specific command in its own body and allow everything else.
+
+**Block bar.** A hook may block only when ALL hold:
+
+1. The event is a blocking event (exit 2 blocks it).
+2. The gated action is not a core navigation tool, OR the specific action is both certain and irreversible-or-high-cost-to-reverse.
+3. The prevented harm is concrete and named: a secret commit, a force-push to `main`, a push to a protected branch, a destructive irreversible operation, or another action that is hard to undo once it lands.
+
+If you cannot name the harm and show it is hard to reverse, the hook does not qualify to block. Make it advisory: exit 0 with a stderr or stdout note.
+
+| Is the harm hard to reverse AND detection certain? | Path |
+|----------------------------------------------------|------|
+| Yes | May block. Use `exit 2` with the reason on stderr (portable). |
+| No | Advisory only. Exit 0 with a stderr/stdout note. Never a deny. |
+
+**Fail-mode by hook class (ADR-071 binding; ADR-066 D4).** [ADR-071](./ADR-071-plugin-hook-runtime-contract-verification.md) (Accepted) binds the rule: hooks fail closed and loud, never silent success. [ADR-066](./ADR-066-hook-fail-open-reconciliation.md) (Accepted) D4 classifies hooks into three failure modes; apply the one that fits what the hook does, not a blanket runtime default.
+
+- **Class 1, invariant / policy gate** (denies a specific dangerous action). On its OWN internal error it MUST fail closed and loud: exit 2 with actionable stderr naming the hook, the unproven invariant, and the recovery path. This matches Copilot, whose preToolUse already denies on crash or non-zero exit. Do not swallow the error into a silent exit 0.
+- **Class 2, integration point** (a user-facing call where a reduced response is meaningful to the caller). Graceful degradation is allowed, scoped to the caller. Rare among governance hooks.
+- **Class 3, advisory / steering / precondition** (injects context, nudges a preference, checks a soft precondition; does NOT block a specific dangerous action). It MUST fail open: catch its runtime errors, exit 0, and surface the error on stderr loudly. A false block from a class-3 hook wedges the loop with no safety benefit (the #3247 and #3232 lesson). A silent `exit 0` or `except: pass` is still forbidden (ADR-066 D1); the exit 0 MUST carry the D6 class-3 marker and a loud stderr note. Wrapping `main()` covers runtime errors only: a launch-level failure (bad shebang, import error, syntax error) exits non-zero before any handler runs, and on Copilot that denies. ADR-066's prevention layer (`validate_hook_anchoring.py`, runtime-contract tests, pre-push and CI) is the control for that class, not the exit code.
+
+Do not cite ADR-066 as a blanket warrant for fail-open: fail-open is correct only for class-3 hooks, and only with the D6 marker. For class-1 gates the mandate is the opposite.
+
+**Non-blocking events cannot block, but still fail loud.** Hooks on non-blocking events (PostToolUse, PostToolUseFailure, Notification, SubagentStart, SessionStart, SessionEnd, PreCompact) cannot deny an action; exit 2 there does not block, it only shows a hook error and drops the hook's own stdout context. Choose the exit by hook class, not by the event. A class-3 advisory non-blocking hook (most of them: context injectors, nudges) fails open on its own error, exit 0 with the D6 marker and a loud stderr note, so its context path stays clean. A non-blocking hook that asserts an invariant (class-1) exits non-zero and loud on a bootstrap or config failure; the host ignores the non-zero (it cannot block), so per ADR-066 D2 the repository treats the hook as failed and relies on pre-push, CI, and runtime-contract tests to catch the broken artifact. Neither class emits a spurious exit 2 to fake a block.
+
+**Do not collide with the POSIX helper.** Inside a blocking-event hook, exit 2 means BLOCK. Do not reuse a generic `exit 2 = config error` helper there: on Claude it silently blocks the tool, and on Copilot it denies. Route a blocking hook's internal-config errors through the fail-mode rule above, not through the POSIX table.
+
+**Declare intent.** Every hook SHOULD carry a header docstring naming its event, its blocking mechanism, and the named harm that justifies any block. Conformance of exit-2 gates is verified by a test that scans exit-2 hooks for the docstring and the block bar, not by a hand-maintained list of filenames. A hook that blocks with no named hard-to-reverse harm is non-conformant; downgrade it to advisory.
+
+### Exit-2 gate criteria
+
+Exit 2 (immediate block) is permitted only when the block bar above holds: a blocking event; an action that is not a core navigation tool (or a specific action that is certain and hard-to-reverse); and a named harm that is hard to undo after it lands. The conforming gates are not enumerated here. A hand-maintained filename list goes stale on the next gate added or renamed and silently condemns every omitted exit-2 gate, of which this repo already has more than a dozen under `.claude/hooks/PreToolUse/`. Enforcement is the docstring-and-criteria scan applied to whatever exit-2 hooks exist. Issue #2521 is the record of why exit 2, not an exit-0 top-level `decision`, is the reliable block for these gates.
+
+### Hook header docstring template (Python, ADR-042)
+
+```python
+"""Claude Code PreToolUse hook: session-log gate.
+
+Event:        PreToolUse (blocking)
+Blocks tool:  Bash (git commit) only; core tools pass through untouched
+Mechanism:    exit 2 with reason on stderr (portable block). At exit 2 any
+              stdout JSON is inert, so do not also emit permissionDecision.
+Fail-mode:    blocking gate; own error fails closed and loud (exit 2 +
+              actionable stderr), per ADR-066. Not fail-open.
+Blocks to prevent: an irreversible loss of change provenance (a commit with
+              no session log)
+
+Exit codes (Claude hook semantics, exempt from the POSIX table above):
+    0  Allow, OR a nested JSON permissionDecision
+    2  Immediate block (must meet the block bar)
+"""
 ```
 
-Never use exit 2 in non-blocking hooks (SessionStart, SessionEnd, PostToolUse,
-PostToolUseFailure, Notification, SubagentStart, PreCompact). It does not block
-and causes confusing "hook error" messages while suppressing the stdout context
-injection.
+### Cross-Harness Hook Idiosyncrasies (Claude Code vs Copilot CLI)
 
-### Hook Script Documentation
+Hooks in this repo run on both Claude Code and GitHub Copilot CLI. The contracts differ enough that a hook correct on one can silently fail on the other.
 
-Hook scripts should document this exemption and the hook-type-specific behavior:
+| Axis | Claude Code | Copilot CLI |
+|------|-------------|-------------|
+| PreToolUse deny JSON | Nested: `hookSpecificOutput.permissionDecision:"deny"` | Top-level: `permissionDecision:"deny"` |
+| Accepts the other's shape? | No (top-level `decision` invalid for PreToolUse) | No (rejects nested wrapper for preToolUse) |
+| Exit 2 on PreToolUse | Blocks | Forces deny even if stdout JSON says allow |
+| PreToolUse fail mode on hook error | Fails open (tool proceeds) | Fails closed on crash/non-zero/malformed JSON (denies); open only on timeout |
+| Matcher | Always honored | Honored on 1.0.62+ (this repo pins 1.0.63, honored); older pins ignore it |
+| Event set | Aligned lifecycle events (PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, Stop, SubagentStop, PreCompact, PermissionRequest, plus postToolUseFailure and notification) | Same aligned set |
+| Cloud reach | N/A | Copilot only: default-branch `.github/hooks/*.json` also runs in Copilot's cloud agent (ADR-071) |
 
-```powershell
-<#
-.SYNOPSIS
-    Claude Code PreToolUse hook for routing gates.
+Consequences for authoring:
 
-.NOTES
-    EXIT CODES (Claude Hook Semantics - exempt from ADR-035):
-    0  - Allow action OR JSON decision (deny/allow)
-    1  - Hook error (fail-open)
-    2  - Block action (blocking hooks only)
-
-    BLOCKING HOOKS: PreToolUse, PermissionRequest, UserPromptSubmit,
-                    Stop, SubagentStop, TeammateIdle, TaskCompleted
-    NON-BLOCKING:   PostToolUse, PostToolUseFailure, Notification,
-                    SubagentStart, SessionStart, SessionEnd, PreCompact
-    Non-blocking hooks must always exit 0.
-
-    See: ADR-033 Routing-Level Enforcement Gates
-    See: https://docs.anthropic.com/en/docs/claude-code/hooks
-#>
-```
+1. **Exit 2 is the only cross-harness-portable block.** The structured-JSON deny path is harness-specific and neither harness accepts the other's shape. Block via exit 2 with the reason on stderr.
+2. **Self-gate; do not rely on the matcher for containment.** This repo routes all hooks through one consolidated dispatcher (ADR-068) that matches in-process, and per-hook `matcher` honoring is version-dependent in Copilot besides. A blocking hook MUST detect its target tool or command in its own body and allow otherwise, independent of matcher support.
+3. **Fail by hook class** (see the fail-mode rule). A crashing allow-hook wedges Copilot preToolUse; a blocking gate that crashes fails closed and loud on both harnesses.
 
 ### Cross-Reference
 
-- [ADR-033: Routing-Level Enforcement Gates](./ADR-033-routing-level-enforcement-gates.md) - Uses Claude hooks for enforcement
-- [Claude Code Hooks Documentation](https://docs.anthropic.com/en/docs/claude-code/hooks) - Official reference
+- [ADR-033: Routing-Level Enforcement Gates](./ADR-033-routing-level-enforcement-gates.md) - uses Claude hooks for enforcement
+- [ADR-062: Conditional LSP-First Navigation Enforcement](./ADR-062-conditional-lsp-first-enforcement.md) - the LSP runtime guard family retired by its amendment (#3214), deleted in #3232
+- [ADR-071: Plugin Hook Runtime-Contract Verification](./ADR-071-plugin-hook-runtime-contract-verification.md) - Accepted; the binding fail-closed-and-loud rule (Decision item 5)
+- [ADR-066: Hook Fail-Open Reconciliation](./ADR-066-hook-fail-open-reconciliation.md) - Accepted; the D4 three-class failure-mode model and the exit-code table
+- [ADR-084: Vendored-Hook ROI Bar](./ADR-084-vendored-hook-roi-bar.md) - the value-vs-cost bar a hook must clear to exist
+- [ADR-068: Consolidated Hook Dispatcher](./ADR-068-consolidated-hook-dispatcher.md) - the in-process matcher dispatch this section references
+- [Issue #3247](https://github.com/rjmurillo/ai-agents/issues/3247) - core-tool deny wedges the harness
+- [Issue #2521](https://github.com/rjmurillo/ai-agents/issues/2521) - harness ignored top-level `decision:deny` at exit 0 for a safety gate
+- [Claude Code Hooks Documentation](https://code.claude.com/docs/en/hooks) - official reference
+- [GitHub Copilot CLI Hooks Reference](https://docs.github.com/en/copilot/reference/hooks-reference) - official reference
 
 ---
 
