@@ -111,41 +111,6 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: python3 .github/scripts/parse_pr_standards.py
 
-      - name: Check Review Comment Status
-        if: steps.should-run.outputs.skip != 'true'
-        id: check-comments
-        shell: pwsh
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          Write-Host "Checking review comment status..."
-          
-          # Fetch PR review comments
-          $comments = gh api "/repos/$env:GITHUB_REPOSITORY/pulls/$env:PR_NUMBER/comments" | ConvertFrom-Json
-
-          # Count unresolved and security-related comments
-          $unresolvedCount = 0
-          $securityUnresolved = 0
-
-          foreach ($comment in $comments) {
-            # Count all unresolved comments (GitHub does not expose resolved status via API)
-            # For now, we count all comments as this is informational
-            $unresolvedCount++
-
-            # Check for security-related keywords that are not marked as "won't fix"
-            if ($comment.body -match '\b(security|vulnerability|CVE|injection|XSS)\b' -and
-                -not ($comment.body -match '\bwon''t fix\b|\bWONT_FIX\b')) {
-              $securityUnresolved++
-            }
-          }
-
-          "unresolved_count=$unresolvedCount" >> $env:GITHUB_OUTPUT
-          "security_unresolved=$securityUnresolved" >> $env:GITHUB_OUTPUT
-
-          Write-Host "Review comment status:"
-          Write-Host "  Total comments: $unresolvedCount"
-          Write-Host "  Security-related unresolved: $securityUnresolved"
-
       - name: Check QA Report Exists
         if: steps.should-run.outputs.skip != 'true'
         id: check-qa
@@ -199,8 +164,6 @@ jobs:
           BYPASS_USED: ${{ steps.validate-description.outputs.bypass_used }}
           BYPASS_LABEL: ${{ steps.validate-description.outputs.bypass_label }}
           BYPASS_COUNT: ${{ steps.validate-description.outputs.bypass_count }}
-          UNRESOLVED_COUNT: ${{ steps.check-comments.outputs.unresolved_count }}
-          SECURITY_UNRESOLVED: ${{ steps.check-comments.outputs.security_unresolved }}
           HAS_CODE_CHANGES: ${{ steps.check-qa.outputs.has_code_changes }}
           QA_EXISTS: ${{ steps.check-qa.outputs.qa_report_exists }}
           QA_REPORT: ${{ steps.check-qa.outputs.qa_report }}
@@ -341,45 +304,14 @@ jobs:
       - name: Check PR commit count
         if: steps.should-run.outputs.skip != 'true'
         id: commit-check
-        shell: pwsh
+        shell: bash
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Get commit count for this PR (see #362 for thresholds)
-          # NOTE: Pagination limited to 100 commits. PRs exceeding this are rare given 20-commit block threshold.
-          $commits = gh api "/repos/$env:GITHUB_REPOSITORY/pulls/$env:PR_NUMBER/commits?per_page=100" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to fetch commits for PR #$env:PR_NUMBER via 'gh api'. Exit code: $LASTEXITCODE"
-            exit $LASTEXITCODE
-          }
-
-          if (-not $commits) {
-            Write-Error "No commits were returned for PR #$env:PR_NUMBER. Aborting commit count check."
-            exit 1
-          }
-
-          $commitCount = $commits.Count
-
-          Write-Host "PR #$env:PR_NUMBER has $commitCount commits"
-          "commit_count=$commitCount" >> $env:GITHUB_OUTPUT
-
-          # Define thresholds per issue #362
-          $warningThreshold = 10
-          $alertThreshold = 15
-          $blockThreshold = 20
-
-          if ($commitCount -ge $blockThreshold) {
-            Write-Host "::error::PR exceeds commit limit ($commitCount >= $blockThreshold). Consider splitting this PR."
-            "status=BLOCKED" >> $env:GITHUB_OUTPUT
-          } elseif ($commitCount -ge $alertThreshold) {
-            Write-Host "::warning::PR approaching commit limit ($commitCount >= $alertThreshold). Consider shipping current changes."
-            "status=ALERT" >> $env:GITHUB_OUTPUT
-          } elseif ($commitCount -ge $warningThreshold) {
-            Write-Host "::notice::PR has many commits ($commitCount >= $warningThreshold). Consider squashing or splitting."
-            "status=WARNING" >> $env:GITHUB_OUTPUT
-          } else {
-            "status=OK" >> $env:GITHUB_OUTPUT
-          }
+        # Thin wrapper (ADR-006): classification and transient-failure handling
+        # live in the testable module. A transient GitHub API failure degrades
+        # to status=UNKNOWN and exit 0 (issue #3262); the downstream Enforce
+        # Blocking Issues step still enforces a real BLOCKED status.
+        run: python3 scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
 
       - name: Apply needs-split label
         # Fixes #2557: this step is ADVISORY and must never fail the job.
