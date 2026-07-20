@@ -335,32 +335,35 @@ def check_branch_context(repo_root: Path) -> int:
 
     Only a determinate ``current_branch != session_branch`` blocks.
     """
-    sessions_dir = repo_root / ".agents" / "sessions"
-    if not sessions_dir.is_dir():
+    try:
+        sessions_dir = repo_root / ".agents" / "sessions"
+        if not sessions_dir.is_dir():
+            return 0
+        current_branch = _current_branch(repo_root)
+        if current_branch is None:
+            return 0
+        session_log = _today_session_log(sessions_dir)
+        if session_log is None:
+            return 0
+        session_branch = _session_branch(session_log)
+        if session_branch is None:
+            return 0
+        if current_branch == session_branch:
+            return 0
+        print(
+            "ERROR: branch context mismatch: "
+            f"current='{current_branch}', session='{session_branch}' "
+            f"(log: {session_log.name})",
+            file=sys.stderr,
+        )
+        print(
+            "  Fix: switch to the expected branch, update the session log branch "
+            "field, or run /session-init for the current branch.",
+            file=sys.stderr,
+        )
+        return 1
+    except Exception:
         return 0
-    current_branch = _current_branch(repo_root)
-    if current_branch is None:
-        return 0
-    session_log = _today_session_log(sessions_dir)
-    if session_log is None:
-        return 0
-    session_branch = _session_branch(session_log)
-    if session_branch is None:
-        return 0
-    if current_branch == session_branch:
-        return 0
-    print(
-        "ERROR: branch context mismatch: "
-        f"current='{current_branch}', session='{session_branch}' "
-        f"(log: {session_log.name})",
-        file=sys.stderr,
-    )
-    print(
-        "  Fix: switch to the expected branch, update the session log branch "
-        "field, or run /session-init for the current branch.",
-        file=sys.stderr,
-    )
-    return 1
 
 
 def check_handoff(paths: Sequence[str], repo_root: Path) -> int:
