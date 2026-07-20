@@ -7,6 +7,7 @@ import runpy
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -326,6 +327,75 @@ def test_configuration_uses_named_native_jobs() -> None:
     )
 
 
+def test_configuration_bounds_every_job() -> None:
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+
+    for hook_name in ("commit-msg", "pre-commit", "pre-push"):
+        jobs = list(_flatten_jobs(config[hook_name]["jobs"]))
+        assert jobs
+        assert all(isinstance(job.get("timeout"), str) for job in jobs)
+
+    pre_push = _job_map(config, "pre-push")
+    assert pre_push["python-tests"]["timeout"] == "30m"
+    assert pre_push["workflow-local-run"]["timeout"] == "30m"
+    assert pre_push["security-scan"]["timeout"] == "15m"
+    assert pre_push["hook-anchoring-e2e"]["timeout"] == "20m"
+    assert pre_push["plugin-load-e2e"]["timeout"] == "20m"
+
+
+def _parse_lefthook_duration(value: str) -> int:
+    """Parse a Lefthook duration string (e.g. '30s', '2m', '1h') to seconds."""
+    units = {"s": 1, "m": 60, "h": 3600}
+    suffix = value[-1]
+    if suffix not in units:
+        raise ValueError(f"Unknown duration suffix in {value!r}")
+    return int(value[:-1]) * units[suffix]
+
+
+_POLICY_SUBCOMMAND_TIMEOUT: dict[str, int] = {
+    "semgrep-push": policy.SEMGREP_TIMEOUT_SECONDS,
+    "mypy": policy.MYPY_TIMEOUT_SECONDS,
+    "pytest": policy.TEST_SUITE_TIMEOUT_SECONDS,
+    "workflow-local": policy.WORKFLOW_LOCAL_TIMEOUT_SECONDS,
+    "cli-hook-e2e": policy.CLI_E2E_TIMEOUT_SECONDS,
+    "cli-plugin-e2e": policy.CLI_E2E_TIMEOUT_SECONDS,
+}
+
+_MINIMUM_MARGIN_SECONDS = 30
+
+
+def test_each_python_subprocess_budget_has_lefthook_headroom() -> None:
+    """Verify per-child configured budget headroom, not whole-command completion."""
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+    policy_script = "scripts/validation/git_hook_policy.py "
+
+    for hook_name in ("pre-commit", "pre-push"):
+        jobs = list(_flatten_jobs(config[hook_name]["jobs"]))
+        for job in jobs:
+            run_str = job.get("run", "")
+            if not isinstance(run_str, str) or policy_script not in run_str:
+                continue
+
+            job_name = job["name"]
+            job_timeout = job["timeout"]
+            assert isinstance(job_timeout, str)
+            outer_seconds = _parse_lefthook_duration(job_timeout)
+
+            # Extract the subcommand token immediately after the script path.
+            after_script = run_str.split(policy_script, 1)[1]
+            subcommand = after_script.split()[0]
+
+            inner_seconds = _POLICY_SUBCOMMAND_TIMEOUT.get(
+                subcommand, policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
+            )
+
+            margin = outer_seconds - inner_seconds
+            assert margin >= _MINIMUM_MARGIN_SECONDS, (
+                f"{job_name!r} ({hook_name}): outer={outer_seconds}s, "
+                f"inner={inner_seconds}s, margin={margin}s < {_MINIMUM_MARGIN_SECONDS}s"
+            )
+
+
 def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
     pre_commit = config["pre-commit"]
@@ -571,6 +641,7 @@ def test_configuration_and_tree_have_no_payload_scripts() -> None:
 
 def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     assert LEFTHOOK is not None
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
     version = subprocess.run(
         [LEFTHOOK, "version"],
@@ -587,9 +658,35 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
         check=False,
     )
 
+    assert config["lefthook"] == "uv run --frozen lefthook"
     assert version.stdout.splitlines()[0] == "2.1.10"
     assert validated.returncode == 0
     assert "All good" in validated.stdout
+
+
+def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    config = {
+        "pre-commit": {
+            "jobs": [
+                {
+                    "name": "hangs",
+                    "timeout": "1s",
+                    "run": f'"{sys.executable}" -c "import time; time.sleep(30)"',
+                }
+            ]
+        }
+    }
+    (repo / "lefthook.yml").write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    started = time.monotonic()
+    result = _run_lefthook(repo, "run", "pre-commit", "--force", check=False)
+    elapsed = time.monotonic() - started
+
+    assert result.returncode != 0
+    assert elapsed < 10
+    assert "timeout (1s)" in result.stdout
 
 
 def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
@@ -602,8 +699,18 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
 
     _run_lefthook(repo, "check-install")
     hooks_path = _git(repo, "config", "--get", "core.hooksPath", check=False)
+    hook_shim = (repo / ".git/hooks/pre-push").read_text(encoding="utf-8")
+    explicit_override = 'if test -n "$LEFTHOOK_BIN"'
+    configured_call = 'uv run --frozen lefthook "$@"'
+    path_fallback = "elif lefthook -h >/dev/null 2>&1"
+
     assert hooks_path.returncode == 1
     assert os.access(repo / ".git/hooks/pre-push", os.X_OK)
+    assert explicit_override in hook_shim
+    assert configured_call in hook_shim
+    assert path_fallback in hook_shim
+    assert hook_shim.index(explicit_override) < hook_shim.index(configured_call)
+    assert hook_shim.index(configured_call) < hook_shim.index(path_fallback)
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
@@ -1187,6 +1294,7 @@ def test_git_command_boundary_forces_utf8_replacement(
     ]
     assert captured["encoding"] == "utf-8"
     assert captured["errors"] == "replace"
+    assert captured["timeout"] == policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
     env = captured["env"]
     assert isinstance(env, dict)
     assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
@@ -1198,6 +1306,64 @@ def test_git_command_boundary_forces_utf8_replacement(
     assert "SEMGREP_BASELINE_COMMIT" not in env
     assert "SEMGREP_BASELINE_REF" not in env
     assert "SEMGREP_URL" not in env
+
+
+def test_command_boundary_maps_timeout_to_external_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        command = args[0]
+        timeout = kwargs["timeout"]
+        assert isinstance(command, list)
+        assert all(isinstance(part, str) for part in command)
+        assert isinstance(timeout, (int, float))
+        raise subprocess.TimeoutExpired(
+            command,
+            timeout,
+            output="partial output\n",
+            stderr="child stalled\n",
+        )
+
+    monkeypatch.setattr(policy.subprocess, "run", time_out)
+
+    result = policy._run_command(["slow-tool", "--work"], tmp_path)
+
+    assert result.returncode == 3
+    assert result.stdout == "partial output\n"
+    assert result.stderr == (
+        "child stalled\n"
+        "ERROR: slow-tool timed out after 90 seconds\n"
+    )
+
+
+def test_binary_command_boundary_maps_timeout_to_external_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        command = args[0]
+        timeout = kwargs["timeout"]
+        assert isinstance(command, list)
+        assert all(isinstance(part, str) for part in command)
+        assert isinstance(timeout, (int, float))
+        raise subprocess.TimeoutExpired(
+            command,
+            timeout,
+            output=b"partial bytes\n",
+            stderr=b"binary child stalled\n",
+        )
+
+    monkeypatch.setattr(policy.subprocess, "run", time_out)
+
+    result = policy._run_command_bytes(["slow-tool", "--bytes"], tmp_path)
+
+    assert result.returncode == 3
+    assert result.stdout == b"partial bytes\n"
+    assert result.stderr == (
+        b"binary child stalled\n"
+        b"ERROR: slow-tool timed out after 90 seconds\n"
+    )
 
 
 def test_binary_git_reads_disable_commit_graphs(
@@ -1234,14 +1400,14 @@ def test_alternate_index_controls_staged_blob_and_generated_staging(
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
+    generated = repo / ".vscode/mcp.json"
+    _commit_file(repo, ".vscode/mcp.json", "{}\n")
     alternate_index = repo / ".git/alternate-index"
     shutil.copy2(repo / ".git/index", alternate_index)
     monkeypatch.setenv("GIT_INDEX_FILE", str(alternate_index))
     (repo / "doc.md").write_text(f"bad {chr(0x2014)} text\n", encoding="utf-8")
     _git(repo, "add", "doc.md")
-    generated = repo / ".vscode/mcp.json"
-    generated.parent.mkdir(parents=True)
-    generated.write_text("{}\n", encoding="utf-8")
+    generated.unlink()
 
     assert policy.check_staged_dashes(["doc.md"], repo) == 1
     assert policy.stage_generated("mcp", repo) == 0
@@ -1372,9 +1538,9 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
 def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    (repo / ".vscode").mkdir()
+    _commit_file(repo, ".vscode/mcp.json", '{"version": 1}\n')
     (repo / ".factory").mkdir()
-    (repo / ".vscode/mcp.json").write_text("{}\n", encoding="utf-8")
+    (repo / ".vscode/mcp.json").write_text('{"version": 2}\n', encoding="utf-8")
     (repo / ".factory/mcp.json").write_text("{}\n", encoding="utf-8")
     (repo / "unrelated.txt").write_text("do not stage\n", encoding="utf-8")
 
@@ -1383,6 +1549,63 @@ def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
     staged = _git(repo, "diff", "--cached", "--name-only").stdout.splitlines()
     assert staged == [".factory/mcp.json", ".vscode/mcp.json"]
     assert _git(repo, "status", "--short", "unrelated.txt").stdout.startswith("??")
+
+
+@pytest.mark.parametrize(
+    ("kind", "generated_path"),
+    [
+        pytest.param("mcp", ".vscode/mcp.json", id="explicit-output"),
+        pytest.param(
+            "agents",
+            "src/copilot-cli/agents/removed.agent.md",
+            id="simple-glob",
+        ),
+        pytest.param(
+            "memory",
+            ".serena/memories/removed.md",
+            id="recursive-glob-root",
+        ),
+        pytest.param(
+            "memory",
+            ".serena/memories/nested/removed.md",
+            id="recursive-glob-nested",
+        ),
+    ],
+)
+def test_stage_generated_stages_only_allowlisted_tracked_deletion(
+    tmp_path: Path,
+    kind: str,
+    generated_path: str,
+) -> None:
+    repo = tmp_path / "repo"
+    unrelated_path = "unrelated.txt"
+    _init_repo(repo)
+    generated = repo / generated_path
+    generated.parent.mkdir(parents=True, exist_ok=True)
+    generated.write_text("generated\n", encoding="utf-8")
+    (repo / unrelated_path).write_text("unrelated\n", encoding="utf-8")
+    _git(repo, "add", "--", generated_path, unrelated_path)
+    _git(repo, "commit", "-qm", "test: add generated and unrelated files")
+    generated.unlink()
+    (repo / unrelated_path).unlink()
+
+    assert policy.stage_generated(kind, repo) == 0
+
+    staged_deletions = _git(
+        repo,
+        "diff",
+        "--cached",
+        "--name-only",
+        "--diff-filter=D",
+    ).stdout.splitlines()
+    unstaged_deletions = _git(
+        repo,
+        "diff",
+        "--name-only",
+        "--diff-filter=D",
+    ).stdout.splitlines()
+    assert staged_deletions == [generated_path]
+    assert unstaged_deletions == [unrelated_path]
 
 
 def test_generated_staging_rejects_symlinked_ancestor(
@@ -3302,20 +3525,71 @@ def test_generated_staging_handles_absent_outside_and_git_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    missing = tmp_path / "missing"
-    monkeypatch.setattr(policy, "_generated_candidates", lambda *_args: [missing])
-    assert policy.stage_generated("mcp", tmp_path) == 0
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "tracked\n")
+    assert policy.stage_generated("mcp", repo) == 0
 
-    outside = tmp_path.parent / f"{tmp_path.name}-outside-file"
+    outside = tmp_path / "outside-file"
     outside.write_text("content\n", encoding="utf-8")
     monkeypatch.setattr(policy, "_generated_candidates", lambda *_args: [outside])
-    assert policy.stage_generated("mcp", tmp_path) == 2
+    assert policy.stage_generated("mcp", repo) == 2
 
-    inside = tmp_path / "inside"
+    inside = repo / "inside"
     inside.write_text("content\n", encoding="utf-8")
     monkeypatch.setattr(policy, "_generated_candidates", lambda *_args: [inside])
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1, stderr="failed\n"))
-    assert policy.stage_generated("mcp", tmp_path) == 1
+    assert policy.stage_generated("mcp", repo) == 1
+
+
+def test_stage_generated_maps_deletion_query_failure_to_configuration_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    failed_query = subprocess.CompletedProcess(
+        [],
+        1,
+        b"query output\n",
+        b"query failed\n",
+    )
+    captured_args: list[str] = []
+
+    def fail_query(_repo_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
+        captured_args.extend(args)
+        return failed_query
+
+    monkeypatch.setattr(policy, "_run_git_bytes", fail_query)
+
+    assert policy.stage_generated("mcp", tmp_path) == 2
+
+    output = capsys.readouterr()
+    assert captured_args == ["diff", "--name-only", "--diff-filter=D", "-z", "--"]
+    assert output.out == "query output\n"
+    assert output.err == "query failed\n"
+
+
+def test_stage_generated_rejects_unsafe_tracked_deletion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    reported_deletions = subprocess.CompletedProcess(
+        [],
+        0,
+        b".vscode/mcp.json\0../escape\0",
+        b"",
+    )
+    monkeypatch.setattr(policy, "_run_git_bytes", lambda *_args: reported_deletions)
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: pytest.fail("unsafe deletion reached git add"),
+    )
+
+    assert policy.stage_generated("mcp", tmp_path) == 2
+
+    assert capsys.readouterr().err == "ERROR: unsafe tracked deletion path: ../escape\n"
 
 
 def test_episode_output_parser_rejects_invalid_shapes() -> None:
@@ -3642,6 +3916,7 @@ def test_pytest_policy_cleans_hook_environment(
     env = captured["env"]
     assert isinstance(env, dict)
     assert env["CLAUDE_PLUGIN_ROOT"] == str(tmp_path / "src/copilot-cli")
+    assert captured["timeout"] == policy.TEST_SUITE_TIMEOUT_SECONDS
     for key in (
         "CLAUDE_PROJECT_DIR",
         "COPILOT_PLUGIN_ROOT",
@@ -3833,6 +4108,7 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     env = captured["env"]
     assert isinstance(env, dict)
     assert env["RUN_CLI_E2E"] == "1"
+    assert captured["timeout"] == policy.CLI_E2E_TIMEOUT_SECONDS
     assert "CLAUDE_PROJECT_DIR" not in env
     assert "COPILOT_PLUGIN_ROOT" not in env
 
@@ -3963,6 +4239,11 @@ def test_stage_generated_rejects_path_that_changes_after_preflight(
     candidate.parent.mkdir(parents=True)
     candidate.write_text("{}\n", encoding="utf-8")
     monkeypatch.setattr(policy, "check_generated_paths", lambda *_args: 0)
+    monkeypatch.setattr(
+        policy,
+        "_run_git_bytes",
+        lambda *_args: subprocess.CompletedProcess([], 0, b"", b""),
+    )
     monkeypatch.setattr(policy, "_safe_output_path", lambda *_args: None)
 
     assert policy.stage_generated("mcp", tmp_path) == 2

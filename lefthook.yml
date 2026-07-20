@@ -1,24 +1,29 @@
 min_version: 2.1.10
+lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
 
 commit-msg:
   jobs:
     - name: commit-message-policy
+      timeout: 30s
       run: uv run --frozen python scripts/validation/git_hook_policy.py commit-message "{1}"
 
 pre-commit:
   piped: true
   jobs:
     - name: repair-packed-refs
+      timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - name: branch-policy
+      timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch
 
     - group:
         piped: true
         jobs:
           - name: markdown-autofix
+            timeout: 5m
             run: npx markdownlint-cli2 --fix --no-globs -- {staged_files}
             glob: "**/*.md"
             stage_fixed: true
@@ -27,6 +32,7 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
           - name: markdown-check
+            timeout: 5m
             run: npx markdownlint-cli2 --no-globs -- {staged_files}
             glob: "**/*.md"
             skip:
@@ -36,16 +42,19 @@ pre-commit:
         parallel: true
         jobs:
           - name: handoff-protection
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py handoff {staged_files}
             glob: ".agents/HANDOFF.md"
 
           - name: session-policy
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py session {staged_files}
             glob: ".agents/**"
             skip:
               - merge
 
           - name: staged-dash-policy
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py staged-dashes {staged_files}
             glob: "**/*.md"
             exclude:
@@ -57,12 +66,14 @@ pre-commit:
               - merge
 
           - name: action-pin-policy
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py staged-action-pins {staged_files}
             glob:
               - ".github/workflows/*.{yml,yaml}"
               - ".github/actions/**/*.{yml,yaml}"
 
           - name: python-autofix
+            timeout: 5m
             run: uv run --frozen --extra dev ruff check --fix --exit-zero -- {staged_files}
             glob: "**/*.py"
             stage_fixed: true
@@ -71,16 +82,19 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
           - name: python-check
+            timeout: 5m
             run: uv run --frozen --extra dev ruff check --exit-zero -- {staged_files}
             glob: "**/*.py"
 
           - name: workflow-validation
+            timeout: 5m
             run: uv run --frozen python scripts/validate_workflows.py {staged_files}
             glob:
               - ".github/workflows/*.{yml,yaml}"
               - ".github/actions/**/*.{yml,yaml}"
 
           - name: actionlint
+            timeout: 5m
             run: actionlint {staged_files}
             glob: ".github/workflows/**/*.{yml,yaml}"
             skip:
@@ -89,10 +103,12 @@ pre-commit:
                   ! command -v actionlint >/dev/null 2>&1
 
           - name: yaml-advisory
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py yamllint {staged_files}
             glob: "**/*.{yml,yaml}"
 
           - name: skillforge
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py skillforge {staged_files}
             glob: "**/SKILL.md"
             exclude:
@@ -100,14 +116,17 @@ pre-commit:
               - "src/copilot-cli/skills/{spec,plan,build,test,ship,checkpoint,pr-review,retro,sync}/SKILL.md"
 
           - name: skill-size
+            timeout: 5m
             run: uv run --frozen python scripts/validation/skill_size.py --staged-only --ci
             glob: "**/SKILL.md"
 
           - name: planning-advisory
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py planning
             glob: ".agents/planning/**/*.md"
 
           - name: infrastructure-advisory
+            timeout: 5m
             run: >-
               uv run --frozen python
               .claude/skills/security-detection/detect_infrastructure.py
@@ -115,10 +134,12 @@ pre-commit:
             glob: "**/*"
 
           - name: adr-change-advisory
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py adr-reminder
             glob: ".agents/architecture/ADR-*.md"
 
           - name: taste-advisory
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py taste {staged_files}
             glob: "**/*.{py,ps1,psm1,sh,bash,yml,yaml,md,json}"
 
@@ -126,6 +147,7 @@ pre-commit:
         piped: true
         jobs:
           - name: generate-mcp-config
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py generate-mcp
             glob: ".mcp.json"
             skip:
@@ -133,6 +155,7 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
           - name: stage-mcp-config
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated mcp
             glob: ".mcp.json"
             skip:
@@ -143,6 +166,7 @@ pre-commit:
         piped: true
         jobs:
           - name: generate-agents
+            timeout: 10m
             run: uv run --frozen python scripts/validation/git_hook_policy.py generate-agents
             glob:
               - "templates/agents/*.shared.md"
@@ -152,6 +176,7 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
           - name: generate-agent-catalog
+            timeout: 10m
             run: uv run --frozen python build/generate_agent_catalog.py
             glob:
               - "templates/agents/*.shared.md"
@@ -161,6 +186,7 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
           - name: stage-generated-agents
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated agents
             glob:
               - "templates/agents/*.shared.md"
@@ -173,6 +199,7 @@ pre-commit:
         piped: true
         jobs:
           - name: memory-token-update
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py memory-token-update
             glob: ".serena/memories/**/*.md"
             skip:
@@ -180,6 +207,7 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
           - name: stage-memory-index
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated memory-index
             glob: ".serena/memories/**/*.md"
             skip:
@@ -190,14 +218,17 @@ pre-commit:
         parallel: true
         jobs:
           - name: memory-size
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py memory-size
             glob: ".serena/memories/**/*.md"
 
           - name: memory-index
+            timeout: 5m
             run: uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci
             glob: ".serena/memories/**/*.md"
 
           - name: memory-tier
+            timeout: 5m
             run: uv run --frozen python scripts/validate_memory_tier.py --path .serena/memories
             glob: ".serena/memories/**/*.md"
 
@@ -205,6 +236,7 @@ pre-commit:
         piped: true
         jobs:
           - name: memory-cross-reference
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py memory-cross-reference {staged_files}
             glob: ".serena/memories/**/*.md"
             skip:
@@ -212,6 +244,7 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
           - name: stage-memory-cross-references
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated memory
             glob: ".serena/memories/**/*.md"
             skip:
@@ -219,16 +252,19 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
     - name: memory-skill-format
+      timeout: 5m
       run: uv run --frozen python scripts/validate_skill_format.py --staged-only --ci
       glob: ".serena/memories/**/*.md"
 
     - name: memory-sync-advisory
+      timeout: 5m
       run: uv run --frozen python scripts/validation/git_hook_policy.py memory-sync
       glob: ".serena/memories/**/*.md"
       skip:
         - merge
 
     - name: extract-session-episodes
+      timeout: 10m
       run: uv run --frozen python scripts/validation/git_hook_policy.py extract-episodes {staged_files}
       glob: ".agents/sessions/*.json"
       skip:
@@ -236,40 +272,48 @@ pre-commit:
         - run: test "$SKIP_AUTOFIX" = "1"
 
     - name: update-causal-graph
+      timeout: 10m
       run: uv run --frozen python scripts/validation/git_hook_policy.py update-causal-graph
       skip:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"
 
     - name: github-bash-policy
+      timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py github-bash {staged_files}
       glob: ".github/scripts/**"
 
     - name: scope-policy
+      timeout: 5m
       run: uv run --frozen python scripts/detect_scope_explosion.py
 
 pre-push:
   piped: true
   jobs:
     - name: repair-packed-refs
+      timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - group:
         piped: true
         jobs:
           - name: push-ref-policy
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
             use_stdin: true
 
           - name: security-scan
+            timeout: 15m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py semgrep-push
             use_stdin: true
 
           - name: security-suppression-policy
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-push
             use_stdin: true
 
           - name: placeholder-identity
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
@@ -277,18 +321,22 @@ pre-push:
         parallel: true
         jobs:
           - name: pre-pr-validation
+            timeout: 15m
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
 
           - name: python-tests
+            timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
 
           - name: python-lint-advisory
+            timeout: 10m
             run: uv run --frozen --extra dev ruff check --exit-zero -- {push_files}
             glob: "**/*.py"
 
           - name: python-type-check
+            timeout: 15m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
             glob: "**/*.py"
             exclude:
@@ -298,14 +346,17 @@ pre-push:
               - "src/copilot-cli/skills/**"
 
           - name: infrastructure-advisory
+            timeout: 5m
             run: uv run --frozen python .claude/skills/security-detection/detect_infrastructure.py --files {push_files}
             glob: "**/*"
 
           - name: workflow-local-run
+            timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py workflow-local {push_files}
             glob: ".github/workflows/**/*.{yml,yaml}"
 
           - name: path-normalization
+            timeout: 5m
             run: >-
               uv run --frozen python
               build/scripts/validate_path_normalization.py
@@ -313,6 +364,7 @@ pre-push:
             glob: "**/*.md"
 
           - name: planning-artifacts
+            timeout: 5m
             run: >-
               uv run --frozen python
               build/scripts/validate_planning_artifacts.py
@@ -320,15 +372,19 @@ pre-push:
             glob: ".agents/planning/**/*.md"
 
           - name: build-all-check
+            timeout: 15m
             run: uv run --frozen python build/scripts/build_all.py --check
 
           - name: branch-scope
+            timeout: 5m
             run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
 
           - name: additions-advisory
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py additions
 
           - name: hook-anchoring-e2e
+            timeout: 20m
             run: uv run --frozen python scripts/validation/git_hook_policy.py cli-hook-e2e
             glob:
               - "build/scripts/generate_hooks.py"
@@ -340,6 +396,7 @@ pre-push:
               - "tests/e2e/copilot_hook_probe.py"
 
           - name: plugin-load-e2e
+            timeout: 20m
             run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e
             glob:
               - ".claude/.claude-plugin/plugin.json"
@@ -355,15 +412,19 @@ pre-push:
               - ".github/workflows/nightly-cli-smoke.yml"
 
           - name: review-axis-drift
+            timeout: 5m
             run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
 
           - name: session-json-validation
+            timeout: 10m
             run: uv run --frozen python scripts/validation/git_hook_policy.py sessions {push_files}
             glob: ".agents/sessions/**/*.json"
 
           - name: observation-sync-advisory
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py observations {push_files}
             glob: ".serena/memories/**/*-observations.md"
 
           - name: bot-cascade-advisory
+            timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade

@@ -15,6 +15,7 @@ import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from fnmatch import fnmatch
 from pathlib import Path, PurePosixPath
 from typing import TextIO, cast
 
@@ -52,6 +53,13 @@ SEMGREP_TRUNCATION_RE = re.compile(r"\.\.\. \(truncated \d+ more characters\)$")
 SEMGREP_MIN_TRUNCATED_SNIPPET_LENGTH = 80
 SEMGREP_BATCH_TARGET_LIMIT = 100
 SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
+# Lefthook owns the outer deadline; these child-process budgets must finish first.
+DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
+SEMGREP_TIMEOUT_SECONDS = 840
+MYPY_TIMEOUT_SECONDS = 840
+WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
+TEST_SUITE_TIMEOUT_SECONDS = 1_740
+CLI_E2E_TIMEOUT_SECONDS = 1_140
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
@@ -143,33 +151,88 @@ def _run_command(
     *,
     input_text: str | None = None,
     extra_env: Mapping[str, str] | None = None,
+    process_env: Mapping[str, str] | None = None,
+    timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
-    env = _clean_git_env()
+    env = dict(process_env) if process_env is not None else _clean_git_env()
     if extra_env is not None:
         env.update(extra_env)
-    return subprocess.run(
-        list(args),
-        cwd=repo_root,
-        env=env,
-        input=input_text,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        check=False,
-    )
+    command = list(args)
+    try:
+        return subprocess.run(
+            command,
+            cwd=repo_root,
+            env=env,
+            input=input_text,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        stdout = _timeout_text(error.stdout)
+        stderr = _append_timeout_message(
+            _timeout_text(error.stderr),
+            _timeout_message(command, timeout_seconds),
+        )
+        return subprocess.CompletedProcess(command, 3, stdout, stderr)
 
 
 def _run_command_bytes(
     args: Sequence[str],
     repo_root: Path,
+    *,
+    timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
-        list(args),
-        cwd=repo_root,
-        env=_clean_git_env(),
-        capture_output=True,
-        check=False,
-    )
+    command = list(args)
+    try:
+        return subprocess.run(
+            command,
+            cwd=repo_root,
+            env=_clean_git_env(),
+            capture_output=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        stdout = _timeout_bytes(error.stdout)
+        stderr = _append_timeout_bytes(
+            _timeout_bytes(error.stderr),
+            _timeout_message(command, timeout_seconds).encode(),
+        )
+        return subprocess.CompletedProcess(command, 3, stdout, stderr)
+
+
+def _timeout_text(value: bytes | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _timeout_bytes(value: bytes | str | None) -> bytes:
+    if value is None:
+        return b""
+    if isinstance(value, str):
+        return value.encode()
+    return value
+
+
+def _timeout_message(args: Sequence[str], timeout_seconds: float) -> str:
+    executable = Path(args[0]).name if args else "subprocess"
+    return f"ERROR: {executable} timed out after {timeout_seconds:g} seconds\n"
+
+
+def _append_timeout_message(stderr: str, message: str) -> str:
+    separator = "" if not stderr or stderr.endswith("\n") else "\n"
+    return f"{stderr}{separator}{message}"
+
+
+def _append_timeout_bytes(stderr: bytes, message: bytes) -> bytes:
+    separator = b"" if not stderr or stderr.endswith(b"\n") else b"\n"
+    return stderr + separator + message
 
 
 def _run_git(
@@ -430,14 +493,78 @@ def _generated_candidates(kind: str, repo_root: Path) -> list[Path]:
     return sorted(set(candidates))
 
 
+def _matches_generated_glob(relative_path: str, pattern: str) -> bool:
+    path_parts = PurePosixPath(relative_path).parts
+    pattern_parts = PurePosixPath(pattern).parts
+    matches = [True]
+    for pattern_part in pattern_parts:
+        matches.append(matches[-1] and pattern_part == "**")
+    for path_part in path_parts:
+        next_matches = [False]
+        for index, pattern_part in enumerate(pattern_parts, start=1):
+            if pattern_part == "**":
+                next_matches.append(next_matches[index - 1] or matches[index])
+                continue
+            next_matches.append(matches[index - 1] and fnmatch(path_part, pattern_part))
+        matches = next_matches
+    return matches[-1]
+
+
+def _is_allowlisted_generated_path(kind: str, relative_path: str) -> bool:
+    if relative_path in GENERATED_PATHS.get(kind, ()):
+        return True
+    return any(
+        _matches_generated_glob(relative_path, pattern) for pattern in GENERATED_GLOBS.get(kind, ())
+    )
+
+
+def _deleted_generated_candidates(kind: str, repo_root: Path) -> list[Path] | None:
+    result = _run_git_bytes(
+        repo_root,
+        ["diff", "--name-only", "--diff-filter=D", "-z", "--"],
+    )
+    if result.returncode != 0:
+        if result.stdout:
+            print(result.stdout.decode("utf-8", errors="replace"), end="")
+        if result.stderr:
+            print(
+                result.stderr.decode("utf-8", errors="replace"),
+                end="",
+                file=sys.stderr,
+            )
+        return None
+
+    candidates: list[Path] = []
+    for raw_path in result.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        relative_path = os.fsdecode(raw_path)
+        safe_path = _safe_relative_path(relative_path)
+        candidate = _safe_output_path(repo_root, relative_path)
+        if safe_path is None or candidate is None:
+            print(
+                f"ERROR: unsafe tracked deletion path: {relative_path}",
+                file=sys.stderr,
+            )
+            return None
+        if _is_allowlisted_generated_path(kind, safe_path):
+            candidates.append(candidate)
+    return candidates
+
+
 def stage_generated(kind: str, repo_root: Path) -> int:
     safety_result = check_generated_paths(kind, repo_root)
     if safety_result != 0:
         return safety_result
-    candidates = _generated_candidates(kind, repo_root)
+    deleted_candidates = _deleted_generated_candidates(kind, repo_root)
+    if deleted_candidates is None:
+        return 2
+    tracked_deletions = set(deleted_candidates)
+    candidates = set(_generated_candidates(kind, repo_root))
+    candidates.update(tracked_deletions)
     relative_paths: list[str] = []
-    for candidate in candidates:
-        if not candidate.exists():
+    for candidate in sorted(candidates):
+        if not candidate.exists() and candidate not in tracked_deletions:
             continue
         try:
             relative_path = candidate.relative_to(repo_root).as_posix()
@@ -726,6 +853,7 @@ def _invoke_mypy(
         [sys.executable, "-m", "mypy", "--", *paths],
         repo_root,
         extra_env=extra_env,
+        timeout_seconds=MYPY_TIMEOUT_SECONDS,
     )
 
 
@@ -1063,7 +1191,11 @@ def _run_semgrep_tree(
     last_result: subprocess.CompletedProcess[str] | None = None
     try:
         for batch in _semgrep_target_batches(targets):
-            result = _run_command(_semgrep_command("auto", batch), repo_root)
+            result = _run_command(
+                _semgrep_command("auto", batch),
+                repo_root,
+                timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
+            )
             if result.returncode not in {0, 1}:
                 return result
             verified = _verify_semgrep_targets(result, batch, repo_root)
@@ -1444,6 +1576,7 @@ def run_semgrep(repo_root: Path) -> int:
             "error",
         ],
         repo_root,
+        timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
     )
     _print_process_output(result)
     return result.returncode
@@ -1956,14 +2089,11 @@ def run_pytest(repo_root: Path) -> int:
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
-    result = subprocess.run(
+    result = _run_command(
         [sys.executable, "-m", "pytest", str(repo_root / "tests")],
-        cwd=repo_root,
-        env=env,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        check=False,
+        repo_root,
+        process_env=env,
+        timeout_seconds=TEST_SUITE_TIMEOUT_SECONDS,
     )
     _print_process_output(result)
     return result.returncode
@@ -1980,6 +2110,7 @@ def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
             str(repo_root),
         ],
         repo_root,
+        timeout_seconds=WORKFLOW_LOCAL_TIMEOUT_SECONDS,
     )
     _print_process_output(result)
     return 0 if result.returncode == 4 else result.returncode
@@ -2042,14 +2173,11 @@ def run_cli_e2e(test_file: str, repo_root: Path) -> int:
     for key in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"):
         env.pop(key, None)
     env["RUN_CLI_E2E"] = "1"
-    result = subprocess.run(
+    result = _run_command(
         [sys.executable, "-m", "pytest", test_file, "-v"],
-        cwd=repo_root,
-        env=env,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        check=False,
+        repo_root,
+        process_env=env,
+        timeout_seconds=CLI_E2E_TIMEOUT_SECONDS,
     )
     _print_process_output(result)
     return result.returncode
