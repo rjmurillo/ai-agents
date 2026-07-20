@@ -29,6 +29,9 @@ repository-specific policy in Python. Remove the custom `.githooks/` and tracked
 
 **Consensus: 6/6 Approve. Zero blocking findings.**
 
+The post-acceptance active-index clarification also reached 6/6 Accept after
+the proposed custom rejection gate was removed.
+
 ## Evidence verified
 
 - Lefthook 2.1.10 is pinned in both `pyproject.toml` development dependency
@@ -47,7 +50,9 @@ repository-specific policy in Python. Remove the custom `.githooks/` and tracked
 - Acceptance requires primary-clone installation confirmation and clean-tree
   checks. The rollback restores both removed framework roots as one change.
 - Protected CI remains the enforcement backstop.
-- The full integration suite completed with 274 passed.
+- Lefthook native filters and `{staged_files}` use Git's active index, including
+  temporary and explicit alternate indexes.
+- The full integration suite completed with 275 passed.
 
 ## Debate rounds and resolutions
 
@@ -94,6 +99,31 @@ unrelated-deletion cases.
 
 All six roles approved the revised ADR. No blocking finding remained.
 
+### Post-acceptance active-index clarification
+
+A final review warning claimed Lefthook filters inspected only the default index
+and proposed rejecting `GIT_INDEX_FILE`. The six-role delta review found that
+the rejection would block normal Git hooks because Git exports the active index
+path to pre-commit hooks.
+
+Empirical probes then showed Lefthook 2.1.10 selects staged files from the active
+index for ordinary, `-a`, partial, and explicit alternate-index commits. The
+custom guard was removed. A regression test now proves both directions: a file
+staged only in the default index is excluded when an alternate index is active,
+while a file staged only in the alternate index is selected and committed
+through the installed hook. The default index retains its own blobs.
+
+| Role | Delta vote |
+|------|------------|
+| Architect | Accept |
+| Critic | Accept |
+| Independent Thinker | Accept |
+| Security | Accept |
+| Analyst | Accept |
+| High-Level Advisor | Accept |
+
+**Delta consensus: 6/6 Accept. Zero blocking findings.**
+
 ## Security disposition
 
 No Critical or High finding remained. Local bypasses are not a security
@@ -116,4 +146,4 @@ No unresolved dissent remained.
 ## Outcome
 
 ADR-086 was accepted on 2026-07-20. It supersedes ADR-004. PR #3259 includes
-the implementation.
+the implementation and the active-index regression evidence.

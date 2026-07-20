@@ -358,7 +358,7 @@
       "type": "test",
       "content": "Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
       "caused_by": [
-        "e054"
+        "e060"
       ],
       "leads_to": [
         "e001"
@@ -612,7 +612,9 @@
       "caused_by": [
         "e047"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e055"
+      ]
     },
     {
       "id": "e052",
@@ -647,6 +649,76 @@
         "e053"
       ],
       "leads_to": [
+        "e058"
+      ]
+    },
+    {
+      "id": "e055",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Falsified the proposed alternate-index rejection",
+      "caused_by": [
+        "e051"
+      ],
+      "leads_to": [
+        "e056"
+      ]
+    },
+    {
+      "id": "e056",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added active-index and Windows regression coverage",
+      "caused_by": [
+        "e055"
+      ],
+      "leads_to": [
+        "e057"
+      ]
+    },
+    {
+      "id": "e057",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed the ADR-086 active-index delta review",
+      "caused_by": [
+        "e056"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e058",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 45e305d6bb389a9d19ba208a16ed4a4a2cae8f3a",
+      "caused_by": [
+        "e054"
+      ],
+      "leads_to": [
+        "e059"
+      ]
+    },
+    {
+      "id": "e059",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d767c4bc9e",
+      "caused_by": [
+        "e058"
+      ],
+      "leads_to": [
+        "e060"
+      ]
+    },
+    {
+      "id": "e060",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 45e305d6bb",
+      "caused_by": [
+        "e059"
+      ],
+      "leads_to": [
         "e030"
       ]
     }
@@ -656,7 +728,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 25,
+    "commits": 28,
     "files_changed": 27
   },
   "lessons": []

@@ -53,6 +53,7 @@ do not.
 - Run a deterministic, pinned scheduler from the locked development environment.
 - Make timeout and failure behavior observable through automated tests.
 - Support cross-platform operation without custom payload wrappers.
+- Preserve Git's active-index semantics without repository-owned adapters.
 - Keep protected CI checks as the remote enforcement backstop.
 
 ## Decision
@@ -88,7 +89,10 @@ Use Lefthook 2.1.10 as the only local Git hook orchestrator.
    Lefthook's outer job timeout. Exit code 3 and captured diagnostics are
    guaranteed only when the inner timeout fires first. The Timeout Hierarchy
    section documents the outer-first limitation.
-10. Explicit `LEFTHOOK_BIN`, `LEFTHOOK=0`, Git `--no-verify`, configuration
+10. Lefthook's native staged filters and `{staged_files}` use Git's active index,
+    including temporary or alternate indexes supplied through `GIT_INDEX_FILE`.
+    The repository adds no custom index adapter or rejection gate.
+11. Explicit `LEFTHOOK_BIN`, `LEFTHOOK=0`, Git `--no-verify`, configuration
     overrides, and direct hook edits remain local bypasses. Repository policy
     forbids using them to skip required checks. Protected CI remains the
     authoritative remote backstop.
@@ -136,6 +140,7 @@ maintenance without retaining a repository-specific capability.
 | Use the Python `pre-commit` framework | Large hook ecosystem and established pre-commit support | Existing pre-push stdin, job graph, and staging behavior need adapters | Rejected because Lefthook matches all three current hook events directly |
 | Use Husky and lint-staged | Simple staged-file linting in Node repositories | Adds Node-owned installation and provides less pre-push orchestration | Rejected for this Python-first, multi-event workflow |
 | Install a standalone pinned Lefthook binary | Avoids uv startup for each hook invocation | Creates separate installation, pin, upgrade, and validation ownership | Rejected because the locked uv environment already owns development tools |
+| Add a custom `GIT_INDEX_FILE` guard or adapter | Could impose repository-specific index rules | Breaks valid Git commit modes or duplicates Lefthook's active-index handling | Rejected because Lefthook filters already use Git's active index |
 
 ### Trade-offs
 
@@ -160,6 +165,8 @@ that module rather than moving policy into Lefthook YAML.
 - Integration tests exercise the pinned scheduler instead of payload copies.
 - Removing shell payload wrappers reduces repository-owned platform-specific
   orchestration.
+- Native filters preserve Git's active-index semantics without a repository-owned
+  adapter.
 
 ### Negative
 
@@ -194,7 +201,7 @@ Every row records work completed by PR #3259.
 | `lefthook.yml` | Added all local jobs, filters, groups, native `stage_fixed`, generated-output policy jobs, stdin handling, and outer timeouts | High |
 | `pyproject.toml` and `uv.lock` | Pinned Lefthook 2.1.10 in both dev tables and froze its resolved artifact | Medium |
 | `scripts/validation/git_hook_policy.py` | Retained repository policy, including generated-output allowlists, path checks, and `git add` for allowlisted additions, modifications, and tracked deletions, and added bounded child-process execution | High |
-| `tests/test_lefthook_integration.py` | Added pinned scheduler, installation, filtering, stdin, native staging, policy-driven staging of allowlisted additions, modifications, and tracked deletions, order, and timeout coverage | Medium |
+| `tests/test_lefthook_integration.py` | Added pinned scheduler, installation, active-index filtering, stdin, native staging, policy-driven staging of allowlisted additions, modifications, and tracked deletions, order, and timeout coverage | Medium |
 | `scripts/validation/checks_plugin.py` | Replaced custom activation checks with frozen uv-backed Lefthook validation | Medium |
 | `CONTRIBUTING.md` | Replaced custom setup and repair instructions with native Lefthook commands | Medium |
 | ADR-004 | Marked superseded by ADR-086 in the same change | Low |
@@ -234,6 +241,16 @@ deletions whose paths differ from staged inputs. Lefthook schedules those policy
 jobs but does not perform their `git add` itself. Allowlisted generated additions,
 modifications, and tracked deletions remain staged automatically without custom
 hook installation or scheduling code.
+
+### Active Index Semantics
+
+Git sets `GIT_INDEX_FILE` for ordinary, partial, `-a`, and explicit
+alternate-index commits. Lefthook 2.1.10 uses that active index for native
+filters and `{staged_files}` expansion. The integration suite verifies both
+directions: a file staged only in the default index is excluded when an
+alternate index is active, while a file staged only in the alternate index is
+selected and committed through the installed hook. Repository policy receives
+the same environment, so no custom index guard or translation layer is needed.
 
 ### Timeout Hierarchy
 
@@ -294,8 +311,8 @@ clone. A linked worktree retains the non-blocking warning documented under
 issue #2374, so it is not the acceptance environment for this check. The full
 integration file must pass, including per-child timeout headroom, stdin,
 filtering, native same-file staging, policy-driven staging of allowlisted
-additions, modifications, and tracked deletions, installation, and failure
-propagation.
+additions, modifications, and tracked deletions, active-index behavior,
+installation, and failure propagation.
 
 The primary-clone verification must start and end with no tracked working-tree
 or index changes. Untracked files are allowed. The forced pre-commit run must
@@ -333,6 +350,7 @@ Review this decision when any of these conditions occurs:
 
 - The pinned Lefthook version changes.
 - Standard input semantics, staging, filtering, group order, or timeouts change.
+- Git active-index propagation or `{staged_files}` semantics change.
 - The repository adds another Git hook event.
 - Hook execution stops using the frozen uv environment.
 - Supported platforms report installation or execution failures.
@@ -346,6 +364,7 @@ Review this decision when any of these conditions occurs:
 | 2026-07-20 | Proposed the owner-directed migration in PR #3259. |
 | 2026-07-20 | Revised version ownership, shim precedence, timeout, confirmation, rollback, and staging details through adr-review. |
 | 2026-07-20 | Accepted by 6/6 Approve consensus. Implementation is included in PR #3259. |
+| 2026-07-20 | Verified that Lefthook filters use Git's active index, so no custom alternate-index guard is required. |
 
 ## Related Decisions
 

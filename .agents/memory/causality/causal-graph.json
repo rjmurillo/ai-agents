@@ -13799,6 +13799,60 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T19:53:56.527396+00:00"
+    },
+    {
+      "id": "d9efade63c45",
+      "type": "milestone",
+      "label": "milestone: Falsified the proposed alternate-index rejection",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:40:48.521192+00:00"
+    },
+    {
+      "id": "aa34da54e13b",
+      "type": "milestone",
+      "label": "milestone: Added active-index and Windows regression coverage",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:40:48.521256+00:00"
+    },
+    {
+      "id": "db6e2c002807",
+      "type": "milestone",
+      "label": "milestone: Completed the ADR-086 active-index delta review",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:40:48.521307+00:00"
+    },
+    {
+      "id": "78e530eeb54e",
+      "type": "commit",
+      "label": "commit: Commit: 45e305d6bb389a9d19ba208a16ed4a4a2cae8f3a",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:40:48.521358+00:00"
+    },
+    {
+      "id": "cd6e0d9ffd06",
+      "type": "commit",
+      "label": "commit: Commit: d767c4bc9e",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:40:48.521408+00:00"
+    },
+    {
+      "id": "189071724a2f",
+      "type": "commit",
+      "label": "commit: Commit: 45e305d6bb",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T21:40:48.521458+00:00"
     }
   ],
   "patterns": [

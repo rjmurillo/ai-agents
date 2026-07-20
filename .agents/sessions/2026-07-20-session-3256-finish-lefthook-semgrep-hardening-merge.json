@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed all scoped migration, governance, and main-integration changes through 0b3678dd54; pre-existing unrelated user files remain untouched"
+        "Evidence": "Committed all scoped migration, governance, main-integration, active-index regression, and Windows CI changes through 45e305d6bb; pre-existing unrelated user files remain untouched"
       },
       "validationPassed": {
         "level": "MUST",
@@ -104,7 +104,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "ADR-086 reached 6 of 6 approval; the three remaining PR threads have fixes committed and await replies after the final push"
+        "Evidence": "ADR-086 retained 6 of 6 approval after the active-index delta review; the three remaining PR threads have fixes committed and await replies after the final push"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -264,11 +264,27 @@
       "timestamp": "2026-07-20T20:01:00Z",
       "action": "Merged current main and regenerated the causal graph",
       "evidence": "Merge commit 0b3678dd54 integrated main 1470178844; the graph used main as its base and replayed every committed episode"
+    },
+    {
+      "timestamp": "2026-07-20T21:34:00Z",
+      "action": "Falsified the proposed alternate-index rejection",
+      "evidence": "Git probes showed active index paths for ordinary, -a, partial, and explicit alternate commits; Lefthook 2.1.10 selected staged files from each active index"
+    },
+    {
+      "timestamp": "2026-07-20T21:36:00Z",
+      "action": "Added active-index and Windows regression coverage",
+      "evidence": "d767c4bc9e proves native active-index filtering and installed-hook propagation; 45e305d6bb runs the 275-test Lefthook suite on Windows for every runtime-surface change"
+    },
+    {
+      "timestamp": "2026-07-20T21:39:00Z",
+      "action": "Completed the ADR-086 active-index delta review",
+      "evidence": "All six roles accepted the corrected framework-native design; the full Lefthook integration suite passed 275 tests and the Windows workflow contract passed 7 tests"
     }
   ],
-  "endingCommit": "0b3678dd54c0df19bea33bfb626fbb46b05870e9",
+  "endingCommit": "45e305d6bb389a9d19ba208a16ed4a4a2cae8f3a",
   "nextSteps": [
-    "Push the final commits and resolve the three remaining PR review threads",
+    "Commit the ADR review evidence and security guide correction, then push the final commits",
+    "Resolve the three remaining PR review threads",
     "Wait for required checks, run the repository merge gate, merge PR #3259, and confirm the merged state"
   ]
 }
