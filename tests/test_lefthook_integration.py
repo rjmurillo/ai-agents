@@ -7,7 +7,6 @@ import runpy
 import shutil
 import subprocess
 import sys
-import tarfile
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1478,7 +1477,7 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
     assert policy.scan_pushed_heads(stream, repo) == 1
 
 
-def test_pushed_semgrep_scan_rejects_export_ignored_changed_file(
+def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1494,59 +1493,40 @@ def test_pushed_semgrep_scan_rejects_export_ignored_changed_file(
     _git(repo, "commit", "-qm", "test: hide pushed finding")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
-    monkeypatch.setattr(
-        policy,
-        "_run_semgrep_tree",
-        lambda *_args: pytest.fail("Semgrep must not run on an incomplete snapshot"),
-    )
 
-    assert policy.scan_pushed_heads(stream, repo) == 2
+    def fake_scan(tree: Path, _root: Path) -> subprocess.CompletedProcess[str]:
+        content = (tree / "nested/source.py").read_text(encoding="utf-8")
+        return _completed(1 if "dangerous = True" in content else 0)
 
+    monkeypatch.setattr(policy, "_run_semgrep_tree", fake_scan)
 
-def test_materialized_path_validation_rejects_non_regular_file(tmp_path: Path) -> None:
-    (tmp_path / "source.py").mkdir()
-
-    assert not policy._materialized_paths_complete(tmp_path, ["source.py"])
+    assert policy.scan_pushed_heads(stream, repo) == 1
 
 
-def test_materialized_path_validation_rejects_unsafe_path(tmp_path: Path) -> None:
-    assert not policy._materialized_paths_complete(tmp_path, ["../source.py"])
-
-
-def _archive_bytes(member: tarfile.TarInfo, content: bytes = b"") -> bytes:
-    buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w") as archive:
-        archive.addfile(member, io.BytesIO(content) if member.isfile() else None)
-    return buffer.getvalue()
-
-
-def test_archive_extraction_rejects_traversal_and_symlink_escape(tmp_path: Path) -> None:
-    traversal = tarfile.TarInfo("../escape.py")
-    traversal.size = 1
-    with pytest.raises(ValueError, match="unsafe archive path"):
-        policy._extract_safe_archive(_archive_bytes(traversal, b"x"), tmp_path / "one")
-
-    link = tarfile.TarInfo("nested/link")
-    link.type = tarfile.SYMTYPE
-    link.linkname = "../../escape"
-    with pytest.raises(ValueError, match="unsafe symlink target"):
-        policy._extract_safe_archive(_archive_bytes(link), tmp_path / "two")
-
-
-def test_archive_extraction_rejects_backslashes_and_duplicate_destinations(
+def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert policy._safe_relative_path(r"nested\source.py") is None
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "source.js", "const safe = true;\n")
+    (repo / "source.js").write_text(
+        "const value = '$Format:a%eval(userInput);$';\n",
+        encoding="utf-8",
+    )
+    (repo / ".gitattributes").write_text("source.js export-subst\n", encoding="utf-8")
+    _git(repo, "add", "source.js", ".gitattributes")
+    _git(repo, "commit", "-qm", "test: substitute pushed finding")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
-    buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w") as archive:
-        for content in (b"one", b"two"):
-            member = tarfile.TarInfo("nested/source.py")
-            member.size = len(content)
-            archive.addfile(member, io.BytesIO(content))
+    def fake_scan(tree: Path, _root: Path) -> subprocess.CompletedProcess[str]:
+        content = (tree / "source.js").read_text(encoding="utf-8")
+        return _completed(1 if "$Format:a%eval(userInput);$" in content else 0)
 
-    with pytest.raises(ValueError, match="duplicate archive destination"):
-        policy._extract_safe_archive(buffer.getvalue(), tmp_path / "duplicate")
+    monkeypatch.setattr(policy, "_run_semgrep_tree", fake_scan)
+
+    assert policy.scan_pushed_heads(stream, repo) == 1
 
 
 def test_semgrep_missing_executable_blocks(
@@ -2693,68 +2673,108 @@ def test_immutable_semgrep_handles_input_materialization_and_empty_push(
     assert policy.scan_pushed_heads(io.StringIO(deletion), tmp_path) == 0
 
 
-def test_materialize_commit_reports_archive_and_extraction_errors(
+def test_materialize_commit_reads_raw_blob_and_rejects_bad_paths(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    head = _commit_file(repo, "nested/source.py", "raw content\n")
+    destination = tmp_path / "tree"
+
+    assert (
+        policy._materialize_commit_tree(
+            head,
+            destination,
+            repo,
+            ["nested/source.py"],
+        )
+        == 0
+    )
+    assert (destination / "nested/source.py").read_text(encoding="utf-8") == (
+        "raw content\n"
+    )
+    assert (
+        policy._materialize_commit_tree(head, tmp_path / "unsafe", repo, ["../x.py"])
+        == 2
+    )
+    assert (
+        policy._materialize_commit_tree(head, tmp_path / "missing", repo, ["x.py"])
+        == 2
+    )
+
+
+@pytest.mark.parametrize(
+    "tree_output",
+    [
+        b"",
+        b"malformed\0",
+        b"100644 blob abc\tother.py\0",
+        b"120000 blob abc\tsource.py\0",
+    ],
+)
+def test_commit_blob_id_rejects_invalid_tree_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tree_output: bytes,
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_command_bytes",
+        lambda *_args: subprocess.CompletedProcess([], 0, tree_output, b""),
+    )
+
+    assert policy._commit_blob_id("head", "source.py", tmp_path) is None
+
+
+def test_commit_blob_id_propagates_git_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         policy,
         "_run_command_bytes",
-        lambda *_args: subprocess.CompletedProcess([], 1, b"", b"archive failed"),
+        lambda *_args: subprocess.CompletedProcess([], 1, b"", b"tree failed"),
     )
-    assert policy._materialize_commit_tree("head", tmp_path / "one", tmp_path) == 2
+
+    assert policy._commit_blob_id("head", "source.py", tmp_path) is None
+
+
+def test_materialize_commit_propagates_blob_read_and_write_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "_commit_blob_id", lambda *_args: "abc")
+    monkeypatch.setattr(
+        policy,
+        "_run_command_bytes",
+        lambda *_args: subprocess.CompletedProcess([], 1, b"", b"blob failed"),
+    )
+    assert (
+        policy._materialize_commit_tree(
+            "head",
+            tmp_path / "read-failure",
+            tmp_path,
+            ["source.py"],
+        )
+        == 2
+    )
 
     monkeypatch.setattr(
         policy,
         "_run_command_bytes",
-        lambda *_args: subprocess.CompletedProcess([], 0, b"invalid", b""),
+        lambda *_args: subprocess.CompletedProcess([], 0, b"content", b""),
     )
-    assert policy._materialize_commit_tree("head", tmp_path / "two", tmp_path) == 2
-
-
-def test_archive_extraction_handles_safe_links_and_rejects_special_members(
-    tmp_path: Path,
-) -> None:
-    link = tarfile.TarInfo("nested/link")
-    link.type = tarfile.SYMTYPE
-    link.linkname = "target"
-    policy._extract_safe_archive(_archive_bytes(link), tmp_path / "safe")
-
-    special = tarfile.TarInfo("device")
-    special.type = tarfile.CHRTYPE
-    with pytest.raises(ValueError, match="unsupported"):
-        policy._extract_safe_archive(_archive_bytes(special), tmp_path / "special")
-
-    hardlink = tarfile.TarInfo("hard")
-    hardlink.type = tarfile.LNKTYPE
-    hardlink.linkname = "target"
-    with pytest.raises(ValueError, match="hard link"):
-        policy._safe_archive_member(hardlink, tmp_path)
-
-
-def test_archive_extraction_rejects_unreadable_regular_member(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    member = tarfile.TarInfo("file.py")
-    member.size = 0
-
-    class FakeArchive:
-        def __enter__(self) -> FakeArchive:
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def getmembers(self) -> list[tarfile.TarInfo]:
-            return [member]
-
-        def extractfile(self, _member: tarfile.TarInfo) -> None:
-            return None
-
-    monkeypatch.setattr(policy.tarfile, "open", lambda **_kwargs: FakeArchive())
-    with pytest.raises(ValueError, match="unreadable"):
-        policy._extract_safe_archive(b"", tmp_path)
+    destination = tmp_path / "write-failure"
+    destination.write_text("not a directory\n", encoding="utf-8")
+    assert (
+        policy._materialize_commit_tree(
+            "head",
+            destination,
+            tmp_path,
+            ["source.py"],
+        )
+        == 2
+    )
 
 
 def test_push_update_defense_blocks_protected_destination(

@@ -4,15 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import io
 import json
 import os
 import re
 import shutil
-import stat
 import subprocess
 import sys
-import tarfile
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -839,90 +836,58 @@ def _materialize_commit_tree(
     head: str,
     destination: Path,
     repo_root: Path,
-    paths: Sequence[str] | None = None,
+    paths: Sequence[str],
 ) -> int:
-    archive_args = ["git", "archive", "--format=tar", head]
-    if paths:
-        archive_args.extend(["--", *paths])
-    archive = _run_command_bytes(
-        archive_args,
-        repo_root,
-    )
-    if archive.returncode != 0:
-        print(archive.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
-        return 2
-    try:
-        _extract_safe_archive(archive.stdout, destination)
-    except (OSError, tarfile.TarError, ValueError) as error:
-        print(f"ERROR: unsafe pushed archive: {error}", file=sys.stderr)
-        return 2
-    if paths and not _materialized_paths_complete(destination, paths):
-        return 2
-    return 0
-
-
-def _materialized_paths_complete(destination: Path, paths: Sequence[str]) -> bool:
     for raw_path in paths:
         path = _safe_relative_path(raw_path)
         if path is None:
-            print(f"ERROR: unsafe requested archive path: {raw_path}", file=sys.stderr)
-            return False
+            print(f"ERROR: unsafe pushed blob path: {raw_path}", file=sys.stderr)
+            return 2
+        blob_id = _commit_blob_id(head, path, repo_root)
+        if blob_id is None:
+            return 2
+        blob = _run_command_bytes(["git", "cat-file", "blob", blob_id], repo_root)
+        if blob.returncode != 0:
+            print(blob.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 2
         output = destination / path
         try:
-            mode = output.lstat().st_mode
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(blob.stdout)
         except OSError as error:
-            print(f"ERROR: pushed archive omitted {path}: {error}", file=sys.stderr)
-            return False
-        if not stat.S_ISREG(mode):
-            print(f"ERROR: pushed archive path is not a regular file: {path}", file=sys.stderr)
-            return False
-    return True
+            print(f"ERROR: cannot materialize pushed blob {path}: {error}", file=sys.stderr)
+            return 2
+    return 0
 
 
-def _extract_safe_archive(archive_bytes: bytes, destination: Path) -> None:
-    with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:") as archive:
-        destinations: set[Path] = set()
-        for member in archive.getmembers():
-            output = _safe_archive_member(member, destination)
-            if output in destinations:
-                raise ValueError(f"duplicate archive destination: {member.name}")
-            destinations.add(output)
-            _extract_safe_member(archive, member, output)
-
-
-def _extract_safe_member(
-    archive: tarfile.TarFile,
-    member: tarfile.TarInfo,
-    output: Path,
-) -> None:
-    if member.isdir():
-        output.mkdir(parents=True, exist_ok=True)
-        return
-    if member.issym():
-        return
-    if not member.isfile():
-        raise ValueError(f"unsupported archive member: {member.name}")
-    source = archive.extractfile(member)
-    if source is None:
-        raise ValueError(f"unreadable archive member: {member.name}")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_bytes(source.read())
-
-
-def _safe_archive_member(member: tarfile.TarInfo, destination: Path) -> Path:
-    path = _safe_relative_path(member.name)
-    if path is None:
-        raise ValueError(f"unsafe archive path: {member.name}")
-    output = destination / path
-    output.resolve(strict=False).relative_to(destination.resolve())
-    if member.issym():
-        target = PurePosixPath(path).parent / member.linkname
-        normalized_target = _safe_relative_path(target.as_posix())
-        if normalized_target is None:
-            raise ValueError(f"unsafe symlink target: {member.name}")
-    if member.islnk():
-        raise ValueError(f"hard link not allowed: {member.name}")
-    return output
+def _commit_blob_id(head: str, path: str, repo_root: Path) -> str | None:
+    result = _run_command_bytes(
+        ["git", "ls-tree", "-z", head, "--", path],
+        repo_root,
+    )
+    if result.returncode != 0:
+        print(result.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
+        return None
+    records = [record for record in result.stdout.split(b"\0") if record]
+    if len(records) != 1:
+        print(
+            f"ERROR: pushed tree does not contain exactly one entry for {path}",
+            file=sys.stderr,
+        )
+        return None
+    try:
+        metadata, raw_name = records[0].split(b"\t", maxsplit=1)
+        mode, object_type, object_id = metadata.decode("ascii").split()
+    except (UnicodeDecodeError, ValueError):
+        print(f"ERROR: malformed pushed tree entry for {path}", file=sys.stderr)
+        return None
+    if os.fsdecode(raw_name) != path:
+        print(f"ERROR: pushed tree entry mismatch for {path}", file=sys.stderr)
+        return None
+    if object_type != "blob" or mode not in {"100644", "100755"}:
+        print(f"ERROR: pushed tree entry is not a regular file: {path}", file=sys.stderr)
+        return None
+    return object_id
 
 
 def _run_semgrep_tree(
