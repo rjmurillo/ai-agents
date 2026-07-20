@@ -30,7 +30,8 @@ SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.
 EPISODE_PATH_RE = re.compile(r"^\.agents/memory/episodes/episode-[A-Za-z0-9._-]+\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 SECURITY_SUPPRESSION_RE = re.compile(
-    r"#\s*(?:lgtm\[|nosec|nosem(?:grep)?|noqa:\s*S|type:\s*ignore\[|cwe-suppress)"
+    r"(?:#|//|/\*)\s*"
+    r"(?:lgtm\[|nosec|nosem(?:grep)?|noqa:\s*S|type:\s*ignore\[|cwe-suppress)"
 )
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
 SEMGREP_POWERSHELL_RULES = frozenset(
@@ -304,7 +305,7 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
 def check_commit_message(message_path: Path) -> int:
     if not message_path.is_file():
         return 0
-    message = message_path.read_text(encoding="utf-8")
+    message = message_path.read_text(encoding="utf-8", errors="replace")
     if not any(dash in message for dash in PROHIBITED_DASHES):
         return 0
     print(
@@ -835,7 +836,7 @@ def _head_suppression_violations(
 ) -> list[str] | None:
     violations: list[str] = []
     for path in paths:
-        if Path(path).suffix.lower() not in {".py", ".ps1", ".psm1"}:
+        if Path(path).suffix.lower() not in SEMGREP_SUFFIXES:
             continue
         content = _read_commit_blob(head, path, repo_root)
         if content is None:

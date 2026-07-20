@@ -254,13 +254,13 @@ pre-push:
     - name: repair-packed-refs
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
-    - name: push-ref-policy
-      run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
-      use_stdin: true
-
     - group:
         piped: true
         jobs:
+          - name: push-ref-policy
+            run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
+            use_stdin: true
+
           - name: security-scan
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py semgrep-push
             use_stdin: true

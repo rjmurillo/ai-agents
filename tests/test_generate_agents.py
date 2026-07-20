@@ -308,7 +308,7 @@ class TestGenerateAgents:
         platforms_dir = templates_path / "platforms"
         (platforms_dir / "copilot-cli.yaml").write_text(
             "platform: copilot-cli\n"
-            "outputDir: src/copilot-cli\n"
+            "outputDir: src/copilot-cli/agents\n"
             "fileExtension: .agent.md\n"
             "frontmatter:\n"
             '  model: "claude-opus-4.5"\n'
@@ -322,7 +322,7 @@ class TestGenerateAgents:
         assert exit_code == 0
 
         vscode_file = output_root / "vs-code-agents" / "test-agent.agent.md"
-        copilot_file = output_root / "copilot-cli" / "test-agent.agent.md"
+        copilot_file = output_root / "copilot-cli" / "agents" / "test-agent.agent.md"
         assert vscode_file.exists()
         assert copilot_file.exists()
 
@@ -345,6 +345,21 @@ class TestGenerateAgents:
 
         assert exit_code == 1
         assert not (repo_root / ".git/hooks/test-agent.agent.md").exists()
+
+    def test_rejects_broad_copilot_cli_output_directory(self, tmp_path: Path) -> None:
+        repo_root, templates_path, output_root = _create_test_structure(tmp_path)
+        platform = templates_path / "platforms" / "vscode.yaml"
+        platform.write_text(
+            "platform: copilot-cli\n"
+            "outputDir: src/copilot-cli\n"
+            "fileExtension: .agent.md\n",
+            encoding="utf-8",
+        )
+
+        exit_code = generate_agents(templates_path, output_root, repo_root)
+
+        assert exit_code == 1
+        assert not (repo_root / "src/copilot-cli/test-agent.agent.md").exists()
 
     def test_rejects_agent_output_suffix_with_path_traversal(
         self, tmp_path: Path

@@ -267,7 +267,6 @@ def generate_agents(
                 )
             )
             allowed_output_dirs = {
-                "src/copilot-cli",
                 "src/copilot-cli/agents",
                 "src/vs-code-agents",
             }

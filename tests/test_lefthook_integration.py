@@ -387,6 +387,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
     assert pre_push_jobs["pre-pr-validation"]["env"] == {"SKIP_AUTOFIX": "1"}
+    assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True
     stdin_groups = [
@@ -398,6 +399,12 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert len(stdin_groups) == 1
     assert stdin_groups[0].get("piped") is True
     assert stdin_groups[0].get("parallel") is not True
+    assert [job["name"] for job in stdin_groups[0]["jobs"]] == [
+        "push-ref-policy",
+        "security-scan",
+        "security-suppression-policy",
+        "placeholder-identity",
+    ]
     markdown_groups = [
         item["group"]
         for item in pre_commit["jobs"]
@@ -793,7 +800,7 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
     ]
 
 
-def test_piped_pre_push_jobs_each_receive_stdin(tmp_path: Path) -> None:
+def test_piped_pre_push_stdin_group_broadcasts_to_each_job(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
@@ -810,7 +817,7 @@ def test_piped_pre_push_jobs_each_receive_stdin(tmp_path: Path) -> None:
             "run": f'"{sys.executable}" marker.py {name}',
             "use_stdin": True,
         }
-        for name in ("security", "suppressions", "identity")
+        for name in ("push-ref-policy", "security", "suppressions", "identity")
     ]
     config = {
         "pre-push": {
@@ -824,8 +831,9 @@ def test_piped_pre_push_jobs_each_receive_stdin(tmp_path: Path) -> None:
     _run_lefthook(repo, "run", "pre-push", "--force", stdin=push_input)
 
     output = (repo / "stdin.log").read_text(encoding="utf-8")
-    assert output.count(push_input) == 3
-    assert output.startswith("security:")
+    assert output.count(push_input) == 4
+    assert output.startswith("push-ref-policy:")
+    assert "security:" in output
     assert "suppressions:" in output
     assert "identity:" in output
 
@@ -1062,6 +1070,12 @@ def test_commit_message_policy_handles_clean_dirty_and_missing(tmp_path: Path) -
     assert policy.check_commit_message(message) == 0
 
     message.write_text(f"fix: bad {chr(0x2013)} range\n", encoding="utf-8")
+    assert policy.check_commit_message(message) == 1
+
+    message.write_bytes(b"fix: invalid byte \xff\n")
+    assert policy.check_commit_message(message) == 0
+
+    message.write_bytes("fix: bad \N{EM DASH} message\n".encode() + b"\xff")
     assert policy.check_commit_message(message) == 1
     assert policy.check_commit_message(tmp_path / "missing") == 0
 
@@ -1552,6 +1566,33 @@ def test_pushed_suppression_scan_ignores_clean_worktree_override(tmp_path: Path)
     _git(repo, "commit", "-qm", "test: pushed suppression")
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
     source.write_text("value = 1\n", encoding="utf-8")
+    stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
+
+    assert policy.check_pushed_suppressions(stream, repo) == 1
+
+
+@pytest.mark.parametrize(
+    ("suffix", "suppression_comment"),
+    [
+        (".js", "// nosemgrep"),
+        (".ps1", "# nosemgrep"),
+        (".psm1", "# nosemgrep"),
+        (".py", "# nosemgrep"),
+        (".ts", "/* nosemgrep */"),
+        (".yaml", "# nosemgrep"),
+        (".yml", "# nosemgrep"),
+    ],
+)
+def test_pushed_suppression_scan_covers_semgrep_suffixes(
+    suffix: str,
+    suppression_comment: str,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "base.txt", "base\n")
+    suppression = suppression_comment.replace("nosemgrep", "no" + "sem" + "grep")
+    head = _commit_file(repo, f"source{suffix}", f"value: unsafe  {suppression}\n")
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
     assert policy.check_pushed_suppressions(stream, repo) == 1
