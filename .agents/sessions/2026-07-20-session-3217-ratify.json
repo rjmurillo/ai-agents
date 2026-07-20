@@ -89,12 +89,12 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx markdownlint-cli2 ran on the edited ADR (0 issues; .agents/** is excluded by the repo config, so the ADR path lints clean by exclusion)."
+        "Evidence": "markdownlint does not apply to this change: the only markdown touched is under .agents/**, which .markdownlint-cli2.yaml ignores, so no markdown lint was required or run for the ADR or debate log."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed on the feature branch: ADR-085 edit, the relocated debate log, and this session log. Under the 5-file limit."
+        "Evidence": "Committed on the feature branch as commit 8be1ed29: ADR-085 edit, the relocated debate log, and this session log (plus the auto-generated episode json re-staged by a pre-commit hook). Under the 5-file limit. A small follow-up commit records this endingCommit and the review-driven log-consistency fixes."
       },
       "validationPassed": {
         "level": "MUST",
@@ -131,7 +131,7 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "8be1ed29",
   "nextSteps": [
     "Push the branch and open a PR (Refs #3217, #3218, #3197); byte-check the body for 0 U+2014/U+2013 dashes; put file paths under a ## References H2 for the Validate PR gate.",
     "Babysit Copilot review rounds until a push yields 0 new threads, then self-merge once checks pass.",
