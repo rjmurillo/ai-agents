@@ -368,7 +368,7 @@ Exit code semantics vary by hook event. Exit 2 blocks for some events and not ot
 
 This table is Claude's mechanical interpretation of the exit code. Two things layer on top:
 
-- Policy (ADR-066, proposed) requires a hook to surface a loud stderr note on its own error rather than a silent success. On a blocking event a gate that must fail closed does so with exit 2 and stderr, not exit 1: exit 1 lets the tool proceed on Claude.
+- Policy (ADR-071 binding; ADR-066 accepted) requires a hook to surface a loud stderr note on its own error rather than a silent success. On a blocking event a gate that must fail closed does so with exit 2 and stderr, not exit 1: exit 1 lets the tool proceed on Claude.
 - Copilot diverges. Its preToolUse denies on any non-zero exit (see Cross-Harness). Exit 1 as a proceed-anyway lane is a Claude-only mechanic, not a portable one.
 
 ### PreToolUse deny: nested shape at exit 0, or exit 2
