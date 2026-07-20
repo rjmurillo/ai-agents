@@ -323,9 +323,7 @@ def test_is_stale_false_when_orphan_backup_exists(source: Path, target: Path) ->
     assert dogfood._is_stale(source, target) is False
 
 
-def test_is_stale_true_after_first_install_with_version_change(
-    source: Path, target: Path
-) -> None:
+def test_is_stale_true_after_first_install_with_version_change(source: Path, target: Path) -> None:
     # First install (no prior copy) must still be detected as stale when the
     # source version changes (issue #3256 regression: backup-only detection
     # missed first installs because no backup was created).
@@ -427,14 +425,24 @@ def test_main_check_returns_0_when_not_installed(monkeypatch, tmp_path: Path) ->
 
 
 def test_main_check_returns_0_when_marketplace_install(monkeypatch, tmp_path: Path) -> None:
-    # A marketplace install (no backup marker) with version mismatch is not
-    # considered a stale dogfood copy (issue #3256).
+    # A marketplace install (no .dogfood marker) with a version mismatch is
+    # not a stale dogfood copy (issue #3256).
     _make_plugin_root(tmp_path / "src" / "copilot-cli", "9.9.9")
     tgt = _make_plugin_root(tmp_path / "installed" / "project-toolkit", "0.0.1")
-    # No backup marker - this is a stock marketplace install
+    # No .dogfood marker: this is a stock marketplace install.
     monkeypatch.setattr(dogfood, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dogfood, "default_target", lambda: tgt)
     assert dogfood.main(["--check"]) == 0
+
+
+def test_check_labels_marketplace_install(source: Path, target: Path) -> None:
+    # A markerless install at the target path is a marketplace copy, not a
+    # stale-or-current dogfood copy; the advisory names it as such and skips.
+    _make_plugin_root(target, "0.0.1")
+    stale, message = dogfood.dogfood_check(source, target)
+    assert stale is False
+    assert "marketplace copy" in message
+    assert "advisory skipped" in message
 
 
 # --- helpers ---

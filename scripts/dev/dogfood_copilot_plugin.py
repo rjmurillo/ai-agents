@@ -177,6 +177,16 @@ def dogfood_uninstall(target: Path) -> str:
     return f"{removed}; no backup to restore (reinstall with: {reinstall})"
 
 
+def _is_dogfood_copy(target: Path) -> bool:
+    """Return True when target carries the ``.dogfood`` opt-in marker.
+
+    ``dogfood_install`` writes the marker; a stock marketplace install at the
+    same path never has it. The marker is the sole discriminator between an
+    opted-in dogfood copy and a plain marketplace install (ADR-083).
+    """
+    return (target / _DOGFOOD_MARKER).is_file()
+
+
 def _is_stale(source: Path, target: Path) -> bool:
     """Return True when an installed dogfood copy is out of sync with the tree.
 
@@ -196,8 +206,7 @@ def _is_stale(source: Path, target: Path) -> bool:
     """
     if target.is_symlink() or not target.is_dir():
         return False
-    is_dogfood_copy = (target / _DOGFOOD_MARKER).exists()
-    if not is_dogfood_copy:
+    if not _is_dogfood_copy(target):
         return False
     return _plugin_version(target) != _plugin_version(source)
 
@@ -238,6 +247,12 @@ def dogfood_check(source: Path, target: Path) -> tuple[bool, str]:
         return False, f"dogfood copy symlinked to the working tree at {target}"
     if not target.is_dir():
         return False, f"no dogfood copy installed at {target}"
+    if not _is_dogfood_copy(target):
+        return (
+            False,
+            f"install at {target} is a marketplace copy, not a dogfood copy "
+            "(no .dogfood marker); staleness advisory skipped",
+        )
     return False, f"dogfood copy current at {target}"
 
 
@@ -265,7 +280,10 @@ def _build_parser() -> argparse.ArgumentParser:
     group.add_argument(
         "--check",
         action="store_true",
-        help="exit 1 (with an advisory) when the installed copy trails the working tree",
+        help=(
+            "exit 1 (with an advisory) when the dogfood copy differs from the "
+            "working tree (in either direction)"
+        ),
     )
     return parser
 

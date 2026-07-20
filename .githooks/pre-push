@@ -466,9 +466,11 @@ fi
 # local Copilot dogfood install is out of sync with the working tree. A stale
 # copy can silently produce a false "works on my machine" result for the hooks
 # and permissions we ship to customers, the same silent-staleness class that
-# caused the 0.5.248 rot. Fires only for developers who opted into
-# dogfooding (an installed copy is present); the drift logic lives in the
-# Python --check mode so this hook stays free of business logic.
+# caused the 0.5.248 rot. Warns only when an opted-in dogfood copy (one
+# carrying the .dogfood marker written by --install) differs from the working
+# tree in either direction; a stock marketplace install is left alone. The
+# drift logic lives in the Python --check mode so this hook stays free of
+# business logic.
 DOGFOOD_SCRIPT="$REPO_ROOT/scripts/dev/dogfood_copilot_plugin.py"
 if [ -f "$DOGFOOD_SCRIPT" ] && set_python_cmd; then
     DOGFOOD_ADVISORY=$("${PYTHON_CMD[@]}" "$DOGFOOD_SCRIPT" --check 2>/dev/null)
