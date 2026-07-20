@@ -13304,6 +13304,501 @@
         "episode-2026-07-20-session-3217-ratify"
       ],
       "created": "2026-07-20T19:51:35.538470+00:00"
+    },
+    {
+      "id": "dafdce1022dc",
+      "type": "milestone",
+      "label": "milestone: Completed Semgrep PowerShell parser-error hardening",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.524784+00:00"
+    },
+    {
+      "id": "729b9593ec70",
+      "type": "milestone",
+      "label": "milestone: Completed independent security review",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.524844+00:00"
+    },
+    {
+      "id": "b51a154cd7d7",
+      "type": "milestone",
+      "label": "milestone: Committed final Semgrep attribution hardening",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.524895+00:00"
+    },
+    {
+      "id": "3b9e2c94a69f",
+      "type": "commit",
+      "label": "commit: Commit: 24298fe68d1efe8f45e72c0579b0685024db381b",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.524942+00:00"
+    },
+    {
+      "id": "16f5fa72e1b7",
+      "type": "milestone",
+      "label": "milestone: Integrated concurrent branch updates and pushed PR 3259",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.524990+00:00"
+    },
+    {
+      "id": "400b2acac555",
+      "type": "milestone",
+      "label": "milestone: Addressed the 23-thread PR review round",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525036+00:00"
+    },
+    {
+      "id": "6ade00bd9e06",
+      "type": "commit",
+      "label": "commit: Commit: d500641aa2437ee455b2b64b616a7b1ad67874a8",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525083+00:00"
+    },
+    {
+      "id": "d54703a870d8",
+      "type": "commit",
+      "label": "commit: Commit: fc4630123c",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525132+00:00"
+    },
+    {
+      "id": "d3de9ecf9f8a",
+      "type": "milestone",
+      "label": "milestone: Rejected unsafe start and end sentinel cleanup",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525179+00:00"
+    },
+    {
+      "id": "6374fb334c2f",
+      "type": "commit",
+      "label": "commit: Commit: 8512726a77cb634ec12606f6059672b0f76e07f7",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525228+00:00"
+    },
+    {
+      "id": "ca127860d693",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main and resolved four conflicts",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525275+00:00"
+    },
+    {
+      "id": "b23618a53b2c",
+      "type": "milestone",
+      "label": "milestone: Closed pushed security-suppression coverage gaps",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525322+00:00"
+    },
+    {
+      "id": "07ce012745c9",
+      "type": "milestone",
+      "label": "milestone: Addressed five new PR review threads",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525368+00:00"
+    },
+    {
+      "id": "0e4b91997f1c",
+      "type": "commit",
+      "label": "commit: Commit: 087671362479c80f89956446ac24e3ef59e8b7fa",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525415+00:00"
+    },
+    {
+      "id": "731a557cc813",
+      "type": "commit",
+      "label": "commit: Commit: 6ab3b8ecdf",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525462+00:00"
+    },
+    {
+      "id": "bbab433f3082",
+      "type": "commit",
+      "label": "commit: Commit: 4455884de7",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525509+00:00"
+    },
+    {
+      "id": "b4cf7b3c0640",
+      "type": "commit",
+      "label": "commit: Commit: 0876713624",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525556+00:00"
+    },
+    {
+      "id": "f737e8fd15f4",
+      "type": "milestone",
+      "label": "milestone: Merged current main and pushed the hardened branch",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525603+00:00"
+    },
+    {
+      "id": "63765ba0b5d2",
+      "type": "milestone",
+      "label": "milestone: Addressed four additional PR review threads",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525656+00:00"
+    },
+    {
+      "id": "ebcc03060aae",
+      "type": "milestone",
+      "label": "milestone: Removed vulnerable Semgrep transitive dependencies",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525703+00:00"
+    },
+    {
+      "id": "1e4da9c072b9",
+      "type": "milestone",
+      "label": "milestone: Resolved three incorrect uv dependency comments",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525750+00:00"
+    },
+    {
+      "id": "f5b75ff03b1b",
+      "type": "milestone",
+      "label": "milestone: Added a seven-day uv dependency cooldown",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525797+00:00"
+    },
+    {
+      "id": "f6fcdb7518db",
+      "type": "commit",
+      "label": "commit: Commit: e362c5199b44152c2334f17a48737e4c074469ac",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525847+00:00"
+    },
+    {
+      "id": "0010bfb8754f",
+      "type": "commit",
+      "label": "commit: Commit: f1f356926e",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525900+00:00"
+    },
+    {
+      "id": "33079b8115c6",
+      "type": "commit",
+      "label": "commit: Commit: 329699a64e",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525947+00:00"
+    },
+    {
+      "id": "aac28f16aca7",
+      "type": "commit",
+      "label": "commit: Commit: bbc7285ab5",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.525994+00:00"
+    },
+    {
+      "id": "0ebb079a5b9b",
+      "type": "commit",
+      "label": "commit: Commit: 104cd32072",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526041+00:00"
+    },
+    {
+      "id": "7e659ea70bb1",
+      "type": "milestone",
+      "label": "milestone: Closed the final two Copilot review comments",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526089+00:00"
+    },
+    {
+      "id": "561d0c438ae7",
+      "type": "milestone",
+      "label": "milestone: Confirmed PR 3259 is ready to merge",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526136+00:00"
+    },
+    {
+      "id": "b5fac1ed120e",
+      "type": "test",
+      "label": "test: Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526184+00:00"
+    },
+    {
+      "id": "7a94c5b421eb",
+      "type": "commit",
+      "label": "commit: Commit: fd5bfba041771f1656c5d4a2b69b179559ff19a4",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526232+00:00"
+    },
+    {
+      "id": "05a796dc976a",
+      "type": "commit",
+      "label": "commit: Commit: fd5bfba041",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526279+00:00"
+    },
+    {
+      "id": "6f2546d85941",
+      "type": "milestone",
+      "label": "milestone: Closed three late Copilot review findings in code",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526327+00:00"
+    },
+    {
+      "id": "3af5a8e1fba2",
+      "type": "milestone",
+      "label": "milestone: Validated the final Lefthook review fixes",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526375+00:00"
+    },
+    {
+      "id": "23be5bfd2fc2",
+      "type": "commit",
+      "label": "commit: Commit: 226b6c2f0a9ef824063c59bbfcb1f10770322414",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526423+00:00"
+    },
+    {
+      "id": "92269fc99b81",
+      "type": "commit",
+      "label": "commit: Commit: 9e83c42659",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526470+00:00"
+    },
+    {
+      "id": "57d13231497a",
+      "type": "commit",
+      "label": "commit: Commit: ac736f3d98",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526518+00:00"
+    },
+    {
+      "id": "66124354d760",
+      "type": "commit",
+      "label": "commit: Commit: 226b6c2f0a",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526566+00:00"
+    },
+    {
+      "id": "c8c81729e3bb",
+      "type": "milestone",
+      "label": "milestone: Completed the six-role Lefthook architecture review",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526616+00:00"
+    },
+    {
+      "id": "f39ea06c9ec7",
+      "type": "milestone",
+      "label": "milestone: Accepted ADR-086 and recorded review consensus",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526671+00:00"
+    },
+    {
+      "id": "d2cd80d9347c",
+      "type": "milestone",
+      "label": "milestone: Updated the superseded and dependent hook records",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526719+00:00"
+    },
+    {
+      "id": "8831096cde20",
+      "type": "milestone",
+      "label": "milestone: Aligned workflow and generated-agent records",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526767+00:00"
+    },
+    {
+      "id": "f3726253bbd4",
+      "type": "milestone",
+      "label": "milestone: Aligned memory routing and architecture citations",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526815+00:00"
+    },
+    {
+      "id": "b2e1ceb768b4",
+      "type": "milestone",
+      "label": "milestone: Aligned eval and Copilot dogfood records",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526863+00:00"
+    },
+    {
+      "id": "1523c22c91c9",
+      "type": "milestone",
+      "label": "milestone: Aligned vendored-hook and permission-surface records",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526911+00:00"
+    },
+    {
+      "id": "ed46b85d0f5a",
+      "type": "milestone",
+      "label": "milestone: Committed the final timeout and governance hardening",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.526961+00:00"
+    },
+    {
+      "id": "b687f5adc32e",
+      "type": "milestone",
+      "label": "milestone: Ran the final Lefthook pre-push gate",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527009+00:00"
+    },
+    {
+      "id": "89293e0a1542",
+      "type": "commit",
+      "label": "commit: Commit: f6a65861cb6f359d7764f878b3922bba5e9a2079",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527057+00:00"
+    },
+    {
+      "id": "6f36b48ff2c1",
+      "type": "commit",
+      "label": "commit: Commit: d5ab4d93a1",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527105+00:00"
+    },
+    {
+      "id": "bcab4e276d8b",
+      "type": "commit",
+      "label": "commit: Commit: f6a65861cb",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527153+00:00"
+    },
+    {
+      "id": "0571dacc8fbc",
+      "type": "milestone",
+      "label": "milestone: Merged current main and regenerated the causal graph",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527201+00:00"
+    },
+    {
+      "id": "14c25683f52d",
+      "type": "commit",
+      "label": "commit: Commit: 0b3678dd54c0df19bea33bfb626fbb46b05870e9",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527250+00:00"
+    },
+    {
+      "id": "5c485f08144f",
+      "type": "commit",
+      "label": "commit: Commit: 0b3678dd54",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527298+00:00"
+    },
+    {
+      "id": "04902a949255",
+      "type": "commit",
+      "label": "commit: Commit: 1470178844",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527346+00:00"
+    },
+    {
+      "id": "0aef44881b32",
+      "type": "outcome",
+      "label": "Outcome: success - Finish Lefthook Semgrep hardening and merge PR 3259",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:53:56.527396+00:00"
     }
   ],
   "patterns": [

@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed all scoped migration and governance changes through f6a65861cb; pre-existing unrelated user files remain untouched"
+        "Evidence": "Committed all scoped migration, governance, and main-integration changes through 0b3678dd54; pre-existing unrelated user files remain untouched"
       },
       "validationPassed": {
         "level": "MUST",
@@ -113,7 +113,7 @@
       },
       "reworkWarning": {
         "Evidence": [
-          "rework-warning: .agents/memory/causality/causal-graph.json edited 20 times",
+          "rework-warning: .agents/memory/causality/causal-graph.json edited 21 times",
           "rework-warning: tests/test_lefthook_integration.py edited 15 times",
           "rework-warning: scripts/validation/git_hook_policy.py edited 12 times",
           "rework-warning: .claude/.claude-plugin/plugin.json edited 9 times",
@@ -259,11 +259,15 @@
       "timestamp": "2026-07-20T19:55:00Z",
       "action": "Ran the final Lefthook pre-push gate",
       "evidence": "The gate passed security scans, pre-PR validation, generated drift checks, CLI E2E, mypy, and 14,325 tests with 22 skipped and 45 xfailed"
+    },
+    {
+      "timestamp": "2026-07-20T20:01:00Z",
+      "action": "Merged current main and regenerated the causal graph",
+      "evidence": "Merge commit 0b3678dd54 integrated main 1470178844; the graph used main as its base and replayed every committed episode"
     }
   ],
-  "endingCommit": "f6a65861cb6f359d7764f878b3922bba5e9a2079",
+  "endingCommit": "0b3678dd54c0df19bea33bfb626fbb46b05870e9",
   "nextSteps": [
-    "Fetch origin/main and the remote feature branch, then merge current main if it advanced",
     "Push the final commits and resolve the three remaining PR review threads",
     "Wait for required checks, run the repository merge gate, merge PR #3259, and confirm the merged state"
   ]

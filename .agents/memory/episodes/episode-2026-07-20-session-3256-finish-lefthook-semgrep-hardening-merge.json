@@ -358,7 +358,7 @@
       "type": "test",
       "content": "Repository merge gate found 60 threads, zero unresolved, 89 passed checks, and no failed or pending required checks; two known nonrequired checks remain failed",
       "caused_by": [
-        "e050"
+        "e054"
       ],
       "leads_to": [
         "e001"
@@ -564,7 +564,9 @@
       "caused_by": [
         "e046"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e051"
+      ]
     },
     {
       "id": "e048",
@@ -599,6 +601,52 @@
         "e049"
       ],
       "leads_to": [
+        "e052"
+      ]
+    },
+    {
+      "id": "e051",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and regenerated the causal graph",
+      "caused_by": [
+        "e047"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e052",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0b3678dd54c0df19bea33bfb626fbb46b05870e9",
+      "caused_by": [
+        "e050"
+      ],
+      "leads_to": [
+        "e053"
+      ]
+    },
+    {
+      "id": "e053",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0b3678dd54",
+      "caused_by": [
+        "e052"
+      ],
+      "leads_to": [
+        "e054"
+      ]
+    },
+    {
+      "id": "e054",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1470178844",
+      "caused_by": [
+        "e053"
+      ],
+      "leads_to": [
         "e030"
       ]
     }
@@ -608,7 +656,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 22,
+    "commits": 25,
     "files_changed": 27
   },
   "lessons": []
