@@ -31,6 +31,14 @@ eval = [
     "openai>=1.40",
 ]
 
+[tool.uv]
+# Semgrep 1.170.0 pins vulnerable versions of these optional MCP server
+# dependencies. The scan and MCP command paths both work with the fixed releases.
+override-dependencies = [
+    "click==8.3.3",
+    "mcp==1.28.1",
+]
+
 [build-system]
 requires = ["setuptools>=82.0.1"]
 build-backend = "setuptools.build_meta"

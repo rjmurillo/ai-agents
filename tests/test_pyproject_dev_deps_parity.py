@@ -26,8 +26,9 @@ These tests pin two invariants:
 from __future__ import annotations
 
 import re
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = REPO_ROOT / "pyproject.toml"
@@ -38,6 +39,7 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 REQUIRED_DEV_TOOLS = frozenset(
     {"pytest", "pytest-cov", "bandit", "pip-audit", "ruff", "mypy"}
 )
+SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "mcp==1.28.1"})
 
 # Splits a PEP 508 requirement string at the first character that ends the
 # package name: an extras bracket, a version/marker operator, or whitespace.
@@ -115,6 +117,14 @@ def test_pip_install_extra_installs_all_required_tools() -> None:
         "[project.optional-dependencies].dev is missing required tools "
         f"'uv pip install -e \".[dev]\"' must install: {sorted(missing)}."
     )
+
+
+def test_semgrep_transitive_security_overrides_remain_pinned() -> None:
+    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+    overrides = set(data["tool"]["uv"]["override-dependencies"])
+
+    assert SAFE_SEMGREP_OVERRIDES <= overrides
 
 
 # --- Helper unit coverage (positive, negative, edge) ---------------------------
