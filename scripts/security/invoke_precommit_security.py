@@ -18,9 +18,11 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +39,27 @@ logger = logging.getLogger(__name__)
 SUBPROCESS_TIMEOUT_SECONDS = 60
 PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS = 300
 CODEQL_API_TIMEOUT_SECONDS = 30
+_POWERSHELL_EXTENSIONS = (".ps1", ".psm1", ".psd1")
+
+
+def _git_environment() -> dict[str, str]:
+    """Return a Git environment that ignores local replacement refs."""
+    environment = os.environ.copy()
+    environment["GIT_NO_REPLACE_OBJECTS"] = "1"
+    return environment
+
+
+def _powershell_extension(file_path: Path) -> str | None:
+    """Return the matched PowerShell extension, including exact-dot filenames."""
+    file_name = file_path.name.lower()
+    return next(
+        (
+            extension
+            for extension in _POWERSHELL_EXTENSIONS
+            if file_name.endswith(extension)
+        ),
+        None,
+    )
 
 
 def _powershell_single_quoted_literal(value: str) -> str:
@@ -93,7 +116,7 @@ class PreCommitSecurityCheck:
         r".*[/\\]Security[/\\].*",
         r".*\.env.*",
         r"(^|.*[/\\])scripts[/\\]hooks[/\\].*",
-        r"(?-i:^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$)",
+        r"^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
         r".*[/\\]secrets[/\\].*",
         r".*[Pp]assword.*",
         r".*[Tt]oken.*",
@@ -146,6 +169,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=False,
+                env=_git_environment(),
                 timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
@@ -169,6 +193,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=False,  # Don't raise, check returncode explicitly
+                env=_git_environment(),
                 timeout=CODEQL_API_TIMEOUT_SECONDS,
             )
 
@@ -321,20 +346,29 @@ class PreCommitSecurityCheck:
                         cwe_str,
                     )
 
-        # Step 1: Get staged PowerShell files
-        staged_files = self._get_staged_powershell_files()
+        # Step 1: Get staged files
+        staged_files = self._get_staged_files()
+        staged_present_files = self._get_staged_present_files()
+        unmerged_files = self._get_unmerged_files()
 
-        if staged_files is None:
+        if (
+            staged_files is None
+            or staged_present_files is None
+            or unmerged_files is None
+        ):
             logger.error("[FAIL] Could not determine staged files")
             return 1
 
-        if not staged_files:
-            logger.info("[PASS] No PowerShell files staged for commit")
-            return 0
+        if unmerged_files:
+            logger.error(
+                "[FAIL] Refusing security review with %d unmerged file(s)",
+                len(unmerged_files),
+            )
+            return 1
 
-        logger.info("Found %d staged PowerShell file(s):", len(staged_files))
-        for f in staged_files:
-            logger.info("  - %s", f)
+        if not staged_files:
+            logger.info("[PASS] No files staged for commit")
+            return 0
 
         # Step 2: Check for critical file patterns
         critical_files = self._check_critical_patterns(staged_files)
@@ -346,35 +380,51 @@ class PreCommitSecurityCheck:
             for f in critical_files:
                 logger.warning("  - %s", f)
 
-        # Step 3: Ensure PSScriptAnalyzer is available
-        if not self._ensure_psscriptanalyzer():
-            logger.error(
-                "[FAIL] PSScriptAnalyzer not available. Install with:\n"
-                "  Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser"
-            )
-            return 1
+        powershell_files = [
+            file_path
+            for file_path in staged_present_files
+            if _powershell_extension(file_path) is not None
+        ]
+        if not powershell_files and not critical_files:
+            logger.info("[PASS] No security-critical or PowerShell files staged")
+            return 0
 
-        # Step 4: Run PSScriptAnalyzer on staged files
-        analyzer_result = self._run_psscriptanalyzer(staged_files)
-        if not analyzer_result.passed:
-            logger.error(
-                "[FAIL] PSScriptAnalyzer found %d issue(s)",
-                len(analyzer_result.findings),
-            )
-            for finding in analyzer_result.findings:
+        if powershell_files:
+            logger.info("Found %d staged PowerShell file(s):", len(powershell_files))
+            for file_path in powershell_files:
+                logger.info("  - %s", file_path)
+
+            # Step 3: Ensure PSScriptAnalyzer is available
+            if not self._ensure_psscriptanalyzer():
                 logger.error(
-                    "  %s:%d [%s] %s",
-                    finding.file_path,
-                    finding.line_number,
-                    finding.severity,
-                    finding.message,
+                    "[FAIL] PSScriptAnalyzer not available. Install with:\n"
+                    "  Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser"
                 )
-
-            if not self.dry_run:
                 return 1
 
+            # Step 4: Run PSScriptAnalyzer on staged PowerShell files
+            analyzer_result = self._run_psscriptanalyzer(powershell_files)
+            if not analyzer_result.passed:
+                logger.error(
+                    "[FAIL] PSScriptAnalyzer found %d issue(s)",
+                    len(analyzer_result.findings),
+                )
+                for finding in analyzer_result.findings:
+                    logger.error(
+                        "  %s:%d [%s] %s",
+                        finding.file_path,
+                        finding.line_number,
+                        finding.severity,
+                        finding.message,
+                    )
+
+                if not self.dry_run:
+                    return 1
+
+        reviewed_files = list(dict.fromkeys([*powershell_files, *critical_files]))
+
         # Step 5: Generate security report
-        report_path = self._generate_security_report(staged_files, critical_files)
+        report_path = self._generate_security_report(reviewed_files, critical_files)
 
         if report_path:
             logger.info("Generated security report: %s", report_path)
@@ -399,28 +449,32 @@ class PreCommitSecurityCheck:
         logger.info("[PASS] Pre-commit security check completed")
         return 0
 
-    def _get_staged_powershell_files(self) -> list[Path] | None:
-        """Get list of staged PowerShell files.
-
-        Returns:
-            List of staged PowerShell file paths, or None on error.
-        """
+    def _get_staged_paths(self, diff_filter: str) -> list[Path] | None:
+        """Get staged paths for the requested Git diff statuses."""
         try:
             result = subprocess.run(
-                ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+                [
+                    "git",
+                    "diff",
+                    "--cached",
+                    "--name-only",
+                    "-z",
+                    "--no-renames",
+                    f"--diff-filter={diff_filter}",
+                ],
                 capture_output=True,
-                encoding="utf-8",
-                errors="replace",
                 check=True,
+                cwd=self.repo_root,
+                env=_git_environment(),
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
-            files = result.stdout.strip().split("\n") if result.stdout.strip() else []
-
-            # Filter for PowerShell files
-            ps_files = [self.repo_root / f for f in files if f.endswith((".ps1", ".psm1", ".psd1"))]
-
-            return ps_files
+            paths = [
+                os.fsdecode(raw_path)
+                for raw_path in result.stdout.split(b"\0")
+                if raw_path
+            ]
+            return [self.repo_root / file_path for file_path in paths]
 
         except subprocess.TimeoutExpired as e:
             logger.error(
@@ -429,9 +483,21 @@ class PreCommitSecurityCheck:
                 e.cmd,
             )
             return None
-        except subprocess.SubprocessError as e:
+        except (OSError, subprocess.SubprocessError) as e:
             logger.error("[FAIL] Failed to get staged files: %s", e)
             return None
+
+    def _get_staged_files(self) -> list[Path] | None:
+        """Get all staged paths, including deletions and rename source paths."""
+        return self._get_staged_paths("ACMDRT")
+
+    def _get_staged_present_files(self) -> list[Path] | None:
+        """Get staged destination paths whose blobs remain in the index."""
+        return self._get_staged_paths("ACMRT")
+
+    def _get_unmerged_files(self) -> list[Path] | None:
+        """Get paths with unresolved index stages."""
+        return self._get_staged_paths("U")
 
     def _check_critical_patterns(self, files: list[Path]) -> list[Path]:
         """Check if any staged files match critical security patterns."""
@@ -494,54 +560,59 @@ class PreCommitSecurityCheck:
             return False
 
     def _run_psscriptanalyzer(self, files: list[Path]) -> PreCommitResult:
-        """Run PSScriptAnalyzer on the specified files."""
+        """Run PSScriptAnalyzer on exact file content from the Git index."""
         findings = []
         failed_files = []
 
-        for file_path in files:
-            try:
-                analyzer_command = (
-                    "$findings = Invoke-ScriptAnalyzer "
-                    f"-Path '{file_path}' -Severity Error,Warning\n"
-                    "$findings | ConvertTo-Json -Depth 3"
-                )
-                # Run PSScriptAnalyzer with JSON output
-                literal_path = _powershell_single_quoted_literal(str(file_path))
-                analyzer_command = (
-                    f"$findings = Invoke-ScriptAnalyzer -LiteralPath {literal_path} "
-                    "-Severity Error,Warning\n"
-                    "$findings | ConvertTo-Json -Depth 3"
-                )
-                result = subprocess.run(
-                    [
-                        "pwsh",
-                        "-NoProfile",
-                        "-Command",
-                        analyzer_command,
-                    ],
-                    capture_output=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    check=False,
-                    timeout=SUBPROCESS_TIMEOUT_SECONDS,
-                )
-
-                if result.returncode != 0 and result.stderr:
-                    logger.warning(
-                        "PSScriptAnalyzer warning for %s: %s",
-                        file_path.name,
-                        result.stderr[:200],
-                    )
-                    continue
-
-                if not result.stdout.strip() or result.stdout.strip() == "null":
-                    continue
-
-                # Parse JSON output
+        with tempfile.TemporaryDirectory(prefix="precommit-security-") as temp_dir:
+            for index, file_path in enumerate(files):
                 try:
-                    analyzer_findings = json.loads(result.stdout)
+                    staged_content = self._read_staged_blob(file_path)
+                    if staged_content is None:
+                        failed_files.append(str(file_path))
+                        continue
 
-                    # Handle single finding (not wrapped in array)
+                    extension = _powershell_extension(file_path)
+                    if extension is None:
+                        failed_files.append(str(file_path))
+                        continue
+
+                    analyzer_path = Path(temp_dir) / f"{index}{extension}"
+                    analyzer_path.write_bytes(staged_content)
+                    literal_path = _powershell_single_quoted_literal(str(analyzer_path))
+                    analyzer_command = (
+                        "$ErrorActionPreference = 'Stop'\n"
+                        f"$findings = Invoke-ScriptAnalyzer -LiteralPath {literal_path} "
+                        "-Severity Error,Warning -ErrorAction Stop\n"
+                        "$findings | ConvertTo-Json -Depth 3"
+                    )
+                    result = subprocess.run(
+                        [
+                            "pwsh",
+                            "-NoProfile",
+                            "-Command",
+                            analyzer_command,
+                        ],
+                        capture_output=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        check=False,
+                        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                    )
+
+                    if result.returncode != 0 or result.stderr.strip():
+                        logger.error(
+                            "[FAIL] PSScriptAnalyzer failed for %s: %s",
+                            file_path.name,
+                            result.stderr[:200],
+                        )
+                        failed_files.append(str(file_path))
+                        continue
+
+                    if not result.stdout.strip() or result.stdout.strip() == "null":
+                        continue
+
+                    analyzer_findings = json.loads(result.stdout)
                     if isinstance(analyzer_findings, dict):
                         analyzer_findings = [analyzer_findings]
 
@@ -561,29 +632,26 @@ class PreCommitSecurityCheck:
                         )
 
                 except json.JSONDecodeError as e:
-                    # PSScriptAnalyzer should always output valid JSON or nothing
-                    # If we get invalid JSON, something is wrong with the tool
                     logger.error(
                         "[FAIL] PSScriptAnalyzer returned invalid JSON for %s: %s",
                         file_path.name,
                         e,
                     )
                     failed_files.append(str(file_path))
-
-            except subprocess.TimeoutExpired:
-                logger.warning(
-                    "[TIMEOUT] PSScriptAnalyzer timed out for %s; adding to failed files",
-                    file_path.name,
-                )
-                failed_files.append(str(file_path))
-
-            except subprocess.SubprocessError as e:
-                logger.error(
-                    "[FAIL] PSScriptAnalyzer failed for %s: %s",
-                    file_path.name,
-                    e,
-                )
-                failed_files.append(str(file_path))
+                except subprocess.TimeoutExpired:
+                    logger.warning(
+                        "[TIMEOUT] PSScriptAnalyzer timed out for %s; "
+                        "adding to failed files",
+                        file_path.name,
+                    )
+                    failed_files.append(str(file_path))
+                except (OSError, subprocess.SubprocessError) as e:
+                    logger.error(
+                        "[FAIL] PSScriptAnalyzer failed for %s: %s",
+                        file_path.name,
+                        e,
+                    )
+                    failed_files.append(str(file_path))
 
         # Check if any files failed analysis
         if failed_files and not self.dry_run:
@@ -611,6 +679,71 @@ class PreCommitSecurityCheck:
             findings=findings,
             report_path=None,
         )
+
+    def _read_staged_blob(self, file_path: Path) -> bytes | None:
+        """Read a file's exact staged blob from the Git index."""
+        relative_path = file_path.relative_to(self.repo_root).as_posix()
+        try:
+            entry_result = subprocess.run(
+                [
+                    "git",
+                    "--literal-pathspecs",
+                    "ls-files",
+                    "--stage",
+                    "-z",
+                    "--",
+                    relative_path,
+                ],
+                capture_output=True,
+                check=True,
+                cwd=self.repo_root,
+                env=_git_environment(),
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+            )
+            entries = [entry for entry in entry_result.stdout.split(b"\0") if entry]
+            if len(entries) != 1:
+                logger.error(
+                    "[FAIL] Expected one staged index entry for %s, found %d",
+                    relative_path,
+                    len(entries),
+                )
+                return None
+
+            metadata, separator, _ = entries[0].partition(b"\t")
+            fields = metadata.split()
+            if not separator or len(fields) != 3:
+                logger.error("[FAIL] Invalid staged index entry for %s", relative_path)
+                return None
+
+            mode, object_id, stage = fields
+            if stage != b"0" or mode not in {b"100644", b"100755"}:
+                logger.error(
+                    "[FAIL] Refusing non-regular staged PowerShell file %s "
+                    "(mode=%s, stage=%s)",
+                    relative_path,
+                    os.fsdecode(mode),
+                    os.fsdecode(stage),
+                )
+                return None
+
+            blob_result = subprocess.run(
+                [
+                    "git",
+                    "--no-replace-objects",
+                    "cat-file",
+                    "blob",
+                    os.fsdecode(object_id),
+                ],
+                capture_output=True,
+                check=True,
+                cwd=self.repo_root,
+                env=_git_environment(),
+                timeout=SUBPROCESS_TIMEOUT_SECONDS,
+            )
+        except (OSError, subprocess.SubprocessError) as e:
+            logger.error("[FAIL] Could not read staged blob for %s: %s", relative_path, e)
+            return None
+        return blob_result.stdout
 
     def _map_rule_to_cwe(self, rule_name: str) -> str | None:
         """Map PSScriptAnalyzer rule to CWE ID.
@@ -652,6 +785,7 @@ class PreCommitSecurityCheck:
                 encoding="utf-8",
                 errors="replace",
                 check=True,
+                env=_git_environment(),
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             branch = result.stdout.strip().replace("/", "-")
@@ -798,6 +932,7 @@ class PreCommitSecurityCheck:
                 ["git", "add", str(report_path)],
                 check=True,
                 capture_output=True,
+                env=_git_environment(),
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
             logger.info("Staged security report: %s", report_path.name)

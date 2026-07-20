@@ -175,8 +175,16 @@ class TestPreCommitSecurityCheck:
 
         with patch.object(
             checker,
-            "_get_staged_powershell_files",
+            "_get_staged_files",
             return_value=[tmp_path / "script.ps1"],
+        ), patch.object(
+            checker,
+            "_get_staged_present_files",
+            return_value=[tmp_path / "script.ps1"],
+        ), patch.object(
+            checker,
+            "_get_unmerged_files",
+            return_value=[],
         ), patch.object(checker, "_check_critical_patterns", return_value=[]), patch.object(
             checker, "_ensure_psscriptanalyzer", return_value=True
         ), patch.object(
