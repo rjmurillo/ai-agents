@@ -246,3 +246,45 @@ four were fixed by hand on top of those commits.
 ADR. Consensus 3 Accept / 3 Disagree-and-Commit, dissent recorded. Owner confirmed
 decision A on 2026-07-18 (session skills stay `surface: ship`, overlay deferred);
 status moved to `accepted`.
+
+---
+
+## Amendment Debate: Copy-Only Reconciliation (2026-07-19)
+
+**Amendment tracking issue**: #3252
+**Trigger**: PR #3251 shipped the phase 3 dogfood install (`scripts/dev/dogfood_copilot_plugin.py`) as copy on all platforms, diverging from Decision item 3, which specified a symlink on Unix, a copy on Windows, and an automatic session-start freshness check. #3252 routed the ADR-text reconciliation through this gate instead of a silent edit.
+**Reviewers**: architect, critic, independent-thinker, security, analyst, high-level-advisor (six read-only subagents, parallel, one round).
+**Scope reviewed**: the ~11 symlink references converted to copy-only, plus the owner rationale (every repo artifact is already copied; no symlink exists in the tree; a symlink cannot be universal because Windows needs elevation; refresh is explicit via re-run `--install`; the 0.5.248 rot came from untracked manual copies, not from copying).
+
+### Verdicts
+
+| Reviewer | Verdict | Headline finding |
+|---|---|---|
+| architect | ACCEPT | Copy-only reasoning is structurally sound; no dangling freshness-check or symlink text; `implemented: false` correct. |
+| critic | ACCEPT (completeness 4/5, consistency 5/5, testability 4/5) | Rot story correctly reattributed to untracked manual copies; no overclaim. |
+| independent-thinker | ACCEPT | Diagnosis was always "untracked manual copies," so the load-bearing fix is "scripted and repeatable," not symlink vs copy. Causal story holds. |
+| security | ACCEPT (0 Critical, 0 High) | Copy-only removes symlink-follow (CWE-59) and TOCTOU (CWE-367) surface; net-neutral-to-safer. |
+| analyst | ACCEPT | Verified ADR text matches shipped code line by line (copytree with cache-ignore, one-time `.bak` stash, `--install`/`--uninstall`/`--status`, exit 0/2). No residue of the removed freshness check. |
+| high-level-advisor | ACCEPT | An ADR describing symlinks nobody built actively misleads; reconciling to shipped reality is clearly right. No P0. |
+
+**Consensus: 6 Accept, 0 Disagree-and-Commit, 0 Block.**
+
+### Recurring finding (all six reviewers), non-blocking
+
+Copy-only drops the automatic session-start freshness check the original design proposed. The shipped `--status` reports drift on demand but nothing invokes it automatically, so a developer can run a stale dogfood copy until they remember to re-run `--install`. Every reviewer rated this non-blocking and recommended tracking it rather than gating the text reconciliation.
+
+**Disposition**: two changes applied to the amendment, both in scope for keeping the ADR text honest:
+
+1. Decision item 3 now states plainly that the automatic freshness check was dropped, describes the on-demand `--status` path, and points to the tracked follow-up.
+2. The Status section records the amendment, the 6-Accept consensus, and that only phase 3 has shipped (so `implemented: false` reflects partial delivery, not zero progress).
+
+The follow-up guard (opt-in `--status` on session start, or a CI drift gate) is filed as issue #3256.
+
+### Other findings (P2, no ADR change required)
+
+- security: the merged installer should reject a `COPILOT_HOME` containing `..` or an absolute path outside HOME. Shipped-code concern, out of scope for this text amendment; noted for the installer owner.
+- analyst: the "same mechanism every other artifact uses" claim is directionally accurate (build pipeline uses `shutil.copy2` per file; installer uses `shutil.copytree`; both copy, neither symlinks).
+
+### Amendment verdict
+
+**ACCEPT, changes applied.** The reconciliation makes the ADR text match shipped reality. The single recurring finding is tracked in #3256. `implemented: false` stays because phases 2, 4, and 5 remain.

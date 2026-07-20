@@ -1217,16 +1217,39 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Lifecycle precedence for the causal chain. Every extractor event shares one
+# session timestamp, so this rank, not the timestamp, is the real tie-breaker.
+# It enforces the invariant that a commit is never linked as ``caused_by`` a
+# later review milestone (issue #3260): a commit is created and pushed before
+# the tests, errors, and review or CI milestones that report on it, so it must
+# sort ahead of them. Types absent here sort at ``_CAUSAL_DEFAULT_RANK``.
+_CAUSAL_TYPE_RANK: dict[str, int] = {
+    "implementation": 0,
+    "commit": 1,
+    "test": 2,
+    "error": 3,
+    "milestone": 4,
+}
+_CAUSAL_DEFAULT_RANK = 2
+
+
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
-    """Populate ``caused_by``/``leads_to`` as a linear chain over ordered events.
+    """Populate ``caused_by``/``leads_to`` as a lifecycle-ordered chain.
 
     ADR-038 defines ``caused_by``/``leads_to`` as first-class event fields so
     reflexion retrieval can walk a connected causal graph, but every
     event-construction site emits them empty, leaving the graph flat
-    (issue #3245). The extractor appends events in session-progression order, so
-    linking each event to its immediate predecessor and successor is the
-    cheapest defensible causal signal. Boundary events (the first, the last)
-    keep the empty side.
+    (issue #3245).
+
+    The chain follows the session lifecycle, not raw append order.
+    ``json_events`` appends every commit after the work-log milestones, so a
+    purely positional chain linked the commit as ``caused_by`` the final
+    PR-review milestone, inverting cause and effect: a commit is created and
+    pushed before any review happens (issue #3260). Events are ordered by
+    ``(timestamp, lifecycle rank, original position)`` so commits (causes)
+    precede the tests, errors, and review milestones (effects) that follow them,
+    while events of the same rank keep their original order. The physical
+    ``events`` list is left untouched; only the link fields change.
 
     Mutates in place. Must run on final ids, i.e. after any id reassignment by
     ``_dedupe_events``, so the references never dangle.
@@ -1234,13 +1257,22 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     Overwrites ``caused_by``/``leads_to`` unconditionally. Under ``--preserve``,
     ids reassigned by ``merge_preserving`` make prior edges invalid, so any
     existing values (including curated edges on a loaded episode) are replaced
-    by the regenerated linear chain rather than retained.
+    by the regenerated chain rather than retained.
     """
-    ordered = [e for e in events if isinstance(e, dict) and e.get("id")]
-    last = len(ordered) - 1
-    for pos, evt in enumerate(ordered):
-        evt["caused_by"] = [ordered[pos - 1]["id"]] if pos > 0 else []
-        evt["leads_to"] = [ordered[pos + 1]["id"]] if pos < last else []
+    linkable = [e for e in events if isinstance(e, dict) and e.get("id")]
+    chain_order = sorted(
+        range(len(linkable)),
+        key=lambda i: (
+            linkable[i].get("timestamp") or "",
+            _CAUSAL_TYPE_RANK.get(linkable[i].get("type", ""), _CAUSAL_DEFAULT_RANK),
+            i,
+        ),
+    )
+    chain = [linkable[i] for i in chain_order]
+    last = len(chain) - 1
+    for pos, evt in enumerate(chain):
+        evt["caused_by"] = [chain[pos - 1]["id"]] if pos > 0 else []
+        evt["leads_to"] = [chain[pos + 1]["id"]] if pos < last else []
 
 
 def main(argv: list[str] | None = None) -> int:

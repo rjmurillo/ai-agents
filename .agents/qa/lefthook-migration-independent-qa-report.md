@@ -1,7 +1,7 @@
 # Independent QA Report: Native Lefthook Migration
 
-**Branch:** `chore/lefthook-migration`  
-**Date:** 2026-07-19  
+**Branch:** `chore/lefthook-migration`
+**Date:** 2026-07-19
 **Result:** PASS
 
 ## Acceptance

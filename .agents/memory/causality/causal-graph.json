@@ -13126,13 +13126,85 @@
       "created": "2026-07-18T07:51:32.359838+00:00"
     },
     {
+      "id": "86f790c528f0",
+      "type": "milestone",
+      "label": "milestone: Verified the #3246 retirement facts against the tree before amending",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418063+00:00"
+    },
+    {
+      "id": "e8bc6c1f6aa8",
+      "type": "milestone",
+      "label": "milestone: Amended ADR-033 to record the Gates 2/3/4 hook retirement",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418131+00:00"
+    },
+    {
+      "id": "bffef0d32ff1",
+      "type": "milestone",
+      "label": "milestone: Ran the mandatory adr-review skill debate (6 agents) and recorded the result",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418183+00:00"
+    },
+    {
+      "id": "d9f479373a90",
+      "type": "commit",
+      "label": "commit: Commit: 27df92abe",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418280+00:00"
+    },
+    {
+      "id": "e25c31a7989d",
+      "type": "milestone",
+      "label": "milestone: Converged the Copilot review on PR #3258",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418329+00:00"
+    },
+    {
+      "id": "452cdf795d99",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve issue #3248: amend ADR-033 (Routing-Level Enforcement Gates) to record the already-shipped retirement of the invoke_routing_gates.py PreToolUse hook (Gates 2 QA Validation, 3 Critic Review, 4 ADR Existence), deleted in PR #3246 (Refs #3194). The hook was structurally dead: its matcher fired only on raw gh pr create / gh pr merge, which invoke_skill_first_guard.py already denies in the same PreToolUse event, and its legacy exit-0 deny payload was ignored by the harness. Documentation-accuracy amendment only, no behavior change. Run the mandatory adr-review skill debate, mark the retired gates in the Gate Types table, record where the advisory intent went, then commit and open a PR. ADR-only edit under .agents/, no .claude or src/copilot-cli files, so no plugin manifest bump expected.",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:21:35.418380+00:00"
+    },
+    {
+      "id": "2ed050b9375a",
+      "type": "milestone",
+      "label": "milestone: Converged the second Copilot review round on PR #3258 (episode + session-log findings)",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:31:34.214616+00:00"
+    },
+    {
+      "id": "5e05edd88d7e",
+      "type": "milestone",
+      "label": "milestone: Converged the third Copilot review round on PR #3258 (exit-code + path accuracy)",
+      "episodes": [
+        "episode-2026-07-19-session-3248-adr033-routing-gates"
+      ],
+      "created": "2026-07-19T23:47:30.142733+00:00"
+    },
+    {
       "id": "fa4e6b921fde",
       "type": "decision",
       "label": "implementation: Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:58:45.126989+00:00"
+      "created": "2026-07-20T12:37:15.629227+00:00"
     },
     {
       "id": "7ff9a433bb74",
@@ -13141,7 +13213,7 @@
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:58:45.127045+00:00"
+      "created": "2026-07-20T12:37:15.629285+00:00"
     },
     {
       "id": "4e4e61173f84",
@@ -13150,7 +13222,7 @@
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:58:45.127093+00:00"
+      "created": "2026-07-20T12:37:15.629337+00:00"
     },
     {
       "id": "cad37aaff7e6",
@@ -13159,7 +13231,7 @@
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:58:45.127140+00:00"
+      "created": "2026-07-20T12:37:15.629385+00:00"
     },
     {
       "id": "86066c4c1b74",
@@ -13168,7 +13240,7 @@
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:58:45.127186+00:00"
+      "created": "2026-07-20T12:37:15.629432+00:00"
     },
     {
       "id": "3df794a76702",
@@ -13177,7 +13249,7 @@
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:58:45.127233+00:00"
+      "created": "2026-07-20T12:37:15.629480+00:00"
     },
     {
       "id": "e25a8c59dd00",
@@ -13186,7 +13258,7 @@
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:58:45.127279+00:00"
+      "created": "2026-07-20T12:37:15.629526+00:00"
     },
     {
       "id": "633f659a9dcf",
@@ -13195,16 +13267,7 @@
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:58:45.127327+00:00"
-    },
-    {
-      "id": "f56f6c4d2c43",
-      "type": "outcome",
-      "label": "Outcome: success - Migrate the repository from custom .githooks to OSS Lefthook",
-      "episodes": [
-        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
-      ],
-      "created": "2026-07-19T17:58:45.127374+00:00"
+      "created": "2026-07-20T12:37:15.629573+00:00"
     },
     {
       "id": "d308c6266ac4",
@@ -13213,16 +13276,43 @@
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:59:33.018991+00:00"
+      "created": "2026-07-20T12:37:15.629619+00:00"
     },
     {
-      "id": "a7c3e91f4b28",
+      "id": "d0b54c0c14af",
       "type": "commit",
       "label": "commit: Commit: 83222cf299",
       "episodes": [
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
-      "created": "2026-07-19T17:59:33.019000+00:00"
+      "created": "2026-07-20T12:37:15.629673+00:00"
+    },
+    {
+      "id": "f56f6c4d2c43",
+      "type": "outcome",
+      "label": "Outcome: success - Migrate the repository from custom .githooks to OSS Lefthook",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-20T12:37:15.629723+00:00"
+    },
+    {
+      "id": "b65a173b41a7",
+      "type": "decision",
+      "label": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-20T12:37:15.629858+00:00"
+    },
+    {
+      "id": "1282c02cb1a0",
+      "type": "milestone",
+      "label": "Selected pinned OSS Lefthook 2.1.10 through the existing uv lock after an isolated runtime probe.",
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "created": "2026-07-20T12:37:15.629905+00:00"
     },
     {
       "id": "eefaa4c8e205",
@@ -13231,7 +13321,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295549+00:00"
+      "created": "2026-07-20T12:37:15.713873+00:00"
     },
     {
       "id": "94fd2f847e70",
@@ -13240,7 +13330,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295610+00:00"
+      "created": "2026-07-20T12:37:15.713934+00:00"
     },
     {
       "id": "e1ef8d46249b",
@@ -13249,7 +13339,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295674+00:00"
+      "created": "2026-07-20T12:37:15.713983+00:00"
     },
     {
       "id": "acb4f008811e",
@@ -13258,7 +13348,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295724+00:00"
+      "created": "2026-07-20T12:37:15.714031+00:00"
     },
     {
       "id": "069d5c1e2a2b",
@@ -13267,7 +13357,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295772+00:00"
+      "created": "2026-07-20T12:37:15.714079+00:00"
     },
     {
       "id": "ec53b0592081",
@@ -13276,7 +13366,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295819+00:00"
+      "created": "2026-07-20T12:37:15.714127+00:00"
     },
     {
       "id": "9f70f572bc2e",
@@ -13285,7 +13375,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295866+00:00"
+      "created": "2026-07-20T12:37:15.714174+00:00"
     },
     {
       "id": "7eee4053b9e8",
@@ -13294,7 +13384,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295913+00:00"
+      "created": "2026-07-20T12:37:15.714222+00:00"
     },
     {
       "id": "601dda32c337",
@@ -13303,7 +13393,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.295959+00:00"
+      "created": "2026-07-20T12:37:15.714269+00:00"
     },
     {
       "id": "155fd5b3fe92",
@@ -13312,7 +13402,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.296006+00:00"
+      "created": "2026-07-20T12:37:15.714317+00:00"
     },
     {
       "id": "3f845cb59b42",
@@ -13321,7 +13411,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.296054+00:00"
+      "created": "2026-07-20T12:37:15.714367+00:00"
     },
     {
       "id": "ccd094c81e05",
@@ -13330,16 +13420,7 @@
       "episodes": [
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
       ],
-      "created": "2026-07-20T02:13:21.296101+00:00"
-    },
-    {
-      "id": "73becafcebcd",
-      "type": "outcome",
-      "label": "Outcome: success - Replace the custom Git hook system with OSS Lefthook",
-      "episodes": [
-        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
-      ],
-      "created": "2026-07-20T02:13:21.296149+00:00"
+      "created": "2026-07-20T12:37:15.714415+00:00"
     },
     {
       "id": "3b9e2c94a69f",
@@ -13349,7 +13430,16 @@
         "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook",
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T04:02:13.618794+00:00"
+      "created": "2026-07-20T12:37:15.714462+00:00"
+    },
+    {
+      "id": "73becafcebcd",
+      "type": "outcome",
+      "label": "Outcome: success - Replace the custom Git hook system with OSS Lefthook",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T12:37:15.714511+00:00"
     },
     {
       "id": "dafdce1022dc",
@@ -13358,7 +13448,7 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T04:02:13.677535+00:00"
+      "created": "2026-07-20T12:37:15.790392+00:00"
     },
     {
       "id": "729b9593ec70",
@@ -13367,7 +13457,7 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T04:02:13.677594+00:00"
+      "created": "2026-07-20T12:37:15.790453+00:00"
     },
     {
       "id": "b51a154cd7d7",
@@ -13376,16 +13466,7 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T04:02:13.677654+00:00"
-    },
-    {
-      "id": "0aef44881b32",
-      "type": "outcome",
-      "label": "Outcome: success - Finish Lefthook Semgrep hardening and merge PR 3259",
-      "episodes": [
-        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
-      ],
-      "created": "2026-07-20T04:02:13.677750+00:00"
+      "created": "2026-07-20T12:37:15.790505+00:00"
     },
     {
       "id": "16f5fa72e1b7",
@@ -13394,7 +13475,7 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T06:12:38.761361+00:00"
+      "created": "2026-07-20T12:37:15.790600+00:00"
     },
     {
       "id": "400b2acac555",
@@ -13403,7 +13484,7 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T06:12:38.761418+00:00"
+      "created": "2026-07-20T12:37:15.790657+00:00"
     },
     {
       "id": "6ade00bd9e06",
@@ -13412,7 +13493,7 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T06:12:38.761467+00:00"
+      "created": "2026-07-20T12:37:15.790704+00:00"
     },
     {
       "id": "d54703a870d8",
@@ -13421,7 +13502,7 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T06:12:38.761515+00:00"
+      "created": "2026-07-20T12:37:15.790752+00:00"
     },
     {
       "id": "d3de9ecf9f8a",
@@ -13430,7 +13511,7 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T06:35:00.741032+00:00"
+      "created": "2026-07-20T12:37:15.790800+00:00"
     },
     {
       "id": "6374fb334c2f",
@@ -13439,7 +13520,16 @@
       "episodes": [
         "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
       ],
-      "created": "2026-07-20T06:35:00.741091+00:00"
+      "created": "2026-07-20T12:37:15.790848+00:00"
+    },
+    {
+      "id": "0aef44881b32",
+      "type": "outcome",
+      "label": "Outcome: success - Finish Lefthook Semgrep hardening and merge PR 3259",
+      "episodes": [
+        "episode-2026-07-20-session-3196-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T12:37:15.790896+00:00"
     }
   ],
   "patterns": [
@@ -13516,7 +13606,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 398,
+      "occurrences": 3,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
         "episode-2026-07-13-session-3041-frontier-model",
@@ -13984,6 +14074,20 @@
         "episode-2026-07-15-session-3042"
       ],
       "created": "2026-07-15T19:13:40.609373+00:00"
+    },
+    {
+      "source": "b65a173b41a7",
+      "target": "1282c02cb1a0",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
+      ],
+      "contributions": {
+        "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph": 0.6
+      },
+      "created": "2026-07-20T12:37:15.629912+00:00"
     }
   ]
 }

@@ -101,7 +101,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
 | New skill wanted | Skill: SkillForge |
-| Multi-step, cross-cutting, or no row matches | Task(subagent_type="orchestrator") |
+| Multi-step, cross-cutting, or no row matches | `agent_type: "project-toolkit:orchestrator"` |
 
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
@@ -186,19 +186,7 @@ A routed run is complete when every box checks:
   example, "touches templates/agents/" implies Standard or above because of
   mirror obligations).
 - **Escape hatches.** Route fails mid-run: fall back to
-  Task(subagent_type="orchestrator") with the failure context rather than
+  `agent_type: "project-toolkit:orchestrator"` with the failure context rather than
   retrying the same route blind. Two consecutive routing misses on one
   request: stop, ask which route the user wanted, and log the miss with the
   reflect skill.
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="orchestrator")` | `task` tool, `agent_type: "project-toolkit:orchestrator"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.

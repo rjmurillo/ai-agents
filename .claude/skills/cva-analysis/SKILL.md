@@ -285,7 +285,7 @@ Use Abstract Factory pattern with `IPaymentFactory` per method.
 
 3. **Route to architect agent** (for ADR creation):
 
-   ```bash
+   ```text
    # Hand off ADR stub to architect agent
    Task(subagent_type="architect", prompt="Create ADR from CVA analysis stub")
    ```
@@ -341,7 +341,7 @@ CVA produces ADR stub with pattern rationale. Architect agent creates formal ADR
 
 **Handoff Protocol**:
 
-```python
+```text
 Task(subagent_type="architect", prompt="Create ADR from CVA analysis at cva-payment-processing.md")
 ```
 
@@ -361,7 +361,7 @@ Challenges whether abstraction is needed at all. Use when CVA is borderline (min
 
 **Usage**:
 
-```python
+```text
 Task(subagent_type="independent-thinker", prompt="Challenge whether payment abstraction is justified given only 2 current methods")
 ```
 

@@ -68,7 +68,7 @@ Matching files:
   [HIGH] src/Controllers/AuthController.cs
 
 Run security agent before implementation:
-  Task(subagent_type="security", prompt="Review infrastructure changes")
+  `agent_type: "project-toolkit:security"` with prompt "Review infrastructure changes"
 ```
 
 When no matches:
@@ -172,15 +172,3 @@ After running security detection:
 - [Infrastructure File Patterns](../../security/infrastructure-file-patterns.md)
 - [Security Agent Capabilities](../../security/static-analysis-checklist.md)
 - [Orchestrator Routing Algorithm](../../../docs/orchestrator-routing-algorithm.md)
-
-## Copilot CLI invocation reference
-
-This skill body uses Claude Code call syntax. Under GitHub Copilot CLI, translate as follows (verified against Copilot CLI 1.0.66-1).
-
-### Sub-agent calls
-
-| Claude Code syntax | Copilot CLI equivalent |
-| --- | --- |
-| `Task(subagent_type="security")` | `task` tool, `agent_type: "project-toolkit:security"` |
-
-If a referenced skill or agent is unavailable in the Copilot CLI environment, perform that step inline and note the reduced coverage.
