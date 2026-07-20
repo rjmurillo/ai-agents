@@ -233,6 +233,11 @@
       "timestamp": "2026-07-20T19:43:00Z",
       "action": "Aligned eval and Copilot dogfood records",
       "evidence": "ADR-075 and ADR-083 now distinguish Lefthook local scheduling from harness-specific runtime surfaces"
+    },
+    {
+      "timestamp": "2026-07-20T19:44:00Z",
+      "action": "Aligned vendored-hook and permission-surface records",
+      "evidence": "ADR-084 and ADR-085 now preserve harness boundaries while recognizing Lefthook as the local Git hook framework"
     }
   ],
   "endingCommit": "226b6c2f0a9ef824063c59bbfcb1f10770322414",

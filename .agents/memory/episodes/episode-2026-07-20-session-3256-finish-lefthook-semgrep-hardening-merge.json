@@ -528,6 +528,18 @@
       "caused_by": [
         "e043"
       ],
+      "leads_to": [
+        "e045"
+      ]
+    },
+    {
+      "id": "e045",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned vendored-hook and permission-surface records",
+      "caused_by": [
+        "e044"
+      ],
       "leads_to": []
     }
   ],

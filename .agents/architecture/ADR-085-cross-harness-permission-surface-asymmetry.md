@@ -162,7 +162,7 @@ via `skip_if_consumer_repo` on a hook shipped to Copilot, is a direct ADR-084 ru
 4 violation (self-neutering hooks are banned from the vendored surface; they are
 not shipped dead). This ADR grants no rule 4 exception. D-A must resolve the
 violation: customer-facing removes the self-neuter and makes discovery plugin-root
-aware; internal-only relocates the hook to `.githooks`/CI. Both branches comply
+aware; internal-only relocates the hook to Lefthook or CI. Both branches comply
 with rule 4. Keeping the hook mechanism while leaving D-A unresolved leaves an
 active rule 4 violation in place and is not a valid end state.
 
@@ -228,8 +228,8 @@ as retained with the hook that keeps it alive.
   in a consumer repo. Implement under #3217.
 - **Alternative: internal-only.** If the owner intends it as dogfood-only DX, then
   per ADR-084 rule 4 (customer-facing hooks must not self-neuter; internal
-  enforcement belongs in `.githooks`/CI) relocate it off the vendored Copilot
-  surface into `.githooks`/CI and stop shipping it.
+  enforcement belongs in Lefthook or CI) relocate it off the vendored Copilot
+  surface into Lefthook or CI and stop shipping it.
 
 Either way the `skip_if_consumer_repo` no-op-in-place state is not a valid
 end state for a shipped hook.
