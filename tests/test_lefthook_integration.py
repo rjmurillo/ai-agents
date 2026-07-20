@@ -18,6 +18,7 @@ from scripts.validation import git_hook_policy as policy
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
+SEMGREP = shutil.which("semgrep")
 HOOK_PAYLOADS = (
     PROJECT_ROOT / "scripts/hooks/pre-commit",
     PROJECT_ROOT / "scripts/hooks/pre-push",
@@ -152,6 +153,21 @@ def _completed(
     stderr: str = "",
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess([], returncode, stdout, stderr)
+
+
+def _semgrep_completed(
+    returncode: int,
+    scanned: Sequence[Path | str],
+) -> subprocess.CompletedProcess[str]:
+    return _completed(
+        returncode,
+        json.dumps(
+            {
+                "errors": [],
+                "paths": {"scanned": [str(path) for path in scanned]},
+            },
+        ),
+    )
 
 
 def _push_update(
@@ -1077,18 +1093,71 @@ def test_git_command_boundary_forces_utf8_replacement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
+    monkeypatch.setenv("GIT_GRAFT_FILE", str(tmp_path / "alternate-grafts"))
+    monkeypatch.setenv("GIT_SHALLOW_FILE", str(tmp_path / "alternate-shallow"))
+    monkeypatch.setenv("GIT_TEST_COMMIT_GRAPH", "1")
+    monkeypatch.setenv("GIT_TEST_COMMIT_GRAPH_DIE_ON_LOAD", "1")
+    monkeypatch.setenv("SEMGREP_APP_URL", "https://attacker.invalid")
+    monkeypatch.setenv("SEMGREP_BASELINE_COMMIT", "HEAD")
+    monkeypatch.setenv("SEMGREP_BASELINE_REF", "HEAD")
+    monkeypatch.setenv("SEMGREP_URL", "https://attacker.invalid")
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured["args"] = args[0]
         captured.update(kwargs)
         return _completed(0)
 
     monkeypatch.setattr(policy.subprocess, "run", fake_run)
 
-    policy._run_command(["tool"], tmp_path)
+    policy._run_git(tmp_path, ["status", "--short"])
 
+    assert captured["args"] == [
+        "git",
+        "-c",
+        "core.commitGraph=false",
+        "status",
+        "--short",
+    ]
     assert captured["encoding"] == "utf-8"
     assert captured["errors"] == "replace"
-    assert captured["env"]["GIT_NO_REPLACE_OBJECTS"] == "1"
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
+    assert env["GIT_TEST_COMMIT_GRAPH"] == "0"
+    assert "GIT_TEST_COMMIT_GRAPH_DIE_ON_LOAD" not in env
+    assert "GIT_GRAFT_FILE" not in env
+    assert "GIT_SHALLOW_FILE" not in env
+    assert "SEMGREP_APP_URL" not in env
+    assert "SEMGREP_BASELINE_COMMIT" not in env
+    assert "SEMGREP_BASELINE_REF" not in env
+    assert "SEMGREP_URL" not in env
+
+
+def test_binary_git_reads_disable_commit_graphs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[str] = []
+
+    def fake_run(
+        args: Sequence[str],
+        _repo_root: Path,
+    ) -> subprocess.CompletedProcess[bytes]:
+        captured.extend(args)
+        return subprocess.CompletedProcess([], 0, b"", b"")
+
+    monkeypatch.setattr(policy, "_run_command_bytes", fake_run)
+
+    policy._run_git_bytes(tmp_path, ["cat-file", "blob", "abc"])
+
+    assert captured == [
+        "git",
+        "-c",
+        "core.commitGraph=false",
+        "cat-file",
+        "blob",
+        "abc",
+    ]
 
 
 def test_alternate_index_controls_staged_blob_and_generated_staging(
@@ -1467,7 +1536,12 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
     source.write_text("dangerous = False\n", encoding="utf-8")
 
-    def fake_scan(tree: Path, _root: Path) -> subprocess.CompletedProcess[str]:
+    def fake_scan(
+        tree: Path,
+        paths: Sequence[str],
+        _root: Path,
+    ) -> subprocess.CompletedProcess[str]:
+        assert paths == ["nested/source.py"]
         assert not (tree / "unchanged.py").exists()
         content = (tree / "nested/source.py").read_text(encoding="utf-8")
         return _completed(1 if "True" in content else 0)
@@ -1495,7 +1569,12 @@ def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
-    def fake_scan(tree: Path, _root: Path) -> subprocess.CompletedProcess[str]:
+    def fake_scan(
+        tree: Path,
+        paths: Sequence[str],
+        _root: Path,
+    ) -> subprocess.CompletedProcess[str]:
+        assert "nested/source.py" in paths
         content = (tree / "nested/source.py").read_text(encoding="utf-8")
         return _completed(1 if "dangerous = True" in content else 0)
 
@@ -1521,7 +1600,12 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
     head = _git(repo, "rev-parse", "HEAD").stdout.strip()
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
-    def fake_scan(tree: Path, _root: Path) -> subprocess.CompletedProcess[str]:
+    def fake_scan(
+        tree: Path,
+        paths: Sequence[str],
+        _root: Path,
+    ) -> subprocess.CompletedProcess[str]:
+        assert "source.js" in paths
         content = (tree / "source.js").read_text(encoding="utf-8")
         return _completed(1 if "$Format:a%eval(userInput);$" in content else 0)
 
@@ -1548,7 +1632,12 @@ def test_pushed_semgrep_scan_ignores_local_replacement_blob(
     _git(repo, "replace", dangerous_blob, benign_blob)
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
-    def fake_scan(tree: Path, _root: Path) -> subprocess.CompletedProcess[str]:
+    def fake_scan(
+        tree: Path,
+        paths: Sequence[str],
+        _root: Path,
+    ) -> subprocess.CompletedProcess[str]:
+        assert paths == ["source.py"]
         content = (tree / "source.py").read_text(encoding="utf-8")
         return _completed(1 if "dangerous = True" in content else 0)
 
@@ -1585,6 +1674,55 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     assert policy.scan_pushed_heads(stream, repo) == 2
 
 
+@pytest.mark.parametrize(
+    "paths",
+    [
+        ["source.py", "SOURCE.py"],
+        ["source.py", "source.py. "],
+        ["source.py:payload"],
+    ],
+)
+def test_pushed_semgrep_validates_all_paths_before_suffix_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    paths: list[str],
+) -> None:
+    monkeypatch.setattr(policy, "_push_updates", lambda *_args: [_push_update()])
+    monkeypatch.setattr(policy, "_changed_commit_paths", lambda *_args: paths)
+    monkeypatch.setattr(policy, "_commit_paths", lambda *_args: paths)
+    monkeypatch.setattr(
+        policy,
+        "_scan_pushed_head",
+        lambda *_args: pytest.fail("invalid pushed paths must not reach Semgrep"),
+    )
+
+    assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
+
+
+def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "_push_updates", lambda *_args: [_push_update()])
+    monkeypatch.setattr(
+        policy,
+        "_changed_commit_paths",
+        lambda *_args: ["SOURCE.py"],
+    )
+    monkeypatch.setattr(
+        policy,
+        "_commit_paths",
+        lambda *_args: ["source.py", "SOURCE.py"],
+    )
+    monkeypatch.setattr(
+        policy,
+        "_scan_pushed_head",
+        lambda *_args: pytest.fail("colliding pushed trees must not reach Semgrep"),
+    )
+
+    assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
+
+
 def test_semgrep_missing_executable_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1595,7 +1733,7 @@ def test_semgrep_missing_executable_blocks(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError()),
     )
 
-    assert policy._run_semgrep_tree(tmp_path, tmp_path).returncode == 2
+    assert policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path).returncode == 2
 
 
 def test_semgrep_disables_native_suppressions(
@@ -1610,12 +1748,219 @@ def test_semgrep_disables_native_suppressions(
         **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         calls.append(list(args))
-        return _completed(0)
+        return _semgrep_completed(0, [tmp_path / "source.py"])
 
     monkeypatch.setattr(policy, "_run_command", fake_run)
 
-    assert policy._run_semgrep_tree(tmp_path, tmp_path).returncode == 0
+    assert policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path).returncode == 0
     assert "--disable-nosem" in calls[0]
+    assert "--x-ignore-semgrepignore-files" in calls[0]
+    assert "--max-target-bytes=0" in calls[0]
+    assert "--no-exclude-binary-files" in calls[0]
+    assert "--" in calls[0]
+    assert str(tmp_path / "source.py") in calls[0]
+    assert str(tmp_path) not in calls[0]
+
+
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
+def test_semgrep_real_cli_scans_ignored_file_over_default_size_limit(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "ignored-large.py"
+    target.write_text("value = 1\n" + "# padding\n" * 110_000, encoding="utf-8")
+    (tmp_path / ".semgrepignore").write_text(f"{target.name}\n", encoding="utf-8")
+    config = tmp_path / "semgrep.yml"
+    config.write_text(
+        """
+rules:
+  - id: impossible-equality
+    languages: [python]
+    message: impossible
+    severity: ERROR
+    pattern: $X == $X
+""".lstrip(),
+        encoding="utf-8",
+    )
+    command = policy._semgrep_command(str(config), [str(target)])
+    assert SEMGREP is not None
+    command[0] = SEMGREP
+
+    result = subprocess.run(
+        command,
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["errors"] == []
+    assert Path(str(payload["paths"]["scanned"][0])).resolve() == target.resolve()
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected_error"),
+    [
+        ("not json", "invalid Semgrep JSON"),
+        ("[]", "root is not an object"),
+        ('{"paths": {}}', "lacks scanned target paths"),
+        ('{"paths": {"scanned": [1]}}', "lacks scanned target paths"),
+    ],
+)
+def test_semgrep_rejects_invalid_scanned_target_manifest(
+    tmp_path: Path,
+    stdout: str,
+    expected_error: str,
+) -> None:
+    result = policy._verify_semgrep_targets(
+        _completed(0, stdout, "semgrep warning\n"),
+        [str(tmp_path / "source.py")],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+    assert expected_error in result.stderr
+    assert "semgrep warning" in result.stderr
+
+
+def test_semgrep_rejects_omitted_requested_target(tmp_path: Path) -> None:
+    result = policy._verify_semgrep_targets(
+        _semgrep_completed(0, [tmp_path / "first.py"]),
+        [str(tmp_path / "first.py"), str(tmp_path / "second.py")],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+    assert "Semgrep omitted requested targets" in result.stderr
+    assert "second.py" in result.stderr
+
+
+def test_semgrep_tree_blocks_omitted_requested_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _semgrep_completed(0, []),
+    )
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "Semgrep omitted requested targets" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"paths": {"scanned": ["source.py"]}},
+        {
+            "errors": [{"message": "parser failed"}],
+            "paths": {"scanned": ["source.py"]},
+        },
+    ],
+)
+def test_semgrep_rejects_missing_or_nonempty_error_manifest(
+    tmp_path: Path,
+    payload: dict[str, object],
+) -> None:
+    result = policy._verify_semgrep_targets(
+        _completed(0, json.dumps(payload)),
+        [str(tmp_path / "source.py")],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+    assert "Semgrep" in result.stderr
+
+
+def test_semgrep_preserves_finding_exit_after_target_verification(tmp_path: Path) -> None:
+    result = policy._verify_semgrep_targets(
+        _semgrep_completed(1, ["source.py"]),
+        [str(tmp_path / "source.py")],
+        tmp_path,
+    )
+
+    assert result.returncode == 1
+
+
+def test_semgrep_command_error_bypasses_target_manifest_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(2, "not json", "configuration error"),
+    )
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert result.stderr == "configuration error"
+
+
+def test_semgrep_batches_targets_within_count_and_length_limits() -> None:
+    targets = [f"/tmp/{index:04d}-{'x' * 400}.py" for index in range(250)]
+
+    batches = policy._semgrep_target_batches(targets)
+
+    assert [target for batch in batches for target in batch] == targets
+    assert all(len(batch) <= policy.SEMGREP_BATCH_TARGET_LIMIT for batch in batches)
+    assert all(
+        sum(len(argument) + 1 for argument in policy._semgrep_command("auto", batch))
+        <= policy.SEMGREP_COMMAND_LENGTH_LIMIT
+        for batch in batches
+    )
+
+
+def test_semgrep_scans_every_batch_and_preserves_finding_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = [f"source-{index:03d}.py" for index in range(205)]
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        calls.append(command)
+        separator = command.index("--")
+        targets = command[separator + 1 :]
+        return _semgrep_completed(1 if len(calls) == 1 else 0, targets)
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, paths, tmp_path)
+
+    assert result.returncode == 1
+    assert len(calls) == 3
+    assert sum(len(call[call.index("--") + 1 :]) for call in calls) == len(paths)
+
+
+def test_semgrep_execution_os_error_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("denied")),
+    )
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "cannot execute semgrep" in result.stderr
+
+
+def test_semgrep_empty_target_set_is_clean(tmp_path: Path) -> None:
+    assert policy._run_semgrep_tree(tmp_path, [], tmp_path).returncode == 0
 
 
 def test_mypy_partition_separates_collisions_and_validation_modules() -> None:
@@ -2187,6 +2532,7 @@ def test_push_policy_reports_branch_and_input_configuration_errors(
     assert policy.check_push_refs(io.StringIO(), tmp_path) == 2
 
     monkeypatch.setattr(policy, "check_branch", lambda _root: 0)
+    monkeypatch.setattr(policy, "_check_history_integrity", lambda _root: 0)
     assert policy.check_push_refs(io.StringIO("bad input\n"), tmp_path) == 2
 
 
@@ -2718,15 +3064,17 @@ def test_immutable_semgrep_handles_input_materialization_and_empty_push(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert policy.scan_pushed_heads(io.StringIO("bad\n"), tmp_path) == 2
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    assert policy.scan_pushed_heads(io.StringIO("bad\n"), repo) == 2
     head = "1" * 40
     ref_line = f"refs/heads/a {head} refs/heads/a {'2' * 40}\n"
     monkeypatch.setattr(policy, "_materialize_commit_tree", lambda *_args: 2)
-    assert policy.scan_pushed_heads(io.StringIO(ref_line), tmp_path) == 2
+    assert policy.scan_pushed_heads(io.StringIO(ref_line), repo) == 2
 
     zero = "0" * 40
     deletion = f"(delete) {zero} refs/heads/a {'2' * 40}\n"
-    assert policy.scan_pushed_heads(io.StringIO(deletion), tmp_path) == 0
+    assert policy.scan_pushed_heads(io.StringIO(deletion), repo) == 0
 
 
 def test_materialize_commit_reads_raw_blob_and_rejects_bad_paths(
@@ -2757,6 +3105,107 @@ def test_materialize_commit_reads_raw_blob_and_rejects_bad_paths(
         policy._materialize_commit_tree(head, tmp_path / "missing", repo, ["x.py"])
         == 2
     )
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ("PAYLOAD.py", "payload.py"),
+        ("caf\u00e9.py", "cafe\u0301.py"),
+        ("source.py", "source.py. "),
+        ("PAYLOAD.py", "payload.py/source.js"),
+        ("payload.py/source.js", "PAYLOAD.py"),
+    ],
+)
+def test_materialize_commit_rejects_filesystem_path_collisions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    first: str,
+    second: str,
+) -> None:
+    monkeypatch.setattr(policy, "_commit_blob_id", lambda *_args: "abc")
+    monkeypatch.setattr(
+        policy,
+        "_run_command_bytes",
+        lambda *_args: subprocess.CompletedProcess([], 0, b"content", b""),
+    )
+
+    assert (
+        policy._materialize_commit_tree(
+            "head",
+            tmp_path / "tree",
+            tmp_path,
+            [first, second],
+        )
+        == 2
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "CON.py",
+        "COM\u00b9.py",
+        "LPT\u00b3.txt",
+        "source.py:payload",
+        "source.py.",
+        "source\u0001.py",
+    ],
+)
+def test_materialize_commit_rejects_nonportable_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    monkeypatch.setattr(policy, "_commit_blob_id", lambda *_args: "abc")
+    monkeypatch.setattr(
+        policy,
+        "_run_command_bytes",
+        lambda *_args: subprocess.CompletedProcess([], 0, b"content", b""),
+    )
+
+    assert (
+        policy._materialize_commit_tree(
+            "head",
+            tmp_path / "tree",
+            tmp_path,
+            [path],
+        )
+        == 2
+    )
+
+
+def test_materialize_commit_never_overwrites_existing_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "_commit_blob_id", lambda *_args: "abc")
+    monkeypatch.setattr(
+        policy,
+        "_run_command_bytes",
+        lambda *_args: subprocess.CompletedProcess([], 0, b"new content", b""),
+    )
+    destination = tmp_path / "tree"
+
+    assert (
+        policy._materialize_commit_tree(
+            "head",
+            destination,
+            tmp_path,
+            ["source.py"],
+        )
+        == 0
+    )
+    assert (
+        policy._materialize_commit_tree(
+            "head",
+            destination,
+            tmp_path,
+            ["source.py"],
+        )
+        == 2
+    )
+    assert (destination / "source.py").read_bytes() == b"new content"
 
 
 @pytest.mark.parametrize(
@@ -2831,6 +3280,94 @@ def test_materialize_commit_propagates_blob_read_and_write_failures(
         )
         == 2
     )
+
+
+def test_push_validation_rejects_active_grafts_in_linked_worktree(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    linked = tmp_path / "linked"
+    _init_repo(repo)
+    head = _commit_file(repo, "source.py", "value = 1\n")
+    _git(repo, "worktree", "add", "-q", "-b", "feature/linked", str(linked))
+    common_dir = Path(_git(linked, "rev-parse", "--git-common-dir").stdout.strip())
+    if not common_dir.is_absolute():
+        common_dir = (linked / common_dir).resolve()
+    grafts = common_dir / "info/grafts"
+    grafts.parent.mkdir(parents=True, exist_ok=True)
+    grafts.write_bytes(b"")
+    assert policy._check_no_grafts(linked) == 0
+
+    grafts.write_text("\n  # ignored comment\n", encoding="utf-8")
+    assert policy._check_no_grafts(linked) == 0
+
+    grafts.write_text(f"{head} {'0' * 40}\n", encoding="utf-8")
+    stream = io.StringIO(
+        f"refs/heads/feature/linked {head} refs/heads/feature/linked {'0' * 40}\n",
+    )
+
+    assert policy.check_push_refs(stream, linked) == 2
+    assert policy.scan_pushed_heads(stream, linked) == 2
+
+
+def test_graft_check_fails_closed_on_git_and_read_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
+    assert policy._check_no_grafts(tmp_path) == 2
+
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "\n"))
+    assert policy._check_no_grafts(tmp_path) == 2
+
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, "unknown option\n.git/info/grafts\n"),
+    )
+    assert policy._check_no_grafts(tmp_path) == 2
+
+    relative_common_dir = tmp_path / "relative.git"
+    (relative_common_dir / "info").mkdir(parents=True)
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, "relative.git/info/grafts\n"),
+    )
+    assert policy._check_no_grafts(tmp_path) == 0
+
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, f"{tmp_path}\n"),
+    )
+
+    def fail_read(_path: Path) -> bytes:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read)
+    assert policy._check_no_grafts(tmp_path) == 2
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        (_completed(1), 2),
+        (_completed(0, "unknown\n"), 2),
+        (_completed(0, "true\n"), 2),
+        (_completed(0, "false\n"), 0),
+    ],
+)
+def test_history_integrity_rejects_shallow_or_unknown_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    result: subprocess.CompletedProcess[str],
+    expected: int,
+) -> None:
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: result)
+    monkeypatch.setattr(policy, "_check_no_grafts", lambda _root: 0)
+
+    assert policy._check_history_integrity(tmp_path) == expected
 
 
 def test_push_update_defense_blocks_protected_destination(

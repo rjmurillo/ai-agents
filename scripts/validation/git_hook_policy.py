@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -29,6 +30,8 @@ SECURITY_SUPPRESSION_RE = re.compile(
     r"#\s*(?:lgtm\[|nosec|nosem(?:grep)?|noqa:\s*S|type:\s*ignore\[|cwe-suppress)"
 )
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
+SEMGREP_BATCH_TARGET_LIMIT = 100
+SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
@@ -41,6 +44,23 @@ GIT_ENV_KEYS = (
     "GIT_COMMON_DIR",
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_GRAFT_FILE",
+    "GIT_SHALLOW_FILE",
+)
+WINDOWS_FORBIDDEN_PATH_CHARS = frozenset('<>:"|?*')
+WINDOWS_RESERVED_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{index}" for index in range(1, 10)}
+    | {f"LPT{index}" for index in range(1, 10)}
+    | {
+        f"{prefix}{suffix}"
+        for prefix in ("COM", "LPT")
+        for suffix in (
+            "\N{SUPERSCRIPT ONE}",
+            "\N{SUPERSCRIPT TWO}",
+            "\N{SUPERSCRIPT THREE}",
+        )
+    },
 )
 GENERATED_PATHS = {
     "mcp": (
@@ -90,7 +110,11 @@ def _clean_git_env() -> dict[str, str]:
     env = os.environ.copy()
     for key in GIT_ENV_KEYS:
         env.pop(key, None)
+    for key in tuple(env):
+        if key.startswith(("GIT_TEST_COMMIT_GRAPH", "SEMGREP_")):
+            env.pop(key)
     env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["GIT_TEST_COMMIT_GRAPH"] = "0"
     return env
 
 
@@ -133,7 +157,18 @@ def _run_git(
     repo_root: Path,
     args: Sequence[str],
 ) -> subprocess.CompletedProcess[str]:
-    return _run_command(["git", *args], repo_root)
+    return _run_command(_git_command(args), repo_root)
+
+
+def _run_git_bytes(
+    repo_root: Path,
+    args: Sequence[str],
+) -> subprocess.CompletedProcess[bytes]:
+    return _run_command_bytes(_git_command(args), repo_root)
+
+
+def _git_command(args: Sequence[str]) -> list[str]:
+    return ["git", "-c", "core.commitGraph=false", *args]
 
 
 def _safe_relative_path(raw_path: str) -> str | None:
@@ -678,7 +713,66 @@ def _invoke_mypy(
     )
 
 
+def _check_no_grafts(repo_root: Path) -> int:
+    graft_path_result = _run_git(
+        repo_root,
+        ["rev-parse", "--git-path", "info/grafts"],
+    )
+    if graft_path_result.returncode != 0:
+        print("ERROR: could not resolve the Git grafts path", file=sys.stderr)
+        return 2
+    graft_path_lines = graft_path_result.stdout.splitlines()
+    if len(graft_path_lines) != 1 or not graft_path_lines[0]:
+        print("ERROR: Git returned an invalid grafts path", file=sys.stderr)
+        return 2
+    grafts_path = Path(graft_path_lines[0])
+    if not grafts_path.is_absolute():
+        grafts_path = (repo_root / grafts_path).resolve()
+    try:
+        grafts = grafts_path.read_bytes()
+    except FileNotFoundError:
+        return 0
+    except OSError as error:
+        print(f"ERROR: could not read {grafts_path}: {error}", file=sys.stderr)
+        return 2
+    if not _has_graft_entries(grafts):
+        return 0
+    print(
+        f"ERROR: active Git grafts are not allowed during push validation: {grafts_path}",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def _check_history_integrity(repo_root: Path) -> int:
+    shallow_result = _run_git(repo_root, ["rev-parse", "--is-shallow-repository"])
+    if shallow_result.returncode != 0:
+        print("ERROR: could not determine whether the repository is shallow", file=sys.stderr)
+        return 2
+    shallow_state = shallow_result.stdout.strip()
+    if shallow_state not in {"false", "true"}:
+        print(f"ERROR: unexpected shallow repository state: {shallow_state}", file=sys.stderr)
+        return 2
+    if shallow_state == "true":
+        print(
+            "ERROR: push validation requires complete Git history; fetch the full history",
+            file=sys.stderr,
+        )
+        return 2
+    return _check_no_grafts(repo_root)
+
+
+def _has_graft_entries(grafts: bytes) -> bool:
+    return any(
+        line and not line.startswith(b"#")
+        for raw_line in grafts.splitlines()
+        if (line := raw_line.strip())
+    )
+
+
 def _push_updates(stream: TextIO, repo_root: Path) -> list[PushUpdate] | None:
+    if _check_history_integrity(repo_root) != 0:
+        return None
     try:
         push_refs = parse_push_refs(stream)
     except ValueError as error:
@@ -807,8 +901,13 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         paths = _changed_commit_paths(update, repo_root)
         if paths is None:
             return 2
+        tree_paths = _commit_paths(update.head, repo_root)
+        if tree_paths is None or _validate_materialization_paths(tree_paths) is None:
+            return 2
         scan_paths = [
-            path for path in paths if Path(path).suffix.lower() in SEMGREP_SUFFIXES
+            path
+            for path in paths
+            if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
         ]
         if not scan_paths:
             continue
@@ -828,7 +927,7 @@ def _scan_pushed_head(
         materialized = _materialize_commit_tree(head, tree, repo_root, paths)
         if materialized != 0:
             return materialized
-        result = _run_semgrep_tree(tree, repo_root)
+        result = _run_semgrep_tree(tree, paths, repo_root)
         _print_process_output(result)
         return result.returncode
 
@@ -839,32 +938,63 @@ def _materialize_commit_tree(
     repo_root: Path,
     paths: Sequence[str],
 ) -> int:
-    for raw_path in paths:
-        path = _safe_relative_path(raw_path)
-        if path is None:
-            print(f"ERROR: unsafe pushed blob path: {raw_path}", file=sys.stderr)
-            return 2
+    validated_paths = _validate_materialization_paths(paths)
+    if validated_paths is None:
+        return 2
+    for path in validated_paths:
         blob_id = _commit_blob_id(head, path, repo_root)
         if blob_id is None:
             return 2
-        blob = _run_command_bytes(["git", "cat-file", "blob", blob_id], repo_root)
+        blob = _run_git_bytes(repo_root, ["cat-file", "blob", blob_id])
         if blob.returncode != 0:
             print(blob.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
             return 2
         output = destination / path
         try:
             output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_bytes(blob.stdout)
+            with output.open("xb") as output_stream:
+                output_stream.write(blob.stdout)
         except OSError as error:
             print(f"ERROR: cannot materialize pushed blob {path}: {error}", file=sys.stderr)
             return 2
     return 0
 
 
+def _validate_materialization_paths(paths: Sequence[str]) -> list[str] | None:
+    validated_paths: list[str] = []
+    file_destinations: set[str] = set()
+    directory_destinations: set[str] = set()
+    for raw_path in paths:
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe pushed blob path: {raw_path}", file=sys.stderr)
+            return None
+        destination_key = _filesystem_collision_key(path)
+        if destination_key is None:
+            print(f"ERROR: pushed path is not portable across filesystems: {path}", file=sys.stderr)
+            return None
+        destination_parts = destination_key.split("/")
+        parent_destinations = {
+            "/".join(destination_parts[:index])
+            for index in range(1, len(destination_parts))
+        }
+        if (
+            destination_key in file_destinations
+            or destination_key in directory_destinations
+            or parent_destinations & file_destinations
+        ):
+            print(f"ERROR: pushed paths collide on disk: {path}", file=sys.stderr)
+            return None
+        file_destinations.add(destination_key)
+        directory_destinations.update(parent_destinations)
+        validated_paths.append(path)
+    return validated_paths
+
+
 def _commit_blob_id(head: str, path: str, repo_root: Path) -> str | None:
-    result = _run_command_bytes(
-        ["git", "ls-tree", "-z", head, "--", path],
+    result = _run_git_bytes(
         repo_root,
+        ["ls-tree", "-z", head, "--", path],
     )
     if result.returncode != 0:
         print(result.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
@@ -891,28 +1021,134 @@ def _commit_blob_id(head: str, path: str, repo_root: Path) -> str | None:
     return object_id
 
 
+def _filesystem_collision_key(path: str) -> str | None:
+    normalized_parts: list[str] = []
+    for part in PurePosixPath(path).parts:
+        normalized = unicodedata.normalize("NFC", part)
+        trimmed = normalized.rstrip(" .")
+        base_name = trimmed.split(".", maxsplit=1)[0].upper()
+        if (
+            trimmed != normalized
+            or base_name in WINDOWS_RESERVED_NAMES
+            or any(
+                ord(character) < 32 or character in WINDOWS_FORBIDDEN_PATH_CHARS
+                for character in normalized
+            )
+        ):
+            return None
+        normalized_parts.append(trimmed.casefold())
+    return "/".join(normalized_parts)
+
+
 def _run_semgrep_tree(
     tree: Path,
+    paths: Sequence[str],
+    repo_root: Path,
+) -> subprocess.CompletedProcess[str]:
+    targets = [str(tree / path) for path in paths]
+    finding: subprocess.CompletedProcess[str] | None = None
+    last_result: subprocess.CompletedProcess[str] | None = None
+    try:
+        for batch in _semgrep_target_batches(targets):
+            result = _run_command(_semgrep_command("auto", batch), repo_root)
+            if result.returncode not in {0, 1}:
+                return result
+            verified = _verify_semgrep_targets(result, batch, repo_root)
+            if verified.returncode == 2:
+                return verified
+            last_result = verified
+            if verified.returncode == 1 and finding is None:
+                finding = verified
+    except FileNotFoundError:
+        return subprocess.CompletedProcess([], 2, "", "semgrep executable not found\n")
+    except OSError as error:
+        return subprocess.CompletedProcess([], 2, "", f"cannot execute semgrep: {error}\n")
+    return finding or last_result or subprocess.CompletedProcess([], 0, "", "")
+
+
+def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
+    return [
+        "semgrep",
+        "scan",
+        "--config",
+        config,
+        "--error",
+        "--severity",
+        "ERROR",
+        "--disable-nosem",
+        "--no-git-ignore",
+        "--x-ignore-semgrepignore-files",
+        "--max-target-bytes=0",
+        "--no-exclude-binary-files",
+        "--json",
+        "--",
+        *targets,
+    ]
+
+
+def _semgrep_target_batches(targets: Sequence[str]) -> list[list[str]]:
+    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", []))
+    batches: list[list[str]] = []
+    batch: list[str] = []
+    batch_length = base_length
+    for target in targets:
+        target_length = len(target) + 1
+        if batch and (
+            len(batch) >= SEMGREP_BATCH_TARGET_LIMIT
+            or batch_length + target_length > SEMGREP_COMMAND_LENGTH_LIMIT
+        ):
+            batches.append(batch)
+            batch = []
+            batch_length = base_length
+        batch.append(target)
+        batch_length += target_length
+    if batch:
+        batches.append(batch)
+    return batches
+
+
+def _verify_semgrep_targets(
+    result: subprocess.CompletedProcess[str],
+    targets: Sequence[str],
     repo_root: Path,
 ) -> subprocess.CompletedProcess[str]:
     try:
-        return _run_command(
-            [
-                "semgrep",
-                "scan",
-                "--config",
-                "auto",
-                "--error",
-                "--severity",
-                "ERROR",
-                "--disable-nosem",
-                "--no-git-ignore",
-                str(tree),
-            ],
-            repo_root,
-        )
-    except FileNotFoundError:
-        return subprocess.CompletedProcess([], 2, "", "semgrep executable not found\n")
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        return _semgrep_target_failure(result, f"invalid Semgrep JSON: {error}")
+    if not isinstance(payload, dict):
+        return _semgrep_target_failure(result, "Semgrep JSON root is not an object")
+    path_data = payload.get("paths")
+    scanned = path_data.get("scanned") if isinstance(path_data, dict) else None
+    if not isinstance(scanned, list) or not all(isinstance(path, str) for path in scanned):
+        return _semgrep_target_failure(result, "Semgrep JSON lacks scanned target paths")
+    errors = payload.get("errors")
+    if not isinstance(errors, list):
+        return _semgrep_target_failure(result, "Semgrep JSON lacks an error manifest")
+    if errors:
+        return _semgrep_target_failure(result, "Semgrep reported scan errors")
+    expected = {_resolved_target_path(path, repo_root) for path in targets}
+    actual = {_resolved_target_path(path, repo_root) for path in scanned}
+    missing = expected - actual
+    if missing:
+        omitted = ", ".join(sorted(str(path) for path in missing))
+        return _semgrep_target_failure(result, f"Semgrep omitted requested targets: {omitted}")
+    return result
+
+
+def _resolved_target_path(path: str, repo_root: Path) -> Path:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = repo_root / candidate
+    return candidate.resolve(strict=False)
+
+
+def _semgrep_target_failure(
+    result: subprocess.CompletedProcess[str],
+    message: str,
+) -> subprocess.CompletedProcess[str]:
+    stderr = f"{result.stderr.rstrip()}\nERROR: {message}\n".lstrip()
+    return subprocess.CompletedProcess(result.args, 2, result.stdout, stderr)
 
 
 def run_semgrep(repo_root: Path) -> int:
@@ -1005,6 +1241,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     branch_result = check_branch(repo_root)
     if branch_result != 0:
         return branch_result
+    history_result = _check_history_integrity(repo_root)
+    if history_result != 0:
+        return history_result
     try:
         refs = parse_push_refs(stream)
     except ValueError as error:
