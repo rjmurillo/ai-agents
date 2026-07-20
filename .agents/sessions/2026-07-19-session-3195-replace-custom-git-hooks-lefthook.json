@@ -89,7 +89,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Full pytest: 14093 passed, 22 skipped, 45 xfailed. Targeted migration: 439 passed. Pre-PR: 30 passed, 0 failed, 4 skipped. Generated drift, Ruff, per-file mypy, workflow, YAML, Markdown, and changed-file Semgrep checks passed."
+        "Evidence": "Full pytest: 14093 passed, 22 skipped, 45 xfailed. Targeted migration: 439 passed. Final Git policy suite: 219 passed with 100 percent statement and branch coverage. Pre-PR: 30 passed, 0 failed, 4 skipped. Generated drift, Ruff, per-file mypy, workflow, YAML, Markdown, and changed-file Semgrep checks passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -119,8 +119,12 @@
     {
       "action": "Validated the migration",
       "result": "Behavioral, full-suite, drift, pre-PR, type, lint, workflow, and security checks passed."
+    },
+    {
+      "action": "Hardened immutable pushed-ref scanning",
+      "result": "Blocked Git metadata overrides, Semgrep target omissions, and cross-filesystem path collisions."
     }
   ],
-  "endingCommit": "a214488b93",
+  "endingCommit": "75d93623c66596a39b5a9a7ed48f47b51b98c4ec",
   "nextSteps": []
 }

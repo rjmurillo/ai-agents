@@ -13232,6 +13232,123 @@
         "episode-2026-07-19-session-3194-continue-testmemory-lock-3143-causal-graph"
       ],
       "created": "2026-07-19T17:59:33.018991+00:00"
+    },
+    {
+      "id": "eefaa4c8e205",
+      "type": "milestone",
+      "label": "milestone: Relocated and configured hook execution",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295549+00:00"
+    },
+    {
+      "id": "94fd2f847e70",
+      "type": "milestone",
+      "label": "milestone: Repointed tests, setup, security classifiers, and generated surfaces",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295610+00:00"
+    },
+    {
+      "id": "e1ef8d46249b",
+      "type": "milestone",
+      "label": "milestone: Updated active guidance and closed legacy references",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295674+00:00"
+    },
+    {
+      "id": "acb4f008811e",
+      "type": "milestone",
+      "label": "milestone: Ran final validation",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295724+00:00"
+    },
+    {
+      "id": "069d5c1e2a2b",
+      "type": "commit",
+      "label": "commit: Commit: 26d4a3e40b",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295772+00:00"
+    },
+    {
+      "id": "ec53b0592081",
+      "type": "commit",
+      "label": "commit: Commit: fbb040f48a",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295819+00:00"
+    },
+    {
+      "id": "9f70f572bc2e",
+      "type": "milestone",
+      "label": "milestone: Replaced the custom hook engine",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295866+00:00"
+    },
+    {
+      "id": "7eee4053b9e8",
+      "type": "milestone",
+      "label": "milestone: Removed custom activation and payload systems",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295913+00:00"
+    },
+    {
+      "id": "601dda32c337",
+      "type": "milestone",
+      "label": "milestone: Added the Git policy boundary",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.295959+00:00"
+    },
+    {
+      "id": "155fd5b3fe92",
+      "type": "milestone",
+      "label": "milestone: Validated the migration",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.296006+00:00"
+    },
+    {
+      "id": "3f845cb59b42",
+      "type": "milestone",
+      "label": "milestone: Hardened immutable pushed-ref scanning",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.296054+00:00"
+    },
+    {
+      "id": "ccd094c81e05",
+      "type": "commit",
+      "label": "commit: Commit: 75d93623c66596a39b5a9a7ed48f47b51b98c4ec",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.296101+00:00"
+    },
+    {
+      "id": "73becafcebcd",
+      "type": "outcome",
+      "label": "Outcome: success - Replace the custom Git hook system with OSS Lefthook",
+      "episodes": [
+        "episode-2026-07-19-session-3195-replace-custom-git-hooks-lefthook"
+      ],
+      "created": "2026-07-20T02:13:21.296149+00:00"
     }
   ],
   "patterns": [
