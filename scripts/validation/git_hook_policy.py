@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unicodedata
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -272,22 +273,35 @@ def _current_branch(repo_root: Path) -> str | None:
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return today's newest session log by mtime, or None.
 
-    Mirrors hook_utilities.get_today_session_log: glob the UTC-dated
-    session logs and pick the most recently modified. Any stat failure or
-    empty match yields None so branch-context checking fails open.
+    Follows hook_utilities.get_today_session_log selection semantics (newest
+    UTC-dated session log by mtime) with the per-file stat resilience of
+    hook_utilities._newest_by_mtime: a single unreadable candidate (deleted or
+    renamed mid-scan, permission race) is skipped rather than blinding the
+    check to every other valid log. An empty match or an unreadable directory
+    yields None so branch-context checking fails open.
     """
     if not sessions_dir.is_dir():
         return None
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     try:
-        logs = sorted(
-            sessions_dir.glob(f"{today}-session-*.json"),
-            key=lambda path: path.stat().st_mtime,
-            reverse=True,
-        )
+        candidates = list(sessions_dir.glob(f"{today}-session-*.json"))
     except OSError:
         return None
-    return logs[0] if logs else None
+    best: Path | None = None
+    best_mtime = float("-inf")
+    for candidate in candidates:
+        try:
+            mtime = candidate.stat().st_mtime
+        except OSError as exc:
+            warnings.warn(
+                f"Skipping unreadable session log {candidate}: {exc}",
+                stacklevel=2,
+            )
+            continue
+        if mtime > best_mtime:
+            best_mtime = mtime
+            best = candidate
+    return best
 
 
 def _session_branch(session_log: Path) -> str | None:

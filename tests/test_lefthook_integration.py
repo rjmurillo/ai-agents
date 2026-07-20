@@ -1186,6 +1186,35 @@ def test_branch_context_fails_open_on_malformed_log(tmp_path: Path) -> None:
     assert policy.check_branch_context(repo) == 0
 
 
+def test_branch_context_skips_unreadable_newest_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other", name="session-1", mtime=1000.0)
+    unreadable = _write_session_log(
+        repo, branch="feature/x", name="session-2", mtime=2000.0
+    )
+
+    real_stat = Path.stat
+
+    def fake_stat(self: Path, *args: object, **kwargs: object) -> os.stat_result:
+        if self == unreadable:
+            raise OSError("simulated unreadable session log")
+        return real_stat(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "stat", fake_stat)
+
+    # The newest log (session-2, matching branch) is unreadable. The fragile
+    # sorted()-over-stat implementation would raise during the sort and fail
+    # open (allow). The resilient implementation skips the unreadable entry and
+    # selects the readable older log (session-1), whose branch mismatches, so
+    # the check blocks.
+    with pytest.warns(UserWarning, match="Skipping unreadable session log"):
+        assert policy.check_branch_context(repo) == 1
+
+
 def test_branch_context_cli_propagates_exit_codes(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
