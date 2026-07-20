@@ -233,6 +233,7 @@ def test_worktrunk_post_create_installs_lefthook() -> None:
 
     assert (
         'configure-hooks = "uv run --frozen --extra dev lefthook install '
-        '\\"--reset-hooks-path\\""' in text
+        "--reset-hooks-path && uv run --frozen --extra dev lefthook check-install\""
+        in text
     )
     assert "core.hooksPath" not in text

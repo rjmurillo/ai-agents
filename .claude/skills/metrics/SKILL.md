@@ -120,12 +120,17 @@ The utility detects agents in commit messages using these patterns:
 
 Infrastructure commits are identified by these patterns:
 
-- `.github/workflows/*.yml`
-- `lefthook.yml`
+- `.github/workflows/*.{yml,yaml}`
+- `.github/actions/**`
+- Root `lefthook` and `.lefthook` configs, with optional `-local` suffix
+- `.config/lefthook` configs, with optional `-local` suffix
+- Lefthook config extensions: `.yml`, `.yaml`, `.json`, `.jsonc`, `.toml`
+- `build/**`, `scripts/**`
 - `Dockerfile*`
+- `docker-compose*`
 - `*.tf`, `*.tfvars`
 - `.env*`
-- `.agents/*`
+- `.agents/**`
 
 ### Commit Types
 

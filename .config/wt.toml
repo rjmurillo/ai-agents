@@ -6,8 +6,8 @@
 # Files listed in .worktreeinclude (node_modules, .cache, etc.)
 copy = "wt step copy-ignored"
 
-# Install Lefthook shims after the project environment is available
-configure-hooks = "uv run --frozen --extra dev lefthook install \"--reset-hooks-path\""
+# Install and verify Lefthook shims after the project environment is available
+configure-hooks = "uv run --frozen --extra dev lefthook install --reset-hooks-path && uv run --frozen --extra dev lefthook check-install"
 
 [pre-merge]
 # Run markdown linting before merge to catch documentation issues
