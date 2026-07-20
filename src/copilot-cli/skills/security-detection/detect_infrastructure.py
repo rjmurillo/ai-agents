@@ -62,7 +62,7 @@ HIGH_PATTERNS = [
 def matches_pattern(file_path: str, patterns: list[str]) -> bool:
     """Check if a file path matches any of the given regex patterns."""
     for pattern in patterns:
-        if re.search(pattern, file_path):
+        if re.search(pattern, file_path, re.IGNORECASE):
             return True
     return False
 
