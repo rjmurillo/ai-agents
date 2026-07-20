@@ -76,7 +76,7 @@ From the repo root:
 
 ```bash
 uv sync --frozen --extra dev
-uv run --frozen lefthook install
+uv run --frozen lefthook install --reset-hooks-path
 uv run --frozen lefthook check-install
 ```
 

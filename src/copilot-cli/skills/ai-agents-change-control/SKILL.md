@@ -81,7 +81,7 @@ The ladder is ordered by feedback cost. Catching a violation at rung 1 costs sec
 | 4 | CI required checks | Push and PR events | `pytest.yml`; `pr-validation.yml` (20-commit cap); `ai-pr-quality-gate.yml` (10 parallel LLM reviewers; the authoritative blocker is `scripts/quality_gate/check_critical_failures.py`, wired at `ai-pr-quality-gate.yml:735`); `ai-session-protocol.yml` (deterministic); drift and plugin-bump workflows |
 
 Local Git hooks only run after Lefthook is installed. Run
-`uv run --frozen lefthook install`, then verify with
+`uv run --frozen lefthook install --reset-hooks-path`, then verify with
 `uv run --frozen lefthook check-install`. `pre_pr.py` also validates the binary,
 configuration, and installed shims (`scripts/validation/checks_plugin.py`).
 
