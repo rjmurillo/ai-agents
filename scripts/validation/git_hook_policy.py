@@ -1949,6 +1949,7 @@ def run_pytest(repo_root: Path) -> int:
         "CLAUDE_PLUGIN_ROOT",
         "COPILOT_PLUGIN_ROOT",
         "GIT_INDEX_FILE",
+        "GIT_NO_REPLACE_OBJECTS",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     ):

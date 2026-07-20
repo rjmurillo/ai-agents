@@ -3584,6 +3584,7 @@ def test_pytest_policy_cleans_hook_environment(
         "CLAUDE_PLUGIN_ROOT",
         "COPILOT_PLUGIN_ROOT",
         "GIT_INDEX_FILE",
+        "GIT_NO_REPLACE_OBJECTS",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     ):
@@ -3603,6 +3604,7 @@ def test_pytest_policy_cleans_hook_environment(
         "CLAUDE_PROJECT_DIR",
         "COPILOT_PLUGIN_ROOT",
         "GIT_INDEX_FILE",
+        "GIT_NO_REPLACE_OBJECTS",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     ):
