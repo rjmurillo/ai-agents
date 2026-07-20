@@ -218,6 +218,11 @@
       "timestamp": "2026-07-20T19:40:00Z",
       "action": "Updated the superseded and dependent hook records",
       "evidence": "ADR-004 now points to ADR-086, and ADR-014 names Lefthook as the local orchestration owner"
+    },
+    {
+      "timestamp": "2026-07-20T19:41:00Z",
+      "action": "Aligned workflow and generated-agent records",
+      "evidence": "ADR-016 and ADR-036 now describe Lefthook scheduling without the removed custom hook engine"
     }
   ],
   "endingCommit": "226b6c2f0a9ef824063c59bbfcb1f10770322414",

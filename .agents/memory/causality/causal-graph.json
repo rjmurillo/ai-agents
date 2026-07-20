@@ -13827,6 +13827,15 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T19:39:42.746561+00:00"
+    },
+    {
+      "id": "8831096cde20",
+      "type": "milestone",
+      "label": "milestone: Aligned workflow and generated-agent records",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:40:10.384369+00:00"
     }
   ],
   "patterns": [
