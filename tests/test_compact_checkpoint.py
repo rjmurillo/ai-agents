@@ -2,7 +2,6 @@
 """Tests for PreCompact/invoke_compact_checkpoint.py.
 
 Covers:
-- Checkpoint file creation with correct structure
 - Resume context stdout output
 - Open item extraction from session logs
 - Git branch detection
@@ -115,31 +114,6 @@ class TestGetCurrentBranch:
             assert result == "(unknown)"
 
 
-class TestWriteCheckpoint:
-    """Test _write_checkpoint function."""
-
-    def test_creates_checkpoint_file(self, tmp_path: Path) -> None:
-        (tmp_path / ".agents").mkdir()
-        invoke_compact_checkpoint._write_checkpoint(
-            str(tmp_path),
-            "2026-01-01-session-001.json",
-            "2026-01-01T10:00:00+00:00",
-            "feature/test",
-            ["Task A", "Task B"],
-            "Resume context here",
-        )
-
-        checkpoint_dir = tmp_path / ".agents" / ".hook-state"
-        assert checkpoint_dir.exists()
-        files = list(checkpoint_dir.glob("pre-compact-*.json"))
-        assert len(files) == 1
-
-        data = json.loads(files[0].read_text(encoding="utf-8"))
-        assert data["session_log"] == "2026-01-01-session-001.json"
-        assert data["branch"] == "feature/test"
-        assert len(data["open_items"]) == 2
-
-
 class TestMain:
     """Test main() function."""
 
@@ -178,6 +152,43 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Pre-Compaction Checkpoint" in captured.out
         assert "feature/test" in captured.out
+
+    def test_writes_no_on_disk_checkpoint(
+        self, project_tree: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        """main() must not create a pre-compact-*.json artifact (issue #3217).
+
+        The stdout injection is the sole product; the former on-disk
+        checkpoint had no reader and was removed. This guards against the
+        write path being reintroduced.
+        """
+        session_log = list(
+            (project_tree / ".agents" / "sessions").glob("*.json")
+        )[0]
+
+        with patch.object(
+            invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "get_project_directory",
+            return_value=str(project_tree),
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "get_recent_session_log",
+            return_value=session_log,
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "_get_current_branch",
+            return_value="feature/test",
+        ):
+            invoke_compact_checkpoint.main()
+
+        hook_state = project_tree / ".agents" / ".hook-state"
+        checkpoints = (
+            list(hook_state.glob("pre-compact-*.json")) if hook_state.exists() else []
+        )
+        assert checkpoints == []
+        assert not hasattr(invoke_compact_checkpoint, "_write_checkpoint")
 
     def test_handles_no_session_log(
         self, tmp_path: Path, capsys: pytest.CaptureFixture

@@ -61,11 +61,17 @@ class TestGetCurrentBranch:
 
 
 class TestGetSessionBranch:
-    def test_extracts_branch_from_json(self, tmp_path):
+    def test_extracts_branch_from_canonical_session_object(self, tmp_path):
         log = tmp_path / "session.json"
-        log.write_text(json.dumps({"branch": "feat/test-branch"}))
+        log.write_text(json.dumps({"session": {"branch": "feat/test-branch"}}))
         result = invoke_branch_context_guard.get_session_branch(log)
         assert result == "feat/test-branch"
+
+    def test_extracts_branch_from_legacy_top_level(self, tmp_path):
+        log = tmp_path / "session.json"
+        log.write_text(json.dumps({"branch": "feat/legacy-branch"}))
+        result = invoke_branch_context_guard.get_session_branch(log)
+        assert result == "feat/legacy-branch"
 
     def test_returns_none_for_missing_branch(self, tmp_path):
         log = tmp_path / "session.json"

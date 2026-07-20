@@ -19,10 +19,6 @@
           "statusMessage": "Verifying ADR review completed (MUST requirement)"
         },
         {
-          "file": "PreToolUse/invoke_branch_protection_guard.py",
-          "statusMessage": "Verifying branch protection"
-        },
-        {
           "file": "PreToolUse/invoke_security_commit_gate.py",
           "timeout": 10,
           "statusMessage": "Checking security gate for staged auth files (ADR-033)"
@@ -37,10 +33,6 @@
         {
           "file": "PreToolUse/invoke_branch_context_guard.py",
           "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_branch_protection_guard.py",
-          "statusMessage": "Verifying branch protection"
         },
         {
           "file": "PreToolUse/invoke_retrospective_gate.py",
@@ -210,10 +202,6 @@
           "statusMessage": "Verifying ADR review completed (MUST requirement)"
         },
         {
-          "file": "PreToolUse/invoke_branch_protection_guard.py",
-          "statusMessage": "Verifying branch protection"
-        },
-        {
           "file": "PreToolUse/invoke_security_commit_gate.py",
           "timeout": 10,
           "statusMessage": "Checking security gate for staged auth files (ADR-033)"
@@ -253,10 +241,6 @@
         {
           "file": "PreToolUse/invoke_branch_context_guard.py",
           "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_branch_protection_guard.py",
-          "statusMessage": "Verifying branch protection"
         },
         {
           "file": "PreToolUse/invoke_retrospective_gate.py",

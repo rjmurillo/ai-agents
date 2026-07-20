@@ -1,0 +1,63 @@
+{
+  "id": "episode-2026-07-20-session-3255",
+  "session": "2026-07-20-session-3255",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Reconcile implementer/explainer agent prompts to investigate-before-clarifying (#3255); continue epic #3197 issue triage",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled implementer + explainer agent prompts to investigate-before-clarifying per #3255 acceptance criteria.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated copilot-cli + vs-code agent mirrors and agent catalog; hand-updated src/claude, .claude/agents, .github/agents parity copies.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped project-toolkit (0.6.84->0.6.85 x2) and claude-agents (0.3.39->0.3.40) plugin manifests.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5f0e66c7",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 18
+  },
+  "lessons": []
+}

@@ -5,11 +5,10 @@ Claude Code PreCompact hook that snapshots the current work state before
 context is compacted, providing a resume context for the post-compaction
 session.
 
-Captures:
-1. Current session log path and last-modified timestamp
-2. Open TODO items from session log work field
-3. Current git branch
-4. Resume context string (printed to stdout for injection)
+Builds a resume-context string from the current session log (name, open
+TODO items, git branch) and prints it to stdout for injection into the
+post-compaction session. The stdout injection is the sole product; no
+on-disk checkpoint artifact is written (ADR-082, issue #3217).
 
 Hook Type: PreCompact (non-blocking, fail-open)
 Exit Codes:
@@ -157,37 +156,6 @@ def _extract_open_items(session_log: Path) -> list[str]:
     return items
 
 
-def _write_checkpoint(
-    project_dir: str,
-    session_log_name: str,
-    session_mtime: str,
-    branch: str,
-    open_items: list[str],
-    resume_context: str,
-) -> None:
-    """Write checkpoint file for compaction recovery."""
-    checkpoint_dir = Path(project_dir) / ".agents" / ".hook-state"
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    timestamp = datetime.now(tz=UTC).strftime("%H%M%S-%f")
-
-    checkpoint_file = checkpoint_dir / f"pre-compact-{today}-{timestamp}-{os.getpid()}.json"
-    checkpoint_data = {
-        "session_log": session_log_name,
-        "session_mtime": session_mtime,
-        "branch": branch,
-        "open_items": open_items,
-        "resume_context": resume_context,
-        "created_at": datetime.now(tz=UTC).isoformat(),
-    }
-
-    checkpoint_file.write_text(
-        json.dumps(checkpoint_data, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-
-
 def _drain_stdin() -> None:
     """Drain stdin to prevent pipe buffer blocking on the harness side.
 
@@ -217,13 +185,6 @@ def main() -> None:
     session_log = get_recent_session_log(sessions_dir)
 
     session_log_name = session_log.name if session_log else "(none)"
-    session_mtime = ""
-    if session_log and session_log.exists():
-        try:
-            mtime = session_log.stat().st_mtime
-            session_mtime = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
-        except OSError:
-            session_mtime = "(unknown)"
 
     # Get open items
     open_items = _extract_open_items(session_log) if session_log else []
@@ -247,27 +208,11 @@ def main() -> None:
             items_preview += f" ... (+{len(open_items) - 5} more)"
         resume_context += f" Items: {items_preview}"
 
-    # Print the resume context to stdout first so the post-compaction
-    # session still receives it even when checkpoint persistence fails
-    # (full disk, read-only mount, permission error, etc.). The injected
-    # context is the primary product of this hook; the on-disk checkpoint
-    # is a best-effort audit artifact.
+    # The resume context printed to stdout is the sole product of this
+    # hook; it is injected into the post-compaction session. No on-disk
+    # artifact is written (ADR-082, issue #3217): the former
+    # pre-compact-*.json checkpoint had no reader and was removed.
     print(f"## ⚠️ Pre-Compaction Checkpoint\n\n{resume_context}")
-
-    try:
-        _write_checkpoint(
-            project_dir,
-            session_log_name,
-            session_mtime,
-            branch,
-            open_items,
-            resume_context,
-        )
-    except OSError as exc:
-        print(
-            f"[WARNING] {HOOK_NAME} checkpoint write failed: {exc}",
-            file=sys.stderr,
-        )
 
 
 if __name__ == "__main__":

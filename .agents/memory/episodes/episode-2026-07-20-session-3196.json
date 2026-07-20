@@ -1,0 +1,63 @@
+{
+  "id": "episode-2026-07-20-session-3196",
+  "session": "2026-07-20-session-3196",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Retire invoke_branch_protection_guard PreToolUse hook (slice 1 of #3196); it duplicates the git-layer branch protection already enforced by .githooks/pre-commit, pre-push, and GitHub rules. Continue epic #3197.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retired invoke_branch_protection_guard: deleted the PreToolUse hook, removed its four dispatch-group shim registrations, and deleted its two unit-test files.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot per-hook expansion (dropped two matcher-scoped shims; refreshed manifest and hooks.json) and repointed the two negative-control canaries plus the matcher/hard-gate rosters to branch_context_guard.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repointed citations/comments to surviving guards, dropped the stale branch-is-not-main entry from the legacy hooks.yaml manifest, and bumped both project-toolkit plugin manifests 0.6.86 to 0.6.87.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8bb7b246",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
