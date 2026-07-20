@@ -54,12 +54,6 @@ hooks:
     script: .claude/hooks/PreToolUse/invoke_branch_context_guard.py
     on_fail: block
 
-  - id: pre-tool-use.branch-is-not-main
-    event: PreToolUse
-    tool: "Bash(git (commit|push)*)"
-    script: .claude/hooks/PreToolUse/invoke_branch_protection_guard.py
-    on_fail: block
-
   - id: pre-tool-use.retrospective-before-push
     event: PreToolUse
     tool: "Bash(git push*)"

@@ -444,9 +444,17 @@ def _original_main(stdin_bytes):
         try:
             content = session_log_path.read_text(encoding="utf-8")
             data = json.loads(content)
-            # Session logs store branch at top level
+            # Canonical session logs nest the branch at session.branch (see
+            # .agents/schemas/session-log.schema.json). Fall back to the legacy
+            # top-level "branch" for pre-schema logs. Read the nested object
+            # first, then the top level; the first string value wins.
             if isinstance(data, dict):
-                return data.get("branch")
+                session = data.get("session")
+                containers = [session, data] if isinstance(session, dict) else [data]
+                for container in containers:
+                    branch = container.get("branch")
+                    if isinstance(branch, str):
+                        return branch
         except (json.JSONDecodeError, OSError, ValueError) as exc:
             print(
                 f"branch_context_guard: Error reading session log '{session_log_path}': {exc}",

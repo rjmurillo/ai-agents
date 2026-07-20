@@ -60,9 +60,15 @@ class TestGetCurrentBranch:
 class TestGetSessionBranch:
     def test_returns_branch_from_session_log(self, tmp_path: Path) -> None:
         session_log = tmp_path / "2025-01-01-session-01.json"
-        session_log.write_text(json.dumps({"branch": "feat/test-branch"}))
+        session_log.write_text(json.dumps({"session": {"branch": "feat/test-branch"}}))
         result = get_session_branch(session_log)
         assert result == "feat/test-branch"
+
+    def test_returns_branch_from_legacy_top_level(self, tmp_path: Path) -> None:
+        session_log = tmp_path / "2025-01-01-session-01.json"
+        session_log.write_text(json.dumps({"branch": "feat/legacy-branch"}))
+        result = get_session_branch(session_log)
+        assert result == "feat/legacy-branch"
 
     def test_returns_none_when_no_branch_field(self, tmp_path: Path) -> None:
         session_log = tmp_path / "2025-01-01-session-01.json"
