@@ -34,10 +34,18 @@ eval = [
 [tool.uv]
 # Semgrep 1.170.0 pins vulnerable versions of these optional MCP server
 # dependencies. The scan and MCP command paths both work with the fixed releases.
+exclude-newer = "7 days"
 override-dependencies = [
     "click==8.3.3",
     "mcp==1.28.1",
 ]
+
+[tool.uv.exclude-newer-package]
+anthropic = false
+click = false
+lefthook = false
+mcp = false
+semgrep = false
 
 [build-system]
 requires = ["setuptools>=82.0.1"]

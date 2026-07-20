@@ -40,6 +40,9 @@ REQUIRED_DEV_TOOLS = frozenset(
     {"pytest", "pytest-cov", "bandit", "pip-audit", "ruff", "mypy"}
 )
 SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "mcp==1.28.1"})
+COOLDOWN_EXEMPT_PACKAGES = frozenset(
+    {"anthropic", "click", "lefthook", "mcp", "semgrep"}
+)
 
 # Splits a PEP 508 requirement string at the first character that ends the
 # package name: an extras bracket, a version/marker operator, or whitespace.
@@ -125,6 +128,16 @@ def test_semgrep_transitive_security_overrides_remain_pinned() -> None:
     overrides = set(data["tool"]["uv"]["override-dependencies"])
 
     assert SAFE_SEMGREP_OVERRIDES <= overrides
+
+
+def test_dependency_cooldown_exempts_only_reviewed_exact_pins() -> None:
+    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    uv_config = data["tool"]["uv"]
+
+    assert uv_config["exclude-newer"] == "7 days"
+    assert uv_config["exclude-newer-package"] == {
+        package: False for package in COOLDOWN_EXEMPT_PACKAGES
+    }
 
 
 # --- Helper unit coverage (positive, negative, edge) ---------------------------
