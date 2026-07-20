@@ -125,10 +125,6 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
 
 
 def _lefthook_check_command() -> list[str] | None:
-    lefthook = shutil.which("lefthook")
-    if lefthook:
-        return [lefthook, "check-install"]
-
     uv = shutil.which("uv")
     if uv:
         return [uv, "run", "--frozen", "lefthook", "check-install"]
@@ -137,7 +133,7 @@ def _lefthook_check_command() -> list[str] | None:
 
 
 def validate_lefthook_installed(repo_root: Path) -> bool:
-    """Fail when Lefthook is unavailable, unconfigured, or not installed locally.
+    """Fail when uv or Lefthook is unavailable, unconfigured, or not installed.
 
     CI skips this local-clone check because workflows invoke validation directly.
     A linked worktree keeps the existing warning policy because its hook storage
@@ -157,7 +153,7 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     command = _lefthook_check_command()
     if command is None:
         print(
-            "[ERROR] Lefthook and uv are unavailable. "
+            "[ERROR] uv is unavailable. Lefthook jobs run through uv. "
             "Install uv, then run: uv sync --frozen --extra dev",
             file=sys.stderr,
         )
