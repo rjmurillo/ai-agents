@@ -837,11 +837,9 @@ def test_main_directory_scan_in_process(
 # ---------------------------------------------------------------------------
 # Extensionless shebang detection (issue #2367)
 # ---------------------------------------------------------------------------
-# scripts/hooks/pre-push and other extensionless executables advertise their
-# interpreter only via a shebang. The detector must read the first line and
-# treat bash/sh-family shebangs as bash, otherwise high-risk shell entry
-# points are silently skipped under `scripts/hooks/**` per
-# `.github/instructions/security.instructions.md`.
+# Extensionless executables advertise their interpreter only via a shebang.
+# The detector must read the first line and treat bash/sh-family shebangs as
+# bash, otherwise directory scans and explicit file scans silently skip them.
 
 
 @pytest.mark.parametrize(
