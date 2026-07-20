@@ -1572,26 +1572,27 @@ def test_pushed_suppression_scan_ignores_clean_worktree_override(tmp_path: Path)
 
 
 @pytest.mark.parametrize(
-    ("suffix", "suppression_comment"),
+    ("suffix", "comment_prefix", "comment_suffix"),
     [
-        (".js", "// nosemgrep"),
-        (".ps1", "# nosemgrep"),
-        (".psm1", "# nosemgrep"),
-        (".py", "# nosemgrep"),
-        (".ts", "/* nosemgrep */"),
-        (".yaml", "# nosemgrep"),
-        (".yml", "# nosemgrep"),
+        (".js", "// ", ""),
+        (".ps1", "# ", ""),
+        (".psm1", "# ", ""),
+        (".py", "# ", ""),
+        (".ts", "/* ", " */"),
+        (".yaml", "# ", ""),
+        (".yml", "# ", ""),
     ],
 )
 def test_pushed_suppression_scan_covers_semgrep_suffixes(
     suffix: str,
-    suppression_comment: str,
+    comment_prefix: str,
+    comment_suffix: str,
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     base = _commit_file(repo, "base.txt", "base\n")
-    suppression = suppression_comment.replace("nosemgrep", "no" + "sem" + "grep")
+    suppression = comment_prefix + "no" + "sem" + "grep" + comment_suffix
     head = _commit_file(repo, f"source{suffix}", f"value: unsafe  {suppression}\n")
     stream = io.StringIO(f"refs/heads/feature/test {head} refs/heads/feature/test {base}\n")
 
