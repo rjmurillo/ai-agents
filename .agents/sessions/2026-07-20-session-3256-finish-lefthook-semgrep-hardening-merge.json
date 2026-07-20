@@ -208,6 +208,11 @@
       "timestamp": "2026-07-20T19:36:00Z",
       "action": "Completed the six-role Lefthook architecture review",
       "evidence": "ADR-086 reached 6 of 6 approval after runtime pinning, timeout, deletion staging, and governance corrections"
+    },
+    {
+      "timestamp": "2026-07-20T19:39:00Z",
+      "action": "Accepted ADR-086 and recorded review consensus",
+      "evidence": "The decision is accepted and implemented; the debate log records 6 of 6 approval and every blocking resolution"
     }
   ],
   "endingCommit": "226b6c2f0a9ef824063c59bbfcb1f10770322414",

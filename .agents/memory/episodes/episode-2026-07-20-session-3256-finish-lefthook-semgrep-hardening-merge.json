@@ -468,6 +468,18 @@
       "caused_by": [
         "e034"
       ],
+      "leads_to": [
+        "e040"
+      ]
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Accepted ADR-086 and recorded review consensus",
+      "caused_by": [
+        "e039"
+      ],
       "leads_to": []
     }
   ],

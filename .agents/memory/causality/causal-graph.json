@@ -13809,6 +13809,15 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T19:37:07.060685+00:00"
+    },
+    {
+      "id": "f39ea06c9ec7",
+      "type": "milestone",
+      "label": "milestone: Accepted ADR-086 and recorded review consensus",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:39:00.398249+00:00"
     }
   ],
   "patterns": [
