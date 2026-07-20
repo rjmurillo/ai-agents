@@ -13845,6 +13845,15 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T19:41:13.920492+00:00"
+    },
+    {
+      "id": "b2e1ceb768b4",
+      "type": "milestone",
+      "label": "milestone: Aligned eval and Copilot dogfood records",
+      "episodes": [
+        "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
+      ],
+      "created": "2026-07-20T19:41:45.690610+00:00"
     }
   ],
   "patterns": [

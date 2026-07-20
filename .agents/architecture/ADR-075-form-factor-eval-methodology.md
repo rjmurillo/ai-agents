@@ -1,7 +1,7 @@
 ---
 id: ADR-075
 status: proposed
-date: 2026-06-19
+date: 2026-07-20
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -102,7 +102,7 @@ The first run's headline caveat was the content confound: the skill artifact was
 - Agent variant: `templates/agents/security.shared.md`.
 - Skill variant: `evals/security-spike/skill-content-controlled/SKILL.md`, whose body (frontmatter stripped) hashes identically to the agent body.
 - Content parity, verified: both the agent prompt and the content-controlled skill prompt strip to SHA `be36604d83651117bc5bffd29ac1c95ce3a64bf5cc0f9bf2106009cf00b0a7e1`. The harness recorded `agent_prompt_sha = be36604d...`. Parity is enforced by `tests/evals/test_form_factor_eval.py::TestContentControlledPromptParity`.
-- The content-controlled fixture is a deliberate non-skill artifact: its body is an agent body reused verbatim, so it lacks SkillForge Triggers/Process sections by construction and is reconstructable from `templates/agents/security.shared.md`. The pre-commit skill validator exempts `evals/` fixtures from structural validation for this reason (see `.githooks/pre-commit`, `STAGED_SKILL_FILES`).
+- The content-controlled fixture is a deliberate non-skill artifact: its body is an agent body reused verbatim, so it lacks SkillForge Triggers/Process sections by construction and is reconstructable from `templates/agents/security.shared.md`. The Lefthook `skillforge` job exempts `evals/` fixtures from structural validation for this reason.
 - Fixtures: `evals/security-spike/fixtures/` (F001 to F016), 5 runs per (fixture, variant), model claude-sonnet-4-6.
 - Command: `scripts/eval/eval-agent-vs-baseline.py --agent security --fixtures evals/security-spike/fixtures --n-runs 5 --model claude-sonnet-4-6 --include-skill --skill-path evals/security-spike/skill-content-controlled/SKILL.md`.
 

@@ -516,6 +516,18 @@
       "caused_by": [
         "e042"
       ],
+      "leads_to": [
+        "e044"
+      ]
+    },
+    {
+      "id": "e044",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned eval and Copilot dogfood records",
+      "caused_by": [
+        "e043"
+      ],
       "leads_to": []
     }
   ],

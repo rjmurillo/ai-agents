@@ -228,6 +228,11 @@
       "timestamp": "2026-07-20T19:42:00Z",
       "action": "Aligned memory routing and architecture citations",
       "evidence": "ADR-037 and CITATION-SCHEMA now reference the accepted Lefthook orchestration decision"
+    },
+    {
+      "timestamp": "2026-07-20T19:43:00Z",
+      "action": "Aligned eval and Copilot dogfood records",
+      "evidence": "ADR-075 and ADR-083 now distinguish Lefthook local scheduling from harness-specific runtime surfaces"
     }
   ],
   "endingCommit": "226b6c2f0a9ef824063c59bbfcb1f10770322414",
