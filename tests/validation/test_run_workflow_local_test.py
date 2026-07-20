@@ -1283,8 +1283,6 @@ def test_act_limitation_hint_matches_empty_pr_env_patterns() -> None:
     )
 
 
-
-
 def test_format_text_surfaces_warning_detail_on_ok() -> None:
     report = w.Report(
         exit_code=0,
