@@ -13453,7 +13453,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 3,
+      "occurrences": 398,
       "created": "2026-06-02T04:20:23.790649+00:00",
       "episodes": [
         "episode-2026-07-13-session-3041-frontier-model",
