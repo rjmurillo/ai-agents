@@ -74,15 +74,35 @@ def test_scenarios_conform_to_harness_schema() -> None:
 def test_expected_verdict_in_verdict_options() -> None:
     """When verdict_options is present, expected_verdict must be a member.
 
-    The harness rejects the file otherwise (eval-prompt-change.py line 165).
+    The harness normalizes options with strip().upper() and rejects empty or
+    duplicate labels after normalization (eval-prompt-change.py lines 145-169).
+    This test mirrors that logic so CI catches drift before harness load time.
     """
     for scenario in _load_scenarios():
         options = scenario.get("verdict_options")
         if options is None:
             continue
-        assert scenario["expected_verdict"] in options, (
+
+        opts_upper: list[str] = []
+        seen_opts: set[str] = set()
+        for opt in options:
+            normalized_opt = str(opt).strip().upper()
+            assert normalized_opt, (
+                f"scenario {scenario['id']!r}: verdict_options contains an "
+                f"empty label after normalization"
+            )
+            assert normalized_opt not in seen_opts, (
+                f"scenario {scenario['id']!r}: verdict_options contains "
+                f"duplicate label {normalized_opt!r} after normalization"
+            )
+            seen_opts.add(normalized_opt)
+            opts_upper.append(normalized_opt)
+
+        expected_upper = str(scenario["expected_verdict"]).strip().upper()
+        assert expected_upper in opts_upper, (
             f"scenario {scenario['id']!r}: expected_verdict "
-            f"{scenario['expected_verdict']!r} not in verdict_options {options}"
+            f"{scenario['expected_verdict']!r} (normalized: {expected_upper!r}) "
+            f"not in verdict_options {options} (normalized: {opts_upper})"
         )
 
 
