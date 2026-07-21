@@ -65,6 +65,8 @@ def _git(
         ["git", *args],
         cwd=repo,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=check,
     )
@@ -128,6 +130,8 @@ def _run_lefthook(
         env=process_env,
         input=stdin,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
@@ -654,6 +658,8 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
         [LEFTHOOK, "version"],
         cwd=PROJECT_ROOT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=True,
     )
@@ -661,6 +667,8 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
         [LEFTHOOK, "validate"],
         cwd=PROJECT_ROOT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
@@ -1357,6 +1365,8 @@ def test_branch_context_cli_propagates_exit_codes(tmp_path: Path) -> None:
         [sys.executable, str(script), "--repo-root", str(repo), "branch-context"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert match.returncode == 0, match.stderr
@@ -1366,6 +1376,8 @@ def test_branch_context_cli_propagates_exit_codes(tmp_path: Path) -> None:
         [sys.executable, str(script), "--repo-root", str(repo), "branch-context"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert mismatch.returncode == 1
@@ -1736,6 +1748,8 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
         cwd=repo,
         env=process_env,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
@@ -2439,6 +2453,8 @@ rules:
         command,
         cwd=tmp_path,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
