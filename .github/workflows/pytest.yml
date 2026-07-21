@@ -62,11 +62,14 @@ jobs:
               - '.github/workflows/pytest.yml'
 
       - name: Report path check result
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PYTHON_CHANGED: ${{ steps.filter.outputs.python }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Manual trigger - running all tests"
           else
-            echo "Python files changed: ${{ steps.filter.outputs.python }}"
+            echo "Python files changed: $PYTHON_CHANGED"
           fi
 
   test:

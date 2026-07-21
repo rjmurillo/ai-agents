@@ -20,6 +20,7 @@ pre-commit:
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch
 
     - name: branch-context-policy
+      timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
     - group:
@@ -383,6 +384,7 @@ pre-push:
             run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
 
           - name: branch-context-policy
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
           - name: additions-advisory
