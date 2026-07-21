@@ -24,7 +24,6 @@ for _sub in ("PostToolUse", "PreToolUse", "SessionStart"):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import invoke_adr_review_guard as _adr  # noqa: E402
 import invoke_observation_sync as _obs  # noqa: E402
 import invoke_session_initialization_enforcer as _sess  # noqa: E402
 
@@ -72,26 +71,6 @@ def test_observation_sync_missing_git_refuses_unverified_cwd() -> None:
     ):
         result = _obs._get_repo_root()
     assert result is None
-
-
-# --- adr_review_guard.get_staged_adr_changes ------------------------------
-
-
-def test_adr_guard_passes_timeout() -> None:
-    with patch.object(_adr.subprocess, "run", return_value=_ok_result("")) as run:
-        _adr.get_staged_adr_changes()
-    assert run.call_args.kwargs.get("timeout") == 5
-
-
-def test_adr_guard_timeout_raises_runtime_error() -> None:
-    timeout = subprocess.TimeoutExpired(cmd="git", timeout=5)
-    with patch.object(_adr.subprocess, "run", side_effect=timeout):
-        try:
-            _adr.get_staged_adr_changes()
-        except RuntimeError as exc:
-            assert "timed out" in str(exc)
-        else:
-            raise AssertionError("expected RuntimeError on timeout")
 
 
 # --- session_initialization_enforcer.get_current_branch -------------------

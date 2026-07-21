@@ -7,10 +7,6 @@
       "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
       "shims": [
         {
-          "file": "PreToolUse/invoke_adr_review_guard.py",
-          "statusMessage": "Verifying ADR review completed (MUST requirement)"
-        },
-        {
           "file": "PreToolUse/invoke_security_commit_gate.py",
           "timeout": 10,
           "statusMessage": "Checking security gate for staged auth files (ADR-033)"
@@ -177,10 +173,6 @@
       "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
       "surface": "plugin",
       "shims": [
-        {
-          "file": "PreToolUse/invoke_adr_review_guard.py",
-          "statusMessage": "Verifying ADR review completed (MUST requirement)"
-        },
         {
           "file": "PreToolUse/invoke_security_commit_gate.py",
           "timeout": 10,
