@@ -128,19 +128,6 @@
           }
         ]
       }
-    ],
-    "PermissionRequest": [
-      {
-        "matcher": "Bash(pwsh*Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python*pytest*|dotnet test*|mvn test*|gradle test*|go test*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-permissionrequest-test_auto_approval",
-            "timeout": 60,
-            "statusMessage": "Running plugin-permissionrequest-test_auto_approval hooks (grouped, #3075)"
-          }
-        ]
-      }
     ]
   }
 }

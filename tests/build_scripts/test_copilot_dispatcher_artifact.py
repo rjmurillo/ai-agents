@@ -1,12 +1,10 @@
-"""Committed-artifact regression for the Copilot universal dispatcher cutover.
+"""Committed-artifact regression for the Copilot dispatcher cutover.
 
 ADR-068 / #2295 / #2342. Asserts the generated src/copilot-cli/hooks/ tree
-consolidates EVERY event to one dispatcher entry, that the tool-gating event
-(PreToolUse) runs in gate mode (fail-closed short-circuit, unchanged) and the
-observational events (PostToolUse, SessionStart, SessionEnd, UserPromptSubmit)
-run in observe mode (all shims run, exit 0), and that the generated entrypoint
-runs the real guard set in one process with the right behavior per mode. Runs
-in CI against the committed artifacts using this repo as the plugin root.
+consolidates safe events, preserves direct Stop registrations so the host can
+merge structured decisions, and runs the real guard set with the right
+behavior per mode. Runs in CI against the committed artifacts using this repo
+as the plugin root.
 """
 
 from __future__ import annotations
@@ -28,8 +26,15 @@ from regen_guard import detect_reason_strict  # noqa: E402
 _COPILOT = _REPO / "src" / "copilot-cli"
 _HOOKS_JSON = _COPILOT / "hooks" / "hooks.json"
 _GATING = "PreToolUse"
-_OBSERVE_EVENTS = ("PostToolUse", "SessionStart", "SessionEnd", "UserPromptSubmit")
-_ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
+_OBSERVE_EVENTS = (
+    "PostToolUse",
+    "PreCompact",
+    "SessionStart",
+    "UserPromptSubmit",
+)
+_DISPATCHED_EVENTS = (_GATING, *_OBSERVE_EVENTS)
+_DIRECT_EVENTS = ("Stop",)
+_ALL_EVENTS = (*_DISPATCHED_EVENTS, *_DIRECT_EVENTS)
 _DISPATCH_TEST_TIMEOUT_CAP_SEC = 60
 
 
@@ -88,15 +93,68 @@ def _run_entry(
 
 
 class TestDispatcherArtifacts:
-    def test_every_event_is_one_dispatcher_entry(self):
+    def test_safe_events_use_one_dispatcher_entry(self):
         hooks = _hooks()
-        # #2342: exactly five events, each collapsed to a single dispatcher entry.
         assert set(hooks) == set(_ALL_EVENTS), f"unexpected event set: {sorted(hooks)}"
-        for event in _ALL_EVENTS:
+        for event in _DISPATCHED_EVENTS:
             entries = hooks[event]
             assert len(entries) == 1, f"{event}: expected 1 dispatcher entry, got {len(entries)}"
             assert f"/hooks/{event}/_dispatch.py" in entries[0]["bash"]
             assert f"/hooks/{event}/_dispatch.py" in entries[0]["powershell"]
+
+    def test_test_auto_approval_is_not_registered(self):
+        claude_registration_files = (
+            _REPO / ".claude" / "settings.json",
+            _REPO / ".claude" / "hooks" / "hooks.json",
+        )
+        registration_files = (
+            *claude_registration_files,
+            _REPO / ".claude" / "hooks" / "dispatch_groups.json",
+            _HOOKS_JSON,
+        )
+
+        for registration in registration_files:
+            assert "invoke_test_auto_approval" not in registration.read_text(
+                encoding="utf-8"
+            )
+
+        for registration in (*claude_registration_files, _HOOKS_JSON):
+            manifest = json.loads(registration.read_text(encoding="utf-8"))
+            assert "PermissionRequest" not in manifest["hooks"]
+
+        dispatch_groups = json.loads(
+            registration_files[2].read_text(encoding="utf-8")
+        )["groups"]
+        assert all(
+            group.get("event") != "PermissionRequest"
+            for group in dispatch_groups.values()
+        )
+
+        assert not (
+            _REPO
+            / ".claude"
+            / "hooks"
+            / "PermissionRequest"
+            / "invoke_test_auto_approval.py"
+        ).exists()
+        assert not (
+            _REPO / ".claude" / "hooks" / "PermissionRequest"
+        ).exists()
+        assert not (_COPILOT / "hooks" / "PermissionRequest").exists()
+
+        settings = json.loads(registration_files[0].read_text(encoding="utf-8"))
+        allow_rules = settings.get("permissions", {}).get("allow", [])
+        assert allow_rules == []
+
+    def test_stop_keeps_separate_host_registrations(self):
+        entries = _hooks()["Stop"]
+
+        assert len(entries) == 2
+        assert all("/hooks/Stop/_dispatch.py" not in entry["bash"] for entry in entries)
+        assert all("/hooks/Stop/_dispatch.py" not in entry["powershell"] for entry in entries)
+        assert not (_COPILOT / "hooks" / "Stop" / "_manifest.json").exists()
+        assert not (_COPILOT / "hooks" / "Stop" / "_dispatch.py").exists()
+        assert not (_COPILOT / "hooks" / "Stop" / "_bootstrap.py").exists()
 
     def test_only_advisory_pretooluse_registrations_are_absent(self):
         settings = json.loads(
@@ -202,8 +260,8 @@ class TestDispatcherArtifacts:
         assert process.stdout.count(b" | Session: ") == 1
 
     def test_manifest_modes_match_event_role(self):
-        # PreToolUse gates (fail-closed); the rest observe (run all, exit 0).
-        for event in _ALL_EVENTS:
+        # PreToolUse gates and the remaining dispatched events observe.
+        for event in _DISPATCHED_EVENTS:
             manifest = json.loads(
                 (_COPILOT / "hooks" / event / "_manifest.json").read_text(encoding="utf-8")
             )
@@ -211,7 +269,7 @@ class TestDispatcherArtifacts:
             assert manifest["mode"] == expected, f"{event}: mode={manifest['mode']!r}"
 
     def test_each_event_has_manifest_entrypoint_and_bootstrap(self):
-        for event in _ALL_EVENTS:
+        for event in _DISPATCHED_EVENTS:
             event_dir = _COPILOT / "hooks" / event
             assert (event_dir / "_dispatch.py").is_file(), f"{event}: no _dispatch.py"
             # The entrypoint imports ensure_plugin_paths from a sibling
@@ -225,7 +283,7 @@ class TestDispatcherArtifacts:
                 assert (event_dir / shim).is_file(), f"{event}: manifest shim {shim} missing"
 
     def test_no_unregistered_matcher_shims_are_shipped(self):
-        for event in _ALL_EVENTS:
+        for event in _DISPATCHED_EVENTS:
             event_dir = _COPILOT / "hooks" / event
             manifest = json.loads(
                 (event_dir / "_manifest.json").read_text(encoding="utf-8")
