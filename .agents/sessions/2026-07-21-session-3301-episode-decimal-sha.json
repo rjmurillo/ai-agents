@@ -134,6 +134,14 @@
                 ".claude/.claude-plugin/plugin.json",
                 "src/copilot-cli/.claude-plugin/plugin.json"
             ]
+        },
+        {
+            "action": "Opened PR #3303 (Fixes #3301); all 91 CI checks green. Addressed five Copilot review comments in commit 8b45a616: rewrote the _prose_shas docstring to drop the astronomically-unlikely overstatement (all-decimal 7-char prefixes are about 3.7%) and stop implying endingCommit captures every commit; added test_seven_digit_decimal_in_prose_not_counted for the 7-char lower boundary; reworded the all-decimal endingCommit test comment to note digit-only prefixes are real; regenerated the mirror. 140 extractor tests pass. Set this endingCommit to the final code commit.",
+            "files": [
+                ".claude/skills/memory/scripts/extract_session_episode.py",
+                "tests/skills/memory/test_extract_session_episode.py",
+                "src/copilot-cli/skills/memory/scripts/extract_session_episode.py"
+            ]
         }
     ],
     "endingCommit": "aa603e26",
