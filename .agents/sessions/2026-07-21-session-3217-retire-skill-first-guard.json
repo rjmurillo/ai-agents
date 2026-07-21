@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3217,
+    "date": "2026-07-21",
+    "branch": "feat/3217-retire-skill-first-guard",
+    "startingCommit": "ddbda70f",
+    "objective": "Retire the skill_first_guard PreToolUse hook from both the Claude and vendored Copilot surfaces per ADR-085 decision D-A: Copilot CLI ignores repo-committed permissions, so the guard cannot intercept raw gh/git calls on the surface we ship to customers, making it net-negative. No git-observable invariant corresponds to the guard's steering, so pre-execution blocking is retired, not relocated (issue #3217, epic #3197)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-list_memories returned the project memory index (adr-reference-index and the full adr/* set); Serena MCP is live this Copilot CLI session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual; read this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md earlier this session-family (read-only dashboard confirmed)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github skill scripts under .claude/skills/github/scripts for PR/issue operations; build_all.py and pre_pr.py for generation and gates."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory conventions surfaced in loaded memories; github scripts preferred over raw gh for mutations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS and .claude/rules applied (Python-first, atomic commits <=5 files, no em-dashes, generated-artifacts-ship-with-change, plugin parity bump)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository and user memories loaded via harness prompt; hook-migration, plugin-versioning, and session-log facts applied."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/3217-retire-skill-first-guard"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/3217-retire-skill-first-guard, branched from main ddbda70f."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status reviewed; only the guard removal, vendored regen, tests, docs, manifests, and this log staged; auto-retro artifacts kept unstaged."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ddbda70f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed for this retirement change."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena live; recorded the .claude/hooks/hooks.json source-provenance and build_all --check working-tree-vs-index semantics for future hook-removal work."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Changed markdown (CONTRIBUTING.md, docs/github-api-capabilities.md, SKILL.md) passed the em/en-dash prohibition gate in pre_pr.py; no additional markdownlint scope."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in <=5-file conventional commits: source removal, vendored regen, tests, docs, manifests, and this log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python build/scripts/build_all.py --check: clean; uv run python scripts/validation/pre_pr.py: all validations passed; affected tests 302 passed; build_scripts 1146 passed; manifest parity 0.6.93."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Change tracked against #3217; PR references Fixes #3217 and Refs #3197."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Removed skill_first_guard from the Claude source: deleted the hook script and its three registration surfaces (dispatch_groups.json group, settings.json matcher, plugin hooks.json dispatcher entry).",
+      "files": [
+        ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
+        ".claude/hooks/dispatch_groups.json",
+        ".claude/hooks/hooks.json",
+        ".claude/settings.json"
+      ]
+    },
+    {
+      "action": "Regenerated the vendored Copilot surface with build_all.py: dropped the skill_first_guard shim, its _manifest.json entry, the vendored hooks.json registration, and refreshed the vendored SKILL.md and list_issues.py copies.",
+      "files": [
+        "src/copilot-cli/hooks/PreToolUse/_manifest.json",
+        "src/copilot-cli/hooks/hooks.json",
+        "src/copilot-cli/skills/agent-harness-reference/SKILL.md",
+        "src/copilot-cli/skills/github/scripts/issue/list_issues.py"
+      ]
+    },
+    {
+      "action": "Deleted the two guard-only test modules and surgically removed guard references from three shared tests (hook plugin guards parametrize case, list_issues #2110 guard-mapping class, pr-description example filename).",
+      "files": [
+        "tests/hooks/test_skill_first_guard.py",
+        "tests/test_invoke_skill_first_guard.py",
+        "tests/test_hook_plugin_guards.py",
+        "tests/test_list_issues.py",
+        "tests/test_validation_pr_description.py"
+      ]
+    },
+    {
+      "action": "Repointed the agent-harness-reference SKILL.md evidence citations off the doomed guard onto durable survivors (generate_hooks_shim.py for the stdin alias contract, invoke_security_gate.py for exit-2 and lib-bootstrap) and updated stale live-doc references in CONTRIBUTING.md and docs/github-api-capabilities.md.",
+      "files": [
+        ".claude/skills/agent-harness-reference/SKILL.md",
+        ".claude/skills/github/scripts/issue/list_issues.py",
+        "CONTRIBUTING.md",
+        "docs/github-api-capabilities.md"
+      ]
+    },
+    {
+      "action": "Bumped the project-toolkit plugin manifests 0.6.92 -> 0.6.93 on both surfaces to satisfy the parity gate.",
+      "files": [
+        ".claude/.claude-plugin/plugin.json",
+        "src/copilot-cli/.claude-plugin/plugin.json"
+      ]
+    }
+  ],
+  "endingCommit": "c37476825eafbc8c70c1f1ab679cfaed3255bfd2",
+  "nextSteps": [
+    "Open PR with Fixes #3217, body satisfying ADR-085 Decision 2 (no git-observable invariant exists, so pre-execution blocking is retired not relocated) and Decision 6 survivor inventory.",
+    "Babysit the PR to green, resolve review threads, self-merge.",
+    "Continue epic #3197: #3218 (retire orphaned dispatch/parity/drift machinery) after #3216 and #3217 land."
+  ]
+}
