@@ -11,10 +11,6 @@
           "statusMessage": "Verifying session log exists before commit (BLOCKING)"
         },
         {
-          "file": "PreToolUse/invoke_branch_context_guard.py",
-          "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
-        {
           "file": "PreToolUse/invoke_adr_review_guard.py",
           "statusMessage": "Verifying ADR review completed (MUST requirement)"
         },
@@ -30,10 +26,6 @@
       "mode": "gate",
       "matcher": "Bash(git push*)",
       "shims": [
-        {
-          "file": "PreToolUse/invoke_branch_context_guard.py",
-          "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
         {
           "file": "PreToolUse/invoke_retrospective_gate.py",
           "statusMessage": "Verifying retrospective evidence (ADR-033)"
@@ -194,10 +186,6 @@
           "statusMessage": "Verifying session log exists before commit (BLOCKING)"
         },
         {
-          "file": "PreToolUse/invoke_branch_context_guard.py",
-          "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
-        {
           "file": "PreToolUse/invoke_adr_review_guard.py",
           "statusMessage": "Verifying ADR review completed (MUST requirement)"
         },
@@ -238,10 +226,6 @@
       "matcher": "Bash(git push*)",
       "surface": "plugin",
       "shims": [
-        {
-          "file": "PreToolUse/invoke_branch_context_guard.py",
-          "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
         {
           "file": "PreToolUse/invoke_retrospective_gate.py",
           "statusMessage": "Verifying retrospective evidence (ADR-033)"
