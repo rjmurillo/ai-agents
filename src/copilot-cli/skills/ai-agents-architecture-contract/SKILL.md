@@ -143,7 +143,7 @@ State these plainly when working near them; do not design as if they were sound.
 
 | Weak point | Evidence (as of 2026-07-03) | Consequence |
 |---|---|---|
-| `hooks.json` twin is hand-synced and already differs | `.claude/settings.json` registers 7 events; `.claude/hooks/hooks.json` registers 6, no PreCompact and one fewer SessionStart group | Plugin installs may lack hooks the repo itself runs; verify intent before "fixing" either side |
+| `hooks.json` twin is hand-synced and already differs | `.claude/settings.json` registers 6 events and 13 groups; `.claude/hooks/hooks.json` registers 5 events and 11 groups, with no PreCompact and one fewer SessionStart group | Plugin installs may lack hooks the repo itself runs; verify intent before "fixing" either side |
 | `src/claude/` manual dual-edit | `templates/README.md:131` | Shared-template edits silently skip the Claude surface unless you remember the second edit |
 | Stale docs contradict reality | `CONTRIBUTING.md:155` said the removed PowerShell Generate-Agents command until PR #2871 repointed it to `python3 build/generate_agents.py`; zero `.ps1` files exist outside `.venv/` (ADR-042). `GENERATOR-FILES.md` lists `src/claude/` as a `generate_agents.py` output ("`src/claude/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML)"), but `generate_agents.py` contains no `src/claude` write and no claude platform YAML exists | Following docs verbatim fails; quote the canonical source when correcting (FM-9) |
 | ruff is advisory in CI | `pytest.yml` comments around lines 107-119, issue #2194 style backlog | Lint debt accumulates invisibly; only syntax parsing blocks |
@@ -168,7 +168,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `python3 build/scripts/build_all.py --check` and `python3 build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Confirmed event counts still match: `python3 -c "import json; d=json.load(open('.claude/settings.json'))['hooks']; print(len(d), sum(len(v) for v in d.values()))"` (expected 7 and 14 as of 2026-07-19)
+- [ ] Confirmed event counts still match: `python3 -c "import json; d=json.load(open('.claude/settings.json'))['hooks']; print(len(d), sum(len(v) for v in d.values()))"` (expected 6 and 13 as of 2026-07-20)
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: bumped that tree's plugin.json strictly greater
 
@@ -183,7 +183,7 @@ Verified 2026-07-03 against the working tree. Volatile facts are date-stamped in
 | REQ-003-010 no-write invariant | `build/scripts/build_all.py:962` | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | src/claude manual sync | `templates/README.md:131`; ADR-036 Accepted | `grep -n "MANUAL" templates/README.md` |
 | lib sync pairs | `scripts/sync_plugin_lib.py:27` SYNC_PAIRS | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| 8 events / 23 matcher groups; twin lacks PreCompact | `.claude/settings.json`, `.claude/hooks/hooks.json` | the Verification checkbox one-liner, plus `python3 -c "import json; print(list(json.load(open('.claude/hooks/hooks.json'))['hooks']))"` |
+| 6 events / 13 groups; twin has 5 events / 11 groups and lacks PreCompact | `.claude/settings.json`, `.claude/hooks/hooks.json` | the Verification checkbox one-liner, plus `python3 -c "import json; d=json.load(open('.claude/hooks/hooks.json'))['hooks']; print(len(d), sum(len(v) for v in d.values()), list(d))"` |
 | Push-guard fail policy | `.claude/hooks/PreToolUse/push_guard_base.py:20,28` | `grep -n "fail-open" .claude/hooks/PreToolUse/push_guard_base.py` |
 | Fail-closed reversal, #2205 rationale | `.agents/architecture/ADR-066-*.md`, ADR-071 (Accepted) | `grep -n -A2 "## Status" .agents/architecture/ADR-066*.md .agents/architecture/ADR-071*.md` |
 | Dispatcher modes, ~75% spawn reduction | `build/scripts/generate_dispatcher.py` docstring | `head -20 build/scripts/generate_dispatcher.py` |

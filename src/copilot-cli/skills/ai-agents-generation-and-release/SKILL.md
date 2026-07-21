@@ -188,7 +188,7 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 | Syncing lib with only one of the two steps | `sync_plugin_lib.py` feeds `.claude/lib/`; `build_all.py` feeds `src/copilot-cli/lib/`; missing either fails CI | Run both, in that order |
 | Bumping one project-toolkit manifest | Parity gate fails (#2222) | Bump `.claude` and `src/copilot-cli` manifests to the same value |
 | Skipping the plugin bump because "it is just a skill tweak" | Installed caches key off version; consumers keep stale content (PR #1942) | Strictly-greater bump on any content change |
-| Assuming `Dropped: N` in hooks generation is a failure | Drops are unsupported Copilot events, by design | Read `build/audit/GENERATION-AUDIT.md` for the drop list |
+| Treating `Dropped: N` as normal without checking the source | Current source registrations all map to Copilot events; an unexplained drop means contract drift | Read `build/audit/GENERATION-AUDIT.md`, identify the source registration, and require an explicit `eventDrop` decision |
 | Running `build_all.py` with bare `python3` in a fresh shell | PyYAML lives in the venv; import fails | `uv run python build/scripts/build_all.py` |
 | Running installed-plugin E2E against live `~/.copilot` | Version skew and ambiguous uninstall mutate active hooks; a missing hook root can deny every matching tool | Set both `HOME` and `COPILOT_HOME` to one isolated directory and register the worktree marketplace there |
 | Treating `src/claude/` as generated | It is the manual exception (ADR-036); no generator will save you | Hand-apply changes there and bump its manifest |

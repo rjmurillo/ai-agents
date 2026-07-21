@@ -190,6 +190,9 @@ def test_hook_requirement_tracks_dispatcher_and_matcher_contract() -> None:
     assert "one dispatcher entry" in section
     assert "Keep `Stop` and `SubagentStop` decision producers as direct entries" in section
     assert "ordered host-side `|` union" in section
+    assert '"powershell": "py -3 -u' in section
+    assert "immediately after required future imports" in section
+    assert "sentinel comment `# AUTO-GENERATED MATCHER SHIM (REQ-003-007)` at line 1" not in section
     assert "shall NOT emit the matcher" not in section
     assert "manual `/compact` does not emit it" in section
 
@@ -434,3 +437,15 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert plugin_summary in architecture
     assert plugin_summary in catalog
     assert copilot_summary in architecture
+    assert "registers 7 events" not in architecture
+    assert "expected 7 and 14" not in architecture
+    assert "8 events / 23 matcher groups" not in architecture
+
+
+def test_generation_skill_requires_an_explicit_reason_for_hook_drops() -> None:
+    generation = (
+        REPO_ROOT / ".claude" / "skills" / "ai-agents-generation-and-release" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+
+    assert "an unexplained drop means contract drift" in generation
+    assert "Drops are unsupported Copilot events, by design" not in generation
