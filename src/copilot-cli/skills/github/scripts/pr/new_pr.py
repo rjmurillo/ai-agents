@@ -133,12 +133,24 @@ def _load_completion_gate(repo_root: str):
     )
     if helper_path is None:
         return None
-    spec = importlib.util.spec_from_file_location("_git_false_completion_gate", helper_path)
-    if spec is None or spec.loader is None:
+    try:
+        spec = importlib.util.spec_from_file_location("_git_false_completion_gate", helper_path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return getattr(module, "completion_block_reason", None)
+    except Exception as exc:  # noqa: BLE001
+        # Fail open so a syntactically broken or import-erroring helper never
+        # blocks PR creation. exec_module runs arbitrary module-load code and can
+        # raise anything (SyntaxError, ImportError, or errors from the module's
+        # own top level), so no narrower except set covers it. The caller
+        # validate_completion_claim already treats a None return as skip-with-warning.
+        print(
+            f"WARNING: failed to load false completion gate helper: {exc}",
+            file=sys.stderr,
+        )
         return None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.completion_block_reason
 
 
 def validate_completion_claim(

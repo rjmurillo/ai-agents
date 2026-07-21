@@ -98,6 +98,8 @@ def _run_git(*args: str) -> subprocess.CompletedProcess[str] | None:
             ["git", *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_GIT_TIMEOUT_SECONDS,
             check=False,
         )
