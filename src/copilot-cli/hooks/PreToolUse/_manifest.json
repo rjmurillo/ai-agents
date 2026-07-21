@@ -13,7 +13,6 @@
     "invoke_pr_description_guard__Bash_git_push_0e93bf.py",
     "invoke_install_parity_guard__Bash_git_push_0e93bf.py",
     "invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py",
-    "invoke_hook_drift_guard__Bash_git_push_0e93bf.py",
     "invoke_security_gate__Write_Edit_c39898.py"
   ],
   "timeouts": {
@@ -28,7 +27,6 @@
     "invoke_pr_description_guard__Bash_git_push_0e93bf.py": 90,
     "invoke_install_parity_guard__Bash_git_push_0e93bf.py": 30,
     "invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py": 30,
-    "invoke_hook_drift_guard__Bash_git_push_0e93bf.py": 30,
     "invoke_security_gate__Write_Edit_c39898.py": 30
   }
 }
