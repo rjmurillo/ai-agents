@@ -55,10 +55,11 @@ def _init_feature_branch_repo(path: str) -> None:
     reports as `HEAD`, so an empty commit is required for the branch to resolve.
     """
     run = functools.partial(subprocess.run, cwd=path, check=True, capture_output=True)
-    run(["git", "init", "-b", "feat/session-init-test"])
+    run(["git", "init"])
     run(["git", "config", "user.email", "test@example.com"])
     run(["git", "config", "user.name", "Test"])
     run(["git", "commit", "--allow-empty", "-m", "init"])
+    run(["git", "checkout", "-B", "feat/session-init-test"])
 
 
 def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> list[str]:
