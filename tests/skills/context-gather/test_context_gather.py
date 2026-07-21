@@ -82,10 +82,14 @@ class TestFrontmatter:
 
     def test_model_field_optional(self, frontmatter: dict[str, str]) -> None:
         # ADR-080: skills default to the harness model; the model line is optional.
+        # When pinned, only `haiku` with `model-rationale` is valid (prices below default).
         model = frontmatter.get("model")
         if model is not None:
-            assert model in {"sonnet", "opus", "haiku"}, (
-                f"ADR-080: skill model must be a bare rolling alias, got {model!r}"
+            assert model == "haiku", (
+                f"ADR-080: skill model pin must be 'haiku' (only alias below default), got {model!r}"
+            )
+            assert frontmatter.get("model-rationale"), (
+                "ADR-080: skill model pin requires a model-rationale field"
             )
 
     def test_model_not_versioned(self, frontmatter: dict[str, str]) -> None:
