@@ -152,8 +152,16 @@ def validate_completion_claim(
     if not body_content and body_file:
         try:
             body_content = Path(body_file).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            body_content = ""
+        except OSError as exc:
+            print(
+                f"ERROR: Cannot read body file '{body_file}': {exc}",
+                file=sys.stderr,
+            )
+            print(
+                "  Completion claims in an unreadable body file cannot be verified.",
+                file=sys.stderr,
+            )
+            return False
     completion_block_reason = _load_completion_gate(repo_root)
     if completion_block_reason is None:
         print(

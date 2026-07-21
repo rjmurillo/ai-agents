@@ -387,7 +387,7 @@ BRANCH_CONTEXT_SCRIPT="$REPO_ROOT/scripts/hooks/check_branch_context.py"
 if [ -L "$BRANCH_CONTEXT_SCRIPT" ]; then
     record_fail "Branch context validation blocked: script path is a symlink"
 elif [ ! -f "$BRANCH_CONTEXT_SCRIPT" ]; then
-    record_skip "Branch context validation (script not found)"
+    record_fail "Branch context validation blocked: script not found at $BRANCH_CONTEXT_SCRIPT"
 elif set_python_cmd; then
     "${PYTHON_CMD[@]}" "$BRANCH_CONTEXT_SCRIPT" && branch_context_exit=0 || branch_context_exit=$?
     if [ "$branch_context_exit" -ne 0 ]; then
