@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3281,
+    "date": "2026-07-21",
+    "branch": "fix/copilot-hook-contract",
+    "startingCommit": "0bfed6428c",
+    "objective": "Resolve PR 3292 merge conflicts and review feedback"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context was active; serena-list_memories returned the repository memory index."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed after context compaction."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only reference."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed merge-resolver, session-init, pr-comment-responder, generation, and security-scan skill scripts before mutation."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md and routed the CWE-22 review through security-scan guidance."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded decision-claude-hook-group-dispatch, copilot-hook-generation-invariants, and copilot-hooks-observations."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/copilot-hook-contract"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/copilot-hook-contract"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified fix/copilot-hook-contract had an active origin/main merge plus the scoped PR review fixes."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "0bfed6428c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items are complete. Push, review-thread closure, CI, and merge remain external PR actions."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status and the substantive commit contain no .agents/HANDOFF.md change."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit a6c61c2af4 includes decision-adr-085-permission-surface-asymmetry.md plus corrected GitHub skill and tool memories."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx --yes markdownlint-cli2 ran on the 126 Markdown paths changed from the first merge parent. Repository exclusions selected 28 files; exit code 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All substantive merge, review, generated-artifact, ADR, test, and memory changes are committed at a6c61c2af4b93974ba9c7968a35257416883d9df. Only this closing session record remains for its metadata commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validate_session_json.py passes for this session record."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Merge reconciliation, review fixes, ADR convergence, generation, and local validation are complete. PR delivery actions remain in nextSteps."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked. The ADR debate logs and work log retain the stale-index and cross-worktree hook findings."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-21T13:45:00Z",
+      "action": "Separated unrelated primary-worktree residue from PR 3292 work.",
+      "result": "Archived 72 dirty paths with hashes under the Copilot session state and restored the primary worktree without deleting evidence."
+    },
+    {
+      "time": "2026-07-21T14:10:00Z",
+      "action": "Merged origin/main into fix/copilot-hook-contract and resolved all conflicts.",
+      "result": "Resolved 14 conflicts while preserving main's Lefthook migration and the branch's cross-harness hook contract changes."
+    },
+    {
+      "time": "2026-07-21T14:35:00Z",
+      "action": "Closed the three existing PR review findings.",
+      "result": "Added component-aware dispatcher path containment, race-safe PreCompact session discovery, and corrected Copilot output-discard wording with regression coverage."
+    },
+    {
+      "time": "2026-07-21T14:55:00Z",
+      "action": "Regenerated the complete agent, skill, command, instruction, and hook artifact tree.",
+      "result": "Rebased current metrics to 26 source registrations, 13 PreToolUse shims, a 465-second manifest sum, and a 470-second generated host timeout."
+    },
+    {
+      "time": "2026-07-21T15:20:00Z",
+      "action": "Ran /adr-review for ADR-068, ADR-071, and ADR-085 through six roles.",
+      "result": "All six roles accepted all three ADRs with no P0 or P1 findings. The security review accepted the current controls and residuals. Debate logs record stale LSP evidence, D-A Retirement, D-B deletion, and current timeout arithmetic."
+    },
+    {
+      "time": "2026-07-21T15:35:00Z",
+      "action": "Ran final focused tests, static analysis, compatibility gates, and generated-artifact checks.",
+      "result": "The focused hook suite passed with 1,208 passed and 1 skipped. Ruff, mypy, Python 3.10 syntax-floor, build drift, agent generation, install parity, hook anchoring, plugin library parity, manifest parity, and diff checks passed."
+    }
+  ],
+  "endingCommit": "a6c61c2af4b93974ba9c7968a35257416883d9df",
+  "nextSteps": [
+    "Complete and commit this session log after the substantive merge commit.",
+    "Push fix/copilot-hook-contract and update PR 3292 evidence.",
+    "Resolve existing and newly generated review threads, then merge PR 3292 after required checks pass."
+  ]
+}
