@@ -16,6 +16,11 @@ updated: 2026-05-09
 
 # DESIGN-006: Em/en-dash prohibition enforcement
 
+> [!IMPORTANT]
+> Historical design record. ADR-086 replaced the custom Git-hook carrier with
+> Lefthook. Paths under `.githooks/` below describe the former design and must
+> not be recreated.
+
 ## Requirements Addressed
 
 - REQ-006-AC1: Pre-commit hook blocks em-dash in staged files
