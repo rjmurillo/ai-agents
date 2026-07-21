@@ -295,7 +295,7 @@ def _extract_adr_ids(paths: list[str]) -> set[str]:
     """Extract normalized ADR identifiers (e.g. ``ADR-062``) from staged paths."""
     ids: set[str] = set()
     for path in paths:
-        match = _ADR_ID_PATTERN.search(path)
+        match = _ADR_ID_PATTERN.search(Path(path).name)
         if match:
             ids.add(match.group(0).upper())
     return ids
