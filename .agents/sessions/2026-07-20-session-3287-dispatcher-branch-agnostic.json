@@ -1,0 +1,135 @@
+{
+    "schemaVersion": "1.0",
+    "session": {
+        "number": 3287,
+        "date": "2026-07-20",
+        "branch": "fix/3196-dispatcher-branch-agnostic",
+        "startingCommit": "2f661d9f",
+        "objective": "Fix red main (#3287): the required Linux Run Python Tests job fails on test_one_session_start_origin_emits_branch_session_once after #3259 made the session-init enforcer branch-aware. Make the test branch-agnostic by running the enforcer against a self-contained temp feature-branch repo. Windows lefthook failures tracked separately (non-required, merged red in #3259)."
+    },
+    "protocolCompliance": {
+        "sessionStart": {
+            "serenaActivated": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Serena MCP live this session: serena-list_memories returned the project memory index (adr-reference-index, etc.)."
+            },
+            "serenaInstructions": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Serena manual reachable this session-family; serena-* tools surfaced and callable."
+            },
+            "handoffRead": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": ".agents/HANDOFF.md treated as read-only dashboard (ADR-014) during epic #3197 work."
+            },
+            "sessionLogCreated": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "This file."
+            },
+            "resumeCheck": {
+                "level": "SHOULD",
+                "Complete": true,
+                "Evidence": "Resumed from compaction; discovered origin/main advanced to 2f661d9f (#3259) and is red; re-diagnosed against real origin/main."
+            },
+            "usageMandatoryRead": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": ".serena/memories/usage-mandatory.md reachable via Serena; skill-first honored (github skill for issue/PR ops)."
+            },
+            "constraintsRead": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md conventions applied (Python-first, atomic commits, branch discipline)."
+            },
+            "memoriesLoaded": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Repository + user Copilot memories loaded via prompt context; Serena memory index reachable."
+            },
+            "branchVerified": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "git rev-parse --abbrev-ref HEAD confirmed fix/3196-dispatcher-branch-agnostic before staging."
+            },
+            "notOnMain": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Branched from origin/main to fix/3196-dispatcher-branch-agnostic before any commit."
+            },
+            "gitStatusVerified": {
+                "level": "SHOULD",
+                "Complete": true,
+                "Evidence": "git status --short inspected; retro side-effect files excluded from the commit."
+            },
+            "startingCommitNoted": {
+                "level": "SHOULD",
+                "Complete": true,
+                "Evidence": "2f661d9f (origin/main HEAD at branch creation)."
+            }
+        },
+        "sessionEnd": {
+            "checklistComplete": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "All MUST sessionStart items complete and genuine (Serena live, files read directly)."
+            },
+            "handoffPreserved": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": ".agents/HANDOFF.md read only, not modified (ADR-014)."
+            },
+            "serenaMemoryUpdated": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Stored the branch-fragile-enforcer-test pattern as a repository memory (protected-branch cwd => no Branch: line)."
+            },
+            "markdownLintRun": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "No Markdown files changed in this slice (Python test only); scoped markdownlint N/A."
+            },
+            "changesCommitted": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Test fix shipped as an atomic commit with the session log."
+            },
+            "validationPassed": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Full test_copilot_dispatcher_artifact.py file passes 10/10 locally; ruff clean on the touched file."
+            },
+            "tasksUpdated": {
+                "level": "SHOULD",
+                "Complete": true,
+                "Evidence": "Followed the plan: diagnose, fix, verify, file issue, commit, PR."
+            },
+            "retrospectiveInvoked": {
+                "level": "SHOULD",
+                "Complete": false,
+                "Evidence": ""
+            }
+        }
+    },
+    "workLog": [
+        {
+            "action": "Re-diagnosed red main against real origin/main (2f661d9f, #3259 Lefthook migration): required Linux Run Python Tests job fails on exactly one branch-fragile test; Windows lefthook job is a separate non-required failure #3259 knowingly merged red.",
+            "files": []
+        },
+        {
+            "action": "Made test_one_session_start_origin_emits_branch_session_once branch-agnostic: run the session-init enforcer against a throwaway temp git repo on a feature branch so the observed Branch: line no longer depends on the ambient checkout branch. Session state still resolves against the real repo via CLAUDE_PROJECT_DIR.",
+            "files": [
+                "tests/build_scripts/test_copilot_dispatcher_artifact.py"
+            ]
+        }
+    ],
+    "endingCommit": "3f093234",
+    "nextSteps": [
+        "Push and open PR (Fixes #3287); byte-check body for 0 U+2014/U+2013 dashes; reference-only paths under ## References.",
+        "Drive CI green on the required Linux job; self-merge once mergeStateStatus CLEAN.",
+        "Open PR B for the Windows lefthook integration failures (sys.executable POSIX path + shim-template divergence), validated via CI since lefthook is not installed locally.",
+        "Continue epic #3197 remaining owner/harness-blocked issues."
+    ]
+}
