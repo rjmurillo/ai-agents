@@ -92,11 +92,14 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     env:
       RUN_CLI_E2E: '1'
-      # Scoped, least-privilege tokens from the secrets manager. The e2e harness
-      # skips loudly when a CLI is unauthenticated; the smoke gate then fails the
-      # job, so a missing secret is a red run, never a silent green one.
-      ANTHROPIC_API_KEY: ${{ secrets.SMOKE_ANTHROPIC_API_KEY }}
-      COPILOT_GITHUB_TOKEN: ${{ secrets.SMOKE_COPILOT_CLI_TOKEN }}
+      # Auth tokens from the secrets manager, scoped to this job's env only. The
+      # dedicated SMOKE_* secrets were never provisioned, so the smoke ran
+      # unauthenticated and the gate reported a misdiagnosed red every night
+      # (issue #3275). Repointed to the broad tokens that actually exist so the
+      # shipped-base dogfood runs; the e2e harness now leads with an accurate
+      # auth-absent headline if either token is ever empty again.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
