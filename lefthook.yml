@@ -19,6 +19,9 @@ pre-commit:
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch
 
+    - name: branch-context-policy
+      run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
+
     - group:
         piped: true
         jobs:
@@ -378,6 +381,9 @@ pre-push:
           - name: branch-scope
             timeout: 5m
             run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
+
+          - name: branch-context-policy
+            run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
 
           - name: additions-advisory
             timeout: 5m

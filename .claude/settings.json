@@ -51,9 +51,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-2-branch_context_guard",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-2-retrospective_gate",
             "timeout": 300,
-            "statusMessage": "Running pretooluse-2-branch_context_guard hooks (grouped, #3075)"
+            "statusMessage": "Running pretooluse-2-retrospective_gate hooks (grouped, #3075)"
           }
         ]
       },
