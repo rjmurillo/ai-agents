@@ -6,6 +6,7 @@ import importlib.util
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,6 +38,7 @@ validate_conventional_commit = _mod.validate_conventional_commit
 get_repo_root = _mod.get_repo_root
 run_validations = _mod.run_validations
 write_audit_log = _mod.write_audit_log
+validate_completion_claim = _mod.validate_completion_claim
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +100,74 @@ class TestValidateConventionalCommit:
 
 
 # ---------------------------------------------------------------------------
+# Tests: validate_completion_claim
+# ---------------------------------------------------------------------------
+
+
+class TestValidateCompletionClaim:
+    def test_title_claim_without_session_log_blocks(self, tmp_path):
+        assert validate_completion_claim(str(tmp_path), "fix: resolved issue") is False
+
+    def test_body_claim_without_session_log_blocks(self, tmp_path):
+        assert (
+            validate_completion_claim(
+                str(tmp_path),
+                "chore: update hooks",
+                body="fixed everything",
+            )
+            is False
+        )
+
+    def test_claim_with_successful_evidence_passes(self, tmp_path):
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        (sessions / f"{today}-session-1.json").write_text(
+            "uv run pytest\n42 passed\n",
+            encoding="utf-8",
+        )
+
+        assert validate_completion_claim(str(tmp_path), "fix: resolved issue") is True
+
+    def test_body_file_claim_without_evidence_blocks(self, tmp_path):
+        body_file = tmp_path / "body.md"
+        body_file.write_text("finished migration", encoding="utf-8")
+
+        assert (
+            validate_completion_claim(
+                str(tmp_path),
+                "chore: update hooks",
+                body_file=str(body_file),
+            )
+            is False
+        )
+
+    def test_bypass_allows_claim(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("SKIP_COMPLETION_GATE", "true")
+
+        assert validate_completion_claim(str(tmp_path), "fix: resolved issue") is True
+
+    def test_heading_only_completion_word_passes(self, tmp_path):
+        assert validate_completion_claim(str(tmp_path), "## Completed") is True
+
+    def test_missing_helper_fails_open(self, tmp_path, capsys):
+        with patch.object(_mod, "_load_completion_gate", return_value=None):
+            assert validate_completion_claim(str(tmp_path), "fix: resolved issue") is True
+
+        assert "helper unavailable" in capsys.readouterr().err
+
+    def test_unreadable_body_file_is_treated_as_empty(self, tmp_path):
+        assert (
+            validate_completion_claim(
+                str(tmp_path),
+                "chore: update hooks",
+                body_file=str(tmp_path / "missing.md"),
+            )
+            is True
+        )
+
+
+# ---------------------------------------------------------------------------
 # Tests: main
 # ---------------------------------------------------------------------------
 
@@ -125,6 +195,30 @@ class TestMain:
         ):
             rc = main(["--title", "Bad title format"])
         assert rc == 2
+
+    def test_completion_claim_without_evidence_returns_1(self, tmp_path):
+        with (
+            patch.object(_mod, "get_repo_root", return_value=str(tmp_path)),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout="gh version 2.60.0", rc=0),
+                    _completed(stdout="feature-branch\n", rc=0),
+                ],
+            ) as run,
+        ):
+            rc = main(
+                [
+                    "--title",
+                    "fix: resolved issue",
+                    "--skip-validation",
+                    "--audit-reason",
+                    "test",
+                ]
+            )
+
+        assert rc == 1
+        assert run.call_count == 2
 
     def test_skip_validation_without_reason_returns_2(self):
         with patch(

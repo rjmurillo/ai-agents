@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import importlib.util
 import os
 import re
 import subprocess
@@ -119,6 +120,52 @@ def validate_conventional_commit(title: str) -> bool:
         print("  Example: fix(auth): Resolve login issue")
         return False
     return True
+
+
+def _load_completion_gate(repo_root: str):
+    """Load the canonical false-completion helper from the active repository."""
+    relative_path = Path("scripts/hooks/check_false_completion_msg.py")
+    candidates = [Path(repo_root) / relative_path]
+    candidates.extend(parent / relative_path for parent in Path(__file__).resolve().parents)
+    helper_path = next(
+        (path for path in candidates if path.is_file() and not path.is_symlink()),
+        None,
+    )
+    if helper_path is None:
+        return None
+    spec = importlib.util.spec_from_file_location("_git_false_completion_gate", helper_path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.completion_block_reason
+
+
+def validate_completion_claim(
+    repo_root: str,
+    title: str,
+    body: str = "",
+    body_file: str = "",
+) -> bool:
+    """Reject PR completion claims without successful verification evidence."""
+    body_content = body
+    if not body_content and body_file:
+        try:
+            body_content = Path(body_file).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            body_content = ""
+    completion_block_reason = _load_completion_gate(repo_root)
+    if completion_block_reason is None:
+        print(
+            "WARNING: false completion gate helper unavailable; validation skipped",
+            file=sys.stderr,
+        )
+        return True
+    reason = completion_block_reason(f"{title}\n{body_content}", Path(repo_root))
+    if reason is None:
+        return True
+    print(f"PR creation blocked: {reason}", file=sys.stderr)
+    return False
 
 
 _SESSION_LOG_FILENAME_RE = re.compile(
@@ -493,6 +540,14 @@ def main(argv: list[str] | None = None) -> int:
     # Validate conventional commit format
     if not validate_conventional_commit(args.title):
         return 2
+
+    if not validate_completion_claim(
+        repo_root,
+        args.title,
+        body=args.body,
+        body_file=args.body_file,
+    ):
+        return 1
 
     print(f"Preparing to create PR: {head} -> {args.base}")
     print(f"Title: {args.title}")
