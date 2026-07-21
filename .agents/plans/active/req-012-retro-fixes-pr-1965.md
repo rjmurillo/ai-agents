@@ -17,7 +17,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 - [ ] **M2: applyTo glob extension (repriced)** , `.claude/rules/canonical-source-mirror.md` extends glob to cover `.claude/review-axes/**` and `.github/prompts/**`. Contract test handles string-vs-list applyTo coercion via fnmatch.
 - [ ] **M3: Co-change-checklist (auto-detect + opt-in)** , `.claude/commands/spec.md` Step 6 emits checklist on (a) proposer-flagged multi-site change OR (b) auto-detected token literal patterns in diff scope.
 - [ ] **M4: Rework warning (calibrated)** , `.claude/skills/session-end/scripts/complete_session_log.py` emits warning for files edited 6+ times. Uses `git log --name-status -M` for rename tracking (the shipped form; `--diff-filter=R` was rejected because it restricts output to renames only and would erase the rework signal), excludes generated patterns (`*.session.json`, `src/claude/`).
-- [ ] **M5: Bot-cascade pre-push warning (NEW)** , `.githooks/pre-push` warns (not blocks) when current PR has unresolved bot threads or recent bot reviews. Closes the retro's highest-leverage gap (~20 commits saved).
+- [ ] **M5: Bot-cascade pre-push warning (NEW)** , `scripts/validation/git_hook_policy.py` warns through a `lefthook.yml` pre-push job when the current PR has unresolved bot threads or recent bot reviews. Closes the retro's highest-leverage gap (~20 commits saved).
 
 ## Milestones
 
@@ -107,8 +107,8 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 **Purpose.** Highest-leverage retro fix (~20 commits saved). Warn before push when bots have open threads on the current PR or are mid-scan.
 
 **Tasks:**
-- T5.1 (M, ~1h): extend `.githooks/pre-push` Phase 5c to query `get_unresolved_review_threads.py` for current branch's PR (if PR exists) and warn if `unresolved_count > 0` OR last bot review is <120s old
-- T5.2 (S, ~30m): test `tests/hooks/test_bot_cascade_warning.py` with stubbed PR context (existing PR + open thread, no PR, fresh-bot-review scenarios)
+- T5.1 (M, ~1h): extend `scripts/validation/git_hook_policy.py` and schedule its `bot-cascade` command in the Lefthook pre-push jobs; query `get_unresolved_review_threads.py` for the current branch's PR and warn if `unresolved_count > 0` OR the last bot review is <120s old
+- T5.2 (S, ~30m): cover the warning in `tests/test_lefthook_integration.py` with stubbed PR context (existing PR + open thread, no PR, fresh-bot-review scenarios)
 - T5.3 (S, ~30m): document opt-out via `--no-verify` (existing) and recommend batch-fix pattern in hook output
 
 **Exit criteria:**
