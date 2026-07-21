@@ -556,10 +556,15 @@ def _prose_shas(text: str) -> list[str]:
 
     Require at least one hex letter (a-f) so decimal-only identifiers (GitHub
     comment IDs, run IDs, epoch timestamps, long issue numbers) are not misread
-    as commit SHAs (issue #3301). A genuine short SHA prefix that is all decimal
-    digits is astronomically unlikely, and any commit the session actually made
-    is also recorded in the structured ``endingCommit`` field, which is scanned
-    unfiltered.
+    as commit SHAs (issue #3301). This trades one rare miss for a common false
+    positive: a genuine short SHA prefix that happens to be all decimal digits
+    (about 3.7% of 7-char prefixes) is dropped when it appears only in prose.
+    That miss degrades the causal graph gracefully; counting every decimal ID in
+    prose as a commit corrupts it. Structured commit fields (``endingCommit``,
+    ``startingCommit``) are scanned unfiltered, so an all-decimal final SHA is
+    still captured. ``endingCommit`` records only the final commit, so an
+    intermediate all-decimal SHA referenced solely in work-log prose is the one
+    case this filter can miss.
     """
     return [sha for sha in _SHA_RE.findall(text) if _HEX_LETTER_RE.search(sha)]
 

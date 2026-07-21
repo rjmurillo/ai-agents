@@ -690,6 +690,14 @@ class TestJsonCommitMetric:
         data["endingCommit"] = ""
         assert extract_session_episode.json_metrics(data)["commits"] == 0
 
+    def test_seven_digit_decimal_in_prose_not_counted(self):
+        # #3301 boundary: 7 is git's shortest common abbreviation length, so a
+        # 7-digit decimal-only token in prose is the lower edge that must not be
+        # counted as a commit.
+        data = _json_log([{"task": "t", "outcome": "see run 1234567 for logs"}])
+        data["endingCommit"] = ""
+        assert extract_session_episode.json_metrics(data)["commits"] == 0
+
     def test_hex_sha_in_prose_still_counted(self):
         # A real short SHA (contains hex letters) in prose is still counted.
         data = _json_log([{"task": "t", "outcome": "committed 1234abc"}])
@@ -706,7 +714,9 @@ class TestJsonCommitMetric:
 
     def test_all_decimal_ending_commit_still_counted(self):
         # #3301 edge: endingCommit is a structured field, scanned unfiltered, so
-        # a (rare) all-decimal SHA there is still counted.
+        # an all-decimal SHA there is still counted. Digit-only 7-char prefixes
+        # occur in real repos (about 3.7% of 7-char prefixes), so this path is
+        # real, not theoretical.
         data = _json_log([{"task": "t", "outcome": "no prose sha"}])
         data["endingCommit"] = "1234567"
         assert extract_session_episode.json_metrics(data)["commits"] == 1
