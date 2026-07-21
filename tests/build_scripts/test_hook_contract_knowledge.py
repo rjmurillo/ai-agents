@@ -194,6 +194,11 @@ def test_hook_requirement_tracks_dispatcher_and_matcher_contract() -> None:
     assert "Keep `Stop` and `SubagentStop` decision producers as direct entries" in section
     assert "ordered host-side `|` union" in section
     assert '"powershell": "py -3 -u' in section
+    assert "plus five seconds of dispatcher headroom" in section
+    assert "`HOOK_STDIN_CEILING_MIB`" in section
+    assert "`MATCHED_SHIM_PAYLOAD_LIMIT_MIB`" in section
+    assert "`MAX_MATCHER_TOOL_CALLS`" in section
+    assert "cap manifest-controlled diagnostic values at 512 characters" in section
     assert "immediately after required future imports" in section
     assert "sentinel comment `# AUTO-GENERATED MATCHER SHIM (REQ-003-007)` at line 1" not in section
     assert "shall NOT emit the matcher" not in section
