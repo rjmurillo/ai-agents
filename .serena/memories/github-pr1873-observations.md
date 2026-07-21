@@ -1,6 +1,6 @@
 # Skill Sidecar Learnings: github (skill scripts)
 
-**Last Updated**: 2026-05-03
+**Last Updated**: 2026-07-21
 **Sessions Analyzed**: 1 (PR #1873)
 
 ## Constraints (HIGH confidence)
@@ -14,15 +14,11 @@
   resolves the project venv deterministically regardless of which
   interpreter `python3` resolves to. (Session PR #1873, 2026-05-03)
 
-- **Raw `gh` may be blocked by `invoke_skill_first_guard.py` when a
-  mapped skill script exists for the operation.** The
-  `PreToolUse:Bash` guard examines the `gh` invocation, looks up the
-  matching skill script in its mapping, and rejects with a redirect to
-  that script. Operations without a mapped skill (for example
-  `gh pr edit --body-file <path>`) are not blocked. Default behavior: prefer
-  the skill script. Fall back to raw `gh` only when the guard does not
-  redirect. (Session PR #1873, 2026-05-03; reinforces AGENTS.md "Never
-  use raw gh when skills exist")
+- **Use skill scripts when they exist.** `AGENTS.md` keeps this as a MUST-level
+  rule. PR #3293 retired `invoke_skill_first_guard.py`, so current sessions no
+  longer get runtime interception or redirect messages. Raw `gh` remains valid
+  only where no skill script covers the operation. (Session PR #1873,
+  2026-05-03; retirement 2026-07-21)
 
 ## Preferences (MED confidence)
 
@@ -52,8 +48,8 @@
 
 - **`gh pr edit --body-file <path>` is the right path for replacing PR
   body content.** Skill scripts do not include a PR-edit wrapper; raw
-  `gh pr edit` is acceptable for this specific operation since
-  `invoke_skill_first_guard.py` does not redirect it (no mapped skill).
+  `gh pr edit` is acceptable for this specific operation because no skill
+  script covers it.
   (Session PR #1873, 2026-05-03)
 
 ## Notes for Review (LOW confidence)

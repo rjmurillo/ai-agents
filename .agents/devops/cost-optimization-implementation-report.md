@@ -72,7 +72,11 @@ runs-on: ubuntu-24.04-arm
 
 **Cost Impact**: 30% reduction in unnecessary runs = $400/year
 
-#### Path Filters Added (4 workflows)
+#### Historical Path Filters Added (4 workflows)
+
+The paths below record what the implementation changed at that time. They are
+not the current Git hook authority. Current Git hook jobs live in
+`lefthook.yml`.
 
 | Workflow | Paths Monitored |
 |----------|----------------|

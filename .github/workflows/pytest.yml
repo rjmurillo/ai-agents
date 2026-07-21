@@ -54,15 +54,22 @@ jobs:
               - 'uv.lock'
               - 'tests/conftest.py'
               - 'scripts/memory_enhancement/**'
+              - 'lefthook.yml'
+              - '.config/wt.toml'
+              - 'scripts/bootstrap-vm.sh'
+              - '.github/actions/setup-code-env/action.yml'
               - '.github/actions/ai-review/action.yml'
               - '.github/workflows/pytest.yml'
 
       - name: Report path check result
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PYTHON_CHANGED: ${{ steps.filter.outputs.python }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Manual trigger - running all tests"
           else
-            echo "Python files changed: ${{ steps.filter.outputs.python }}"
+            echo "Python files changed: $PYTHON_CHANGED"
           fi
 
   test:
@@ -275,7 +282,7 @@ jobs:
   # This job executes both contracts on an always-on Windows runner. Neither
   # contract needs authentication or external credentials.
   test-windows-pwsh:
-    name: Run Python Tests (Windows - pwsh contract)
+    name: Run Python and Lefthook Tests (Windows)
     needs: check-paths
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: windows-latest
@@ -312,6 +319,12 @@ jobs:
         env:
           UV_PYTHON: '3.14'
         run: uv run pytest tests/test_pytest_head_guard.py -v
+
+      - name: Run Lefthook integration tests
+        shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
+        run: uv run pytest tests/test_lefthook_integration.py -q
 
       - name: Run AI review output path contract tests
         shell: pwsh

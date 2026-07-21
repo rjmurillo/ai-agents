@@ -21,7 +21,6 @@ from scripts.hook_utilities import (
     get_today_session_log,
     get_today_session_logs,
     is_git_commit_command,
-    is_git_commit_or_push_command,
     is_git_push_command,
     is_pr_create_command,
     is_session_logged_command,
@@ -112,32 +111,6 @@ class TestIsGitPushCommand:
 
     def test_returns_true_when_preceded_by_whitespace(self) -> None:
         assert is_git_push_command("  git push") is True
-
-
-class TestIsGitCommitOrPushCommand:
-    def test_returns_true_for_git_commit(self) -> None:
-        assert is_git_commit_or_push_command("git commit -m 'test'") is True
-
-    def test_returns_true_for_git_ci(self) -> None:
-        assert is_git_commit_or_push_command("git ci -m 'test'") is True
-
-    def test_returns_true_for_git_push(self) -> None:
-        assert is_git_commit_or_push_command("git push") is True
-
-    def test_returns_true_for_git_push_with_args(self) -> None:
-        assert is_git_commit_or_push_command("git push origin main") is True
-
-    def test_returns_false_for_git_status(self) -> None:
-        assert is_git_commit_or_push_command("git status") is False
-
-    def test_returns_false_for_git_pull(self) -> None:
-        assert is_git_commit_or_push_command("git pull") is False
-
-    def test_returns_false_for_empty_string(self) -> None:
-        assert is_git_commit_or_push_command("") is False
-
-    def test_returns_false_for_none(self) -> None:
-        assert is_git_commit_or_push_command(None) is False
 
 
 class TestIsPrCreateCommand:
@@ -424,7 +397,6 @@ class TestModuleExports:
             get_today_session_log,
             get_today_session_logs,
             is_git_commit_command,
-            is_git_commit_or_push_command,
             is_git_push_command,
             is_project_repo,
             skip_if_consumer_repo,
@@ -433,7 +405,6 @@ class TestModuleExports:
         assert callable(get_project_directory)
         assert callable(is_git_commit_command)
         assert callable(is_git_push_command)
-        assert callable(is_git_commit_or_push_command)
         assert callable(get_today_session_log)
         assert callable(get_today_session_logs)
         assert callable(is_project_repo)
@@ -450,7 +421,6 @@ class TestModuleExports:
             "get_today_session_log",
             "get_today_session_logs",
             "is_git_commit_command",
-            "is_git_commit_or_push_command",
             "is_git_push_command",
             "is_pr_create_command",
             "is_project_repo",

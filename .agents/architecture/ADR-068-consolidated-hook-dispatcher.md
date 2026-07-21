@@ -58,11 +58,11 @@ The proposal-era measurements were:
 - HISTORICAL sequential aggregate of about 8.7 seconds.
 
 Those numbers explain the original decision but do not describe the current
-tree. The current generated tree contains 30 source registrations across six
-events: PostToolUse 2, PreCompact 1, PreToolUse 16, SessionStart 5, Stop 2,
+tree. The current generated tree contains 26 source registrations across six
+events: PostToolUse 2, PreCompact 1, PreToolUse 13, SessionStart 4, Stop 2,
 and UserPromptSubmit 4. The generated `hooks.json` exposes five dispatcher
-entries plus two direct Stop entries. This reduces 30 host command
-registrations to 7, or 76.7 percent.
+entries plus two direct Stop entries. This reduces 26 host command
+registrations to 7, or 73.1 percent.
 
 The two current PostToolUse producers,
 `invoke_markdown_auto_lint.py` and `invoke_observation_sync.py`, emit plaintext
@@ -163,11 +163,13 @@ events and execute those shims in process through
      exit propagates unchanged. A missing or multiple producer returns 2.
 
 4. **No in-process budget watchdog.** The manifest records positive,
-   non-boolean integer timeout metadata, and the consolidated host entry uses
-   the sum of per-shim timeout values. The current PreToolUse manifest has 16
-   shims whose configured values sum to 555 seconds. The host owns the aggregate
-   process timeout. The 1.0.72-1 probe tested only a 2-second timeout. No
-   evidence proves the host grants, caps, or enforces the requested 555 seconds.
+   non-boolean integer timeout metadata. The consolidated host entry uses the
+   sum of per-shim timeout values plus five seconds of dispatcher headroom. The
+   current PreToolUse manifest has 13 shims whose configured values sum to 465
+   seconds, so the generated host entry requests 470 seconds. The host owns the
+   aggregate process timeout. The 1.0.72-1 probe tested only a 2-second timeout.
+   No evidence proves the host grants, caps, or enforces the requested 470
+   seconds.
    There is no `COPILOT_HOOK_DISPATCH_BUDGET_MS`, 1500 ms default, `SIGALRM`,
    watchdog thread, or structured `budget_exceeded` result.
    In-process termination was rejected because a watchdog thread cannot safely
@@ -234,7 +236,7 @@ this ADR removes.
 
 The remaining timeout boundary is therefore the host process. On the measured
 Copilot CLI 1.0.72-1 behavior, a host timeout fails open. In the worst manifest
-order, a hung first PreToolUse shim can prevent up to 15 later registered shims
+order, a hung first PreToolUse shim can prevent up to 12 later registered shims
 from running, including any applicable guard among them. The host can then
 allow the tool. Consolidation increases this blast radius. It does not claim
 universal fail-closed behavior.
@@ -266,7 +268,7 @@ The current reasons to keep the dispatcher are:
 | Keep PreCompact direct with shell suppression | Rejected as the normal mode because it restores repeated startup. Retained as the behavior-preserving rollback shape. |
 | Keep UserPromptSubmit direct | Rejected because plaintext output has no documented host field and direct entries restore repeated startup. |
 | Discard observer stdout by default | Rejected. Only SessionStart and PreCompact have reviewed discard policies. UserPromptSubmit uses stderr, and unclassified events stay direct. |
-| Consolidate observers but direct-register every PreToolUse gate | Reduces aggregate gate blast radius, but restores 16 host processes and the startup cost this ADR addressed. Re-evaluate under #3218 using the decision rule below. |
+| Consolidate observers but direct-register every PreToolUse gate | Reduces aggregate gate blast radius, but restores one host process per gate and the startup cost this ADR addressed. Re-evaluate under #3218 using the decision rule below. |
 | Reorder guards by perceived risk, or split selected critical gates | No stable criticality contract exists, and reordering only changes which later guards a hang bypasses. A split is a narrower form of the hybrid and needs the same measurement. |
 | Tighten test-runner command matching | Rejected because a narrower pattern keeps the same trust flaw. A command name cannot prove the code executed by the runner is safe. |
 | Replace the hook with `permissions.allow` (#3192, #3217) | Rejected for test runners because it recreates the same trust flaw on a declarative surface. |
@@ -278,7 +280,7 @@ The current reasons to keep the dispatcher are:
 
 ### Positive
 
-- The current tree reduces 30 source registrations to seven host command
+- The current tree reduces 26 source registrations to seven host command
   entries.
 - Hosts that support matchers can skip a dispatcher spawn for safely reduced
   nonmatching tool calls.
@@ -299,10 +301,11 @@ The current reasons to keep the dispatcher are:
 - One dispatcher defect affects every shim registered for that event.
 - One hung consolidated gate can reach the host timeout before later guards
   execute. On the measured 1.0.72-1 host, that timeout fails open. A first-shim
-  hang can bypass up to 15 later registered PreToolUse shims.
+  hang can bypass up to 12 later registered PreToolUse shims.
 - In-process guards share interpreter state, stdin replay, and module state.
-- The current 555-second summed PreToolUse `timeoutSec` is a request to the
-  host. No current evidence shows whether the host grants, caps, or enforces it.
+- The current PreToolUse manifest values sum to 465 seconds. The generated host
+  entry requests 470 seconds after five seconds of dispatcher headroom. No
+  current evidence shows whether the host grants, caps, or enforces it.
 - The observer merger treats PostToolUse stdout as context text. The flat
   blank-line merge loses per-shim attribution. It does not merge
   `modifiedResult` or pre-structured JSON.
@@ -366,8 +369,8 @@ Reopen this decision when any of these occurs:
 
 1. A material Copilot CLI version changes matcher, timeout, nonzero-exit, or
    structured-output behavior.
-2. The active PreToolUse manifest grows beyond 16 shims or its summed requested
-   timeout grows beyond 555 seconds.
+2. The active PreToolUse manifest grows beyond 13 shims or its summed requested
+   timeout grows beyond 465 seconds.
 3. A new PermissionRequest producer or a new blocking gate joins the
    consolidated path.
 4. A PostToolUseFailure producer emits repository-controlled or other untrusted

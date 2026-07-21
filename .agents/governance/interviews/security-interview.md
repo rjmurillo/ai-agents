@@ -192,7 +192,7 @@ Check if the code is secure.
 | Scenario | Indicators | Confidence |
 |----------|------------|------------|
 | Authentication/authorization changes | Files in `**/Auth/**`, `**/Security/**` | High |
-| Infrastructure code changes | `.github/workflows/*`, `.githooks/*`, `Dockerfile` | High |
+| Infrastructure code changes | `.github/workflows/*`, `lefthook.yml`, `scripts/validation/git_hook_policy.py`, `Dockerfile` | High |
 | New external API endpoints | Controller files with route attributes | High |
 | Dependency updates | Package manifest changes | High |
 

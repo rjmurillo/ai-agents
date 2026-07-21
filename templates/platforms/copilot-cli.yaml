@@ -54,8 +54,8 @@ artifacts:
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
     # ADR-068 / #2295 / #2342: consolidate safely mergeable events. Keep
-    # Stop-family and unclassified events direct. Direct SessionStart and
-    # PreCompact commands suppress stdout/stderr for rollback safety.
+    # Stop-family and unclassified events direct. SessionStart and PreCompact
+    # dispatchers capture and discard both output channels internally.
     dispatcher: true
     eventRemap:
       PreToolUse: PreToolUse

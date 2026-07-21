@@ -17,6 +17,11 @@ updated: 2026-05-11
 
 # TASK-013: M5 Bot-Cascade Pre-Push Warning
 
+> [!IMPORTANT]
+> Historical completed-task record. ADR-086 replaced the custom Git-hook
+> carrier with Lefthook. Paths under `.githooks/` below record completed work
+> and must not be used for new changes.
+
 ## Design Context
 
 DESIGN-013 specifies Phase 5c added to `.githooks/pre-push` between Phase 5b (drift detection) and Phase 6 (Summary). The phase emits one of `record_skip`, `record_warn`, or `record_pass` based on:

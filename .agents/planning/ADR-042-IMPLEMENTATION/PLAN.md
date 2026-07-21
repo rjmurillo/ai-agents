@@ -1,12 +1,18 @@
 # ADR-042 Python Migration Implementation Plan
 
-**Status**: READY FOR EXECUTION
+**Status**: HISTORICAL BASELINE, DO NOT EXECUTE VERBATIM
 **Created**: 2026-01-18
 **Repository**: `rjmurillo/ai-agents`
 **Epic**: [#965](https://github.com/rjmurillo/ai-agents/issues/965)
 **ADR**: [ADR-042](https://github.com/rjmurillo/ai-agents/blob/main/.agents/architecture/ADR-042-python-migration-strategy.md)
 **Timeline**: 12-24 months (phased)
 **Priority**: P1
+
+> [!NOTE]
+> This plan records the January 2026 migration baseline. The repository has since
+> implemented Python-first development and replaced its custom Git-hook framework
+> with Lefthook. Use ADR-042, ADR-086, `pyproject.toml`, `lefthook.yml`, and
+> `scripts/validation/git_hook_policy.py` as current authority.
 
 ---
 
@@ -73,7 +79,7 @@ This document is the authoritative implementation plan for migrating ai-agents f
 | `.github/dependabot.yml` | GitHub Actions only | Add pip ecosystem |
 | `.agents/governance/PROJECT-CONSTRAINTS.md` | "MUST NOT create Python" | Change to "SHOULD prefer Python" |
 | `CRITICAL-CONTEXT.md` | "PowerShell only" | Change to "Python-first (ADR-042)" |
-| `.githooks/pre-commit` | May block Python | Allow .py files |
+| `lefthook.yml` | Current scheduler | Keep Python checks aligned with ADR-042 |
 
 ---
 
@@ -385,30 +391,15 @@ jobs:
 
 ---
 
-### Task 1.8: Update Pre-commit Hook (if needed)
+### Task 1.8: Verify Lefthook Python Checks
 
-**File**: `.githooks/pre-commit`
+**Files**: `lefthook.yml`, `scripts/validation/git_hook_policy.py`
 
-**Check for Python blocking logic** (search for `.py` blocking):
+**Current Contract**:
 
-```bash
-grep -n "\.py" .githooks/pre-commit
-```
-
-If blocking logic exists, remove or comment it out.
-
-**Add Python linting section** (non-blocking initially):
-
-```bash
-# Python linting (ADR-042)
-PYTHON_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
-if [ -n "$PYTHON_FILES" ]; then
-    echo "Running Python checks on staged files..."
-    if command -v ruff &> /dev/null; then
-        echo "$PYTHON_FILES" | xargs ruff check --fix || true
-    fi
-fi
-```
+- Lefthook selects staged Python files and schedules the configured Python jobs.
+- Repository-specific path and policy checks remain in Python.
+- Adding a `.py` file must not trigger the superseded PowerShell-only policy.
 
 **Verification**: Committing a `.py` file does not fail pre-commit.
 
@@ -423,7 +414,7 @@ fi
 - [ ] `.github/dependabot.yml` includes pip ecosystem
 - [ ] `PROJECT-CONSTRAINTS.md` says "SHOULD prefer Python"
 - [ ] `CRITICAL-CONTEXT.md` says "Python-first"
-- [ ] Pre-commit hook allows `.py` files
+- [ ] Lefthook allows and validates `.py` files
 
 ---
 
@@ -702,7 +693,7 @@ All paths are relative to repository root:
 | `.github/dependabot.yml` | Yes | Add pip ecosystem here |
 | `.agents/governance/PROJECT-CONSTRAINTS.md` | Yes | Lines 19-21 need update |
 | `CRITICAL-CONTEXT.md` | Yes | Line 10 needs update |
-| `.githooks/pre-commit` | Yes | Check for Python blocking |
+| `lefthook.yml` | Yes | Schedules current Python checks |
 | `.claude/hooks/` | Yes | Contains example Python files |
 
 ---

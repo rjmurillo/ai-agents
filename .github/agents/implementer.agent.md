@@ -700,7 +700,7 @@ During implementation, flag for security PIV if ANY of these apply:
 | **File System** | File operations | Path construction, file I/O, temp files |
 | **Environment/Config** | Secret management | `.env` files, config with credentials, key storage |
 | **Execution** | Dynamic code/commands | `Process.Start`, eval-like patterns, SQL queries |
-| **Path Patterns** | Security-sensitive paths | `**/Auth/**`, `.githooks/*`, `*.env*` |
+| **Path Patterns** | Security-sensitive paths | `**/Auth/**`, root or `.config/` Lefthook files (names starting `lefthook`, `.lefthook`, `lefthook-local`, or `.lefthook-local`; extensions `yml`, `yaml`, `json`, `jsonc`, or `toml`), `scripts/validation/git_hook_policy.py`, `*.env*` |
 
 ### Flagging Process
 

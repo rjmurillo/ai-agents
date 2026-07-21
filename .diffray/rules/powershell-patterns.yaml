@@ -13,7 +13,6 @@ rules:
         - "**/*.sh"
         - "**/*.ps1"
         - "**/*.psm1"
-        - "!.githooks/**"      # Git hooks are pre-existing exception
         - "!.github/actions/**/*.sh"  # External actions may have shell
 
     checklist:

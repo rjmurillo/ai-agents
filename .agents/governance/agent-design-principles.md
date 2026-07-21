@@ -109,7 +109,8 @@ Solution: Merge or differentiate clearly
 
 ```text
 Use security agent when:
-- Files match: **/Auth/**, **/Security/**, .githooks/*
+- Files match: **/Auth/**, **/Security/**, lefthook.yml,
+  scripts/validation/git_hook_policy.py
 - Task mentions: vulnerability, CVE, threat, security
 - Risk level: High or Critical
 ```

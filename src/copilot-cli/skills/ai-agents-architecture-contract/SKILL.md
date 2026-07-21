@@ -74,8 +74,8 @@ Registration is DUAL and partly hand-synced:
 
 | Surface | File | Registered (re-verified 2026-07-20) |
 |---|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 13 groups |
-| Plugin twin | `.claude/hooks/hooks.json` | 5 events, 11 groups; PreCompact is absent |
+| Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 12 groups |
+| Plugin twin | `.claude/hooks/hooks.json` | 5 events, 10 groups; PreCompact is absent |
 | Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 6 events, 7 registrations; Stop has two direct decision producers, and each other event has one dispatcher |
 
 Failure policy is PER FAMILY, not global. Do not copy a policy across families:

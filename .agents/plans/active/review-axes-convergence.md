@@ -17,36 +17,36 @@
 
 Ordering: M1-01, M1-02, M1-03, M1-04 all unblocked (run in parallel). M1-05 requires M1-04. M1-06 requires M1-01 + M1-02 + M1-03.
 
-- [ ] M1-01: Create `tests/lib/conftest.py` schema-validation fixture (`validate_axis_schema`) [XS] — commit C1
-- [ ] M1-02: Author `analyst.md` + `architect.md` under `.claude/review-axes/` [S] — commit C2 (parallel with M1-01, M1-03, M1-04)
-- [ ] M1-03: Author `qa.md` + `security.md` + `devops.md` + `roadmap.md` under `.claude/review-axes/` [S] — commit C3 (parallel with M1-01, M1-02, M1-04)
-- [ ] M1-04: Implement `.claude/lib/ai_review_common.py` (`merge_verdicts`, `get_verdict_emoji`, `extract_verdict`) [M] — commit C4 (parallel with M1-01, M1-02, M1-03)
-- [ ] M1-05: Write `tests/lib/test_ai_review_common.py` (100% branch coverage, all verdict combinations + UNKNOWN truth table) [S] — commit C5 (requires M1-04)
-- [ ] M1-06: Write `tests/lib/test_axis_schema.py` (parametrized over all 6 axis files, exact section-title match) [XS] — commit C6 (requires M1-01 + M1-02 + M1-03)
+- [ ] M1-01: Create `tests/lib/conftest.py` schema-validation fixture (`validate_axis_schema`) [XS], commit C1
+- [ ] M1-02: Author `analyst.md` + `architect.md` under `.claude/review-axes/` [S], commit C2 (parallel with M1-01, M1-03, M1-04)
+- [ ] M1-03: Author `qa.md` + `security.md` + `devops.md` + `roadmap.md` under `.claude/review-axes/` [S], commit C3 (parallel with M1-01, M1-02, M1-04)
+- [ ] M1-04: Implement `.claude/lib/ai_review_common.py` (`merge_verdicts`, `get_verdict_emoji`, `extract_verdict`) [M], commit C4 (parallel with M1-01, M1-02, M1-03)
+- [ ] M1-05: Write `tests/lib/test_ai_review_common.py` (100% branch coverage, all verdict combinations + UNKNOWN truth table) [S], commit C5 (requires M1-04)
+- [ ] M1-06: Write `tests/lib/test_axis_schema.py` (parametrized over all 6 axis files, exact section-title match) [XS], commit C6 (requires M1-01 + M1-02 + M1-03)
 
 ### M2: Generation (starts after M1-02 + M1-03 commit; parallel with M3)
 
 Ordering: M2-01 requires M1-02 + M1-03 (axis files needed for generator). M2-02 + M2-03 + M2-04 require M2-01. M2-05 requires M2-03.
 
-- [ ] M2-01: Implement `build/scripts/generate_pr_quality_prompts.py` (idempotent, atomic write, `--dry-run`, static CI header literal, LF-only output) [M] — commit C7
-- [ ] M2-02: Write `tests/build_scripts/test_generate_pr_quality_prompts.py` [S] — commit C8 (parallel with M2-03 + M2-04)
-- [ ] M2-03: Add drift step to `.githooks/pre-push` (HEAD-commit comparison, unified diff on divergence, `command -v python3` guard) [S] — commit C9 (parallel with M2-02 + M2-04)
-- [ ] M2-04: Add `drift-check` job to `.github/workflows/ai-pr-quality-gate.yml` (SHA-pinned actions, error annotation, job summary) [S] — commit C10 (parallel with M2-02 + M2-03)
-- [ ] M2-05: Write `tests/hooks/test_drift_check.py` (positive + negative paths) [XS] — commit C11 (requires M2-03)
+- [ ] M2-01: Implement `build/scripts/generate_pr_quality_prompts.py` (idempotent, atomic write, `--dry-run`, static CI header literal, LF-only output) [M], commit C7
+- [ ] M2-02: Write `tests/build_scripts/test_generate_pr_quality_prompts.py` [S], commit C8 (parallel with M2-03 + M2-04)
+- [ ] M2-03: Add the review-axis drift job to `lefthook.yml` (HEAD-commit comparison and unified diff on divergence) [S], commit C9 (parallel with M2-02 + M2-04)
+- [ ] M2-04: Add `drift-check` job to `.github/workflows/ai-pr-quality-gate.yml` (SHA-pinned actions, error annotation, job summary) [S], commit C10 (parallel with M2-02 + M2-03)
+- [ ] M2-05: Cover the drift job in `tests/test_lefthook_integration.py` (positive + negative paths) [XS], commit C11 (requires M2-03)
 
 ### M3: Integration (starts after M1-04 commit; parallel with M2)
 
 Ordering: M3-01 requires M1-04 (ai_review_common.py must exist to be cited). M3-02 requires M1-04. M3-01 and M3-02 run in parallel.
 
-- [ ] M3-01: Rewrite `.claude/commands/review.md` (6 canonical axes from `.claude/review-axes/`, 3 skill chains, merge_verdicts from ai_review_common.py, UNKNOWN handling, findings table) [M] — commit C12
-- [ ] M3-02: Update `.claude/commands/pr-quality/all.md` (cite `ai_review_common.py`, remove `AIReviewCommon.psm1`) [XS] — commit C13 (parallel with M3-01)
+- [ ] M3-01: Rewrite `.claude/commands/review.md` (6 canonical axes from `.claude/review-axes/`, 3 skill chains, merge_verdicts from ai_review_common.py, UNKNOWN handling, findings table) [M], commit C12
+- [ ] M3-02: Update `.claude/commands/pr-quality/all.md` (cite `ai_review_common.py`, remove `AIReviewCommon.psm1`) [XS], commit C13 (parallel with M3-01)
 
 ### M4: Validation (terminal; requires all M1+M2+M3 commits merged)
 
 Ordering: M4-01 requires M1-04 + M1-02 + M1-03 + M3-01. M4-02 requires M3-01 (design stabilized). M4-01 and M4-02 run in parallel. **M4-02 MUST land before final PR merge** (spec-coverage gate checks issue body).
 
-- [ ] M4-01: Write `tests/integration/test_vendored_install.py` (`.claude/` subtree in `tmp_path`; `import ai_review_common` from copy; all 6 axis files present + schema-valid; no `.agents/` hard-coded paths) [S] — commit C14
-- [ ] M4-02: Sync GitHub issue bodies #1933 + #1934 via `gh issue edit` (remove "7 axes", cite `ai_review_common.py`, reference 6+3=9 approach) [XS] — no repo commit (gh CLI side effect)
+- [ ] M4-01: Write `tests/integration/test_vendored_install.py` (`.claude/` subtree in `tmp_path`; `import ai_review_common` from copy; all 6 axis files present + schema-valid; no `.agents/` hard-coded paths) [S], commit C14
+- [ ] M4-02: Sync GitHub issue bodies #1933 + #1934 via `gh issue edit` (remove "7 axes", cite `ai_review_common.py`, reference 6+3=9 approach) [XS], no repo commit (gh CLI side effect)
 
 ## Decision Log
 

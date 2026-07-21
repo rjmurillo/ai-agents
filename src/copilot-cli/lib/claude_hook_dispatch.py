@@ -64,6 +64,7 @@ Merge rules for shim stdout (per run):
 from __future__ import annotations
 
 import json
+import os
 import runpy
 import sys
 from dataclasses import dataclass, field
@@ -280,6 +281,19 @@ def validate_group(
     return event, mode, validated
 
 
+def _is_path_within(candidate: Path, directory: Path) -> bool:
+    """Return whether candidate is inside directory on the current platform."""
+    normalized_candidate = os.path.normcase(os.fspath(candidate))
+    normalized_directory = os.path.normcase(os.fspath(directory))
+    try:
+        return (
+            os.path.commonpath((normalized_candidate, normalized_directory))
+            == normalized_directory
+        )
+    except ValueError:
+        return False
+
+
 def _run_one(shim_path: Path, name: str, raw_stdin: bytes, event: str) -> _ShimOutcome:
     """Run one shim in-process with stdin replay and stdout capture."""
     _install_stdin(raw_stdin)
@@ -365,7 +379,7 @@ def run_group(
         return BLOCK_EXIT
     hooks_dir = Path(hooks_dir)
     try:
-        resolved_hooks_dir = hooks_dir.resolve()
+        resolved_hooks_dir = Path(os.path.realpath(hooks_dir))
     except (OSError, RuntimeError) as exc:
         print(
             f"claude-hook-dispatch: hooks directory cannot be resolved: {exc}",
@@ -378,8 +392,9 @@ def run_group(
     try:
         for name in shims:
             try:
-                shim_path = (hooks_dir / name).resolve()
-                shim_path.relative_to(resolved_hooks_dir)
+                shim_path = Path(os.path.realpath(hooks_dir / name))
+                if not _is_path_within(shim_path, resolved_hooks_dir):
+                    raise ValueError("resolved path escapes hooks directory")
             except (OSError, RuntimeError, ValueError) as exc:
                 print(
                     f"claude-hook-dispatch: registered shim path is unsafe: "

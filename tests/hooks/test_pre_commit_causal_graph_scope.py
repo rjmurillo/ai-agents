@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for the pre-commit causal-graph scoping fix (#3034).
-
-Before the fix, staging any episode file made the pre-commit hook regenerate the
-causal graph from the ENTIRE episodes directory
-(``update_causal_graph.py --episode-path <dir>``) and stage the result. When the
-committed graph was stale, that dragged a large, unrelated cross-session diff
-into whatever commit happened to touch one episode.
-
-The fix scopes the regeneration to the STAGED episode files, one at a time. The
-generator builds nodes/edges/chains/patterns per episode (no cross-episode
-relationships) and merges additively with dedupe by node id, so a per-episode
-run produces a graph delta proportional to the change.
-
-These tests assert (1) structurally that the hook no longer runs the whole-tree
-regeneration and does loop over the staged files, and (2) behaviorally that the
-generator, run on a single episode, adds only that episode's nodes and is
-idempotent on a second run.
-"""
+"""Regression tests for scoped, additive causal-graph generation."""
 
 import importlib.util
 import json
@@ -26,7 +9,6 @@ from types import ModuleType
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
 SCRIPT = (
     REPO_ROOT
     / ".claude"
@@ -37,108 +19,12 @@ SCRIPT = (
 )
 
 
-def _hook_text() -> str:
-    return PRE_COMMIT.read_text(encoding="utf-8")
-
-
 def _load_generator() -> ModuleType:
     spec = importlib.util.spec_from_file_location("update_causal_graph", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-# --- structural guards -----------------------------------------------------
-
-
-def test_hook_does_not_regen_whole_episode_directory() -> None:
-    text = _hook_text()
-    assert '--episode-path "$REPO_ROOT/.agents/memory/episodes"' not in text, (
-        "pre-commit reintroduced the whole-directory causal-graph regen (#3034); "
-        "scope it to the staged episode files instead"
-    )
-
-
-def test_hook_loops_over_staged_episode_files() -> None:
-    text = _hook_text()
-    assert 'while IFS= read -r _episode' in text, (
-        "pre-commit should iterate the staged episodes"
-    )
-    assert 'done <<< "$STAGED_EPISODE_FILES"' in text, (
-        "the loop should read the staged episode set"
-    )
-
-
-def test_hook_feeds_staged_index_blob_not_working_tree() -> None:
-    text = _hook_text()
-    assert 'git show ":$_episode"' in text, (
-        "pre-commit should feed the staged (index) blob, not the working-tree "
-        "file, so partial staging cannot leak into the graph (#3034 review)"
-    )
-    assert '--episode-path "$_staged_tmp"' in text, (
-        "the generator should run on the materialized index blob"
-    )
-    assert '--episode-path "$REPO_ROOT/$_episode"' not in text, (
-        "pre-commit must not read the working-tree file for staged episodes"
-    )
-
-
-def test_hook_captures_real_generator_exit_code() -> None:
-    text = _hook_text()
-    # The old code hard-coded UPDATE_EXIT=0 after "|| true", making the failure
-    # branch unreachable and letting a partial graph stage on error (#3034
-    # review finding).
-    assert "UPDATE_EXIT=$_rc" in text, (
-        "pre-commit should record the real generator exit code so a failure "
-        "does not silently stage a partial graph"
-    )
-    assert '--episode-path "$REPO_ROOT/$_episode" 2>&1 || true' not in text, (
-        "pre-commit must not swallow the generator exit code with '|| true'"
-    )
-
-
-def test_hook_guards_mktemp_failure() -> None:
-    text = _hook_text()
-    # mktemp failure must not abort the non-blocking hook under set -e
-    # (#3034 review); it should be guarded and turn into UPDATE_EXIT=1.
-    assert "_staged_tmp=$(mktemp 2>/dev/null) || {" in text, (
-        "pre-commit should guard mktemp so its failure cannot abort the hook"
-    )
-
-
-def test_hook_snapshots_graph_for_atomicity() -> None:
-    text = _hook_text()
-    # A partial multi-episode failure must not leave a half-applied graph in
-    # the working tree; the hook snapshots before writing and restores on
-    # failure (#3034 review).
-    assert '_graph_backup=$(mktemp 2>/dev/null)' in text, (
-        "pre-commit should snapshot the graph before per-episode writes"
-    )
-    assert 'cp -- "$_graph_backup" "$CAUSAL_GRAPH_FILE"' in text, (
-        "pre-commit should restore the graph snapshot on failure"
-    )
-
-
-def test_hook_skips_update_when_snapshot_fails() -> None:
-    text = _hook_text()
-    # If an existing graph cannot be snapshotted (mktemp or cp failure), the
-    # hook must not run the per-episode writes, because it could not restore a
-    # partial multi-episode failure (#3040 review).
-    assert "_can_update=0" in text, (
-        "pre-commit should skip the update when the graph snapshot cannot be "
-        "created, to preserve the atomicity guarantee"
-    )
-    # A created-but-unusable temp file (mktemp ok, cp failed) must be removed,
-    # not leaked (#3043 review).
-    assert '[ -n "$_graph_backup" ] && rm -f "$_graph_backup"' in text, (
-        "pre-commit should remove the snapshot temp file when cp fails"
-    )
-    # A skipped update must not fall through to the staging/report block and
-    # print an 'up to date' success message (#3043 review).
-    assert 'if [ "$_can_update" -eq 0 ]; then' in text, (
-        "the staging block should no-op when the update was skipped"
-    )
 
 
 # --- behavioral guards on the generator ------------------------------------

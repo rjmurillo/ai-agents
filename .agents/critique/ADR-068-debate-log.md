@@ -283,8 +283,9 @@ reached.
 
 - No mechanical CI gate proves that a future PermissionRequest producer
   received security review. Human ADR and PR review remains the stated control.
-- Issue #3217 still owns D-A relocation. It no longer authorizes test-runner
-  auto-approval after the ADR-085 D-B amendment.
+- At this review point, issue #3217 still owned the D-A terminal state. PR #3293
+  later selected Retirement. It no longer authorizes test-runner auto-approval
+  after the ADR-085 D-B amendment.
 - The allow-rule marker list is finite. It catches the removed policy and common
   runner names, while human review enforces the broader rule that runner names
   are not a safety boundary.
@@ -292,12 +293,12 @@ reached.
 
 ## 2026-07-20 Mainline Reconciliation Review
 
-The six roles reviewed ADR-068 after integration with current main and the
-superseding ADR-085 security amendment.
+The six roles reviewed ADR-068 after integration with main as of 2026-07-20 and
+the superseding ADR-085 security amendment.
 
 ### Corrections
 
-- Current metrics now state 30 source registrations, 16 PreToolUse shims, a
+- Metrics at that review point stated 30 source registrations, 16 PreToolUse shims, a
   555-second summed timeout request, 76.7 percent host-entry reduction, and up to
   15 later shims bypassed by a first-shim hang.
 - The ADR names the accountable human decision-maker.
@@ -319,6 +320,42 @@ superseding ADR-085 security amendment.
 | high-level-advisor | Accept |
 
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. Consensus reached.
+
+## 2026-07-21 Post-Merge Registration Rebaseline
+
+PR #3259 removed `branch_context_guard` and `git_hooks_activation`. PR #3293
+removed `skill_first_guard`. Regeneration reduced the current source set from 30
+to 26 registrations without changing the dispatcher decision.
+
+The rebaseline records 26 source registrations across six events, 13 PreToolUse
+shims, a 465-second manifest timeout sum, a 470-second generated host request,
+73.1 percent host-entry reduction, and up to 12 later PreToolUse shims bypassed
+by a first-shim hang.
+
+## 2026-07-21 Final Reconciliation Convergence
+
+The six roles reviewed the reconciled worktree after PR #3259 and PR #3293.
+A stale Serena/LSP index initially returned deleted files from another worktree.
+Absolute-path file reads, generated manifests, and the D-A and D-B absence
+regressions were treated as authoritative.
+
+The final correction distinguishes the 465-second PreToolUse manifest sum from
+the generated 470-second host request, which includes five seconds of dispatcher
+headroom.
+
+### Final Votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | No P0 or P1 remained. |
+| critic | Accept | The rejected hybrid wording no longer embeds a stale process count. |
+| independent-thinker | Accept | The manifest sum and host timeout now match the generated artifact. |
+| security | Accept | The dormant PermissionRequest adapter remains unregistered; any producer requires fresh review. |
+| analyst | Accept | Current counts, timeout arithmetic, and absence tests align with disk bytes. |
+| high-level-advisor | Accept | Historical counts remain inside dated sections; the current rebaseline is explicit. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
 
 ## References
 

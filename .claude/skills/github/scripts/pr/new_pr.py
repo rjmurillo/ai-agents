@@ -351,11 +351,11 @@ def run_validations(
         print("  Skipped (no title available or validator not found)")
 
     # Validation 5: Em/en-dash check (CRITICAL, blocks creation)
-    # PR descriptions live in GitHub and never reach `git commit`, so the
-    # .githooks/pre-commit and .githooks/commit-msg hooks cannot scan them.
+    # PR descriptions live in GitHub and never reach Git hook stdin, so the
+    # Lefthook jobs declared in lefthook.yml cannot scan them.
     # This is the shift-left guard that prevents dashes from being submitted
     # at all. Closes the gap that allowed PR #1930 to ship with em/en-dashes
-    # in the description despite the hook implementation.
+    # in the description despite local dash checks.
     # Rule: .claude/rules/universal.md MUST NOT entry 5. Refs Issue #1923.
     print()
     print("[5/5] Em/en-dash check on title and body...")

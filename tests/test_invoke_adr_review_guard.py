@@ -311,6 +311,72 @@ class TestTestADRReviewEvidence:
         result = check_adr_review_evidence(log_file, str(tmp_path))
         assert result["complete"] is True
 
+    def test_incomplete_when_debate_log_unrelated_to_staged_adr(
+        self, tmp_path: Path
+    ) -> None:
+        log_file = tmp_path / "session.json"
+        log_file.write_text("/adr-review was run", encoding="utf-8")
+
+        analysis_dir = tmp_path / ".agents" / "analysis"
+        analysis_dir.mkdir(parents=True)
+        (analysis_dir / "adr-042-debate.md").write_text(
+            "Debate over ADR-042 retention policy", encoding="utf-8"
+        )
+
+        result = check_adr_review_evidence(
+            log_file, str(tmp_path), ["docs/architecture/ADR-062-navigation.md"]
+        )
+        assert result["complete"] is False
+        assert "ADR-062" in str(result["reason"])
+
+    def test_complete_when_debate_log_references_staged_adr(
+        self, tmp_path: Path
+    ) -> None:
+        log_file = tmp_path / "session.json"
+        log_file.write_text("/adr-review was run", encoding="utf-8")
+
+        analysis_dir = tmp_path / ".agents" / "analysis"
+        analysis_dir.mkdir(parents=True)
+        (analysis_dir / "adr-062-debate.md").write_text(
+            "6-agent debate on ADR-062 navigation", encoding="utf-8"
+        )
+
+        result = check_adr_review_evidence(
+            log_file, str(tmp_path), ["docs/architecture/ADR-062-navigation.md"]
+        )
+        assert result["complete"] is True
+
+    def test_complete_when_any_debate_log_references_staged_adr(
+        self, tmp_path: Path
+    ) -> None:
+        log_file = tmp_path / "session.json"
+        log_file.write_text("/adr-review was run", encoding="utf-8")
+
+        analysis_dir = tmp_path / ".agents" / "analysis"
+        analysis_dir.mkdir(parents=True)
+        (analysis_dir / "old-debate.md").write_text("ADR-001", encoding="utf-8")
+        (analysis_dir / "new-debate.md").write_text("ADR-062", encoding="utf-8")
+
+        result = check_adr_review_evidence(
+            log_file, str(tmp_path), ["docs/architecture/ADR-062-navigation.md"]
+        )
+        assert result["complete"] is True
+
+    def test_complete_lenient_when_staged_change_has_no_adr_id(
+        self, tmp_path: Path
+    ) -> None:
+        log_file = tmp_path / "session.json"
+        log_file.write_text("/adr-review was run", encoding="utf-8")
+
+        analysis_dir = tmp_path / ".agents" / "analysis"
+        analysis_dir.mkdir(parents=True)
+        (analysis_dir / "debate.md").write_text("some debate", encoding="utf-8")
+
+        result = check_adr_review_evidence(
+            log_file, str(tmp_path), [".agents/SESSION-PROTOCOL.md"]
+        )
+        assert result["complete"] is True
+
 
 class TestMainAllowPath:
     @patch("invoke_adr_review_guard.sys.stdin")

@@ -20,6 +20,11 @@ updated: 2026-05-10
 
 # REQ-008: review-axes-convergence
 
+> [!IMPORTANT]
+> Historical carrier notice. ADR-086 replaced the custom Git-hook carrier with
+> Lefthook. Any `.githooks/` path below records the original requirement.
+> Current drift scheduling lives in `lefthook.yml`.
+
 ## Context
 
 Two review prompt families drift independently. CI runs 6 axes from `.github/prompts/pr-quality-gate-{role}.md`. `/review` runs 5 inline axes in `.claude/commands/review.md`. PR `feat/skill-eval-triage` saw `/review` PASS while `/pr-quality:all` BLOCKED, producing two recursive fix-loops, 5 extra commits, and 4 Round-2 regressions. Root cause documented in `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`. This requirement set establishes a single canonical source for all review axes and enforces parity between local and CI evaluation.

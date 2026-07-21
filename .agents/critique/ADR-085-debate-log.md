@@ -3,13 +3,15 @@
 ## Summary
 
 - **Review date**: 2026-07-20
-- **Scope**: Superseding security amendment to ADR-085
-- **Rounds**: 4
+- **Scope**: Lefthook framework amendment, then superseding security amendment
+- **Rounds**: 2 framework rounds plus 4 security rounds
 - **Outcome**: Consensus
 - **Final status**: accepted
 
-This log records the review that followed the owner's explicit decision to
-supersede D-B. The historical initial review remains at
+This log combines two accepted-state amendment reviews. PR #3259 first updated
+D-A after Lefthook replaced the custom Git-hook framework. The later security
+review followed the owner's explicit decision to supersede D-B. The historical
+initial review remains at
 `.agents/analysis/ADR-085-permission-surface-debate.md`. That file records why
 the first decision kept test auto-approval. It is not rewritten to imply that
 the later runner-name trust finding existed during the initial review.
@@ -22,7 +24,64 @@ the later runner-name trust finding existed during the initial review.
 | #3197 | Open, blocked | Vendored-hook reduction program |
 | #3217 | Open | Owns the remaining `skill_first_guard` terminal state |
 | #3218 | Open, blocked | Owns retirement of machinery with zero active hook consumers |
-| PR #3259 | Open, conflicting | Replaces `.githooks` with Lefthook, so git hooks cannot be named as a raw-command interceptor |
+| PR #3259 | Merged | Replaced `.githooks` with Lefthook and triggered the D-A framework amendment |
+| PR #3293 | Merged | Selected and implemented D-A Retirement |
+| ADR-086 | Accepted | Records the Lefthook migration and makes custom-hook paths historical evidence |
+
+## Lefthook Framework Amendment Review
+
+### Phase 1 Findings
+
+The six reviewers agreed that active references to the deleted custom Git-hook
+framework had to change. Five reviewers also found that replacing the path with
+Lefthook or CI implied behavior equivalence that does not exist:
+
+- `skill_first_guard` runs before a raw `gh` command through PreToolUse.
+- Lefthook runs on Git events.
+- CI runs after repository or pull-request events.
+- Neither replacement can observe or prevent an arbitrary raw `gh` command
+  before execution.
+
+Reviewers also found stale #3218 survivor accounting, unresolved owner-decision
+wording, incomplete ADR-083 security-control inventory, and no canonical debate
+artifact under `.agents/critique/`.
+
+### Framework Round 1
+
+Changes made:
+
+- Added a PR #3259 amendment record.
+- Reframed D-A as removal from the vendored surface, not an equivalent
+  relocation.
+- Required #3217 to identify any observable repository-state invariant, its
+  trigger, failure behavior, and acceptance test.
+- Required #3217 to record retirement of pre-execution blocking when no approved
+  agent-time carrier exists.
+- Corrected #3218 retained-consumer accounting and included ADR-083 security
+  controls.
+- Corrected owner-decision wording, trade-offs, consequences, dependent
+  components, and implementation notes.
+
+| Agent | Position | Notes |
+|-------|----------|-------|
+| architect | Accept | Structure, traceability, and survivor accounting were corrected. |
+| critic | Accept | False carrier equivalence and stale decision wording were removed. |
+| independent-thinker | Block | ADR-084 still appeared to require relocation without an observable invariant. |
+| security | Accept | Timing loss and required evidence were explicit. |
+| analyst | Accept | Claims aligned with ADR-083, ADR-084, ADR-086, and repository state. |
+| high-level-advisor | Accept | The amendment stayed within the owner-ratified D-A decision. |
+
+### Framework Round 2
+
+Decision 2 narrowed ADR-084 rule 4 for this guard. Moving internal policy to
+Lefthook or CI applies only when Git or workflow state exposes an enforceable
+invariant. When none exists, explicit retirement satisfies the non-vendoring
+purpose. A post-execution gate that cannot observe or prevent the original
+action does not.
+
+All six roles voted Accept after this correction. A final consistency pass also
+returned 6 Accept votes. The framework amendment reached consensus with no open
+P0 or P1 findings.
 
 ## Decision Sequence
 
@@ -106,7 +165,7 @@ header was corrected to `Current status: proposed`.
 |-------|----------|--------------------|
 | architect | Accept | No unresolved P0 |
 | critic | Accept | No unresolved P0 |
-| independent-thinker | Disagree-and-Commit | Accepted the decision with non-blocking reservations |
+| independent-thinker | Disagree-and-Commit | Original output did not enumerate the reservation; this evidence loss is recorded rather than reconstructed |
 | security | Accept | Unsafe approval path remains removed |
 | analyst | Accept | Evidence and current artifacts align |
 | high-level-advisor | Accept | Ready to return to accepted status |
@@ -123,21 +182,58 @@ Final tally: **5 Accept, 1 Disagree-and-Commit, 0 Block**. Consensus reached.
 
 ## Accepted Residuals
 
-- D-A remains unimplemented. #3217 must select and prove one terminal state.
+- D-A was unimplemented at this review point. PR #3293 later selected and
+  implemented Retirement.
 - The generic PermissionRequest adapter remains dormant. Any producer requires a
   new security review and refreshed host-contract evidence.
 - #3218 remains blocked until it derives a zero-consumer inventory from every
   active source registration and generated manifest.
 - Full MADR headings were not added because the repository's current ADR format
   already carries the decision, consequences, rollback, and confirmation data.
+- The original Round 4 D&C output did not retain its specific reservation. Later
+  review records the gap but does not invent historical dissent.
 
 ## Strategic Assessment
 
 - **Chesterton's Fence**: Pass. The initial auto-approval purpose and later trust
   failure are both recorded.
-- **Path dependence**: Pass. The decision separates current Copilot evidence from
-  future permission-surface changes.
+- **Path dependence**: Pass. The final decision separates current Copilot
+  evidence from future permission-surface changes. The process was path-dependent
+  and records the initial keep decision before the later security reversal.
 - **Core vs context**: Pass. Dogfood-only steering and unsafe prompt reduction do
   not justify vendored customer surface.
 - **Second-system effect**: Pass. The ADR rejects a dual-surface replacement and
   does not add a new permission framework.
+
+## 2026-07-21 Post-Merge Reconciliation
+
+The review reconciled the accepted ADR with PR #3259 and PR #3293 on
+`origin/main`.
+
+- D-A now records the implemented Retirement terminal state.
+- D-B remains deleted with semantic absence regressions.
+- Finding 3 now names its later discovery point and causal role.
+- Current dispatcher inventory is 26 source registrations across six events.
+- Historical D&C detail remains unavailable and is labeled as evidence loss.
+
+## 2026-07-21 Final Reconciliation Convergence
+
+The six roles reviewed the accepted ADR against absolute worktree bytes after a
+stale Serena/LSP index returned deleted files from another worktree. Filesystem
+checks and explicit absence regressions confirm D-A Retirement and D-B deletion
+across Claude registrations, Copilot registrations, source files, generated
+shims, and dedicated tests.
+
+### Final Votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | No P0 or P1 remained. |
+| critic | Accept | `implemented: false` remains conservative while the #3218 rescope is open. |
+| independent-thinker | Accept | The Copilot permission-surface revisit trigger remains reactive. |
+| security | Accept | The dormant adapter and CVSS privilege assumption remain documented residuals. |
+| analyst | Accept | Finding 3 chronology, evidence loss, and current artifacts align. |
+| high-level-advisor | Accept | D-A and D-B are complete; #3218 still owns the remaining implementation state. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.

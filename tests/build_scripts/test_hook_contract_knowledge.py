@@ -3,6 +3,7 @@
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -17,19 +18,21 @@ COPILOT_OFFICIAL_SOURCES = (
 )
 SERENA_HOOK_MEMORY = REPO_ROOT / ".serena" / "memories" / "copilot-hooks-observations.md"
 HOOK_REQUIREMENT = (
-    REPO_ROOT
-    / ".agents"
-    / "specs"
-    / "requirements"
-    / "REQ-003-multi-tool-artifact-build.md"
+    REPO_ROOT / ".agents" / "specs" / "requirements" / "REQ-003-multi-tool-artifact-build.md"
 )
 RUNTIME_ADR = (
-    REPO_ROOT
-    / ".agents"
-    / "architecture"
-    / "ADR-071-plugin-hook-runtime-contract-verification.md"
+    REPO_ROOT / ".agents" / "architecture" / "ADR-071-plugin-hook-runtime-contract-verification.md"
 )
 PLATFORM_TEMPLATE = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _normalized_text(path: Path) -> str:
+    return re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
+
 
 COPILOT_NATIVE_EVENTS = {
     "agentStop",
@@ -228,9 +231,7 @@ def test_reference_versions_matcher_and_timeout_evidence() -> None:
     assert "| PreToolUse exit 2 | Denies |" in text
     assert "| Any command-hook timeout | Fails open, including policy PreToolUse |" in text
     assert "PreCompact | PreCompact | Consolidated observe dispatcher" in text
-    probe = (SKILL_ROOT / "references" / "probe-evidence.md").read_text(
-        encoding="utf-8"
-    )
+    probe = (SKILL_ROOT / "references" / "probe-evidence.md").read_text(encoding="utf-8")
     assert "Manual `/compact` is therefore a negative control" in probe
     assert "Automatic-compaction delivery remains unmeasured" in probe
 
@@ -440,6 +441,89 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert "registers 7 events" not in architecture
     assert "expected 7 and 14" not in architecture
     assert "8 events / 23 matcher groups" not in architecture
+
+
+def test_dispatcher_adrs_match_current_generated_metrics() -> None:
+    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
+    source_counts: dict[str, int] = {}
+    for path in hooks_root.glob("*/_manifest.json"):
+        manifest = _read_json(path)
+        source_counts[manifest["event"]] = len(manifest["shims"])
+
+    copilot_hooks = _read_json(hooks_root / "hooks.json")["hooks"]
+    for event, registrations in copilot_hooks.items():
+        source_counts.setdefault(event, len(registrations))
+
+    pretool_manifest = _read_json(hooks_root / "PreToolUse" / "_manifest.json")
+    source_total = sum(source_counts.values())
+    host_total = sum(map(len, copilot_hooks.values()))
+    timeout_total = sum(pretool_manifest["timeouts"].values())
+    host_timeout = copilot_hooks["PreToolUse"][0]["timeoutSec"]
+    timeout_headroom = host_timeout - timeout_total
+    reduction = 100 * (1 - host_total / source_total)
+    event_order = (
+        "PostToolUse",
+        "PreCompact",
+        "PreToolUse",
+        "SessionStart",
+        "Stop",
+        "UserPromptSubmit",
+    )
+    event_parts = [f"{event} {source_counts[event]}" for event in event_order]
+    event_summary = f"{', '.join(event_parts[:-1])}, and {event_parts[-1]}"
+
+    adr_068 = _normalized_text(
+        REPO_ROOT / ".agents" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
+    )
+    adr_085 = _normalized_text(
+        REPO_ROOT
+        / ".agents"
+        / "architecture"
+        / "ADR-085-cross-harness-permission-surface-asymmetry.md"
+    )
+    adr_071 = _normalized_text(
+        REPO_ROOT
+        / ".agents"
+        / "architecture"
+        / "ADR-071-plugin-hook-runtime-contract-verification.md"
+    )
+
+    assert len(source_counts) == 6
+    assert f"{source_total} source registrations across six events: {event_summary}" in adr_068
+    assert (
+        f"reduces {source_total} host command registrations to {host_total}, "
+        f"or {reduction:.1f} percent"
+    ) in adr_068
+    assert f"current PreToolUse manifest has {len(pretool_manifest['shims'])} shims" in adr_068
+    assert f"sum to {timeout_total} seconds" in adr_068
+    assert f"host entry requests {host_timeout} seconds" in adr_068
+    assert "five seconds of dispatcher headroom" in adr_068
+    assert f"prevent up to {len(pretool_manifest['shims']) - 1} later registered shims" in adr_068
+    assert f"{source_total} registrations across six events" in adr_085
+    assert f"current manifest contains {len(pretool_manifest['shims'])} shims" in adr_071
+    assert f"configured timeout values sum to {timeout_total} seconds" in adr_071
+    assert f"host entry requests {host_timeout} seconds" in adr_071
+    assert timeout_headroom == 5
+
+
+def test_current_memories_record_skill_first_guard_retirement() -> None:
+    pr_rules = (
+        REPO_ROOT / ".serena" / "memories" / "github-skill" / "pr-creation-rules.md"
+    ).read_text(encoding="utf-8")
+    observations = (REPO_ROOT / ".serena" / "memories" / "github-pr1873-observations.md").read_text(
+        encoding="utf-8"
+    )
+    script_reference = (
+        REPO_ROOT / ".serena" / "memories" / "tools" / "github-skill-scripts-reference.md"
+    ).read_text(encoding="utf-8")
+    decision_memory = (
+        REPO_ROOT / ".serena" / "memories" / "decision-adr-085-permission-surface-asymmetry.md"
+    ).read_text(encoding="utf-8")
+
+    assert "The skill-first hook blocks gh pr create" not in pr_rules
+    assert "Raw `gh` may be blocked by `invoke_skill_first_guard.py`" not in observations
+    assert "This repo has a PreToolUse hook" not in script_reference
+    assert "PR #3293 implemented Retirement" in decision_memory
 
 
 def test_generation_skill_requires_an_explicit_reason_for_hook_drops() -> None:

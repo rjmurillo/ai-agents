@@ -16,6 +16,11 @@ date: 2026-05-09
 
 # TASK-008: review-axes-convergence
 
+> [!IMPORTANT]
+> Historical carrier notice. ADR-086 replaced the custom Git-hook carrier with
+> Lefthook. Any `.githooks/` path below records the original task and must not
+> be used for new work.
+
 All tasks reference DESIGN-008 for interface contracts and REQ-008 for acceptance criteria. Tasks are ordered by dependency. Each task is atomic (5 files or fewer changed per commit, per AGENTS.md).
 
 ---

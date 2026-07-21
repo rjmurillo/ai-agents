@@ -2,6 +2,7 @@
 
 **Status**: Accepted (amended 2026-05-02)
 **Date**: 2026-02-19
+**Revised**: 2026-07-20
 **Deciders**: Security Agent, DevOps Agent
 **Context**: Pre-push security scanning to complement CI-based CodeQL
 
@@ -9,7 +10,7 @@
 
 ## Amendment 2026-05-02: CWE-22 scope narrowing for the `security-scan` skill
 
-Scope of this amendment: the internal `security-scan` skill at `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`. This is a SEPARATE tool from the semgrep pre-push hook described in the Decision and Implementation sections below. The skill is a regex-based scanner invoked manually or by Claude during code review; the semgrep hook runs in `.githooks/pre-push`. Both fall under the broader "local security scanning" umbrella.
+Scope of this amendment: the internal `security-scan` skill at `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`. This is a SEPARATE tool from the Semgrep pre-push job described in the Decision and Implementation sections below. The skill is a regex-based scanner invoked manually or by Claude during code review; the Semgrep job runs through Lefthook. Both fall under the broader "local security scanning" umbrella.
 
 Change: the skill no longer detects CWE-22 (path traversal). CWE-22 detection is delegated to CodeQL's `python-security-extended.qls` query suite, which runs on every PR via `.github/workflows/codeql-analysis.yml`. The skill remains in scope for CWE-78 (command injection).
 
@@ -17,9 +18,9 @@ Rationale: PR #1841 demonstrated that the regex CWE-22 patterns generated false 
 
 What this amendment does NOT change:
 
-- The semgrep pre-push hook (`scripts/security/run_semgrep.py`) is untouched. Whatever CWE-22 patterns its `--config auto` ruleset matches continue to fire.
+- The Semgrep pre-push policy is unchanged. Whatever CWE-22 patterns its `--config auto` ruleset matches continue to fire.
 - ADR-054's core decision (run lightweight security scanning before push) is intact.
-- The pre-push performance budget (1-5 seconds for the semgrep hook) is unchanged.
+- The fast-feedback goal remains. Lefthook enforces a 15-minute hard limit.
 
 Authoritative scope statement for the skill: see `.claude/skills/security-scan/SKILL.md` `## Scope`.
 
@@ -36,7 +37,7 @@ PR #908 demonstrated that security findings discovered in CI (CodeQL CWE-22 path
 3. **Wasted cycles**: Reviewers spend time on issues that could be caught locally
 4. **Slower iteration**: Developers must context-switch back to fix security issues
 
-The existing pre-push hook (`.githooks/pre-push`) runs 18 checks across 5 phases, including lint, type checks, tests, and governance validation. However, it lacks security scanning for actual vulnerabilities.
+The local pre-push pipeline runs lint, type checks, tests, and governance validation. Before this decision, it lacked security scanning for code vulnerabilities.
 
 ADR-041 established CodeQL integration with a multi-tier strategy. Tier 1 (CI/CD) provides enforcement. Tier 2 (local) and Tier 3 (automatic PostToolUse) are optional developer conveniences. Neither tier runs in the pre-push hook.
 
@@ -44,64 +45,49 @@ ADR-041 established CodeQL integration with a multi-tier strategy. Tier 1 (CI/CD
 
 ## Decision
 
-Extend the pre-push hook to run lightweight security scanning on changed code files.
+Add a Lefthook pre-push job that scans changed code files.
 
-**Tool choice**: semgrep (preferred) or bandit as fallback.
+**Tool choice**: The pinned Semgrep executable only. Bandit remains an
+alternative considered, not a fallback.
 
 **Rationale for tool selection**:
-- **semgrep**: Fast (1-5 seconds), cross-language, supports Python/PowerShell/JS/TS/YAML, simple CLI
+- **semgrep**: Cross-language support for Python, PowerShell, JavaScript,
+  TypeScript, and YAML through one CLI
 - **bandit**: Python-only but zero dependencies, well-established
 - **CodeQL CLI**: Too slow for pre-push (30-60 seconds minimum), requires database build
 
 **Scope**: Changed files only (consistent with existing pre-push patterns).
 
-**Threshold**: Fail on HIGH/CRITICAL findings. Warn on MEDIUM.
+**Threshold**: Select Semgrep `ERROR` severity only. An `ERROR` finding blocks
+the push. Lower severities are not selected by this local command.
 
-**Bypass**: Standard `--no-verify` with documented justification requirement.
+**Local bypasses**: Git `--no-verify`, Lefthook disable and configuration
+override mechanisms, and direct hook edits technically exist. Repository policy
+forbids using them to skip required checks. A disputed finding requires a code
+fix or security-owner decision. Protected CI remains the authoritative remote
+backstop.
 
 ### Implementation
 
-Phase 5 (Security & Governance) of `.githooks/pre-push` delegates to
-`scripts/security/run_semgrep.py`, which owns file discovery, severity
-classification, and exit-code handling.
+The `security-scan` job in `lefthook.yml` invokes
+`scripts/validation/git_hook_policy.py semgrep-push`. For each pushed ref
+update, the policy computes changed paths from its resolved push range. It uses
+the `origin/main` merge base when available, with existing-remote or `main`
+fallbacks. It materializes each pushed tree and scans supported files from that
+tree, not from the working tree.
 
 The script:
 
-1. Detects changed files via `git diff --name-only` against the merge-base with `origin/main`
+1. Resolves each pushed ref update and its changed paths
 2. Filters to supported extensions: `.py`, `.ps1`, `.psm1`, `.js`, `.ts`, `.yaml`, `.yml`
-3. Runs `semgrep scan --config auto --json --no-git-ignore` on matched files
-4. Classifies findings by severity (ERROR = HIGH/CRITICAL, WARNING = MEDIUM)
-5. Blocks on ERROR findings only. Warns on WARNING findings without blocking.
-
-Pre-push hook integration:
-
-```bash
-# 15.5. Security scan (semgrep)
-if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ] || [ -n "$CHANGED_JS" ] || [ -n "$CHANGED_YAML" ]; then
-    if command -v semgrep &> /dev/null; then
-        if python3 scripts/security/run_semgrep.py; then
-            record_pass "Security scan/semgrep"
-        else
-            SEMGREP_EXIT=$?
-            if [ "$SEMGREP_EXIT" -eq 1 ]; then
-                record_fail "Security scan found HIGH/CRITICAL vulnerabilities"
-            elif [ "$SEMGREP_EXIT" -eq 2 ]; then
-                record_skip "Security scan (configuration error)"
-            else
-                record_fail "Security scan (unexpected exit: $SEMGREP_EXIT)"
-            fi
-        fi
-    else
-        record_skip "Security scan (semgrep not installed)"
-    fi
-else
-    record_skip "Security scan (no code files changed)"
-fi
-```
+3. Runs `semgrep scan --config auto --severity ERROR --json` on matched files
+4. Blocks on ERROR findings and scanner execution failures
+5. Rejects inline Semgrep suppressions
 
 ### Installation
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md#security-scanning) for semgrep installation and usage instructions.
+The pinned development environment provides Semgrep. See
+[CONTRIBUTING.md](../../CONTRIBUTING.md#security-scanning).
 
 ## Rationale
 
@@ -117,9 +103,11 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md#security-scanning) for semgrep insta
 
 ### Trade-offs
 
-**Speed vs. Coverage**: semgrep scans 10-100x faster than CodeQL at the cost of fewer rules. CI retains comprehensive CodeQL scanning for defense in depth.
+**Changed Scope vs. Coverage**: Semgrep scans changed pushed files. CI retains
+repository-level CodeQL scanning for defense in depth.
 
-**Optional Tool vs. Required**: semgrep installation is recommended but not required. The hook skips gracefully if unavailable, matching existing patterns (ruff, mypy, actionlint).
+**Pinned Tool vs. Optional Tool**: Semgrep is required through the frozen uv
+environment. A missing executable is an environment failure, not a silent skip.
 
 **Changed Files vs. Full Repo**: Scanning only changed files trades completeness for speed. New vulnerabilities in unchanged code remain CI's responsibility.
 
@@ -127,7 +115,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md#security-scanning) for semgrep insta
 
 ### Positive
 
-1. **Shift-left security**: Catch CWE-22, CWE-78, CWE-079 in 1-5 seconds
+1. **Shift-left security**: Catch blocking Semgrep findings before push
 2. **Cleaner PRs**: Security findings fixed before PR creation
 3. **Faster iteration**: Local feedback loop
 4. **Developer education**: Immediate exposure to secure coding patterns
@@ -135,54 +123,58 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md#security-scanning) for semgrep insta
 
 ### Negative
 
-1. **Tool installation**: Requires semgrep (pip or brew)
-   - **Mitigation**: Clear installation docs, graceful skip if missing
+1. **Tool restoration**: Requires the pinned uv development environment
+   - **Mitigation**: One `uv sync --frozen --extra dev` restores all hook tools
 2. **False positives**: May flag safe patterns
-   - **Mitigation**: `# nosemgrep` suppression with justification
-3. **Push friction**: Adds 1-5 seconds to push workflow
-   - **Mitigation**: Only scans changed files, async display
+   - **Mitigation**: Rewrite the code or obtain a security-owner policy change
+3. **Push friction**: Adds local scanning work before each applicable push
+   - **Mitigation**: Scans only changed files from the pushed trees
 
 ### Neutral
 
 1. **CI redundancy**: CodeQL continues running in CI
    - **Rationale**: Defense in depth, different rule sets
-2. **Bypass available**: `--no-verify` remains an escape hatch
-   - **Mitigation**: Document justification requirement in CONTRIBUTING.md
+2. **Local bypass mechanisms**: `--no-verify`, Lefthook overrides, and direct
+   hook edits remain technically available
+   - **Policy**: Do not use them to skip required checks; protected CI remains
+     the authoritative remote backstop
 
 ## Implementation Notes
 
 ### Performance Budget
 
-| Check | Target | Actual |
-|-------|--------|--------|
-| semgrep scan (10 files) | <5s | ~2s |
-| Pre-push total | <60s | ~45s |
+| Boundary | Enforced budget |
+|----------|----------------:|
+| Python Semgrep child process | 840 seconds |
+| Lefthook `security-scan` job | 900 seconds |
 
 ### Exit Code Handling
 
 Per ADR-035:
 - Exit 0: No findings
 - Exit 1: Findings found (blocking)
-- Exit 2: Tool error (non-blocking skip)
+- Exit 2: Configuration error (blocking)
+- Exit 3: External tool error (blocking)
 
 ### Integration with ADR-041
 
 This ADR complements ADR-041's multi-tier strategy:
 
-| Tier | Tool | Trigger | Speed | Coverage |
-|------|------|---------|-------|----------|
-| 1 (CI) | CodeQL | PR push | 2-5 min | Comprehensive |
-| 2 (Local) | CodeQL CLI | Developer-initiated | 30-60s | Comprehensive |
-| 3 (Auto) | CodeQL | PostToolUse hook | 5-15s | Quick queries |
-| **4 (Pre-push)** | **semgrep** | **git push** | **1-5s** | **Fast OWASP** |
+| Tier | Tool | Trigger | Coverage |
+|------|------|---------|----------|
+| 1 (CI) | CodeQL | PR push | Repository-level |
+| 2 (Local) | CodeQL CLI | Developer-initiated | Developer-selected |
+| 3 (Auto) | CodeQL | PostToolUse hook | Quick queries |
+| **4 (Pre-push)** | **Semgrep** | **git push** | **Changed pushed files** |
 
-### Suppression Patterns
+### Suppression Policy
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md#suppressing-semgrep-findings) for suppression syntax and justification requirements.
+Inline Semgrep suppressions are rejected. A disputed finding requires a code
+fix or security-owner policy decision, not a justification-based bypass.
 
 ## Related Decisions
 
-- [ADR-004: Pre-Commit Hook Architecture](./ADR-004-pre-commit-hook-architecture.md)
+- [ADR-086: Lefthook for Local Git Hook Orchestration](./ADR-086-lefthook-local-hook-orchestration.md)
 - [ADR-041: CodeQL Integration](./ADR-041-codeql-integration.md)
 - [ADR-035: Exit Code Standardization](./ADR-035-exit-code-standardization.md)
 

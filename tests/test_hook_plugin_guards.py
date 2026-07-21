@@ -26,7 +26,6 @@ PROJECT_SPECIFIC_HOOKS = [
     ".claude/hooks/invoke_session_start_memory_first.py",
     ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
     ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
-    ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
     ".claude/hooks/invoke_adr_change_detection.py",
     ".claude/hooks/Stop/invoke_session_validator.py",
     ".claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py",
@@ -95,13 +94,11 @@ def _matches_configured_command(script_suffix: str, command: str) -> bool:
 
 
 _MATCHER_SCOPED_SCRIPTS = [
-    ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
     ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
 ]
 
 _COMMIT_GATE_SCRIPTS = [
     ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
-    ".claude/hooks/PreToolUse/invoke_branch_context_guard.py",
     ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
     ".claude/hooks/PreToolUse/invoke_security_commit_gate.py",
 ]
@@ -111,16 +108,6 @@ class TestShellHookMatcherScope:
     @pytest.mark.parametrize(
         "script_suffix,commands",
         [
-            (
-                ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
-                [
-                    "echo ready && gh pr view 42",
-                    r"C:\tools\bin\gh issue list",
-                    "gh pr create --fill",
-                    "echo ready && gh pr create --fill",
-                    r"C:\tools\bin\gh pr merge 42 --squash",
-                ],
-            ),
             (
                 ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
                 [

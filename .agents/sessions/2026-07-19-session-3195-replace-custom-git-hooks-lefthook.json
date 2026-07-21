@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3195,
+    "date": "2026-07-19",
+    "branch": "chore/lefthook-migration",
+    "startingCommit": "e7b8657a9d",
+    "objective": "Replace the custom Git hook system with OSS Lefthook"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP responded in the active repository."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read without modification."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This session log."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant GitHub and lifecycle skill entry points inspected."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory loaded."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hook, generation, and workflow memories loaded."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/lefthook-migration"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Feature branch verified."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, validation, QA, retrospective, memories, and records completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained read-only."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated both Lefthook migration memories."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped Markdown lint completed with zero issues."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation and record changes committed in batches of five or fewer paths."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full pytest: 14093 passed, 22 skipped, 45 xfailed. Targeted migration: 439 passed. Final Git policy suite: 219 passed with 100 percent statement and branch coverage. Pre-PR: 30 passed, 0 failed, 4 skipped. Generated drift, Ruff, per-file mypy, workflow, YAML, Markdown, and changed-file Semgrep checks passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Native Lefthook migration implementation and validation completed."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-19-auto-retro.md rewritten for the native migration."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Replaced the custom hook engine",
+      "result": "Lefthook now owns scheduling, filtering, ordering, skips, stdin, and staging."
+    },
+    {
+      "action": "Removed custom activation and payload systems",
+      "result": "Deleted .githooks, scripts/hooks, custom installer paths, wrappers, and SessionStart activation."
+    },
+    {
+      "action": "Added the Git policy boundary",
+      "result": "Implemented staged-blob, alternate-index, pushed-ref, immutable security scan, generated staging, and memory policies."
+    },
+    {
+      "action": "Validated the migration",
+      "result": "Behavioral, full-suite, drift, pre-PR, type, lint, workflow, and security checks passed."
+    },
+    {
+      "action": "Hardened immutable pushed-ref scanning",
+      "result": "Blocked Git metadata overrides, Semgrep target omissions, and cross-filesystem path collisions."
+    }
+  ],
+  "endingCommit": "24298fe68d1efe8f45e72c0579b0685024db381b",
+  "nextSteps": []
+}

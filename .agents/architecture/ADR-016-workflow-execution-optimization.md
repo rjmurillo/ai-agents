@@ -36,7 +36,7 @@ Implement two complementary optimizations:
 | Workflow | Files Analyzed | Path Filter |
 |----------|---------------|-------------|
 | agent-metrics | Metrics scripts | `.claude/skills/metrics/**` |
-| copilot-setup-steps | Git hooks | `.githooks/**` |
+| copilot-setup-steps | Git hooks | Manual and reusable workflow only; no push path filter |
 | drift-detection | Agent files, templates | `src/claude/**`, `templates/agents/**` |
 | pester-tests | PowerShell scripts | `scripts/**`, `build/**`, `.claude/skills/**` |
 
@@ -138,10 +138,8 @@ Implement two complementary optimizations:
 2. **copilot-setup-steps.yml**:
    ```yaml
    on:
-     push:
-       paths:
-         - '.githooks/**'
-         - '.github/workflows/copilot-setup-steps.yml'
+     workflow_dispatch:
+     workflow_call:
    ```
 
 3. **drift-detection.yml**:

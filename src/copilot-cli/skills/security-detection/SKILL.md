@@ -48,10 +48,10 @@ Use the security agent directly instead when:
 
 ```bash
 # Analyze staged files
-python detect_infrastructure.py --git-staged
+python detect_infrastructure.py --use-git-staged
 
 # Analyze specific files
-python detect_infrastructure.py .github/workflows/ci.yml src/auth/login.cs
+python detect_infrastructure.py --files .github/workflows/ci.yml src/auth/login.cs
 ```
 
 ## Output
@@ -89,7 +89,8 @@ No infrastructure/security files detected.
 ### Critical (Review Required)
 
 - CI/CD workflows (`.github/workflows/*`)
-- Git hooks (`.githooks/*`, `.husky/*`)
+- Git hook configuration (`{lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}`, `.config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}`, `.husky/*`)
+- Git hook policy (`scripts/validation/git_hook_policy.py`)
 - Authentication code (`**/Auth/**`, `**/Security/**`)
 - Environment files (`*.env*`)
 - Credentials and keys (`*.pem`, `*.key`, `*secret*`)
@@ -106,18 +107,32 @@ No infrastructure/security files detected.
 
 ### Pre-commit Hook
 
-Add to `.githooks/pre-commit`:
+Add a named validator job to `lefthook.yml`:
 
 ```bash
 # Security detection (non-blocking warning)
-python3 .claude/skills/security-detection/detect_infrastructure.py --git-staged
+python3 .claude/skills/security-detection/detect_infrastructure.py --use-git-staged
 ```
 
 ### CI Integration
 
+On a Linux pull-request runner, pass the changed paths explicitly. CI checkouts
+do not have a staged diff.
+
 ```yaml
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  with:
+    fetch-depth: 0
+
 - name: Check security-critical files
-  run: python .claude/skills/security-detection/detect_infrastructure.py --git-staged
+  shell: bash
+  env:
+    BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    HEAD_SHA: ${{ github.sha }}
+  run: >-
+    git diff --no-renames --name-only -z "$BASE_SHA" "$HEAD_SHA"
+    | python .claude/skills/security-detection/detect_infrastructure.py
+    --files-from-stdin
 ```
 
 ## Exit Codes

@@ -24,9 +24,13 @@ This document defines file patterns that indicate infrastructure or security-cri
 
 | Pattern | Description | Risk Level |
 |---------|-------------|------------|
-| `.githooks/*` | Custom git hooks | Critical |
+| `lefthook.{yml,yaml,json,jsonc,toml}` | Lefthook configuration | Critical |
+| `lefthook-local.{yml,yaml,json,jsonc,toml}` | Local Lefthook overrides | Critical |
+| `.lefthook.{yml,yaml,json,jsonc,toml}` | Hidden Lefthook configuration | Critical |
+| `.lefthook-local.{yml,yaml,json,jsonc,toml}` | Hidden local Lefthook overrides | Critical |
+| `.config/lefthook.{yml,yaml,json,jsonc,toml}` | Config-directory Lefthook files | Critical |
+| `.config/lefthook-local.{yml,yaml,json,jsonc,toml}` | Config-directory overrides | Critical |
 | `.husky/*` | Husky hooks | Critical |
-| `.git/hooks/*` | Git hooks directory | Critical |
 | `.pre-commit-config.yaml` | Pre-commit framework | High |
 
 ### Category 3: Build Scripts (High)
@@ -162,7 +166,12 @@ def should_trigger_security_review(changed_files):
     """
     critical_patterns = [
         ".github/workflows/*",
-        ".githooks/*",
+        "lefthook.{yml,yaml,json,jsonc,toml}",
+        "lefthook-local.{yml,yaml,json,jsonc,toml}",
+        ".lefthook.{yml,yaml,json,jsonc,toml}",
+        ".lefthook-local.{yml,yaml,json,jsonc,toml}",
+        ".config/lefthook.{yml,yaml,json,jsonc,toml}",
+        ".config/lefthook-local.{yml,yaml,json,jsonc,toml}",
         "**/Auth/**",
         "**/Security/**",
         "*.env*",

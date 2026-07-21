@@ -61,6 +61,35 @@ class TestMatchSecurityPaths:
             "config/password_config.json"
         ]
 
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            f"{base}{suffix}{extension}"
+            for base in ("lefthook", ".lefthook", ".config/lefthook")
+            for suffix in ("", "-local")
+            for extension in (".yml", ".yaml", ".json", ".jsonc", ".toml")
+        ]
+        + ["LEFTHOOK.YML", ".CONFIG/LEFTHOOK-LOCAL.JSONC"],
+    )
+    def test_auto_discovered_lefthook_configs_match(self, config_path: str) -> None:
+        assert match_security_paths([config_path]) == [config_path]
+
+    @pytest.mark.parametrize(
+        "config_path",
+        [
+            "config/lefthook.yml",
+            "nested/lefthook.yml",
+            "nested/.config/lefthook-local.jsonc",
+        ],
+    )
+    def test_non_discovered_lefthook_lookalikes_do_not_match(
+        self, config_path: str
+    ) -> None:
+        assert match_security_paths([config_path]) == []
+
+    def test_does_not_match_removed_githooks_directory(self) -> None:
+        assert match_security_paths([".githooks/pre-push"]) == []
+
     def test_no_match_for_normal_files(self) -> None:
         assert match_security_paths(["src/main.py", "README.md", "tests/test_app.py"]) == []
 
@@ -133,10 +162,15 @@ class TestMain:
                 ):
                     assert main() == 0
 
+    @pytest.mark.parametrize(
+        "staged_file",
+        ["src/Auth/login.py", "lefthook.yml", ".config/lefthook-local.jsonc"],
+    )
     def test_denies_commit_with_security_files_and_no_evidence(
         self,
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
+        staged_file: str,
     ) -> None:
         monkeypatch.delenv("SKIP_SECURITY_GATE", raising=False)
         mock_stdin = StringIO(json.dumps({"tool_input": {"command": "git commit -m 'add auth'"}}))
@@ -144,7 +178,7 @@ class TestMain:
             with patch.object(mock_stdin, "isatty", return_value=False):
                 with patch(
                     "invoke_security_commit_gate.get_staged_files",
-                    return_value=["src/Auth/login.py"],
+                    return_value=[staged_file],
                 ):
                     with patch(
                         "invoke_security_commit_gate.find_security_evidence",

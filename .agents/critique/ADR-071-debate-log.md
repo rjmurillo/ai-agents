@@ -147,3 +147,33 @@ Final tally: **4 Accept, 2 Disagree-and-Commit, 0 Block**. Consensus reached.
 The ADR now records blank-output behavior, the blank-line delimiter, loss of
 per-shim attribution, failed-output discard, and that stderr is not a documented
 model-context path. No P0 or P1 issue remained.
+
+## 2026-07-21 Post-Merge Timeout Rebaseline
+
+PR #3259 removed two PreToolUse shims and one SessionStart shim. PR #3293
+removed one more PreToolUse shim. The current PreToolUse manifest now contains
+13 shims whose configured values sum to 465 seconds. The generated host entry
+requests 470 seconds after five seconds of dispatcher headroom. The 1.0.72-1
+timeout probe remains bounded to 2 seconds, so the host-cap uncertainty and
+fail-open residual do not change.
+
+## 2026-07-21 Final Reconciliation Convergence
+
+The six roles reviewed the current worktree, generated manifest, and corrected
+timeout wording. The manifest contains 13 PreToolUse shims whose configured
+values sum to 465 seconds. The generated host entry requests 470 seconds. The
+runtime probe remains limited to 2 seconds.
+
+### Final Votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | No P0 or P1 remained. |
+| critic | Accept | The current and historical timeout snapshots are clearly separated. |
+| independent-thinker | Accept | The five-second dispatcher headroom is now explicit. |
+| security | Accept | The 470-second host-cap uncertainty and fail-open residual remain explicit. |
+| analyst | Accept | ADR, debate log, generated artifact, and regression test agree. |
+| high-level-advisor | Accept | The 2-second probe gap is retained as an accepted residual. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.

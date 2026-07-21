@@ -111,7 +111,7 @@ Review Rate = (Infra commits with security review) / (Total infra commits) * 100
 
 ```text
 .github/workflows/*
-.githooks/*
+lefthook.yml
 build/scripts/*
 Dockerfile*
 docker-compose*
@@ -246,8 +246,10 @@ Value = (Time saved from caught issues) - (Review turnaround time)
 # Count commits with agent references
 git log --oneline --grep="agent" | wc -l
 
-# Count infrastructure commits
-git log --oneline -- ".github/workflows/*" ".githooks/*" | wc -l
+# Count infrastructure commits using the canonical detection patterns
+uv run python .claude/skills/metrics/collect_metrics.py \
+  --since 30 --output json |
+  jq '.metric_4_infrastructure_review.infrastructure_commits'
 ```
 
 #### PR Analysis

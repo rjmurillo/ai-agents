@@ -40,6 +40,13 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Validate git hook inputs
+      if: inputs.enable-git-hooks == 'true' && inputs.enable-python != 'true'
+      shell: bash
+      run: |
+        echo "::error::enable-git-hooks=true requires enable-python=true because Lefthook runs through uv."
+        exit 2
+
     - name: Setup Node.js
       id: node-setup
       uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
@@ -73,18 +80,6 @@ runs:
         echo "✓ GitHub CLI is available"
         echo "✓ GH_TOKEN is configured"
 
-    - name: Enable git hooks
-      if: inputs.enable-git-hooks == 'true'
-      shell: bash
-      run: |
-        echo "Configuring git hooks..."
-        git config core.hooksPath .githooks
-        echo "✓ Git hooks enabled at .githooks/"
-
-        # Verify hooks are configured
-        HOOKS_PATH=$(git config --get core.hooksPath)
-        echo "Current hooks path: $HOOKS_PATH"
-
     - name: Install markdownlint-cli2
       shell: bash
       run: |
@@ -94,6 +89,8 @@ runs:
 
     - name: Install uv (Python package manager)
       uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      with:
+        enable-cache: true
 
     - name: Setup Python
       if: inputs.enable-python == 'true'
@@ -121,6 +118,16 @@ runs:
         else
           echo "⚠ No pyproject.toml found, skipping dependency installation"
         fi
+
+    - name: Enable git hooks
+      if: inputs.enable-git-hooks == 'true' && inputs.enable-python == 'true'
+      shell: bash
+      run: |
+        echo "Installing Lefthook..."
+        export PATH="$HOME/.local/bin:$PATH"
+        uv run --frozen --extra dev lefthook install --reset-hooks-path
+        uv run --frozen --extra dev lefthook check-install
+        echo "✓ Lefthook installed"
 
     - name: Verify Python tools
       if: inputs.enable-python == 'true'
@@ -162,38 +169,46 @@ runs:
     - name: Verify setup
       shell: pwsh -NoProfile -Command "& '{0}'"
       env:
+        ENABLE_GIT_HOOKS: ${{ inputs.enable-git-hooks }}
         ENABLE_PESTER: ${{ inputs.enable-pester }}
         ENABLE_PYTHON: ${{ inputs.enable-python }}
       run: |
         Write-Host ""
         Write-Host "=== Setup Verification ===" -ForegroundColor Cyan
-        Write-Host "Git hooks path: $(git config --get core.hooksPath)"
+        if ($env:ENABLE_GIT_HOOKS -eq 'true' -and $env:ENABLE_PYTHON -eq 'true') {
+          uv run --frozen --extra dev lefthook check-install
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "[FAIL] Lefthook installation verification failed (exit code $LASTEXITCODE)" -ForegroundColor Red
+            exit $LASTEXITCODE
+          }
+          Write-Host "[PASS] Lefthook installation verified" -ForegroundColor Green
+        }
         Write-Host "SKIP_AUTOFIX: $($env:SKIP_AUTOFIX ?? '0') (0=enabled, 1=disabled)"
         Write-Host ""
 
         # Test that tools are available
         if (Get-Command npx -ErrorAction SilentlyContinue) {
-          Write-Host "✓ npx is available" -ForegroundColor Green
+          Write-Host "[PASS] npx is available" -ForegroundColor Green
           # Check if markdownlint-cli2 is available (--help may return non-zero)
           $null = npx markdownlint-cli2@0.23.1 --help 2>&1
-          Write-Host "✓ markdownlint-cli2 is installed" -ForegroundColor Green
+          Write-Host "[PASS] markdownlint-cli2 is installed" -ForegroundColor Green
         }
 
         if (Get-Command gh -ErrorAction SilentlyContinue) {
-          Write-Host "✓ GitHub CLI is available for workflow monitoring" -ForegroundColor Green
+          Write-Host "[PASS] GitHub CLI is available for workflow monitoring" -ForegroundColor Green
         }
 
         # Test Python tools
         if ($env:ENABLE_PYTHON -eq 'true') {
           if (Get-Command python3 -ErrorAction SilentlyContinue) {
             $pythonVersion = python3 --version 2>&1
-            Write-Host "✓ $pythonVersion is installed" -ForegroundColor Green
+            Write-Host "[PASS] $pythonVersion is installed" -ForegroundColor Green
           }
           if (Get-Command ruff -ErrorAction SilentlyContinue) {
-            Write-Host "✓ ruff is available for Python linting" -ForegroundColor Green
+            Write-Host "[PASS] ruff is available for Python linting" -ForegroundColor Green
           }
           if (Get-Command pytest -ErrorAction SilentlyContinue) {
-            Write-Host "✓ pytest is available for Python testing" -ForegroundColor Green
+            Write-Host "[PASS] pytest is available for Python testing" -ForegroundColor Green
           }
         }
 
@@ -201,18 +216,18 @@ runs:
         if ($env:ENABLE_PESTER -eq 'true') {
           $pester = Get-Module -ListAvailable -Name Pester | Select-Object -First 1
           if ($pester) {
-            Write-Host "✓ Pester $($pester.Version) is installed" -ForegroundColor Green
+            Write-Host "[PASS] Pester $($pester.Version) is installed" -ForegroundColor Green
           }
         }
 
         # Test powershell-yaml (optional)
         $yaml = Get-Module -ListAvailable -Name powershell-yaml | Select-Object -First 1
         if ($yaml) {
-          Write-Host "✓ powershell-yaml $($yaml.Version) is installed" -ForegroundColor Green
+          Write-Host "[PASS] powershell-yaml $($yaml.Version) is installed" -ForegroundColor Green
         }
 
         Write-Host ""
-        Write-Host "✓ Setup complete! Development tools ready: Node.js, markdownlint-cli2, Python (if enabled), GitHub CLI (if available), Pester (if enabled), git hooks (if configured)." -ForegroundColor Green
+        Write-Host "[PASS] Setup complete. Development tools ready: Node.js, markdownlint-cli2, Python (if enabled), GitHub CLI (if available), Pester (if enabled), git hooks (if configured)." -ForegroundColor Green
 
         # Explicitly exit with success (previous commands may have set $LASTEXITCODE)
         exit 0

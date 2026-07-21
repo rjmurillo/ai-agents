@@ -26,8 +26,38 @@ import json
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+
+def _fallback_get_recent_session_log(sessions_dir: str) -> Path | None:
+    """Return the newest readable session log from today or yesterday."""
+    sessions_path = Path(sessions_dir)
+    if not sessions_path.is_dir():
+        return None
+
+    now = datetime.now(tz=UTC)
+    for offset in (0, 1):
+        date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+        try:
+            candidates = list(sessions_path.glob(f"{date}-session-*.json"))
+        except OSError:
+            continue
+
+        newest: Path | None = None
+        newest_mtime = float("-inf")
+        for candidate in candidates:
+            try:
+                mtime = candidate.stat().st_mtime
+            except OSError:
+                continue
+            if mtime > newest_mtime:
+                newest = candidate
+                newest_mtime = mtime
+        if newest is not None:
+            return newest
+    return None
+
 
 # --- Standard hook boilerplate ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -42,29 +72,13 @@ try:
     from hook_utilities import get_project_directory, get_recent_session_log
     from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
-    from datetime import timedelta
-
     def get_project_directory() -> str:
         env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
         if env_dir:
             return str(Path(env_dir).resolve())
         return str(Path.cwd())
 
-    def get_recent_session_log(sessions_dir: str) -> Path | None:
-        """Return newest today or yesterday session log for cross-midnight support."""
-        sessions_path = Path(sessions_dir)
-        if not sessions_path.is_dir():
-            return None
-        now = datetime.now(tz=UTC)
-        for offset in (0, 1):
-            date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
-            try:
-                candidates = list(sessions_path.glob(f"{date}-session-*.json"))
-                if candidates:
-                    return max(candidates, key=lambda p: p.stat().st_mtime)
-            except OSError:
-                continue
-        return None
+    get_recent_session_log = _fallback_get_recent_session_log
 
     def skip_if_consumer_repo(hook_name: str) -> bool:
         agents_path = Path(get_project_directory()) / ".agents"

@@ -17,6 +17,11 @@ updated: 2026-05-09
 
 # REQ-006: Em/en-dash prohibition enforcement
 
+> [!IMPORTANT]
+> Historical requirement record. ADR-086 replaced the custom Git-hook carrier
+> with Lefthook. Paths under `.githooks/` below preserve the original
+> requirement context and are not current implementation instructions.
+
 ## Problem
 
 Em-dashes (U+2014) and en-dashes (U+2013) appear in agent-authored prose despite a stated

@@ -269,7 +269,9 @@ When any changed file matches security trigger patterns, orchestrator MUST route
 # Mandatory routing for security-relevant changes
 # Trigger patterns:
 #   **/Auth/**, **/Security/**, *.env*
-#   .githooks/*, **/secrets/**, *password*
+#   {lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}
+#   .config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}
+#   scripts/validation/git_hook_policy.py, **/secrets/**, *password*
 #   **/token*, **/oauth/**, **/jwt/**
 
 # When security-relevant files change:
@@ -298,7 +300,7 @@ Post-implementation verification REQUIRED when implementation includes:
 | File System Operations | File upload, path traversal prevention | High |
 | Environment Variables | Secret handling, config management | Critical |
 | Execution/Eval | Dynamic code execution, shell commands | Critical |
-| Path patterns: `**/Auth/**`, `.githooks/*`, `*.env*` | Any changes to these paths | Critical |
+| Path patterns: `**/Auth/**`, `{lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}`, `.config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}`, `scripts/validation/git_hook_policy.py`, `*.env*` | Any changes to these paths | Critical |
 
 #### Post-Implementation Verification (PIV) Protocol
 
@@ -337,33 +339,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "[PASS] Security tests completed successfully"
 
-# Verify exit code validation in hooks (CWE-78 prevention)
-if (-not (Test-Path ".githooks")) {
-    throw ".githooks directory not found. Cannot validate hooks."
+# Verify Git hook manager configuration
+uv run --frozen lefthook validate
+if ($LASTEXITCODE -ne 0) {
+    throw "[FAIL] Lefthook configuration validation failed"
 }
-
-$hookFiles = Get-ChildItem -Path ".githooks" -Filter "*.ps1" -Recurse -ErrorAction Stop
-if ($hookFiles.Count -eq 0) {
-    throw "[FAIL] No PowerShell hooks found in .githooks directory. Cannot validate exit code handling."
-}
-Write-Host "[INFO] Found $($hookFiles.Count) PowerShell hook(s) to validate"
-
-foreach ($hook in $hookFiles) {
-    try {
-        $content = Get-Content $hook.FullName -Raw -ErrorAction Stop
-        if ($content -notmatch '\$LASTEXITCODE') {
-            throw "Hook $($hook.Name) missing exit code validation"
-        }
-        Write-Host "[PASS] Hook $($hook.Name) has exit code validation"
-    }
-    catch [System.Management.Automation.ItemNotFoundException] {
-        throw "Failed to read hook file $($hook.FullName): File not found"
-    }
-    catch {
-        throw "Failed to read hook file $($hook.FullName): $_"
-    }
-}
-Write-Host "[PASS] All $($hookFiles.Count) hooks have proper exit code validation"
+Write-Host "[PASS] Hook payload syntax and Lefthook configuration validated"
 
 # Check for hardcoded secrets in staged changes
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {

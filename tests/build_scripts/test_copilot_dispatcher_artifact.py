@@ -9,11 +9,12 @@ as the plugin root.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime
+import tempfile
 from pathlib import Path
 from typing import Any, cast
 
@@ -36,6 +37,7 @@ _DISPATCHED_EVENTS = (_GATING, *_OBSERVE_EVENTS)
 _DIRECT_EVENTS = ("Stop",)
 _ALL_EVENTS = (*_DISPATCHED_EVENTS, *_DIRECT_EVENTS)
 _DISPATCH_TEST_TIMEOUT_CAP_SEC = 60
+_DISPATCHER_TIMEOUT_HEADROOM_SEC = 5
 
 
 def _hooks() -> dict[str, list[dict[str, Any]]]:
@@ -46,6 +48,23 @@ def _hooks() -> dict[str, list[dict[str, Any]]]:
 _DISPATCH_GROUPS = json.loads(
     (_REPO / ".claude" / "hooks" / "dispatch_groups.json").read_text(encoding="utf-8")
 )["groups"]
+
+
+def _init_feature_branch_repo(path: str) -> None:
+    """Init a throwaway git repo on a non-protected branch with one commit.
+
+    The session-init enforcer resolves the branch from its process cwd. On a
+    protected branch (main/master) it prints a warning block instead of the
+    `Branch: ...` line, so the test must run the enforcer from a repo checked
+    out on a feature branch to observe the normal output. An unborn branch
+    reports as `HEAD`, so an empty commit is required for the branch to resolve.
+    """
+    run = functools.partial(subprocess.run, cwd=path, check=True, capture_output=True)
+    run(["git", "init"])
+    run(["git", "config", "user.email", "test@example.com"])
+    run(["git", "config", "user.name", "Test"])
+    run(["git", "commit", "--allow-empty", "-m", "init"])
+    run(["git", "checkout", "-B", "feat/session-init-test"])
 
 
 def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> list[str]:
@@ -63,9 +82,7 @@ def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> l
                 command = hook.get("command", "") or ""
                 if "invoke_dispatch_claude.py" in command:
                     group_id = command.rsplit("--group", 1)[1].strip()
-                    commands.extend(
-                        shim["file"] for shim in _DISPATCH_GROUPS[group_id]["shims"]
-                    )
+                    commands.extend(shim["file"] for shim in _DISPATCH_GROUPS[group_id]["shims"])
                 else:
                     commands.append(command)
     return commands
@@ -114,37 +131,41 @@ class TestDispatcherArtifacts:
         )
 
         for registration in registration_files:
-            assert "invoke_test_auto_approval" not in registration.read_text(
-                encoding="utf-8"
-            )
+            assert "invoke_test_auto_approval" not in registration.read_text(encoding="utf-8")
 
         for registration in (*claude_registration_files, _HOOKS_JSON):
             manifest = json.loads(registration.read_text(encoding="utf-8"))
             assert "PermissionRequest" not in manifest["hooks"]
 
-        dispatch_groups = json.loads(
-            registration_files[2].read_text(encoding="utf-8")
-        )["groups"]
-        assert all(
-            group.get("event") != "PermissionRequest"
-            for group in dispatch_groups.values()
-        )
+        dispatch_groups = json.loads(registration_files[2].read_text(encoding="utf-8"))["groups"]
+        assert all(group.get("event") != "PermissionRequest" for group in dispatch_groups.values())
 
         assert not (
-            _REPO
-            / ".claude"
-            / "hooks"
-            / "PermissionRequest"
-            / "invoke_test_auto_approval.py"
+            _REPO / ".claude" / "hooks" / "PermissionRequest" / "invoke_test_auto_approval.py"
         ).exists()
-        assert not (
-            _REPO / ".claude" / "hooks" / "PermissionRequest"
-        ).exists()
+        assert not (_REPO / ".claude" / "hooks" / "PermissionRequest").exists()
         assert not (_COPILOT / "hooks" / "PermissionRequest").exists()
 
         settings = json.loads(registration_files[0].read_text(encoding="utf-8"))
         allow_rules = settings.get("permissions", {}).get("allow", [])
         assert allow_rules == []
+
+    def test_skill_first_guard_is_not_registered(self):
+        registration_files = (
+            _REPO / ".claude" / "settings.json",
+            _REPO / ".claude" / "hooks" / "hooks.json",
+            _REPO / ".claude" / "hooks" / "dispatch_groups.json",
+            _HOOKS_JSON,
+            _COPILOT / "hooks" / "PreToolUse" / "_manifest.json",
+        )
+
+        for registration in registration_files:
+            assert "invoke_skill_first_guard" not in registration.read_text(encoding="utf-8")
+
+        assert not (
+            _REPO / ".claude" / "hooks" / "PreToolUse" / "invoke_skill_first_guard.py"
+        ).exists()
+        assert not list((_COPILOT / "hooks" / "PreToolUse").glob("invoke_skill_first_guard__*.py"))
 
     def test_stop_keeps_separate_host_registrations(self):
         entries = _hooks()["Stop"]
@@ -157,13 +178,9 @@ class TestDispatcherArtifacts:
         assert not (_COPILOT / "hooks" / "Stop" / "_bootstrap.py").exists()
 
     def test_only_advisory_pretooluse_registrations_are_absent(self):
-        settings = json.loads(
-            (_REPO / ".claude" / "settings.json").read_text(encoding="utf-8")
-        )
+        settings = json.loads((_REPO / ".claude" / "settings.json").read_text(encoding="utf-8"))
         plugin_hooks = json.loads(
-            (_REPO / ".claude" / "hooks" / "hooks.json").read_text(
-                encoding="utf-8"
-            )
+            (_REPO / ".claude" / "hooks" / "hooks.json").read_text(encoding="utf-8")
         )
         manifests = [settings, plugin_hooks]
         removed = (
@@ -171,7 +188,6 @@ class TestDispatcherArtifacts:
             "invoke_topical_memory_injection.py",
         )
         required_hard_gates = (
-            "invoke_branch_context_guard.py",
             "invoke_security_commit_gate.py",
             "invoke_security_gate.py",
             "invoke_session_log_guard.py",
@@ -190,43 +206,29 @@ class TestDispatcherArtifacts:
         assert all(script in serialized_settings for script in required_session_start)
 
         generated = json.loads(
-            (_COPILOT / "hooks" / "PreToolUse" / "_manifest.json").read_text(
-                encoding="utf-8"
-            )
+            (_COPILOT / "hooks" / "PreToolUse" / "_manifest.json").read_text(encoding="utf-8")
         )
         serialized_generated = json.dumps(generated)
+        assert all(script.removesuffix(".py") not in serialized_generated for script in removed)
         assert all(
-            script.removesuffix(".py") not in serialized_generated
-            for script in removed
-        )
-        assert all(
-            script.removesuffix(".py") in serialized_generated
-            for script in required_hard_gates
+            script.removesuffix(".py") in serialized_generated for script in required_hard_gates
         )
         session_start_manifest = json.loads(
-            (_COPILOT / "hooks" / "SessionStart" / "_manifest.json").read_text(
-                encoding="utf-8"
-            )
+            (_COPILOT / "hooks" / "SessionStart" / "_manifest.json").read_text(encoding="utf-8")
         )
         serialized_session_start = json.dumps(session_start_manifest)
         assert all(script in serialized_session_start for script in required_session_start)
 
     def test_session_start_enforcer_has_one_registration_per_manifest(self):
         script_name = "invoke_session_initialization_enforcer.py"
-        settings = json.loads(
-            (_REPO / ".claude" / "settings.json").read_text(encoding="utf-8")
-        )
+        settings = json.loads((_REPO / ".claude" / "settings.json").read_text(encoding="utf-8"))
         settings_commands = _effective_commands(settings, "SessionStart")
         plugin_hooks = json.loads(
-            (_REPO / ".claude" / "hooks" / "hooks.json").read_text(
-                encoding="utf-8"
-            )
+            (_REPO / ".claude" / "hooks" / "hooks.json").read_text(encoding="utf-8")
         )
         plugin_commands = _effective_commands(plugin_hooks, "SessionStart")
         generated_manifest = json.loads(
-            (_COPILOT / "hooks" / "SessionStart" / "_manifest.json").read_text(
-                encoding="utf-8"
-            )
+            (_COPILOT / "hooks" / "SessionStart" / "_manifest.json").read_text(encoding="utf-8")
         )
 
         assert sum(script_name in command for command in settings_commands) == 1
@@ -239,21 +241,18 @@ class TestDispatcherArtifacts:
         env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
         env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
         env["AI_AGENTS_PROJECT_REPO"] = "1"
-        script = (
-            _COPILOT
-            / "hooks"
-            / "SessionStart"
-            / "invoke_session_initialization_enforcer.py"
-        )
+        script = _COPILOT / "hooks" / "SessionStart" / "invoke_session_initialization_enforcer.py"
 
-        process = subprocess.run(
-            [sys.executable, "-u", str(script)],
-            input=b"{}",
-            capture_output=True,
-            cwd=_REPO,
-            env=env,
-            timeout=15,
-        )
+        with tempfile.TemporaryDirectory() as tmp_repo:
+            _init_feature_branch_repo(tmp_repo)
+            process = subprocess.run(
+                [sys.executable, "-u", str(script)],
+                input=b"{}",
+                capture_output=True,
+                cwd=tmp_repo,
+                env=env,
+                timeout=15,
+            )
 
         assert process.returncode == 0, process.stderr.decode(errors="replace")
         assert process.stdout.count(b"Branch: `") == 1
@@ -278,16 +277,16 @@ class TestDispatcherArtifacts:
             manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
             assert manifest["shims"], f"{event}: empty manifest"
             assert set(manifest["timeouts"]) == set(manifest["shims"])
-            assert _hooks()[event][0]["timeoutSec"] == sum(manifest["timeouts"].values())
+            assert _hooks()[event][0]["timeoutSec"] == (
+                sum(manifest["timeouts"].values()) + _DISPATCHER_TIMEOUT_HEADROOM_SEC
+            )
             for shim in manifest["shims"]:
                 assert (event_dir / shim).is_file(), f"{event}: manifest shim {shim} missing"
 
     def test_no_unregistered_matcher_shims_are_shipped(self):
         for event in _DISPATCHED_EVENTS:
             event_dir = _COPILOT / "hooks" / event
-            manifest = json.loads(
-                (event_dir / "_manifest.json").read_text(encoding="utf-8")
-            )
+            manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
             registered = set(manifest["shims"])
             stale = []
             for path in event_dir.glob("*.py"):
@@ -304,55 +303,21 @@ class TestDispatcherArtifacts:
 
     def test_pretooluse_denies_blocked_tool(self, tmp_path):
         # The consolidated gate dispatcher must propagate a member guard's deny
-        # end-to-end (#2295 preserved through consolidation). branch_context_guard
-        # blocks a git push whose current branch differs from the branch recorded
-        # in today's session log. Point CLAUDE_PROJECT_DIR at a scratch repo on
-        # `main` with a session log expecting a different branch so the deny is
-        # deterministic and independent of this repo's live session state.
-        on_main = tmp_path / "on-main"
-        on_main.mkdir()
-        subprocess.run(
-            ["git", "init", str(on_main)], check=True, capture_output=True, timeout=30
-        )
-        subprocess.run(
-            ["git", "-C", str(on_main), "checkout", "-B", "main"],
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
-        # A born HEAD makes `git branch --show-current` resolve deterministically;
-        # an unborn HEAD returns empty on some git versions and fails the guard open.
-        subprocess.run(
-            [
-                "git",
-                "-C",
-                str(on_main),
-                "-c",
-                "user.email=test@example.com",
-                "-c",
-                "user.name=Test",
-                "commit",
-                "--allow-empty",
-                "-m",
-                "init",
-            ],
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
-        sessions_dir = on_main / ".agents" / "sessions"
+        # end-to-end (#2295 preserved through consolidation). session_log_guard
+        # blocks a git commit when the project has a .agents/sessions/ directory
+        # but no session log for today. Point CLAUDE_PROJECT_DIR at a scratch
+        # project with an empty sessions directory so the deny is deterministic
+        # and independent of this repo's live session state.
+        project = tmp_path / "scratch-project"
+        sessions_dir = project / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
-        (sessions_dir / f"{today}-session-01.json").write_text(
-            json.dumps({"session": {"branch": "feature/mismatch"}}), encoding="utf-8"
-        )
         proc = _run_entry(
             _GATING,
             {
                 "tool_name": "Bash",
-                "tool_input": {"command": "git push --force origin main"},
+                "tool_input": {"command": "git commit -m 'work'"},
             },
-            project_dir=on_main,
+            project_dir=project,
         )
         assert proc.returncode != 0, "dispatcher allowed a tool a guard blocks"
         combined = proc.stdout + proc.stderr

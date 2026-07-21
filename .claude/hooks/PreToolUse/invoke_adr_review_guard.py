@@ -62,6 +62,7 @@ from hook_utilities import (  # noqa: E402
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 _ADR_PATTERN = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
+_ADR_ID_PATTERN = re.compile(r"ADR-\d+", re.IGNORECASE)
 _CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$", re.IGNORECASE)
 _FRONTMATTER_DELIM = "---"
 _NON_DECISION_FRONTMATTER_KEYS = frozenset({"implemented"})
@@ -290,11 +291,44 @@ def get_staged_adr_changes() -> list[str]:
 
 
 
+def _extract_adr_ids(paths: list[str]) -> set[str]:
+    """Extract normalized ADR identifiers (e.g. ``ADR-062``) from staged paths."""
+    ids: set[str] = set()
+    for path in paths:
+        match = _ADR_ID_PATTERN.search(Path(path).name)
+        if match:
+            ids.add(match.group(0).upper())
+    return ids
+
+
+def _debate_references_adr(debate_path: Path, adr_ids: set[str]) -> bool:
+    """Return True when the debate artifact names at least one staged ADR id.
+
+    Content match, not mtime: a debate log checked out from another branch
+    gets a fresh mtime but keeps its text, so only content ties evidence to
+    the ADR actually being committed.
+
+    Tokenizes whole ADR ids out of the text and compares them by equality, so
+    a shorter id never matches as a substring inside a longer one.
+    """
+    try:
+        text = debate_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    referenced = {match.group(0).upper() for match in _ADR_ID_PATTERN.finditer(text)}
+    return bool(referenced & adr_ids)
+
+
 def check_adr_review_evidence(
     session_log_path: Path,
     project_dir: str,
+    adr_changes: list[str] | None = None,
 ) -> dict[str, object]:
     """Check session log and artifacts for ADR review evidence.
+
+    When ``adr_changes`` names one or more ADR files, at least one debate log
+    must reference one of those ADR identifiers; a stale or unrelated debate
+    artifact no longer counts as evidence (issue #3196).
 
     Returns dict with 'complete' (bool) and 'reason' or 'evidence' key.
     """
@@ -330,6 +364,20 @@ def check_adr_review_evidence(
                 "reason": (
                     "Session log mentions adr-review, but no debate "
                     f"log artifact found in {_AGENTS_DEBATE}"
+                ),
+            }
+
+        adr_ids = _extract_adr_ids(adr_changes or [])
+        if adr_ids and not any(
+            _debate_references_adr(log, adr_ids) for log in debate_logs
+        ):
+            return {
+                "complete": False,
+                "reason": (
+                    "Session log mentions adr-review and debate log(s) exist, "
+                    f"but none reference the staged ADR(s) {', '.join(sorted(adr_ids))}. "
+                    "Run /adr-review on the ADR(s) being committed; a stale or "
+                    "unrelated debate log is not evidence."
                 ),
             }
 
@@ -423,7 +471,7 @@ def _evaluate_adr_review(adr_changes: list[str], today: str) -> int:
         )
         return 2
 
-    evidence = check_adr_review_evidence(session_log, project_dir)
+    evidence = check_adr_review_evidence(session_log, project_dir, adr_changes)
 
     if not evidence["complete"]:
         print(

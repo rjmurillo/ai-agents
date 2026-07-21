@@ -46,6 +46,7 @@ jobs:
         with:
           gh-token: ${{ github.token }}
           enable-pester: 'false'
+          enable-git-hooks: false
 
       - name: Get PR commits
         id: pr-commits

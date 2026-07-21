@@ -55,7 +55,7 @@ def _run_shim(
 def _run_committed_git_push_shim(raw_input: bytes) -> subprocess.CompletedProcess[bytes]:
     matches = list(
         (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse").glob(
-            "invoke_branch_context_guard__Bash_git_push_*.py"
+            "invoke_retrospective_gate__Bash_git_push_*.py"
         )
     )
     if len(matches) != 1:

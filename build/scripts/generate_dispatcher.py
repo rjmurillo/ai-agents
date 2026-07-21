@@ -482,6 +482,7 @@ _SAFE_OBSERVE_EVENTS = frozenset(
     }
 )
 _DEFAULT_TIMEOUT_SEC = 5
+_DISPATCHER_TIMEOUT_HEADROOM_SEC = 5
 _SCRIPT_RE = re.compile(r"/hooks/[^/]+/([^/\"']+\.py)(?!\.\w)")
 _CASE_INSENSITIVE_SHIM_NAMES = os.name == "nt"
 _DISPATCHER_CORE_NAMES = ("_manifest.json", "_dispatch.py", "_bootstrap.py")
@@ -982,7 +983,9 @@ def consolidate(
     pass through so the host can merge multiple structured decisions without
     invalid JSON concatenation. PostToolUseFailure also passes through because
     exit 2 converts that hook's stdout to recovery context; the generic observe
-    dispatcher intentionally discards nonzero-shim stdout.
+    dispatcher intentionally discards nonzero-shim stdout. The consolidated
+    ``timeoutSec`` is the sum of per-shim timeouts plus five seconds for
+    dispatcher startup, manifest loading, and transitions between shims.
     """
     new_out: dict[str, list[dict[str, Any]]] = {}
     for event, entries in out.items():
@@ -1004,8 +1007,15 @@ def consolidate(
                 f"PermissionRequest requires exactly one decision producer, got {len(shim_names)}"
             )
         shim_timeouts = dict(shim_entries)
-        timeout = sum(timeout_sec for _, timeout_sec in shim_entries)
-        matchers = [entry.get("claudeMatcher") for entry in entries if isinstance(entry, dict)]
+        timeout = (
+            sum(timeout_sec for _, timeout_sec in shim_entries)
+            + _DISPATCHER_TIMEOUT_HEADROOM_SEC
+        )
+        matchers = [
+            entry.get("claudeMatcher")
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
         event_dir = Path(hooks_dir) / event
         new_out[event] = [
             emit_dispatcher(

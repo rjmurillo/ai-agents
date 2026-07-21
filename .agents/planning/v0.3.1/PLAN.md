@@ -1105,23 +1105,18 @@ scripts/validation/
 
 ### [#1065](https://github.com/rjmurillo/ai-agents/issues/1065) - Hook scripts
 
-**Goals**: Migrate 12 git hook scripts to Python. Maintain hook contract (input format, exit codes, timing).
+**Disposition**: Superseded by ADR-086. Do not reconstruct the deleted custom
+Git-hook directories or registration mechanism.
 
-**Non-Goals**: Do not change hook registration mechanism. Do not add new hooks. Do not modify `.claude/settings.json` hook configuration beyond script paths.
-
-**Risk**: Hooks run on every commit/push. A broken hook blocks all developer workflow. Migrate one hook at a time with immediate rollback capability.
-
-**12 hook scripts across 7 hook directories**:
-- `.githooks/pre-commit` (5 hooks)
-- `.githooks/pre-push` (3 hooks)
-- `.githooks/post-commit` (2 hooks)
-- `.githooks/commit-msg` (2 hooks)
+**Current Carrier**: `lefthook.yml` owns Git lifecycle scheduling. Python
+commands own repository policy that requires Git objects or pushed-ref
+inspection.
 
 **Done Criteria**:
-- [ ] All 12 hooks call Python scripts
-- [ ] `HookUtilities.psm1` deleted (migrated in #1053)
-- [ ] `find .claude/hooks .githooks -name "*.ps1" -type f | wc -l` returns 0
-- [ ] Manual verification: commit, push, and commit-msg hooks fire correctly
+- [x] Lefthook schedules commit, push, and commit-message checks
+- [x] `HookUtilities.psm1` deleted
+- [x] Repository policy implemented in Python
+- [x] Commit, push, and commit-message phases verified through Lefthook
 
 **Depends on**: #1053 (HookUtilities.psm1 -> hook_utilities.py)
 

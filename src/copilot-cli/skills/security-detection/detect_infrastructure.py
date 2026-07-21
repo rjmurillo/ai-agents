@@ -14,12 +14,14 @@ import json
 import re
 import subprocess
 import sys
+from typing import Any
 
 # Critical patterns - security review REQUIRED
 CRITICAL_PATTERNS = [
     r"^\.github/workflows/.*\.(yml|yaml)$",
     r"^\.github/actions/",
-    r"^\.githooks/",
+    r"^scripts/validation/git_hook_policy\.py$",
+    r"^(?:lefthook|\.lefthook|\.config/lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
     r"^\.husky/",
     r".*/Auth/",
     r".*/Authentication/",
@@ -60,7 +62,7 @@ HIGH_PATTERNS = [
 def matches_pattern(file_path: str, patterns: list[str]) -> bool:
     """Check if a file path matches any of the given regex patterns."""
     for pattern in patterns:
-        if re.search(pattern, file_path):
+        if re.search(pattern, file_path, re.IGNORECASE):
             return True
     return False
 
@@ -91,10 +93,15 @@ def get_staged_files() -> list[str]:
         return []
 
 
+def get_files_from_stdin() -> list[str]:
+    """Read NUL-delimited file paths without interpreting option-shaped names."""
+    return [file_path for file_path in sys.stdin.read().split("\0") if file_path]
+
+
 def detect_infrastructure(
     changed_files: list[str] | None = None,
     use_git_staged: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Analyze files and return security risk findings."""
     if use_git_staged:
         changed_files = get_staged_files()
@@ -133,19 +140,26 @@ def main() -> int:
         description="Detect infrastructure and security-critical"
         " file changes",
     )
-    parser.add_argument(
+    file_source = parser.add_mutually_exclusive_group()
+    file_source.add_argument(
         "--files", nargs="*",
         help="Changed file paths to analyze",
     )
-    parser.add_argument(
+    file_source.add_argument(
         "--use-git-staged", action="store_true",
         help="Analyze staged files from git",
+    )
+    file_source.add_argument(
+        "--files-from-stdin",
+        action="store_true",
+        help="Read NUL-delimited changed file paths from stdin",
     )
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 
+    changed_files = get_files_from_stdin() if args.files_from_stdin else args.files
     result = detect_infrastructure(
-        changed_files=args.files,
+        changed_files=changed_files,
         use_git_staged=args.use_git_staged,
     )
 

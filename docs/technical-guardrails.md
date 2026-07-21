@@ -14,95 +14,19 @@ PR #226 was merged with 6 defects due to complete guardrail failure during auton
 
 ## Guardrails Implemented
 
-### Phase 1: Pre-Commit Hooks (BLOCKING)
+### Pre-Commit Jobs
 
-Pre-commit hooks run automatically before every commit to enforce protocol compliance.
+Lefthook filters staged files and runs the named validators in `lefthook.yml`
+before each commit. That configuration is the authoritative list of jobs.
 
-#### Session End Validation (BLOCKING)
+#### Validator Ownership
 
-**Location**: `.githooks/pre-commit` (lines 430-491)
+`lefthook.yml` owns changed-file filters, job names, and validator commands.
+Reusable Git hook policy lives in `scripts/validation/git_hook_policy.py`.
+Consult the configuration for the current jobs instead of maintaining a second
+checklist here.
 
-**When**: Any `.agents/` files are staged
-
-**Enforces**:
-
-- HANDOFF.md must be staged
-- Session log must be staged
-- Session log must pass `validate_session_json.py`
-
-**Bypass**: `git commit --no-verify` (use sparingly, logged)
-
-#### Skill Violation Detection (WARNING)
-
-**Location**: `.githooks/pre-commit` (lines 493-511)
-
-**Script**: `scripts/detect_skill_violation.py`
-
-**When**: Any files are staged
-
-**Detects**:
-
-- Raw `gh pr` commands (use `.claude/skills/github/` instead)
-- Raw `gh issue` commands
-- Raw `gh api` commands
-- Raw `gh repo` commands
-
-**Action**: WARNING (non-blocking), reminds to use skill scripts
-
-#### Test Coverage Detection (WARNING)
-
-**Location**: `.githooks/pre-commit` (lines 513-533)
-
-**Script**: `scripts/Detect-TestCoverageGaps.ps1`
-
-**When**: PowerShell files (.ps1) are staged
-
-**Detects**:
-
-- `.ps1` files without corresponding `.Tests.ps1` files
-
-**Action**: WARNING (non-blocking), reminds to add tests
-
-#### Memory Tier Validation (BLOCKING)
-
-**Script**: `scripts/validate_memory_tier.py`
-
-**When**: `.serena/memories/` files are staged
-
-**Checks**:
-
-1. **Broken references**: All markdown links in `memory-index.md` and domain indexes point to existing files
-2. **Domain index format**: Domain indexes are pure lookup tables (header, separator, data rows only) per ADR-017
-3. **Deprecated prefixes**: References and files using the old `skill-` prefix are flagged
-4. **Orphan detection**: Domain indexes not in `memory-index.md` and atomic files not in any domain index
-
-**Exit Codes** (ADR-035):
-
-- `0` = All validations pass
-- `1` = One or more validation failures
-
-**Modes**:
-
-- Default: orphan warnings are non-blocking
-- `--ci`: promotes all warnings to errors (used in CI workflow)
-- `--path <dir>`: override the memories directory (default: `.serena/memories`)
-
-**Usage**:
-
-```bash
-# Local run (default path)
-python3 scripts/validate_memory_tier.py
-
-# CI mode (strict)
-python3 scripts/validate_memory_tier.py --ci
-
-# Custom path
-python3 scripts/validate_memory_tier.py --path /path/to/memories
-```
-
-**Related**: ADR-017 (tiered memory index architecture), Issue #943
-
-### Phase 2: Validation Scripts
+### Validation Scripts
 
 #### PR Description Validation (BLOCKING in CI)
 
@@ -150,7 +74,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 
 **Force Mode**: Creates audit trail in `.agents/audit/pr-creation-force-*.txt`
 
-### Phase 3: SESSION-PROTOCOL.md Updates
+### SESSION-PROTOCOL.md Updates
 
 **Location**: `.agents/SESSION-PROTOCOL.md` (Unattended Execution Protocol section)
 
@@ -171,7 +95,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 
 **Rationale**: Autonomous execution removes human oversight, requiring **stricter** guardrails.
 
-### Phase 4: CI Workflow Validation
+### CI Workflow Validation
 
 **Workflow**: `.github/workflows/pr-validation.yml`
 
@@ -205,10 +129,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 3. Commit: `git commit -m "feat: description"`
 4. Pre-commit hooks run automatically
 
-If hooks fail:
-
-- Fix the issue (preferred)
-- Or bypass with `git commit --no-verify` (logged)
+If hooks fail, fix the reported issue and retry the commit.
 
 #### Before Creating PR
 
@@ -297,7 +218,7 @@ uv run pytest tests/ -k stale_script_ref -q
 
 ## Future Enhancements
 
-1. **Branch Protection Rules** (Phase 5)
+1. **Branch Protection Rules**
    - Require PR description validation pass
    - Require QA report for code changes
    - Block security "won't fix" without approval
@@ -317,10 +238,11 @@ uv run pytest tests/ -k stale_script_ref -q
 
 **Symptom**: Changes commit without validation
 
-**Solution**: Set git hooks path
+**Solution**: Install and verify Lefthook
 
 ```bash
-git config core.hooksPath .githooks
+uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook check-install
 ```
 
 ### PowerShell Not Found

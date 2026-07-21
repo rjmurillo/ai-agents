@@ -143,14 +143,12 @@ python3 scripts/validation/traceability.py --format json
 
 ## Enforcement Points
 
-### 1. Pre-Commit Hook
+### 1. Manual Local Validation
 
-Automatic validation when spec files are staged:
+Run the validator before committing specification changes:
 
 ```bash
-# .githooks/pre-commit
-# Checking specification traceability...
-# Traceability validation: PASS
+uv run --frozen python scripts/validation/traceability.py --ci
 ```
 
 ### 2. Critic Agent Review
@@ -343,12 +341,13 @@ Install PowerShell:
 - Linux/macOS: <https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell>
 - Windows: Built-in
 
-### "Pre-commit hook not running"
+### "Lefthook not running"
 
-Configure git to use the hooks:
+Install and verify the pinned Lefthook shims:
 
 ```bash
-git config core.hooksPath .githooks
+uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook check-install
 ```
 
 ## References

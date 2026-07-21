@@ -135,20 +135,21 @@ edit templates/agents/{agent}.shared.md
 # Step 2: Update Claude source (MANUAL - not auto-synced)
 edit src/claude/{agent}.md
 
-# Step 3: Commit (pre-commit auto-generates Copilot outputs)
+# Step 3: Commit (Lefthook generates Copilot outputs)
 git add templates/agents/{agent}.shared.md src/claude/{agent}.md
 git commit -m "feat(agents): add [feature] to {agent}"
-# Pre-commit hook runs Generate-Agents.ps1 and stages outputs
+# Lefthook runs the generation jobs and stages their outputs
 ```
 
-### Pre-Commit Hook Behavior
+### Lefthook Pre-Commit Behavior
 
-The `.githooks/pre-commit` hook (lines 597-649):
+The generation jobs in `lefthook.yml`:
 
 1. Detects staged `templates/agents/*.shared.md` files
-2. Runs `build/Generate-Agents.ps1`
-3. Stages generated `src/copilot-cli/*.agent.md` and `src/vs-code-agents/*.md`
-4. Does NOT sync to `src/claude/` (intentionally separate source)
+2. Runs `scripts/validation/git_hook_policy.py generate-agents`
+3. Runs `build/generate_agent_catalog.py`
+4. Stages generated Copilot CLI, VS Code, and catalog outputs
+5. Does NOT sync to `src/claude/` (intentionally separate source)
 
 ### Common Mistake
 
@@ -221,14 +222,14 @@ This ADR does NOT resolve Issue #124. Both documents serve distinct purposes.
 ## Related Decisions
 
 - ADR-029: Skill File Line Ending Normalization (related build tooling)
-- ADR-004: Pre-Commit Hook Architecture (hook framework)
+- ADR-086: Lefthook for Local Git Hook Orchestration
 
 ## References
 
 ### Implementation Artifacts
 
-- `build/Generate-Agents.ps1`: Generation script for Copilot CLI and VS Code variants
-- `.githooks/pre-commit`: Pre-commit hook (lines 597-649) that auto-generates on template changes
+- `build/generate_agents.py`: Generation script for Copilot CLI and VS Code variants
+- `lefthook.yml`: Pre-commit generation and staging jobs
 
 ### Planning & Design Documents
 

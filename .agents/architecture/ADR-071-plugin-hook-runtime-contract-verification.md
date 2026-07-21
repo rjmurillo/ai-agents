@@ -147,9 +147,10 @@ The consolidated PreToolUse dispatcher has a host-timeout residual. The host
 owns the aggregate timeout, and the measured 1.0.72-1 host fails open after a
 timeout. One hung dispatcher can therefore be killed before later guards run,
 allowing the tool and bypassing every guard that did not complete. No
-in-process watchdog is implemented. The current manifest contains 16 shims and
-requests a summed 555-second timeout. The probe tested only 2 seconds. No
-evidence shows whether the host grants, caps, or enforces 555 seconds.
+in-process watchdog is implemented. The current manifest contains 13 shims whose configured timeout values sum to
+465 seconds. The generated host entry requests 470 seconds, including five
+seconds of dispatcher headroom. The probe tested only 2 seconds. No evidence
+shows whether the host grants, caps, or enforces 470 seconds.
 
 Copilot parses at most one final JSON document per command hook. The current
 observe dispatcher captures nonblank stdout from successful PostToolUse shims,

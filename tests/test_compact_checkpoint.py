@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,6 +22,69 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "PreCompact"))
 
 import invoke_compact_checkpoint  # noqa: E402
+
+
+class TestFallbackRecentSessionLog:
+    """Test the standalone fallback used when hook_utilities is unavailable."""
+
+    def test_returns_none_when_session_directory_is_missing(self, tmp_path: Path) -> None:
+        result = invoke_compact_checkpoint._fallback_get_recent_session_log(
+            str(tmp_path / "missing")
+        )
+
+        assert result is None
+
+    def test_skips_candidate_that_disappears_during_stat(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        disappeared = tmp_path / f"{today}-session-001.json"
+        readable = tmp_path / f"{today}-session-002.json"
+        disappeared.write_text("{}", encoding="utf-8")
+        readable.write_text("{}", encoding="utf-8")
+        real_stat = Path.stat
+
+        def stat_unless_disappeared(
+            path: Path, *, follow_symlinks: bool = True
+        ) -> object:
+            if path == disappeared:
+                raise FileNotFoundError(path)
+            return real_stat(path, follow_symlinks=follow_symlinks)
+
+        monkeypatch.setattr(Path, "stat", stat_unless_disappeared)
+
+        result = invoke_compact_checkpoint._fallback_get_recent_session_log(
+            str(tmp_path)
+        )
+
+        assert result == readable
+
+    def test_falls_back_to_yesterday_when_today_candidates_are_unreadable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        now = datetime.now(tz=UTC)
+        today = now.strftime("%Y-%m-%d")
+        yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        unreadable = tmp_path / f"{today}-session-001.json"
+        readable = tmp_path / f"{yesterday}-session-001.json"
+        unreadable.write_text("{}", encoding="utf-8")
+        readable.write_text("{}", encoding="utf-8")
+        real_stat = Path.stat
+
+        def stat_unless_unreadable(
+            path: Path, *, follow_symlinks: bool = True
+        ) -> object:
+            if path == unreadable:
+                raise PermissionError(path)
+            return real_stat(path, follow_symlinks=follow_symlinks)
+
+        monkeypatch.setattr(Path, "stat", stat_unless_unreadable)
+
+        result = invoke_compact_checkpoint._fallback_get_recent_session_log(
+            str(tmp_path)
+        )
+
+        assert result == readable
 
 
 @pytest.fixture

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import ntpath
 import os
 import subprocess
 import sys
@@ -572,14 +573,14 @@ def test_validate_group_rejects_unsafe_shim_entries(shims):
 
 def test_shim_resolution_error_fails_closed(tmp_path, monkeypatch, capsys):
     name = _write_shim(tmp_path, "broken.py", "pass\n")
-    real_resolve = chd.Path.resolve
+    real_realpath = chd.os.path.realpath
 
-    def fail_broken_path(path, *args, **kwargs):
-        if path.name == name:
+    def fail_broken_path(path):
+        if Path(path).name == name:
             raise OSError("resolution failed")
-        return real_resolve(path, *args, **kwargs)
+        return real_realpath(path)
 
-    monkeypatch.setattr(chd.Path, "resolve", fail_broken_path)
+    monkeypatch.setattr(chd.os.path, "realpath", fail_broken_path)
 
     code, _, err = _run(capsys, tmp_path, "PreToolUse", chd.GATE, [name])
 
@@ -593,15 +594,15 @@ def test_resolved_shim_escape_fails_closed(tmp_path, monkeypatch, capsys):
     name = _write_shim(tmp_path, "escape.py", "pass\n")
     outside = tmp_path.parent / "outside.py"
     outside.write_text("pass\n", encoding="utf-8")
-    real_resolve = chd.Path.resolve
-    outside_resolved = real_resolve(outside)
+    real_realpath = chd.os.path.realpath
+    outside_resolved = real_realpath(outside)
 
-    def escape_hooks_directory(path, *args, **kwargs):
-        if path.name == name:
+    def escape_hooks_directory(path):
+        if Path(path).name == name:
             return outside_resolved
-        return real_resolve(path, *args, **kwargs)
+        return real_realpath(path)
 
-    monkeypatch.setattr(chd.Path, "resolve", escape_hooks_directory)
+    monkeypatch.setattr(chd.os.path, "realpath", escape_hooks_directory)
 
     code, _, err = _run(
         capsys,
@@ -613,6 +614,28 @@ def test_resolved_shim_escape_fails_closed(tmp_path, monkeypatch, capsys):
 
     assert code == 2
     assert "registered shim path is unsafe" in err
+
+
+def test_path_containment_rejects_sibling_prefix(tmp_path):
+    hooks_dir = tmp_path / "hooks"
+    sibling_shim = tmp_path / "hooks-copy" / "shim.py"
+
+    assert not chd._is_path_within(sibling_shim, hooks_dir)
+
+
+def test_path_containment_normalizes_windows_case_and_drive(monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(chd.os.path, "normcase", ntpath.normcase)
+        patch.setattr(chd.os.path, "commonpath", ntpath.commonpath)
+
+        assert chd._is_path_within(
+            Path(r"C:\Repo\Hooks\shim.py"),
+            Path(r"c:\repo\hooks"),
+        )
+        assert not chd._is_path_within(
+            Path(r"D:\Repo\Hooks\shim.py"),
+            Path(r"c:\repo\hooks"),
+        )
 
 
 @pytest.mark.parametrize(
@@ -641,15 +664,15 @@ def test_resolved_shim_alias_cannot_run_twice(
         "p.write_text(str(int(p.read_text()) + 1) if p.exists() else '1')\n",
     )
     alias = _write_shim(tmp_path, "alias.py", "pass\n")
-    real_resolve = chd.Path.resolve
-    target_resolved = real_resolve(tmp_path / target)
+    real_realpath = chd.os.path.realpath
+    target_resolved = real_realpath(tmp_path / target)
 
-    def resolve_alias(path, *args, **kwargs):
-        if path.name == alias:
+    def resolve_alias(path):
+        if Path(path).name == alias:
             return target_resolved
-        return real_resolve(path, *args, **kwargs)
+        return real_realpath(path)
 
-    monkeypatch.setattr(chd.Path, "resolve", resolve_alias)
+    monkeypatch.setattr(chd.os.path, "realpath", resolve_alias)
 
     code, _, err = _run(
         capsys,
@@ -1158,61 +1181,76 @@ def test_runtime_contract_prompt_group_allows():
     assert result.returncode == 0, result.stderr.decode(errors="replace")
 
 
-def test_runtime_contract_branch_mismatch_blocks_via_push_group(tmp_path):
-    # Negative control: a git push issued from a branch that does not match the
-    # session log's recorded branch must be blocked through the push-chain
-    # group, proving group members really execute under the live manifest and a
-    # member's exit-2 block propagates out of the real dispatch entry point.
+def test_runtime_contract_push_group_blocks_via_member_gate(tmp_path):
+    # Negative control: a real member of the push-chain group must block a git
+    # push through the live dispatch entry point, proving group members execute
+    # under the real manifest and a member's exit-2 block propagates out of the
+    # dispatcher (the prompt-group test above proves the allow path).
     #
-    # branch_context_guard (the group's first shim) keys off the *current*
-    # branch of the resolved project directory versus the branch recorded in
-    # today's session log. A detached-HEAD checkout (CI's PR merge-commit
-    # checkout, or a --detach worktree) reports no current branch, so the guard
-    # fails open and the control becomes vacuous. Point CLAUDE_PROJECT_DIR at a
-    # scratch repo on `main` with a session log that expects a different branch
-    # so the guard deterministically fires.
-    on_main = tmp_path / "on-main"
-    on_main.mkdir()
-    subprocess.run(["git", "init", str(on_main)], check=True, capture_output=True, timeout=30)
+    # session_log_field_guard is the deterministic blocker. It flags a session
+    # log in the pushed changeset that is missing the canonical
+    # protocolCompliance.sessionEnd.markdownLintRun field. Both its changeset
+    # diff and its session-log read key off CLAUDE_PROJECT_DIR, so a scratch
+    # repo makes the block reproducible regardless of the runner's own git
+    # state. gate mode returns the first member's exit code, so whichever
+    # push-precondition member fires first, the group still exits 2.
+    proj = tmp_path / "proj"
+    proj.mkdir()
+
+    def _git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-C", str(proj), *args],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+
+    _git("init")
+    _git("checkout", "-B", "main")
+    _git(
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "user.name=Test",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "base",
+    )
+    # Simulate the remote tip so push_guard_base resolves a diff base instead of
+    # failing open; it needs origin/main to compute the pushed changeset. HEAD
+    # then sits one commit ahead carrying the placeholder session log.
+    base_sha = subprocess.run(
+        ["git", "-C", str(proj), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    ).stdout.strip()
     subprocess.run(
-        ["git", "-C", str(on_main), "checkout", "-B", "main"],
+        ["git", "-C", str(proj), "update-ref", "refs/remotes/origin/main", base_sha],
         check=True,
         capture_output=True,
         timeout=30,
     )
-    # An unborn HEAD (branch created, no commit) makes `git branch
-    # --show-current` return an empty string on some git versions, which would
-    # let branch_context_guard fail open and reintroduce the very
-    # non-determinism this negative control exists to remove. A single empty
-    # commit gives HEAD a born ref so the branch name resolves deterministically.
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(on_main),
-            "-c",
-            "user.email=test@example.com",
-            "-c",
-            "user.name=Test",
-            "commit",
-            "--allow-empty",
-            "-m",
-            "init",
-        ],
-        check=True,
-        capture_output=True,
-        timeout=30,
-    )
-    # A today-dated session log whose recorded branch differs from the scratch
-    # repo's current branch (`main`) is what branch_context_guard blocks on.
-    sessions_dir = on_main / ".agents" / "sessions"
+    sessions_dir = proj / ".agents" / "sessions"
     sessions_dir.mkdir(parents=True)
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    (sessions_dir / f"{today}-session-01.json").write_text(
-        json.dumps({"session": {"branch": "feature/mismatch"}}), encoding="utf-8"
+    # Empty object -> protocolCompliance.sessionEnd.markdownLintRun missing,
+    # which session_log_field_guard blocks on.
+    (sessions_dir / f"{today}-session-01.json").write_text("{}", encoding="utf-8")
+    _git("add", ".agents/sessions")
+    _git(
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "user.name=Test",
+        "commit",
+        "-m",
+        "add session log",
     )
     payload = json.dumps(
-        {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}}
+        {"tool_name": "Bash", "tool_input": {"command": "git push origin main"}}
     ).encode("utf-8")
     result = subprocess.run(
         [
@@ -1220,10 +1258,10 @@ def test_runtime_contract_branch_mismatch_blocks_via_push_group(tmp_path):
             "-u",
             ".claude/hooks/invoke_dispatch_claude.py",
             "--group",
-            "pretooluse-2-branch_context_guard",
+            "pretooluse-2-retrospective_gate",
         ],
         cwd=REPO_ROOT,
-        env=_entry_env({"CLAUDE_PROJECT_DIR": str(on_main)}),
+        env=_entry_env({"CLAUDE_PROJECT_DIR": str(proj)}),
         input=payload,
         capture_output=True,
         timeout=120,
