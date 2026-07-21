@@ -24,8 +24,6 @@ PROJECT_SPECIFIC_HOOKS = [
     ".claude/hooks/SessionStart/invoke_session_initialization_enforcer.py",
     ".claude/hooks/SessionStart/invoke_memory_first_enforcer.py",
     ".claude/hooks/invoke_session_start_memory_first.py",
-    ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
-    ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
     ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
     ".claude/hooks/invoke_adr_change_detection.py",
     ".claude/hooks/Stop/invoke_session_validator.py",
@@ -96,13 +94,9 @@ def _matches_configured_command(script_suffix: str, command: str) -> bool:
 
 _MATCHER_SCOPED_SCRIPTS = [
     ".claude/hooks/PreToolUse/invoke_skill_first_guard.py",
-    ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
 ]
 
 _COMMIT_GATE_SCRIPTS = [
-    ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
-    ".claude/hooks/PreToolUse/invoke_branch_context_guard.py",
-    ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
     ".claude/hooks/PreToolUse/invoke_security_commit_gate.py",
 ]
 
@@ -119,14 +113,6 @@ class TestShellHookMatcherScope:
                     "gh pr create --fill",
                     "echo ready && gh pr create --fill",
                     r"C:\tools\bin\gh pr merge 42 --squash",
-                ],
-            ),
-            (
-                ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
-                [
-                    "git -C repo commit -m fix",
-                    r"C:\tools\git.exe -C repo commit -m fix",
-                    "env gh pr create --fill",
                 ],
             ),
         ],
@@ -170,19 +156,6 @@ class TestShellHookMatcherScope:
         self, script_suffix: str, command: str
     ) -> None:
         assert _matches_configured_command(script_suffix, command)
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "gh pr create --fill",
-            "echo ready && gh pr create --fill",
-            r"C:\tools\gh.exe pr create --fill",
-        ],
-    )
-    def test_session_log_guard_covers_pr_creation(self, command: str) -> None:
-        assert _matches_configured_command(
-            ".claude/hooks/PreToolUse/invoke_session_log_guard.py", command
-        )
 
     @pytest.mark.parametrize(
         "script_suffix", sorted(set(_MATCHER_SCOPED_SCRIPTS + _COMMIT_GATE_SCRIPTS))

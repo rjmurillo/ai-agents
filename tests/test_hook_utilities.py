@@ -141,7 +141,7 @@ class TestIsGitCommitOrPushCommand:
 
 
 class TestIsPrCreateCommand:
-    """M7-T3: gh pr create predicate for multi-matcher session_log_guard."""
+    """gh pr create predicate retained for command classification."""
 
     def test_matches_basic_pr_create(self) -> None:
         assert is_pr_create_command("gh pr create") is True
@@ -169,7 +169,7 @@ class TestIsPrCreateCommand:
 
 
 class TestIsSessionLoggedCommand:
-    """M7-T3: aggregate predicate for hooks registered under git commit + pr create."""
+    """Legacy aggregate predicate retained for compatibility."""
 
     def test_true_for_git_commit(self) -> None:
         assert is_session_logged_command("git commit -m x") is True
@@ -184,7 +184,7 @@ class TestIsSessionLoggedCommand:
         assert is_session_logged_command("git status") is False
 
     def test_false_for_git_push(self) -> None:
-        # push is a different matcher's concern (branch_*_guard)
+        # Push remains outside the aggregate predicate.
         assert is_session_logged_command("git push origin main") is False
 
     def test_false_for_pr_view(self) -> None:

@@ -3329,8 +3329,7 @@ def test_shim_preserves_fail_open_handler() -> None:
     catches Exception and sys.exit(0)s, the shim MUST also wrap its
     synthetic ``return main()`` trailer in a try/except returning 0;
     otherwise an unexpected error from main() escapes the shim as a
-    non-zero exit and breaks the fail-open contract for hooks like
-    invoke_false_completion_gate.
+    non-zero exit and breaks the fail-open contract for observational hooks.
     """
     body = (
         "#!/usr/bin/env python3\n"

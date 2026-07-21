@@ -15,7 +15,6 @@ import json
 import os
 import subprocess
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -82,6 +81,7 @@ def _run_entry(
         [sys.executable, "-u", str(_COPILOT / "hooks" / event / "_dispatch.py")],
         input=json.dumps(payload).encode(),
         capture_output=True,
+        cwd=project_dir if project_dir is not None else _REPO,
         env=env,
         timeout=timeout_sec,
     )
@@ -111,12 +111,14 @@ class TestDispatcherArtifacts:
         removed = (
             "invoke_correction_applier.py",
             "invoke_topical_memory_injection.py",
+            "invoke_branch_context_guard.py",
+            "invoke_session_log_guard.py",
+            "invoke_adr_review_guard.py",
+            "invoke_false_completion_gate.py",
         )
         required_hard_gates = (
-            "invoke_branch_context_guard.py",
             "invoke_security_commit_gate.py",
             "invoke_security_gate.py",
-            "invoke_session_log_guard.py",
         )
         required_session_start = (
             "invoke_session_initialization_enforcer.py",
@@ -246,35 +248,49 @@ class TestDispatcherArtifacts:
 
     def test_pretooluse_denies_blocked_tool(self, tmp_path):
         # The consolidated gate dispatcher must propagate a member guard's deny
-        # end-to-end (#2295 preserved through consolidation). branch_context_guard
-        # blocks a git push whose current branch differs from the branch recorded
-        # in today's session log. Point CLAUDE_PROJECT_DIR at a scratch repo on
-        # `main` with a session log expecting a different branch so the deny is
-        # deterministic and independent of this repo's live session state.
-        on_main = tmp_path / "on-main"
-        on_main.mkdir()
+        # end-to-end (#2295 preserved through consolidation). The security commit
+        # gate blocks a commit with a staged auth file and no security evidence.
+        guarded_repo = tmp_path / "guarded-repo"
+        guarded_repo.mkdir()
         subprocess.run(
-            ["git", "init", str(on_main)], check=True, capture_output=True, timeout=30
-        )
-        subprocess.run(
-            ["git", "-C", str(on_main), "checkout", "-B", "main"],
+            ["git", "init", str(guarded_repo)],
             check=True,
             capture_output=True,
             timeout=30,
         )
-        # A born HEAD makes `git branch --show-current` resolve deterministically;
-        # an unborn HEAD returns empty on some git versions and fails the guard open.
+        subprocess.run(
+            ["git", "-C", str(guarded_repo), "checkout", "-B", "feature/test"],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+        (guarded_repo / "README.md").write_text("seed\n", encoding="utf-8")
         subprocess.run(
             [
                 "git",
                 "-C",
-                str(on_main),
+                str(guarded_repo),
+                "-c",
+                "user.email=test@example.com",
+                "-c",
+                "user.name=Test",
+                "add",
+                "README.md",
+            ],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(guarded_repo),
                 "-c",
                 "user.email=test@example.com",
                 "-c",
                 "user.name=Test",
                 "commit",
-                "--allow-empty",
                 "-m",
                 "init",
             ],
@@ -282,23 +298,26 @@ class TestDispatcherArtifacts:
             capture_output=True,
             timeout=30,
         )
-        sessions_dir = on_main / ".agents" / "sessions"
-        sessions_dir.mkdir(parents=True)
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
-        (sessions_dir / f"{today}-session-01.json").write_text(
-            json.dumps({"session": {"branch": "feature/mismatch"}}), encoding="utf-8"
+        auth_dir = guarded_repo / "Auth"
+        auth_dir.mkdir()
+        (auth_dir / "policy.py").write_text("POLICY = 'strict'\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(guarded_repo), "add", "Auth/policy.py"],
+            check=True,
+            capture_output=True,
+            timeout=30,
         )
         proc = _run_entry(
             _GATING,
             {
                 "tool_name": "Bash",
-                "tool_input": {"command": "git push --force origin main"},
+                "tool_input": {"command": "git commit -m test"},
             },
-            project_dir=on_main,
+            project_dir=guarded_repo,
         )
         assert proc.returncode != 0, "dispatcher allowed a tool a guard blocks"
         combined = proc.stdout + proc.stderr
-        assert b"block" in combined.lower() or b"session" in combined.lower()
+        assert b"security" in combined.lower()
 
     def test_observe_events_run_in_one_process_and_return_zero(self):
         # Each observational dispatcher runs its real shim set end to end and
