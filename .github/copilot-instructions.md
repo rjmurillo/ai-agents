@@ -52,6 +52,11 @@ Multi-step tasks, specialized expertise, big context → prefer delegation via `
 
 **Path**: `../AGENTS.md` (repo root)
 
+Before changing hooks, hook generators, agents, skills, instructions, rules, or
+runtime scripts shared by Claude Code and Copilot CLI, load
+`agent-harness-reference`. Execute contract changes through
+`ai-agents-portability-campaign`. Do not infer one harness from another.
+
 ## Serena MCP Initialization (BLOCKING)
 
 Serena MCP tools available → MUST call FIRST:
