@@ -413,6 +413,15 @@ Add a contract row when a harness adds an event, payload field, decision shape,
 or loading surface. Pin the official source, add a versioned probe when
 documentation is silent, then update the adapter tests and generated mirrors.
 
+## Vendored Use
+
+<!-- vendor-portability: .agents/ and .serena/ paths below are upstream maintainer provenance only. Vendored consumers use this skill's bundled references/ sidecars and do not require those repository trees (issue #2050). -->
+
+The operational contract and refresh procedure ship in this skill's
+`references/` directory. The upstream repository paths below preserve decision
+history for maintainers. Their absence in a consumer repository does not change
+skill behavior.
+
 ## Related
 
 - ADR-071 `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` (Verified Runtime Contract: Copilot 1.0.57, Claude Code 2.1.159, env dump quote); status Accepted 2026-06-02
