@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Initialized the review session and loaded repository constraints, Lefthook migration decisions, and PR-review workflow context; shared-memory import was unavailable because the external plugin script was missing.",
       "caused_by": [
-        "e017"
+        "e018"
       ],
       "leads_to": [
         "e002"
@@ -203,6 +203,18 @@
         "e016"
       ],
       "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a31b7f2c3d",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -212,7 +224,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 4
   },
   "lessons": []
