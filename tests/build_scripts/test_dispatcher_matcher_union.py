@@ -72,7 +72,7 @@ def test_dispatcher_entry_carries_matcher_when_given():
     assert "matcher" not in dispatcher_entry("PreToolUse", 60, None)
 
 
-def test_committed_pretooluse_entry_has_matcher_and_others_do_not():
+def test_committed_matcher_capable_entries_have_matchers():
     hooks = json.loads(
         (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(
             encoding="utf-8"
