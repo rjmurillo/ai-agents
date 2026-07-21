@@ -84,7 +84,7 @@ runs:
       shell: bash
       run: |
         echo "Installing markdownlint-cli2..."
-        npm install --global markdownlint-cli2
+        npm install --global markdownlint-cli2@0.23.1
         echo "✓ markdownlint-cli2 installed"
 
     - name: Install uv (Python package manager)
@@ -112,7 +112,6 @@ runs:
       shell: bash
       run: |
         echo "Installing Python dependencies..."
-        export PATH="$HOME/.local/bin:$PATH"
         if [ -f "pyproject.toml" ]; then
           uv pip install --system -e ".[dev]"
           echo "✓ Python dependencies installed from pyproject.toml"
@@ -135,7 +134,6 @@ runs:
       shell: bash
       run: |
         echo "Verifying Python tools..."
-        export PATH="$HOME/.local/bin:$PATH"
         python3 --version
         if command -v ruff &>/dev/null; then
           ruff --version
@@ -192,7 +190,7 @@ runs:
         if (Get-Command npx -ErrorAction SilentlyContinue) {
           Write-Host "✓ npx is available" -ForegroundColor Green
           # Check if markdownlint-cli2 is available (--help may return non-zero)
-          $null = npx markdownlint-cli2 --help 2>&1
+          $null = npx markdownlint-cli2@0.23.1 --help 2>&1
           Write-Host "✓ markdownlint-cli2 is installed" -ForegroundColor Green
         }
 

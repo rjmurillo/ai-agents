@@ -24,7 +24,7 @@ pre-commit:
         jobs:
           - name: markdown-autofix
             timeout: 5m
-            run: npx markdownlint-cli2 --fix --no-globs -- {staged_files}
+            run: npx markdownlint-cli2@0.23.1 --fix --no-globs -- {staged_files}
             glob: "**/*.md"
             stage_fixed: true
             skip:
@@ -33,7 +33,7 @@ pre-commit:
 
           - name: markdown-check
             timeout: 5m
-            run: npx markdownlint-cli2 --no-globs -- {staged_files}
+            run: npx markdownlint-cli2@0.23.1 --no-globs -- {staged_files}
             glob: "**/*.md"
             skip:
               - merge
