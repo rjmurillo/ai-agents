@@ -10,7 +10,8 @@ Skills must use only these allowed frontmatter properties:
 | `description` | Yes | Max 1024 chars, no angle brackets |
 | `license` | No | MIT, Apache-2.0, etc. |
 | `allowed-tools` | No | Restrict tool access (comma-separated or YAML list) |
-| `model` | No | Specific Claude model (e.g., `claude-sonnet-4-20250514`) |
+| `model` | No | Omit to inherit the harness default (ADR-080). If pinned, only a bare alias pricing below the default (`haiku`) is allowed; a versioned id is rejected. |
+| `model-rationale` | No | Required when `model` is set; one line justifying the pin per ADR-080 |
 | `context` | No | Set to `fork` for isolated sub-agent context |
 | `agent` | No | Agent type when `context: fork` (`Explore`, `Plan`, `general-purpose`) |
 | `hooks` | No | Lifecycle hooks (`PreToolUse`, `PostToolUse`, `Stop`) |
