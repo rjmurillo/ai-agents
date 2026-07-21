@@ -1306,10 +1306,10 @@ def test_branch_context_skips_unreadable_newest_log(
 
     real_stat = Path.stat
 
-    def fake_stat(self: Path, *args: object, **kwargs: object) -> os.stat_result:
+    def fake_stat(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
         if self == unreadable:
             raise OSError("simulated unreadable session log")
-        return real_stat(self, *args, **kwargs)  # type: ignore[arg-type]
+        return real_stat(self, follow_symlinks=follow_symlinks)
 
     monkeypatch.setattr(Path, "stat", fake_stat)
 
