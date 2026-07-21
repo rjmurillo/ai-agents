@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3196,
+    "date": "2026-07-21",
+    "branch": "fix/3196-adr-review-staleness",
+    "startingCommit": "6052287c",
+    "objective": "Harden invoke_adr_review_guard.py line 326: tie debate-log evidence to the staged ADR by content so a stale or cross-branch *debate*.md no longer counts as review evidence (issue #3196 named weakness)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "This Copilot CLI session exposes no serena-* MCP tools; Serena not activated. Loaded context from repository/user memories and read .agents files directly."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* tools available this session; initial_instructions not retrievable."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md earlier this session-family (read-only notice confirmed)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github skill scripts under .claude/skills/github/scripts (merge_pr.py, test_pr_merge_ready.py, get_pr_checks.py)."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory conventions surfaced in loaded memories; github scripts used over raw gh for PR mutations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS and .claude/rules applied (Python-first, atomic commits, no em-dashes, LSP-first)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository and user memories loaded via harness prompt; hook-migration and plugin-versioning facts applied."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3196-adr-review-staleness"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3196-adr-review-staleness, branched from main 6052287c."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status shows the guard, its test, and this log as the only intended changes; retro artifacts kept unstaged."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "6052287c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed for this focused hardening fix."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored a repository memory recording that the #3196 guard-port half is largely done and only retirement remains; no Serena MCP available so memory persisted via Copilot memory."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed; scoped lint not applicable."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit includes invoke_adr_review_guard.py, tests/test_invoke_adr_review_guard.py, and this session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_invoke_adr_review_guard.py: 39 passed; related guard suites 145 passed; ruff clean; mypy clean on the guard."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fix tracked against #3196; PR references the issue."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Merged and babysat PR B #3290 (Windows lefthook integration): confirmed 84 checks green, 0 unresolved threads, squash-merged with branch delete, verified #3289 auto-closed and main Python Tests green on 6052287c.",
+      "files": []
+    },
+    {
+      "action": "Investigated the #3196 guard-port state: branch-protection and branch-context PreToolUse guards are already retired; branch/branch-context/session logic runs as lefthook git_hook_policy.py subcommands. Recorded the scope correction to memory.",
+      "files": []
+    },
+    {
+      "action": "Fixed the line-326 weakness in check_adr_review_evidence: added _extract_adr_ids and _debate_references_adr, threaded staged adr_changes through, and required at least one debate log to reference a staged ADR id by content (survives cross-branch checkout where mtime resets). Falls back to lenient behavior when no ADR id is extractable.",
+      "files": [
+        ".claude/hooks/PreToolUse/invoke_adr_review_guard.py"
+      ]
+    },
+    {
+      "action": "Added pos/neg/edge tests: debate log referencing the staged ADR passes; unrelated/stale debate log blocks with the ADR id in the reason; any-of-many matching passes; canonical-source-only staged change falls back to lenient.",
+      "files": [
+        "tests/test_invoke_adr_review_guard.py"
+      ]
+    }
+  ],
+  "endingCommit": "d73ce822",
+  "nextSteps": [
+    "Open PR referencing #3196 and babysit to green + self-merge once checks pass and threads resolve.",
+    "Post the corrected #3196 coverage matrix as an issue comment so the retirement increments target lefthook, not the stale .githooks path, and surface the gh-pr-create coverage gap for a decision.",
+    "Continue the remaining open issues per the autopilot mandate."
+  ]
+}
