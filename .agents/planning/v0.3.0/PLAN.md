@@ -867,7 +867,7 @@ python -m memory_enhancement verify memory-index
 |-------|-------|---------------|--------|
 | **#751** (P0) | `AGENTS.md`, `.claude/agents/context-retrieval.md`, `.claude/skills/memory/SKILL.md` | Decision matrix in AGENTS.md, all interfaces cross-reference it | [Haiku-Ready](#751-haiku-ready-implementation-option-a-decision-matrix) |
 | **#734** (P1) | `.claude/skills/memory/scripts/MemoryRouter.psm1` (lines 35-40, config) | `Measure-Command { Search-Memory "test" -LexicalOnly }` < 20ms | [Haiku-Ready](#734-haiku-ready-implementation-memory-router-optimization) |
-| **#747** (P1) | `scripts/Sync-MemoryToForgetful.ps1`, `Test-MemoryFreshness.ps1`, `.githooks/pre-commit` | `Test-MemoryFreshness.ps1` returns no stale entries | Plan: `.agents/planning/phase2b-memory-sync-strategy.md` |
+| **#747** (P1) | `scripts/Sync-MemoryToForgetful.ps1`, `Test-MemoryFreshness.ps1`, `lefthook.yml` | `Test-MemoryFreshness.ps1` returns no stale entries | Plan: `.agents/planning/phase2b-memory-sync-strategy.md` |
 | **#731** (P1) | `.claude/agents/skillbook.md`, `.claude/agents/memory.md`, `.claude/agents/retrospective.md` | `grep -c "mcp__serena__\|cloudmcp" .claude/agents/*.md` = 0 | Blocked by #751, #734 |
 
 ##### #751 Haiku-Ready Implementation (Option A: Decision Matrix)
