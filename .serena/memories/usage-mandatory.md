@@ -1,6 +1,6 @@
 # Skill-First: Incident Log
 
-The skill-first rule itself is canonical in [`AGENTS.md`](../../AGENTS.md) ("Skill-First" section, "Never: Raw gh when skills exist") and [`CLAUDE.md`](../../CLAUDE.md) ("Skill routing"). A `invoke_skill_first_guard.py` PreToolUse hook previously enforced it, but ADR-085 (#3217) retired that hook: it self-neutered outside this repo and Copilot CLI ignores repo-committed permission surfaces, so it enforced only Claude sessions in ai-agents and shipped dead to every consumer. The rule is now advisory, carried by the canonical prose above. This memory keeps only the episodic incidents that motivated the rule.
+The skill-first rule itself is canonical in [`AGENTS.md`](../../AGENTS.md) ("Skill-First" section, "Never: Raw gh when skills exist") and [`CLAUDE.md`](../../CLAUDE.md) ("Skill routing"). An `invoke_skill_first_guard.py` PreToolUse hook previously enforced it, but ADR-085 (#3217) retired that hook: it self-neutered outside this repo and Copilot CLI ignores repo-committed permission surfaces, so it enforced only Claude sessions in ai-agents and shipped dead to every consumer. The rule is now advisory, carried by the canonical prose above. This memory keeps only the episodic incidents that motivated the rule.
 
 ## PR Review Comment Routing (session 1187, 2026-02-08)
 

@@ -76,7 +76,7 @@ Grade: CODE. Re-verify command in Provenance.
 
 | Dimension | Contract | Grade | Evidence |
 |-----------|----------|-------|----------|
-| stdin | One JSON object per invocation; PreToolUse carries `tool_name` (string) and `tool_input` (parsed dict) | CODE | `build/scripts/generate_hooks_shim.py:315-325` reads `tool_name`/`toolName` and `tool_input`/`toolArgs` from the payload |
+| stdin | One JSON object per invocation; PreToolUse carries `tool_name` (string) and `tool_input` (parsed dict) | CODE | `.claude/hooks/PreToolUse/invoke_security_gate.py:331` reads the snake_case `tool_input` key directly from the parsed payload (Claude side is snake_case only; no alias normalization) |
 | Exit 0 | Allow. Plain stdout is injected as context (SessionStart, UserPromptSubmit); a JSON `{"systemMessage": ...}` on stdout is an advisory shown to the user | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:12-13,342` prints plain stdout for context injection; the `systemMessage` JSON form is a Claude Code harness affordance |
 | Exit 2 | Block the action via exit 2. The block reason is surfaced on stderr (the agent-visible channel for PreToolUse blocks) and/or printed to stdout | CODE | `.claude/hooks/PreToolUse/invoke_security_gate.py:220-227,375-376` (block reason on stderr, exit 2); `invoke_retrospective_gate.py:325,327` (block reason on stdout, exit 2) |
 | JSON decision payload | Alternative to exit 2: exit 0 plus `hookSpecificOutput.permissionDecision` (allow/deny/ask). The legacy top-level `{"decision":"deny"}` form is ignored by the harness | CODE | `invoke_security_commit_gate.py:16,168-171` documents that the exit-0 `{"decision":"deny"}` form was ignored, so the gate denies via `hookSpecificOutput.permissionDecision` or exit 2 |

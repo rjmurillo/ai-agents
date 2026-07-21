@@ -104,7 +104,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Change tracked against #3217; PR references Fixes #3217 and Refs #3197."
+        "Evidence": "Change tracked against #3217; PR references Refs #3217 (multi-task issue stays open) and Refs #3197."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -161,7 +161,7 @@
   ],
   "endingCommit": "c37476825eafbc8c70c1f1ab679cfaed3255bfd2",
   "nextSteps": [
-    "Open PR with Fixes #3217, body satisfying ADR-085 Decision 2 (no git-observable invariant exists, so pre-execution blocking is retired not relocated) and Decision 6 survivor inventory.",
+    "Open PR with Refs #3217 (keeps the multi-task issue open), body satisfying ADR-085 Decision 2 (no git-observable invariant exists, so pre-execution blocking is retired not relocated) and Decision 6 survivor inventory.",
     "Babysit the PR to green, resolve review threads, self-merge.",
     "Continue epic #3197: #3218 (retire orphaned dispatch/parity/drift machinery) after #3216 and #3217 land."
   ]
