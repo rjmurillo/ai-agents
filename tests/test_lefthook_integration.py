@@ -20,6 +20,13 @@ from scripts.validation import git_hook_policy as policy
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
 SEMGREP = shutil.which("semgrep")
+# lefthook executes `run:` strings through sh, even on Windows. A native
+# sys.executable path there (D:\...\python.exe) has its backslashes eaten by sh,
+# so embed a POSIX-style path (D:/.../python.exe) that sh accepts on both
+# platforms. as_posix() is a no-op on already-POSIX paths. Every lefthook
+# `run:` string that invokes the interpreter must use this, not raw
+# sys.executable (Refs #3289, #3196).
+PYTHON_POSIX = Path(sys.executable).as_posix()
 HOOK_PAYLOADS = (
     PROJECT_ROOT / "scripts/hooks/pre-commit",
     PROJECT_ROOT / "scripts/hooks/pre-push",
@@ -81,11 +88,6 @@ def _commit_file(repo: Path, relative_path: str, content: str) -> str:
 
 def _copy_runtime_config(repo: Path) -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
-    # lefthook executes `run:` strings through sh, even on Windows. A native
-    # sys.executable path there (D:\...\python.exe) has its backslashes eaten by
-    # sh, so embed a POSIX-style path (D:/.../python.exe) that sh accepts on both
-    # platforms. as_posix() is a no-op on already-POSIX paths.
-    python_exe = Path(sys.executable).as_posix()
     for hook_name in ("commit-msg", "pre-commit", "pre-push"):
         jobs = config[hook_name]["jobs"]
         for job in _flatten_jobs(jobs):
@@ -93,10 +95,10 @@ def _copy_runtime_config(repo: Path) -> None:
             if isinstance(run, str):
                 job["run"] = run.replace(
                     "uv run --frozen --extra dev python",
-                    f'"{python_exe}"',
+                    f'"{PYTHON_POSIX}"',
                 ).replace(
                     "uv run --frozen python",
-                    f'"{python_exe}"',
+                    f'"{PYTHON_POSIX}"',
                 )
     (repo / "lefthook.yml").write_text(
         yaml.safe_dump(config, sort_keys=False),
@@ -587,13 +589,13 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
     jobs = [
         {
             "name": "autofix",
-            "run": f'"{sys.executable}" marker.py autofix',
+            "run": f'"{PYTHON_POSIX}" marker.py autofix',
             "skip": [{"run": 'test "$SKIP_AUTOFIX" = "1"'}],
         },
-        {"name": "check", "run": f'"{sys.executable}" marker.py check'},
+        {"name": "check", "run": f'"{PYTHON_POSIX}" marker.py check'},
         {
             "name": "actionlint",
-            "run": f'"{sys.executable}" marker.py actionlint',
+            "run": f'"{PYTHON_POSIX}" marker.py actionlint',
             "skip": [{"run": 'test "$SKIP_ACTIONLINT" = "1"'}],
         },
     ]
@@ -678,7 +680,7 @@ def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
                 {
                     "name": "hangs",
                     "timeout": "1s",
-                    "run": f'"{sys.executable}" -c "import time; time.sleep(30)"',
+                    "run": f'"{PYTHON_POSIX}" -c "import time; time.sleep(30)"',
                 }
             ]
         }
@@ -845,12 +847,12 @@ def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> 
             "jobs": [
                 {
                     "name": "markdown-check",
-                    "run": f'"{sys.executable}" marker.py markdown {{staged_files}}',
+                    "run": f'"{PYTHON_POSIX}" marker.py markdown {{staged_files}}',
                     "glob": "**/*.md",
                 },
                 {
                     "name": "python-check",
-                    "run": f'"{sys.executable}" marker.py python {{staged_files}}',
+                    "run": f'"{PYTHON_POSIX}" marker.py python {{staged_files}}',
                     "glob": "**/*.py",
                 },
             ]
@@ -884,16 +886,16 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     jobs = [
-        {"name": "mypy", "run": f'"{sys.executable}" marker.py mypy', "glob": "**/*.py"},
+        {"name": "mypy", "run": f'"{PYTHON_POSIX}" marker.py mypy', "glob": "**/*.py"},
         {
             "name": "suppression",
-            "run": f'"{sys.executable}" marker.py suppression',
+            "run": f'"{PYTHON_POSIX}" marker.py suppression',
             "glob": "**/*.{py,ps1,psm1}",
             "use_stdin": True,
         },
         {
             "name": "security",
-            "run": f'"{sys.executable}" marker.py security',
+            "run": f'"{PYTHON_POSIX}" marker.py security',
             "glob": "**/*.{py,js,yml,yaml}",
             "use_stdin": True,
         },
@@ -943,7 +945,7 @@ def test_piped_pre_push_stdin_group_broadcasts_to_each_job(tmp_path: Path) -> No
     jobs = [
         {
             "name": name,
-            "run": f'"{sys.executable}" marker.py {name}',
+            "run": f'"{PYTHON_POSIX}" marker.py {name}',
             "use_stdin": True,
         }
         for name in ("push-ref-policy", "security", "suppressions", "identity")
@@ -989,7 +991,7 @@ def test_native_push_files_cover_unpushed_branch_files(tmp_path: Path) -> None:
             "jobs": [
                 {
                     "name": "capture",
-                    "run": f'"{sys.executable}" marker.py {{push_files}}',
+                    "run": f'"{PYTHON_POSIX}" marker.py {{push_files}}',
                     "glob": "**/*.{py,yml}",
                 }
             ]
@@ -1151,7 +1153,7 @@ def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
             "jobs": [
                 {
                     "name": "format",
-                    "run": f'"{sys.executable}" fixer.py {{staged_files}}',
+                    "run": f'"{PYTHON_POSIX}" fixer.py {{staged_files}}',
                     "glob": "*.py",
                     "stage_fixed": True,
                 }
@@ -1689,7 +1691,7 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
                 {
                     "name": "record-staged",
                     "glob": "*.md",
-                    "run": f'"{sys.executable}" record_staged.py {{staged_files}}',
+                    "run": f'"{PYTHON_POSIX}" record_staged.py {{staged_files}}',
                 }
             ]
         }
