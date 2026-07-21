@@ -1,263 +1,490 @@
+---
+id: ADR-068
+status: accepted
+date: 2026-07-20
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-068: Consolidated Per-Event Hook Dispatcher
 
 ## Status
 
-Proposed
+Accepted (2026-07-19). The implementation shipped before the decision record
+completed its lifecycle transition. The mandatory six-agent adr-review reached
+consensus after two rounds: 3 Accept, 3 Disagree-and-Commit, and 0 Block.
+Round 1 P0/P1 accuracy and provenance findings were corrected before the final
+vote. Review evidence and dissent are recorded in
+`.agents/critique/ADR-068-debate-log.md`.
+
+Three later amendments received their own six-role convergence reviews. The
+contract-hardening amendment closed at 6 Accept. The observer-output amendment
+also closed at 6 Accept after failed-observer output, merge semantics,
+alternatives, and residuals were made explicit. The security-policy amendment
+closed at 6 Accept after evidence, rejected replacements, human-governance
+limits, permission-prompt friction, and ADR-085 reconciliation were recorded.
+
+The security-policy amendment removes test-runner auto-approval from both
+harnesses. Test runners execute repository-controlled code, so an exact command
+name cannot establish a safe approval boundary. No `permissions.allow` rule
+replaces the hook. Normal host permission handling remains authoritative.
+Safety-audit findings 19 and 48 record the original over-broad command pattern
+and missing object-shape check. The full-context review at
+`.serena/memories/reviews/fix-copilot-hook-contract-213f3af.md` recorded
+CRITICAL_FAIL for distributing that policy to Copilot CLI. Generic
+PermissionRequest translation remains available and tested for a future
+reviewed policy.
 
 ## Date
 
-2026-06-02
+2026-06-02; amended 2026-07-20
 
 ## Context
 
-Issue #2295 documents intermittent false-positive `preToolUse` denials on
-Copilot CLI. Three of 197 `preToolUse` invocations in a single session were
-killed with `Hook command timed out after 2-3 seconds`; the host then failed
-the tool closed with `Denied by preToolUse hook (hook errored)`. The 194
-successful invocations in the same session prove the shim logic and the #2290
-payload-casing fix (PR #2293) work. The defect is latency, not correctness.
+Issue #2295 records a HISTORICAL Copilot CLI 1.0.57-era incident. Three of
+197 `preToolUse` invocations were killed after 2 to 3 seconds and the host
+denied the tool as `hook errored`. The other 194 invocations completed. The
+incident isolated process startup and aggregate latency as the defect, not the
+guard decisions.
 
-The root cause is a per-tool-call process-spawn storm:
+The proposal-era measurements were:
 
-1. Copilot CLI does not honor a per-hook `matcher` field in `hooks.json`. The
-   host runs every registered `PreToolUse` entry on every tool call. The
-   matcher-shim pattern from ADR-061's alternative B (deterministic full-tree
-   regeneration) self-filters in-process, but only AFTER paying the Python
-   interpreter cold-start cost.
-2. The current generator (`build/scripts/generate_hooks.py`) writes one shim
-   per matcher. The installed `project-toolkit` plugin emits 40 `PreToolUse`
-   shim files.
-3. Measured cold-start cost on Windows (`py -3 -u <shim>`) is ~246 ms per
-   invocation. Sequential aggregate is ~8.7 s. Copilot's observed kill
-   threshold is 2-3 s, which `timeoutSec: 5` in `hooks.json` does not raise:
-   the budget is host-controlled, not generator-controlled.
-4. When the budget is exceeded, Copilot reports `hook errored` and fails
-   closed per ADR-071 Decision item 5. The fail-closed policy is correct.
-   The defect is that a HEALTHY hook is killed by our own dispatch overhead,
-   manufacturing a false `errored` signal.
+- HISTORICAL N=40 `PreToolUse` shim registrations.
+- HISTORICAL Windows cold start of about 246 ms for
+  `py -3 -u <shim>`.
+- HISTORICAL sequential aggregate of about 8.7 seconds.
 
-This is distinct from #2290 (payload casing, fixed) and from #2205 / ADR-071
-(launcher cwd, fixed). Both prior fixes corrected correctness defects. This
-ADR addresses a performance defect that turns ADR-071's fail-closed policy
-into a denial-of-service against benign tool calls.
+Those numbers explain the original decision but do not describe the current
+tree. The current generated tree contains 30 source registrations across six
+events: PostToolUse 2, PreCompact 1, PreToolUse 16, SessionStart 5, Stop 2,
+and UserPromptSubmit 4. The generated `hooks.json` exposes five dispatcher
+entries plus two direct Stop entries. This reduces 30 host command
+registrations to 7, or 76.7 percent.
+
+The two current PostToolUse producers,
+`invoke_markdown_auto_lint.py` and `invoke_observation_sync.py`, emit plaintext
+diagnostics rather than `modifiedResult` or pre-structured hook JSON. The
+observer merger handles that current text contract only. A field-bearing
+producer changes the dispatcher boundary.
+
+Copilot CLI 1.0.72-1 changed two relevant host behaviors:
+
+1. A PascalCase `PreToolUse` matcher was empirically observed to suppress a
+   nonmatching host spawn.
+2. A `timeoutSec: 2` probe timed out and failed open, then executed the tool.
+
+The host still owns command lifetime. A generated `timeoutSec` value is
+metadata supplied to the host, not an in-process deadline controlled by this
+repository.
 
 ## Decision
 
-Generate ONE dispatcher entry per `(plugin, event)` pair instead of one
-entry per `(plugin, event, matcher)` triple. The single dispatcher reads
-stdin once, classifies the payload against every registered matcher in
-memory, and invokes matched guards in-process. Source guards remain
-authored as standalone scripts under `.claude/hooks/<Event>/`; generated
-dispatchers execute each matched guard in `__main__` context using
-`runpy.run_path(...)` so existing script semantics are preserved.
+Generate one dispatcher host entry per active, safely consolidatable Copilot
+hook event. Keep decision events direct when independent structured outputs
+must reach the host. Retain every generated per-matcher shim for consolidated
+events and execute those shims in process through
+`.claude/lib/hook_dispatch.py`. The canonical implementation is split across
+`build/scripts/generate_dispatcher.py`, which emits dispatcher artifacts, and
+`build/scripts/generate_hooks_events.py`, which stages and publishes them.
 
-1. **Single process per event.** A `PreToolUse` tool call spawns the Python
-   interpreter exactly once, regardless of guard count. Cold-start cost is
-   paid once per event, not N times.
-2. **In-process matcher dispatch.** The dispatcher embeds the matcher
-   grammar from `classify_matcher` and walks the registered guards. Guards
-   whose matchers do not fire are skipped without I/O. The grammar
-   (`regex`, `tool-glob`, `bare`) is preserved verbatim from ADR-061's
-   surviving classifier; this ADR does not modify it.
-3. **Fail-closed preserved.** A guard that exits non-zero or raises ends
-   the dispatcher with the same exit code, surfacing through Copilot's
-   existing `hook errored` path. The dispatcher itself fails closed (exit
-   2) on malformed stdin, missing `tool_name`, or guard import failure.
-   ADR-071 Decision item 5 (prevention plus loud failure) is unchanged.
-4. **Bounded shared budget.** The dispatcher enforces a per-event
-   wall-clock cap (default 1500 ms, configurable via
-   `COPILOT_HOOK_DISPATCH_BUDGET_MS`). On budget exhaustion it fails
-   closed with a structured `budget_exceeded` reason so the failure is
-   distinguishable from a guard rejection.
-5. **No daemon.** The dispatcher is short-lived. ADR-071's host-launcher
-   contract (cwd, exit code semantics) is unchanged. No persistent IPC.
-6. **Regenerated artifacts are authoritative.** Per
-   `.claude/rules/generated-artifacts.md` and ADR-061's CI drift gate, the
-   committed `src/copilot-cli/hooks/` tree is regenerated deterministically
-   and `git diff --exit-code` runs in CI. The dispatcher file format must
-   round-trip identically on repeat generation.
+1. **One host entry per consolidatable event.** The generated manifest preserves
+   registered shim order. `_dispatch.py` reads stdin once and delegates each
+   named shim to `hook_dispatch.py`, which uses
+   `runpy.run_path(str(shim_path), run_name="__main__")`. Configured `Stop` and
+   `SubagentStop` targets bypass consolidation. The current source tree has two
+   Stop registrations and no SubagentStop registration. Native `agentStop` and
+   `subagentStop` names are defensive exclusions if future mappings target
+   them. Copilot removes progress records, concatenates remaining stdout, then
+   parses one JSON document per command hook. A dispatcher that passes through
+   multiple Stop decisions would produce invalid JSON and discard them.
 
-## Prior Art Investigation
+2. **Host matcher union plus per-shim self-filtering.** For `PreToolUse`,
+   `PostToolUse`, and `PermissionRequest`, the generator emits a host-side
+   matcher only when every registered Claude matcher can be reduced safely to
+   known tool names. It emits the ordered `|` union. If any matcher is empty,
+   wildcarded, unknown, or otherwise not safely reducible, it emits no host
+   matcher. A supporting host can then avoid nonmatching dispatcher spawns.
+   A host that ignores the field, and every no-matcher fallback, still invokes
+   the dispatcher. The retained generated shims remain the final matcher
+   authority and self-filter in process. Issue #3075 owns the host-union
+   optimization.
 
-### What Currently Exists
+   Manifest order preserves canonical registration order. The dispatcher does
+   not infer a security priority from file names or reorder guards.
+   Risk-prioritized ordering has no stable policy contract and can only move,
+   not remove, the later-shim bypass. Any isolation change belongs to the
+   measured hybrid alternative below.
 
-- **Pattern**: One shim file per `(event, matcher, source-script)` triple.
-  Introduced by REQ-003-007 and re-affirmed in ADR-061's alternative B.
-- **When introduced**: ADR-061 debate (2026-05-27) chose alternative B
-  (deterministic full-tree regeneration with CI drift gate) over a
-  delegate-shim refactor.
-- **Original author and context**: The per-matcher-shim layout was chosen
-  because Copilot CLI does not parse `matcher`, so the host needs N
-  separate entries to surface per-matcher dispatch. The original cost model
-  assumed shim count would stay small (ADR-061 cited three multi-matcher
-  hooks; #2112 tracked the revisit threshold at eight).
+3. **Three execution modes with distinct exit behavior.**
 
-### Historical Rationale
+   - `gate`, used by `PreToolUse`, runs shims in manifest order. It stops on
+     the first nonzero exit and returns that exit unchanged. A missing shim,
+     empty shim list, malformed manifest, invalid timeout metadata, or
+     unexpected dispatcher exception returns 2. If every registered shim
+     returns 0, the dispatcher returns 0.
+   - `observe`, used only by the explicit PostToolUse, PreCompact,
+     SessionStart, and UserPromptSubmit allowlist, runs every shim. Missing
+     shims and nonzero exits are
+     reported to stderr, but do not stop siblings. Normal observer dispatch
+     returns 0. Entrypoint or manifest validation failure still returns 2,
+     after which the host applies that event's policy. PostToolUse captures
+     nonblank stdout only from successful shims, preserves registration order,
+     and emits one documented `additionalContext` object. The merger creates
+     flat text separated by one blank line. It does not preserve per-shim
+     attribution. SessionStart and PreCompact capture Python stream output,
+     direct writes to file descriptor 1, inherited child-process stdout,
+     Python stderr, direct writes to file descriptor 2, and inherited
+     child-process stderr, then discard the raw content. Normal discard
+     diagnostics name the lifecycle event and never repeat the content.
+     Capture-failure and observer-exit diagnostics are fixed but can be generic.
+     Silent observers emit nothing. Partial output from a failing observer is
+     discarded.
+     UserPromptSubmit has no documented
+     config-file output field, so successful shim stdout is redirected to
+     stderr. Its side effects still run. Stderr is not a documented
+     model-context path, and whether it enters model context remains docs
+     silent. Any event outside the explicit mode allowlists stays as direct host
+     registrations until its output and failure contracts are reviewed. A
+     future `modifiedResult` or pre-structured JSON producer must add a
+     field-specific merger or remain direct.
+   - `advise`, used by `PermissionRequest`, requires exactly one decision
+     producer. A recognized exit-0 Claude object
+     `{"decision":"approve|deny|ask","reason":"R"}` becomes
+     `{"behavior":"allow|deny","message":"R","interrupt":false}` for approve
+     or deny. Claude `ask` emits no Copilot output because Copilot accepts no
+     `behavior: "ask"` value. Empty output invokes the host's normal permission
+     handling. A 1.0.72-1 noninteractive probe denied in that mode, but this ADR
+     does not treat empty output as a universal deny contract.
+     Blank exit-0 output remains blank. Malformed or unrecognized exit-0
+     output is suppressed with a stderr diagnostic. Every nonzero producer
+     exit propagates unchanged. A missing or multiple producer returns 2.
 
-- **Why was it built this way?** Simplicity. One shim per matcher means
-  each entry is self-contained, debuggable in isolation, and the matcher
-  grammar can evolve without touching a shared dispatcher. ADR-061's
-  withdrawal rationale explicitly rejected shared-body delegation as
-  speculative abstraction.
-- **What alternatives were considered?** ADR-061 weighed a delegate-shim
-  refactor and rejected it on cost and drift grounds. No alternative
-  considered shim COUNT as a performance variable.
-- **What constraints drove the design?** Copilot CLI's lack of `matcher`
-  support, the desire to keep shims trivially auditable, and ADR-008's
-  preference for declarative over imperative configuration.
+4. **No in-process budget watchdog.** The manifest records positive,
+   non-boolean integer timeout metadata, and the consolidated host entry uses
+   the sum of per-shim timeout values. The current PreToolUse manifest has 16
+   shims whose configured values sum to 555 seconds. The host owns the aggregate
+   process timeout. The 1.0.72-1 probe tested only a 2-second timeout. No
+   evidence proves the host grants, caps, or enforces the requested 555 seconds.
+   There is no `COPILOT_HOOK_DISPATCH_BUDGET_MS`, 1500 ms default, `SIGALRM`,
+   watchdog thread, or structured `budget_exceeded` result.
+   In-process termination was rejected because a watchdog thread cannot safely
+   kill a running Python thread, while an asynchronous signal can interrupt a
+   guard in arbitrary interpreter state and is not a cross-platform contract.
+   Killing the dispatcher process would duplicate the host kill and would not
+   preserve later guards.
 
-### Why Change Now
+5. **PermissionRequest translation is a dormant, tested capability.** Copilot
+   CLI 1.0.72-1 empirically ignored the canonical Claude decision shape and
+   accepted the Copilot `behavior` shape. No PermissionRequest producer is
+   registered now. The prior test-runner approval was removed because runners
+   can execute repository-controlled code and destructive runner options. Any
+   future producer needs security review and this adapter or an equivalent
+   translation. The protected assets are the developer workstation, repository
+   state, and the user's approval decision. Human ADR and PR review is the
+   current compensating control. No mechanical CI gate proves that review
+   occurred. A future producer must also refresh the host contract and add
+   cross-harness positive, negative, edge, and destructive-option tests.
 
-- **Has the original problem changed?** Yes. Shim count grew from three
-  multi-matcher hooks (ADR-061's measurement) to forty `PreToolUse` entries
-  in the shipped `project-toolkit` plugin. ADR-061's threshold (eight
-  multi-matcher hooks) is exceeded by 5x. The ADR-061 follow-up issue
-  #2112 anticipated this revisit.
-- **Is there a better solution now?** Yes. A single dispatcher per event
-  collapses N cold starts to one. The matcher grammar is small enough
-  (~120 lines in `classify_matcher` plus the runtime mirror) to embed
-  in-process without re-introducing the drift class ADR-061 worried about,
-  because there is now ONE dispatcher per event (not N delegates).
-- **What are the risks of change?** A dispatcher bug affects every guard
-  for that event. Mitigation: the runtime-contract test from ADR-071
-  already exists; extend it to cover the dispatcher's classify-and-route
-  path with the full installed guard set.
+   The ADR owner is accountable for approving any future producer. Registering
+   `PermissionRequest` without the same-change review, probe, and tests violates
+   this decision even though no mechanical gate currently proves the review
+   occurred.
 
-## Rationale
+   The adapter remains because it is inert, tested, and has no registration.
+   Deleting it would reduce no current runtime risk and would add reconstruction
+   cost for a future reviewed producer. ADR-085 initially ratified
+   `test_auto_approval` as keep-as-hook. Its later security amendment supersedes
+   that D-B ruling and now aligns with this decision: a runner-name allow rule or
+   hook does not qualify because the runner still executes repository-controlled
+   code.
 
-### Alternatives Considered
+6. **Publication and cleanup are transactional.**
+   `build/scripts/generate_hooks_events.py` generates dispatcher files in a
+   staging directory, discovers stale generated matcher shims in the published
+   tree, and routes deletion and publication through
+   `HookGenerationTransaction`. Orphan event cleanup removes only files whose
+   ownership is proven by a matching manifest, dispatcher and bootstrap
+   signatures, and generated or canonical-equivalent shim bodies. Symlinks,
+   path escapes, malformed manifests, unknown files, and NO-REGEN files are
+   preserved. Empty orphan directories are removed with nonrecursive `rmdir`
+   only after commit.
 
-| Alternative | Pros | Cons | Why Not Chosen |
-|-------------|------|------|----------------|
-| Raise `timeoutSec` in `hooks.json` | Zero generator change | Copilot ignores it (killed at 2-3s when set to 5s); host-controlled budget | Rejected: ineffective |
-| Speed up each shim body | Minimal architectural change | Python cold start (~200 ms) is a floor; 40 x floor still blows budget | Rejected: insufficient |
-| Persistent hook daemon | Lowest steady-state latency | Process lifecycle, IPC, stale-state, security surface; violates ADR-071 launcher contract | Rejected: disproportionate; revisit only if single-dispatcher is insufficient |
-| Consolidated per-event dispatcher | Collapses N spawns to 1; preserves ADR-071 fail-closed; preserves ADR-061 grammar; no new IPC | One dispatcher bug affects all guards for that event | **Chosen**: smallest change that fits within the host-imposed budget |
+7. **Direct decision-event cleanup is ownership-proven.** When an event changes
+   from dispatcher mode to direct registrations, the generator removes only
+   signature-verified `_manifest.json`, `_dispatch.py`, and `_bootstrap.py`
+   files. It does not hand-delete or infer ownership from names.
 
-### Trade-offs
+8. **Generated artifacts remain authoritative.** The committed
+   `src/copilot-cli/hooks/` tree is regenerated from canonical sources. Manual
+   edits to generated mirrors are not accepted.
 
-The per-shim-file isolation that ADR-061 valued is exchanged for a single
-dispatcher per event. Debuggability is preserved because guards remain
-authored as standalone scripts under `.claude/hooks/<Event>/`; they run
-unchanged in Claude Code (which DOES honor `matcher` and dispatches one
-guard per entry natively). The dispatcher is a Copilot-side adapter, not
-a replacement for the canonical guard layout.
+## Why the In-Process Kill Was Rejected
 
-A dispatcher failure cascades to every guard for that event. ADR-071's
-runtime-contract gate caught the launcher cwd defect that motivated it;
-the same gate must be extended to cover dispatcher classification and
-route correctness against the full installed guard set, not a sample.
+The dispatcher deliberately executes guards in one interpreter. That design
+removes process startup but also removes process isolation between guards.
+Python provides no safe, portable operation that terminates one running guard
+and leaves the shared interpreter trustworthy. A thread can request
+cancellation but cannot force it. `SIGALRM` is POSIX-specific and can arrive
+while a guard mutates process-global state. Starting each guard in a child
+process would restore termination isolation but also restore the spawn cost
+this ADR removes.
+
+The remaining timeout boundary is therefore the host process. On the measured
+Copilot CLI 1.0.72-1 behavior, a host timeout fails open. In the worst manifest
+order, a hung first PreToolUse shim can prevent up to 15 later registered shims
+from running, including any applicable guard among them. The host can then
+allow the tool. Consolidation increases this blast radius. It does not claim
+universal fail-closed behavior.
+
+## Prior Art and Current Rationale
+
+ADR-061 retained deterministic per-matcher shim generation and a drift gate.
+That layout remains inside the event dispatcher. ADR-068 changes host
+registration count, not canonical guard authorship or matcher semantics.
+
+The current reasons to keep the dispatcher are:
+
+1. One host process per event avoids repeated Python startup.
+2. Per-shim self-filtering provides a fallback for old hosts and matchers that
+   cannot be represented safely as a host union.
+3. Generic PermissionRequest translation prevents future policy producers from
+   sending Claude-only output to Copilot.
+
+## Alternatives Considered
+
+| Alternative | Result |
+|-------------|--------|
+| Keep one host entry per shim | Rejected as the default because it restores repeated interpreter startup. It remains the rollback shape. |
+| Depend only on host matchers | Rejected because matcher support is version-sensitive and not every Claude matcher reduces safely. |
+| Add an in-process watchdog | Rejected because safe cross-platform termination of one in-process guard is unavailable. |
+| Run each guard in a child process | Rejected because it restores the process-spawn cost and complexity. |
+| Persistent daemon | Rejected because lifecycle, IPC, stale state, and recovery exceed the current need. |
+| Keep output-bearing observers direct | Required unless an event-specific merger preserves one valid JSON document. |
+| Keep PreCompact direct with shell suppression | Rejected as the normal mode because it restores repeated startup. Retained as the behavior-preserving rollback shape. |
+| Keep UserPromptSubmit direct | Rejected because plaintext output has no documented host field and direct entries restore repeated startup. |
+| Discard observer stdout by default | Rejected. Only SessionStart and PreCompact have reviewed discard policies. UserPromptSubmit uses stderr, and unclassified events stay direct. |
+| Consolidate observers but direct-register every PreToolUse gate | Reduces aggregate gate blast radius, but restores 16 host processes and the startup cost this ADR addressed. Re-evaluate under #3218 using the decision rule below. |
+| Reorder guards by perceived risk, or split selected critical gates | No stable criticality contract exists, and reordering only changes which later guards a hang bypasses. A split is a narrower form of the hybrid and needs the same measurement. |
+| Tighten test-runner command matching | Rejected because a narrower pattern keeps the same trust flaw. A command name cannot prove the code executed by the runner is safe. |
+| Replace the hook with `permissions.allow` (#3192, #3217) | Rejected for test runners because it recreates the same trust flaw on a declarative surface. |
+| Delete the dormant PermissionRequest adapter | Rejected because it has no runtime registration, and deletion would add reconstruction cost without reducing current risk. |
+| Add a mechanical security-review gate in this amendment | Deferred because no machine-verifiable review artifact exists. This ADR states the human control without claiming an unbuilt gate. |
+| Consolidated per-event dispatcher | Chosen, with the host-timeout bypass recorded as residual risk. |
 
 ## Consequences
 
 ### Positive
 
-- Per-call hook wall-clock collapses from N x cold-start to 1 x cold-start
-  plus in-memory matcher dispatch. With N=40 and cold start ~246 ms, the
-  expected reduction is ~8.5 s -> ~300 ms, well inside Copilot's observed
-  2-3 s budget with margin.
-- Fail-closed semantics are preserved; the false-positive denials in
-  issue #2295 disappear because healthy guards are no longer killed by
-  dispatch overhead.
-- ADR-061's drift gate (deterministic full-tree regeneration + CI diff)
-  applies unchanged: the dispatcher file is regenerated from canonical
-  on every run.
-- Fewer files in `src/copilot-cli/hooks/<event>/`: one dispatcher per
-  event instead of N shims. PR review surface shrinks.
+- The current tree reduces 30 source registrations to seven host command
+  entries.
+- Hosts that support matchers can skip a dispatcher spawn for safely reduced
+  nonmatching tool calls.
+- Retained self-filtering keeps the generated shim matcher grammar as the
+  fallback authority.
+- A future reviewed PermissionRequest producer can receive the Copilot response
+  shape without changing its canonical Claude output. Claude `ask` falls through
+  to normal host permission handling. No permission policy is currently active.
+- Removing test-runner approval restores the user's decision before
+  repository-controlled test code executes.
+- Stop hooks remain independent, so each structured decision reaches Copilot
+  as one valid JSON document.
+- One transaction owns dispatcher publication, stale matcher-shim deletion,
+  and ownership-proven orphan file cleanup.
 
 ### Negative
 
-- A dispatcher defect (classifier mismatch, import failure) takes down
-  every guard for that event. Mitigation: extend ADR-071's runtime-contract
-  test to assert that, for every installed `(event, matcher, payload)`
-  triple, the dispatcher routes to the same guard the per-shim layout would
-  have invoked.
-- The dispatcher executes matched guard scripts in-process via
-  `runpy.run_path(..., run_name='__main__')` and must replay buffered stdin
-  for each guard so canonical guard contracts remain unchanged. A bug in
-  stdin replay or guard ordering can reject valid tool calls; mitigate with
-  runtime-contract tests that cover multi-guard matches and payload replay.
+- One dispatcher defect affects every shim registered for that event.
+- One hung consolidated gate can reach the host timeout before later guards
+  execute. On the measured 1.0.72-1 host, that timeout fails open. A first-shim
+  hang can bypass up to 15 later registered PreToolUse shims.
+- In-process guards share interpreter state, stdin replay, and module state.
+- The current 555-second summed PreToolUse `timeoutSec` is a request to the
+  host. No current evidence shows whether the host grants, caps, or enforces it.
+- The observer merger treats PostToolUse stdout as context text. The flat
+  blank-line merge loses per-shim attribution. It does not merge
+  `modifiedResult` or pre-structured JSON.
+- SessionStart and PreCompact stdout and stderr are discarded on Copilot.
+  Capture covers Python streams, direct writes to file descriptors 1 and 2,
+  and inherited child-process output on both channels. Current producers load
+  branch-controlled session state, so sending that text through a host-visible
+  output channel would create a prompt-injection path.
+- PostToolUseFailure remains direct. Generic observe mode discards nonzero-shim
+  stdout, but the host converts exit-2 stdout for this event into recovery
+  context.
+- Observer stdout has no repository-enforced size ceiling. Registered shims are
+  generated, trusted artifacts, but a defective shim can produce an oversized
+  host response.
+- UserPromptSubmit text is diagnostic-only on Copilot because the official
+  config-file contract documents no output field for that event. Whether stderr
+  enters model context remains docs silent.
+- Unclassified future events remain direct. This preserves host-defined output
+  and exit semantics until an event-specific review authorizes consolidation.
+- Test-runner commands now use normal host permission prompts. This is accepted
+  friction because no automated command-name boundary safely replaces the user
+  decision.
 
 ### Neutral
 
-- Claude Code behavior is unchanged. Claude Code parses `matcher` natively
-  and continues to dispatch guards one-per-entry from the canonical
-  `.claude/hooks/<Event>/` layout. The dispatcher is Copilot-only.
-- ADR-035 exit-code standardization (0=ok, 1=logic, 2=config) carries
-  through: the dispatcher's own errors are 2 (config / malformed input);
-  guard exits propagate.
+- Claude Code continues to use its canonical registration and matcher behavior,
+  except that test-runner PermissionRequest approval is removed from both
+  harnesses.
+- Guard nonzero exits keep their values in gate and advise modes.
+- Observer shim failures remain diagnostics rather than gates during normal
+  dispatch.
+- PreCompact generation follows the official event contract. The 1.0.72-1
+  trigger probe was inconclusive.
+
+## Reversibility and Rollback
+
+The decision owns no persistent data. Setting `artifacts.hooks.dispatcher` to
+false and regenerating restores per-shim `hooks.json` registrations. Direct
+SessionStart and PreCompact commands retain every producer and its side effects,
+but the generator appends shell-level stdout and stderr redirection before the
+Python process starts. This also suppresses direct file-descriptor and inherited
+child-process output. The generation-level rollback test executes the direct
+SessionStart command, proves its file side effect, and proves both captured
+channels are empty. Direct UserPromptSubmit commands redirect stdout to stderr.
+Do not remove lifecycle registrations as a rollback step.
+Existing dispatcher support files become unregistered artifacts and must be
+removed only through an ownership-proven generator change, not a hand deletion.
+
+Stop uses the rollback shape because direct registration is its accepted
+policy. SubagentStop will use the same shape if a source registration is added.
+
+Rollback restores process isolation and repeated startup. No PermissionRequest
+producer is currently registered, so rollback does not change active permission
+handling. A future producer would require replacement translation or explicit
+event removal before rollback. Re-enabling dispatcher mode and regenerating
+restores the current layout.
+
+## Re-evaluation Triggers
+
+Reopen this decision when any of these occurs:
+
+1. A material Copilot CLI version changes matcher, timeout, nonzero-exit, or
+   structured-output behavior.
+2. The active PreToolUse manifest grows beyond 16 shims or its summed requested
+   timeout grows beyond 555 seconds.
+3. A new PermissionRequest producer or a new blocking gate joins the
+   consolidated path.
+4. A PostToolUseFailure producer emits repository-controlled or other untrusted
+   content. Its direct exit-2 stdout becomes model recovery context and requires
+   security review.
+5. #3218 produces a Linux and Windows comparison of the current dispatcher and
+   the hybrid direct-gate alternative.
+
+For #3218, declare the interactive latency budget before running the comparison.
+Measure p50, p95, and p99 latency, host-process count, and maximum later-gate
+bypass for both modes on the same CLI version and workload. Adopt the hybrid
+only if every direct gate's p99 stays below half the shortest observed host
+timeout and total p95 stays inside the predeclared user-facing latency budget.
+Otherwise retain consolidation and record the rejected measurement. No current
+benchmark means no architecture change.
 
 ## Impact on Dependent Components
 
-| Component | Dependency Type | Required Update | Risk |
-|-----------|----------------|-----------------|------|
-| `build/scripts/generate_hooks.py` | Direct | Replace per-matcher shim emission with per-event dispatcher emission; execute matched guards via `runpy.run_path` in `__main__` context | High (load-bearing) |
-| `src/copilot-cli/hooks/**` | Direct | Regenerated tree shape changes: one file per event instead of N | Medium (gated by ADR-061 CI drift check) |
-| `tests/build_scripts/test_generate_hooks.py` | Direct | New parametrized tests covering dispatcher routing, fail-closed on malformed input, budget enforcement, and guard isolation | High (must cover full installed guard set, not samples) |
-| `.agents/governance/GENERATOR-FILES.md` | Indirect | Document dispatcher pattern alongside per-matcher-shim history | Low |
-| Claude Code `.claude/hooks/**` | None | Unchanged | None |
-| ADR-071 runtime-contract test | Direct | Extend to assert dispatcher classification matches per-matcher reference for every installed payload | High |
-| `.claude/rules/generated-artifacts.md` | Indirect | Add dispatcher runtime-test requirement to the runtime-contract test family | Low |
+| Component | Owner and required behavior | Risk |
+|-----------|-----------------------------|------|
+| `build/scripts/generate_dispatcher.py` | Emits matcher unions, manifests, entrypoints, and dispatcher host entries | High |
+| `build/scripts/generate_hooks_events.py` | Integrates consolidation and owns transaction-backed publication and deletion | High |
+| `.claude/lib/hook_dispatch.py` | Canonical in-process gate, observe, and advise runtime | High |
+| `src/copilot-cli/lib/hook_dispatch.py` | Generated runtime mirror, regenerated from `.claude/lib/hook_dispatch.py` | High |
+| `build/scripts/generate_hooks.py` | CLI facade and module-level generation contract | Medium |
+| `src/copilot-cli/hooks/**` | Generated manifests, entrypoints, bootstrap copies, and retained shims | Medium |
+| `.claude/settings.json` | Claude hook registrations; must not carry the removed test-runner approval | Medium |
+| `.claude/hooks/hooks.json` | Plugin hook registrations; must not carry the removed test-runner approval | Medium |
+| `.claude/hooks/dispatch_groups.json` | Grouped hook source; must not carry the removed approval producer | Medium |
+| `.claude/skills/agent-harness-reference/references/official-hook-contracts.md` | Pinned output-field authority and docs-silent ledger | High |
+| `tests/test_hook_dispatch.py` | In-process output-policy and merger contract tests | High |
+| `tests/build_scripts/test_copilot_dispatcher_artifact.py` | Proves the producer, generated event directory, and all permission allow rules remain absent | High |
+| `tests/build_scripts/test_generate_dispatcher.py` | Generated-entrypoint, mode, manifest, and security contract tests | High |
+| `tests/build_scripts/test_generate_hooks.py` | Transaction, rollback, stale-shim, and orphan cleanup tests | High |
+| `tests/build_scripts/test_dispatcher_matcher_union.py` | Host matcher union and no-matcher fallback tests for #3075 | Medium |
+| `.agents/governance/GENERATOR-FILES.md` | Generator ownership inventory | Low |
 
 ## Implementation Notes
 
-The implementer agent should treat this as a generator-only change with a
-test-first reproduction:
+The shipped implementation differs from the original proposal in these
+important ways:
 
-1. **Failing test first.** Add regression tests that construct a synthetic
-   `hooks.json` with 40 `PreToolUse` entries and assert structural behavior:
-   one generated Copilot dispatcher entry per event, matcher-equivalent
-   routing, and deterministic guard order. Keep timing checks non-blocking
-   (diagnostic benchmark only) to avoid CI flake from host variability.
-2. **Generator change.** In `generate_hooks.py`, replace the per-matcher
-   shim loop with a per-event dispatcher emission. The dispatcher template
-   embeds `_shim_classify` (the runtime mirror of `classify_matcher`) once
-   and dispatches a list of `(matcher, guard_module_path)` tuples.
-3. **Guard execution model.** The dispatcher resolves guard paths under
-   `${COPILOT_PLUGIN_ROOT}` with `${CLAUDE_PLUGIN_ROOT}` fallback (matching
-   the existing per-shim resolution). Buffer stdin once at dispatcher entry,
-   then replay the same payload before each matched guard. Execute each guard
-   via `runpy.run_path(path, run_name='__main__')` so existing
-   `if __name__ == '__main__'` paths run without requiring guard rewrites.
-4. **Budget enforcement.** Use `signal.SIGALRM` on POSIX and a watchdog
-   thread on Windows. On budget exhaustion the dispatcher exits 2 with a
-   stderr line containing `budget_exceeded` for log parseability.
-5. **Drift gate.** ADR-061's `git diff --exit-code src/copilot-cli/hooks/`
-   step in CI catches non-deterministic dispatcher emission. The generator
-   must sort guards by `(matcher_kind, matcher_pattern, source_path)`
-   before emission.
-6. **Runtime-contract extension.** Extend the ADR-071 runtime-contract test
-   to enumerate every installed guard and assert that the dispatcher routes
-   each registered matcher to the same guard the per-shim layout would
-   have invoked. Use the matcher classification table as the oracle.
-
-The implementer should NOT add a launcher-level fail-open; ADR-071 closed
-that path explicitly. The dispatcher fails closed on all internal errors.
+1. Per-matcher wrappers are retained for consolidated events. Stop and
+   SubagentStop remain direct host registrations.
+2. `event_matcher_union` adds an optional host-side matcher union and omits it
+   when reduction is unsafe.
+3. `hook_dispatch.py` owns the mode behavior. The generated entrypoint validates
+   event identity, mode, shim basenames, timeout metadata, and stdin size before
+   delegation.
+4. Timeout values are metadata for the host. No in-process timeout enforcement
+   exists.
+5. Stale generated matcher shims are discovered by
+   `generate_dispatcher.find_stale_matcher_shims` but deleted only by
+   `HookGenerationTransaction` in `generate_hooks_events.py`.
+6. Runtime-contract subprocess tests execute generated entrypoints. The
+   Copilot 1.0.72-1 claims come from isolated probes recorded by ADR-071, not
+   from an assertion that the committed authenticated E2E was run.
+7. Generic PermissionRequest tests translate approve and deny. Ask produces no
+   output. No PermissionRequest producer is registered in either harness.
+8. PreCompact is a supported generated observe event based on the official
+   contract. The 1.0.72-1 trigger probe was inconclusive.
+9. Observe mode merges PostToolUse text into one `additionalContext` response.
+   Only successful shims contribute; failed-shim partial output is discarded.
+   SessionStart and PreCompact capture includes Python stdout and stderr,
+   direct writes to file descriptors 1 and 2, and inherited child-process
+   output on both channels. Their text is discarded because current producers
+   load branch-controlled repository prose. Normal discard diagnostics name the
+   actual event and never repeat captured content. Capture-failure and
+   observer-exit diagnostics remain fixed but can be event-neutral.
+   UserPromptSubmit text is redirected to stderr.
+   PostToolUseFailure stays direct so exit-2 recovery context reaches the host.
+   Every unclassified event stays direct. A new field-bearing producer requires
+   a field-specific merger or direct registration.
+10. The focused removal regression ran on 2026-07-20:
+    `uv run pytest tests/test_hook_dispatch.py
+    tests/build_scripts/test_copilot_dispatcher_artifact.py
+    tests/build_scripts/test_generate_dispatcher.py
+    tests/build_scripts/test_generate_hooks.py
+    tests/build_scripts/test_dispatcher_matcher_union.py -q`.
+    Result: 370 passed, 1 skipped.
 
 ## Related Decisions
 
-- ADR-061 (withdrawn): Hook matcher shims delegate pattern. Establishes the
-  matcher grammar this ADR preserves and the drift-gate discipline this
-  ADR inherits.
-- ADR-071: Plugin hook runtime-contract verification. Establishes
-  fail-closed semantics and the runtime-contract test family this ADR
-  extends.
-- ADR-035: Exit-code standardization. Governs the dispatcher's exit codes.
-- ADR-008: Protocol automation lifecycle hooks. Governs hook event taxonomy.
+- ADR-061: deterministic matcher shim generation and drift discipline.
+- ADR-066: prevention-first launcher policy. It does not override measured
+  host timeout behavior.
+- ADR-071: version-scoped hook runtime contract and evidence.
+- ADR-035: repository exit-code categories.
+- ADR-084: host-native mechanism preference applies only when the effect is
+  equivalent.
+- ADR-085: permission-surface asymmetry and the superseding D-B deletion.
 
 ## References
 
-- Issue #2295: source defect (this ADR).
-- Issue #2290 / PR #2293: payload casing fix. Distinct defect, verified
-  working in the same session that surfaced #2295.
-- Issue #2205: launcher cwd fix (ADR-071).
-- Issue #2230: launcher-level fail-open proposal, closed
-  addressed-by-prevention. Reaffirmed by this ADR's Decision item 3.
-- Issue #2112: ADR-061 follow-up tracking when to revisit shared-body
-  patterns. Threshold (eight multi-matcher hooks) exceeded.
-- `.claude/rules/generated-artifacts.md`: runtime-contract test
-  requirement.
-- `build/scripts/generate_hooks.py`: current per-matcher generator.
+- Issue #2295: historical process-spawn incident.
+- Issue #2342: observer consolidation and continuation, later narrowed to
+  events whose structured outputs can be merged safely.
+- Issue #3075: host matcher union and Windows spawn reduction.
+- Issue #3192: closed prior proposal to replace test approval with
+  `permissions.allow`.
+- Issue #3217: ADR-085 implementation issue; superseding D-B removes test-runner
+  auto-approval.
+- `build/scripts/generate_dispatcher.py`: dispatcher artifact owner.
+- `build/scripts/generate_hooks_events.py`: transaction and cleanup owner.
+- `.claude/lib/hook_dispatch.py`: canonical runtime.
+- `.agents/audits/2026-07-02-safety-audit.md`: findings 19 and 48 on the
+  removed producer.
+- `.serena/memories/reviews/fix-copilot-hook-contract-213f3af.md`:
+  CRITICAL_FAIL review record that triggered removal.
+- `tests/build_scripts/test_copilot_dispatcher_artifact.py`: absence
+  regressions for the producer, generated event, and allow rules.
+- `tests/build_scripts/test_generate_dispatcher.py`: generated runtime tests.
+- `tests/build_scripts/test_generate_hooks.py`: transaction and rollback tests.
+- `.claude/skills/agent-harness-reference/references/probe-evidence.md`:
+  version-scoped curated probe summary.
+- `.agents/critique/ADR-068-debate-log.md`: six-agent acceptance review,
+  corrections, residuals, and dissent.
 
 ---
 
