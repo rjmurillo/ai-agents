@@ -121,7 +121,7 @@
         "Filed issue #3289 documenting the Windows shim omitting the configured lefthook runner, and made test_install_resets_legacy_hooks_path platform-aware: strong POSIX assertions retained, Windows validates reset + executable + call_lefthook dispatch.",
         "Ran the full lefthook integration suite on Linux (310 passed) and ruff (clean) to confirm no regression from either change."
     ],
-    "endingCommit": "",
+    "endingCommit": "bd63d6399",
     "nextSteps": [
         "Push PR B and validate the Windows job entirely via CI (lefthook Windows behavior is not reproducible locally).",
         "If any of the 15 cascade tests remain red after the POSIX path fix, iterate from the CI evidence.",
