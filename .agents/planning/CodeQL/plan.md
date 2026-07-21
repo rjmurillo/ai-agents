@@ -2,6 +2,11 @@
 
 # CodeQL CLI Integration Specification
 
+> [!NOTE]
+> This is a historical planning artifact. The repository now uses Lefthook for
+> local Git-event scheduling. Current authority lives in `lefthook.yml` and
+> `scripts/validation/git_hook_policy.py`.
+
 ## Executive Summary
 
 This specification defines the integration of CodeQL CLI into the rjmurillo/ai-agents development workflow to shift security analysis left and reduce PR review cycles. The solution implements a **multi-tier validation strategy** that balances performance requirements (under 10 seconds for pre-commit) with comprehensive security analysis capabilities.
@@ -27,7 +32,7 @@ This specification defines the integration of CodeQL CLI into the rjmurillo/ai-a
 
 **Existing Infrastructure**:
 
-- Sophisticated pre-commit hook (file:.githooks/pre-commit) with 1578 lines of validation logic
+- Lefthook scheduler with repository policy in `scripts/validation/git_hook_policy.py`
 - PSScriptAnalyzer integration for PowerShell
 - Markdown linting with markdownlint-cli2
 - Pester test gate
@@ -106,7 +111,7 @@ Provide fast feedback (under 10 seconds) using lightweight static analysis tools
 
 ### Implementation Strategy
 
-**Extend Existing Pre-commit Hook** (file:.githooks/pre-commit):
+**Current Pre-commit Carrier**: `lefthook.yml`
 
 The existing hook already has:
 
@@ -146,9 +151,9 @@ The existing hook already has:
 
 ### Integration Points
 
-**Hook Location**: file:.githooks/pre-commit
+**Hook Location**: `lefthook.yml`
 
-**Installation**: Automatic via git config (already configured)
+**Installation**: `uv run --frozen lefthook install --reset-hooks-path`
 
 **Bypass Mechanism**: `git commit --no-verify` (discouraged, logged)
 
@@ -624,10 +629,10 @@ mkdir -p .github/codeql
 # Copy configuration from specification
 ```
 
-**3. Update Pre-commit Hook**:
+**3. Configure Lefthook Validation**:
 
 ```bash
-# Add actionlint section to .githooks/pre-commit
+# Add or update the actionlint job in lefthook.yml
 # See Tier 1 section for details
 ```
 
@@ -1167,8 +1172,7 @@ rjmurillo/ai-agents/
 │   └── workflows/
 │       ├── codeql-analysis.yml        # CI/CD CodeQL workflow
 │       └── test-codeql-integration.yml # Integration tests
-├── .githooks/
-│   └── pre-commit                      # Updated with actionlint
+├── lefthook.yml                        # Local Git-event scheduler
 ├── .vscode/
 │   ├── extensions.json                 # Extension recommendations
 │   ├── tasks.json                      # CodeQL tasks
