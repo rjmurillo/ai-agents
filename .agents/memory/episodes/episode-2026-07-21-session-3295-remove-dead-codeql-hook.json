@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-21-session-3295-remove-dead-codeql-hook",
+  "session": "2026-07-21-session-3295-remove-dead-codeql-hook",
+  "timestamp": "2026-07-21T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Carve the decision-free dead-code slice out of the #3295 bulk hook purge (epic #3197): remove the CodeQL PostToolUse quick-scan hook (invoke_codeql_quick_scan.py) and its 528-line test. The hook is registered nowhere (absent from settings.json, dispatch_groups.json, and the vendored copilot hooks surface) and is imported only by its own test, so it never runs; the docs that advertise it describe a non-functional feature. Delete the dead hook and test, correct the README, the codeql-scan SKILL, and the three codeql docs to reflect that automatic scanning is provided by CI and the on-demand codeql-scan skill, regenerate the vendored mirror, and bump both plugin manifests in parity. The live codeql-scan skill (invoke_codeql_scan.py) is untouched.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the CodeQL PostToolUse quick-scan hook is dead: registered nowhere (settings.json, dispatch_groups.json, vendored copilot hooks surface all lack it), imported only by its own 528-line test, and not shipped in the vendored plugin. Deleting it removes 746 LOC of unreachable code without changing any live behavior; the codeql-scan skill's invoke_codeql_scan.py manual/CI path stays intact.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retiring the hook is Tier 3 of the three-tier CodeQL strategy enshrined in ADR-041, whose own re-evaluation clause (2026-07-16) pre-authorizes deprecating an unused tier via amendment. Amended ADR-041 to record Tier 3 retirement and ran the /adr-review adr-review skill for multi-agent consensus on the ADR-041 amendment: 6 lens subagents returned 6/6 ACCEPT (architect, security, analyst, independent-thinker, high-level-advisor clean; critic ACCEPT-WITH-CHANGES). Applied the critic's two required changes (track stale-doc cleanup via #3296; note preserved Tier-3 body sections are historical/superseded) and recorded the 6/6 verdict in both Status lines. Analyst independently verified all 6 factual claims TRUE. Debate log recorded at .agents/analysis/2026-07-21-adr-041-tier3-retirement-debate.md.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleaned the live codeql-scan SKILL.md of all deleted-hook references (PostToolUse <details> block, Hook-Not-Triggering troubleshooting subsection, and the quick-scan performance bullet); 0 refs remain. Regenerated the vendored Copilot mirror via generate_skills.py (only the codeql-scan mirror changed; identical to source). Bumped both plugin manifests 0.6.93 -> 0.6.94 in parity. Removed the deleted-hook row and reference bullet from PostToolUse/README.md.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The three docs/codeql-*.md files are broadly stale (PowerShell-era: reference deleted .ps1 scripts and carry broken samples) beyond just the retired Tier 3, so a surgical Tier-3-only edit would be low value. Scoped this PR to authoritative/shipping surfaces plus reader-protection: filed #3296 to track the full PowerShell->Python + three-tier->two-tier overhaul, and added an identical > [!WARNING] staleness banner after each H1 pointing to the ADR-041 amendment and #3296.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validation: dash byte-check = 0 on all edited markdown; build_all.py --check exit 0 (no generation drift); pre_pr.py all 34 checks PASS (Markdown Linting, Stale Script References/orphan-ref, Em/en-dash Prohibition, Plugin Version Bump parity, Hook Anchoring); the live codeql-scan skill test suite passes 17/17, confirming invoke_codeql_scan.py is untouched. No tracked code imports the deleted module.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 41c7e83c",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

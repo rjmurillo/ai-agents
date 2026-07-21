@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3295,
+    "date": "2026-07-21",
+    "branch": "fix/3295-remove-dead-codeql-hook",
+    "startingCommit": "e07f8a56",
+    "objective": "Carve the decision-free dead-code slice out of the #3295 bulk hook purge (epic #3197): remove the CodeQL PostToolUse quick-scan hook (invoke_codeql_quick_scan.py) and its 528-line test. The hook is registered nowhere (absent from settings.json, dispatch_groups.json, and the vendored copilot hooks surface) and is imported only by its own test, so it never runs; the docs that advertise it describe a non-functional feature. Delete the dead hook and test, correct the README, the codeql-scan SKILL, and the three codeql docs to reflect that automatic scanning is provided by CI and the on-demand codeql-scan skill, regenerate the vendored mirror, and bump both plugin manifests in parity. The live codeql-scan skill (invoke_codeql_scan.py) is untouched."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "This Copilot CLI session exposes no serena-* MCP tools; Serena not activatable here. Context loaded directly from .agents/HANDOFF.md, .serena/memories/*.md, and harness-injected memories."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* MCP tools available this session; initial_instructions not retrievable. N/A."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md earlier this session-family (read-only dashboard)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Using .claude/skills/github/scripts (pr/get_pr_checks.py, pr/merge_pr.py, pr/resolve_pr_review_thread.py) for PR ops; build_all.py and pre_pr.py for generation and gates."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory conventions applied; github scripts preferred over raw gh for mutations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS and .claude/rules applied (Python-first, atomic commits <=5 files, no em/en-dashes, generated-artifacts-ship-with-change, plugin parity bump, orphan-ref accuracy, secrets never committed)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository and user memories loaded via harness prompt; ruleset review-on-push, closing-keyword-on-squash, plugin-parity, and session-log Copilot facts applied."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3295-remove-dead-codeql-hook"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3295-remove-dead-codeql-hook, branched from main e07f8a56."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status reviewed; only the hook/test deletions, doc corrections, vendored regen, plugin bump, and session logs staged; auto-retro artifacts kept unstaged."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e07f8a56"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items satisfied at commit boundary: validation passed, markdown lint clean, dash byte-check = 0, changes committed atomically. PR babysitting to green is the post-commit phase (see nextSteps)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* MCP tools this session; durable learnings recorded via Copilot store_memory instead."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting check PASS (0.55s) over changed .md files; scoped lint clean."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed atomically on fix/3295-remove-dead-codeql-hook: d5df6e4f (hook+test deletion + README), 8bba7179 (SKILL source+mirror + plugin bump), 41c7e83c (docs banners), plus this final commit (ADR-041 amendment + session logs)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build_all.py --check exit 0 (no drift); pre_pr.py all 34 checks PASS; dash byte-check = 0 on all edited markdown; orphan-ref (Stale Script References) PASS; live codeql-scan skill test 17/17 pass."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR opened with Refs #3295 #3197; babysit-to-green tracked in nextSteps."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Pending session end."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Verified the CodeQL PostToolUse quick-scan hook is dead: registered nowhere (settings.json, dispatch_groups.json, vendored copilot hooks surface all lack it), imported only by its own 528-line test, and not shipped in the vendored plugin. Deleting it removes 746 LOC of unreachable code without changing any live behavior; the codeql-scan skill's invoke_codeql_scan.py manual/CI path stays intact.",
+      "files": [
+        ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py",
+        "tests/hooks/test_invoke_codeql_quick_scan.py"
+      ]
+    },
+    {
+      "action": "Retiring the hook is Tier 3 of the three-tier CodeQL strategy enshrined in ADR-041, whose own re-evaluation clause (2026-07-16) pre-authorizes deprecating an unused tier via amendment. Amended ADR-041 to record Tier 3 retirement and ran the /adr-review adr-review skill for multi-agent consensus on the ADR-041 amendment: 6 lens subagents returned 6/6 ACCEPT (architect, security, analyst, independent-thinker, high-level-advisor clean; critic ACCEPT-WITH-CHANGES). Applied the critic's two required changes (track stale-doc cleanup via #3296; note preserved Tier-3 body sections are historical/superseded) and recorded the 6/6 verdict in both Status lines. Analyst independently verified all 6 factual claims TRUE. Debate log recorded at .agents/analysis/2026-07-21-adr-041-tier3-retirement-debate.md.",
+      "files": [
+        ".agents/architecture/ADR-041-codeql-integration.md",
+        ".agents/analysis/2026-07-21-adr-041-tier3-retirement-debate.md"
+      ]
+    },
+    {
+      "action": "Cleaned the live codeql-scan SKILL.md of all deleted-hook references (PostToolUse <details> block, Hook-Not-Triggering troubleshooting subsection, and the quick-scan performance bullet); 0 refs remain. Regenerated the vendored Copilot mirror via generate_skills.py (only the codeql-scan mirror changed; identical to source). Bumped both plugin manifests 0.6.93 -> 0.6.94 in parity. Removed the deleted-hook row and reference bullet from PostToolUse/README.md.",
+      "files": [
+        ".claude/skills/codeql-scan/SKILL.md",
+        "src/copilot-cli/skills/codeql-scan/SKILL.md",
+        ".claude/.claude-plugin/plugin.json",
+        "src/copilot-cli/.claude-plugin/plugin.json",
+        ".claude/hooks/PostToolUse/README.md"
+      ]
+    },
+    {
+      "action": "The three docs/codeql-*.md files are broadly stale (PowerShell-era: reference deleted .ps1 scripts and carry broken samples) beyond just the retired Tier 3, so a surgical Tier-3-only edit would be low value. Scoped this PR to authoritative/shipping surfaces plus reader-protection: filed #3296 to track the full PowerShell->Python + three-tier->two-tier overhaul, and added an identical > [!WARNING] staleness banner after each H1 pointing to the ADR-041 amendment and #3296.",
+      "files": [
+        "docs/codeql-architecture.md",
+        "docs/codeql-integration.md",
+        "docs/codeql-rollout-checklist.md"
+      ]
+    },
+    {
+      "action": "Validation: dash byte-check = 0 on all edited markdown; build_all.py --check exit 0 (no generation drift); pre_pr.py all 34 checks PASS (Markdown Linting, Stale Script References/orphan-ref, Em/en-dash Prohibition, Plugin Version Bump parity, Hook Anchoring); the live codeql-scan skill test suite passes 17/17, confirming invoke_codeql_scan.py is untouched. No tracked code imports the deleted module.",
+      "files": []
+    }
+  ],
+  "endingCommit": "41c7e83c",
+  "nextSteps": [
+    "Open PR with Refs #3295 and Refs #3197 (partial: the dead-code slice of the bulk purge; coverage-confirmed KILLs and logic re-homes stay in #3295).",
+    "Babysit the PR to green; resolve review-on-push threads; self-merge (squash).",
+    "Continue epic #3197: remaining #3295 KILLs need per-gate coverage confirmation or logic re-homes; #3217 cross-harness permission question."
+  ]
+}

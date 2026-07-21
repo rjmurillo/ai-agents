@@ -1,11 +1,36 @@
 # ADR-041: CodeQL Integration Multi-Tier Strategy
 
-**Status**: Accepted
+**Status**: Accepted as amended (adr-review consensus 2026-07-21, 6/6 Accept). Originally Accepted 2026-01-16; amended 2026-07-21 to retire Tier 3 (automatic PostToolUse quick scan) and simplify to a two-tier strategy, per this ADR's own 6-month re-evaluation clause. See the Amendment section below.
 **Date**: 2026-01-16
 **Deciders**: Repository Owner, Security Agent, Implementer Agent
 **Context**: Implementing comprehensive static security analysis
 
 ---
+
+## Amendment 2026-07-21 (proposed): Retire Tier 3 (automatic PostToolUse scan), simplify to two tiers
+
+Status of this amendment: Accepted (adr-review consensus 2026-07-21: architect, security, analyst, independent-thinker, and high-level-advisor return Accept; critic returns Accept-with-changes, both required changes applied below). Driven by issue #3295 (dead-hook purge) and issue #3197 (vendored-hook ROI review).
+
+This ADR scheduled a 6-month re-evaluation for 2026-07-16 (see Operational Status and Post-Deployment Validation below). The Operational Status Re-evaluation clause states: "If negative ROI or unused, create amendment ADR to deprecate and simplify to CI-only." The review found Tier 3 unused. The PostToolUse quick-scan hook was registered nowhere (absent from `.claude/settings.json`, `.claude/hooks/dispatch_groups.json`, and the vendored Copilot hooks surface) and was imported only by its own test, so it never executed. It caught zero vulnerabilities because it never ran.
+
+Change: retire Tier 3. The dead hook (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`) and its test are deleted. The CodeQL strategy is now two-tier:
+
+- Tier 1 (CI/CD): unchanged. The `codeql-analysis.yml` workflow remains the blocking gate on every PR. Automatic security scanning now happens here.
+- Tier 2 (Local, on-demand): unchanged. The `codeql-scan` skill (`invoke_codeql_scan.py`) remains for developer-initiated scans.
+
+What this amendment does NOT change:
+
+- Tier 1 CI/CD enforcement and Tier 2 on-demand scanning both stay.
+- The `codeql-scan` skill and `invoke_codeql_scan.py` are untouched.
+- The shared and quick CodeQL configs stay in place; the quick config is still usable by the skill and CI.
+
+Documentation drift (adr-review critic follow-up): the live `codeql-scan` skill doc (`.claude/skills/codeql-scan/SKILL.md` and its regenerated Copilot CLI mirror) is cleaned of the retired hook in this change. The three reference docs under `docs/` (`codeql-architecture.md`, `codeql-integration.md`, `codeql-rollout-checklist.md`) still describe the retired hook and a pre-Python-migration PowerShell implementation; each carries a staleness banner added in this change, and their full overhaul is tracked by issue #3296.
+
+Historical record (adr-review critic follow-up): the original three-tier rationale, diagrams, and Decision Outcome sections below are preserved as historical context. Where they describe Tier 3 as live, this amendment supersedes them for operational purposes; the Operational Status table marks Tier 3 as Retired.
+
+Portable rebuild: a demand-driven, cross-harness rebuild of edit-time automatic scanning is deferred to issue #3219, not abandoned. If a customer needs edit-time feedback, #3219 captures the design.
+
+Refs: issue #3295 (hook purge), issue #3197 (ROI review), issue #3219 (deferred portable rebuild). Precedent: ADR-062 amendment 2026-07-17 (retire LSP runtime enforcement, keep static steering).
 
 ## Context and Problem Statement
 
@@ -183,8 +208,7 @@ Tier 3 (Automatic Scanning)
 **Integration**:
 - `.github/workflows/codeql-analysis.yml` - CI/CD workflow
 - `.vscode/tasks.json` - VSCode tasks
-- `.claude/skills/codeql-scan/` - Claude Code skill
-- `.claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1` - Automatic hook
+- `.claude/skills/codeql-scan/` - Claude Code skill (Tier 3 automatic hook retired 2026-07-21; see Amendment)
 
 **Testing**:
 - `tests/Install-CodeQL.Tests.ps1` - CLI installation tests
@@ -302,7 +326,7 @@ All scripts follow standardized exit codes:
 |------|--------|------------------|
 | Tier 1 (CI/CD) | **Active Development** | Continue enhancements, maintain quality |
 | Tier 2 (Local) | **Maintenance-Only** | Bug fixes only, no new features |
-| Tier 3 (Automatic) | **Maintenance-Only** | Bug fixes only, no new features |
+| Tier 3 (Automatic) | **Retired (2026-07-21)** | Removed as unused; see Amendment 2026-07-21. Portable rebuild deferred to #3219 |
 
 **Rationale**: CI/CD enforcement provides core security value. Local/automatic tiers are developer convenience features subject to usage validation per post-deployment review (see below).
 
