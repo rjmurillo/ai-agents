@@ -19,6 +19,11 @@ updated: 2026-05-10
 
 # REQ-013: M5 Bot-Cascade Pre-Push Warning
 
+> [!IMPORTANT]
+> Historical requirement record. ADR-086 replaced the custom Git-hook carrier
+> with Lefthook. Paths under `.githooks/` below preserve the original
+> requirement and must not be recreated.
+
 ## Step 0 First Principles
 
 ### Q1 Demand Reality
