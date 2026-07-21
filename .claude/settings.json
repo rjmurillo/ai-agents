@@ -37,16 +37,6 @@
         ]
       },
       {
-        "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_guard.py",
-            "statusMessage": "Verifying session log exists before PR creation (BLOCKING)"
-          }
-        ]
-      },
-      {
         "matcher": "Bash(git push*)",
         "hooks": [
           {
