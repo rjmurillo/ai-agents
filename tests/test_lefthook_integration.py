@@ -682,13 +682,21 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
 def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
+    # Express the hung job as a script file, not an inline `python -c "..."`.
+    # On Windows lefthook runs `run:` strings through sh, and the nested double
+    # quotes around a space-containing -c payload collide with sh's own quoting:
+    # the payload word-splits, python receives a bare `import`, and the job errors
+    # instantly instead of hanging, so the 1s timeout never fires. A script path
+    # with no spaces and no nested quotes runs identically on both platforms (the
+    # sibling stage_fixed test uses the same `"{PYTHON_POSIX}" name.py` shape).
+    (repo / "hang.py").write_text("import time\n\ntime.sleep(30)\n", encoding="utf-8")
     config = {
         "pre-commit": {
             "jobs": [
                 {
                     "name": "hangs",
                     "timeout": "1s",
-                    "run": f'"{PYTHON_POSIX}" -c "import time; time.sleep(30)"',
+                    "run": f'"{PYTHON_POSIX}" hang.py',
                 }
             ]
         }
@@ -1117,7 +1125,10 @@ def test_native_dispatch_forwards_argument_stdin_and_failures(tmp_path: Path) ->
     assert clean.returncode == 0
     assert pushed.returncode == 0
     assert blocked_message.returncode == 1
-    assert "commit message contains" in blocked_message.stdout
+    # The policy prints the em-dash error to stderr (git_hook_policy.py check_commit_message).
+    # lefthook echoes a failed job's stderr onto its own stdout on Linux but keeps it on
+    # stderr on Windows, so assert against the combined stream to stay cross-platform.
+    assert "commit message contains" in (blocked_message.stdout + blocked_message.stderr)
     assert blocked_push.returncode == 1
     assert "protected branch 'main'" in blocked_push.stderr
 
