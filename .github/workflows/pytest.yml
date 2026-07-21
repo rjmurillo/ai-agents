@@ -279,7 +279,7 @@ jobs:
   # This job executes both contracts on an always-on Windows runner. Neither
   # contract needs authentication or external credentials.
   test-windows-pwsh:
-    name: Run Python Tests (Windows - pwsh contract)
+    name: Run Python and Lefthook Tests (Windows)
     needs: check-paths
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: windows-latest

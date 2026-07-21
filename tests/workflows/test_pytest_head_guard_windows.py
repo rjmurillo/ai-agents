@@ -32,6 +32,16 @@ def _windows_steps() -> list[dict[str, Any]]:
     return [step for step in steps if isinstance(step, dict)]
 
 
+def test_windows_job_name_describes_python_and_lefthook_scope() -> None:
+    with _WORKFLOW.open(encoding="utf-8") as handle:
+        workflow = yaml.safe_load(handle)
+
+    assert (
+        workflow["jobs"][_JOB_NAME]["name"]
+        == "Run Python and Lefthook Tests (Windows)"
+    )
+
+
 def _step_for(command: str) -> dict[str, Any] | None:
     return next(
         (step for step in _windows_steps() if step.get("run") == command),
