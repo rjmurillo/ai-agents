@@ -74,7 +74,7 @@ if [ -n "$REPO_ROOT" ] && [ -L "$COMPLETION_GATE" ]; then
     echo "ERROR: false completion gate script path is a symlink" >&2
     exit 1
 elif [ -n "$REPO_ROOT" ] && [ -f "$COMPLETION_GATE" ]; then
-    PYTHON_CMD=$(get_python_cmd)
+    PYTHON_CMD=$(get_python_cmd) || true
     if [ -n "$PYTHON_CMD" ]; then
         $PYTHON_CMD "$COMPLETION_GATE" "$COMMIT_MSG_FILE" && completion_exit=0 || completion_exit=$?
         if [ "$completion_exit" -ne 0 ]; then
