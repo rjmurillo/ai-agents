@@ -2135,7 +2135,9 @@ elif set_python_cmd; then
 else
     # No Python available - check if ADR governance files are staged
     # Patterns match the Python script: ADR-*.md and SESSION-PROTOCOL.md
-    STAGED_ADR_GOVERNANCE_FILES=$(echo "$STAGED_FILES" | grep -i -E '(ADR-[0-9]+.*\.md$|SESSION-PROTOCOL\.md$)' || true)
+    # Use git diff without --diff-filter to include deletions (matching Python behavior)
+    ALL_STAGED_FILES=$(git diff --cached --name-only)
+    STAGED_ADR_GOVERNANCE_FILES=$(echo "$ALL_STAGED_FILES" | grep -i -E '(ADR-[0-9]+.*\.md$|SESSION-PROTOCOL\.md$)' || true)
     if [ -n "$STAGED_ADR_GOVERNANCE_FILES" ]; then
         echo_error "ADR review validation blocked: Python 3 not available."
         EXIT_STATUS=1
