@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3218,
+    "date": "2026-07-21",
+    "branch": "refactor/3218-retire-safedelete-guards",
+    "startingCommit": "1be24768",
+    "objective": "Epic #3197 / #3218 batch slice: retire the remaining three SAFE-DELETE PreToolUse push guards from Sol's coverage matrix (posted to #3295) after the drift-guard tracer bullet (#3300) proved the delete-registered-guard-plus-regenerate path. Each guard duplicates enforcement already run at the pre-push and CI stages: invoke_install_parity_guard (pre_pr_sequence.py validate_install_parity at lefthook pre-push), invoke_plugin_version_bump_guard (pre_pr_sequence.py validate_plugin_version_bump at pre-push plus validate-plugin-version-bump.yml in CI), and invoke_pr_description_guard (pr-validation.yml runs pr_description.py --ci; the guard fails open at push when no PR exists, so CI is its authoritative home). Delete the three guard modules and their two hooks tests, drop their registration from both the Claude (pretooluse-2-retrospective_gate) and Copilot (plugin-pretooluse-8-retrospective_gate) groups in dispatch_groups.json, correct the load-bearing doc references (ai-agents-change-control two-layer gate, ai-agents-diagnostics-toolkit three-guard baseline, guard-maturity example command, run_report.py default guard list), fix the test_session_log_field_guard docstring pointer to the deleted test, regenerate the vendored mirror and manifests via build_all.py (drops three matcher shims, recomputes the PreToolUse timeout budget 440 to 290), and bump both project-toolkit plugin manifests in parity."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "This Copilot CLI session exposes no serena-* MCP tools; Serena not activatable here. Context loaded directly from .agents/HANDOFF.md, .serena/memories/*.md, and harness-injected memories."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* MCP tools available this session; initial_instructions not retrievable. N/A."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md earlier this session-family (read-only dashboard)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Using .claude/skills/github/scripts (pr/new_pr.py, pr/get_pr_checks.py, pr/merge_pr.py, issue/post_issue_comment.py) for GitHub ops; build/scripts/build_all.py and scripts/validation/pre_pr.py for generation and gates."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory conventions applied; github scripts preferred over raw gh for mutations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS and .claude/rules applied (Python-first, atomic commits, no em/en-dashes, generated-artifacts-ship-with-change, plugin parity bump, orphan-ref accuracy, secrets never committed)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository and user memories loaded via harness prompt; plugin-parity bump, dispatch_groups.json hook-registration, hook-deletion-via-build_all, and memory-bundling-trap facts applied."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "refactor/3218-retire-safedelete-guards"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On refactor/3218-retire-safedelete-guards, branched from main 1be24768."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status reviewed before each commit; only the hook/test deletions, dispatch edit, doc edits, vendored regen, and plugin bump staged; auto-retro INDEX.md kept unstaged."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "1be24768"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items satisfied at commit boundary: build_all --check clean, targeted hook/dispatch/generation tests pass (410 total), dash byte-check = 0 on edited files, changes committed atomically. PR babysitting to green is the post-commit phase (see nextSteps)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* MCP tools this session; durable learnings recorded via Copilot store_memory instead."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting check PASS over changed .md files; scoped lint clean."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed atomically on refactor/3218-retire-safedelete-guards; see workLog for the per-commit file lists."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build_all.py --check exit 0 (no drift after regen); pre_pr.py checks PASS; dash byte-check = 0 on all edited files; hook/dispatch/generation test suites green after deletion (410 passed)."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR opened with Refs #3218 #3295 #3197; babysit-to-green tracked in nextSteps."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Pending session end."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Verified all three guards genuinely redundant before deleting. install_parity: pre_pr_sequence.py:317 calls validate_install_parity at the lefthook pre-push git-push stage. plugin_version_bump: pre_pr_sequence.py:324 calls validate_plugin_version_bump at pre-push plus dedicated CI validate-plugin-version-bump.yml (double coverage). pr_description: pr-validation.yml runs pr_description.py --ci; the guard fails open at push when no PR exists so CI is its authoritative home, no push-time coverage lost. Removed the three guard modules and the two hooks tests (install_parity has no hooks test), and dropped their registration from both retrospective_gate groups in dispatch_groups.json (Claude group loses 3 shims, Copilot group loses 2; install_parity was never in the Copilot group). Both groups retain retrospective_gate, markdownlint_guard, session_log_field_guard.",
+      "files": [
+        ".claude/hooks/PreToolUse/invoke_install_parity_guard.py",
+        ".claude/hooks/PreToolUse/invoke_plugin_version_bump_guard.py",
+        ".claude/hooks/PreToolUse/invoke_pr_description_guard.py",
+        ".claude/hooks/dispatch_groups.json",
+        "tests/hooks/test_plugin_version_bump_guard.py"
+      ]
+    },
+    {
+      "action": "Corrected the load-bearing doc and code references to the retired guards. ai-agents-change-control: version-bump gate now described as two layers (pre_pr.py plus CI) with the deleted PreToolUse guard removed, and the 'Guard hook plus' prefix dropped from the invariant row. ai-agents-diagnostics-toolkit: guard-maturity baseline updated from 4 guards to 3 (dropped pr-description). guard-maturity SKILL: example aggregate command drops --guard pr-description. run_report.py: default guard list drops pr-description (only hardcoded reference; aggregate/classify scripts enumerate dynamically). test_session_log_field_guard docstring repointed off the deleted test_pr_description_guard to a self-contained rationale. Regenerated the Copilot mirrors in the same change.",
+      "files": [
+        ".claude/skills/ai-agents-change-control/SKILL.md",
+        ".claude/skills/ai-agents-diagnostics-toolkit/SKILL.md",
+        ".claude/skills/guard-maturity/SKILL.md",
+        ".claude/skills/guard-maturity/scripts/run_report.py",
+        "tests/hooks/test_session_log_field_guard.py"
+      ]
+    },
+    {
+      "action": "Ran build_all.py to regenerate derived artifacts: dropped the three generated matcher shims (invoke_install_parity_guard, invoke_plugin_version_bump_guard, invoke_pr_description_guard __Bash_git_push_0e93bf.py), updated _manifest.json, recomputed the PreToolUse dispatcher timeout budget in hooks.json from 440 to 290 (three removed guards contributed 90+30+30=150s), and regenerated the four canonical skill mirrors. build_all.py --check exit 0. Bumped both project-toolkit plugin manifests 0.6.95 to 0.6.96 in parity.",
+      "files": [
+        "src/copilot-cli/hooks/PreToolUse/_manifest.json",
+        "src/copilot-cli/hooks/hooks.json",
+        "src/copilot-cli/skills/guard-maturity/scripts/run_report.py",
+        ".claude/.claude-plugin/plugin.json",
+        "src/copilot-cli/.claude-plugin/plugin.json"
+      ]
+    },
+    {
+      "action": "Validation: build_all.py --check exit 0 after committing regen; targeted suites green after deletion (test_claude_hook_dispatch, test_session_log_field_guard, test_generate_hooks_runtime_contract = 58; dispatch_expansion, copilot_dispatcher_artifact, generate_hooks, generate_dispatcher, validate_plugin_manifests, aggregate_guard_intercepts, validate_plugin_version_bump = 352). The pretooluse-2-retrospective_gate dispatch test still returns 2 (blocks on session_log_field_guard, which stays). No test references the deleted guards. Completes the four SAFE-DELETE push guards from Sol's coverage matrix (#3295).",
+      "files": []
+    }
+  ],
+  "endingCommit": "f1b5d7dd",
+  "nextSteps": [
+    "Open PR with Refs #3218 #3295 #3197 (batch of the remaining three SAFE-DELETE push guards).",
+    "Babysit the PR to green; resolve review-on-push threads (pre-empt the memory-bundling flag by keeping .agents/memory out); self-merge (squash, delete branch).",
+    "Advance the RE-HOME-FIRST guards (retrospective_gate, session_log_field_guard) via port-then-delete PRs with adr-review, and continue open epic #3197 issues (#3217 host-native permissions)."
+  ]
+}

@@ -159,7 +159,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/gua
 
 Tier semantics (from `classify_guard_maturity.py`, first match wins): Harmful (3+ intercepts, fitness below -0.02: remove), Proficient (60+ days, 10+ intercepts, fitness at or above +0.02: keep), Mature (30+ days, 5+ intercepts, fitness at or above 0), Inert (30+ days, 0 intercepts: prune candidate), Growing (14+ days, 1+ intercept), Budding (under 14 days). Fitness is `block_rate - 0.5`.
 
-- Current baseline (as of 2026-07-02): 4 guards reported (`manifest-count`, `markdown-lint`, `pr-description`, `session-log-field`), all Budding, 0 intercepts, fitness -0.50, age n/a.
+- Current baseline (as of 2026-07-02): 3 guards reported (`manifest-count`, `markdown-lint`, `session-log-field`), all Budding, 0 intercepts, fitness -0.50, age n/a.
 - Honest caveat: `.agents/telemetry/` does not exist in this checkout, so EVENT lines are not being persisted anywhere the aggregator reads by default. The measurement pipeline exists; its production feed is not wired (unverified who or what should populate `.agents/telemetry/`). Treat current tier output as a smoke test of the classifier, not as evidence about guard value.
 - Healthy: guards age into Mature/Proficient. Unhealthy: Inert (validator too narrow or guard pointless) or Harmful (normalizes bypass; remove).
 

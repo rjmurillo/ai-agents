@@ -21,6 +21,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 # Subprocess-safety note (CWE-78, semgrep
 # python.lang.security.audit.dangerous-subprocess-use-tainted-env-args):
@@ -98,24 +99,32 @@ TIER_ORDER = {
 }
 
 
-def _parse_subprocess_json(stdout: str, child_label: str) -> dict:
+def _parse_subprocess_json(stdout: str, child_label: str) -> dict[str, Any]:
     """Parse JSON from a child subprocess's stdout with a controlled error.
 
-    A successful (returncode 0) child whose stdout is empty or non-JSON is
-    a contract violation. Raise SystemExit(3) (external error per ADR-035)
-    rather than letting json.JSONDecodeError dump a traceback.
+    A successful (returncode 0) child whose stdout is empty, non-JSON, or a
+    non-object JSON value (list, string, null) is a contract violation. Raise
+    SystemExit(3) (external error per ADR-035) rather than letting a decode
+    error or a later AttributeError dump a traceback.
     """
     try:
-        return json.loads(stdout)
+        parsed = json.loads(stdout)
     except (json.JSONDecodeError, ValueError) as exc:
         sys.stderr.write(
             f"error: {child_label} returned non-JSON stdout "
             f"({len(stdout)} bytes): {exc}\n"
         )
         raise SystemExit(3) from exc
+    if not isinstance(parsed, dict):
+        sys.stderr.write(
+            f"error: {child_label} returned JSON {type(parsed).__name__}, "
+            f"expected an object\n"
+        )
+        raise SystemExit(3)
+    return parsed
 
 
-def _run_aggregate(known_guards: list[str], source: str | None) -> dict:
+def _run_aggregate(known_guards: list[str], source: str | None) -> dict[str, Any]:
     aggregate = _validated_script_path("aggregate_guard_intercepts.py")
     cmd = [sys.executable, str(aggregate)]
     for g in known_guards:
@@ -129,7 +138,7 @@ def _run_aggregate(known_guards: list[str], source: str | None) -> dict:
     return _parse_subprocess_json(proc.stdout, "aggregate_guard_intercepts.py")
 
 
-def _run_classify(summary: dict, treat_unseen_as_inert: bool) -> dict:
+def _run_classify(summary: dict[str, Any], treat_unseen_as_inert: bool) -> dict[str, Any]:
     classify = _validated_script_path("classify_guard_maturity.py")
     cmd = [sys.executable, str(classify)]
     if treat_unseen_as_inert:
@@ -147,7 +156,7 @@ def _run_classify(summary: dict, treat_unseen_as_inert: bool) -> dict:
     return _parse_subprocess_json(proc.stdout, "classify_guard_maturity.py")
 
 
-def _format_table(report: dict) -> str:
+def _format_table(report: dict[str, Any]) -> str:
     rows = sorted(
         report.values(),
         key=lambda r: (TIER_ORDER.get(r["tier"], 99), -r["intercepts"], r["guard"]),
@@ -198,7 +207,6 @@ def main(argv: list[str] | None = None) -> int:
         args.guard = [
             "markdown-lint",
             "manifest-count",
-            "pr-description",
             "session-log-field",
         ]
 

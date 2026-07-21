@@ -307,6 +307,6 @@ class TestHooksJsonRegistration:
         assert any("invoke_session_log_field_guard.py" in cmd for cmd in commands)
 
     def test_settings_json_includes_session_log_field_guard(self):
-        """Source-of-truth check; see test_pr_description_guard for rationale."""
+        """Verify settings.json wires the session-log field guard into the push matcher."""
         commands = self._push_commands(self._ROOT / ".claude" / "settings.json")
         assert any("invoke_session_log_field_guard.py" in cmd for cmd in commands)
