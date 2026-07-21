@@ -2133,8 +2133,13 @@ elif set_python_cmd; then
         EXIT_STATUS=1
     fi
 else
-    echo_error "ADR review validation blocked: Python 3 not available."
-    EXIT_STATUS=1
+    # No Python available - check if ADR governance files are staged
+    # Patterns match the Python script: ADR-*.md and SESSION-PROTOCOL.md
+    STAGED_ADR_GOVERNANCE_FILES=$(echo "$STAGED_FILES" | grep -i -E '(ADR-[0-9]+.*\.md$|SESSION-PROTOCOL\.md$)' || true)
+    if [ -n "$STAGED_ADR_GOVERNANCE_FILES" ]; then
+        echo_error "ADR review validation blocked: Python 3 not available."
+        EXIT_STATUS=1
+    fi
 fi
 
 #
