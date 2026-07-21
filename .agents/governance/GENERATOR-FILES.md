@@ -16,7 +16,8 @@ matching "Source" instead.
 | `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
 | `build/scripts/generate_skills.py` | `.claude/skills/<name>/` | `src/copilot-cli/skills/<name>/` | REQ-003-001 |
 | `build/scripts/generate_commands.py` | `.claude/commands/<name>.md` | `src/copilot-cli/skills/<name>/SKILL.md` | REQ-003-001 |
-| `build/scripts/generate_hooks.py` | `.claude/hooks/` + `.claude/settings.json` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` | REQ-003-007 |
+| `build/scripts/generate_hooks.py` with `build/scripts/generate_dispatcher.py` | `.claude/hooks/` + `.claude/settings.json` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` | REQ-003-007, ADR-068 |
+| `build/scripts/build_all.py` (`_build_lib`) | `.claude/lib/` | `src/copilot-cli/lib/` | REQ-003-001, REQ-003-002 |
 | `build/scripts/generate_pr_quality_prompts.py` | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | REQ-008-01 |
 
 ## Hand-maintained sibling copies (NOT generated)
@@ -52,6 +53,14 @@ python3 build/scripts/generate_pr_quality_prompts.py
 After editing a source listed above, run the matching regen command and commit
 the regenerated output in the same PR. A plugin source change also requires a
 `plugin.json` version bump (see AGENTS.md, Issue #2118).
+
+The Copilot hook generator retains per-matcher shim wrappers, then emits one
+dispatcher registration per event when the platform enables dispatcher mode.
+`build/scripts/generate_hooks_events.py` owns publication and cleanup:
+dispatcher artifacts, stale generated matcher shims, and ownership-proven
+orphan-event files are changed through `HookGenerationTransaction`. Unknown,
+unsafe, and NO-REGEN files are preserved. Only empty orphan directories are
+removed after the transaction commits.
 
 ## References
 
