@@ -17,6 +17,11 @@ updated: 2026-05-09
 
 # TASK-006: Implement em/en-dash prohibition enforcement
 
+> [!IMPORTANT]
+> Historical task record. ADR-086 replaced the custom Git-hook carrier with
+> Lefthook. Paths under `.githooks/` below record completed work and are not
+> current tasks.
+
 ## Objective
 
 Add four enforcement points that prevent em-dashes (U+2014) and en-dashes (U+2013) from

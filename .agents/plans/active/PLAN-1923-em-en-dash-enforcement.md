@@ -1,5 +1,11 @@
 # Execution Plan: Em/en-dash Prohibition Enforcement
 
+> [!IMPORTANT]
+> Historical implementation record. ADR-086 replaced the custom Git-hook
+> carrier with Lefthook. Paths under `.githooks/` below describe the former
+> implementation and must not be recreated. Current scheduling lives in
+> `lefthook.yml`; repository policy lives in Python.
+
 ## Metadata
 
 | Field | Value |
