@@ -102,19 +102,26 @@ TIER_ORDER = {
 def _parse_subprocess_json(stdout: str, child_label: str) -> dict[str, Any]:
     """Parse JSON from a child subprocess's stdout with a controlled error.
 
-    A successful (returncode 0) child whose stdout is empty or non-JSON is
-    a contract violation. Raise SystemExit(3) (external error per ADR-035)
-    rather than letting json.JSONDecodeError dump a traceback.
+    A successful (returncode 0) child whose stdout is empty, non-JSON, or a
+    non-object JSON value (list, string, null) is a contract violation. Raise
+    SystemExit(3) (external error per ADR-035) rather than letting a decode
+    error or a later AttributeError dump a traceback.
     """
     try:
-        parsed: dict[str, Any] = json.loads(stdout)
-        return parsed
+        parsed = json.loads(stdout)
     except (json.JSONDecodeError, ValueError) as exc:
         sys.stderr.write(
             f"error: {child_label} returned non-JSON stdout "
             f"({len(stdout)} bytes): {exc}\n"
         )
         raise SystemExit(3) from exc
+    if not isinstance(parsed, dict):
+        sys.stderr.write(
+            f"error: {child_label} returned JSON {type(parsed).__name__}, "
+            f"expected an object\n"
+        )
+        raise SystemExit(3)
+    return parsed
 
 
 def _run_aggregate(known_guards: list[str], source: str | None) -> dict[str, Any]:
