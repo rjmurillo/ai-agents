@@ -4,8 +4,8 @@
 
 - **ADR**:
   `.agents/architecture/ADR-074-security-review-quick-pass-mode.md`
-- **Review date**: 2026-07-19
-- **Rounds**: 2
+- **Review dates**: 2026-07-19 and 2026-07-21
+- **Rounds**: 3
 - **Outcome**: Consensus
 - **Final status**: accepted
 - **Final tally**: 3 Accept, 3 Disagree-and-Commit, 0 Block
@@ -67,12 +67,44 @@ All Round 1 P0/P1 categories were resolved before Round 2.
   2 rationale was retained for architect or analyst, so this log does not
   attribute one.
 
+## Round 3: Accuracy Amendment
+
+The 2026-07-21 amendment corrected the machine-readable decision-maker,
+distinguished test coverage from review-analysis coverage, and stated that a
+small clean QUICK_PASS skips the full threat-model protocol. All six mandatory
+roles reviewed that narrow amendment.
+
+| Agent | Vote | Recorded disposition |
+|-------|------|----------------------|
+| architect | Accept | The amendment corrects the record without changing classifier, verdict, budget, or gate behavior. |
+| security | Accept | The reduced-analysis disclosure is accurate; implementation security review remains mandatory. |
+| high-level-advisor | Accept | The decision remains sound; implementation caveats needed clearer rollback and progress language. |
+| independent-thinker | Disagree-and-Commit | Required `scoped`, not `bounded`, for the security-risk statement and clearer version provenance. |
+| critic | Disagree-and-Commit | Required the current security-review skill version and explicit `--depth full` wording. |
+| analyst | Disagree-and-Commit | Accepted the decision while noting external maintainer-evidence and historical-version limits. |
+
+Corrections applied before closure:
+
+- Replaced the false full-coverage narrative with an explicit accepted reduction
+  in analysis depth for small clean diffs.
+- Defined the scanned boundary as the full diff and tied security-relevant inputs
+  to the canonical trigger table.
+- Changed the residual-risk description from `bounded` to `scoped` and stated
+  that full review remains callable through `--depth full`.
+- Recorded the security-review skill as v0.1.0 at decision time and v0.1.1 in
+  the current reference.
+- Added the small-tier progress timing limit and the Phase 3 rollback contract.
+
+Round 3 tally: 3 Accept, 3 Disagree-and-Commit, 0 Block. No reviewer found that
+the amendment changed the accepted decision.
+
 ## Final Consensus
 
 Consensus was achieved under the adr-review protocol: all six roles voted
 Accept or Disagree-and-Commit, with 3 Accept, 3 Disagree-and-Commit, and
-0 Block. This 2026-07-19 consensus validates the corrected current record. It
-does not create evidence of an earlier six-agent debate.
+0 Block in both completed votes. The 2026-07-19 review validates the corrected
+decision record without creating evidence of an earlier debate. The 2026-07-21
+review validates the accuracy amendment without changing the decision.
 
 ## References
 

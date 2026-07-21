@@ -2,7 +2,7 @@
 id: ADR-074
 status: accepted
 date: 2026-06-17
-decision-makers: []
+decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
@@ -26,6 +26,8 @@ acceptance. A mandatory review completed on 2026-07-19 and closed that
 historical evidence gap without backdating the review: 3 Accept,
 3 Disagree-and-Commit, and 0 Block. See
 `.agents/critique/ADR-074-debate-log.md`.
+The supplied Round 1 record did not retain individual vote labels; the debate
+log preserves that evidence limit rather than reconstructing missing votes.
 
 This ADR changes a security-sensitive contract (the security-review verdict taxonomy and the orchestrator gate that consumes it). DECISION acceptance is the maintainer's call, now given. The security-agent IMPLEMENTATION review still applies before the quick-pass CODE lands; this status flip ships no implementation.
 
@@ -103,13 +105,13 @@ PIV gate on its own.
 
 Quick-pass mode scans only for the highest-confidence, highest-severity patterns and skips the per-finding threat-model reasoning protocol. The pattern set is the existing BLOCKED-trigger set already enumerated in the canonical verdict rules (`security.shared.md` lines 127 to 128): CWE-22 (path traversal), CWE-77 and CWE-78 (command injection), hard-coded secrets and credentials (CWE-798), and ASI01 to ASI10 boundary violations.
 
-**Incomplete-diff precondition.** Before pattern scanning, quick-pass verifies that all required inputs are present (changed files, test coverage data if the diff touches security-critical paths, dependency manifest if dependencies changed). If any required artifact is missing, quick-pass returns `[BLOCKED] Cannot evaluate: <specific missing artifact>` per the fail-closed rule (`security.shared.md` line 129). An incomplete diff MUST NOT receive `QUICK_PASS`; the incomplete-diff gate fires before pattern matching.
+**Incomplete-diff precondition.** Before pattern scanning, quick-pass verifies that all required inputs are present (changed files, test coverage data when the diff matches a Security-Relevant Change Trigger in `security.shared.md` lines 300 to 313, dependency manifest if dependencies changed). If any required artifact is missing, quick-pass returns `[BLOCKED] Cannot evaluate: <specific missing artifact>` per the fail-closed rule (`security.shared.md` line 129). An incomplete diff MUST NOT receive `QUICK_PASS`; the incomplete-diff gate fires before pattern matching. The escalated full-review path retains the same existing fail-closed rule for incomplete inputs.
 
 Quick-pass returns one of two new verdicts:
 
 | Verdict | Meaning | Action |
 |---------|---------|--------|
-| QUICK_PASS | No quick-pass pattern matched in scope | Clears the gate for small diffs only; logged as quick-pass, not as a full audit |
+| QUICK_PASS | No quick-pass pattern matched in the full diff under review | Clears the gate for small diffs only; logged as quick-pass, not as a full audit |
 | NEEDS_DEEP_REVIEW | A quick-pass pattern matched, or the scope is ambiguous | Re-route to the full threat-model review; never clears the gate by itself |
 
 The full review keeps its existing terminal verdicts unchanged: APPROVED, CONDITIONAL, BLOCKED (`security.shared.md` lines 125 to 127). Quick-pass does not replace them; it is a pre-filter that either clears a small, clean diff cheaply or hands a suspicious one to the full review.
@@ -128,7 +130,7 @@ This ADR records the decision and the contract. It ships no code. The canonical 
 
 ### What Currently Exists
 
-- **Structure/pattern being changed**: the security-review verdict taxonomy (APPROVED / CONDITIONAL / BLOCKED) and the unbounded full threat-model protocol in `templates/agents/security.shared.md`, projected into `.claude/skills/security-review/SKILL.md` (v0.1.0).
+- **Structure/pattern being changed**: the security-review verdict taxonomy (APPROVED / CONDITIONAL / BLOCKED) and the unbounded full threat-model protocol in `templates/agents/security.shared.md`, projected into `.claude/skills/security-review/SKILL.md` (v0.1.0 at decision time).
 - **When introduced**: always-on security review scope (PR #1681); prompt-discipline hardening to A tier (PR #2086, issue #2003); skill projection (issue #1875, ADR-058).
 - **Original author and context**: the verdict gate and threat-model protocol are the product of the security-agent prompt-optimization line of work; the PIV verdict gate predates this issue.
 
@@ -139,7 +141,7 @@ This ADR records the decision and the contract. It ships no code. The canonical 
   behavior is host-owned and version-sensitive. Raising a timeout alone is
   equally insufficient here because it does not bound the agent's analysis
   depth.
-- **What constraints drove the design?** 100% security coverage (`AGENTS.md`); fail-closed on incomplete diffs (`security.shared.md` line 129); no lowering of severity thresholds without a governance ADR (`.claude/rules/security.md` MUST-NOT-1).
+- **What constraints drove the design?** 100% test coverage for security-critical implementation (`AGENTS.md`); fail-closed on incomplete diffs (`security.shared.md` line 129); no lowering of severity thresholds without a governance ADR (`.claude/rules/security.md` MUST-NOT-1).
 
 ### Why Change Now
 
@@ -147,7 +149,7 @@ This ADR records the decision and the contract. It ships no code. The canonical 
 - **Is there a better solution now?** Yes. A caller-enforced deadline around an
   isolated review worker can stop work safely and return a non-clearing
   exhaustion verdict. No such implementation has shipped yet.
-- **What are the risks of change?** A quick-pass that clears a diff carrying a vulnerability its pattern set does not cover. Mitigated by restricting QUICK_PASS to clear only `small` diffs, restricting the quick-pass pattern set to the existing BLOCKED-trigger set, and routing every pattern match and every ambiguity to the full review. The change adds verdicts and a pre-filter; it removes no check and lowers no threshold.
+- **What are the risks of change?** A quick-pass can clear a small diff carrying a vulnerability its pattern set does not cover. This is accepted reduced analysis depth, scoped to the `small` tier, with detection limited to the existing BLOCKED-trigger pattern set. A diff that matches no pattern in that set can clear without full threat-model analysis. Full review remains unchanged and callable through `--depth full`; pattern matches and ambiguity require it.
 
 ## Rationale
 
@@ -156,13 +158,13 @@ This ADR records the decision and the contract. It ships no code. The canonical 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
 | Raise the subagent/host timeout | Zero contract change | Does not bound analysis depth; the agent still runs unbounded inside the budget; just delays the stall | Rejected: treats the symptom, not the cost (same defect ADR-068 names for hooks) |
-| Quick-pass with no full-review fallback | Fastest path | A pattern the quick set misses ships uncaught; lowers effective coverage | Rejected: violates 100% security coverage and `.claude/rules/security.md` MUST-NOT-1 |
+| Quick-pass for every diff with no scope gate or escalation | Fastest path | Large, ambiguous, or pattern-matching diffs could clear without threat-model review | Rejected: removes the fail-closed boundary around the reduced-depth mode |
 | Caller deadline only, no quick-pass | Bounds wall-clock; smaller contract change | A budget-exhausted review on a small clean diff still returns no verdict; the common case stays slow | Rejected: does not satisfy the "cheaper quick-pass for high-confidence findings" acceptance criterion |
-| Diff-scope classifier + caller deadline + quick-pass + progress, full review unchanged as fallback | Bounds time, gives a cheap common-case verdict, preserves full coverage via fallback | Adds two verdicts, a gate branch, and isolated-worker lifecycle; the classifier is a new tuning surface | **Chosen**: smallest safe change that meets all three acceptance criteria without lowering coverage |
+| Diff-scope classifier + caller deadline + quick-pass + progress, full review unchanged for escalations | Bounds time and gives small clean diffs a cheap verdict while escalating matched or ambiguous cases | Small QUICK_PASS diffs do not receive full threat-model analysis; adds two verdicts, a gate branch, and isolated-worker lifecycle | **Chosen**: smallest bounded reduction in analysis depth that meets all three acceptance criteria |
 
 ### Trade-offs
 
-The quick-pass pattern set is deliberately the existing BLOCKED-trigger set, not a new, broader set. This keeps the quick scan honest: it asserts only "none of the things that already force a BLOCK are present", and it hands everything else to the full review. The classifier thresholds (5 files / 200 lines for small) are a tuning surface; they are defaults a caller can override, and they are chosen to match the issue's four-file evidence. The full review's correctness is untouched: it remains the authority, and quick-pass can only short-circuit it for a small, clean diff or defer to it.
+The quick-pass pattern set is deliberately the existing BLOCKED-trigger set, not a new, broader set. This keeps the quick scan honest: it asserts only "none of the things that already force a BLOCK are present". Pattern matches and ambiguity go to full review. A small clean diff can clear without full threat-model analysis, which is the accepted trade-off. The classifier thresholds (5 files / 200 lines for small) are a tuning surface; callers can override them upward, and the defaults match the issue's four-file evidence.
 
 ## Consequences
 
@@ -178,11 +180,12 @@ The quick-pass pattern set is deliberately the existing BLOCKED-trigger set, not
 
 - Two new verdicts and a new gate branch widen the verdict taxonomy the orchestrator must understand. Mitigated by keeping the full-review terminal verdicts unchanged and making the new verdicts strictly non-clearing except QUICK_PASS-on-small.
 - The classifier thresholds are a new tuning surface that can be mis-set. Mitigated by caller override and by failing toward the full review (any doubt routes to NEEDS_DEEP_REVIEW).
+- An operator can set `SECURITY_REVIEW_BUDGET_MS` below a tier default and force repeated `budget_exceeded` results. The implementation must surface the configured budget and outcome; this ADR defines no hidden minimum.
 - The canonical-source change to `security.shared.md` requires re-syncing the skill projection and the Copilot mirrors in the same change set (canonical-source-mirror rule).
 
 ### Neutral
 
-- The full threat-model protocol is unchanged for medium, large, and extra-large diffs and for any quick-pass that detects a pattern.
+- The full threat-model protocol is unchanged for medium, large, and extra-large diffs and for any quick-pass that detects a pattern. A small diff with a clean QUICK_PASS does not run that protocol; this is the accepted reduction stated above.
 - `SECURITY_REVIEW_BUDGET_MS` is local to the proposed security-review
   implementation. ADR-068 defines no corresponding dispatcher environment
   variable.
@@ -208,8 +211,8 @@ Phased, each phase independently shippable and reversible, ordered so the cheape
    On exhaustion, terminate the worker and emit `budget_exceeded` plus
    `needs_deeper_pass`. Do not add `SIGALRM` or a watchdog thread that pretends
    to kill in-process work.
-3. **Quick-pass mode and verdicts.** Scan the BLOCKED-trigger pattern set only; skip the threat-model protocol; return QUICK_PASS or NEEDS_DEEP_REVIEW. Extend the PIV gate. Coverage: positive (clean small diff -> QUICK_PASS), negative (planted CWE-78 -> NEEDS_DEEP_REVIEW), edge (ambiguous scope -> NEEDS_DEEP_REVIEW, incomplete diff missing changed files -> BLOCKED Cannot evaluate).
-4. **Progress reporting.** 30-second-interval stderr checkpoints with `elapsed_ms`, `remaining_ms`, `files_scanned`, `findings_count`.
+3. **Quick-pass mode and verdicts.** Scan the BLOCKED-trigger pattern set only; skip the threat-model protocol; return QUICK_PASS or NEEDS_DEEP_REVIEW. Extend the PIV gate. Coverage: positive (clean small diff -> QUICK_PASS), negative (planted CWE-78 -> NEEDS_DEEP_REVIEW), edge (ambiguous scope -> NEEDS_DEEP_REVIEW, incomplete diff missing changed files -> BLOCKED Cannot evaluate). Rolling this phase back requires removing the QUICK_PASS gate branch and treating existing QUICK_PASS verdicts as requiring full review before the next PR cycle.
+4. **Progress reporting.** 30-second-interval stderr checkpoints with `elapsed_ms`, `remaining_ms`, `files_scanned`, `findings_count`. The small tier's first checkpoint coincides with its 30-second deadline, so it is not a reliable liveness signal there. Progress checkpoints provide useful liveness evidence for medium and larger tiers.
 
 Each phase carries pos/neg/edge tests per `.agents/governance/TESTING-RIGOR.md`. The canonical change to `security.shared.md` and its projections land together in one change set per the canonical-source-mirror rule.
 
@@ -227,7 +230,7 @@ Each phase carries pos/neg/edge tests per `.agents/governance/TESTING-RIGOR.md`.
 
 - Issue #2617: bounded quick-pass mode request, with PR #2611 timing evidence and maintainer DEFER (comment 4726185340).
 - `templates/agents/security.shared.md` lines 109 to 129, 298: threat-model protocol, verdict taxonomy, PIV gate.
-- `.claude/skills/security-review/SKILL.md` (v0.1.0): inline projection and verdict divergence note.
+- `.claude/skills/security-review/SKILL.md` (v0.1.1; v0.1.0 at decision time): inline projection and verdict divergence note.
 - `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md` Decision item
   4: no in-process watchdog; host owns dispatcher timeout.
 - `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`: review workflow.
