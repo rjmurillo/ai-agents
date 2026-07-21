@@ -133,7 +133,13 @@ def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     case-insensitively across both stderr and stdout so the signal survives a
     stream swap or a wrapper that folds stderr into stdout. Tolerates ``None``
     streams (a timed-out or not-yet-run process). See issue #3275.
+
+    Missing auth is an error path: the CLI aborts non-zero. Gate the marker scan
+    on ``returncode != 0`` so a healthy run (rc=0) that happens to echo a marker
+    string in its output is never misclassified as an auth failure.
     """
+    if result.returncode == 0:
+        return False
     haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
     return any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS)
 
@@ -143,12 +149,16 @@ def copilot_auth_absent_headline(result: subprocess.CompletedProcess[str]) -> st
 
     Leads with the real cause (dead auth secret), not the misdiagnosed symptom
     (missing hook marker / rc=1), so the dogfood failure is actionable at a
-    glance. See issue #3275.
+    glance. Surfaces rc and both streams because the detector scans stdout too
+    (stream-swap resilience), so a stdout-only auth failure stays actionable.
+    See issue #3275.
     """
     return (
         "Copilot auth token is empty; the shipped-base dogfood never ran. "
         "Provision COPILOT_GITHUB_TOKEN for the smoke job (issue #3275). "
-        f"stderr={(result.stderr or '')[-400:]!r}"
+        f"rc={result.returncode} "
+        f"stderr={(result.stderr or '')[-400:]!r} "
+        f"stdout={(result.stdout or '')[-400:]!r}"
     )
 
 

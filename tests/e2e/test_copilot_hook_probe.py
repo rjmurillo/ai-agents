@@ -14,12 +14,17 @@ import sys
 from pathlib import Path
 
 # tests/e2e is not on sys.path under --import-mode=importlib (no __init__.py).
+# Scope the mutation to the import so the added path never leaks into other
+# tests in the session (gemini review, PR #3294).
+_original_sys_path = sys.path.copy()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from copilot_hook_probe import (  # noqa: E402
-    copilot_auth_absent,
-    copilot_auth_absent_headline,
-)
+try:
+    from copilot_hook_probe import (  # noqa: E402
+        copilot_auth_absent,
+        copilot_auth_absent_headline,
+    )
+finally:
+    sys.path[:] = _original_sys_path
 
 
 def _completed(
@@ -57,6 +62,12 @@ def test_auth_absent_false_on_healthy_run() -> None:
     assert copilot_auth_absent(result) is False
 
 
+def test_auth_absent_false_when_marker_present_but_rc_zero() -> None:
+    """A healthy run (rc=0) that echoes a marker string is not misclassified (#3275)."""
+    result = _completed(stdout="No authentication information found", stderr="", returncode=0)
+    assert copilot_auth_absent(result) is False
+
+
 def test_auth_absent_tolerates_none_streams() -> None:
     """A timed-out or not-yet-run process (None streams) does not crash."""
     result = _completed(stdout=None, stderr=None, returncode=1)
@@ -69,3 +80,12 @@ def test_auth_absent_headline_leads_with_cause_and_tolerates_none() -> None:
     assert headline.startswith("Copilot auth token is empty")
     assert "COPILOT_GITHUB_TOKEN" in headline
     assert "#3275" in headline
+
+
+def test_auth_absent_headline_surfaces_rc_and_stdout() -> None:
+    """A stdout-only auth failure stays actionable: rc and stdout appear (#3275)."""
+    headline = copilot_auth_absent_headline(
+        _completed(stdout="No authentication information found", stderr="", returncode=1)
+    )
+    assert "rc=1" in headline
+    assert "No authentication information found" in headline

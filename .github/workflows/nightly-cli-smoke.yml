@@ -97,7 +97,7 @@ jobs:
       # unauthenticated and the gate reported a misdiagnosed red every night
       # (issue #3275). Repointed to the broad tokens that actually exist so the
       # shipped-base dogfood runs; the e2e harness now leads with an accurate
-      # auth-absent headline if either token is ever empty again.
+      # auth-absent headline if COPILOT_GITHUB_TOKEN is ever empty again.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
     steps:
