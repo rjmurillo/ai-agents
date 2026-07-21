@@ -93,6 +93,11 @@ def get_staged_files() -> list[str]:
         return []
 
 
+def get_files_from_stdin() -> list[str]:
+    """Read NUL-delimited file paths without interpreting option-shaped names."""
+    return [file_path for file_path in sys.stdin.read().split("\0") if file_path]
+
+
 def detect_infrastructure(
     changed_files: list[str] | None = None,
     use_git_staged: bool = False,
@@ -135,19 +140,26 @@ def main() -> int:
         description="Detect infrastructure and security-critical"
         " file changes",
     )
-    parser.add_argument(
+    file_source = parser.add_mutually_exclusive_group()
+    file_source.add_argument(
         "--files", nargs="*",
         help="Changed file paths to analyze",
     )
-    parser.add_argument(
+    file_source.add_argument(
         "--use-git-staged", action="store_true",
         help="Analyze staged files from git",
+    )
+    file_source.add_argument(
+        "--files-from-stdin",
+        action="store_true",
+        help="Read NUL-delimited changed file paths from stdin",
     )
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 
+    changed_files = get_files_from_stdin() if args.files_from_stdin else args.files
     result = detect_infrastructure(
-        changed_files=args.files,
+        changed_files=changed_files,
         use_git_staged=args.use_git_staged,
     )
 
