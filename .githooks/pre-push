@@ -435,6 +435,23 @@ fi
 
 record_pass "Branch guard ($current_branch)"
 
+# 1a. Branch context guard
+BRANCH_CONTEXT_SCRIPT="$REPO_ROOT/scripts/hooks/check_branch_context.py"
+if [ -L "$BRANCH_CONTEXT_SCRIPT" ]; then
+    record_fail "Branch context validation blocked: script path is a symlink"
+elif [ ! -f "$BRANCH_CONTEXT_SCRIPT" ]; then
+    record_fail "Branch context validation blocked: script not found"
+elif set_python_cmd; then
+    "${PYTHON_CMD[@]}" "$BRANCH_CONTEXT_SCRIPT" && branch_context_exit=0 || branch_context_exit=$?
+    if [ "$branch_context_exit" -ne 0 ]; then
+        record_fail "Branch context validation: branch mismatch"
+    else
+        record_pass "Branch context validation"
+    fi
+else
+    record_skip "Branch context validation (Python not available)"
+fi
+
 # 1b. Placeholder identity guard (issue #2466)
 # Rejects commits whose author/committer is Test <test@test.com>.
 # That identity leaks from pytest fixtures writing git config with wrong cwd.

@@ -316,6 +316,31 @@ set_python_cmd() {
     return 1
 }
 
+#
+# Branch Context Validation (BLOCKING)
+#
+# Prevents a commit from mixing work across branches when today's newest
+# session log declares another branch. Missing context fails open in the
+# Python helper, matching the retired PreToolUse guard.
+#
+BRANCH_CONTEXT_SCRIPT="$REPO_ROOT/scripts/hooks/check_branch_context.py"
+
+if [ -L "$BRANCH_CONTEXT_SCRIPT" ]; then
+    echo_error "Branch context validation blocked: script path is a symlink"
+    EXIT_STATUS=1
+elif [ ! -f "$BRANCH_CONTEXT_SCRIPT" ]; then
+    echo_error "Branch context validation blocked: script not found at $BRANCH_CONTEXT_SCRIPT"
+    EXIT_STATUS=1
+elif set_python_cmd; then
+    "${PYTHON_CMD[@]}" "$BRANCH_CONTEXT_SCRIPT" && branch_context_exit=0 || branch_context_exit=$?
+    if [ "$branch_context_exit" -ne 0 ]; then
+        echo_error "Branch context validation FAILED."
+        EXIT_STATUS=1
+    fi
+else
+    echo_warning "Python 3 not available. Skipping branch context validation."
+fi
+
 if [ -n "$STAGED_MD_FILES" ]; then
     echo_info "Checking markdown files..."
 
@@ -1381,7 +1406,53 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
         fi
     fi
 else
-    echo_info "No .agents/ files staged. Skipping Session Protocol validation."
+    if [ "$IS_MERGE" = "1" ]; then
+        echo_info "Merge commit detected; code-only session-log requirement skipped. Related: #2883."
+    else
+        TODAY_UTC=$(date -u +%Y-%m-%d)
+        TODAY_SESSION_LOG=""
+        shopt -s nullglob
+        TODAY_SESSION_LOGS=("$REPO_ROOT"/.agents/sessions/"$TODAY_UTC"-session-*.json)
+        shopt -u nullglob
+        for candidate in "${TODAY_SESSION_LOGS[@]}"; do
+            if [ -z "$TODAY_SESSION_LOG" ] || [ "$candidate" -nt "$TODAY_SESSION_LOG" ]; then
+                TODAY_SESSION_LOG="$candidate"
+            fi
+        done
+
+        if [ -z "$TODAY_SESSION_LOG" ]; then
+            echo_error "BLOCKED: Create session log NOW"
+            echo_info "  Expected: .agents/sessions/$TODAY_UTC-session-NN.json"
+            EXIT_STATUS=1
+        elif [ "$(wc -m < "$TODAY_SESSION_LOG")" -lt 100 ]; then
+            echo_error "BLOCKED: Today's session log has fewer than 100 characters"
+            echo_info "  Session log: $TODAY_SESSION_LOG"
+            EXIT_STATUS=1
+        elif set_python_cmd; then
+            "${PYTHON_CMD[@]}" - "$TODAY_SESSION_LOG" <<'PY' && session_evidence_exit=0 || session_evidence_exit=$?
+import json
+import sys
+from pathlib import Path
+
+content = Path(sys.argv[1]).read_text(encoding="utf-8")
+try:
+    data = json.loads(content)
+except (json.JSONDecodeError, ValueError):
+    sys.exit(0)
+sys.exit(2 if isinstance(data, dict) and len(data) < 2 else 0)
+PY
+            if [ "$session_evidence_exit" -ne 0 ]; then
+                echo_error "BLOCKED: Today's JSON session log lacks two top-level properties"
+                echo_info "  Session log: $TODAY_SESSION_LOG"
+                EXIT_STATUS=1
+            else
+                echo_success "Code-only session log evidence: PASS"
+            fi
+        else
+            echo_error "Session log evidence validation blocked: Python 3 not available."
+            EXIT_STATUS=1
+        fi
+    fi
 fi
 
 #
@@ -2039,58 +2110,30 @@ if [ -n "$staged_memory_files" ]; then
 fi
 
 #
-# ADR Change Detection (Non-blocking, AI prompt)
+# ADR Review Evidence (BLOCKING)
 #
-# Detects ADR file changes and prompts the AI to invoke adr-review skill.
-# This is a reminder to the AI agent, not a blocking validation.
-# The actual adr-review skill provides multi-agent consensus validation.
+# Blocks matching ADR governance changes without review evidence in today's
+# session log and a same-day or current-branch debate artifact.
 #
-# Related: adr-review skill, ADR governance
+# Related: adr-review skill, ADR governance, Issue #3196
 #
-adr_detect_script="$REPO_ROOT/.claude/skills/adr-review/scripts/detect_adr_changes.py"
+ADR_REVIEW_SCRIPT="$REPO_ROOT/scripts/hooks/check_adr_review_evidence.py"
 
-# Check if any ADR files are staged
-staged_adr_files=$(echo "$STAGED_FILES" | grep -E '^(\.agents/architecture|docs/architecture)/ADR-.*\.md$' || true)
-
-if [ -n "$staged_adr_files" ]; then
-    echo_info "Checking for ADR changes..."
-
-    # MEDIUM-002: Reject symlinks for security
-    if [ -L "$adr_detect_script" ]; then
-        echo_warning "Skipping ADR detection: script path is a symlink"
-    elif [ -f "$adr_detect_script" ]; then
-        if set_python_cmd; then
-            # Run detection and capture output.
-            # Guard against set -e (Issue #2258): a nonzero detection exit
-            # must be captured, not abort the hook at the substitution.
-            adr_result=$("${PYTHON_CMD[@]}" "$adr_detect_script" --base-path "$REPO_ROOT" 2>&1) && adr_exit=0 || adr_exit=$?
-
-            if [ $adr_exit -eq 0 ]; then
-                # Check if changes were detected
-                has_changes=$(echo "$adr_result" | grep -o '"HasChanges":\s*true' || true)
-                if [ -n "$has_changes" ]; then
-                    echo ""
-                    echo_warning "BLOCKING GATE: ADR changes detected - invoke /adr-review before commit"
-                    echo_info ""
-                    echo_info "  ADR files staged:"
-                    echo "$staged_adr_files" | while read -r adr; do
-                        echo_info "    - $adr"
-                    done
-                    echo_info ""
-                    echo_info "  Required: Run /adr-review for multi-agent consensus"
-                    echo_info "  Skill: .claude/skills/adr-review/SKILL.md"
-                    echo ""
-                    # Non-blocking - this is a reminder to the AI, not a gate
-                fi
-            fi
-        else
-            echo_warning "Python 3 not available. Skipping ADR detection."
-        fi
-    else
-        echo_info "ADR detection script not found. Skipping."
+if [ -L "$ADR_REVIEW_SCRIPT" ]; then
+    echo_error "ADR review validation blocked: script path is a symlink"
+    EXIT_STATUS=1
+elif [ ! -f "$ADR_REVIEW_SCRIPT" ]; then
+    echo_error "ADR review validation blocked: script not found at $ADR_REVIEW_SCRIPT"
+    EXIT_STATUS=1
+elif set_python_cmd; then
+    "${PYTHON_CMD[@]}" "$ADR_REVIEW_SCRIPT" && adr_review_exit=0 || adr_review_exit=$?
+    if [ "$adr_review_exit" -ne 0 ]; then
+        echo_error "ADR review evidence validation FAILED."
+        EXIT_STATUS=1
     fi
 else
-    echo_info "No ADR files staged. Skipping ADR detection."
+    echo_error "ADR review validation blocked: Python 3 not available."
+    EXIT_STATUS=1
 fi
 
 #

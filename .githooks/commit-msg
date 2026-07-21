@@ -35,4 +35,19 @@ if LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' -- "$COMMIT_MSG_FILE" 2
     exit 1
 fi
 
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+COMPLETION_GATE="$REPO_ROOT/scripts/hooks/check_false_completion_msg.py"
+
+if [ -n "$REPO_ROOT" ] && [ -L "$COMPLETION_GATE" ]; then
+    echo "ERROR: false completion gate script path is a symlink" >&2
+    exit 1
+elif [ -n "$REPO_ROOT" ] && [ -f "$COMPLETION_GATE" ]; then
+    if command -v python3 > /dev/null 2>&1; then
+        python3 "$COMPLETION_GATE" "$COMMIT_MSG_FILE" && completion_exit=0 || completion_exit=$?
+        if [ "$completion_exit" -ne 0 ]; then
+            exit 1
+        fi
+    fi
+fi
+
 exit 0
