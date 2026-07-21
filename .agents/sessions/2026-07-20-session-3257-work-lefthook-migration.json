@@ -137,7 +137,7 @@
     "Corrected T-008 metrics guidance so Lefthook owns scheduling while Python owns repository policy and deterministic session artifacts.",
     "Ran the mandatory ADR-086 rollback delta debate. The revised rollback contract covers fail-open behavior, executable Git revert units, coherent-state proof, and reached 6 of 6 Accept consensus."
   ],
-  "endingCommit": "80d0a66225",
+  "endingCommit": "2dfc8acbdc",
   "nextSteps": [
     "Run the complete branch review against the committed tip.",
     "Create the SHA-bound review marker after every axis clears.",
