@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session checklist is current through packaging checkpoint 20."
+        "Evidence": "Session checklist is current through packaging checkpoint 21."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All earlier checkpoints are committed at d372de51a647; this staged checkpoint records docs(adr): ratify grouped dispatch contract."
+        "Evidence": "All earlier checkpoints are committed at c6ede7293686; this staged checkpoint records docs(adr): retire unsafe approval policy."
       },
       "validationPassed": {
         "level": "MUST",
@@ -151,10 +151,10 @@
       "outcome": "`uv run pytest -q tests/` reported 14245 passed after the final rebase; real-harness tests reported 6 passed; installed-plugin E2E reported 9 passed; the final hook knowledge and skill-generation selection reported 50 passed; scoped lint, types, CWE-78 scan, generation, and parity checks passed."
     },
     {
-      "action": "Package commit checkpoint 20",
-      "outcome": "Staged docs(adr): ratify grouped dispatch contract after d372de51a647; normal commit hooks validate this checkpoint."
+      "action": "Package commit checkpoint 21",
+      "outcome": "Staged docs(adr): retire unsafe approval policy after c6ede7293686; normal commit hooks validate this checkpoint."
     }
   ],
-  "endingCommit": "d372de51a647fc8210b03a406b6146ba417ed365",
+  "endingCommit": "c6ede7293686230d0b4f8156614aad087bed3fd7",
   "nextSteps": []
 }
