@@ -93,16 +93,7 @@ runs:
         echo "✓ markdownlint-cli2 installed"
 
     - name: Install uv (Python package manager)
-      shell: bash
-      run: |
-        echo "Installing uv..."
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-        # uv installer may place the binary in .cargo/bin on some runners (e.g. ARM)
-        if [ -d "$HOME/.cargo/bin" ]; then
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-        fi
-        echo "✓ uv installed"
+      uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
 
     - name: Setup Python
       if: inputs.enable-python == 'true'
@@ -124,7 +115,6 @@ runs:
       shell: bash
       run: |
         echo "Installing Python dependencies..."
-        export PATH="$HOME/.local/bin:$PATH"
         if [ -f "pyproject.toml" ]; then
           uv pip install --system -e ".[dev]"
           echo "✓ Python dependencies installed from pyproject.toml"
@@ -137,7 +127,6 @@ runs:
       shell: bash
       run: |
         echo "Verifying Python tools..."
-        export PATH="$HOME/.local/bin:$PATH"
         python3 --version
         if command -v ruff &>/dev/null; then
           ruff --version
