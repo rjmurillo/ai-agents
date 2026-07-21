@@ -558,7 +558,8 @@ def _prose_shas(text: str) -> list[str]:
     comment IDs, run IDs, epoch timestamps, long issue numbers) are not misread
     as commit SHAs (issue #3301). This trades one rare miss for a common false
     positive: a genuine short SHA prefix that happens to be all decimal digits
-    (about 3.7% of 7-char prefixes) is dropped when it appears only in prose.
+    (uncommon for 7-char prefixes, vanishingly rare for full-length SHAs) is
+    dropped when it appears only in prose.
     That miss degrades the causal graph gracefully; counting every decimal ID in
     prose as a commit corrupts it. Structured commit fields (``endingCommit``,
     ``startingCommit``) are scanned unfiltered, so an all-decimal final SHA is
