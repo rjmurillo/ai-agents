@@ -149,6 +149,12 @@
     {
       "action": "Validation: dash byte-check = 0 on all edited markdown; build_all.py --check exit 0 (no generation drift); pre_pr.py all 34 checks PASS (Markdown Linting, Stale Script References/orphan-ref, Em/en-dash Prohibition, Plugin Version Bump parity, Hook Anchoring); the live codeql-scan skill test suite passes 17/17, confirming invoke_codeql_scan.py is untouched. No tracked code imports the deleted module.",
       "files": []
+    },
+    {
+      "action": "PR #3297 opened; all 92 CI checks green. Addressed 3 Copilot reviewer threads on ADR-041: (1) Status line now spells out the 6/6 vote breakdown (5 clean Accept + 1 Accept-with-changes, changes applied); (2) dropped the stale \"(proposed)\" qualifier from the amendment heading now that it is Accepted; (3) added an explicit reconciliation of the re-evaluation clause wording \"simplify to CI-only\" with retaining the user-initiated on-demand Tier 2 skill, clarifying CI-only means no automatic edit-time execution and the strategy is two-tier.",
+      "files": [
+        ".agents/architecture/ADR-041-codeql-integration.md"
+      ]
     }
   ],
   "endingCommit": "3ebcecab",

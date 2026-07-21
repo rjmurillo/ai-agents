@@ -14330,6 +14330,15 @@
         "episode-2026-07-21-session-3295-remove-dead-codeql-hook"
       ],
       "created": "2026-07-21T15:18:44.041470+00:00"
+    },
+    {
+      "id": "02b54b7d95c6",
+      "type": "milestone",
+      "label": "milestone: PR #3297 opened; all 92 CI checks green. Addressed 3 Copilot reviewer threads on ADR-041: (1) Status line now spells out the 6/6 vote breakdown (5 clean Accept + 1 Accept-with-changes, changes applied); (2) dropped the stale \"(proposed)\" qualifier from the amendment heading now that it is Accepted; (3) added an explicit reconciliation of the re-evaluation clause wording \"simplify to CI-only\" with retaining the user-initiated on-demand Tier 2 skill, clarifying CI-only means no automatic edit-time execution and the strategy is two-tier.",
+      "episodes": [
+        "episode-2026-07-21-session-3295-remove-dead-codeql-hook"
+      ],
+      "created": "2026-07-21T15:46:40.279732+00:00"
     }
   ],
   "patterns": [

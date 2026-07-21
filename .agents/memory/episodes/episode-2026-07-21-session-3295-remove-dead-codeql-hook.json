@@ -62,7 +62,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e006",
@@ -73,6 +75,16 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR #3297 opened; all 92 CI checks green. Addressed 3 Copilot reviewer threads on ADR-041: (1) Status line now spells out the 6/6 vote breakdown (5 clean Accept + 1 Accept-with-changes, changes applied); (2) dropped the stale \"(proposed)\" qualifier from the amendment heading now that it is Accepted; (3) added an explicit reconciliation of the re-evaluation clause wording \"simplify to CI-only\" with retaining the user-initiated on-demand Tier 2 skill, clarifying CI-only means no automatic edit-time execution and the strategy is two-tier.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

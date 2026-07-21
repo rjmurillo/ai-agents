@@ -1,17 +1,17 @@
 # ADR-041: CodeQL Integration Multi-Tier Strategy
 
-**Status**: Accepted as amended (adr-review consensus 2026-07-21, 6/6 Accept). Originally Accepted 2026-01-16; amended 2026-07-21 to retire Tier 3 (automatic PostToolUse quick scan) and simplify to a two-tier strategy, per this ADR's own 6-month re-evaluation clause. See the Amendment section below.
+**Status**: Accepted as amended (adr-review consensus 2026-07-21: 6/6 Accept, comprising 5 clean Accept and 1 Accept-with-changes whose two required changes are applied below). Originally Accepted 2026-01-16; amended 2026-07-21 to retire Tier 3 (automatic PostToolUse quick scan) and simplify to a two-tier strategy, per this ADR's own 6-month re-evaluation clause. See the Amendment section below.
 **Date**: 2026-01-16
 **Deciders**: Repository Owner, Security Agent, Implementer Agent
 **Context**: Implementing comprehensive static security analysis
 
 ---
 
-## Amendment 2026-07-21 (proposed): Retire Tier 3 (automatic PostToolUse scan), simplify to two tiers
+## Amendment 2026-07-21: Retire Tier 3 (automatic PostToolUse scan), simplify to two tiers
 
 Status of this amendment: Accepted (adr-review consensus 2026-07-21: architect, security, analyst, independent-thinker, and high-level-advisor return Accept; critic returns Accept-with-changes, both required changes applied below). Driven by issue #3295 (dead-hook purge) and issue #3197 (vendored-hook ROI review).
 
-This ADR scheduled a 6-month re-evaluation for 2026-07-16 (see Operational Status and Post-Deployment Validation below). The Operational Status Re-evaluation clause states: "If negative ROI or unused, create amendment ADR to deprecate and simplify to CI-only." The review found Tier 3 unused. The PostToolUse quick-scan hook was registered nowhere (absent from `.claude/settings.json`, `.claude/hooks/dispatch_groups.json`, and the vendored Copilot hooks surface) and was imported only by its own test, so it never executed. It caught zero vulnerabilities because it never ran.
+This ADR scheduled a 6-month re-evaluation for 2026-07-16 (see Operational Status and Post-Deployment Validation below). The Operational Status Re-evaluation clause states: "If negative ROI or unused, create amendment ADR to deprecate and simplify to CI-only." Reconciliation: that clause targeted the removal of *automatic* scanning; "CI-only" here means "no automatic edit-time execution", not "delete the on-demand skill". Tier 2 is user-initiated, not automatic, and remains actively used, so this amendment retires only the unused automatic tier (Tier 3) and keeps both CI (Tier 1) and on-demand (Tier 2). The resulting strategy is two-tier, and the deviation from the literal "CI-only" wording is intentional and recorded here so future readers do not read it as an accidental breach of the re-evaluation contract. The review found Tier 3 unused. The PostToolUse quick-scan hook was registered nowhere (absent from `.claude/settings.json`, `.claude/hooks/dispatch_groups.json`, and the vendored Copilot hooks surface) and was imported only by its own test, so it never executed. It caught zero vulnerabilities because it never ran.
 
 Change: retire Tier 3. The dead hook (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`) and its test are deleted. The CodeQL strategy is now two-tier:
 
