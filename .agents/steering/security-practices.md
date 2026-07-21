@@ -1,6 +1,6 @@
 ---
 name: Security Practices
-applyTo: "**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,.githooks/**"
+applyTo: "**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.*,scripts/validation/git_hook_policy.py"
 priority: 10
 version: 1.0.0
 status: active
@@ -18,7 +18,8 @@ This steering file provides security guidance for security-sensitive code in the
 - `*.env*` - Environment configuration
 - `**/*.secrets.*` - Secret management
 - `.github/workflows/**` - GitHub Actions workflows
-- `.githooks/**` - Git hooks
+- `lefthook.*` - Local Git-event configuration
+- `scripts/validation/git_hook_policy.py` - Repository Git policy
 
 ## Guidelines
 
@@ -43,9 +44,9 @@ uses: dorny/paths-filter@v3
 ```
 
 **Enforcement**:
-- Pre-commit hook blocks commits with version tags in workflow files
+- Lefthook blocks commits with version tags in workflow files
 - CI validation script scans all workflows on PR
-- Validation script: `scripts/Validate-ActionSHAPinning.ps1`
+- Validation command: `scripts/validation/git_hook_policy.py staged-action-pins`
 
 **Finding SHA for version tag**:
 
@@ -113,17 +114,11 @@ Use regex patterns to detect hardcoded secrets:
 | Connection String | `(password\|pwd)=[^;]+` |
 | JWT | `eyJ[A-Za-z0-9-_]+\.eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_.+/=]*` |
 
-#### Pre-commit Hook Pattern
+#### Pre-commit Security Carrier
 
-```bash
-# .githooks/pre-commit
-SECRETS_PATTERN='(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN.*PRIVATE KEY-----)'
-
-if git diff --cached | grep -E "$SECRETS_PATTERN"; then
-    echo "ERROR: Potential secret detected in staged changes"
-    exit 1
-fi
-```
+`lefthook.yml` schedules the repository's staged security checks. Keep detection
+logic in Python policy or the security-detection skill. Do not add shell parsing
+or a standalone Git-hook script.
 
 ### AI Output Validation
 
