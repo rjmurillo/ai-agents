@@ -125,9 +125,15 @@
       "files": [
         "tests/validation/test_markdownlint_pin.py"
       ]
+    },
+    {
+      "action": "Replaced the uv 'curl | sh' install (CWE-78, blocked by the pre-push semgrep gate once this file became a changed file) with the SHA-pinned astral-sh/setup-uv action already used in three workflows; removed the now-vestigial manual PATH exports to match the proven pattern.",
+      "files": [
+        ".github/actions/setup-code-env/action.yml"
+      ]
     }
   ],
-  "endingCommit": "01a74645",
+  "endingCommit": "4621207f",
   "nextSteps": [
     "Push and open PR (Refs #3279); byte-check body for 0 U+2014/U+2013 dashes; paths under ## References.",
     "Drive CI green; resolve bot review threads; self-merge once mergeStateStatus CLEAN.",
