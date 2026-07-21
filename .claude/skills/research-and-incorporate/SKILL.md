@@ -9,7 +9,6 @@ description: Research external topics, create comprehensive analysis, and incorp
   gathering knowledge before planning a task (use context-gather instead) or for
   investigating patterns already in memory (use memory-documentary).
 license: MIT
-model: claude-opus-4-6
 metadata:
   timelessness: 8/10
   source: Chesterton's Fence research workflow (Session 203)

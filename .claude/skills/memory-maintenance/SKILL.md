@@ -8,7 +8,6 @@ description: Memory-system maintenance operations, split out of the memory route
   tokens`, or `benchmark memory performance`. Do NOT use for Tier 1 search (use
   memory-search) or recording a session (use memory-reflexion).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   adr: ADR-007, ADR-037, ADR-063
   type: operation

@@ -3,7 +3,6 @@ name: benchmark-models
 version: 1.0.0
 description: Cross-model benchmark. Runs one prompt or skill through Claude, GPT (Codex CLI), and Gemini side by side and compares latency, tokens, cost, tool calls, and optionally output quality via an Anthropic-API judge. Answers "which model is actually best for this skill?" with data. Use when you say "benchmark models", "compare models", "which model is best for X", "cross-model comparison", or "model shootout". Do NOT use to measure web page performance.
 license: MIT
-model: claude-opus-4-8
 metadata:
   domains:
   - benchmarking

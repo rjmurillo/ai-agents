@@ -35,7 +35,6 @@ description: What the skill does and when to use it  # max 1024 chars
 ---
 name: skill-identifier
 version: 1.0.0
-model: claude-sonnet-4-6
 description: What the skill does and when to use it
 license: MIT
 ---
@@ -43,12 +42,17 @@ license: MIT
 
 ### Model Selection
 
-Use **aliases** for automatic improvements:
+Per ADR-080, skills default to the harness-inherited model. Omit the `model:`
+field; that is the correct, evidence-free default and the state most skills use.
+Skills cannot be swept by the eval harness, so a versioned id (for example
+`claude-sonnet-4-6`) can never be justified and the model-pin check rejects it.
+
+The only allowed pin is a bare rolling alias that prices below the default,
+which today means `haiku`, and it MUST carry a `model-rationale:` field:
 
 ```yaml
-model: claude-haiku-4-5    # Speed, pattern matching (<1s, minimal cost)
-model: claude-sonnet-4-6   # Standard workflows (<5s, standard cost)
-model: claude-opus-4-6     # Orchestration, reasoning (<30s, premium justified)
+model: haiku
+model-rationale: cost. Resolves to claude-haiku-4-5, priced below the default; this unit is cheap routing/mechanical work.
 ```
 
 ## Validation Rules

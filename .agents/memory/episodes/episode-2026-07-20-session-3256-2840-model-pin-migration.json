@@ -1,0 +1,111 @@
+{
+  "id": "episode-2026-07-20-session-3256-2840-model-pin-migration",
+  "session": "2026-07-20-session-3256-2840-model-pin-migration",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Resolve the safe, no-eval half of issue #2840 (ADR-080 model-pin migration): de-version every skill and command model pin, regenerate the Copilot mirrors, drain the governance baseline, and close the regrowth sources. Flag the agent + generator half as owner-gated because agent_registry requires a model field and ADR-080 step 2b conflicts with ADR-002/templates.md.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reviewed the full #2840 discourse and ADR-080. Found local main 101 commits behind origin; ADR-080 governance check, baseline, and manifest already shipped in #3071. Branched feat/2840-model-pin-migration from fresh origin/main.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ground-truthed the state: baseline 113 grandfathered pins, warn mode wired into pre_pr, manifest empty. Confirmed the check contract: skills/commands may not carry a versioned id; a bare alias is legal only when it prices below the default (haiku only).",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "De-versioned 74 skills + 1 command via a scripted frontmatter transform: sonnet/opus versioned ids removed (inherit); haiku ids converted to bare alias plus a cost model-rationale. YAML re-parsed clean on all 121 files, zero residual versioned pins.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the Copilot skill mirrors (build_all): 73 mirrors updated (merge-resolver correctly omitted from the ship set). Closed the regrowth sources: SkillForge skill-md-template, output-structure examples, github/fix-ci pin, and the .claude/skills/CLAUDE.md model-selection guidance.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Drained the baseline 113 to 46 (frozen_count lowered to 46) and reran the check: warn OK, enforce exit 0, 31 tests green. Confirmed agent_registry.py requires model on agents, which is why the agent half stays owner-gated (removing agent pins breaks validation; keeping them fails the alias rule).",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 14701788449eb387eddf85e73993dd3d88fcf3be",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "De-versioned 66 skills + 1 command via a scripted frontmatter transform: sonnet/opus versioned ids removed (inherit); haiku ids converted to bare alias plus a cost model-rationale. Excluded 8 skills whose pre-existing structural or em-dash debt the per-file validators surfaced on touch (out of #2840 scope); they keep their pins and stay grandfathered.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Taught the SkillForge validator the model-rationale property (_constants.py, per ADR-080 point 4) so the haiku alias skills validate. Drained the baseline 113 to 52 (frozen_count 52) and reran the check: warn OK, enforce exit 0, 31 tests green. Confirmed agent_registry.py requires model on agents, which is why the agent half stays owner-gated (removing agent pins breaks validation; keeping them fails the alias rule).",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 147
+  },
+  "lessons": []
+}

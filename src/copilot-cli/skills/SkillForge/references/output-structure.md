@@ -24,7 +24,6 @@ Skills must use only these allowed frontmatter properties:
 name: my-skill
 description: What this skill does and when to use it
 license: MIT
-model: claude-opus-4-6
 user-invocable: true
 metadata:
   version: 1.0.0
@@ -39,7 +38,6 @@ metadata:
 name: isolated-analyzer
 description: Runs analysis in isolated context with validation hooks
 license: MIT
-model: claude-opus-4-6
 context: fork
 agent: Explore
 user-invocable: true

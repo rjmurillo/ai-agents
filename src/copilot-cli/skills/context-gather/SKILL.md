@@ -1,7 +1,6 @@
 ---
 name: context-gather
 version: 1.0.0
-model: claude-sonnet-4-6
 description: Gather comprehensive context from Forgetful Memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Follows the exploring-knowledge-graph skill to search across all knowledge tiers and returns a focused summary with a parseable CONTEXT_LOADED marker for downstream skip detection. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
 license: MIT
 ---

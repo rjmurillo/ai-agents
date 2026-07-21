@@ -24,6 +24,7 @@ OPTIONAL_PROPERTIES = {
     'allowed-tools',  # Tool restrictions (comma-separated or YAML list)
     'metadata',       # Custom fields (author, domains, etc.)
     'model',          # Specific Claude model (e.g., claude-sonnet-4-20250514)
+    'model-rationale', # ADR-080: justification for a bare cost-tier alias pin
     'context',        # Execution context ('fork' for isolated sub-agent)
     'agent',          # Agent type when context: fork
     'hooks',          # Lifecycle hooks (PreToolUse, PostToolUse, Stop)

@@ -8,7 +8,6 @@ description: Generate evidence-based documentary reports by searching across all
   memory systems", "what happened with X over time". Do NOT use for a single semantic
   recall (use memory) or for citation hygiene (use memory-enhancement).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   timelessness: 8/10
   category: analysis

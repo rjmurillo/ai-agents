@@ -9,7 +9,6 @@ description: Memory-First Gate (BLOCKING) and the Chesterton's Fence investigati
   plain Tier 1 lookups (use memory-search) or recording a session (use
   memory-reflexion).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   adr: ADR-007, ADR-037, ADR-063, ADR-070
   type: operation

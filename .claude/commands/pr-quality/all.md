@@ -4,7 +4,8 @@ argument-hint: '[BASE_BRANCH]'
 allowed-tools:
   - Bash(git:*)
   - Skill
-model: claude-haiku-4-5
+model: haiku
+model-rationale: cost. Resolves to claude-haiku-4-5, priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 ---
 
 # PR Quality Gate - All Agents

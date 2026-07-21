@@ -4,7 +4,8 @@ description: Detect infrastructure and security-critical file changes to trigger
 license: MIT
 metadata:
 version: 1.0.0
-model: claude-haiku-4-5
+model: haiku
+model-rationale: cost. Resolves to claude-haiku-4-5, priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 ---
 
 # Security Detection Utility
