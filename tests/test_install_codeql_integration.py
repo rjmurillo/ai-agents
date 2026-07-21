@@ -86,18 +86,42 @@ class TestStepVerifyVscode:
 
 
 class TestStepVerifyPreCommit:
-    def test_hook_found_with_actionlint(self, tmp_path: Path) -> None:
-        hooks_dir = tmp_path / ".githooks"
-        hooks_dir.mkdir()
-        (hooks_dir / "pre-commit").write_text("#!/bin/sh")
+    def test_lefthook_actionlint_job_found_with_actionlint(self, tmp_path: Path) -> None:
+        (tmp_path / "lefthook.yml").write_text(
+            "pre-commit:\n  jobs:\n    - name: actionlint\n",
+            encoding="utf-8",
+        )
 
         with patch("shutil.which", return_value="/usr/bin/actionlint"):
             result = step_verify_pre_commit(str(tmp_path))
-            assert "[PASS]" in result
 
-    def test_hook_not_found(self, tmp_path: Path) -> None:
+        assert result == "[PASS] Lefthook actionlint job configured"
+
+    def test_lefthook_config_not_found(self, tmp_path: Path) -> None:
         result = step_verify_pre_commit(str(tmp_path))
-        assert "[WARNING]" in result
+
+        assert result == "[WARNING] Lefthook config not found"
+
+    def test_lefthook_actionlint_job_not_found(self, tmp_path: Path) -> None:
+        (tmp_path / "lefthook.yml").write_text(
+            "pre-commit:\n  jobs:\n    - name: python-check\n",
+            encoding="utf-8",
+        )
+
+        result = step_verify_pre_commit(str(tmp_path))
+
+        assert result == "[WARNING] Lefthook actionlint job not found"
+
+    def test_actionlint_not_installed(self, tmp_path: Path) -> None:
+        (tmp_path / "lefthook.yml").write_text(
+            "pre-commit:\n  jobs:\n    - name: actionlint\n",
+            encoding="utf-8",
+        )
+
+        with patch("shutil.which", return_value=None):
+            result = step_verify_pre_commit(str(tmp_path))
+
+        assert result == "[WARNING] actionlint not found - install for YAML validation"
 
 
 class TestStepVerifyClaudeSkill:

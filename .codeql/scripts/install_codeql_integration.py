@@ -157,19 +157,22 @@ def step_verify_claude_skill(repo_root: str) -> str:
 
 
 def step_verify_pre_commit(repo_root: str) -> str:
-    write_status("Verifying pre-commit hook...", "info")
-    pre_commit_hook = os.path.join(repo_root, ".githooks", "pre-commit")
+    write_status("Verifying Lefthook pre-commit integration...", "info")
+    lefthook_config = os.path.join(repo_root, "lefthook.yml")
 
-    if not os.path.isfile(pre_commit_hook):
-        write_status(f"Pre-commit hook not found at: {pre_commit_hook}", "warning")
-        return "[WARNING] Pre-commit hook not found"
+    if not os.path.isfile(lefthook_config):
+        write_status(f"Lefthook config not found at: {lefthook_config}", "warning")
+        return "[WARNING] Lefthook config not found"
 
-    write_status("Pre-commit hook found", "success")
+    config_text = Path(lefthook_config).read_text(encoding="utf-8")
+    if "name: actionlint" not in config_text:
+        write_status("Lefthook actionlint job not found", "warning")
+        return "[WARNING] Lefthook actionlint job not found"
 
     actionlint = shutil.which("actionlint")
     if actionlint:
         write_status("actionlint is installed", "success")
-        return "[PASS] Pre-commit hook updated with actionlint"
+        return "[PASS] Lefthook actionlint job configured"
 
     write_status("actionlint not found", "warning")
     return "[WARNING] actionlint not found - install for YAML validation"

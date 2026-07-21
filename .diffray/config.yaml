@@ -19,7 +19,8 @@ filters:
   include:
     # Re-include critical infrastructure files
     - '.github/workflows/*.yml'
-    - '.githooks/**'
+    - 'lefthook.yml'
+    - 'scripts/validation/git_hook_policy.py'
 
 # Review settings
 review:
