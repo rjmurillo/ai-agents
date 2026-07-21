@@ -154,19 +154,6 @@
         }
       ]
     },
-    "plugin-pretooluse-false_completion_gate": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*|[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_false_completion_gate.py",
-          "timeout": 5,
-          "statusMessage": "Checking for false completion claims without verification (#1703)"
-        }
-      ]
-    },
     "plugin-pretooluse-5-session_log_guard": {
       "event": "PreToolUse",
       "mode": "gate",
