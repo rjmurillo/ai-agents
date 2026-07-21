@@ -81,7 +81,8 @@ class TestSkillFrontmatter:
         model = fm.get("model")
         if model is not None:
             assert model == "haiku", (
-                f"ADR-080: skill model pin must be 'haiku' (only alias below default), got {model!r}"
+                f"ADR-080: skill model pin must be 'haiku' "
+                f"(only alias below default), got {model!r}"
             )
             assert fm.get("model-rationale"), (
                 "ADR-080: skill model pin requires a model-rationale field"
