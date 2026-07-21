@@ -1,5 +1,8 @@
 # CodeQL Integration Architecture
 
+> [!WARNING]
+> **This document is partially out of date.** It describes the pre-Python-migration PowerShell implementation and a three-tier strategy whose Tier 3 (the automatic PostToolUse quick-scan hook) was removed as dead code on 2026-07-21. The current CodeQL strategy is two-tier: Tier 1 (CI/CD blocking gate) and Tier 2 (on-demand `codeql-scan` skill). See the ADR-041 amendment (2026-07-21) and issue #3296 for the full overhaul. Refs #3295, #3197.
+
 ## Purpose
 
 This document provides technical details of the CodeQL security analysis integration, including the multi-tier strategy, component architecture, performance optimizations, and extension points.

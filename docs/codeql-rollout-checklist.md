@@ -1,5 +1,8 @@
 # CodeQL Integration Rollout Checklist
 
+> [!WARNING]
+> **This document is partially out of date.** It describes the pre-Python-migration PowerShell implementation and a three-tier strategy whose Tier 3 (the automatic PostToolUse quick-scan hook) was removed as dead code on 2026-07-21. The current CodeQL strategy is two-tier: Tier 1 (CI/CD blocking gate) and Tier 2 (on-demand `codeql-scan` skill). See the ADR-041 amendment (2026-07-21) and issue #3296 for the full overhaul. Refs #3295, #3197.
+
 This checklist provides a systematic approach to deploying and validating the CodeQL security analysis integration across all tiers.
 
 ## Pre-Rollout
