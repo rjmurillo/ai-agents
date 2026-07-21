@@ -88,6 +88,7 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=10,
         )
         rels = [line for line in completed.stdout.splitlines() if line.strip()]
         return [repo_root / rel for rel in rels]

@@ -32,6 +32,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 
 from validate_python_syntax import (  # noqa: E402
     _read_python_source,
+    _tracked_python_files,
     _walk_python_files,
     find_syntax_errors,
     support_floor,
@@ -120,6 +121,19 @@ def test_index_read_has_a_bounded_git_timeout(tmp_path: Path, monkeypatch) -> No
 
     with pytest.raises(subprocess.TimeoutExpired):
         _read_python_source(tmp_path, missing)
+
+
+def test_tracked_file_discovery_has_a_bounded_git_timeout(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def timeout_git(command: list[str], **kwargs: Any) -> None:
+        assert command[-2:] == ["ls-files", "*.py"]
+        assert kwargs["timeout"] == 10
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", timeout_git)
+
+    assert _tracked_python_files(tmp_path) == []
 
 
 def test_staged_broken_file_missing_from_worktree_is_rejected(
