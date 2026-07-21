@@ -8,7 +8,7 @@ Full report: [`.agents/analysis/serena-memory-audit-2026-06-10.md`](../../../.ag
 - Misnamed `adr/adr-021-quantitative-analysis` (content was ADR-019 analysis) moved to `adr/adr-019-quantitative-analysis`.
 - No-auto-generated-headers user preference promoted to [`.claude/rules/universal.md`](../../../.claude/rules/universal.md) MUST NOT 6; both user-preference memories deleted.
 - Stale ADR-005 "MUST NOT create Python scripts" blocks in [`governance/governance-001-consolidated-constraints`](../governance/governance-001-consolidated-constraints.md) and [`session/session-init-constraints`](../session/session-init-constraints.md) corrected to ADR-042 Python-first.
-- [`usage-mandatory`](../usage-mandatory.md) trimmed to episodic incidents; the rule is canonical in [`AGENTS.md`](../../../AGENTS.md), enforced by [`invoke_skill_first_guard.py`](../../../.claude/hooks/PreToolUse/invoke_skill_first_guard.py).
+- [`usage-mandatory`](../usage-mandatory.md) trimmed to episodic incidents; the rule is canonical in [`AGENTS.md`](../../../AGENTS.md), enforced at the time by `invoke_skill_first_guard.py` (retired in ADR-085).
 
 ## Naming conventions confirmed by reference counts
 

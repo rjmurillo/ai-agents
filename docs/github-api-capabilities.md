@@ -194,8 +194,9 @@ gh api graphql -f query='
 
 #### Python Scripts (Full-Featured, Hook-Integrated)
 
-Python scripts are the primary path for Claude Code. The `invoke_skill_first_guard.py`
-hook routes raw `gh` commands to these scripts automatically.
+Python scripts are the primary path for Claude Code. Skills document
+these scripts as the recommended way to reach the GitHub API; call them
+directly instead of raw `gh`.
 
 | Skill | Location | Purpose |
 |-------|----------|---------|

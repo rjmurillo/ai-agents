@@ -76,13 +76,13 @@ Grade: CODE. Re-verify command in Provenance.
 
 | Dimension | Contract | Grade | Evidence |
 |-----------|----------|-------|----------|
-| stdin | One JSON object per invocation; PreToolUse carries `tool_name` (string) and `tool_input` (parsed dict) | CODE | `.claude/hooks/PreToolUse/invoke_skill_first_guard.py:372-375` reads exactly these keys |
+| stdin | One JSON object per invocation; PreToolUse carries `tool_name` (string) and `tool_input` (parsed dict) | CODE | `.claude/hooks/PreToolUse/invoke_security_gate.py:331` reads the snake_case `tool_input` key directly from the parsed payload (Claude side is snake_case only; no alias normalization) |
 | Exit 0 | Allow. Plain stdout is injected as context (SessionStart, UserPromptSubmit); a JSON `{"systemMessage": ...}` on stdout is an advisory shown to the user | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:12-13,342` prints plain stdout for context injection; the `systemMessage` JSON form is a Claude Code harness affordance |
-| Exit 2 | Block the action via exit 2. The block reason is surfaced on stderr (the agent-visible channel for PreToolUse blocks) and/or printed to stdout | CODE | `invoke_skill_first_guard.py:368` (block reason on stderr, exit 2); `invoke_retrospective_gate.py:325,327` (block reason on stdout, exit 2) |
+| Exit 2 | Block the action via exit 2. The block reason is surfaced on stderr (the agent-visible channel for PreToolUse blocks) and/or printed to stdout | CODE | `.claude/hooks/PreToolUse/invoke_security_gate.py:220-227,375-376` (block reason on stderr, exit 2); `invoke_retrospective_gate.py:325,327` (block reason on stdout, exit 2) |
 | JSON decision payload | Alternative to exit 2: exit 0 plus `hookSpecificOutput.permissionDecision` (allow/deny/ask). The legacy top-level `{"decision":"deny"}` form is ignored by the harness | CODE | `invoke_security_commit_gate.py:16,168-171` documents that the exit-0 `{"decision":"deny"}` form was ignored, so the gate denies via `hookSpecificOutput.permissionDecision` or exit 2 |
-| Exit codes vs ADR-035 | Claude hooks are EXEMPT from ADR-035 exit-code taxonomy; non-blocking hook types must exit 0 | CODE | Exit-code blocks in hook docstrings, e.g. `invoke_skill_first_guard.py:13` "exempt from ADR-035" |
+| Exit codes vs ADR-035 | Claude hooks are EXEMPT from ADR-035 exit-code taxonomy; non-blocking hook types must exit 0 | CODE | Exit-code blocks in hook docstrings, e.g. `.claude/hooks/PreToolUse/invoke_security_gate.py:10` "exempt from ADR-035" |
 | `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir; cwd is the USER working dir, not the plugin root | EMPIRICAL (Claude Code 2.1.159, session 1873) | ADR-071 "Verified Runtime Contract" section |
-| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set, else manifest walk-up to `.claude-plugin/plugin.json` | CODE | Bootstrap block in `invoke_skill_first_guard.py` (works in `.claude/` source tree and installed copies) |
+| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set, else manifest walk-up to `.claude-plugin/plugin.json` | CODE | Bootstrap block in `.claude/hooks/PreToolUse/invoke_security_gate.py:24-42` (works in `.claude/` source tree and installed copies) |
 
 ### Which events can block
 
@@ -214,7 +214,7 @@ Sources (path:line where load-bearing):
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `2026-06-02-issue-2290-copilot-hook-payload-format.md`
 - `build/scripts/generate_hooks_emit.py:335-421`; `build/scripts/generate_hooks_events.py:381-385`; `templates/platforms/copilot-cli.yaml:52-62`
 - `.claude/rules/generated-artifacts.md`; `.claude/rules/lsp-first.md`; `.claude/rules/claude-agents.md` (MUST 2)
-- `.claude/hooks/PreToolUse/invoke_skill_first_guard.py:372-375`; `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py:17`
+- `build/scripts/generate_hooks_shim.py:315-325`; `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py:17`
 - Manifests and `.mcp.json` read directly 2026-07-03
 
 Re-verification one-liners for volatile facts:

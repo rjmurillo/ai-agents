@@ -315,7 +315,7 @@ The shipped pattern:
 3. **Pick the right exit code on bootstrap failure.** Use `sys.exit(2)` for blocking hooks (the missing lib means the hook cannot run, so the gate must fail closed). Use `sys.exit(0)` for non-blocking hooks where a missing lib should not stop the user. Add the inline annotation `# Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)` next to a `sys.exit(0)` so the next reader does not "fix" it.
 
 4. **Canonical implementation examples.** Pick a sibling at the same blocking/non-blocking tier:
-   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_session_log_guard.py`, `.claude/hooks/PreToolUse/invoke_skill_first_guard.py`, `.claude/hooks/Stop/invoke_session_validator.py`, `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py`
+   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_session_log_guard.py`, `.claude/hooks/Stop/invoke_session_validator.py`, `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py`
    - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/PreToolUse/invoke_retrospective_gate.py`, `.claude/hooks/UserPromptSubmit/invoke_research_then_implement.py`
 
    `invoke_correction_applier.py` and `invoke_topical_memory_injection.py` were removed in issue #3184 as unused, unregistered hooks. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` guards against their re-registration.

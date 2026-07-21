@@ -14159,6 +14159,69 @@
         "episode-2026-07-20-session-3257-work-lefthook-migration"
       ],
       "created": "2026-07-21T01:54:15.152131+00:00"
+    },
+    {
+      "id": "eb61164b1d6e",
+      "type": "milestone",
+      "label": "milestone: Removed skill_first_guard from the Claude source: deleted the hook script and its three registration surfaces (dispatch_groups.json group, settings.json matcher, plugin hooks.json dispatcher entry).",
+      "episodes": [
+        "episode-2026-07-21-session-3217-retire-skill-first-guard"
+      ],
+      "created": "2026-07-21T09:44:20.462748+00:00"
+    },
+    {
+      "id": "7e685e19cf48",
+      "type": "milestone",
+      "label": "milestone: Regenerated the vendored Copilot surface with build_all.py: dropped the skill_first_guard shim, its _manifest.json entry, the vendored hooks.json registration, and refreshed the vendored SKILL.md and list_issues.py copies.",
+      "episodes": [
+        "episode-2026-07-21-session-3217-retire-skill-first-guard"
+      ],
+      "created": "2026-07-21T09:44:20.462808+00:00"
+    },
+    {
+      "id": "e1ff62de4dfe",
+      "type": "milestone",
+      "label": "milestone: Deleted the two guard-only test modules and surgically removed guard references from three shared tests (hook plugin guards parametrize case, list_issues #2110 guard-mapping class, pr-description example filename).",
+      "episodes": [
+        "episode-2026-07-21-session-3217-retire-skill-first-guard"
+      ],
+      "created": "2026-07-21T09:44:20.462860+00:00"
+    },
+    {
+      "id": "81d0c2e215f2",
+      "type": "milestone",
+      "label": "milestone: Repointed the agent-harness-reference SKILL.md evidence citations off the doomed guard onto durable survivors (generate_hooks_shim.py for the stdin alias contract, invoke_security_gate.py for exit-2 and lib-bootstrap) and updated stale live-doc references in CONTRIBUTING.md and docs/github-api-capabilities.md.",
+      "episodes": [
+        "episode-2026-07-21-session-3217-retire-skill-first-guard"
+      ],
+      "created": "2026-07-21T09:44:20.462910+00:00"
+    },
+    {
+      "id": "f99bac88deaa",
+      "type": "milestone",
+      "label": "milestone: Bumped the project-toolkit plugin manifests 0.6.92 -> 0.6.93 on both surfaces to satisfy the parity gate.",
+      "episodes": [
+        "episode-2026-07-21-session-3217-retire-skill-first-guard"
+      ],
+      "created": "2026-07-21T09:44:20.462960+00:00"
+    },
+    {
+      "id": "bb662d0d893a",
+      "type": "commit",
+      "label": "commit: Commit: c37476825eafbc8c70c1f1ab679cfaed3255bfd2",
+      "episodes": [
+        "episode-2026-07-21-session-3217-retire-skill-first-guard"
+      ],
+      "created": "2026-07-21T09:44:20.463010+00:00"
+    },
+    {
+      "id": "4b76bb3c61ce",
+      "type": "outcome",
+      "label": "Outcome: success - Retire the skill_first_guard PreToolUse hook from both the Claude and vendored Copilot surfaces per ADR-085 decision D-A: Copilot CLI ignores repo-committed permissions, so the guard cannot intercept raw gh/git calls on the surface we ship to customers, making it net-negative. No git-observable invariant corresponds to the guard's steering, so pre-execution blocking is retired, not relocated (issue #3217, epic #3197).",
+      "episodes": [
+        "episode-2026-07-21-session-3217-retire-skill-first-guard"
+      ],
+      "created": "2026-07-21T09:44:20.463063+00:00"
     }
   ],
   "patterns": [

@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-21-session-3217-retire-skill-first-guard",
+  "session": "2026-07-21-session-3217-retire-skill-first-guard",
+  "timestamp": "2026-07-21T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Retire the skill_first_guard PreToolUse hook from both the Claude and vendored Copilot surfaces per ADR-085 decision D-A: Copilot CLI ignores repo-committed permissions, so the guard cannot intercept raw gh/git calls on the surface we ship to customers, making it net-negative. No git-observable invariant corresponds to the guard's steering, so pre-execution blocking is retired, not relocated (issue #3217, epic #3197).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed skill_first_guard from the Claude source: deleted the hook script and its three registration surfaces (dispatch_groups.json group, settings.json matcher, plugin hooks.json dispatcher entry).",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the vendored Copilot surface with build_all.py: dropped the skill_first_guard shim, its _manifest.json entry, the vendored hooks.json registration, and refreshed the vendored SKILL.md and list_issues.py copies.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deleted the two guard-only test modules and surgically removed guard references from three shared tests (hook plugin guards parametrize case, list_issues #2110 guard-mapping class, pr-description example filename).",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repointed the agent-harness-reference SKILL.md evidence citations off the doomed guard onto durable survivors (generate_hooks_shim.py for the stdin alias contract, invoke_security_gate.py for exit-2 and lib-bootstrap) and updated stale live-doc references in CONTRIBUTING.md and docs/github-api-capabilities.md.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped the project-toolkit plugin manifests 0.6.92 -> 0.6.93 on both surfaces to satisfy the parity gate.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c37476825eafbc8c70c1f1ab679cfaed3255bfd2",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
