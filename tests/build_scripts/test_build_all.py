@@ -104,28 +104,32 @@ def test_format_audit_md_emits_per_matcher_hook_rows() -> None:
                 {
                     "event_source": "PreToolUse",
                     "event_target": "preToolUse",
-                    "matcher": "Bash(git commit*)",
+                    "matcher": "Bash|Write\nEdit",
                     "script": "PreToolUse/guard.py",
                     "target": "src/copilot-cli/hooks/preToolUse/guard__Bash_git_commit_abc123.py",
                     "action": "emitted",
+                    "reason": "",
                 },
                 {
-                    "event_source": "SubagentStop",
+                    "event_source": "Notification",
                     "event_target": "",
                     "matcher": "",
-                    "script": "SubagentStop/foo.py",
+                    "script": "Notification/foo.py",
                     "target": "(dropped)",
                     "action": "dropped",
+                    "reason": "unsupported | shell\nentry",
                 },
             ],
         )
     )
     md = build_all._format_audit_md(audit)
     assert "### Hooks (copilot-cli)" in md
-    assert "Bash(git commit*)" in md
+    assert "Bash\\|Write<br>Edit" in md
     assert "guard__Bash_git_commit_abc123.py" in md
-    # Dropped row uses (none) for empty matcher and (dropped) target.
-    assert "| SubagentStop | (none) | (dropped) | dropped |" in md
+    assert (
+        "| Notification | Notification/foo.py | (none) | (dropped) | dropped | "
+        "unsupported \\| shell<br>entry |"
+    ) in md
 
 
 def test_format_audit_md_no_hook_subsection_when_no_hook_entries() -> None:
@@ -138,6 +142,54 @@ def test_format_audit_md_no_hook_subsection_when_no_hook_entries() -> None:
     )
     md = build_all._format_audit_md(audit)
     assert "### Hooks" not in md
+
+
+def test_build_hooks_preserves_drop_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "platform.yaml"
+    config.write_text(
+        """
+schemaVersion: "1.0"
+provider: "copilot-cli"
+artifacts:
+  hooks:
+    settingsSource: settings.json
+    scriptSource: hooks
+    outputConfig: src/copilot-cli/hooks/hooks.json
+    outputScripts: src/copilot-cli/hooks
+    eventRemap:
+      SessionStart: SessionStart
+""",
+        encoding="utf-8",
+    )
+    run_result = build_all.generate_hooks.GenerateHooksResult(
+        dropped=1,
+        entries=[
+            build_all.generate_hooks.HookAuditEntry(
+                event_source="SessionStart",
+                event_target="",
+                script="session-start.sh",
+                action="dropped",
+                reason="only Python hook commands can be generated",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        build_all.generate_hooks,
+        "generate_hooks",
+        lambda _config, _root: (0, run_result),
+    )
+
+    result = build_all._build_hooks(tmp_path, config, "copilot-cli")
+
+    assert result.notices == [
+        "copilot-cli: dropped 1 hook entry "
+        "(only Python hook commands can be generated)"
+    ]
+    assert result.hook_entries[0]["reason"] == (
+        "only Python hook commands can be generated"
+    )
 
 
 # Blocklist enforcement (REQ-003-011) ---------------------------------------

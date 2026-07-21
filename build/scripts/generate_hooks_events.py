@@ -93,11 +93,7 @@ def _handle_event_drop(
     for group, hook in _iter_hooks(groups):
         cmd = hook.get("command", "") or ""
         src = _resolve_script_path(script_source, cmd, claude_event)
-        script_rel = (
-            str(src.relative_to(script_source))
-            if src is not None
-            else cmd or "<unknown>"
-        )
+        script_rel = str(src.relative_to(script_source)) if src is not None else cmd or "<unknown>"
         result.entries.append(
             HookAuditEntry(
                 event_source=claude_event,
@@ -110,8 +106,7 @@ def _handle_event_drop(
         )
         result.dropped += 1
         print(
-            f"  WARN: dropping {claude_event}/{script_rel} "
-            f"(event not supported by Copilot CLI)",
+            f"  WARN: dropping {claude_event}/{script_rel} (event not supported by Copilot CLI)",
             file=sys.stderr,
         )
 
@@ -141,8 +136,7 @@ def _handle_unknown_event(
         )
         result.dropped += 1
         print(
-            f"  WARN: skipping unknown Claude event '{claude_event}' "
-            f"(not in eventRemap)",
+            f"  WARN: skipping unknown Claude event '{claude_event}' (not in eventRemap)",
             file=sys.stderr,
         )
 
@@ -168,9 +162,7 @@ def _emit_one_hook(
     """
     matcher = group.get("matcher")
     cmd = hook.get("command", "") or ""
-    timeout = _int_field_or_default(
-        hook.get("timeout"), _DEFAULT_TIMEOUT_SEC, "hook.timeout"
-    )
+    timeout = _int_field_or_default(hook.get("timeout"), _DEFAULT_TIMEOUT_SEC, "hook.timeout")
     src = _resolve_script_path(script_source, cmd, claude_event)
     if src is None:
         result.entries.append(
@@ -188,9 +180,7 @@ def _emit_one_hook(
 
     script_rel = src.relative_to(script_source)
     matcher_str = matcher if isinstance(matcher, str) and matcher else None
-    target = _relative_script_target(
-        output_scripts, target_event, src.name, matcher=matcher_str
-    )
+    target = _relative_script_target(output_scripts, target_event, src.name, matcher=matcher_str)
     script_name = target.name  # post-suffix name used by Copilot entry
 
     # Source companions and protected output companions were prevalidated
@@ -265,9 +255,7 @@ def _validate_companions(
     transitively through the NO-REGEN skip path, which needs the same
     declaration checked without writing anything.
     """
-    for _companion_name, companion_source in _iter_companions(
-        owner_relative_path, owner_source
-    ):
+    for _companion_name, companion_source in _iter_companions(owner_relative_path, owner_source):
         if not companion_source.is_file():
             raise GenerateHooksError(
                 "declared runtime companion is missing for "
@@ -281,9 +269,7 @@ def _validate_no_regen_output_companions(
     target_directory: Path,
 ) -> None:
     """Require protected owners to retain every runtime companion."""
-    for companion_name, _companion_source in _iter_companions(
-        owner_relative_path, owner_source
-    ):
+    for companion_name, _companion_source in _iter_companions(owner_relative_path, owner_source):
         companion_target = target_directory / companion_name
         if not companion_target.is_file():
             raise GenerateHooksError(
@@ -324,6 +310,7 @@ def _validate_writable_owner_output_companions(
                 "runtime companion target is NO-REGEN protected while its "
                 f"owner is writable: {companion_target} ({companion_reason})"
             )
+
 
 def _prevalidate_companions(
     hooks_map: dict[str, Any],
@@ -476,15 +463,13 @@ def _copy_hook_group(
             )
             for companion_source, companion_target in companion_targets
         ]
-        transaction.publish_many(
-            [*staged_companions, (staged_owner, owner_target)]
-        )
+        transaction.publish_many([*staged_companions, (staged_owner, owner_target)])
     except OSError as exc:
         raise GenerateHooksError(
-            f"failed to stage or publish hook group for "
-            f"{owner_relative_path}: {exc}"
+            f"failed to stage or publish hook group for {owner_relative_path}: {exc}"
         ) from exc
     return True, ""
+
 
 def _process_event(
     claude_event: str,
@@ -507,9 +492,7 @@ def _process_event(
     ``result.entries``.
     """
     if claude_event in event_drop:
-        _handle_event_drop(
-            claude_event, groups, script_source=script_source, result=result
-        )
+        _handle_event_drop(claude_event, groups, script_source=script_source, result=result)
         return []
 
     target_event = event_remap.get(claude_event)
@@ -563,11 +546,7 @@ def _dispatcher_artifact_targets(
     output_scripts: Path,
 ) -> list[Path]:
     """Return every file the dispatcher consolidation may overwrite."""
-    return [
-        output_scripts / event / name
-        for event in out
-        for name in _DISPATCHER_ARTIFACT_NAMES
-    ]
+    return [output_scripts / event / name for event in out for name in _DISPATCHER_ARTIFACT_NAMES]
 
 
 def _has_dispatchable_hook(
@@ -634,21 +613,22 @@ def _stage_dispatcher_artifacts(
         try:
             generate_dispatcher.validate_event_name(event)
         except ValueError as exc:
-            raise GenerateHooksError(
-                f"dispatcher event path validation failed: {exc}"
-            ) from exc
+            raise GenerateHooksError(f"dispatcher event path validation failed: {exc}") from exc
         (stage_root / event).mkdir(parents=True, exist_ok=True)
-    consolidated = generate_dispatcher.consolidate(out, stage_root)
+    try:
+        consolidated = generate_dispatcher.consolidate(out, stage_root)
+    except ValueError as exc:
+        raise GenerateHooksError(f"dispatcher configuration invalid: {exc}") from exc
     try:
         hooks_root = output_scripts.resolve(strict=True)
     except (OSError, RuntimeError) as exc:
-        raise GenerateHooksError(
-            f"dispatcher cleanup path validation failed: {exc}"
-        ) from exc
+        raise GenerateHooksError(f"dispatcher cleanup path validation failed: {exc}") from exc
     stale_targets: list[Path] = []
+    direct_events: set[str] = set()
     for event in sorted(out):
         manifest_path = stage_root / event / "_manifest.json"
         if not manifest_path.is_file():
+            direct_events.add(event)
             continue
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         shim_names = manifest.get("shims")
@@ -668,9 +648,13 @@ def _stage_dispatcher_artifacts(
                 )
             )
         except ValueError as exc:
-            raise GenerateHooksError(
-                f"dispatcher cleanup path validation failed: {exc}"
-            ) from exc
+            raise GenerateHooksError(f"dispatcher cleanup path validation failed: {exc}") from exc
+    stale_targets.extend(
+        generate_dispatcher.find_owned_dispatcher_core_artifacts(
+            output_scripts,
+            direct_events,
+        )
+    )
     publish_pairs: list[tuple[Path, Path]] = []
     for generated in _dispatcher_artifact_targets(consolidated, stage_root):
         if not generated.is_file():
@@ -682,6 +666,74 @@ def _stage_dispatcher_artifacts(
     transaction.delete_many(stale_targets)
     transaction.publish_many(publish_pairs)
     return cast(dict[str, list[dict[str, Any]]], consolidated)
+
+
+def _stage_orphan_event_cleanup(
+    out: dict[str, list[dict[str, Any]]],
+    script_source: Path,
+    output_scripts: Path,
+    transaction: HookGenerationTransaction,
+    *,
+    what_if: bool,
+) -> list[Path]:
+    """Stage deletion of ownership-proven generated files for inactive events."""
+    import generate_dispatcher
+
+    targets, directories = cast(
+        tuple[list[Path], list[Path]],
+        generate_dispatcher.find_owned_orphan_artifacts(
+            output_scripts,
+            set(out),
+            source_hooks=script_source,
+        ),
+    )
+    if what_if:
+        for target in targets:
+            print(f"  Would remove generated orphan: {target}")
+        return []
+    transaction.delete_many(targets)
+    return directories
+
+
+def _stage_dispatcher_changes(
+    out: dict[str, list[dict[str, Any]]],
+    script_source: Path,
+    output_scripts: Path,
+    transaction: HookGenerationTransaction,
+    *,
+    what_if: bool,
+) -> tuple[dict[str, list[dict[str, Any]]], list[Path]]:
+    """Stage dispatcher publication and ownership-proven orphan cleanup."""
+    try:
+        if not what_if:
+            _validate_dispatcher_artifact_targets(_dispatcher_artifact_targets(out, output_scripts))
+            out = _stage_dispatcher_artifacts(out, output_scripts, transaction)
+    except OSError as exc:
+        raise OSError(f"dispatcher generation failed: {exc}") from exc
+
+    try:
+        directories = _stage_orphan_event_cleanup(
+            out,
+            script_source,
+            output_scripts,
+            transaction,
+            what_if=what_if,
+        )
+    except OSError as exc:
+        raise OSError(f"orphan hook cleanup failed: {exc}") from exc
+    return out, directories
+
+
+def _remove_empty_orphan_directories(directories: list[Path]) -> None:
+    """Remove only empty orphan directories, deepest first, after commit."""
+    for directory in sorted(directories, key=lambda path: len(path.parts), reverse=True):
+        try:
+            directory.rmdir()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            if directory.exists():
+                print(f"  NOTICE: preserved non-empty orphan directory {directory}: {exc}")
 
 
 def generate_hooks(
@@ -757,9 +809,9 @@ def generate_hooks(
     except GenerateHooksError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2, result
-    # ADR-068 / #2295: when true, collapse the tool-gating event's per-shim
-    # entries into one in-process dispatcher entry. Default false keeps the
-    # byte-identical per-shim output for every other platform.
+    # ADR-068 / #2295: when true, collapse classified events' per-shim entries
+    # into one in-process dispatcher entry. Default false keeps direct per-shim
+    # registrations. Lifecycle events with repository prose remain shell-silent.
     dispatcher_mode = bool(stanza.get("dispatcher", False))
 
     try:
@@ -779,6 +831,13 @@ def generate_hooks(
     if not script_source.is_dir():
         print(f"Error: scriptSource not a directory: {script_source}", file=sys.stderr)
         return 1, result
+    config_reason = regen_detect_reason(output_config)
+    if config_reason is not None:
+        print(
+            "  NOTICE: preserved generated hook artifact set because "
+            f"{output_config} is NO-REGEN protected: {config_reason}"
+        )
+        return 0, result
 
     try:
         hooks_map = _load_claude_settings(settings_source)
@@ -825,7 +884,9 @@ def generate_hooks(
     except OSError as exc:
         print(f"Error: could not acquire hook generation lock: {exc}", file=sys.stderr)
         return 1, result
+
     committed = False
+    orphan_directories: list[Path] = []
     try:
         # Stable iteration order: alphabetical by Claude event name. Output
         # ordering is independent of dict insertion order.
@@ -856,28 +917,23 @@ def generate_hooks(
             for target_event, entry in emitted:
                 out.setdefault(target_event, []).append(entry)
 
-        # ADR-068 / #2295: consolidate the tool-gating event to one dispatcher
-        # entry, emitting _manifest.json + _dispatch.py next to the shims. The
-        # shims stay on disk (the dispatcher runs them in-process); only the
-        # hooks.json registration changes.
-        if dispatcher_mode and not what_if:
+        # ADR-068 / #2295: consolidate safely mergeable events to one dispatcher
+        # entry and keep structured decision events direct. Consolidated shims
+        # stay on disk and run in-process; only hooks.json registration changes.
+        if dispatcher_mode:
             try:
-                _validate_dispatcher_artifact_targets(
-                    _dispatcher_artifact_targets(out, output_scripts)
-                )
-                out = _stage_dispatcher_artifacts(
+                out, orphan_directories = _stage_dispatcher_changes(
                     out,
+                    script_source,
                     output_scripts,
                     transaction,
+                    what_if=what_if,
                 )
             except GenerateHooksError as exc:
                 print(f"Error: {exc}", file=sys.stderr)
                 return 2, result
             except OSError as exc:
-                print(
-                    f"Error: dispatcher generation failed: {exc}",
-                    file=sys.stderr,
-                )
+                print(f"Error: {exc}", file=sys.stderr)
                 return 1, result
 
         # Drop the generator-internal matcher key on every path (dispatcher
@@ -888,37 +944,40 @@ def generate_hooks(
                     entry.pop("claudeMatcher", None)
 
         # Write hooks.json through the same transaction as every generated
-        # script. NO-REGEN on the config file itself protects customer edits.
+        # script. Recheck NO-REGEN immediately before publication so a sentinel
+        # created during generation rolls back the entire artifact set.
         config_reason = regen_detect_reason(output_config)
         if config_reason is not None:
             print(
-                f"  NOTICE: skipped {output_config} (NO-REGEN: {config_reason})"
+                "  NOTICE: preserved generated hook artifact set because "
+                f"{output_config} is NO-REGEN protected: {config_reason}"
             )
+            return 0, result
+        wrapped = {"version": version_field, "hooks": out}
+        if not what_if:
+            output_config.parent.mkdir(parents=True, exist_ok=True)
+            staged_config = transaction.new_stage_path(output_config.parent)
+            try:
+                staged_config.write_text(
+                    json.dumps(wrapped, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                staged_config.chmod(0o644)
+                transaction.publish_many([(staged_config, output_config)])
+            except OSError as exc:
+                print(
+                    f"Error: hooks.json generation failed: {exc}",
+                    file=sys.stderr,
+                )
+                return 1, result
         else:
-            wrapped = {"version": version_field, "hooks": out}
-            if not what_if:
-                output_config.parent.mkdir(parents=True, exist_ok=True)
-                staged_config = transaction.new_stage_path(output_config.parent)
-                try:
-                    staged_config.write_text(
-                        json.dumps(wrapped, indent=2, sort_keys=True) + "\n",
-                        encoding="utf-8",
-                    )
-                    staged_config.chmod(0o644)
-                    transaction.publish_many([(staged_config, output_config)])
-                except OSError as exc:
-                    print(
-                        f"Error: hooks.json generation failed: {exc}",
-                        file=sys.stderr,
-                    )
-                    return 1, result
-            else:
-                print(f"  Would write: {output_config}")
+            print(f"  Would write: {output_config}")
 
         cleanup_errors = transaction.commit()
         committed = True
         for cleanup_error in cleanup_errors:
             print(f"  WARN: {cleanup_error}", file=sys.stderr)
+        _remove_empty_orphan_directories(orphan_directories)
     finally:
         if not committed:
             for rollback_error in transaction.rollback():

@@ -59,10 +59,9 @@ class GeneratorResult:
     """One generator's contribution to the audit log.
 
     ``hook_entries`` carries optional per-script audit detail emitted by
-    the hooks generator (REQ-003-007). Each entry is a dict with the
-    keys ``event_source``, ``event_target``, ``matcher``, ``script``,
-    and ``action`` so security review can reconstruct the matcher ->
-    file mapping without grepping source.
+    the hooks generator (REQ-003-007). Each entry includes the source
+    event, target event, matcher, script, target, action, and reason so
+    security review can reconstruct every emitted or dropped mapping.
     """
 
     artifact: str
@@ -382,9 +381,17 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
     result.outputs = run_result.written
     result.skipped = run_result.sentinel_skipped
     if run_result.dropped:
+        drop_reasons = sorted(
+            {
+                entry.reason
+                for entry in run_result.entries
+                if entry.action == "dropped" and entry.reason
+            }
+        )
+        reason_summary = "; ".join(drop_reasons) or "reason unavailable"
         result.notices.append(
             f"{platform}: dropped {run_result.dropped} hook entr"
-            f"{'y' if run_result.dropped == 1 else 'ies'} (eventDrop)"
+            f"{'y' if run_result.dropped == 1 else 'ies'} ({reason_summary})"
         )
     # Surface the per-script audit detail to the rendered markdown so
     # security review sees matcher -> file mapping without grep. The
@@ -413,6 +420,7 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
                 "script": entry.script,
                 "target": target,
                 "action": entry.action,
+                "reason": entry.reason,
             }
         )
     return result
@@ -479,6 +487,12 @@ def _check_blocklist(text: str, patterns: Iterable[re.Pattern[str]]) -> list[str
 # --- Audit emission -------------------------------------------------------
 
 
+def _markdown_table_cell(value: object) -> str:
+    """Escape one value for a single-line Markdown table cell."""
+    text = str(value).replace("\r\n", "\n").replace("\r", "\n")
+    return text.replace("|", r"\|").replace("\n", "<br>")
+
+
 def _format_audit_md(audit: BuildAudit) -> str:
     """Render the audit log as markdown.
 
@@ -506,15 +520,20 @@ def _format_audit_md(audit: BuildAudit) -> str:
         lines.append("")
         lines.append(f"### Hooks ({r.platform})")
         lines.append("")
-        lines.append("| Claude Event | Matcher | Target | Action |")
-        lines.append("|---|---|---|---|")
+        lines.append(
+            "| Claude Event | Source Script | Matcher | Target | Action | Reason |"
+        )
+        lines.append("|---|---|---|---|---|---|")
         for entry in r.hook_entries:
-            matcher = entry.get("matcher") or "(none)"
+            source = _markdown_table_cell(entry.get("event_source", ""))
+            script = _markdown_table_cell(entry.get("script", ""))
+            matcher = _markdown_table_cell(entry.get("matcher") or "(none)")
+            target = _markdown_table_cell(entry.get("target", ""))
+            action = _markdown_table_cell(entry.get("action", ""))
+            reason = _markdown_table_cell(entry.get("reason") or "(none)")
             lines.append(
-                f"| {entry.get('event_source', '')} "
-                f"| {matcher} "
-                f"| {entry.get('target', '')} "
-                f"| {entry.get('action', '')} |"
+                f"| {source} | {script} | {matcher} | {target} "
+                f"| {action} | {reason} |"
             )
 
     if audit.blocklist_violations:
