@@ -33,6 +33,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any, NoReturn
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -101,7 +102,7 @@ def _exit_with_error(
     exit_code: int,
     fmt: str,
     error_type: str = "General",
-) -> None:
+) -> NoReturn:
     write_skill_error(
         message,
         exit_code,
@@ -210,7 +211,7 @@ def _run_issue_list(list_args: list[str], fmt: str) -> list[object]:
     return issues
 
 
-def _format_issue(issue: dict) -> dict:
+def _format_issue(issue: dict[str, Any]) -> dict[str, object]:
     return {
         "number": issue.get("number"),
         "title": issue.get("title"),
