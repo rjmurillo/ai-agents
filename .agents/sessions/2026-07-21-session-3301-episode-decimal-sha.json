@@ -136,7 +136,7 @@
             ]
         }
     ],
-    "endingCommit": "",
+    "endingCommit": "aa603e26",
     "nextSteps": [
         "Open PR with Fixes #3301; babysit to green; resolve any review-on-push threads; self-merge (squash, delete branch).",
         "Continue open epic #3197 issues and the remaining open backlog (#3296 stale CodeQL docs is the next bounded solo-safe item)."
