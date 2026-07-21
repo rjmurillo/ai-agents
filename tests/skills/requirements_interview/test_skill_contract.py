@@ -78,7 +78,8 @@ def test_skill_within_size_limit(skill_text):
 
 
 def test_frontmatter_required_fields(skill_metadata):
-    for field in ("name", "description", "version", "model"):
+    # ADR-080: model is no longer required; skills default to the harness model.
+    for field in ("name", "description", "version"):
         assert field in skill_metadata, f"missing frontmatter field: {field}"
 
 
@@ -102,7 +103,11 @@ def test_description_constraints(skill_metadata):
 
 
 def test_model_is_supported(skill_metadata):
-    model = skill_metadata["model"]
+    # ADR-080: skills default to the harness-inherited model; no model line is
+    # the correct state. When a model IS pinned it must still be a supported id.
+    model = skill_metadata.get("model")
+    if model is None:
+        return
     assert model in VALID_MODEL_ALIASES or DATED_SNAPSHOT_PATTERN.match(model), (
         f"model {model!r} not in supported list "
         "(see scripts/validation/skill_frontmatter.py)"

@@ -32,7 +32,8 @@ SKILL_MD_PATHS = [
 @pytest.fixture(params=SKILL_MD_PATHS)
 def skill_md_path(request: pytest.FixtureRequest) -> Path:
     """Yield each SKILL.md location (canonical and mirror) per test."""
-    return request.param
+    path: Path = request.param
+    return path
 
 
 @pytest.fixture
@@ -79,11 +80,20 @@ class TestFrontmatter:
     def test_description_not_empty(self, frontmatter: dict[str, str]) -> None:
         assert len(frontmatter["description"]) > 0, "Description must not be empty"
 
-    def test_model_field_present(self, frontmatter: dict[str, str]) -> None:
-        assert "model" in frontmatter, "Frontmatter missing 'model' field"
+    def test_model_field_optional(self, frontmatter: dict[str, str]) -> None:
+        # ADR-080: skills default to the harness model; the model line is optional.
+        model = frontmatter.get("model")
+        if model is not None:
+            assert model in {"sonnet", "opus", "haiku"}, (
+                f"ADR-080: skill model must be a bare rolling alias, got {model!r}"
+            )
 
-    def test_model_value(self, frontmatter: dict[str, str]) -> None:
-        assert frontmatter["model"] == "claude-sonnet-4-6"
+    def test_model_not_versioned(self, frontmatter: dict[str, str]) -> None:
+        # ADR-080 rule 1: skills may not pin a versioned model id (inherit instead).
+        model = frontmatter.get("model", "")
+        assert "-4-" not in model and "." not in model, (
+            f"ADR-080: skill carries a versioned model id {model!r}"
+        )
 
     def test_version_field_present(self, frontmatter: dict[str, str]) -> None:
         assert "version" in frontmatter, "Frontmatter missing 'version' field"
