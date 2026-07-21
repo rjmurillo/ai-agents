@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-21-session-3280-port-commit-time-guard-hooks-git",
+  "session": "2026-07-21-session-3280-port-commit-time-guard-hooks-git",
+  "timestamp": "2026-07-21T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Port commit-time guard hooks to the git layer for issue 3196",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tested Python helpers for branch context, ADR review evidence, and false completion claims.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wired commit and push gates into Git hooks and reused the completion policy during PR creation.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retired four PreToolUse hook copies, registrations, generated shims, and dedicated legacy tests.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated Copilot artifacts and bumped both plugin manifests to version 0.6.92.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the full test suite and fixed stale push-shim and set-e regression coverage exposed by the migration.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 370d6ceb",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

@@ -1,0 +1,165 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3280,
+    "date": "2026-07-21",
+    "branch": "chore/3196-port-commit-gates",
+    "startingCommit": "504bd965",
+    "objective": "Port commit-time guard hooks to the git layer for issue 3196"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project activation completed and serena-initial_instructions returned the manual."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual in this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md lines 1-120 read as the ADR-014 read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "incremental-implementation, github, and session-init skills loaded; issue operations use the github skill scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md skill-first rules read; github skill scripts used for issue context and claim."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md, TESTING-RIGOR.md, canonical-source-mirror.md, generated-artifacts.md, and plugin-version-bump.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory queries for usage and hooks executed; repository and user memories from the session prompt applied."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/3196-port-commit-gates"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/3196-port-commit-gates"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short returned only this new session log after branch verification."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "504bd965"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end checks completed with command evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained read-only and is absent from the branch diff."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored issue-3196-commit-gates with the new ownership boundaries and ADR staleness rule."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx --no-install markdownlint-cli2 CONTRIBUTING.md: 0 issues."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fourteen implementation commits complete; this final protocol commit carries documentation, manifest cleanup, hook fixes, and the session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full suite: 13997 passed, 22 skipped, 45 xfailed. Hook syntax, focused migration tests, generator parity, and plugin parity passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 3196 implementation plan completed in order, with deletions after pre-delete verification."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked. The durable ownership and staleness decisions were stored in Serena memory."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Added tested Python helpers for branch context, ADR review evidence, and false completion claims.",
+      "files": [
+        "scripts/hooks/check_branch_context.py",
+        "scripts/hooks/check_adr_review_evidence.py",
+        "scripts/hooks/check_false_completion_msg.py"
+      ]
+    },
+    {
+      "action": "Wired commit and push gates into Git hooks and reused the completion policy during PR creation.",
+      "files": [
+        ".githooks/pre-commit",
+        ".githooks/commit-msg",
+        ".githooks/pre-push",
+        ".claude/skills/github/scripts/pr/new_pr.py"
+      ]
+    },
+    {
+      "action": "Retired four PreToolUse hook copies, registrations, generated shims, and dedicated legacy tests.",
+      "files": [
+        ".claude/hooks/PreToolUse/",
+        ".claude/hooks/dispatch_groups.json",
+        ".claude/hooks/hooks.json",
+        ".claude/settings.json"
+      ]
+    },
+    {
+      "action": "Regenerated Copilot artifacts and bumped both plugin manifests to version 0.6.92.",
+      "files": [
+        "src/copilot-cli/",
+        ".claude/.claude-plugin/plugin.json"
+      ]
+    },
+    {
+      "action": "Ran the full test suite and fixed stale push-shim and set-e regression coverage exposed by the migration.",
+      "files": [
+        "tests/build_scripts/test_generate_hooks_schema_security.py",
+        ".githooks/pre-commit",
+        ".githooks/pre-push"
+      ]
+    }
+  ],
+  "endingCommit": "370d6ceb",
+  "nextSteps": [
+    "Push chore/3196-port-commit-gates through the native pre-push hook.",
+    "Open the issue-linked PR with the repository new_pr.py script.",
+    "Report command evidence, commit SHAs, and acceptance-criteria results."
+  ]
+}

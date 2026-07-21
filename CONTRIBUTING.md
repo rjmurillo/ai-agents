@@ -315,8 +315,8 @@ The shipped pattern:
 3. **Pick the right exit code on bootstrap failure.** Use `sys.exit(2)` for blocking hooks (the missing lib means the hook cannot run, so the gate must fail closed). Use `sys.exit(0)` for non-blocking hooks where a missing lib should not stop the user. Add the inline annotation `# Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)` next to a `sys.exit(0)` so the next reader does not "fix" it.
 
 4. **Canonical implementation examples.** Pick a sibling at the same blocking/non-blocking tier:
-   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_session_log_guard.py`, `.claude/hooks/PreToolUse/invoke_skill_first_guard.py`, `.claude/hooks/Stop/invoke_session_validator.py`, `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py`
-   - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/PreToolUse/invoke_branch_context_guard.py`, `.claude/hooks/PreToolUse/invoke_retrospective_gate.py`, `.claude/hooks/UserPromptSubmit/invoke_research_then_implement.py`
+   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_security_commit_gate.py`, `.claude/hooks/PreToolUse/invoke_skill_first_guard.py`, `.claude/hooks/Stop/invoke_session_validator.py`, `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py`
+   - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/UserPromptSubmit/invoke_research_then_implement.py`
 
    `invoke_correction_applier.py` and `invoke_topical_memory_injection.py` were removed in issue #3184 as unused, unregistered hooks. Retrieve corrections and topical memories explicitly through the `memory` or `memory-search` skill. `tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` guards against their re-registration.
 
@@ -585,18 +585,17 @@ Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all chec
 
 ## Lifecycle Hooks (Claude Code)
 
-Claude Code runs lifecycle hooks at session boundaries. They are registered in `.claude/settings.json` and live in `.claude/hooks/`. The five lifecycle hooks introduced by issue #1703 are non-blocking (fail-open) with one exception: `invoke_false_completion_gate` exits 2 to block `git commit`, `gh pr create`, or `gh pr merge` claiming "done" without test evidence. Each of the five lifecycle hooks is registered with a 5-second timeout. Other (older) hooks registered in `.claude/settings.json` may have different timeouts and blocking semantics; check the relevant hook file for its contract.
+Claude Code runs lifecycle hooks at session boundaries. They are registered in `.claude/settings.json` and live in `.claude/hooks/`. Commit-time branch context, session log, ADR review, and completion checks run in `.githooks/` for every Git client. PR creation checks completion claims in `.claude/skills/github/scripts/pr/new_pr.py`. The `gh pr merge` completion-language check is not part of the git-layer migration in issue #3196.
 
 | Hook | File | Purpose | Bypass env var |
 |------|------|---------|----------------|
 | SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
-| PreToolUse | `invoke_false_completion_gate.py` | Blocks `git commit`, `gh pr create`, or `gh pr merge` claiming "done/fixed" without test evidence in session log | `SKIP_COMPLETION_GATE=true` |
 | PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
 | Stop | `invoke_auto_retrospective.py` | Auto-generates session retrospective on stop | `SKIP_AUTO_RETRO=true` |
 
-**Audit trail:** `invoke_false_completion_gate` logs every terminal decision (block, allow_verified, bypass_env, error_parse, allow_not_completion) to `.agents/.hook-state/audit-{YYYY-MM-DD}.jsonl` (UTC date) with `schema: 1`, `session_id`, and `tool_use_id` correlation IDs. The other lifecycle hooks write narrower audit entries (`invoke_context_loader` logs context-load events) without correlation IDs. Use the audit trail when diagnosing why the completion gate blocked or allowed; for the other hooks, prefer stderr.
+**Audit trail:** `invoke_auto_retrospective.py` and `invoke_context_loader.py` write lifecycle audit records under `.agents/.hook-state/`. Git-layer commit gates report block reasons on stderr.
 
-**Diagnosability:** Hook errors print to stderr (visible in the harness output) tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. The five lifecycle hooks aim to surface every recoverable failure to stderr rather than swallow it silently; if you find a silent fail-open path, treat it as a bug and add the `[hook-error]` line.
+**Diagnosability:** Hook errors print to stderr (visible in the harness output) tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. Lifecycle hooks aim to surface every recoverable failure to stderr rather than swallow it silently; if you find a silent fail-open path, treat it as a bug and add the `[hook-error]` line.
 
 Refer to `.agents/architecture/ADR-008-protocol-automation-lifecycle-hooks.md` for the design rationale.
 
@@ -679,7 +678,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-**4. Audit every terminal.** If your hook makes a decision (allow/block/bypass), log it. Use the `write_audit_log` pattern from `invoke_false_completion_gate.py`. Include `decision`, `reason`, `session_id`, `tool_use_id`, `schema: 1`. Wrap append-mode opens with `hook_utilities.lock_file`/`unlock_file` to survive parallel sessions (cross-platform, Windows + POSIX). Silent fail-open is a bug.
+**4. Audit every terminal.** If your hook makes a decision (allow/block/bypass), log it. Use the `write_audit_log` pattern from `invoke_auto_retrospective.py`. Include `decision`, `reason`, `session_id`, `tool_use_id`, `schema: 1`. Wrap append-mode opens with `hook_utilities.lock_file`/`unlock_file` to survive parallel sessions (cross-platform, Windows + POSIX). Silent fail-open is a bug.
 
 **5. UTC dates only.** Use `datetime.now(tz=UTC).strftime("%Y-%m-%d")` for any date-derived path or timestamp. Naive `datetime.now()` will mismatch hooks running at UTC and split audit/session files across days.
 
