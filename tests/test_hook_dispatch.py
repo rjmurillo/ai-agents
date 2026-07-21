@@ -339,6 +339,39 @@ class TestObserveOutput:
         assert "SessionStart" not in captured.err
         assert "branch context" not in captured.err
 
+    @pytest.mark.parametrize("event", ["SessionStart", "PreCompact"])
+    def test_discarded_stderr_emits_content_free_event(self, tmp_path, capsys, event):
+        event_dir = tmp_path / event
+        event_dir.mkdir()
+        name = _write_shim(
+            event_dir,
+            "observer.py",
+            "import sys\nprint('sensitive observer warning', file=sys.stderr)\n",
+        )
+
+        rc = run_dispatch(
+            event_dir,
+            [name],
+            b"{}",
+            short_circuit=False,
+            output_policy="discard",
+        )
+
+        captured = capsys.readouterr()
+        event_line = next(line for line in captured.err.splitlines() if line.startswith("EVENT="))
+        assert rc == 0
+        assert captured.out == ""
+        assert json.loads(event_line.removeprefix("EVENT=")) == {
+            "guard": "hook-dispatch",
+            "code": "E_OBSERVER_STDERR",
+            "outcome": "stderr_discarded",
+            "reason": "observer_emitted_stderr",
+            "event": event,
+            "shim": name,
+            "exit_code": 0,
+        }
+        assert "sensitive observer warning" not in captured.err
+
     def test_unavailable_stdout_capture_skips_observer(self, tmp_path, monkeypatch, capsys):
         marker = tmp_path / "ran"
         name = _write_shim(

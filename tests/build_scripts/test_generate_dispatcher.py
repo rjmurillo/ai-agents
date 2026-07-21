@@ -480,6 +480,22 @@ class TestObserveMode:
         assert b"fd-level stderr prompt injection" not in proc.stderr
         assert b"child stderr prompt injection" not in proc.stderr
         assert b"SessionStart hook output" in proc.stderr
+        events = [
+            json.loads(line.removeprefix(b"EVENT="))
+            for line in proc.stderr.splitlines()
+            if line.startswith(b"EVENT=")
+        ]
+        assert {event_payload["shim"] for event_payload in events} == {
+            "stderr_context.py",
+            "fd_stderr_context.py",
+            "child_stderr_context.py",
+        }
+        assert all(
+            event_payload["event"] == "SessionStart"
+            and event_payload["outcome"] == "stderr_discarded"
+            and event_payload["exit_code"] == 0
+            for event_payload in events
+        )
 
     def test_precompact_discards_repository_context(self, tmp_path):
         event = "PreCompact"
@@ -509,6 +525,18 @@ class TestObserveMode:
         assert b"branch-controlled stderr item" not in proc.stderr
         assert b"PreCompact hook output" in proc.stderr
         assert b"SessionStart" not in proc.stderr
+        event_line = next(
+            line for line in proc.stderr.splitlines() if line.startswith(b"EVENT=")
+        )
+        assert json.loads(event_line.removeprefix(b"EVENT=")) == {
+            "guard": "hook-dispatch",
+            "code": "E_OBSERVER_STDERR",
+            "outcome": "stderr_discarded",
+            "reason": "observer_emitted_stderr",
+            "event": "PreCompact",
+            "shim": "stderr_context.py",
+            "exit_code": 0,
+        }
 
     @pytest.mark.parametrize("event", ["UserPromptSubmit"])
     def test_observe_redirects_unsupported_context_output(self, tmp_path, event):

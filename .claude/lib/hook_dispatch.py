@@ -328,6 +328,32 @@ def observe_output_policy(event: str) -> str:
     return "stderr"
 
 
+def _record_discarded_observer_output(
+    name: str,
+    raw_stdout: str,
+    raw_stderr: str,
+    event: str,
+) -> bool:
+    """Report suppressed stderr without exposing its untrusted content."""
+    has_stdout = bool(raw_stdout.strip())
+    has_stderr = bool(raw_stderr.strip())
+    if has_stderr:
+        payload = {
+            "guard": "hook-dispatch",
+            "code": "E_OBSERVER_STDERR",
+            "outcome": "stderr_discarded",
+            "reason": "observer_emitted_stderr",
+            "event": event,
+            "shim": name,
+            "exit_code": ALLOW_EXIT,
+        }
+        print(
+            f"EVENT={json.dumps(payload, separators=(',', ':'))}",
+            file=sys.stderr,
+        )
+    return has_stdout or has_stderr
+
+
 def _emit_observer_output(
     outputs: list[tuple[str, str]],
     output_policy: str,
@@ -588,7 +614,12 @@ def run_dispatch(
 
             if capture_observer_output:
                 if output_policy == "discard":
-                    if raw_stdout.strip() or raw_stderr.strip():
+                    if _record_discarded_observer_output(
+                        name,
+                        raw_stdout,
+                        raw_stderr,
+                        event_dir.name,
+                    ):
                         observer_outputs.append((name, ""))
                 elif raw_stdout.strip():
                     observer_outputs.append((name, raw_stdout.rstrip("\r\n")))
