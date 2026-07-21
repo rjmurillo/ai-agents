@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session checklist is current through packaging checkpoint 23."
+        "Evidence": "Session checklist is current through packaging checkpoint 24."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All earlier checkpoints are committed at c2e4790e6a33; this staged checkpoint records docs(adr): correct stale hook prior art."
+        "Evidence": "All earlier checkpoints are committed at 415dd24222a1; this staged checkpoint records fix(hooks): align hook governance records."
       },
       "validationPassed": {
         "level": "MUST",
@@ -151,10 +151,10 @@
       "outcome": "`uv run pytest -q tests/` reported 14245 passed after the final rebase; real-harness tests reported 6 passed; installed-plugin E2E reported 9 passed; the final hook knowledge and skill-generation selection reported 50 passed; scoped lint, types, CWE-78 scan, generation, and parity checks passed."
     },
     {
-      "action": "Package commit checkpoint 23",
-      "outcome": "Staged docs(adr): correct stale hook prior art after c2e4790e6a33; normal commit hooks validate this checkpoint."
+      "action": "Package commit checkpoint 24",
+      "outcome": "Staged fix(hooks): align hook governance records after 415dd24222a1; normal commit hooks validate this checkpoint."
     }
   ],
-  "endingCommit": "c2e4790e6a33de8995a7e18f62ed4dfa48971859",
+  "endingCommit": "415dd24222a150e164b438cf3572eaec31afb8df",
   "nextSteps": []
 }

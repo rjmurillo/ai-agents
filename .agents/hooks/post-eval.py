@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Post-eval hook: turn eval pass/fail outcomes into skillbook evidence.
 
-This is NOT a harness lifecycle hook (it is not one of the SessionStart /
-PreToolUse / PostToolUse / Stop / PreCompact events in hooks.yaml). It is a
-script invoked by the eval pipeline after an agent-vs-baseline run completes.
+This is NOT a harness lifecycle hook. The eval pipeline invokes it after an
+agent-vs-baseline run completes. Runtime lifecycle registrations live in
+``.claude/settings.json`` and their generated Copilot mirror, not in this
+directory's retired ``hooks.yaml`` inventory.
 It is the anti-corruption layer between the eval corpus and the skillbook:
 it reads raw eval outcomes and translates them into confirm / contradict
 operations on the policies the evals are tagged with.
@@ -95,7 +96,14 @@ def fixture_policy_id(fixtures_dir: Path, fixture_id: str) -> str | None:
     if not fixture_path.exists():
         return None
     fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-    return fixture.get("policy_id")
+    if not isinstance(fixture, dict):
+        raise ValueError(f"fixture must be a JSON object: {fixture_path}")
+    policy_id = fixture.get("policy_id")
+    if policy_id is None:
+        return None
+    if not isinstance(policy_id, str):
+        raise ValueError(f"fixture policy_id must be a string: {fixture_path}")
+    return policy_id
 
 
 def apply_eval_run(
@@ -157,10 +165,7 @@ def _print_summary(summary: dict[str, Any]) -> None:
     if summary["skipped_untagged"]:
         print(f"  skipped (no policy_id): {', '.join(summary['skipped_untagged'])}")
     if summary["skipped_unknown_policy"]:
-        print(
-            f"  skipped (unknown policy): "
-            f"{', '.join(summary['skipped_unknown_policy'])}"
-        )
+        print(f"  skipped (unknown policy): {', '.join(summary['skipped_unknown_policy'])}")
 
 
 def main(argv: list[str] | None = None) -> int:
