@@ -1,6 +1,6 @@
 # Skill-First: Incident Log
 
-The skill-first rule itself is canonical in [`AGENTS.md`](../../AGENTS.md) ("Skill-First" section, "Never: Raw gh when skills exist") and [`CLAUDE.md`](../../CLAUDE.md) ("Skill routing"). It is technically enforced by the [`invoke_skill_first_guard.py`](../../.claude/hooks/PreToolUse/invoke_skill_first_guard.py) PreToolUse hook, which blocks raw `gh` when a mapped skill script exists. This memory keeps only the episodic incidents that motivated the rule.
+The skill-first rule itself is canonical in [`AGENTS.md`](../../AGENTS.md) ("Skill-First" section, "Never: Raw gh when skills exist") and [`CLAUDE.md`](../../CLAUDE.md) ("Skill routing"). A `invoke_skill_first_guard.py` PreToolUse hook previously enforced it, but ADR-085 (#3217) retired that hook: it self-neutered outside this repo and Copilot CLI ignores repo-committed permission surfaces, so it enforced only Claude sessions in ai-agents and shipped dead to every consumer. The rule is now advisory, carried by the canonical prose above. This memory keeps only the episodic incidents that motivated the rule.
 
 ## PR Review Comment Routing (session 1187, 2026-02-08)
 
@@ -17,7 +17,7 @@ The skill-first rule itself is canonical in [`AGENTS.md`](../../AGENTS.md) ("Ski
 
 ## Memory Alone Is Insufficient (PR #226)
 
-An agent read this memory and then violated it with raw `gh` commands in the same session. Reading guidance does not enforce it; the `invoke_skill_first_guard` hook is the enforcement layer. Treat prose rules without hooks as advisory only.
+An agent read this memory and then violated it with raw `gh` commands in the same session. Reading guidance does not enforce it. At the time, the `invoke_skill_first_guard` hook was the enforcement layer; ADR-085 later retired that hook, so the rule is now advisory only. Treat prose rules without hooks as advisory.
 
 ## Pre-PR Validation (Issue #934, PR #908)
 
