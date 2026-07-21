@@ -156,6 +156,21 @@ class TestValidateCompletionClaim:
 
         assert "helper unavailable" in capsys.readouterr().err
 
+    def test_broken_helper_fails_open_with_warning(self, tmp_path, capsys):
+        helper = tmp_path / "scripts" / "hooks" / "check_false_completion_msg.py"
+        helper.parent.mkdir(parents=True)
+        helper.write_text("raise RuntimeError('broken helper')\n", encoding="utf-8")
+
+        assert _mod._load_completion_gate(str(tmp_path)) is None
+        assert "failed to load false completion gate helper" in capsys.readouterr().err
+
+    def test_helper_without_callable_fails_open(self, tmp_path):
+        helper = tmp_path / "scripts" / "hooks" / "check_false_completion_msg.py"
+        helper.parent.mkdir(parents=True)
+        helper.write_text("VALUE = 1\n", encoding="utf-8")
+
+        assert _mod._load_completion_gate(str(tmp_path)) is None
+
     def test_unreadable_body_file_is_treated_as_empty(self, tmp_path):
         assert (
             validate_completion_claim(

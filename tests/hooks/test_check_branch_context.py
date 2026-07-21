@@ -162,6 +162,18 @@ def test_run_git_handles_timeout(tmp_path: Path) -> None:
         assert gate._run_git(tmp_path, "status") is None
 
 
+def test_run_git_decodes_with_utf8_replacement(tmp_path: Path) -> None:
+    with patch.object(
+        gate.subprocess,
+        "run",
+        return_value=_git_result("feat/café\n"),
+    ) as run:
+        gate._run_git(tmp_path, "branch", "--show-current")
+
+    assert run.call_args.kwargs["encoding"] == "utf-8"
+    assert run.call_args.kwargs["errors"] == "replace"
+
+
 def test_script_entry_point_exits_with_main_result(tmp_path: Path) -> None:
     _write_session(tmp_path, {"session": {"branch": "feat/matching"}})
     results = iter(

@@ -198,6 +198,18 @@ def test_run_git_handles_timeout() -> None:
         assert gate._run_git("status") is None
 
 
+def test_run_git_decodes_with_utf8_replacement() -> None:
+    with patch.object(
+        gate.subprocess,
+        "run",
+        return_value=_git_result("café\n"),
+    ) as run:
+        gate._run_git("status")
+
+    assert run.call_args.kwargs["encoding"] == "utf-8"
+    assert run.call_args.kwargs["errors"] == "replace"
+
+
 @pytest.mark.parametrize(
     "result",
     [None, _git_result("", returncode=1), _git_result("")],
