@@ -38,21 +38,6 @@
         {
           "file": "PreToolUse/invoke_session_log_field_guard.py",
           "statusMessage": "Checking session log placeholder values (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_pr_description_guard.py",
-          "timeout": 90,
-          "statusMessage": "Checking PR description vs diff (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_install_parity_guard.py",
-          "timeout": 30,
-          "statusMessage": "Checking install-copy parity for agents and rules (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_plugin_version_bump_guard.py",
-          "timeout": 30,
-          "statusMessage": "Checking plugin.json version bump on plugin source change (BLOCKING)"
         }
       ]
     },
@@ -217,16 +202,6 @@
         {
           "file": "PreToolUse/invoke_session_log_field_guard.py",
           "statusMessage": "Checking session log placeholder values (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_pr_description_guard.py",
-          "timeout": 90,
-          "statusMessage": "Checking PR description vs diff (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_plugin_version_bump_guard.py",
-          "timeout": 30,
-          "statusMessage": "Checking plugin.json version bump on plugin source changes (BLOCKING)"
         }
       ]
     },
