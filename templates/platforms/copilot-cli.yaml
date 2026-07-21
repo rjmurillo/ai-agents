@@ -53,21 +53,22 @@ artifacts:
     scriptSource: ".claude/hooks"
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
-    # ADR-068 / #2295: collapse the PreToolUse per-shim entries into one
-    # in-process dispatcher entry (Copilot spawns one interpreter per shim
-    # per tool call; the aggregate cold-start blew the preToolUse timeout).
+    # ADR-068 / #2295 / #2342: consolidate safely mergeable events. Keep
+    # Stop-family and unclassified events direct. Direct SessionStart and
+    # PreCompact commands suppress stdout/stderr for rollback safety.
     dispatcher: true
     eventRemap:
       PreToolUse: PreToolUse
       PostToolUse: PostToolUse
-      Stop: SessionEnd
+      Stop: Stop
+      SubagentStop: SubagentStop
+      PermissionRequest: PermissionRequest
       SessionStart: SessionStart
+      SessionEnd: SessionEnd
       UserPromptSubmit: UserPromptSubmit
-    eventDrop:
-      - SubagentStop
-      - PermissionRequest
-      - Notification
-      - PreCompact
+      PostToolUseFailure: PostToolUseFailure
+      PreCompact: PreCompact
+    eventDrop: []
     matcherPolicy: "inline-script-shim"
     versionField: 1
 auditPolicy:

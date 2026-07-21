@@ -20,6 +20,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "validation" / "validate_python_syntax.py"
@@ -92,6 +93,45 @@ def test_classic_syntax_error_rejected(tmp_path: Path) -> None:
     failures = find_syntax_errors(tmp_path)
 
     assert any(p.name == "classic.py" for p, _ in failures)
+
+
+def test_tracked_file_deleted_from_worktree_is_parsed_from_index(
+    tmp_path: Path,
+) -> None:
+    deleted = tmp_path / "deleted.py"
+    deleted.write_text(_CLEAN, encoding="utf-8")
+    _git_repo(tmp_path)
+    deleted.unlink()
+
+    assert find_syntax_errors(tmp_path) == []
+
+
+def test_staged_broken_file_missing_from_worktree_is_rejected(
+    tmp_path: Path,
+) -> None:
+    broken = tmp_path / "broken.py"
+    broken.write_text(_CLASSIC, encoding="utf-8")
+    _git_repo(tmp_path)
+    broken.unlink()
+
+    failures = find_syntax_errors(tmp_path)
+
+    assert any(path.name == "broken.py" for path, _ in failures)
+
+
+def test_git_discovery_failure_falls_back_to_worktree_walk(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    tracked = tmp_path / "fallback.py"
+    tracked.write_text(_CLEAN, encoding="utf-8")
+
+    def fail_git(*args: Any, **kwargs: Any) -> None:
+        raise OSError("git unavailable")
+
+    monkeypatch.setattr(subprocess, "run", fail_git)
+
+    assert find_syntax_errors(tmp_path) == []
 
 
 def test_invalid_repo_root_returns_config_error(tmp_path: Path) -> None:
