@@ -43,8 +43,8 @@ All are scoped, single-check bypasses. Every bypass is printed to the hook outpu
 | `SKIP_YAMLLINT=1` | env var | Skips yamllint validation | Emergency only | Bypass is announced in output | `.githooks/pre-commit:578-580` |
 | `SKIP_MEMORY_SYNC=1` | env var | Skips the memory sync step in pre-commit | Production | Sync is advisory; skipping delays memory freshness only | `.githooks/pre-commit:1784-1792` |
 | `SKIP_SCOPE_CHECK=1` | env var | Skips `scripts/detect_scope_explosion.py` cumulative-file scope gate in pre-commit | Escape hatch for justified large sets (generated-artifact bundles, approved oversized-PR repairs) | Prints a WARN naming the flag, not silent (issue #3142); only the literal `1` bypasses, any other value runs the detector; bypassing for convenience or a slow check is the abuse | `.githooks/pre-commit:2137,2163-2167` |
-| `SKIP_WORKFLOW_LOCAL_TEST=true` | env var | Bypasses local `act` run of changed workflows in pre-push | Escape hatch for workflows that cannot run under act | Recorded as WARN in the pre-push summary, not silent | `.githooks/pre-push:775-787` |
-| `SKIP_CLI_E2E=true` | env var | Opts out of hook-anchoring and plugin-load e2e smoke when a CLI is installed but unusable (unauthenticated, out of credits) | Escape hatch | Recorded as SKIP with named reason | `.githooks/pre-push:1223-1257` |
+| `SKIP_WORKFLOW_LOCAL_TEST=true` | env var | Bypasses local `act` run of changed workflows in pre-push | Escape hatch for workflows that cannot run under act | Recorded as WARN in the pre-push summary, not silent | `.githooks/pre-push` (search `SKIP_WORKFLOW_LOCAL_TEST`) |
+| `SKIP_CLI_E2E=true` | env var | Opts out of hook-anchoring and plugin-load e2e smoke when a CLI is installed but unusable (unauthenticated, out of credits) | Escape hatch | Recorded as SKIP with named reason | `.githooks/pre-push` (search `SKIP_CLI_E2E`) |
 
 ## Removed and Stale Flags (do not use, do not reintroduce)
 
@@ -104,24 +104,30 @@ Mixed sessions do not qualify; split the commit. Claiming investigation-only wit
 
 Not a flag, but the config obligation most often tripped over. Any content change under a packaged plugin source dir requires a strictly-greater SemVer bump of that tree's `.claude-plugin/plugin.json` (installed caches key off the version; PR #1942 shipped a deleted skill until PR #2114 caught it by hand; incident home: `ai-agents-failure-archaeology`).
 
-| Tree | plugin.json | Version as of 2026-07-03 |
+| Tree | plugin.json | Version source |
 |---|---|---|
-| `.claude/` | `.claude/.claude-plugin/plugin.json` | 0.5.254 |
-| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | 0.3.29 |
-| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | 0.5.254 |
+| `.claude/` | `.claude/.claude-plugin/plugin.json` | Read this manifest |
+| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | Read this manifest |
+| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | Read this manifest |
 
-Enforced twice: locally by pre-push section 11c calling `build/scripts/validate_plugin_version_bump.py` (`.githooks/pre-push:1037-1050`) and in CI by `.github/workflows/validate-plugin-version-bump.yml`. A `plugin.json`-only edit needs no bump; any other file in the tree does.
+Current values are intentionally not copied into this skill. Read each manifest
+at execution time. Enforced twice: locally by pre-push section 11c calling
+`build/scripts/validate_plugin_version_bump.py` (`.githooks/pre-push`, section 11c)
+and in CI by `.github/workflows/validate-plugin-version-bump.yml`. A
+`plugin.json`-only edit needs no bump; any other file in the tree does.
 
 ## Hook Registration Surfaces
 
 Two registration files, kept in sync BY HAND (a known-weak point, see `ai-agents-architecture-contract`):
 
-| Surface | Consumer | Shape as of 2026-07-03 |
+| Surface | Consumer | Shape re-verified 2026-07-20 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct | 23 matcher groups across 8 events (PreToolUse 11, SessionStart 2, UserPromptSubmit 1, PostToolUse 5, Stop 1, SubagentStop 1, PreCompact 1, PermissionRequest 1) |
-| `.claude/hooks/hooks.json` | Plugin packaging twin | Hand-ported and ALREADY DIVERGENT as of 2026-07-03: 21 groups across 7 events; PreCompact and one SessionStart group are absent vs settings.json (known-weak point, `ai-agents-architecture-contract` Phase 7) |
+| `.claude/settings.json` | Claude Code direct | 6 events, 13 groups (PreToolUse 6, SessionStart 2, UserPromptSubmit 1, PostToolUse 2, Stop 1, PreCompact 1) |
+| `.claude/hooks/hooks.json` | Plugin packaging twin | 5 events, 11 groups; PreCompact and one SessionStart group are absent |
 
 If you register a hook in one file only, one harness silently lacks it. Check both in any hook PR.
+No `PermissionRequest` policy hook is registered. Test runners execute
+repository-controlled code, so command-name matching is not a safe approval boundary.
 
 ## How to Add a New Flag
 
