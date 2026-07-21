@@ -11,10 +11,12 @@ in CI against the committed artifacts using this repo as the plugin root.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, cast
 
@@ -41,6 +43,22 @@ def _hooks() -> dict[str, list[dict[str, Any]]]:
 _DISPATCH_GROUPS = json.loads(
     (_REPO / ".claude" / "hooks" / "dispatch_groups.json").read_text(encoding="utf-8")
 )["groups"]
+
+
+def _init_feature_branch_repo(path: str) -> None:
+    """Init a throwaway git repo on a non-protected branch with one commit.
+
+    The session-init enforcer resolves the branch from its process cwd. On a
+    protected branch (main/master) it prints a warning block instead of the
+    `Branch: ...` line, so the test must run the enforcer from a repo checked
+    out on a feature branch to observe the normal output. An unborn branch
+    reports as `HEAD`, so an empty commit is required for the branch to resolve.
+    """
+    run = functools.partial(subprocess.run, cwd=path, check=True, capture_output=True)
+    run(["git", "init", "-b", "feat/session-init-test"])
+    run(["git", "config", "user.email", "test@example.com"])
+    run(["git", "config", "user.name", "Test"])
+    run(["git", "commit", "--allow-empty", "-m", "init"])
 
 
 def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> list[str]:
@@ -187,14 +205,16 @@ class TestDispatcherArtifacts:
             / "invoke_session_initialization_enforcer.py"
         )
 
-        process = subprocess.run(
-            [sys.executable, "-u", str(script)],
-            input=b"{}",
-            capture_output=True,
-            cwd=_REPO,
-            env=env,
-            timeout=15,
-        )
+        with tempfile.TemporaryDirectory() as tmp_repo:
+            _init_feature_branch_repo(tmp_repo)
+            process = subprocess.run(
+                [sys.executable, "-u", str(script)],
+                input=b"{}",
+                capture_output=True,
+                cwd=tmp_repo,
+                env=env,
+                timeout=15,
+            )
 
         assert process.returncode == 0, process.stderr.decode(errors="replace")
         assert process.stdout.count(b"Branch: `") == 1
