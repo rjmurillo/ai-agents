@@ -210,10 +210,17 @@ def test_vm_bootstrap_installs_lefthook_after_dependency_sync() -> None:
 def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies() -> None:
     text = SETUP_ACTION_PATH.read_text(encoding="utf-8")
 
+    validation = text.index("- name: Validate git hook inputs")
     dependencies = text.index("- name: Install Python dependencies")
     install = text.index("- name: Enable git hooks")
     assert "enable-git-hooks:" in text
-    assert dependencies < install
+    assert validation < dependencies < install
+    assert (
+        "if: inputs.enable-git-hooks == 'true' && inputs.enable-python != 'true'"
+        in text
+    )
+    assert "enable-git-hooks=true requires enable-python=true" in text
+    assert "exit 2" in text
     assert (
         "if: inputs.enable-git-hooks == 'true' && inputs.enable-python == 'true'"
         in text

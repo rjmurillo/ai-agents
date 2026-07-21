@@ -1327,13 +1327,17 @@ def test_command_boundary_maps_timeout_to_external_error(
 
     monkeypatch.setattr(policy.subprocess, "run", time_out)
 
-    result = policy._run_command(["slow-tool", "--work"], tmp_path)
+    result = policy._run_command(
+        [sys.executable, "scripts/slow_tool.py", "scan"],
+        tmp_path,
+    )
 
     assert result.returncode == 3
     assert result.stdout == "partial output\n"
     assert result.stderr == (
         "child stalled\n"
-        "ERROR: slow-tool timed out after 90 seconds\n"
+        f"ERROR: {Path(sys.executable).name} slow_tool.py scan "
+        "timed out after 90 seconds\n"
     )
 
 
@@ -1356,14 +1360,60 @@ def test_binary_command_boundary_maps_timeout_to_external_error(
 
     monkeypatch.setattr(policy.subprocess, "run", time_out)
 
-    result = policy._run_command_bytes(["slow-tool", "--bytes"], tmp_path)
+    result = policy._run_command_bytes(
+        ["git", "-c", "core.commitGraph=false", "diff", "--name-only"],
+        tmp_path,
+    )
 
     assert result.returncode == 3
     assert result.stdout == b"partial bytes\n"
     assert result.stderr == (
         b"binary child stalled\n"
-        b"ERROR: slow-tool timed out after 90 seconds\n"
+        b"ERROR: git diff timed out after 90 seconds\n"
     )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_text", "expected_bytes"),
+    [
+        (None, "", b""),
+        (b"value\xff", "value\ufffd", b"value\xff"),
+        ("value", "value", b"value"),
+    ],
+)
+def test_timeout_output_conversion_preserves_available_data(
+    value: bytes | str | None,
+    expected_text: str,
+    expected_bytes: bytes,
+) -> None:
+    assert policy._timeout_text(value) == expected_text
+    assert policy._timeout_bytes(value) == expected_bytes
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        ([], "subprocess"),
+        (["tool"], "tool"),
+        (["gh", "pr"], "gh pr"),
+        (["gh", "bad\ncommand"], "gh"),
+        (["python3"], "python3"),
+        (["python3", "-m", "pytest"], "python3 -m pytest"),
+        (["python3", "-m", "bad\nmodule"], "python3"),
+        (["python3", "scripts/check.py"], "python3 check.py"),
+        (["python3", "bad\nscript.py"], "python3"),
+        (["python3", "scripts/check.py", "verify"], "python3 check.py verify"),
+        (["python3", "scripts/check.py", "bad\ncommand"], "python3 check.py"),
+        (["git"], "git"),
+        (["git", "--no-pager", "diff"], "git diff"),
+        (["git", "bad\ncommand"], "git"),
+    ],
+)
+def test_timeout_subject_is_diagnostic_without_untrusted_operands(
+    args: list[str],
+    expected: str,
+) -> None:
+    assert policy._timeout_subject(args) == expected
 
 
 def test_binary_git_reads_disable_commit_graphs(
@@ -3309,6 +3359,84 @@ def test_push_ref_parser_rejects_malformed_input() -> None:
         policy.parse_push_refs(io.StringIO("refs/heads/a nope refs/heads/a nope\n"))
 
 
+def test_push_files_warning_emits_for_off_head_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    head = "1" * 40
+    off_head = "2" * 40
+    refs = [
+        policy.PushRef("refs/heads/current", head, "refs/heads/current", "0" * 40),
+        policy.PushRef("refs/heads/other", off_head, "refs/heads/other", "0" * 40),
+    ]
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args, **_kwargs: _completed(0, f"{head}\n"),
+    )
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    warning = capsys.readouterr().err
+    assert "Lefthook {push_files} quality coverage may be incomplete" in warning
+    assert "Push each ref from its checked-out branch" in warning
+
+
+def test_push_files_warning_is_quiet_for_checked_out_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    head = "1" * 40
+    push_base = "2" * 40
+    refs = [
+        policy.PushRef(
+            "refs/heads/current",
+            head,
+            "refs/heads/current",
+            push_base,
+        ),
+    ]
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(0, f"{push_base}\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_push_files_warning_emits_for_new_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    head = "1" * 40
+    refs = [
+        policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 40),
+    ]
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(128, "", "no push ref\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
 def test_push_policy_allows_deletion_only_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -3647,6 +3775,38 @@ def test_stage_generated_maps_deletion_query_failure_to_configuration_error(
     assert captured_args == ["diff", "--name-only", "--diff-filter=D", "-z", "--"]
     assert output.out == "query output\n"
     assert output.err == "query failed\n"
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr"),
+    [
+        (b"query output\n", b""),
+        (b"", b"query failed\n"),
+    ],
+)
+def test_deletion_query_failure_surfaces_each_available_stream(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    stdout: bytes,
+    stderr: bytes,
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_git_bytes",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [],
+            1,
+            stdout,
+            stderr,
+        ),
+    )
+
+    assert policy._deleted_generated_candidates("mcp", tmp_path) is None
+
+    output = capsys.readouterr()
+    assert output.out == stdout.decode()
+    assert output.err == stderr.decode()
 
 
 def test_stage_generated_rejects_unsafe_tracked_deletion(
@@ -4083,6 +4243,44 @@ def test_advisories_warn_but_generators_block_before_staging(
     assert policy.update_memory_tokens(tmp_path) == 1
     assert policy.cross_reference_memories(["memory.md"], tmp_path) == 1
     assert policy.run_memory_sync(tmp_path) == 0
+
+
+def test_adr_reminder_surfaces_child_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(3, "", "detector failed\n"),
+    )
+
+    assert policy.run_adr_reminder(tmp_path) == 0
+
+    output = capsys.readouterr()
+    assert output.err == (
+        "detector failed\n"
+        "WARNING: ADR change detection failed without blocking\n"
+    )
+
+
+def test_adr_reminder_surfaces_success_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(0, "no ADR changes\n", ""),
+    )
+
+    assert policy.run_adr_reminder(tmp_path) == 0
+
+    output = capsys.readouterr()
+    assert output.out == "no ADR changes\n"
+    assert output.err == ""
 
 
 def test_memory_cross_reference_requires_successful_json(

@@ -40,6 +40,13 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Validate git hook inputs
+      if: inputs.enable-git-hooks == 'true' && inputs.enable-python != 'true'
+      shell: bash
+      run: |
+        echo "::error::enable-git-hooks=true requires enable-python=true because Lefthook runs through uv."
+        exit 2
+
     - name: Setup Node.js
       id: node-setup
       uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f

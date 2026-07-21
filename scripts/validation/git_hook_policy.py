@@ -221,8 +221,61 @@ def _timeout_bytes(value: bytes | str | None) -> bytes:
 
 
 def _timeout_message(args: Sequence[str], timeout_seconds: float) -> str:
-    executable = Path(args[0]).name if args else "subprocess"
-    return f"ERROR: {executable} timed out after {timeout_seconds:g} seconds\n"
+    subject = _timeout_subject(args)
+    return f"ERROR: {subject} timed out after {timeout_seconds:g} seconds\n"
+
+
+def _timeout_subject(args: Sequence[str]) -> str:
+    if not args:
+        return "subprocess"
+    executable = Path(args[0]).name
+    if executable.startswith("python"):
+        return _python_timeout_subject(executable, args[1:])
+    if executable == "git":
+        return _git_timeout_subject(args[1:])
+    if executable in {"gh", "lefthook", "uv"} and len(args) > 1:
+        subcommand = _safe_timeout_token(args[1])
+        if subcommand is not None:
+            return f"{executable} {subcommand}"
+    return executable
+
+
+def _python_timeout_subject(executable: str, args: Sequence[str]) -> str:
+    if len(args) >= 2 and args[0] == "-m":
+        module = _safe_timeout_token(args[1])
+        return f"{executable} -m {module}" if module is not None else executable
+    if not args:
+        return executable
+    script = _safe_timeout_token(Path(args[0]).name)
+    if script is None:
+        return executable
+    subject = f"{executable} {script}"
+    if len(args) > 1:
+        subcommand = _safe_timeout_token(args[1])
+        if subcommand is not None:
+            subject = f"{subject} {subcommand}"
+    return subject
+
+
+def _git_timeout_subject(args: Sequence[str]) -> str:
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "-c":
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        subcommand = _safe_timeout_token(token)
+        return f"git {subcommand}" if subcommand is not None else "git"
+    return "git"
+
+
+def _safe_timeout_token(token: str) -> str | None:
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", token):
+        return token
+    return None
 
 
 def _append_timeout_message(stderr: str, message: str) -> str:
@@ -1673,9 +1726,42 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
         return 1
     active_refs = [push_ref for push_ref in refs if not push_ref.is_deletion]
     if active_refs:
+        warn_if_push_files_incomplete(active_refs, repo_root)
         _fetch_origin_main(repo_root)
     updates = [resolve_push_update(push_ref, repo_root) for push_ref in active_refs]
     return _check_push_updates(updates, repo_root)
+
+
+def warn_if_push_files_incomplete(
+    push_refs: Sequence[PushRef],
+    repo_root: Path,
+) -> None:
+    """Warn when Lefthook cannot prove its file template matches the push."""
+    head_result = _run_git(repo_root, ["rev-parse", "HEAD"])
+    if head_result.returncode != 0:
+        _print_process_output(head_result)
+        print(
+            "WARNING: could not compare pushed refs with checked-out HEAD; "
+            "Lefthook {push_files} quality coverage is unknown",
+            file=sys.stderr,
+        )
+        return
+    checked_out_head = head_result.stdout.strip()
+    push_base = _run_git(repo_root, ["rev-parse", "--verify", "@{push}"])
+    if (
+        len(push_refs) == 1
+        and push_refs[0].local_sha == checked_out_head
+        and push_base.returncode == 0
+        and push_refs[0].remote_sha == push_base.stdout.strip()
+    ):
+        return
+    print(
+        "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
+        "the pushed ref set does not match checked-out HEAD and its configured push "
+        "base. Every ref still receives immutable security and policy scans. Push "
+        "each ref from its checked-out branch for full local quality validation.",
+        file=sys.stderr,
+    )
 
 
 def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
@@ -1884,6 +1970,9 @@ def run_adr_reminder(repo_root: Path) -> int:
         ],
         repo_root,
     )
+    if result.returncode != 0:
+        _print_advisory_failure("ADR change detection", result)
+        return 0
     _print_process_output(result)
     return 0
 
