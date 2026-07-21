@@ -164,6 +164,33 @@ def test_build_copilot_entry_valid_renders_commands() -> None:
     assert "hooks/PreToolUse/owner.py" in entry["powershell"]
 
 
+@pytest.mark.parametrize(
+    "event",
+    ["SessionStart", "sessionStart", "PreCompact", "preCompact"],
+)
+def test_build_copilot_entry_silences_direct_repository_context(event: str) -> None:
+    entry = _build_copilot_entry(event, "owner.py")
+
+    assert entry["bash"].endswith(" >/dev/null 2>&1")
+    assert entry["powershell"].endswith(" *> $null")
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        "UserPromptSubmit",
+        "userPromptSubmit",
+        "UserPromptSubmitted",
+        "userPromptSubmitted",
+    ],
+)
+def test_build_copilot_entry_redirects_direct_prompt_output(event: str) -> None:
+    entry = _build_copilot_entry(event, "owner.py")
+
+    assert entry["bash"].endswith(" 1>&2")
+    assert entry["powershell"].endswith(" 1>&2")
+
+
 @pytest.mark.parametrize("event", [n for n in _HOSTILE_EVENTS if n != ""])
 def test_build_copilot_entry_rejects_hostile_event(event: str) -> None:
     with pytest.raises(GenerateHooksError):
@@ -187,9 +214,7 @@ def test_relative_script_target_valid_stays_in_root(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("event", [n for n in _HOSTILE_EVENTS if n != ""])
-def test_relative_script_target_rejects_hostile_event(
-    tmp_path: Path, event: str
-) -> None:
+def test_relative_script_target_rejects_hostile_event(tmp_path: Path, event: str) -> None:
     root = tmp_path / "out"
     root.mkdir()
     with pytest.raises(GenerateHooksError):
@@ -250,9 +275,7 @@ def _write_generation_fixture(
         "    versionField: 1\n",
         encoding="utf-8",
     )
-    (tmp_path / "settings.json").write_text(
-        json.dumps({"hooks": {}}), encoding="utf-8"
-    )
+    (tmp_path / "settings.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
     (tmp_path / "hooks_src").mkdir()
     return cfg
 
@@ -276,9 +299,7 @@ def test_generation_accepts_valid_remap(tmp_path: Path) -> None:
         "PreToolUse/..",
     ],
 )
-def test_generation_rejects_hostile_event_remap(
-    tmp_path: Path, hostile: str
-) -> None:
+def test_generation_rejects_hostile_event_remap(tmp_path: Path, hostile: str) -> None:
     cfg = _write_generation_fixture(tmp_path, hostile)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 2
@@ -327,9 +348,7 @@ def _write_raw_hooks_fixture(
         "    versionField: 1\n",
         encoding="utf-8",
     )
-    (tmp_path / "settings.json").write_text(
-        json.dumps({"hooks": {}}), encoding="utf-8"
-    )
+    (tmp_path / "settings.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
     (tmp_path / "hooks_src").mkdir()
     return cfg
 
@@ -345,33 +364,23 @@ def _assert_no_bogus_scalar_output(tmp_path: Path) -> None:
     "raw_value",
     ["false", "off", "no", "true", "on", "yes", "null", "~", "12", "3.5"],
 )
-def test_generation_rejects_nonstring_event_remap_value(
-    tmp_path: Path, raw_value: str
-) -> None:
-    cfg = _write_raw_hooks_fixture(
-        tmp_path, remap_lines=[f"PreToolUse: {raw_value}"]
-    )
+def test_generation_rejects_nonstring_event_remap_value(tmp_path: Path, raw_value: str) -> None:
+    cfg = _write_raw_hooks_fixture(tmp_path, remap_lines=[f"PreToolUse: {raw_value}"])
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 2
     _assert_no_bogus_scalar_output(tmp_path)
 
 
 @pytest.mark.parametrize("raw_key", ["false", "off", "true", "on", "null"])
-def test_generation_rejects_nonstring_event_remap_key(
-    tmp_path: Path, raw_key: str
-) -> None:
-    cfg = _write_raw_hooks_fixture(
-        tmp_path, remap_lines=[f"{raw_key}: PreToolUse"]
-    )
+def test_generation_rejects_nonstring_event_remap_key(tmp_path: Path, raw_key: str) -> None:
+    cfg = _write_raw_hooks_fixture(tmp_path, remap_lines=[f"{raw_key}: PreToolUse"])
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 2
     _assert_no_bogus_scalar_output(tmp_path)
 
 
 @pytest.mark.parametrize("raw_item", ["false", "true", "null", "12"])
-def test_generation_rejects_nonstring_event_drop(
-    tmp_path: Path, raw_item: str
-) -> None:
+def test_generation_rejects_nonstring_event_drop(tmp_path: Path, raw_item: str) -> None:
     cfg = _write_raw_hooks_fixture(
         tmp_path,
         remap_lines=["PreToolUse: preToolUse"],
@@ -386,9 +395,7 @@ def test_generation_rejects_nonstring_event_drop(
     "raw_item",
     ['"foo/bar"', '"has space"', '"semi;colon"', '"9leading"', '"../escape"'],
 )
-def test_generation_rejects_unsafe_event_drop_name(
-    tmp_path: Path, raw_item: str
-) -> None:
+def test_generation_rejects_unsafe_event_drop_name(tmp_path: Path, raw_item: str) -> None:
     # A drop entry is a string but not a valid event name. Before the
     # allowlist was applied to drops, it was silently added (inert set
     # member). Now it fails closed like an eventRemap key would (#3212,
@@ -422,9 +429,7 @@ def test_generation_accepts_quoted_boolean_word_remap_value(
     # A quoted YAML string that spells a boolean word is a genuine string,
     # not a bool; the alphanumeric allowlist accepts it. Positive control
     # proving the guard rejects the TYPE, not the spelling.
-    cfg = _write_raw_hooks_fixture(
-        tmp_path, remap_lines=['PreToolUse: "false"']
-    )
+    cfg = _write_raw_hooks_fixture(tmp_path, remap_lines=['PreToolUse: "false"'])
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
 
@@ -488,9 +493,7 @@ def test_build_shim_neutralizes_matcher_newline_injection() -> None:
 
 def test_build_shim_valid_matcher_renders_single_line_comment() -> None:
     src = generate_hooks_shim._build_shim("Bash(git commit*)")
-    comment_lines = [
-        line for line in src.splitlines() if line.startswith("# Matcher:")
-    ]
+    comment_lines = [line for line in src.splitlines() if line.startswith("# Matcher:")]
     assert comment_lines == ["# Matcher: 'Bash(git commit*)'"]
 
 
@@ -529,9 +532,7 @@ _COMMITTED_SCRIPT_RE = re.compile(r'/hooks/([^/"\s]+)/([^/"\s]+\.py)')
 
 
 def test_committed_hooks_json_paths_and_matchers_are_safe() -> None:
-    config = json.loads(
-        (_COPILOT_HOOKS_DIR / "hooks.json").read_text(encoding="utf-8")
-    )
+    config = json.loads((_COPILOT_HOOKS_DIR / "hooks.json").read_text(encoding="utf-8"))
     events = config["hooks"]
     assert events, "committed hooks.json has no events to validate"
     checked_paths = 0
@@ -561,9 +562,7 @@ def test_committed_shim_matcher_headers_are_single_line_repr() -> None:
     headered_shims = 0
     for shim in sorted(_COPILOT_HOOKS_DIR.rglob("*.py")):
         lines = shim.read_text(encoding="utf-8").splitlines()
-        comment_lines = [
-            line for line in lines if line.startswith("# Matcher:")
-        ]
+        comment_lines = [line for line in lines if line.startswith("# Matcher:")]
         if not comment_lines:
             continue
         # A control-char injection would break the matcher across lines or
@@ -631,9 +630,7 @@ def test_transaction_rollback_restores_existing_target(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("hostile", _CONTROL_MATCHERS)
-def test_copy_script_rejects_hostile_matcher_before_write(
-    tmp_path: Path, hostile: str
-) -> None:
+def test_copy_script_rejects_hostile_matcher_before_write(tmp_path: Path, hostile: str) -> None:
     source = tmp_path / "owner.py"
     source.write_text("print('ok')\n", encoding="utf-8")
     target = tmp_path / "out" / "PreToolUse" / "owner.py"
