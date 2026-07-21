@@ -81,7 +81,7 @@ With the default config path, `--quick-scan` switches to `.github/codeql/codeql-
 - Python 3.
 - Internet access for downloading the CodeQL CLI.
 - Disk space for the CLI, databases, and SARIF results.
-- `zstd` in CI or environments that need to extract the CodeQL bundle.
+- Standard `tar` with gzip support. The installer downloads a `.tar.gz` bundle and extracts it with `tar -xzf`, so it does not need `zstd`.
 
 ### 1. Install CodeQL CLI
 

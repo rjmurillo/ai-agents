@@ -352,7 +352,7 @@ Current config facts:
 - Disables default query packs.
 - Runs selected command injection, SQL injection, cross-site scripting, path traversal, and hardcoded credential queries.
 - Filters out low severity findings and recommendations.
-- Uses the same scannable path family as the full config.
+- Scans the full config's path set minus `.claude/hooks/`, which the quick config does not include.
 
 Use it through the scan script rather than calling it directly:
 
