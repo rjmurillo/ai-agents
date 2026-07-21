@@ -17,7 +17,25 @@ Scope note: only CI config files are scanned. Prose and comment *mentions*
 because they are not invocations. The scanner keys off a package-runner token
 (``npm install``/``npm i``/``npm exec``/``npx``/``pnpm add``/``yarn add``)
 immediately preceding the binary, so ``echo "markdownlint-cli2 installed"`` and
-``- name: Install markdownlint-cli2`` do not trip it.
+``- name: Install markdownlint-cli2`` do not trip it. YAML ``name:`` keys are
+skipped explicitly so a step *labelled* with a runner token
+(``- name: Run npx markdownlint-cli2``) is not mistaken for an invocation.
+
+Precision notes:
+
+- The binary token must end at a non-identifier boundary, so sibling packages
+  that share the prefix (``markdownlint-cli2-formatter``, ``markdownlint-cli2-config``)
+  are never matched.
+- "Pinned" means an *exact* ``@X.Y.Z`` (optionally with a pre-release suffix).
+  Floating tags (``@latest``, ``@next``) and range operators (``@^0.23.0``,
+  ``@~0.23.1``) are treated as unpinned so they fail the pin invariant.
+
+Deliberate bias: the scanner does not reject a runner token that appears inside
+a quoted string (``echo "npx markdownlint-cli2"``). Guarding against that with a
+quote look-behind would also skip legitimately quoted ``run:`` commands
+(``run: "npx markdownlint-cli2"``), a false *negative* that silently lets an
+unpinned invocation drift. For a pin guard a rare, visible spurious red is safer
+than a silent miss, so quoted mentions are left in scope.
 
 The Python PreToolUse hook ``invoke_markdownlint_guard.py`` resolves the binary
 at runtime via ``shutil.which`` with an ``npx`` fallback; it is deliberately not
@@ -33,13 +51,25 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # A package-runner token immediately preceding the binary marks an *active*
-# invocation (as opposed to a prose mention). The optional trailing group
-# captures the ``@<version>`` pin when present; it stops at the first
-# whitespace/quote so trailing args like ``--help`` are never swallowed.
+# invocation (as opposed to a prose mention). The trailing ``(?![\w-])`` boundary
+# stops the token before a shared-prefix sibling package (``markdownlint-cli2-config``)
+# is mistaken for the real one. The optional ``pin`` group captures the ``@<version>``
+# when present; it stops at the first whitespace/quote so trailing args like
+# ``--help`` are never swallowed.
 _INVOCATION_RE = re.compile(
     r"(?:npm\s+(?:install|i|exec)|npx|pnpm\s+(?:add|dlx)|yarn\s+(?:add|dlx))"
-    r"\b[^\n]*?\bmarkdownlint-cli2(?P<pin>@[^\s\"'`]+)?",
+    r"\b[^\n]*?\bmarkdownlint-cli2(?![\w-])(?P<pin>@[^\s\"'`]+)?",
 )
+
+# An exact version pin: ``X.Y.Z`` with an optional pre-release suffix. Mirrors the
+# shape enforced by scripts/validation/check_copilot_version_pin.py so "pinned"
+# means the same exact-version discipline across the repo. Floating tags
+# (``latest``) and range operators (``^0.23.0``, ``~0.23.1``, ``>=0.23``) fail it.
+_EXACT_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
+
+# YAML ``name:`` keys (``name:`` or ``- name:``) label a step; they are not
+# executable, so a runner token inside the label is not an invocation.
+_NAME_KEY_RE = re.compile(r"-?\s*name:\s")
 
 
 def _config_files() -> list[Path]:
@@ -64,15 +94,22 @@ def _detect(line: str) -> tuple[bool, str | None]:
     """Classify a single line.
 
     Returns ``(is_active_invocation, pinned_version_or_None)``. Comment lines
-    (stripped form starting with ``#``) are never treated as invocations.
+    (stripped form starting with ``#``) and YAML ``name:`` labels are never
+    treated as invocations. A captured pin that is not an exact ``@X.Y.Z``
+    (a floating tag or range) reports ``None`` so it fails the pin invariant.
     """
-    if line.lstrip().startswith("#"):
+    stripped = line.lstrip()
+    if stripped.startswith("#"):
+        return (False, None)
+    if _NAME_KEY_RE.match(stripped):
         return (False, None)
     match = _INVOCATION_RE.search(line)
     if match is None:
         return (False, None)
     pin = match.group("pin")
     version = pin[1:] if pin else None
+    if version is not None and not _EXACT_VERSION_RE.match(version):
+        version = None
     return (True, version)
 
 
@@ -143,6 +180,45 @@ def test_pnpm_and_yarn_forms_detected() -> None:
     active_yarn, ver_yarn = _detect("        yarn dlx markdownlint-cli2@0.23.1 --help")
     assert (active_pnpm, ver_pnpm) == (True, "0.23.1")
     assert (active_yarn, ver_yarn) == (True, "0.23.1")
+
+
+def test_suffixed_sibling_package_not_matched() -> None:
+    """A shared-prefix sibling package is a different package, not an invocation."""
+    active_formatter, _ = _detect("        npm install --global markdownlint-cli2-formatter@1.0.0")
+    active_config, _ = _detect("          npx markdownlint-cli2-config@2.0.0 --help")
+    assert active_formatter is False
+    assert active_config is False
+
+
+def test_floating_tag_pin_treated_as_unpinned() -> None:
+    """A floating tag (``@latest``/``@next``) is active but not a real pin."""
+    active_latest, ver_latest = _detect("        npm install --global markdownlint-cli2@latest")
+    active_next, ver_next = _detect("          npx markdownlint-cli2@next --help")
+    assert (active_latest, ver_latest) == (True, None)
+    assert (active_next, ver_next) == (True, None)
+
+
+def test_range_operator_pin_treated_as_unpinned() -> None:
+    """Range operators (``^``/``~``/``>=``) are not exact pins, so they report no version."""
+    active_caret, ver_caret = _detect("        npm install --global markdownlint-cli2@^0.23.0")
+    active_tilde, ver_tilde = _detect("        npm install --global markdownlint-cli2@~0.23.1")
+    assert (active_caret, ver_caret) == (True, None)
+    assert (active_tilde, ver_tilde) == (True, None)
+
+
+def test_prerelease_pin_accepted() -> None:
+    """An exact pin with a pre-release suffix is still an exact pin."""
+    active, version = _detect("        npm install --global markdownlint-cli2@0.23.1-beta.1")
+    assert active is True
+    assert version == "0.23.1-beta.1"
+
+
+def test_step_name_with_runner_token_is_not_an_invocation() -> None:
+    """A YAML ``name:`` label carrying a runner token is a label, not an invocation."""
+    active_dash, _ = _detect("    - name: Run npx markdownlint-cli2@0.23.1 checks")
+    active_bare, _ = _detect("      name: Lint via npm exec markdownlint-cli2@0.23.1")
+    assert active_dash is False
+    assert active_bare is False
 
 
 # --- Repo invariants (guard against vacuous pass, unpinned drift, split owners) ---
