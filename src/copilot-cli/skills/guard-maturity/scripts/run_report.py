@@ -198,7 +198,6 @@ def main(argv: list[str] | None = None) -> int:
         args.guard = [
             "markdown-lint",
             "manifest-count",
-            "pr-description",
             "session-log-field",
         ]
 
