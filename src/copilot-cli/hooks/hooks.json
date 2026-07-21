@@ -15,7 +15,7 @@
         "cwd": ".",
         "matcher": "Bash|Write|Edit",
         "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/PreToolUse/_dispatch.py\"",
-        "timeoutSec": 555,
+        "timeoutSec": 400,
         "type": "command"
       }
     ],
