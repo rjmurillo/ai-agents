@@ -689,7 +689,11 @@ def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
     # instantly instead of hanging, so the 1s timeout never fires. A script path
     # with no spaces and no nested quotes runs identically on both platforms (the
     # sibling stage_fixed test uses the same `"{PYTHON_POSIX}" name.py` shape).
-    (repo / "hang.py").write_text("import time\n\ntime.sleep(30)\n", encoding="utf-8")
+    # sleep well above the 1s timeout so the two outcomes are unambiguous: Linux
+    # kills at ~1s, Windows (which cannot kill the child) runs the full 5s. Kept
+    # short so the Windows path, which necessarily blocks for the whole sleep,
+    # does not slow the suite.
+    (repo / "hang.py").write_text("import time\n\ntime.sleep(5)\n", encoding="utf-8")
     config = {
         "pre-commit": {
             "jobs": [
@@ -716,15 +720,16 @@ def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
     if sys.platform == "win32":
         # Dear future maintainer: this branch is not a shortcut. lefthook cannot
         # kill a hung child on Windows, so it blocks until the process exits on
-        # its own (~30s here) instead of terminating at the 1s deadline. This is
-        # an upstream lefthook + Windows limitation: Go cannot reliably terminate
-        # the sh -> python.exe process tree (evilmartians/lefthook#1256, #1257,
-        # and Windows Job Object orphaning). Windows developers therefore get
-        # timeout detection but not enforcement. Tracked in #3289. The Linux
-        # assertions below still prove the kill happens where the OS supports it.
+        # its own (~5s here, the hang.py sleep) instead of terminating at the 1s
+        # deadline. This is an upstream lefthook + Windows limitation: Go cannot
+        # reliably terminate the sh -> python.exe process tree
+        # (evilmartians/lefthook#1256, #1257, and Windows Job Object orphaning).
+        # Windows developers therefore get timeout detection but not enforcement.
+        # Tracked in #3289. The Linux assertions below still prove the kill
+        # happens where the OS supports it.
         return
 
-    assert elapsed < 10
+    assert elapsed < 4
     assert "signal: killed" in result.stdout
 
 
@@ -755,7 +760,9 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
         # guarantees above still hold, and the shim still dispatches through
         # lefthook. Tracked in #3289 (with the runner-embed option deferred to
         # the #3196 shim rework). Keep the strong POSIX assertions below.
-        assert 'call_lefthook run "pre-push"' in hook_shim
+        # Assert the full dispatch line, including "$@", so the test protects
+        # argument forwarding through the Windows shim, not just the command name.
+        assert 'call_lefthook run "pre-push" "$@"' in hook_shim
         return
 
     explicit_override = 'if test -n "$LEFTHOOK_BIN"'
