@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -99,7 +100,7 @@ def _materialize(tmp_path: Path) -> Path:
     return cfg
 
 
-def _generate(tmp_path: Path) -> dict[str, object]:
+def _generate(tmp_path: Path) -> dict[str, Any]:
     cfg = _materialize(tmp_path)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0, "generator returned non-zero"
@@ -107,7 +108,7 @@ def _generate(tmp_path: Path) -> dict[str, object]:
     return json.loads(out.read_text(encoding="utf-8"))
 
 
-def _all_entries(doc: dict[str, object]) -> list[dict[str, str]]:
+def _all_entries(doc: dict[str, Any]) -> list[dict[str, str]]:
     hooks = doc["hooks"]
     assert isinstance(hooks, dict), "hooks must be a dict"
     entries: list[dict[str, str]] = []
@@ -195,6 +196,22 @@ def test_sessionstart_bash_command_launches_the_script(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "HOOK_RAN" in proc.stdout
+
+
+def test_committed_sessionstart_timeout_includes_dispatcher_headroom() -> None:
+    """The shipped dispatcher has time beyond its four shim budgets."""
+    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
+    hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (hooks_root / "SessionStart" / "_manifest.json").read_text(encoding="utf-8")
+    )
+
+    shim_timeouts = list(manifest["timeouts"].values())
+    timeout_sec = hooks_doc["hooks"]["SessionStart"][0]["timeoutSec"]
+
+    assert shim_timeouts == [30, 30, 30, 30]
+    assert timeout_sec == 125
+    assert timeout_sec > sum(shim_timeouts)
 
 
 def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:

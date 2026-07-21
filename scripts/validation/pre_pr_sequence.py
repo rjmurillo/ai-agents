@@ -30,9 +30,9 @@ from checks_coverage import (  # noqa: E402
 from checks_dash import validate_dash_prohibition  # noqa: E402
 from checks_plugin import (  # noqa: E402
     validate_copilot_agent_frontmatter,
-    validate_git_hooks_installed,
     validate_hook_anchoring,
     validate_install_parity,
+    validate_lefthook_installed,
     validate_plugin_version_bump,
     validate_workflow_local_run,
 )
@@ -352,12 +352,12 @@ def run_all_validations(
         lambda: validate_argument_hint(repo_root),
     )
 
-    # 6d. Git Hooks Installed (local clone must run the canonical .githooks;
-    # a desynced hooksPath bypasses the pre-push guards). Skipped under CI.
+    # 6d. Lefthook Installed (local clones must dispatch repository guardrails).
+    # Skipped under CI, where workflows invoke validation directly.
     run_validation(
-        "Git Hooks Installed",
+        "Lefthook Installed",
         state,
-        lambda: validate_git_hooks_installed(repo_root),
+        lambda: validate_lefthook_installed(repo_root),
     )
 
     # 6e. Workflow Local Run (actionlint + gh act dry-run for changed workflows)

@@ -17,6 +17,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 AGENT_PATTERNS = [
     r"(?i)\b(orchestrator|analyst|architect|implementer|security|qa|devops|critic|"
@@ -31,7 +32,7 @@ AGENT_PATTERNS = [
 INFRASTRUCTURE_PATTERNS = [
     r"^\.github/workflows/.*\.(yml|yaml)$",
     r"^\.github/actions/",
-    r"^\.githooks/",
+    r"^(?:lefthook|\.lefthook|\.config/lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
     r"^build/",
     r"^scripts/",
     r"Dockerfile",
@@ -55,7 +56,7 @@ COMMIT_TYPE_PATTERNS = {
 }
 
 
-def get_commits_since(days: int, path: str) -> list[dict]:
+def get_commits_since(days: int, path: str) -> list[dict[str, str]]:
     """Get commits from git log since a given number of days ago."""
     since_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     log_format = "%H|%s|%an|%ae|%ad"
@@ -131,12 +132,12 @@ def get_commit_type(subject: str) -> str:
 def is_infrastructure_file(file_path: str) -> bool:
     """Check if a file matches infrastructure patterns."""
     for pattern in INFRASTRUCTURE_PATTERNS:
-        if re.search(pattern, file_path):
+        if re.search(pattern, file_path, re.IGNORECASE):
             return True
     return False
 
 
-def get_metrics(path: str, days: int) -> dict:
+def get_metrics(path: str, days: int) -> dict[str, Any]:
     """Collect all metrics."""
     commits = get_commits_since(days, path)
     now = datetime.now()
@@ -182,7 +183,7 @@ def get_metrics(path: str, days: int) -> dict:
         else 0
     )
 
-    metrics: dict = {
+    metrics: dict[str, Any] = {
         "period": {
             "days": days,
             "start_date": (now - timedelta(days=days)).strftime("%Y-%m-%d"),
@@ -233,7 +234,7 @@ def get_metrics(path: str, days: int) -> dict:
     return metrics
 
 
-def format_summary(metrics: dict) -> str:
+def format_summary(metrics: dict[str, Any]) -> str:
     """Format metrics as a human-readable summary."""
     lines = [
         "=" * 60,
@@ -284,7 +285,7 @@ def format_summary(metrics: dict) -> str:
     return "\n".join(lines)
 
 
-def format_markdown(metrics: dict) -> str:
+def format_markdown(metrics: dict[str, Any]) -> str:
     """Format metrics as markdown report."""
     coverage = metrics["metric_2_coverage"]
     infra = metrics["metric_4_infrastructure_review"]

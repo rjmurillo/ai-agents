@@ -1,7 +1,7 @@
 ---
 id: ADR-083
 status: accepted
-date: 2026-07-18
+date: 2026-07-20
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -87,7 +87,7 @@ from customers.
 Hooks are a separate story with an existing owner. Issue #3197 (the 2026-07-17
 hook ROI reduction program, 15 child issues) already decided how internal hooks
 are handled: delete them from the vendored surface and re-home them into
-`.githooks`, CI, and `pre_pr.py`, the layers that already enforce them. Issue
+Lefthook, CI, and `pre_pr.py`, the layers that already enforce them. Issue
 #3216 enumerates which hooks are customer-facing versus internal. That plan is
 evidence-backed and mid-flight. Skills have no equivalent home. A skill is only
 deliverable as a plugin, so an internal skill cannot be "re-homed into a git
@@ -234,14 +234,14 @@ customer installs the base.
 |-------------|------|------|----------------|
 | Per-item `surface` tag + two-plugin split + copy dogfood (chosen) | Real dogfood of the shipped base; declared per-item boundary; internal items still run for us; one uniform copy mechanism ends the untracked-copy rot | Two mechanisms (git/CI for hooks, overlay for skills); third manifest to gate; copy needs an explicit re-run to refresh | Selected: fits each surface to its correct delivery mechanism |
 | Keep filename/name-pattern excludes (status quo) | Zero new machinery | Cannot express borderline items; no dogfood of the base; silent leaks | Rejected: it is the problem |
-| Delete internal from the vendored surface entirely | Simplest ship base; matches #3197 for hooks | Skills have no `.githooks`/CI home; deleting an internal skill removes it from our own Copilot runtime | Rejected for skills; adopted for hooks by #3197 |
+| Delete internal from the vendored surface entirely | Simplest ship base; matches #3197 for hooks | Skills have no Lefthook or CI execution home; deleting an internal skill removes it from our own Copilot runtime | Rejected for skills; adopted for hooks by #3197 |
 | Single merged plugin with runtime filtering | One plugin to install | Copilot has no per-item runtime include/exclude; plugin load is all-or-nothing | Rejected: the host cannot filter within a plugin |
 | gstack live team-mode clone | Auto-updating, no vendored files | Couples the customer install path to repo internals; the base must stay a clean vendored artifact | Rejected for the customer base; the scripted local-install idea is adopted for the dogfood install, copy-based rather than symlinked |
 | Tag now, defer the overlay split (build-time exclude only) | Declares the boundary; zero third-tree cost while the internal set is empty | Loses an internal skill from our own Copilot runtime the moment one is tagged internal | Partially adopted: this is Decision item 6, the overlay is designed but deferred until an internal skill exists |
 
 ### Trade-offs
 
-The design accepts two mechanisms for two surfaces: hooks flow to `.githooks`/CI
+The design accepts two mechanisms for two surfaces: hooks flow to Lefthook and CI
 via #3197, skills flow to a load-time overlay. That is more conceptual surface
 than one uniform mechanism, but it matches reality. A hook can run at commit,
 push, or PR time from a git hook or CI; a skill can only be delivered as a plugin.

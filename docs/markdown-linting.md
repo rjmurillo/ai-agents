@@ -205,17 +205,19 @@ This repository includes an automated pre-commit hook that runs markdown linting
 - **Automatic fixing**: Runs `markdownlint-cli2 --fix` on staged markdown files
 - **Re-staging**: Automatically re-stages corrected files
 - **Fail-safe**: Blocks commit only if unfixable violations remain
-- **Bypass option**: Skip with `SKIP_AUTOFIX=1` or `--no-verify`
+- **Check-only option**: Disable fixes with `SKIP_AUTOFIX=1`
 
 ### Setup
 
-Enable the git hooks directory:
+Install the Lefthook shims:
 
 ```bash
-git config core.hooksPath .githooks
+uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook check-install
 ```
 
-This configures git to use the hooks in `.githooks/` instead of `.git/hooks/`.
+Lefthook filters staged Markdown files and runs the named pre-commit validators
+declared in `lefthook.yml`.
 
 ### How It Works
 
@@ -225,37 +227,13 @@ This configures git to use the hooks in `.githooks/` instead of `.git/hooks/`.
 4. Verifies remaining files pass linting
 5. Blocks commit if unfixable violations exist
 
-### Bypass Options
+### Check-Only Mode
 
 ```bash
-# Skip auto-fix, check only (CI mode)
 SKIP_AUTOFIX=1 git commit -m "message"
-
-# Skip hook entirely (use sparingly)
-git commit --no-verify -m "message"
 ```
 
-### Alternative: Python pre-commit Framework
-
-For teams preferring the Python pre-commit framework:
-
-```bash
-# Install pre-commit
-pip install pre-commit
-
-# Install hooks
-pre-commit install
-```
-
-Create `.pre-commit-config.yaml`:
-
-```yaml
-repos:
-  - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.20.0
-    hooks:
-      - id: markdownlint-cli2
-```
+This runs validation without modifying or re-staging files.
 
 ## Excluded Directories
 

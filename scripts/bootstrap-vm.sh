@@ -5,7 +5,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 # Anchor to the repository root so relative paths (.python-version, uv.lock,
-# pyproject.toml, .githooks) resolve correctly regardless of the caller's CWD
+# pyproject.toml, lefthook.yml) resolve correctly regardless of the caller's CWD
 # (CWE-22 defense: never resolve repo paths against an attacker-influenced CWD).
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -107,12 +107,17 @@ python3 --version
 
 echo "=== Python Dependencies ==="
 if [[ -f "uv.lock" ]]; then
-    # Sync the project venv from the lockfile, dev extras included. The
-    # pre-push gate (.githooks/pre-push) runs validation through
-    # `uv run --frozen`, so .venv is the environment that must exist for a
-    # push to validate without on-the-fly downloads.
+    # Sync the project venv from the lockfile, dev extras included. Named
+    # Lefthook jobs run validators through `uv run --frozen`, so .venv is the
+    # environment that must exist for a push to validate without downloads.
     uv sync --frozen --extra dev
     echo "✓ Python dependencies synced into .venv (uv sync --frozen --extra dev)"
+
+    if [[ -f "lefthook.yml" ]]; then
+        uv run --frozen lefthook install --reset-hooks-path
+        uv run --frozen lefthook check-install
+        echo "✓ Lefthook installed"
+    fi
 
     # Put the project venv first on PATH for this run and future shells so
     # bare `python3 scripts/...` invocations (AGENTS.md, CI docs) resolve to
@@ -199,8 +204,7 @@ else
     ' 2>/dev/null || true
 fi
 
-echo "=== Git Hooks ==="
-[[ -d ".githooks" ]] && git config core.hooksPath .githooks
+echo "=== Git Configuration ==="
 git config --global core.autocrlf input
 
 echo "=== Linting Tools ==="

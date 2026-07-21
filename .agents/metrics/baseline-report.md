@@ -77,7 +77,7 @@ This baseline is established at the start of Phase 2 implementation. Phase 1 com
 
 **Evidence**:
 
-- `.githooks/pre-commit` was modified without security review
+- The former custom pre-commit payload was modified without security review
 - No process existed to trigger security review for infrastructure
 - Issue #9 implements detection (not yet in baseline)
 

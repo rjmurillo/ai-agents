@@ -17,6 +17,11 @@ updated: 2026-05-10
 
 # REQ-012: Retro fixes from PR #1965 (rework + contract drift)
 
+> [!IMPORTANT]
+> Historical carrier notice. ADR-086 replaced the custom Git-hook carrier with
+> Lefthook. Any `.githooks/` path below preserves the original requirement
+> context and is not a current implementation instruction.
+
 ## Step 0 First Principles
 
 ### Q1 Demand Reality

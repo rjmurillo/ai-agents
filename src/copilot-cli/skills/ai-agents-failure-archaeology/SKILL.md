@@ -165,7 +165,7 @@ working tree on that date. Volatile facts and their re-verification commands:
 | 122 memory files | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
 | Full history present (~1471 commits) but retro-cited SHAs unresolvable | local clone | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a count near 1471 and "Not a valid object name") |
 | 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `grep -c "^| [0-9]" .agents/governance/FAILURE-MODES.md` |
-| SKIP_PREPUSH removed | `.githooks/`, `scripts/` | `grep -rn SKIP_PREPUSH .githooks/ scripts/` (expect empty) |
+| Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
 | Anchoring gate + runtime-contract test + e2e exist | repo tree | `ls scripts/validation/validate_hook_anchoring.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/e2e/test_cli_hook_e2e.py` |
 | ADR-071 is the runtime-contract ADR; ADR-063 is memory decomposition | `.agents/architecture/` | `head -1 .agents/architecture/ADR-071*.md .agents/architecture/ADR-063*.md` |
 | Plugin-root env contract (CLI 1.0.57) | `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` | open the memory; re-probe per `ai-agents-empirical-probe-toolkit` if the CLI version moved |

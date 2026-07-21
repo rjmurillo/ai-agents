@@ -367,7 +367,7 @@ return verdict.group(1) if verdict else "PASS"   # no verdict line -> claim PASS
 | AST scan for `or <literal>` defaults on numeric/bool config reads | `/build` exit gate or pre-push | Falsy-value defaulting |
 | Parser hardening lint: any parse function returning a default on missing required fields | `/test` security gate | Schema fall-through |
 | Verdict-extraction grep: any function returning `"PASS"` / `"OK"` / `NEEDS_REVIEW` from a no-match branch | review-axes drift check | Verdict laundering |
-| `|| true` and `--no-verify` scan in workflows + scripts | `.githooks/pre-push` | Shell-level suppression |
+| `|| true` and `--no-verify` scan in workflows + scripts | Lefthook `security-suppression-policy` | Shell-level suppression |
 | Generic `except Exception` catch without re-raise or structured log | `/build` exit gate | Stack-trace swallow |
 
 ### Enforcement Pattern
@@ -461,7 +461,7 @@ honest author still ships a wedge when the release path has no runtime gate.
 | Runtime contract | Verify by running the target tool; record version (`decision-copilot-cli-hook-plugin-root-contract`) | Pre-merge |
 | Runtime-contract test | `tests/build_scripts/test_generate_hooks_runtime_contract.py` executes the command under the real cwd/env with a negative control | CI (pytest) |
 | Committed-artifact gate | `scripts/validation/validate_hook_anchoring.py` in `pre_pr.py`; derives expected shape from the generator | Pre-PR |
-| Real-CLI smoke | `tests/e2e/test_cli_hook_e2e.py` forced in `.githooks/pre-push` on hook-path changes; skips loudly without a CLI | Pre-push (local) |
+| Real-CLI smoke | Lefthook `hook-anchoring-e2e` runs `tests/e2e/test_cli_hook_e2e.py` on matching changes; skips loudly without a CLI | Pre-push (local) |
 
 The principle: **a customer-facing generated artifact MUST be executed in its
 target runtime before release.** Structural validity is not behavioral evidence.

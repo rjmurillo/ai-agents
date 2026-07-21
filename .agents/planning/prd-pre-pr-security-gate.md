@@ -69,7 +69,7 @@ The multi-agent workflow did not detect that adding `.github/workflows/pester-te
 - Python script for cross-platform
 - Check workflow files for common security patterns
 - Non-blocking (warnings, not errors)
-- Integrate with existing pre-commit hook
+- Integrate with a Lefthook pre-commit job
 
 ### US-4: Orchestrator Routes Infrastructure to DevOps
 
@@ -101,7 +101,8 @@ The following file patterns indicate infrastructure changes requiring specialist
 | `.github/workflows/*` | devops, security |
 | `.github/actions/*` | devops, security |
 | `**/Dockerfile*` | devops, security |
-| `.githooks/*` | devops |
+| `lefthook.yml` | devops, security |
+| `scripts/validation/git_hook_policy.py` | devops, security |
 | `*.yml` in `.github/` | devops, security |
 | `azure-pipelines.yml` | devops, security |
 | `.gitlab-ci.yml` | devops, security |

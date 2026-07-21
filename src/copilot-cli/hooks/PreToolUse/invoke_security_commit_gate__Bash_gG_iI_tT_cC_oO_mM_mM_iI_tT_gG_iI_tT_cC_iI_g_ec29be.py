@@ -427,8 +427,12 @@ def _original_main(stdin_bytes):
     _SECURITY_PATH_PATTERNS = [
         re.compile(r"(^|[/\\])[Aa]uth[/\\]"),
         re.compile(r"(^|[/\\])[Ss]ecurity[/\\]"),
+        re.compile(
+            r"^(?:lefthook|\.lefthook|\.config[/\\]lefthook)(?:-local)?\.(?:yml|yaml|json|jsonc|toml)$",
+            re.IGNORECASE,
+        ),
+        re.compile(r"^scripts[/\\]validation[/\\]git_hook_policy\.py$", re.IGNORECASE),
         re.compile(r"\.env($|\.)"),
-        re.compile(r"(^|[/\\])\.githooks[/\\]"),
         re.compile(r"(^|[/\\])secrets[/\\]"),
         re.compile(r"(?i)password"),
         re.compile(r"(^|[/\\])token"),

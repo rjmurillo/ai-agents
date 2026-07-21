@@ -412,6 +412,7 @@ def emit_dispatcher(
 # casings are handled (Copilot event-name casing differs across generations).
 _GATE_EVENTS = ("PreToolUse", "preToolUse")
 _DEFAULT_TIMEOUT_SEC = 5
+_DISPATCHER_TIMEOUT_HEADROOM_SEC = 5
 _SCRIPT_RE = re.compile(r"/hooks/[^/]+/([^/\"']+\.py)(?!\.\w)")
 _CASE_INSENSITIVE_SHIM_NAMES = os.name == "nt"
 
@@ -533,8 +534,9 @@ def consolidate(
     (fail-closed short-circuit, unchanged from #2295); all other events get
     ``mode="observe"`` (all shims run, never gate; #2342). An event whose
     entries contain no parseable shim path passes through unchanged. The shim
-    order is the registered hooks.json order (authoritative) and the
-    consolidated ``timeoutSec`` is the sum of the per-shim timeouts.
+    order is the registered hooks.json order (authoritative). The consolidated
+    ``timeoutSec`` is the sum of the per-shim timeouts plus five seconds for
+    dispatcher startup, manifest loading, and transitions between shims.
     """
     new_out: dict[str, list[dict[str, Any]]] = {}
     for event, entries in out.items():
@@ -545,7 +547,10 @@ def consolidate(
             continue
         shim_names = [name for name, _ in shim_entries]
         shim_timeouts = dict(shim_entries)
-        timeout = sum(timeout_sec for _, timeout_sec in shim_entries)
+        timeout = (
+            sum(timeout_sec for _, timeout_sec in shim_entries)
+            + _DISPATCHER_TIMEOUT_HEADROOM_SEC
+        )
         matchers = [
             entry.get("claudeMatcher")
             for entry in entries

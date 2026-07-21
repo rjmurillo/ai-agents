@@ -1,12 +1,19 @@
 ---
 status: "NEEDS_CHANGES"
 priority: "P0"
-blocking: true
+blocking: false
+historical: true
 reviewer: "architect"
 date: "2026-01-17"
 ---
 
 # Architectural Review: ADR-042 Python Migration Strategy
+
+> [!NOTE]
+> This file is a historical review snapshot from 2026-01-17. Its status and
+> priority record the verdict at that time. Its required-fix language is not
+> active implementation guidance. ADR-042, ADR-086, `lefthook.yml`, and
+> `scripts/validation/git_hook_policy.py` describe the current policy.
 
 **Reviewer**: Architect Agent
 **Date**: 2026-01-17
@@ -38,7 +45,7 @@ ADR-042 proposes a significant architectural pivot from PowerShell-only (ADR-005
 | ADR-042-010 | **P2** | Chesterton's Fence | Insufficient investigation of ADR-005 exceptions (why were they granted?) |
 | ADR-042-011 | **P2** | Strategic | No Core vs Context assessment (is Python a differentiator or commodity?) |
 | ADR-042-012 | **P2** | Migration | No rollback strategy if migration fails |
-| ADR-042-013 | **P2** | Compliance | Pre-commit hook enforces PowerShell-only (blocks Python), not updated |
+| ADR-042-013 | **P2** | Compliance | Historical custom hook blocked Python; resolved by the Python-first policy and PR #3259 |
 
 **Issue Summary**: P0: 1, P1: 8, P2: 5, Total: 14
 
@@ -297,11 +304,12 @@ $ find . -name "pytest.ini" -o -name "conftest.py"
 
 ---
 
-### 6. Pre-Commit Hook Conflict [P2]
+### 6. Historical Pre-Commit Hook Conflict [Resolved]
 
-**Issue ADR-042-013**: Pre-commit hook blocks Python files.
+**Issue ADR-042-013**: The custom pre-commit hook blocked Python files when this
+review was written.
 
-**Evidence** (from `.githooks/pre-commit`):
+**Historical Evidence** (from the removed custom pre-commit hook):
 
 ```bash
 # ADR-005: PowerShell-only scripting
@@ -312,13 +320,10 @@ if git diff --cached --name-only --diff-filter=ACM | grep -E '\.(sh|py)$'; then
 fi
 ```
 
-**Problem**: If ADR-042 is accepted, this hook will block all Python development.
-
-**Required Fix**:
-
-1. Update `.githooks/pre-commit` to allow `.py` files
-2. Consider selective blocking (e.g., block `.py` in `scripts/` but allow in `.claude/`)
-3. Document hook change in ADR-042 Implementation Notes
+**Resolution**: ADR-042 established Python-first development. PR #3259 later
+deleted the custom Git-hook framework. `lefthook.yml` now schedules local checks,
+and `scripts/validation/git_hook_policy.py` holds repository policy that Lefthook
+cannot express. This historical finding authorizes no custom-hook restoration.
 
 ---
 

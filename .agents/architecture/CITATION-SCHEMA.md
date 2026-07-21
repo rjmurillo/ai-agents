@@ -224,7 +224,7 @@ When changes are detected, the workflow:
 python -m memory_enhancement verify-all --repo-root "$(git rev-parse --show-toplevel)"
 ```
 
-Add to `.githooks/pre-commit` or a pre-commit framework configuration. The command exits non-zero when stale citations exist.
+Add the command as a Lefthook pre-commit job. The command exits non-zero when stale citations exist.
 
 ### Exit Codes
 

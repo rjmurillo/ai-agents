@@ -14,6 +14,11 @@ updated: 2026-05-10
 
 # DESIGN-013: M5 Bot-Cascade Pre-Push Warning
 
+> [!IMPORTANT]
+> Historical design record. ADR-086 replaced the custom Git-hook carrier with
+> Lefthook. Paths under `.githooks/` below describe the former implementation
+> and are not current source paths.
+
 ## Requirements Addressed
 
 REQ-011 (all six acceptance criteria REQ-013-01 through REQ-013-06).

@@ -690,27 +690,28 @@ Update SKILL.md schema to require `replaces_command` metadata field. Document fi
 
 ---
 
-### Task M3-005: Create Pre-Commit Hook for Skill Validation
+### Task M3-005: Add Lefthook Job for Skill Validation
 
-**Title**: Create pre-commit hook validating replaces_command presence
+**Title**: Add pre-commit validation for `replaces_command`
 **Milestone**: M3
 **Effort**: 3h
 **Priority**: P0
 
 **Description**:
-Implement pre-commit hook that validates all SKILL.md files have `replaces_command` field. Hook blocks commit if field missing. Integrate with existing pre-commit configuration.
+Implement a Python validator for the `replaces_command` field and schedule it
+through `lefthook.yml`. The job blocks commits when the field is missing.
 
 **Acceptance Criteria**:
-- [ ] Hook script validates all `.claude/skills/**/SKILL.md` files
-- [ ] Hook fails if `replaces_command` field missing
-- [ ] Hook provides clear error message with file path
-- [ ] Hook integrated into `.pre-commit-config.yaml` or `.husky/`
-- [ ] Hook tested with valid and invalid SKILL.md files
+- [ ] Validator checks all `.claude/skills/**/SKILL.md` files
+- [ ] Lefthook job fails if `replaces_command` is missing
+- [ ] Failure names the affected file
+- [ ] Job is registered in `lefthook.yml`
+- [ ] Tests cover valid and invalid SKILL.md files
 
 **Files to Create/Modify**:
-- `scripts/hooks/validate-skill-metadata.ps1`
-- `.pre-commit-config.yaml` or `.husky/pre-commit`
-- `scripts/hooks/validate-skill-metadata.test.ps1` (Pester tests)
+- `scripts/validation/validate_skill_metadata.py`
+- `lefthook.yml`
+- `tests/validation/test_validate_skill_metadata.py`
 
 **Dependencies**:
 - M3-004 (requires schema definition)

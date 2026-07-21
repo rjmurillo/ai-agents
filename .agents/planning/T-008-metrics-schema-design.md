@@ -5,6 +5,12 @@
 **Scope**: Design only (governance documents, no code implementation)
 **Dependencies**: Phase 2 Traceability (T-001 to T-007) COMPLETE
 **Related**: [Issue #169](https://github.com/rjmurillo/ai-agents/issues/169), [PROJECT-PLAN.md Phase 2](.agents/planning/enhancement-PROJECT-PLAN.md)
+**Status**: Historical design; current Git-event carrier is Lefthook
+
+> [!NOTE]
+> This design predates JSON session logs and the Lefthook migration. Preserve its
+> metric definitions, but implement any remaining validation through current
+> Python policy and `lefthook.yml`. Do not recreate standalone custom hooks.
 
 ---
 
@@ -404,125 +410,60 @@ Phase 1 (Session Start):
 - [x] Verify: Session log exists with YAML header
 ```
 
-#### 2. Pre-Commit Hook Validation (MECHANIZED, BLOCKING)
+#### 2. Pre-Commit Validation (MECHANIZED, BLOCKING)
 
 **Problem**: Commits can succeed even if session logs missing metrics or have placeholders
-**Solution**: Pre-commit hook blocks until all validation passes
+**Solution**: A Lefthook pre-commit job blocks until all validation passes.
 
-**T-009 Implementation**: Enhance `.githooks/pre-commit`
+**T-009 Implementation**: Add a Python policy command under
+`scripts/validation/` and schedule it from `lefthook.yml`.
 
-```powershell
-# .githooks/pre-commit (enhanced for metrics)
-
-# Existing: Validate traceability
-pwsh scripts/Validate-Traceability.ps1
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Traceability validation failed. Commit blocked."
-    exit 1
-}
-
-# NEW: Validate metric definitions (if metrics files staged)
-$metricsChanged = git diff --cached --name-only | Select-String ".agents/metrics/.*\.md"
-if ($metricsChanged) {
-    pwsh scripts/Validate-Metrics.ps1  # T-009 deliverable
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Metric definition validation failed. Commit blocked."
-        exit 1
-    }
-}
-
-# NEW: Validate session log completeness (if session log staged)
-$sessionLogChanged = git diff --cached --name-only | Select-String ".agents/sessions/.*\.md"
-if ($sessionLogChanged) {
-    pwsh scripts/Validate-SessionLog.ps1  # T-009 deliverable
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Session log incomplete. Run: pwsh scripts/Complete-SessionLog.ps1"
-        exit 1
-    }
-}
-```
+The validator receives Lefthook's staged-file list, checks metrics and JSON
+session logs, and returns the repository exit-code taxonomy. Lefthook owns file
+filtering, ordering, timeout, and failure propagation.
 
 **Validation Checks** (T-009 scripts):
 
-`Validate-Metrics.ps1`:
+`validate_metrics.py`:
 - All 5 rules enforced (baseline, target, collection point, unit, references)
 - Exit 1 if errors, exit 2 if warnings, exit 0 if pass
 - Blocks commit on exit 1
 
-`Validate-SessionLog.ps1`:
-- YAML frontmatter exists
-- No `__REQUIRED__` placeholders remain
-- `end_time` filled in
-- `qa_verdict` is PASS or FAIL (not placeholder)
-- `agents_invoked` is populated (not empty {})
+`scripts/validate_session_json.py`:
+- JSON session log matches the repository schema
+- All MUST checklist items are complete with evidence
+- `endingCommit` matches the accepted SHA format
+- Evidence does not contradict a completed item
 - Exit 1 if incomplete, exit 0 if complete
 
 **Enforcement Level**: BLOCKING - Commit cannot succeed if validation fails
 
-#### 3. Git Commit Hook Auto-Injection (MECHANIZED, UNSKIPPABLE)
+#### 3. Commit Metrics Extraction (MECHANIZED)
 
 **Problem**: Agents might forget to write commit_metrics YAML
-**Solution**: Git hook auto-injects commit metadata into session log
+**Solution**: Session tooling and generated episode artifacts capture commit
+metadata without a standalone post-commit hook.
 
-**T-009 Implementation**: Create `post-commit` hook
+**T-009 Implementation**: Extend the current session completion and episode
+generation path. Infrastructure classification includes `.github/`,
+`lefthook.yml`, `scripts/validation/git_hook_policy.py`, Dockerfiles, Terraform,
+and repository scripts.
 
-```powershell
-# .githooks/post-commit (new file, T-009)
-
-# Auto-inject commit metrics into current session log
-$sessionLog = Get-ChildItem ".agents/sessions" -Filter "*session-*.md" |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
-
-if (-not $sessionLog) {
-    Write-Warning "No session log found. Skipping commit metrics."
-    exit 0
-}
-
-# Get commit details
-$commitSha = git rev-parse HEAD
-$filesChanged = git diff-tree --no-commit-id --name-only -r HEAD
-$infraPattern = "\.github/|\.githooks/|Dockerfile|docker-compose|\.tf$|scripts/"
-$hasInfra = $filesChanged | Where-Object { $_ -match $infraPattern }
-
-# Auto-inject commit metrics
-$commitMetrics = @"
-
-## Commit: $($commitSha.Substring(0,7))
-
-File(s) changed: $($filesChanged.Count)
-Infrastructure files: $(if ($hasInfra) { 'YES' } else { 'NO' })
-
----
-commit_metrics:
-  sha: $commitSha
-  files_changed: $($filesChanged.Count)
-  infrastructure: $(if ($hasInfra) { 'true' } else { 'false' })
-  timestamp: $(Get-Date -Format "yyyy-MM-DD HH:mm:ss")
----
-"@
-
-Add-Content -Path $sessionLog.FullName -Value $commitMetrics
-
-# Auto-increment commits counter in YAML frontmatter
-$content = Get-Content $sessionLog.FullName
-$newContent = $content -replace "commits: (\d+)", {
-    "commits: $([int]$matches[1] + 1)"
-}
-Set-Content -Path $sessionLog.FullName -Value $newContent
-```
+The generated artifact records the commit SHA, changed-file count,
+infrastructure classification, and timestamp. It must be deterministic and
+staged by the configured Lefthook job.
 
 **Enforcement**:
-- Runs AUTOMATICALLY after every commit
+- Runs through the configured session and episode generation path
 - No agent involvement required
-- Updates session log without manual intervention
+- Stages deterministic generated artifacts before commit
 
 **Metrics Captured**:
 - Commit SHA
 - Files changed count
 - Infrastructure file detection (auto)
 - Timestamp
-- Increments `commits` counter in YAML
+- Session identity for traceability
 
 #### 4. Session End Validation Script (MECHANIZED, BLOCKING)
 
@@ -621,7 +562,7 @@ $filesChanged = (git diff --name-only HEAD~1..HEAD | Measure-Object).Count
 $content = $content -replace "files_changed: 0", "files_changed: $filesChanged"
 
 # Auto-detect infrastructure files
-$infraFiles = git diff --name-only HEAD~1..HEAD | Where-Object { $_ -match "\.github/|\.githooks/" }
+$infraFiles = git diff --name-only HEAD~1..HEAD | Where-Object { $_ -match "\.github/|lefthook\.yml|scripts/validation/" }
 if ($infraFiles) {
     $content = $content -replace "infrastructure_files: false", "infrastructure_files: true"
 }
@@ -693,8 +634,8 @@ function Get-Metrics {
 | Enforcement Point | Type | Trigger | Blocks? | Implementation (T-009) |
 |-------------------|------|---------|---------|------------------------|
 | **1. Session log auto-generation** | Script | Session start | Yes (can't start without) | `scripts/New-SessionLog.ps1` |
-| **2. Pre-commit validation** | Hook | git commit | Yes (commit fails if invalid) | `.githooks/pre-commit` enhancement |
-| **3. Post-commit auto-injection** | Hook | git commit | No (auto-captures) | `.githooks/post-commit` (new) |
+| **2. Pre-commit validation** | Lefthook job | git commit | Yes (commit fails if invalid) | `lefthook.yml` plus Python policy |
+| **3. Commit metrics generation** | Session tooling | git commit | No (auto-captures) | Episode generation staged before commit |
 | **4. Session end validation** | Script | Session close | Yes (can't close if incomplete) | `scripts/Validate-SessionEnd.ps1` enhancement |
 | **5. CI weekly aggregation** | Cron | Sundays 00:00 | No (reporting only) | `.github/workflows/agent-metrics.yml` |
 
@@ -741,13 +682,14 @@ NO reliance on agent memory or prompts.
 - `Validate-Metrics.ps1`: Validates metric definitions (5 rules)
 - Enhanced `Validate-SessionEnd.ps1`: Adds metrics checks to existing validation
 
-### 3. Hook Specifications (2 hooks)
-- `.githooks/pre-commit` enhancement: Add metrics and session log validation
-- `.githooks/post-commit` (new): Auto-inject commit metrics into session log
+### 3. Carrier Specifications
+- `lefthook.yml`: Schedule metrics and session-log validation.
+- Session episode generation: Capture deterministic commit metrics without a
+  standalone post-commit hook.
 
 ### 4. Collection Point Mapping
 - session_start: Run `New-SessionLog.ps1` (auto-generates YAML)
-- git_commit: `post-commit` hook auto-injects commit_metrics
+- git_commit: configured session tooling stages commit metrics
 - session_end: Run `Complete-SessionLog.ps1` then `Validate-SessionEnd.ps1`
 - ci_run: Weekly cron aggregates session YAML
 

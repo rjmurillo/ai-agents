@@ -20,6 +20,11 @@ date: 2026-05-09
 
 # DESIGN-008: review-axes-convergence
 
+> [!IMPORTANT]
+> Historical carrier notice. ADR-086 replaced the custom Git-hook carrier with
+> Lefthook. Any `.githooks/` path below records the implemented design before
+> that migration and is not a current source path.
+
 ## Requirements Addressed
 
 REQ-008-01 through REQ-008-08. Resolves drift between `/review` local evaluation and CI `ai-pr-quality-gate.yml` discovered via retrospective `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`.

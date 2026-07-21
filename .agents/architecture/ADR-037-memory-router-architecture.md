@@ -2,7 +2,7 @@
 
 **Status**: Accepted
 **Date**: 2026-01-01
-**Revised**: 2026-01-01
+**Revised**: 2026-07-20
 **Author**: Session 123 (Phase 2A Memory System)
 **Decision**: Unified memory access layer with Serena-first routing, Forgetful augmentation
 
@@ -419,7 +419,7 @@ function Sync-MemoryToForgetful {
 |-------|--------|-------|
 | Planning | ✅ COMPLETE | `.agents/planning/phase2b-memory-sync-strategy.md` |
 | Core Scripts | ✅ COMPLETE | `scripts/memory_sync/` (Python + MCP subprocess) |
-| Git Hook | ✅ COMPLETE | `.githooks/pre-commit` queue-based integration |
+| Git Hook | ✅ COMPLETE | `lefthook.yml` `memory-sync-advisory` job |
 | Manual Sync | ✅ COMPLETE | `python -m memory_sync sync` / `sync-batch` CLI |
 | Validation | ✅ COMPLETE | `python -m memory_sync validate` freshness report |
 | ADR Update | ✅ COMPLETE | Implementation status updated |

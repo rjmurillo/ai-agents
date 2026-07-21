@@ -26,8 +26,9 @@ These tests pin two invariants:
 from __future__ import annotations
 
 import re
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = REPO_ROOT / "pyproject.toml"
@@ -36,7 +37,20 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # CI require. A plain ``uv sync`` and ``uv pip install -e ".[dev]"`` must each
 # make all of these importable/runnable.
 REQUIRED_DEV_TOOLS = frozenset(
-    {"pytest", "pytest-cov", "bandit", "pip-audit", "ruff", "mypy"}
+    {
+        "bandit",
+        "lefthook",
+        "mypy",
+        "pip-audit",
+        "pytest",
+        "pytest-cov",
+        "ruff",
+        "semgrep",
+    }
+)
+SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "mcp==1.28.1"})
+COOLDOWN_EXEMPT_PACKAGES = frozenset(
+    {"anthropic", "click", "lefthook", "mcp", "semgrep"}
 )
 
 # Splits a PEP 508 requirement string at the first character that ends the
@@ -117,6 +131,24 @@ def test_pip_install_extra_installs_all_required_tools() -> None:
     )
 
 
+def test_semgrep_transitive_security_overrides_remain_pinned() -> None:
+    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+    overrides = set(data["tool"]["uv"]["override-dependencies"])
+
+    assert SAFE_SEMGREP_OVERRIDES <= overrides
+
+
+def test_dependency_cooldown_exempts_only_reviewed_exact_pins() -> None:
+    data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    uv_config = data["tool"]["uv"]
+
+    assert uv_config["exclude-newer"] == "7 days"
+    assert uv_config["exclude-newer-package"] == {
+        package: False for package in COOLDOWN_EXEMPT_PACKAGES
+    }
+
+
 # --- Helper unit coverage (positive, negative, edge) ---------------------------
 
 
@@ -156,8 +188,10 @@ def test_missing_required_tools_empty_when_all_present() -> None:
         "pytest>=9.0.3",
         "pytest-cov>=7.1.0",
         "bandit[sarif]>=1.9.4",
+        "lefthook==2.1.10",
         "pip-audit>=2.10.0",
         "ruff>=0.15.16",
+        "semgrep==1.170.0",
         "mypy>=2.1.0",
     ]
 

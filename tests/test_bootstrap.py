@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 # The canonical bootstrap module lives outside any importable package, so we
 # load it directly via importlib.util to avoid coupling these tests to the
@@ -25,6 +26,11 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP_PATH = REPO_ROOT / ".claude" / "lib" / "bootstrap.py"
 
+
+VM_BOOTSTRAP_PATH = REPO_ROOT / "scripts" / "bootstrap-vm.sh"
+SETUP_ACTION_PATH = REPO_ROOT / ".github" / "actions" / "setup-code-env" / "action.yml"
+WORKTRUNK_CONFIG_PATH = REPO_ROOT / ".config" / "wt.toml"
+WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
 def _load_bootstrap():
     spec = importlib.util.spec_from_file_location(
@@ -192,3 +198,66 @@ def test_setup_hook_lib_path_is_idempotent(
 
     while lib_dir in sys.path:
         sys.path.remove(lib_dir)
+
+
+def test_vm_bootstrap_installs_lefthook_after_dependency_sync() -> None:
+    text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
+
+    sync = text.index("uv sync --frozen --extra dev")
+    install = text.index("uv run --frozen lefthook install --reset-hooks-path")
+    assert sync < install
+    assert "git config core.hooksPath" not in text
+
+
+def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies() -> None:
+    text = SETUP_ACTION_PATH.read_text(encoding="utf-8")
+
+    validation = text.index("- name: Validate git hook inputs")
+    dependencies = text.index("- name: Install Python dependencies")
+    install = text.index("- name: Enable git hooks")
+    assert "enable-git-hooks:" in text
+    assert validation < dependencies < install
+    assert (
+        "if: inputs.enable-git-hooks == 'true' && inputs.enable-python != 'true'"
+        in text
+    )
+    assert "enable-git-hooks=true requires enable-python=true" in text
+    assert "exit 2" in text
+    assert (
+        "if: inputs.enable-git-hooks == 'true' && inputs.enable-python == 'true'"
+        in text
+    )
+    assert "uv run --frozen --extra dev lefthook install --reset-hooks-path" in text
+    assert (
+        "if ($env:ENABLE_GIT_HOOKS -eq 'true' -and $env:ENABLE_PYTHON -eq 'true')"
+        in text
+    )
+    assert "if ($LASTEXITCODE -ne 0)" in text
+    assert "exit $LASTEXITCODE" in text
+    assert "git config core.hooksPath" not in text
+
+
+def test_workflows_choose_hook_installation_explicitly() -> None:
+    missing_input: list[str] = []
+
+    for workflow_path in sorted(WORKFLOW_DIR.glob("*.yml")):
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        for job in workflow.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                if step.get("uses") != "./.github/actions/setup-code-env":
+                    continue
+                if "enable-git-hooks" not in step.get("with", {}):
+                    missing_input.append(workflow_path.name)
+
+    assert missing_input == []
+
+
+def test_worktrunk_post_create_installs_lefthook() -> None:
+    text = WORKTRUNK_CONFIG_PATH.read_text(encoding="utf-8")
+
+    assert (
+        'configure-hooks = "uv run --frozen --extra dev lefthook install '
+        "--reset-hooks-path && uv run --frozen --extra dev lefthook check-install\""
+        in text
+    )
+    assert "core.hooksPath" not in text

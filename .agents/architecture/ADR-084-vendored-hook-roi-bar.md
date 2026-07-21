@@ -1,7 +1,7 @@
 ---
 id: ADR-084
 status: accepted
-date: 2026-07-17
+date: 2026-07-20
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -21,7 +21,7 @@ re-accrete.
 
 ## Date
 
-2026-07-17
+2026-07-20
 
 ## Context
 
@@ -63,13 +63,13 @@ surface conflates:
   benefits from.
 
 Internal enforcement already has a home that costs the consumer nothing:
-`.githooks/` and CI, which run only in this repository and never ship.
+`lefthook.yml` and CI, which run only in this repository and never ship.
 
 ## Decision
 
 A hook may ship in a vendored plugin surface only if it delivers value in a
 consumer's own repository. Internal dev-protocol enforcement stays in
-`.githooks/` and CI. Prefer host-native declarations over process-spawning
+Lefthook and CI. Prefer host-native declarations over process-spawning
 hooks. Concretely, the bar is five rules:
 
 1. **Consumer-repo value is required.** A vendored hook MUST state the value it
@@ -77,7 +77,7 @@ hooks. Concretely, the bar is five rules:
    a consumer does not run this project's protocol.
 2. **Internal enforcement is not vendored.** Session logs, ADR debate, retros,
    install parity, plugin version bumps, generator drift, and PR-description
-   shape are internal concerns. They live in `.githooks/` and CI only, never in
+   shape are internal concerns. They live in Lefthook and CI only, never in
    a vendored surface.
 3. **Prefer zero-spawn host-native surfaces.** When the host provides a
    declarative surface that achieves the same effect without spawning a process,
@@ -93,7 +93,7 @@ hooks. Concretely, the bar is five rules:
    no-ops in consumer repos because it gates on the git origin
    (`skip_if_consumer_repo`) or on repo-root paths the plugin does not vendor
    delivers no consumer value by construction. It does not belong in the
-   vendored surface. If the logic is genuinely internal, it moves to `.githooks`
+   vendored surface. If the logic is genuinely internal, it moves to Lefthook
    or CI per rule 2; it is not shipped dead.
 5. **Every vendored hook carries a one-line customer-value justification, and a
    planned CI check asserts its presence.** The justification lives in the
@@ -118,10 +118,9 @@ hooks. Concretely, the bar is five rules:
   lands, human review at ADR and PR time holds the line.
 - Rules 3 and 4 push cost off the consumer's hot path: zero-spawn host-native
   surfaces where possible, and no dead hooks spawning per call to no-op.
-- Internal enforcement does not weaken. It moves to `.githooks` and CI. CI
-  gates this repo's contributions unconditionally; `.githooks` gates locally
-  once its activation is deterministic (issue #3182), with CI as the backstop
-  until then.
+- Internal enforcement does not weaken. It moves to Lefthook and CI. CI gates
+  this repo's contributions unconditionally; Lefthook installs and runs the
+  local Git hooks.
 
 ### Negative and risks
 
@@ -130,10 +129,10 @@ hooks. Concretely, the bar is five rules:
   whether the stated value is real; the human review at ADR and PR time judges
   the value.
 - Moving internal enforcement out of the vendored surface means a contributor
-  who relied on a vendored hook firing locally now relies on `.githooks`/CI. The
-  mitigation is CI, which gates every PR unconditionally; deterministic
-  `.githooks` activation (issue #3182) closes the local-commit gap, so the
-  enforcement point moves but does not disappear.
+  who relied on a vendored hook firing locally now relies on Lefthook and CI.
+  The mitigation is CI, which gates every PR unconditionally; Lefthook's native
+  install command closes the local-commit gap, so the enforcement point moves
+  but does not disappear.
 - The bar is a policy, not a code change. It binds future additions only if
   reviewers apply it. Rule 5's CI check is what converts the policy into an
   enforced gate for the one rule that can be mechanically checked.

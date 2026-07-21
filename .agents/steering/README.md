@@ -156,7 +156,7 @@ status: [placeholder | draft | published]
 |------|-----------------|---------|---------------------|
 | `agent-prompts.md` | `**/AGENTS.md,src/claude/**/*.md,templates/agents/**/*.md` | Agent prompt standards | `.github/instructions/agent-prompts.instructions.md` |
 | `claude-skills.md` | `.claude/skills/**` | Skill development standards | `.github/instructions/claude-skills.instructions.md` |
-| `security-practices.md` | `**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,.githooks/**` | Security best practices | `.github/instructions/security.instructions.md` |
+| `security-practices.md` | `**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.*,scripts/validation/git_hook_policy.py` | Security best practices | `.github/instructions/security.instructions.md` |
 | `testing-approach.md` | `**/*.Tests.ps1` | Pester testing conventions | `.github/instructions/testing.instructions.md` |
 | `documentation.md` | `**/*.md` (excluding agents/steering) | Documentation standards | `.github/instructions/documentation.instructions.md` |
 | `powershell-patterns.md` | `**/*.ps1,**/*.psm1` | PowerShell coding patterns | N/A (Phase 4) |

@@ -449,63 +449,76 @@ def test_runtime_contract_prompt_group_allows():
     assert result.returncode == 0, result.stderr.decode(errors="replace")
 
 
-def test_runtime_contract_branch_mismatch_blocks_via_push_group(tmp_path):
-    # Negative control: a git push issued from a branch that does not match the
-    # session log's recorded branch must be blocked through the push-chain
-    # group, proving group members really execute under the live manifest and a
-    # member's exit-2 block propagates out of the real dispatch entry point.
+def test_runtime_contract_push_group_blocks_via_member_gate(tmp_path):
+    # Negative control: a real member of the push-chain group must block a git
+    # push through the live dispatch entry point, proving group members execute
+    # under the real manifest and a member's exit-2 block propagates out of the
+    # dispatcher (the prompt-group test above proves the allow path).
     #
-    # branch_context_guard (the group's first shim) keys off the *current*
-    # branch of the resolved project directory versus the branch recorded in
-    # today's session log. A detached-HEAD checkout (CI's PR merge-commit
-    # checkout, or a --detach worktree) reports no current branch, so the guard
-    # fails open and the control becomes vacuous. Point CLAUDE_PROJECT_DIR at a
-    # scratch repo on `main` with a session log that expects a different branch
-    # so the guard deterministically fires.
-    on_main = tmp_path / "on-main"
-    on_main.mkdir()
-    subprocess.run(
-        ["git", "init", str(on_main)], check=True, capture_output=True, timeout=30
+    # session_log_field_guard is the deterministic blocker. It flags a session
+    # log in the pushed changeset that is missing the canonical
+    # protocolCompliance.sessionEnd.markdownLintRun field. Both its changeset
+    # diff and its session-log read key off CLAUDE_PROJECT_DIR, so a scratch
+    # repo makes the block reproducible regardless of the runner's own git
+    # state. gate mode returns the first member's exit code, so whichever
+    # push-precondition member fires first, the group still exits 2.
+    proj = tmp_path / "proj"
+    proj.mkdir()
+
+    def _git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-C", str(proj), *args],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+
+    _git("init")
+    _git("checkout", "-B", "main")
+    _git(
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "user.name=Test",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "base",
     )
+    # Simulate the remote tip so push_guard_base resolves a diff base instead of
+    # failing open; it needs origin/main to compute the pushed changeset. HEAD
+    # then sits one commit ahead carrying the placeholder session log.
+    base_sha = subprocess.run(
+        ["git", "-C", str(proj), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    ).stdout.strip()
     subprocess.run(
-        ["git", "-C", str(on_main), "checkout", "-B", "main"],
+        ["git", "-C", str(proj), "update-ref", "refs/remotes/origin/main", base_sha],
         check=True,
         capture_output=True,
         timeout=30,
     )
-    # An unborn HEAD (branch created, no commit) makes `git branch
-    # --show-current` return an empty string on some git versions, which would
-    # let branch_context_guard fail open and reintroduce the very
-    # non-determinism this negative control exists to remove. A single empty
-    # commit gives HEAD a born ref so the branch name resolves deterministically.
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(on_main),
-            "-c",
-            "user.email=test@example.com",
-            "-c",
-            "user.name=Test",
-            "commit",
-            "--allow-empty",
-            "-m",
-            "init",
-        ],
-        check=True,
-        capture_output=True,
-        timeout=30,
-    )
-    # A today-dated session log whose recorded branch differs from the scratch
-    # repo's current branch (`main`) is what branch_context_guard blocks on.
-    sessions_dir = on_main / ".agents" / "sessions"
+    sessions_dir = proj / ".agents" / "sessions"
     sessions_dir.mkdir(parents=True)
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    (sessions_dir / f"{today}-session-01.json").write_text(
-        json.dumps({"session": {"branch": "feature/mismatch"}}), encoding="utf-8"
+    # Empty object -> protocolCompliance.sessionEnd.markdownLintRun missing,
+    # which session_log_field_guard blocks on.
+    (sessions_dir / f"{today}-session-01.json").write_text("{}", encoding="utf-8")
+    _git("add", ".agents/sessions")
+    _git(
+        "-c",
+        "user.email=test@example.com",
+        "-c",
+        "user.name=Test",
+        "commit",
+        "-m",
+        "add session log",
     )
     payload = json.dumps(
-        {"tool_name": "Bash", "tool_input": {"command": "git push --force origin main"}}
+        {"tool_name": "Bash", "tool_input": {"command": "git push origin main"}}
     ).encode("utf-8")
     result = subprocess.run(
         [
@@ -513,10 +526,10 @@ def test_runtime_contract_branch_mismatch_blocks_via_push_group(tmp_path):
             "-u",
             ".claude/hooks/invoke_dispatch_claude.py",
             "--group",
-            "pretooluse-2-branch_context_guard",
+            "pretooluse-2-retrospective_gate",
         ],
         cwd=REPO_ROOT,
-        env=_entry_env({"CLAUDE_PROJECT_DIR": str(on_main)}),
+        env=_entry_env({"CLAUDE_PROJECT_DIR": str(proj)}),
         input=payload,
         capture_output=True,
         timeout=120,

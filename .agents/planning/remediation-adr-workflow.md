@@ -1,10 +1,16 @@
 # Remediation Plan: ADR Workflow Enforcement and Quality Gates
 
 **Date**: 2026-01-03
-**Status**: Draft
+**Status**: Historical Draft
 **Priority**: P0 (Critical)
 **Category**: Process Enforcement
 **Epic**: [#741](https://github.com/rjmurillo/ai-agents/issues/741)
+
+> [!NOTE]
+> This draft predates the repository's Python validators and Lefthook migration.
+> Its custom-hook implementation sketches are retired. Current authority lives in
+> `lefthook.yml`, `scripts/validation/git_hook_policy.py`, and the ADR review
+> skill.
 
 ---
 
@@ -177,74 +183,28 @@ Operations that MUST delegate to orchestrator, NEVER act directly:
 VIOLATION: Creating these files directly bypasses multi-agent validation and WILL be caught by pre-commit hooks.
 ```
 
-### Layer 2: Pre-Commit Hooks (NEW)
+### Layer 2: Lefthook Pre-Commit Jobs (Current)
 
-**Purpose**: Shift validation left - catch violations at commit time, not CI time.
+**Purpose**: Shift validation left, catching violations at commit time rather
+than waiting for CI.
 
-**Principle**: **WIDEST PIT OF SUCCESS** - Run identical validation to CI in pre-commit. If it passes pre-commit, it passes CI.
+**Principle**: Run the same repository policy locally and in protected CI where
+the event surfaces overlap.
 
-**Implementation**: PowerShell pre-commit hook in `.githooks/pre-commit` calls centralized validation scripts.
+**Implementation**: `lefthook.yml` schedules Python policy commands from
+`scripts/validation/git_hook_policy.py`.
 
 **Files**:
-- `.githooks/pre-commit` - Orchestrates all validation
-- `scripts/Validate-SessionJson.ps1` - Session validation (IDENTICAL to CI)
-- `scripts/git-hooks/Validate-ADRCommit.ps1` - ADR-specific validation
 
-**Logic** (`.githooks/pre-commit`):
-```powershell
-#!/usr/bin/env pwsh
+- `lefthook.yml`: file filters, ordering, timeouts, and command scheduling.
+- `scripts/validation/git_hook_policy.py`: staged session and ADR policy.
+- `scripts/validate_session_json.py`: session-log validation shared with CI.
+- `.claude/skills/adr-review/`: multi-agent ADR review and change detection.
 
-# SHIFT LEFT: Run IDENTICAL validation to CI before allowing commit
+**Installation**: `uv run --frozen lefthook install --reset-hooks-path`
 
-# 1. Session protocol validation (if session log staged)
-$stagedSessions = git diff --cached --name-only --diff-filter=ACM |
-    Where-Object { $_ -match '\.agents/sessions/.*\.md$' }
-
-if ($stagedSessions) {
-    foreach ($session in $stagedSessions) {
-        Write-Host "Validating session protocol: $session"
-        pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath $session
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "BLOCKED: Session protocol validation failed"
-            Write-Error "Fix violations before commit. Same check runs in CI."
-            exit 1
-        }
-    }
-}
-
-# 2. ADR debate log validation (if ADR files staged)
-$stagedADRs = git diff --cached --name-only --diff-filter=ACM |
-    Where-Object { $_ -match '\.agents/architecture/ADR-\d+-.*\.md$' }
-
-if ($stagedADRs) {
-    foreach ($adr in $stagedADRs) {
-        # 3. Extract ADR number
-        $adrNumber = [regex]::Match($adr, 'ADR-(\d+)').Groups[1].Value
-
-        # 4. Check for debate log in .agents/critique/
-        $debateLog = Get-ChildItem .agents/critique -Filter "*adr-$adrNumber*" -File
-
-        if (-not $debateLog) {
-            Write-Error "BLOCKED: ADR-$adrNumber missing debate log"
-            Write-Error "Multi-agent review required: Invoke adr-review skill"
-            Write-Error "Expected: .agents/critique/adr-$adrNumber-debate.md"
-            exit 1
-        }
-
-        # 5. Verify debate log is also staged
-        $debateLogStaged = git diff --cached --name-only | Where-Object { $_ -match "critique.*adr-$adrNumber" }
-        if (-not $debateLogStaged) {
-            Write-Warning "Debate log exists but not staged: $($debateLog.Name)"
-            Write-Host "Adding debate log to commit..."
-            git add $debateLog.FullName
-        }
-    }
-}
-```
-
-**Installation**: Hook installation script in `scripts/git-hooks/Install-Hooks.ps1`
-
-**Verification**: Test with intentional violation (commit ADR without debate log).
+**Verification**: Commit an ADR without a valid session log or debate evidence
+in a disposable clone and confirm the configured policy reports the violation.
 
 ### Layer 3: Session Protocol Validation (EXISTING - Enhance)
 

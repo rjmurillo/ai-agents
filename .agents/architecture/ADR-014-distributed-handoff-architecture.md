@@ -120,10 +120,10 @@ Implement a **three-tier distributed handoff architecture** that eliminates cent
 5. Create `scripts/Validate-TokenBudget.ps1`:
    - Enforces 5K token limit
    - Called by pre-commit hook
-6. Update `.githooks/pre-commit`:
+6. Configure `lefthook.yml` pre-commit jobs:
    - Block direct HANDOFF.md modifications on feature branches
-   - Add token budget validation
-   - Remove HANDOFF.md staging requirement
+   - Run token budget validation
+   - Keep HANDOFF.md out of generated-file staging
 
 **Verification**:
 

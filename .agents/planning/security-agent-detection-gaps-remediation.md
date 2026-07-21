@@ -1,5 +1,10 @@
 # Security Agent Detection Gaps Remediation Plan
 
+> [!NOTE]
+> This plan predates the Lefthook migration. Milestone 6's custom-hook design is
+> superseded by `lefthook.yml`, `scripts/validation/git_hook_policy.py`, and
+> protected CI.
+
 ## Overview
 
 The security agent missed two CRITICAL vulnerabilities (CWE-22 path traversal, CWE-77 command injection) in PR #752 that were caught by Gemini Code Assist. Root cause analysis reveals systematic gaps: incomplete CWE coverage (only 3 CWEs documented), lack of PowerShell-specific security patterns (0.2% coverage despite ADR-005 PowerShell-only mandate), and no feedback loop for missed vulnerabilities.
@@ -202,13 +207,13 @@ Security Agent Detection Pipeline:
                          └──────────────────────┘
 ```
 
-### Data Flow
+### Historical Data Flow (Superseded)
 
 ```
 Code Changes (Local)
     |
     v
-PRE-COMMIT HOOK (.githooks/pre-commit)
+LEFTHOOK PRE-COMMIT SECURITY JOBS
     |
     +---> PSScriptAnalyzer (M6) --> Fail on CRITICAL --> Block Commit
     |           |
@@ -668,49 +673,27 @@ Given the complexity of analyzing 30+ CWEs with specific PowerShell patterns, CW
 - Markdown linting passes on README.md (npx markdownlint-cli2)
 - At least 1 test case per file is direct copy from PR #752 vulnerable code
 
-### Milestone 6: Pre-Commit Security Gate
+### Milestone 6: Pre-Commit Security Gate [Superseded]
 
-**Files**:
-- `.githooks/pre-commit` (MODIFY, add security validation)
-- `scripts/security/Invoke-PreCommitSecurityCheck.ps1` (CREATE)
-- `.github/workflows/security-report-validator.yml` (CREATE, verifies SR-*.md present in PR)
+PR #3259 retired this milestone's custom-hook design. Lefthook now schedules the
+local security jobs, while Python policy inspects staged content and immutable
+pushed refs. Protected CI remains the bypass backstop.
 
-**Flags**: needs TW rationale, needs error review
+**Current Files**:
 
-**Requirements**:
-- **PRE-COMMIT HOOK** (shift-left architecture):
-  - Hook runs BEFORE git commit succeeds, blocks commit on security failures
-  - Step 1: Run PSScriptAnalyzer on staged `.ps1` and `.psm1` files via `Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error,Warning` filtered to staged files only
-  - Step 2: Fail commit on any CRITICAL or HIGH PSScriptAnalyzer findings (exit code 1)
-  - Step 3: Run security agent review on PowerShell files via `Task(subagent_type='security', prompt='Review staged PowerShell files')`
-  - Step 4: Generate security report at `.agents/security/SR-{branch}-{timestamp}.md` with agent findings
-  - Step 5: Stage security report for commit (`git add .agents/security/SR-*.md`)
-  - Step 6: Validate security report exists and is non-empty before allowing commit
-  - Error handling for missing PSScriptAnalyzer: Install via `Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser` at hook start, fail with actionable error if install fails
-  - Error handling for analyzer crashes: Wrap `Invoke-ScriptAnalyzer` in try-catch, log exception + file path, continue with remaining files, mark hook as failed if any crashes
-  - Error handling for no PowerShell files: Skip PSScriptAnalyzer step with info message, hook succeeds (no violations to check)
-  - Error handling for agent unavailable during review: Post error message to console, provide fallback instructions (manual review required)
-  - Error handling for bypass label without approval: Require `security-team-approved` label AND `skip-security-review` label in PR, fail CI if only skip label present
-  - Pre-commit failures provide actionable error messages with file paths and violation details
-- **CI VALIDATION** (verification layer):
-  - CI workflow verifies SR-*.md file present in PR (detects hook bypass)
-  - Fails PR if security report missing or empty
-  - Posts PR comment: "Security report missing or empty. Run pre-commit hook locally: git commit --no-verify bypassed security validation."
-- **BYPASS MECHANISM** (emergency use only):
-  - `git commit --no-verify` bypasses hook but triggers CI failure
-  - Manual bypass requires PR comment explaining rationale + security-team approval label
-- Documents critical file patterns in hook script comments with rationale (`**/Auth/**`, `**/*Credential*`, etc.)
+- `lefthook.yml`
+- `scripts/validation/git_hook_policy.py`
+- `.claude/skills/security-detection/`
+- `.github/workflows/`
 
-**Acceptance Criteria**:
-- Pre-commit hook exists at `.githooks/pre-commit` with security validation logic
-- PSScriptAnalyzer integration working on staged files only (test with `git add` + known violation)
-- Security agent review generates SR-*.md report before commit
-- Security report staged and committed automatically
-- Commit blocked if PSScriptAnalyzer fails or SR-*.md generation fails
-- CI workflow verifies SR-*.md present in PR, fails if missing
-- Hook provides clear error messages (e.g., "PSScriptAnalyzer found CRITICAL violation in file.ps1:42 - unquoted variable in external command")
-- Manual bypass (--no-verify) triggers CI failure with actionable PR comment
-- PSScriptAnalyzer passes on hook script itself (zero warnings)
+**Current Acceptance Criteria**:
+
+- Lefthook runs the configured staged-file security checks before commit.
+- Pre-push policy scans every immutable pushed ref where repository state is
+  required.
+- CI repeats protected security checks when local hooks are bypassed.
+- Failures name the affected command or file without leaking unsafe input.
+- Linux and Windows workflows exercise the supported security paths.
 
 ### Milestone 7: Documentation and Training
 

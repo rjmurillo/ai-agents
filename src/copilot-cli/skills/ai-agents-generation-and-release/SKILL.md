@@ -100,12 +100,12 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-03
 | Gate | Catches | Local command | CI enforcement |
 |------|---------|---------------|----------------|
 | Agent template drift | templates edited without regen (or vice versa) | `python3 build/generate_agents.py --validate` | `validate-generated-agents.yml`, `agent-drift-detection.yml` |
-| Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; `.githooks/pre-push` section 11b |
+| Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; named pre-push job in `lefthook.yml` |
 | Lib mirror drift | `scripts/` package edited without sync | `python3 scripts/sync_plugin_lib.py --check` | `validate-generated-agents.yml` |
 | Install parity | plugin install layout broken | `python3 scripts/validation/run_install_parity_ci.py` | `validate-generated-agents.yml` |
 | Hook shim drift at push time | hook source vs generated shims | automatic: `invoke_hook_drift_guard.py` on `git push` | same class re-checked by build_all `--check` in CI |
 | Manifest version parity | `.claude` vs `src/copilot-cli` plugin versions differ | `python3 build/scripts/check_plugin_manifest_parity.py` | `validate-generated-agents.yml`, `agent-drift-detection.yml` (fix for #2222) |
-| Plugin version bump | content change without semver bump | pre-push section 11c (`build/scripts/validate_plugin_version_bump.py`) | `validate-plugin-version-bump.yml` |
+| Plugin version bump | content change without semver bump | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
 | Semantic agent drift (src/claude) | hand-synced tree diverging in meaning | `python3 build/scripts/detect_agent_drift.py` | `drift-detection.yml`, weekly cron Monday 09:00 UTC (line 15); similarity threshold default 80 (detect_agent_drift.py:666), with a recorded-baseline floor so a clean checkout does not fail |
 
 When a drift gate is red, the output shows the DIFFERENCE, not the DIRECTION. Ask "which side is canonical?" using the Phase 1 table before touching anything. The 2025-12-15 incident (retro: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`) happened because an agent edited the SOURCE to match the GENERATED tree; the commit was reverted. Fix is always: edit canonical, rerun generator, commit both.
@@ -186,7 +186,7 @@ Verified 2026-07-03 against the working tree. Volatile facts and how to re-check
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
 | Drift CI wiring | .github/workflows/validate-generated-agents.yml:123,132,151,164; agent-drift-detection.yml:143-168 | `grep -n "python3" .github/workflows/validate-generated-agents.yml` |
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666 | `grep -n "cron" .github/workflows/drift-detection.yml` |
-| Pre-push sections 11b/11c | .githooks/pre-push:973,1037 | `grep -n "11b\.\|11c\." .githooks/pre-push` |
+| Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | Hook drift push guard | .claude/hooks/PreToolUse/invoke_hook_drift_guard.py:1-25 | `head -25 .claude/hooks/PreToolUse/invoke_hook_drift_guard.py` |
 | Ruff exemption for generated Python | pyproject.toml:99-100 | `grep -n "src/copilot-cli" pyproject.toml` |
 | npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:12-17 | `grep -n "tags" .github/workflows/publish.yml` |

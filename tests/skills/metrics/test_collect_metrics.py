@@ -100,8 +100,12 @@ class TestIsInfrastructureFile:
     def test_detects_actions(self) -> None:
         assert is_infrastructure_file(".github/actions/setup/action.yml") is True
 
-    def test_detects_githooks(self) -> None:
-        assert is_infrastructure_file(".githooks/pre-commit") is True
+    def test_detects_only_auto_discovered_lefthook_configs(self) -> None:
+        assert is_infrastructure_file("lefthook.yml") is True
+        assert is_infrastructure_file(".lefthook-local.toml") is True
+        assert is_infrastructure_file(".config/lefthook.json") is True
+        assert is_infrastructure_file("nested/lefthook.yml") is False
+        assert is_infrastructure_file(".githooks/pre-commit") is False
 
     def test_detects_build(self) -> None:
         assert is_infrastructure_file("build/deploy.sh") is True

@@ -61,7 +61,7 @@ Analysis of 17 open/closed PRs and 200 workflow runs from Dec 20-23 reveals **5 
 
 **Actions**:
 1. Create unified validation runner script (`Validate-PrePR.ps1`)
-2. Add to pre-commit hook (already exists in `.githooks/`)
+2. Schedule the validation runner from the Lefthook pre-commit phase
 3. Document in session protocol
 
 **Script Contents**:
@@ -215,7 +215,7 @@ Target velocity: ~10 PRs merged per day with <20 comments and <2 bugs
 ### Already Completed
 
 - [x] ADR-014: HANDOFF.md read-only (eliminated 80% merge conflicts)
-- [x] Pre-commit hook exists (`.githooks/pre-commit`)
+- [x] Lefthook pre-commit orchestration exists (`lefthook.yml`)
 - [x] Shift-left validation scripts exist
 
 ### Requires Implementation

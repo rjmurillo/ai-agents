@@ -11,10 +11,6 @@
           "statusMessage": "Verifying session log exists before commit (BLOCKING)"
         },
         {
-          "file": "PreToolUse/invoke_branch_context_guard.py",
-          "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
-        {
           "file": "PreToolUse/invoke_adr_review_guard.py",
           "statusMessage": "Verifying ADR review completed (MUST requirement)"
         },
@@ -25,15 +21,11 @@
         }
       ]
     },
-    "pretooluse-2-branch_context_guard": {
+    "pretooluse-2-retrospective_gate": {
       "event": "PreToolUse",
       "mode": "gate",
       "matcher": "Bash(git push*)",
       "shims": [
-        {
-          "file": "PreToolUse/invoke_branch_context_guard.py",
-          "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
         {
           "file": "PreToolUse/invoke_retrospective_gate.py",
           "statusMessage": "Verifying retrospective evidence (ADR-033)"
@@ -89,10 +81,6 @@
         {
           "file": "SessionStart/invoke_context_loader.py",
           "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
-        },
-        {
-          "file": "SessionStart/invoke_git_hooks_activation.py",
-          "statusMessage": "Activating .githooks (core.hooksPath, #3182)"
         }
       ]
     },
@@ -194,10 +182,6 @@
           "statusMessage": "Verifying session log exists before commit (BLOCKING)"
         },
         {
-          "file": "PreToolUse/invoke_branch_context_guard.py",
-          "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
-        {
           "file": "PreToolUse/invoke_adr_review_guard.py",
           "statusMessage": "Verifying ADR review completed (MUST requirement)"
         },
@@ -232,16 +216,12 @@
         }
       ]
     },
-    "plugin-pretooluse-8-branch_context_guard": {
+    "plugin-pretooluse-8-retrospective_gate": {
       "event": "PreToolUse",
       "mode": "gate",
       "matcher": "Bash(git push*)",
       "surface": "plugin",
       "shims": [
-        {
-          "file": "PreToolUse/invoke_branch_context_guard.py",
-          "statusMessage": "Verifying branch matches session context (BLOCKING)"
-        },
         {
           "file": "PreToolUse/invoke_retrospective_gate.py",
           "statusMessage": "Verifying retrospective evidence (ADR-033)"
@@ -288,10 +268,6 @@
         {
           "file": "invoke_adr_change_detection.py",
           "statusMessage": "Checking for ADR changes"
-        },
-        {
-          "file": "SessionStart/invoke_git_hooks_activation.py",
-          "statusMessage": "Activating .githooks (core.hooksPath, #3182)"
         }
       ]
     },

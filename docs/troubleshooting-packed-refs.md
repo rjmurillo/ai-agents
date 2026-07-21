@@ -13,11 +13,10 @@ rejects blank lines elsewhere in `packed-refs`.
 
 ## Automatic repair
 
-The repository hooks run `scripts/maintenance/repair_packed_refs.py` before
-their first git ref operation:
-
-- `.githooks/pre-commit`
-- `.githooks/pre-push`
+Lefthook runs `scripts/maintenance/repair_packed_refs.py` as the first
+`pre-commit` and `pre-push` job, before any Git policy command.
+Lefthook may inspect staged files before starting a `pre-commit` job. If that
+initial inspection fails, run the manual repair command below.
 
 The helper resolves normal repositories and linked worktrees, locates the
 common git directory, and reads `packed-refs` directly. If it finds blank
@@ -31,7 +30,7 @@ hook prints only when it repairs the file or when an unexpected failure occurs.
 ## Manual run
 
 ```bash
-uv run python scripts/maintenance/repair_packed_refs.py
+uv run --frozen python scripts/maintenance/repair_packed_refs.py
 ```
 
 The command exits `0` when the file is clean, missing, or repaired. It exits

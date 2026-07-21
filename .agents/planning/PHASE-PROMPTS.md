@@ -3,6 +3,9 @@
 > **Usage**: Copy the relevant phase prompt to delegate work to orchestrator.
 > **Repository**: rjmurillo/ai-agents
 > **Master Plan**: `.agents/planning/enhancement-PROJECT-PLAN.md`
+>
+> **Current carrier note**: This historical phase prompt has been updated to use
+> Lefthook terminology. Do not recreate the deleted custom Git-hook framework.
 
 ---
 
@@ -12,7 +15,7 @@
 |-------|------|----------|------------------|--------|
 | ~~0~~ | ~~Foundation~~ | - | ~~Directory structure, governance docs~~ | COMPLETE |
 | ~~1~~ | ~~Spec Layer~~ | - | ~~EARS templates, spec-generator agent~~ | COMPLETE |
-| **2** | **Traceability** | 2-3 | Validation scripts, pre-commit hooks | **NEXT** |
+| **2** | **Traceability** | 2-3 | Validation scripts, Lefthook jobs | **NEXT** |
 | 3 | Parallel Execution | 2-3 | Fan-out documentation, aggregation patterns | PENDING |
 | 4 | Steering Scoping | 2-3 | Glob-based steering files, token tracking | PARTIAL |
 | 5 | Evaluator-Optimizer | 2-3 | Evaluation rubric, regeneration protocol | PENDING |
@@ -56,7 +59,7 @@ Ensure all artifacts cross-reference correctly with automated validation.
 ### Validation Flow
 
 ```text
-Pre-commit hook
+Lefthook pre-commit job
     ↓
 Validate-Traceability.ps1
     ↓
@@ -103,9 +106,9 @@ param(
 # 2 = Warnings only (pass unless -Strict)
 ```
 
-### T-003: Create Pre-Commit Hook
-Create `.githooks/validate-traceability`:
-- Run Validate-Traceability.ps1 on staged .md files in .agents/specs/
+### T-003: Add Lefthook Traceability Job
+Add a `lefthook.yml` pre-commit job:
+- Run the traceability validator on staged Markdown files in `.agents/specs/`
 - Block commit if validation fails
 - Provide actionable error messages
 

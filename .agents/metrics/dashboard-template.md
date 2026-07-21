@@ -96,7 +96,7 @@ Target Score: 87.5 (80 + 7.5 + 0)
 | Pattern | Commits | Reviewed | Rate |
 |---------|---------|----------|------|
 | `.github/workflows/*` | [N] | [N] | [X]% |
-| `.githooks/*` | [N] | [N] | [X]% |
+| `lefthook.yml` and `scripts/validation/git_hook_policy.py` | [N] | [N] | [X]% |
 | `Dockerfile*` | [N] | [N] | [X]% |
 | `*.tf` | [N] | [N] | [X]% |
 | Other infra | [N] | [N] | [X]% |

@@ -184,11 +184,11 @@ graph TD
 
 ## Integration Points
 
-### Pre-Commit Hook
+### Manual Local Validation
 
 ```bash
-# .githooks/validate-traceability
-python3 scripts/validation/traceability.py --specs-path .agents/specs --strict
+uv run --frozen python scripts/validation/traceability.py \
+  --specs-path .agents/specs --strict
 ```
 
 ### CI Pipeline
