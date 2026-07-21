@@ -118,7 +118,6 @@ python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation qui
 
 - Full scan: 30-60 seconds (creates databases + runs all queries)
 - Quick scan (CLI): 10-20 seconds (cached database + all queries)
-- Quick scan (PostToolUse hook): 5-15 seconds (cached database + targeted queries only)
 
 ### Phase 3: Configuration Validation
 
@@ -285,39 +284,6 @@ Results are saved in SARIF format for IDE integration.
 </details>
 
 <details>
-<summary><strong>PostToolUse Hook (Automatic Scanning)</strong></summary>
-
-### How It Works
-
-The PostToolUse hook automatically triggers targeted CodeQL scans after you write Python files (*.py) or GitHub Actions workflows (*.yml in .github/workflows/). Uses a focused query set (5-10 critical CWEs) to complete within 30 seconds.
-
-**Automatic Triggers:**
-
-- Write a Python file: Quick scan for CWE-078, CWE-089, CWE-079, etc.
-- Write a workflow file: Quick scan for command injection, credential leaks
-
-**Configuration:**
-
-- Hook location: `.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`
-- Quick config: `.github/codeql/codeql-config-quick.yml`
-- Targeted queries: CWE-078 (command injection), CWE-089 (SQL injection), CWE-079 (XSS), CWE-022 (path traversal), CWE-798 (hardcoded credentials)
-
-**Performance:**
-
-| Scenario | Duration |
-|----------|----------|
-| Cached DB | 5-15 seconds |
-| First run | 20-30 seconds |
-| Timeout budget | 30 seconds (graceful) |
-
-**Graceful Degradation:**
-
-- CodeQL CLI not installed: Hook exits silently (non-blocking)
-- Scan times out: Warning message displayed, full scan recommended
-
-</details>
-
-<details>
 <summary><strong>Diagnostics</strong></summary>
 
 ### Running Diagnostics
@@ -403,21 +369,6 @@ Warning: Using cached database, but source files changed
 
 ```bash
 python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
-```
-
-### Hook Not Triggering
-
-PostToolUse hook not running after file writes. Common causes:
-
-- File type not supported (hook only scans `.py` and `.yml` in workflows)
-- CodeQL CLI not installed (graceful degradation, no error shown)
-- Hook disabled in Claude Code settings
-
-**Verify:**
-
-```bash
-python3 .codeql/scripts/get_codeql_diagnostics.py
-test -f .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py && echo "Hook exists"
 ```
 
 </details>
