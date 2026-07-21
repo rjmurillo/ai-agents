@@ -128,7 +128,7 @@ class TestMain:
         with patch("sys.stdin", mock_stdin):
             assert hook.main() == 0
 
-    def test_outputs_continue_on_missing_log(
+    def test_blocks_stop_on_missing_log(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -150,10 +150,11 @@ class TestMain:
         assert result == 0
         captured = capsys.readouterr()
         output = json.loads(captured.out)
-        assert output["continue"] is True
+        assert output["decision"] == "block"
+        assert "continue" not in output
         assert "Session log missing" in output["reason"]
 
-    def test_outputs_continue_on_incomplete_log(
+    def test_blocks_stop_on_incomplete_log(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path
     ) -> None:
         from datetime import UTC, datetime
@@ -181,7 +182,8 @@ class TestMain:
         assert result == 0
         captured = capsys.readouterr()
         output = json.loads(captured.out)
-        assert output["continue"] is True
+        assert output["decision"] == "block"
+        assert "continue" not in output
         assert "Missing or incomplete keys" in output["reason"]
 
     def test_silent_exit_when_no_sessions_dir(

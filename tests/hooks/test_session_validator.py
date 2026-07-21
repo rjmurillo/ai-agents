@@ -1,7 +1,7 @@
 """Tests for Stop invoke_session_validator hook.
 
 Verifies that session log completeness is validated before Claude stops,
-and missing/incomplete sections trigger continue responses.
+and missing or incomplete sections block Stop so the harness continues.
 """
 
 from __future__ import annotations
@@ -51,13 +51,13 @@ class TestGetProjectDirectory:
 
 
 class TestWriteContinueResponse:
-    """Tests for continue response output."""
+    """Tests for the Stop block response that forces continuation."""
 
     def test_outputs_json(self, capsys: pytest.CaptureFixture[str]) -> None:
         write_continue_response("test reason")
         captured = capsys.readouterr()
         data = json.loads(captured.out.strip())
-        assert data["continue"] is True
+        assert data["decision"] == "block"
         assert data["reason"] == "test reason"
 
 
@@ -229,7 +229,7 @@ class TestMainAllow:
             assert main() == 0
 
         captured = capsys.readouterr()
-        # No continue response should be printed for a complete log
+        # A complete log must not block Stop.
         assert not captured.out.strip()
 
     def test_invalid_json_fails_open(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -259,7 +259,8 @@ class TestMainContinue:
 
         captured = capsys.readouterr()
         resp = json.loads(captured.out.strip())
-        assert resp["continue"] is True
+        assert resp["decision"] == "block"
+        assert "continue" not in resp
         assert "Session log missing" in resp["reason"]
 
     def test_incomplete_log(
@@ -280,14 +281,15 @@ class TestMainContinue:
 
         captured = capsys.readouterr()
         resp = json.loads(captured.out.strip())
-        assert resp["continue"] is True
+        assert resp["decision"] == "block"
+        assert "continue" not in resp
         assert "Session log incomplete" in resp["reason"]
 
     def test_file_error_produces_continue(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """OS errors should produce continue response, not crash."""
+        """OS errors should block Stop rather than crash."""
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
         data = json.dumps({"cwd": str(tmp_path)})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
@@ -298,7 +300,8 @@ class TestMainContinue:
 
         captured = capsys.readouterr()
         resp = json.loads(captured.out.strip())
-        assert resp["continue"] is True
+        assert resp["decision"] == "block"
+        assert "continue" not in resp
 
 
 class TestModuleAsScript:
@@ -392,9 +395,9 @@ class TestSessionEndCompliance:
 class TestBootstrapFailsClosedOnPartialInstall:
     """Regression (#2523): a missing plugin lib/ must force continuation.
 
-    The Stop hook blocks by returning a ``{"continue": true}`` response on
-    stdout, not by exiting non-zero. A missing lib/ means validation cannot
-    run, so the hook must fail closed at the Stop-hook contract level.
+    The Stop hook returns ``{"decision": "block", "reason": "..."}`` on
+    stdout rather than exiting non-zero. A missing lib/ means validation
+    cannot run, so the hook must fail closed at the Stop-hook contract level.
     """
 
     @staticmethod
@@ -436,7 +439,8 @@ class TestBootstrapFailsClosedOnPartialInstall:
         assert "plugin lib directory not found" in result.stderr.lower()
         assert str(tmp_path / "lib") in result.stderr
         response = json.loads(result.stdout)
-        assert response["continue"] is True
+        assert response["decision"] == "block"
+        assert "continue" not in response
         assert "Session validator unavailable" in response["reason"]
 
     def test_no_marker_anywhere_exits_zero(self, tmp_path: Path) -> None:
@@ -446,4 +450,5 @@ class TestBootstrapFailsClosedOnPartialInstall:
         assert "plugin lib directory not found" in result.stderr.lower()
         assert "None" in result.stderr
         response = json.loads(result.stdout)
-        assert response["continue"] is True
+        assert response["decision"] == "block"
+        assert "continue" not in response
