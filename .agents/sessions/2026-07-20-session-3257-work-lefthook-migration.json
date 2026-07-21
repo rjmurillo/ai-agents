@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit 89db6ea66a includes the ADR-085 amendment, canonical debate log, session log, and generated memory artifacts"
+        "Evidence": "Commits through 6aee4f9b98 include the ADR-085 amendment, canonical debate log, session log, and generated memory artifacts; Lefthook documentation cleanup is staged next"
       },
       "validationPassed": {
         "level": "MUST",
@@ -132,9 +132,12 @@
     "Re-ran pre-PR validation, generator drift, plugin parity, focused tests, coverage, Ruff, mypy, actionlint, and diff checks against cc81d30505fd; all blocking gates passed.",
     "Stage-1 review found accepted ADR-085 still directed future work to the deleted custom Git-hook root. Updated the ADR to use the Lefthook architecture and ran the mandatory six-agent ADR debate.",
     "ADR reviewers found that Lefthook and CI cannot preserve the PreToolUse raw-gh block. ADR-085 now records the timing loss, binds issue #3217 to observable acceptance evidence, corrects #3218 survivor accounting, and has 6 of 6 Accept consensus.",
-    "Created the canonical amendment debate log at .agents/critique/ADR-085-debate-log.md."
+    "Created the canonical amendment debate log at .agents/critique/ADR-085-debate-log.md.",
+    "Audited every tracked Markdown reference to .githooks, scripts/hooks, and install_hooks; no active prescriptive reference remains after replacing current guidance and labeling historical specifications.",
+    "Corrected T-008 metrics guidance so Lefthook owns scheduling while Python owns repository policy and deterministic session artifacts.",
+    "Ran the mandatory ADR-086 rollback delta debate. The revised rollback contract covers fail-open behavior, executable Git revert units, coherent-state proof, and reached 6 of 6 Accept consensus."
   ],
-  "endingCommit": "89db6ea66a",
+  "endingCommit": "6aee4f9b98",
   "nextSteps": [
     "Run the complete branch review against the committed tip.",
     "Create the SHA-bound review marker after every axis clears.",

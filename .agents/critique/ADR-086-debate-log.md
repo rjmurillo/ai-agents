@@ -124,6 +124,53 @@ through the installed hook. The default index retains its own blobs.
 
 **Delta consensus: 6/6 Accept. Zero blocking findings.**
 
+### Post-acceptance rollback clarification
+
+The rollback amendment originally required reverting PR #3259 as one atomic
+change and prohibited hand reconstruction of the deleted framework roots.
+Phase 1 agreed on the safety principle but found the Git operation and trigger
+criteria too narrow for future history.
+
+Initial positions were:
+
+| Role | Position |
+|------|----------|
+| Architect | Accept |
+| Critic | Block |
+| Independent Thinker | Disagree-and-Commit |
+| Security | Accept |
+| Analyst | Disagree-and-Commit |
+| High-Level Advisor | Disagree-and-Commit |
+
+The high-level-advisor ruled that the findings were P1 documentation defects,
+not P0 failures in the live hook system. The accepted resolution:
+
+- Covers installation, execution, routing, fail-open non-execution, standard
+  input, staging, filtering, active-index behavior, and failure propagation.
+- Requires one forward-fix PR to preserve Lefthook as the sole hook owner and
+  pass ADR acceptance before contributors continue.
+- Names the landed merge, squash, or exact landed commit set as the Git revert
+  unit.
+- Requires one coherent pre-PR-3259 hook-owner state when later history prevents
+  a clean revert.
+- Requires proof that no mixed hook assets remain active, restored bootstrap and
+  validation succeed, a hook failure propagates, and tracked state starts and
+  ends clean.
+- Prohibits partial rollback and hand reconstruction of deleted framework paths.
+
+Round 2 positions:
+
+| Role | Delta vote |
+|------|------------|
+| Architect | Accept |
+| Critic | Accept |
+| Independent Thinker | Accept |
+| Security | Accept |
+| Analyst | Accept |
+| High-Level Advisor | Accept |
+
+**Rollback delta consensus: 6/6 Accept. Zero blocking findings.**
+
 ## Security disposition
 
 No Critical or High finding remained. Local bypasses are not a security

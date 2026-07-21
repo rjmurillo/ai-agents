@@ -13997,6 +13997,42 @@
         "episode-2026-07-20-session-3257-work-lefthook-migration"
       ],
       "created": "2026-07-21T00:56:52.691573+00:00"
+    },
+    {
+      "id": "2f5c152fe303",
+      "type": "milestone",
+      "label": "milestone: Audited every tracked Markdown reference to .githooks, scripts/hooks, and install_hooks; no active prescriptive reference remains after replacing current guidance and labeling historical specifications.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T01:46:35.465312+00:00"
+    },
+    {
+      "id": "c0e413e4faa6",
+      "type": "milestone",
+      "label": "milestone: Corrected T-008 metrics guidance so Lefthook owns scheduling while Python owns repository policy and deterministic session artifacts.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T01:46:35.465371+00:00"
+    },
+    {
+      "id": "34f8c36da585",
+      "type": "milestone",
+      "label": "milestone: Ran the mandatory ADR-086 rollback delta debate. The revised rollback contract covers fail-open behavior, executable Git revert units, coherent-state proof, and reached 6 of 6 Accept consensus.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T01:46:35.465424+00:00"
+    },
+    {
+      "id": "40ca7c299fe1",
+      "type": "commit",
+      "label": "commit: Commit: 6aee4f9b98",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T01:46:35.465473+00:00"
     }
   ],
   "patterns": [

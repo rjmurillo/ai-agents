@@ -324,25 +324,32 @@ The final short status remains an extra diagnostic.
 
 ## Rollback Plan
 
-The repository owner authorizes a revert PR. Trigger rollback only when
-Lefthook cannot install or run on supported Windows or Linux, corrupts hook
-ownership, or blocks commit or push with no prompt forward fix available.
+The repository owner authorizes a rollback PR. Trigger rollback when Lefthook
+cannot install or run on supported Windows or Linux, when another active hook
+path bypasses, intercepts, or duplicates Lefthook execution, or when any
+accepted hook-contract behavior fails. That includes fail-open non-execution,
+incorrect standard input, staging, filtering, active-index behavior, or failure
+propagation. Roll back only when the owner cannot identify one forward-fix PR
+that preserves Lefthook as the sole hook owner and can pass this ADR's acceptance
+checks before contributors continue.
 
-Rollback must revert PR #3259 as one atomic change. The revert must restore both
-`.githooks/` and `scripts/hooks/`, including their installers, tests, payloads,
-scheduling support, activation logic, and documentation. After the revert, run
-the restored commands:
+Rollback must ship as one revert PR that reverts the landed merge commit, squash
+commit, or exact landed commit set for PR #3259. If later history prevents a
+clean revert, the rollback PR must still restore one coherent pre-PR-3259 hook
+owner state in one atomic change. Do not reconstruct any deleted framework path
+by hand. After the revert, follow that restored revision's contributor bootstrap
+and validation commands rather than copying obsolete commands from this ADR.
 
-```bash
-uv run --frozen python scripts/install_git_hooks.py
-uv run --frozen python scripts/install_git_hooks.py --check
-uv run --frozen pytest tests/test_install_git_hooks.py tests/hooks/test_git_hooks_activation.py -q
-uv run --frozen python build/scripts/build_all.py --check
-uv run --frozen python scripts/validation/pre_pr.py
-```
+A rollback PR is acceptable only with proof that it restores a coherent state.
+Identify the reverted commit set, show that no mixed installers, shims,
+configuration, or payloads remain active, run the restored revision's documented
+bootstrap and validation commands, and demonstrate that a hook failure propagates
+through the restored owner. Start and end with no tracked working-tree or index
+changes.
 
 A partial rollback is invalid. Mixed installers, shims, configuration, and
-payloads create a torn state with uncertain hook execution.
+payloads create an unsupported state where Git may invoke different hook entry
+points.
 
 ## Review Triggers
 
@@ -353,7 +360,9 @@ Review this decision when any of these conditions occurs:
 - Git active-index propagation or `{staged_files}` semantics change.
 - The repository adds another Git hook event.
 - Hook execution stops using the frozen uv environment.
-- Supported platforms report installation or execution failures.
+- Supported platforms report installation, execution, routing, or other accepted
+  hook-contract failures, including fail-open non-execution or incorrect standard
+  input, staging, filtering, active-index behavior, or failure propagation.
 - Evidence shows an internal policy requires an enforcement home other than
   Lefthook or CI.
 
@@ -365,6 +374,7 @@ Review this decision when any of these conditions occurs:
 | 2026-07-20 | Revised version ownership, shim precedence, timeout, confirmation, rollback, and staging details through adr-review. |
 | 2026-07-20 | Accepted by 6/6 Approve consensus. Implementation is included in PR #3259. |
 | 2026-07-20 | Verified that Lefthook filters use Git's active index, so no custom alternate-index guard is required. |
+| 2026-07-20 | Clarified rollback triggers, atomic restoration, and proof requirements through 6/6 delta-review consensus. |
 
 ## Related Decisions
 

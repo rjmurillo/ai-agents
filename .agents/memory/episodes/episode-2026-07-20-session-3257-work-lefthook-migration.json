@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Initialized the review session and loaded repository constraints, Lefthook migration decisions, and PR-review workflow context; shared-memory import was unavailable because the external plugin script was missing.",
       "caused_by": [
-        "e011"
+        "e015"
       ],
       "leads_to": [
         "e002"
@@ -110,7 +110,9 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e012"
+      ]
     },
     {
       "id": "e010",
@@ -131,6 +133,52 @@
         "e010"
       ],
       "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audited every tracked Markdown reference to .githooks, scripts/hooks, and install_hooks; no active prescriptive reference remains after replacing current guidance and labeling historical specifications.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected T-008 metrics guidance so Lefthook owns scheduling while Python owns repository policy and deterministic session artifacts.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the mandatory ADR-086 rollback delta debate. The revised rollback contract covers fail-open behavior, executable Git revert units, coherent-state proof, and reached 6 of 6 Accept consensus.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6aee4f9b98",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -140,7 +188,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 4
   },
   "lessons": []
