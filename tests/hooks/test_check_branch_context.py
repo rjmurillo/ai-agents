@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import runpy
 import subprocess
 from datetime import UTC, datetime
@@ -13,6 +14,10 @@ from unittest.mock import patch
 import pytest
 
 from scripts.hooks import check_branch_context as gate
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_PRE_COMMIT = _REPO_ROOT / ".githooks" / "pre-commit"
+_PRE_PUSH = _REPO_ROOT / ".githooks" / "pre-push"
 
 
 def _write_session(repo_root: Path, data: object) -> Path:
@@ -171,3 +176,28 @@ def test_script_entry_point_exits_with_main_result(tmp_path: Path) -> None:
             runpy.run_path(gate.__file__, run_name="__main__")
 
     assert exc_info.value.code == 0
+
+
+def test_pre_commit_runs_gates_without_lintable_files() -> None:
+    text = _PRE_COMMIT.read_text(encoding="utf-8")
+    no_files_block = re.search(
+        r'if \[ -z "\$STAGED_FILES" \]; then(?P<body>.*?)\nfi',
+        text,
+        re.DOTALL,
+    )
+
+    assert no_files_block is not None
+    assert "exit " not in no_files_block.group("body")
+    assert "BRANCH_CONTEXT_SCRIPT=" in text
+    assert "SESSION_VALIDATE_SCRIPT=" in text
+    assert "ADR_REVIEW_SCRIPT=" in text
+
+
+def test_pre_push_runs_branch_context_before_tree_neutral_exit() -> None:
+    text = _PRE_PUSH.read_text(encoding="utf-8")
+    branch_context = text.index("BRANCH_CONTEXT_SCRIPT=")
+    no_changed_files = text.index('if [ -z "$CHANGED_FILES" ]; then')
+
+    assert branch_context < no_changed_files
+    no_changed_block = text[no_changed_files : text.index("\nfi", no_changed_files)]
+    assert 'exit "$EXIT_STATUS"' in no_changed_block

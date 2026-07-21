@@ -254,8 +254,8 @@ if [ "$IS_MERGE" = "1" ] && [ -n "$MERGE_BASE" ]; then
 fi
 
 if [ -z "$STAGED_FILES" ]; then
-    echo_info "No staged files to check."
-    exit 0
+    echo_info "No added, copied, modified, or renamed files to lint."
+    echo_info "Commit gates still run for deletion-only and allow-empty commits."
 fi
 
 # Filter for markdown files only
@@ -2126,8 +2126,9 @@ elif [ ! -f "$ADR_REVIEW_SCRIPT" ]; then
     echo_error "ADR review validation blocked: script not found at $ADR_REVIEW_SCRIPT"
     EXIT_STATUS=1
 elif set_python_cmd; then
-    "${PYTHON_CMD[@]}" "$ADR_REVIEW_SCRIPT" && adr_review_exit=0 || adr_review_exit=$?
-    if [ "$adr_review_exit" -ne 0 ]; then
+    adr_result=$("${PYTHON_CMD[@]}" "$ADR_REVIEW_SCRIPT" 2>&1) && adr_exit=0 || adr_exit=$?
+    if [ "$adr_exit" -ne 0 ]; then
+        printf '%s\n' "$adr_result" >&2
         echo_error "ADR review evidence validation FAILED."
         EXIT_STATUS=1
     fi

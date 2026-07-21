@@ -165,11 +165,13 @@ def test_unreadable_session_log_has_no_evidence(tmp_path: Path) -> None:
 def test_staged_file_lookup_filters_git_output(tmp_path: Path) -> None:
     result = _git_result("README.md\nADR-1.md\n.agents/SESSION-PROTOCOL.md\n")
 
-    with patch.object(gate, "_run_git", return_value=result):
+    with patch.object(gate, "_run_git", return_value=result) as run_git:
         assert gate._staged_gated_files(tmp_path) == [
             "ADR-1.md",
             ".agents/SESSION-PROTOCOL.md",
         ]
+
+    run_git.assert_called_once_with(tmp_path, "diff", "--cached", "--name-only")
 
 
 def test_session_lookup_uses_newest_readable_log(tmp_path: Path) -> None:

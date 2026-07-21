@@ -364,9 +364,44 @@ if [ -n "$CHANGED_FILES" ]; then
     CHANGED_FILES=$(echo "$CHANGED_FILES" | sort -u)
 fi
 
+# ============================================================================
+# Phase 1: Fast Guards (< 5s)
+# ============================================================================
+echo_phase "Phase 1: Fast Guards"
+
+# 1. Branch guard - block direct pushes to main/master
+current_branch=$(git branch --show-current 2>/dev/null || echo "")
+
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    record_fail "Cannot push directly to '$current_branch'"
+    echo_info "  Create a feature branch first:"
+    echo_info "    git checkout -b feat/your-description"
+    # Hard block - exit immediately
+    exit 1
+fi
+
+record_pass "Branch guard ($current_branch)"
+
+# 1a. Branch context guard
+BRANCH_CONTEXT_SCRIPT="$REPO_ROOT/scripts/hooks/check_branch_context.py"
+if [ -L "$BRANCH_CONTEXT_SCRIPT" ]; then
+    record_fail "Branch context validation blocked: script path is a symlink"
+elif [ ! -f "$BRANCH_CONTEXT_SCRIPT" ]; then
+    record_skip "Branch context validation (script not found)"
+elif set_python_cmd; then
+    "${PYTHON_CMD[@]}" "$BRANCH_CONTEXT_SCRIPT" && branch_context_exit=0 || branch_context_exit=$?
+    if [ "$branch_context_exit" -ne 0 ]; then
+        record_fail "Branch context validation: branch mismatch"
+    else
+        record_pass "Branch context validation"
+    fi
+else
+    record_skip "Branch context validation (Python not available)"
+fi
+
 if [ -z "$CHANGED_FILES" ]; then
     echo_info "No changed files detected in push range. Skipping checks."
-    exit 0
+    exit "$EXIT_STATUS"
 fi
 
 # Count changed files
@@ -416,41 +451,6 @@ CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\
 # CLI plugin-load smoke when a CLI is available. copilot_hook_probe.py is the
 # shared load-signal helper imported by the smoke (#3179).
 CHANGED_PLUGIN_LOAD=$(echo "$CHANGED_FILES" | grep -E '^(\.claude/(\.claude-plugin/plugin\.json|commands/|skills/)|src/copilot-cli/(\.claude-plugin/plugin\.json|skills/)|build/scripts/generate_(commands|skills)\.py|templates/platforms/copilot-cli\.yaml|tests/e2e/test_plugin_load_smoke\.py|tests/e2e/copilot_hook_probe\.py|\.github/workflows/nightly-cli-smoke\.yml)' || true)
-
-# ============================================================================
-# Phase 1: Fast Guards (< 5s)
-# ============================================================================
-echo_phase "Phase 1: Fast Guards"
-
-# 1. Branch guard - block direct pushes to main/master
-current_branch=$(git branch --show-current 2>/dev/null || echo "")
-
-if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
-    record_fail "Cannot push directly to '$current_branch'"
-    echo_info "  Create a feature branch first:"
-    echo_info "    git checkout -b feat/your-description"
-    # Hard block - exit immediately
-    exit 1
-fi
-
-record_pass "Branch guard ($current_branch)"
-
-# 1a. Branch context guard
-BRANCH_CONTEXT_SCRIPT="$REPO_ROOT/scripts/hooks/check_branch_context.py"
-if [ -L "$BRANCH_CONTEXT_SCRIPT" ]; then
-    record_fail "Branch context validation blocked: script path is a symlink"
-elif [ ! -f "$BRANCH_CONTEXT_SCRIPT" ]; then
-    record_fail "Branch context validation blocked: script not found"
-elif set_python_cmd; then
-    "${PYTHON_CMD[@]}" "$BRANCH_CONTEXT_SCRIPT" && branch_context_exit=0 || branch_context_exit=$?
-    if [ "$branch_context_exit" -ne 0 ]; then
-        record_fail "Branch context validation: branch mismatch"
-    else
-        record_pass "Branch context validation"
-    fi
-else
-    record_skip "Branch context validation (Python not available)"
-fi
 
 # 1b. Placeholder identity guard (issue #2466)
 # Rejects commits whose author/committer is Test <test@test.com>.
