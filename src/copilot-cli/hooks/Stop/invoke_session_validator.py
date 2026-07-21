@@ -53,7 +53,7 @@ if _lib_dir is None or not os.path.isdir(_lib_dir):
         reason,
         file=sys.stderr,
     )
-    print(json.dumps({"continue": True, "reason": reason}))
+    print(json.dumps({"decision": "block", "reason": reason}))
     sys.exit(0)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -135,8 +135,8 @@ def log_session_end_skip(
 
 
 def write_continue_response(reason: str) -> None:
-    """Write a JSON response that tells Claude to continue working."""
-    response = json.dumps({"continue": True, "reason": reason})
+    """Block Stop so the active harness continues working."""
+    response = json.dumps({"decision": "block", "reason": reason})
     print(response)
 
 
