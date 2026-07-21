@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3257,
+    "date": "2026-07-20",
+    "branch": "chore/lefthook-migration",
+    "startingCommit": "ce27bff0ca",
+    "objective": "Run full /review workflow and ship PR #3259"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project pre-activated by harness; Serena memory tools succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; no PR #3259 per-issue handoff found"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/*.py and review skill files"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena memory usage-mandatory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index, Lefthook migration decisions, and PR-review core workflow"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/lefthook-migration"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/lefthook-migration"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified branch chore/lefthook-migration; unrelated dirty items preserved"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ce27bff0ca"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST review-session items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-085 and its debate log record the durable decision; no separate memory entry was needed"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py passed Markdown Linting; direct scoped lint found no eligible files under .agents"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This commit includes the ADR-085 amendment, canonical debate log, and session log"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py exited 0; generated drift and plugin parity passed; 388 focused tests passed; changed security modules reached 100 percent statement and branch coverage; ADR review reached 6 of 6 Accept"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Autopilot objective and review blockers were updated as each phase completed"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: tests/test_lefthook_integration.py edited 14 times",
+          "rework-warning: .agents/memory/causality/causal-graph.json edited 13 times",
+          "rework-warning: scripts/validation/git_hook_policy.py edited 11 times",
+          "rework-warning: .claude/.claude-plugin/plugin.json edited 9 times",
+          "rework-warning: src/copilot-cli/.claude-plugin/plugin.json edited 9 times",
+          "rework-warning: .claude/hooks/PreToolUse/invoke_security_commit_gate.py edited 7 times"
+        ]
+      }
+    }
+  },
+  "workLog": [
+    "Initialized the review session and loaded repository constraints, Lefthook migration decisions, and PR-review workflow context; shared-memory import was unavailable because the external plugin script was missing.",
+    "Ran Stage 1, complexity Tier 3 classification, all 11 discovered Stage-2 canonical axes, and all three chained local axes against origin/main...ce27bff0ca9e with CONTEXT_MODE full.",
+    "Merged the 15 axis verdicts with ai_review_common.merge_verdicts; decision-rigor, reliability, and code-qualities-assessment returned CRITICAL_FAIL, so no SHA-bound marker commit was created.",
+    "Validated the unmarked HEAD with validate_review_marker.py; it exited 1 because ce27bff0ca9e is a code commit rather than an empty marker, which is the expected result after a blocking review.",
+    "Resolved all prior blockers in committed code, including visible setup failures, ADR detection warnings, timeout command labels, pushed-ref coverage warnings, Windows job naming, and NUL-delimited CI security paths.",
+    "Re-ran pre-PR validation, generator drift, plugin parity, focused tests, coverage, Ruff, mypy, actionlint, and diff checks against cc81d30505fd; all blocking gates passed.",
+    "Stage-1 review found accepted ADR-085 still directed future work to the deleted custom Git-hook root. Updated the ADR to use the Lefthook architecture and ran the mandatory six-agent ADR debate.",
+    "ADR reviewers found that Lefthook and CI cannot preserve the PreToolUse raw-gh block. ADR-085 now records the timing loss, binds issue #3217 to observable acceptance evidence, corrects #3218 survivor accounting, and has 6 of 6 Accept consensus.",
+    "Created the canonical amendment debate log at .agents/critique/ADR-085-debate-log.md."
+  ],
+  "endingCommit": "cc81d30505fd",
+  "nextSteps": [
+    "Run the complete branch review against the committed tip.",
+    "Create the SHA-bound review marker after every axis clears.",
+    "Push PR #3259, resolve remaining review threads, wait for required checks, and merge."
+  ]
+}

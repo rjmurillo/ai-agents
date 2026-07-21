@@ -1,0 +1,135 @@
+{
+  "id": "episode-2026-07-20-session-3257-work-lefthook-migration",
+  "session": "2026-07-20-session-3257-work-lefthook-migration",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Run full /review workflow and ship PR #3259",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Initialized the review session and loaded repository constraints, Lefthook migration decisions, and PR-review workflow context; shared-memory import was unavailable because the external plugin script was missing.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran Stage 1, complexity Tier 3 classification, all 11 discovered Stage-2 canonical axes, and all three chained local axes against origin/main...ce27bff0ca9e with CONTEXT_MODE full.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged the 15 axis verdicts with ai_review_common.merge_verdicts; decision-rigor, reliability, and code-qualities-assessment returned CRITICAL_FAIL, so no SHA-bound marker commit was created.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the unmarked HEAD with validate_review_marker.py; it exited 1 because ce27bff0ca9e is a code commit rather than an empty marker, which is the expected result after a blocking review.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved all prior blockers in committed code, including visible setup failures, ADR detection warnings, timeout command labels, pushed-ref coverage warnings, Windows job naming, and NUL-delimited CI security paths.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran pre-PR validation, generator drift, plugin parity, focused tests, coverage, Ruff, mypy, actionlint, and diff checks against cc81d30505fd; all blocking gates passed.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stage-1 review found accepted ADR-085 still directed future work to the deleted custom Git-hook root. Updated the ADR to use the Lefthook architecture and ran the mandatory six-agent ADR debate.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR reviewers found that Lefthook and CI cannot preserve the PreToolUse raw-gh block. ADR-085 now records the timing loss, binds issue #3217 to observable acceptance evidence, corrects #3218 survivor accounting, and has 6 of 6 Accept consensus.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created the canonical amendment debate log at .agents/critique/ADR-085-debate-log.md.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: cc81d30505fd",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

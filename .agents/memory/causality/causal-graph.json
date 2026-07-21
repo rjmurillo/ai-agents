@@ -13889,6 +13889,105 @@
         "episode-2026-07-20-session-3256-finish-lefthook-semgrep-hardening-merge"
       ],
       "created": "2026-07-20T21:42:21.408071+00:00"
+    },
+    {
+      "id": "eae75ab990c3",
+      "type": "milestone",
+      "label": "milestone: Initialized the review session and loaded repository constraints, Lefthook migration decisions, and PR-review workflow context; shared-memory import was unavailable because the external plugin script was missing.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797343+00:00"
+    },
+    {
+      "id": "b9992fde1b62",
+      "type": "milestone",
+      "label": "milestone: Ran Stage 1, complexity Tier 3 classification, all 11 discovered Stage-2 canonical axes, and all three chained local axes against origin/main...ce27bff0ca9e with CONTEXT_MODE full.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797404+00:00"
+    },
+    {
+      "id": "8fba1e12c291",
+      "type": "milestone",
+      "label": "milestone: Merged the 15 axis verdicts with ai_review_common.merge_verdicts; decision-rigor, reliability, and code-qualities-assessment returned CRITICAL_FAIL, so no SHA-bound marker commit was created.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797455+00:00"
+    },
+    {
+      "id": "5a20e15d5332",
+      "type": "milestone",
+      "label": "milestone: Validated the unmarked HEAD with validate_review_marker.py; it exited 1 because ce27bff0ca9e is a code commit rather than an empty marker, which is the expected result after a blocking review.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797504+00:00"
+    },
+    {
+      "id": "ae0ab1b0c706",
+      "type": "milestone",
+      "label": "milestone: Resolved all prior blockers in committed code, including visible setup failures, ADR detection warnings, timeout command labels, pushed-ref coverage warnings, Windows job naming, and NUL-delimited CI security paths.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797553+00:00"
+    },
+    {
+      "id": "0fd2c7bd15b2",
+      "type": "milestone",
+      "label": "milestone: Re-ran pre-PR validation, generator drift, plugin parity, focused tests, coverage, Ruff, mypy, actionlint, and diff checks against cc81d30505fd; all blocking gates passed.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797601+00:00"
+    },
+    {
+      "id": "48184f346a79",
+      "type": "milestone",
+      "label": "milestone: Stage-1 review found accepted ADR-085 still directed future work to the deleted custom Git-hook root. Updated the ADR to use the Lefthook architecture and ran the mandatory six-agent ADR debate.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797656+00:00"
+    },
+    {
+      "id": "8c44e1c0513b",
+      "type": "milestone",
+      "label": "milestone: ADR reviewers found that Lefthook and CI cannot preserve the PreToolUse raw-gh block. ADR-085 now records the timing loss, binds issue #3217 to observable acceptance evidence, corrects #3218 survivor accounting, and has 6 of 6 Accept consensus.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797708+00:00"
+    },
+    {
+      "id": "12246143ac77",
+      "type": "milestone",
+      "label": "milestone: Created the canonical amendment debate log at .agents/critique/ADR-085-debate-log.md.",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797756+00:00"
+    },
+    {
+      "id": "17b289d8c6eb",
+      "type": "commit",
+      "label": "commit: Commit: cc81d30505fd",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797805+00:00"
+    },
+    {
+      "id": "742fbcd1ad37",
+      "type": "outcome",
+      "label": "Outcome: success - Run full /review workflow and ship PR #3259",
+      "episodes": [
+        "episode-2026-07-20-session-3257-work-lefthook-migration"
+      ],
+      "created": "2026-07-21T00:55:50.797854+00:00"
     }
   ],
   "patterns": [

@@ -15,10 +15,11 @@ implemented: false
 
 Accepted (2026-07-20). Requested by issue #3217 as part of the issue #3197
 vendored-hook ROI review. adr-review reached consensus (5 ACCEPT plus 1
-Disagree-and-Commit, 0 P0, all P1 threads addressed); the debate log is at
-`.agents/analysis/ADR-085-permission-surface-debate.md`. The owner ratified on
-2026-07-20 and ruled the two open decisions: D-A internal-only and D-B
-keep-as-hook (see the Open Owner Decisions section). D-A resolves to the
+Disagree-and-Commit, 0 P0, all P1 threads addressed); the initial debate log is
+at `.agents/analysis/ADR-085-permission-surface-debate.md`. The PR #3259
+amendment review is at `.agents/critique/ADR-085-debate-log.md`. The owner
+ratified on 2026-07-20 and ruled the two open decisions: D-A internal-only and D-B
+keep-as-hook (see the Owner Decision Record section). D-A resolves to the
 internal-only branch, which differs from the adr-review recommendation
 (customer-facing); the owner exercised final authority under User Sovereignty,
 and both branches were already ruled ADR-084 rule-4 compliant in Decision 2. This
@@ -28,6 +29,13 @@ implementation lands under #3217 and #3218.
 D-B keeps `test_auto_approval` as a hook, matching the recommendation. It reverses
 a prior working approval to migrate it; new verified evidence (Finding 2) is the
 reason.
+
+## Amendment Record
+
+PR #3259 replaced the repository's custom Git-hook framework with Lefthook. This
+amendment updates the five active D-A implementation instructions to the current
+framework and records that Lefthook and CI cannot preserve PreToolUse timing. It
+does not change the owner's D-A internal-only or D-B keep-as-hook decisions.
 
 ## Date
 
@@ -159,30 +167,44 @@ hold:
    backticks, or redirects on an auto-approve or auto-deny path fails this on
    Claude today, because `permissions.allow` splits on separators only.
 
-### 2. `skill_first_guard`: keep the hook mechanism; owner classifies scope (D-A)
+### 2. `skill_first_guard`: remove it from the vendored surface; preserve only enforceable policy (D-A)
 
 Do not migrate `skill_first_guard` to a Claude `permissions.deny` rule. It fails
 portability (ships to Copilot, no committed Copilot surface). A permissions rule
 also cannot express the guard's conditional logic ("deny raw `gh X` only when a
 skill exists") or its instructional block message.
 
-"Keep the hook mechanism" means the hook is the right carrier versus a permissions
-rule. It does not sanction the current shipped-dead state. That state, self-neuter
-via `skip_if_consumer_repo` on a hook shipped to Copilot, is a direct ADR-084 rule
-4 violation (self-neutering hooks are banned from the vendored surface; they are
-not shipped dead). This ADR grants no rule 4 exception. D-A must resolve the
-violation: customer-facing removes the self-neuter and makes discovery plugin-root
-aware; internal-only relocates the hook to Lefthook or CI. Both branches comply
-with rule 4. Keeping the hook mechanism while leaving D-A unresolved leaves an
-active rule 4 violation in place and is not a valid end state.
+Before the owner classified its scope, keeping the hook mechanism was the only
+behavior-preserving alternative to permissions. That did not sanction the
+shipped-dead state. Self-neutering via `skip_if_consumer_repo` on a hook shipped
+to Copilot is a direct ADR-084 rule 4 violation. This ADR grants no exception.
 
 **Resolution (owner, 2026-07-20): internal-only.** `skill_first_guard` is
 dogfood-only developer experience, not customer-facing. Per ADR-084 rule 4,
-relocate it off the vendored Copilot surface into `.githooks`/CI and stop shipping
-it. This is the internal-only branch above; it differs from the adr-review
-recommendation (customer-facing), and the owner ruled under User Sovereignty.
-Implementation lands under #3217; #3218 rescopes to retire the dispatch, parity,
-and drift machinery whose last consumer this removal eliminates.
+remove it from the vendored Copilot surface and stop shipping it. This differs
+from the adr-review recommendation (customer-facing), and the owner ruled under
+User Sovereignty. Implementation lands under #3217; #3218 rescopes to retire the
+dispatch, parity, and drift machinery whose last consumer this removal eliminates.
+
+This scope decision does not claim a behavior-preserving relocation. Lefthook and
+CI receive Git or workflow events, not the PreToolUse payload, and cannot block a
+raw `gh` command before it executes. Under #3217, the implementation MUST:
+
+1. Remove the guard from the vendored surface and its generated registrations.
+2. Name any repository-state invariant that remains enforceable through
+   `lefthook.yml` or CI, including its trigger, failure behavior, and acceptance
+   test.
+3. Record the retirement of pre-execution blocking unless a separate decision
+   approves a non-vendored agent-time carrier.
+
+No implementation may describe Lefthook or CI as an equivalent replacement for
+the removed PreToolUse guard.
+
+For this guard, Decision 2 narrows ADR-084 rule 4's "moves to Lefthook or CI"
+language to policy with an observable Git or workflow invariant. When no such
+invariant exists, explicit retirement satisfies rule 4's non-vendoring purpose.
+Creating a post-execution gate that cannot observe or prevent the original action
+does not.
 
 ### 3. `test_auto_approval`: recommend keeping the hook (D-B)
 
@@ -224,7 +246,8 @@ non-customer hook purge, not this ADR.
 While any hook survives on the Copilot surface, #3218 cannot fully retire the
 dispatcher, parity, and drift machinery. Rescope #3218 to retire only machinery
 whose last hook consumer is gone. Full retirement requires either removal of every
-surviving Copilot hook or a future committed Copilot permission surface.
+surviving Copilot hook or replacements that pass the eligibility test in Decision
+1.
 
 ### 6. Confirmation
 
@@ -233,30 +256,36 @@ hook-to-permissions migration proposal. ADR-084 rule 5's vendored-hook presence
 check is the containing gate that surfaces such hooks for review. The #3218 rescope
 (Decision 5) is confirmed done when both hold: every dispatcher, parity, and drift
 component whose last surviving hook consumer is gone is removed; and each component
-still referenced by a surviving hook (`skill_first_guard`, `observation_sync` until
-#3216, and the two keepers `compact_checkpoint` and `markdownlint_guard`) is listed
-as retained with the hook that keeps it alive.
+still referenced by a surviving hook is listed as retained with that hook. After
+#3216 and #3217 land, neither `observation_sync` nor `skill_first_guard` qualifies
+as a retained consumer. The inventory MUST include the shipped security controls
+required by ADR-083 and any remaining keepers, including `compact_checkpoint` and
+`markdownlint_guard`.
 
-## Open Owner Decisions
+## Owner Decision Record
 
 ### D-A: Is `skill_first_guard` customer-facing or internal?
 
-- **Recommendation: customer-facing.** The `github` skill scripts it enforces ship
+- **Review recommendation before owner ruling: customer-facing.** The `github`
+  skill scripts it enforces ship
   to consumers; a guard that steers agents to those scripts has consumer value.
   If customer-facing: keep the hook on both harnesses, remove
   `skip_if_consumer_repo` from this guard, and make skill discovery plugin-root
   aware (`COPILOT_PLUGIN_ROOT`/`CLAUDE_PLUGIN_ROOT`) so it resolves shipped scripts
   in a consumer repo. Implement under #3217.
-- **Alternative: internal-only.** If the owner intends it as dogfood-only DX, then
+- **Alternative selected by owner: internal-only.** If the owner intends it as
+  dogfood-only DX, then
   per ADR-084 rule 4 (customer-facing hooks must not self-neuter; internal
-  enforcement belongs in Lefthook or CI) relocate it off the vendored Copilot
-  surface into Lefthook or CI and stop shipping it.
+  enforcement belongs in Lefthook or CI) remove it from the vendored Copilot
+  surface and stop shipping it.
 
 Either way the `skip_if_consumer_repo` no-op-in-place state is not a valid
 end state for a shipped hook.
 
-**Resolved (owner, 2026-07-20): internal-only.** Relocate `skill_first_guard` to
-`.githooks`/CI, stop shipping it on the vendored surface. Implement under #3217.
+**Resolved (owner, 2026-07-20): internal-only.** Stop shipping
+`skill_first_guard` on the vendored surface. Any remaining repository-state policy
+belongs in `lefthook.yml` or CI. This choice does not preserve PreToolUse
+interception; #3217 must satisfy Decision 2's confirmation requirements.
 
 ### D-B: Keep, migrate, or delete `test_auto_approval`?
 
@@ -315,22 +344,24 @@ re-proposing the same migration and rediscovering both findings.
 | Migrate `test_auto_approval` only (Claude-only, Sol draft) | Removes one hook + dispatch group | Auto-approve fidelity gap remains on Claude | Narrow but real auto-approve regression; not worth one fewer hook |
 | Delete `test_auto_approval` outright (no auto-approve) | Removes the hook, its dispatch group, and the fidelity gap; most shrink-aligned; safest | One extra permission prompt per test run for this repo's developers | Viable; offered as the third D-B branch, not pre-decided by this ADR |
 | Dual-surface: hook on Copilot, permissions on Claude | Uses native surface where it exists | Reintroduces the per-harness divergence #3218 wants gone | Adds machinery to remove machinery |
-| Keep both as hooks; record the eligibility test (chosen) | No regression; portable; prevents re-litigation | #3218 only partially retires; per-call spawn stays | Preserves guard behavior at a bounded, known cost |
+| Keep both as hooks; record the eligibility test (review recommendation before D-A ruling) | No regression; portable; prevents re-litigation | #3218 only partially retires; per-call spawn stays | Owner classified `skill_first_guard` as internal-only |
+| Remove `skill_first_guard` from the vendored surface; keep `test_auto_approval` (chosen) | Complies with D-A and preserves D-B's metacharacter screen | Retires the pre-execution skill-first block unless a separate carrier is approved | Final owner-ratified combination |
 
 ### Trade-offs
 
-Keeping the hooks costs a process spawn on the two guarded events and part of the
-dispatcher. Migrating costs a security regression on two axes the project's dogfood
-and reliability standard exists to catch. Bounded known cost beats an unbounded
-auto-approve widening.
+Until #3217 lands, both guards cost process spawns and keep dispatcher machinery
+alive. D-A removes `skill_first_guard` from the vendored surface but cannot preserve
+its pre-execution timing through Lefthook or CI. D-B keeps the bounded
+`test_auto_approval` cost because migrating it widens the auto-approve surface.
 
 ## Consequences
 
 ### Positive
 
 - No Copilot consumer receives a self-neutering dead `skill_first_guard`: D-A
-  internal-only relocates its enforcement to this repo's `.githooks`/CI, off the
-  vendored surface (ADR-084 rule 4).
+  internal-only removes it from the vendored surface. Any remaining
+  repository-state policy stays in this repo's `lefthook.yml` or CI (ADR-084
+  rule 4).
 - No auto-approve path widens to command substitution or redirects (D-B kept).
 - One written eligibility test stops the next ROI pass re-proposing this migration.
 
@@ -338,11 +369,12 @@ auto-approve widening.
 
 - #3218's dispatcher retirement is only partial while any Copilot hook survives.
   #3218 must be rescoped to "last consumer gone."
-- The vendored surface does not collapse to permissions plus keepers; it stays at
-  the two keepers (`compact_checkpoint`, `markdownlint_guard`) plus these guards.
-- The per-call spawn cost on the two guarded events remains.
+- The retained-consumer inventory must include the customer-facing security
+  controls required by ADR-083 and every other surviving hook.
+- Lefthook and CI do not preserve `skill_first_guard`'s pre-execution block.
+- The per-call spawn cost for `test_auto_approval` remains on Claude.
 - Copilot consumers get no skill-first steering at all under D-A internal-only; the
-  guard becomes dogfood-only. If a consumer need surfaces later, reopening it as a
+  vendored guard is removed. If a consumer need surfaces later, reopening it as a
   customer-facing hook is a fresh proposal against the eligibility test.
 
 ### Neutral
@@ -360,21 +392,21 @@ auto-approve widening.
 
 | Component | Dependency Type | Required Update | Risk |
 |-----------|-----------------|-----------------|------|
-| Issue #3217 | Direct | Implement D-A internal-only relocation and D-B keep; apply the eligibility test | Medium |
+| Issue #3217 | Direct | Remove the D-A guard from the vendored surface, record the lost PreToolUse timing, define any remaining repository-state check, and keep D-B | High |
 | Issue #3218 | Direct | Rescope to "retire only machinery whose last hook consumer is gone" | Medium |
-| `.claude/hooks/PreToolUse/invoke_skill_first_guard.py` | Direct | D-A internal-only: relocate enforcement to `.githooks`/CI; remove from the vendored surface and dispatch registration | High |
-| `.claude/settings.json`, `.claude/hooks/dispatch_groups.json` | Direct | Drop the `skill_first_guard` registration (relocated); `test_auto_approval` registration stays (D-B kept) | Medium |
+| `.claude/hooks/PreToolUse/invoke_skill_first_guard.py` | Direct | D-A internal-only: remove it from the vendored surface; do not claim equivalent Git-event or CI enforcement | High |
+| `.claude/settings.json`, `.claude/hooks/dispatch_groups.json` | Direct | Drop the `skill_first_guard` registration; `test_auto_approval` registration stays (D-B kept) | Medium |
 | `src/copilot-cli/hooks/PreToolUse/invoke_skill_first_guard__*.py` | Generated | Removed from the vendored surface under #3217 (stops shipping) | Medium |
 | Issue #3216 | Governance | Retain ownership of `observation_sync` removal | Low |
 
 ## Implementation Notes
 
 This ADR changes no code; the owner ratified D-A and D-B on 2026-07-20. Follow-ups
-it authorizes: under #3217, relocate `skill_first_guard` off the vendored surface
-into `.githooks`/CI (D-A internal-only) and apply the eligibility test;
-`test_auto_approval` is unchanged (D-B kept); rescope #3218 to retire only the
-dispatch, parity, and drift machinery whose last hook consumer the relocation
-removes.
+it authorizes: under #3217, remove `skill_first_guard` from the vendored surface,
+record the loss of PreToolUse blocking, and define any repository-state policy
+that remains enforceable through `lefthook.yml` or CI. `test_auto_approval` is
+unchanged (D-B kept). Rescope #3218 to retire only the dispatch, parity, and drift
+machinery whose last hook consumer the removal eliminates.
 
 ## Related Decisions
 
