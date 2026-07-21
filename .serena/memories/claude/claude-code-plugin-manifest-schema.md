@@ -1,6 +1,8 @@
 # Claude Code Plugin Manifest Schema
 
-Captured 2026-04-27 during P0 incident response (PR #1773 broke plugin install for all consumers; fixed in PR #1795).
+Captured 2026-04-27 during P0 incident response (PR #1773 broke plugin install
+for all consumers; fixed in PR #1795). Hook events refreshed 2026-07-19 from
+<https://code.claude.com/docs/en/hooks>.
 
 ## Authoritative shape (`.claude-plugin/plugin.json`)
 
@@ -33,11 +35,21 @@ Without the `"hooks"` wrapper, Claude Code does not load any events. Verified ag
 
 Use `${CLAUDE_PLUGIN_ROOT}` in command paths so hooks work regardless of install location.
 
-## Documented hook events (verified)
+## Documented hook events
 
-`PreToolUse`, `PostToolUse`, `Stop`, `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `SubagentStop`, `PermissionRequest`, `Notification`, `PreCompact`.
+Current Claude Code docs list 30:
 
-cursor[bot] suggested adding 19 more (`PostToolUseFailure`, `SubagentStart`, `UserPromptExpansion`, etc.) — none of those appear in any production plugin or Anthropic docs as of 2026-04-27. Reject with citation request.
+`SessionStart`, `Setup`, `UserPromptSubmit`, `UserPromptExpansion`,
+`PreToolUse`, `PermissionRequest`, `PermissionDenied`, `PostToolUse`,
+`PostToolUseFailure`, `PostToolBatch`, `Notification`, `MessageDisplay`,
+`SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`, `Stop`,
+`StopFailure`, `TeammateIdle`, `InstructionsLoaded`, `ConfigChange`,
+`CwdChanged`, `FileChanged`, `WorktreeCreate`, `WorktreeRemove`, `PreCompact`,
+`PostCompact`, `Elicitation`, `ElicitationResult`, and `SessionEnd`.
+
+The April 2026 ten-event list was a historical docs snapshot. Do not use it to
+reject current events. See `agent-harness-reference` for the Claude and Copilot
+delta.
 
 ## Common bug patterns (regression class from PR #1773)
 
