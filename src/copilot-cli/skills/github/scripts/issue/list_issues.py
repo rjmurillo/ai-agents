@@ -13,9 +13,8 @@ Emits the standard skill envelope. In JSON mode, stdout is:
 ``{"Success": bool, "Data": {"issues": [...], "count": int}, ...}``.
 Failure paths emit the same envelope with ``Error`` populated.
 
-Mirrors the PR-side ``get_pull_requests.py`` precedent so the
-``issue.list`` skill mapping resolves to a script that can actually
-list issues (see issue #2110).
+Mirrors the PR-side ``get_pull_requests.py`` precedent, providing a
+script that can actually list issues (see issue #2110).
 
 Exit codes follow ADR-035:
     0 - Success
