@@ -6,6 +6,12 @@ This document describes the 19 AI agents defined for Claude Code CLI and the cri
 
 The `src/claude/` directory contains **hand-maintained** agent definitions for Claude Code CLI. Unlike VS Code and Copilot CLI agents (which are generated from templates), Claude agents are the primary source for Claude-specific features.
 
+Before changing an agent for cross-harness behavior, read
+`agent-harness-reference`. If the change affects event handling, hook-driven
+routing, generated Copilot agents, or runtime contracts, execute it through
+`ai-agents-portability-campaign`. Do not repeat vendor research already pinned
+in the reference sidecar.
+
 > **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md)
 
 ## Source vs Installation Relationship

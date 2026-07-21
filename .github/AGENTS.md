@@ -6,6 +6,11 @@ This document describes the automated CI/CD agents in GitHub Actions that enforc
 
 The `.github/` directory contains GitHub Actions workflows, composite actions, and prompt templates that automate code review, validation, and quality assurance using both traditional CI and AI-powered analysis.
 
+Before changing agents, prompts, instructions, hooks, or generated runtime
+surfaces shared by Claude Code and Copilot CLI, load
+`agent-harness-reference`. Execute contract changes through
+`ai-agents-portability-campaign`. Do not infer one harness from another.
+
 ## Architecture
 
 ```mermaid
@@ -176,7 +181,7 @@ flowchart LR
 | Serena initialization | MUST | Evidence in session log |
 | HANDOFF.md read | MUST | Content referenced |
 | Session log created | MUST | File exists with correct naming |
-| HANDOFF.md updated | MUST | Modified before PR |
+| HANDOFF.md unchanged | MUST | Read-only per ADR-014 |
 | Markdown lint clean | MUST | No linting errors |
 
 ---

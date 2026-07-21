@@ -6,6 +6,10 @@ This document describes the AI agents defined in the template system and how the
 
 The `templates/` directory is the **source of truth** for AI agent definitions. It contains shared templates that are transformed by `build/generate_agents.py` into platform-specific agent files for VS Code and Copilot CLI.
 
+Before adding platform-specific behavior, read `agent-harness-reference`.
+Cross-harness hook and runtime changes use `ai-agents-portability-campaign`.
+Do not re-research facts already pinned in the official source sidecar.
+
 **Important**: Claude Code agents (`src/claude/`) are NOT generated from templates. They are hand-maintained separately. See `src/claude/AGENTS.md` for the Claude agent workflow.
 
 > **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../agents/architecture/ADR-036-two-source-agent-template-architecture.md)
