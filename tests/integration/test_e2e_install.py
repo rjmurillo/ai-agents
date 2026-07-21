@@ -46,8 +46,12 @@ PLUGIN_NAME = "project-toolkit"
 VALID_COPILOT_EVENTS = {
     "PreToolUse",
     "PostToolUse",
+    "PreCompact",
     "SessionStart",
     "SessionEnd",
+    "Stop",
+    "SubagentStop",
+    "PermissionRequest",
     "UserPromptSubmit",
 }
 
@@ -349,7 +353,11 @@ class TestCopilotBinaryInstall:
         isolated_home = tmp_path / "copilot-home"
         isolated_home.mkdir()
         monkeypatch.setattr(f"{__name__}.COPILOT_HOME", isolated_home / ".copilot")
-        env = {**os.environ, "HOME": str(isolated_home)}
+        env = {
+            **os.environ,
+            "HOME": str(isolated_home),
+            "COPILOT_HOME": str(isolated_home / ".copilot"),
+        }
         try:
             install_result = subprocess.run(
                 [copilot_binary, "plugin", "install", str(installed_plugin)],
@@ -486,4 +494,3 @@ class TestDirectShadowCleanup:
         _remove_direct_shadow(tmp_path / "src" / PLUGIN_NAME)  # must not raise
 
         assert config_path.read_text(encoding="utf-8") == "{ not valid json"
-
