@@ -35,3 +35,115 @@ No Pass-Through (all agents produced substantive, cited findings). No Groundhog 
 ## Disposition
 
 ADR-071 status set to Accepted. All P0 issues resolved in code/ADR; all P1 issues resolved or tracked with an issue (#2230, #2231). Dissent preserved here.
+
+## 2026-07-19 Amendment Review
+
+### Summary
+
+- **Scope**: Copilot CLI 1.0.72-1 contract amendment and its relationship to
+  ADR-068 and ADR-074.
+- **Rounds**: 2
+- **Outcome**: Consensus
+- **Final tally**: 3 Accept, 3 Disagree-and-Commit, 0 Block
+- **Security assessment**: Accept, PASS_WITH_NOTES
+
+Round 1 identified inaccurate timeout-budget, dispatcher-mode, matcher,
+evidence-provenance, and ADR-074 prior-art claims. The corrected amendment
+cites the curated probe summary at
+`.claude/skills/agent-harness-reference/references/probe-evidence.md`, section
+4, distinguishes host timeout metadata from an in-process watchdog, and
+records the Copilot CLI 1.0.72-1 host-timeout fail-open residual.
+
+The supplied Round 1 record named all six roles but did not retain individual
+Round 1 vote labels. This amendment log does not reconstruct missing votes.
+All Round 1 P0/P1 categories were corrected before Round 2.
+
+### Round 2 Votes
+
+| Agent | Vote | Recorded disposition |
+|-------|------|----------------------|
+| high-level-advisor | Accept | No blocking issue remained. |
+| security | Accept | PASS_WITH_NOTES. The host-timeout fail-open residual remains explicit. |
+| independent-thinker | Accept | No blocking issue remained. |
+| architect | Disagree-and-Commit | Accepted the corrected amendment with nonblocking reservations. |
+| analyst | Disagree-and-Commit | Accepted the corrected amendment with nonblocking reservations. |
+| critic | Disagree-and-Commit | Acceptance-evidence gaps required durable debate logs; those record corrections are part of this change. |
+
+### Accepted Residuals and Dissent
+
+- Copilot CLI 1.0.72-1 can fail open when the host timeout expires. A hung
+  consolidated dispatcher can prevent later guards from running before the
+  tool is allowed. ADR-071 lines 135 to 139 record this residual.
+- Windows PowerShell contract simulation and authenticated cross-platform
+  smoke coverage remain tracked by issue #2231.
+- The architect, analyst, and critic votes are durable
+  Disagree-and-Commit positions. No separate Round 2 rationale was retained
+  for architect or analyst, so this log does not attribute one.
+
+Consensus is achieved under the adr-review protocol because all six roles
+voted Accept or Disagree-and-Commit and no role voted Block.
+
+## 2026-07-19 Contract Hardening Review
+
+### Scope
+
+This review checked the final runtime-contract wording against the official
+sidecar, the 1.0.72-1 probe record, ADR-068, and the generated dispatcher
+shape. Phase 1 required corrections before convergence.
+
+### Corrected claims
+
+- The 1.0.72-1 probe did not independently measure generated `cwd: "."`.
+  Launchers do not use cwd to locate plugin scripts.
+- Empty PermissionRequest output uses normal host handling. The noninteractive
+  probe denied, but empty output is not a universal deny contract.
+- The current PreToolUse dispatcher has 18 shims and requests 615 seconds. The
+  timeout probe covered only 2 seconds.
+- PreCompact is official-contract-backed, with an inconclusive runtime trigger
+  probe.
+- Copilot parses at most one final JSON document per command hook. Future
+  structured observer output needs a merger or direct registrations.
+
+### Convergence votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | No architecture blocker remained. |
+| critic | Accept | No P0 or P1 issue remained. |
+| independent-thinker | Accept | Cross-reference anchors resolve. |
+| security | Accept | Timeout fail-open is explicit and quantified. |
+| analyst | Accept | Claims align with labeled official and empirical evidence. |
+| high-level-advisor | Accept | No strategic blocker remained. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. Consensus reached.
+
+### Accepted residuals
+
+- The host's treatment of a 615-second requested timeout is not measured.
+- Windows PowerShell runtime coverage remains tracked by issue #2231.
+- Copilot documentation and the 1.0.72-1 `general-purpose` subagent observation
+  still disagree. The reference keeps that row unresolved and version-specific.
+
+## 2026-07-20 Observer Output Wording Review
+
+### Scope
+
+This review checked the correction from stale observer stdout passthrough prose
+to the event-specific output policy already implemented by ADR-068 and
+`hook_dispatch.py`. It did not reopen the architecture or change ADR status.
+
+### Votes
+
+| Agent | Vote | Position |
+|-------|------|----------|
+| architect | Accept | The amendment matches ADR-068 and the generated dispatchers. |
+| critic | Disagree-and-Commit | Requested delimiter, attribution, and stderr consequences. |
+| independent-thinker | Accept | The wording matches implementation and tests. |
+| security | Disagree-and-Commit | Requested explicit diagnostic-only stderr wording. |
+| analyst | Accept | Each sentence traced to implementation and official sources. |
+| high-level-advisor | Accept | The correction is scoped and does not reopen the decision. |
+
+Final tally: **4 Accept, 2 Disagree-and-Commit, 0 Block**. Consensus reached.
+The ADR now records blank-output behavior, the blank-line delimiter, loss of
+per-shim attribution, failed-output discard, and that stderr is not a documented
+model-context path. No P0 or P1 issue remained.
