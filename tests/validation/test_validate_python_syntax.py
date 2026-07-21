@@ -22,6 +22,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "validation" / "validate_python_syntax.py"
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
@@ -29,6 +31,7 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
 from validate_python_syntax import (  # noqa: E402
+    _read_python_source,
     _walk_python_files,
     find_syntax_errors,
     support_floor,
@@ -104,6 +107,19 @@ def test_tracked_file_deleted_from_worktree_is_parsed_from_index(
     deleted.unlink()
 
     assert find_syntax_errors(tmp_path) == []
+
+
+def test_index_read_has_a_bounded_git_timeout(tmp_path: Path, monkeypatch) -> None:
+    missing = tmp_path / "missing.py"
+
+    def timeout_git(command: list[str], **kwargs: Any) -> None:
+        assert kwargs["timeout"] == 10
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", timeout_git)
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        _read_python_source(tmp_path, missing)
 
 
 def test_staged_broken_file_missing_from_worktree_is_rejected(

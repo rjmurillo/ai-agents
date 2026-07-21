@@ -104,6 +104,7 @@ def _read_python_source(repo_root: Path, path: Path) -> str:
         ["git", "-C", str(repo_root), "show", f":{relative}"],
         capture_output=True,
         check=True,
+        timeout=10,
     )
     return completed.stdout.decode("utf-8")
 
