@@ -683,6 +683,34 @@ class TestJsonCommitMetric:
         # startingCommit "aaaaaaa" must not be counted.
         assert extract_session_episode.json_metrics(data)["commits"] == 0
 
+    def test_decimal_comment_id_in_prose_not_counted(self):
+        # #3301: a 10-digit GitHub comment ID in work-log prose is decimal-only
+        # and must not be misread as a commit SHA.
+        data = _json_log([{"task": "t", "outcome": "posted to #3295 comment 5036380560"}])
+        data["endingCommit"] = ""
+        assert extract_session_episode.json_metrics(data)["commits"] == 0
+
+    def test_hex_sha_in_prose_still_counted(self):
+        # A real short SHA (contains hex letters) in prose is still counted.
+        data = _json_log([{"task": "t", "outcome": "committed 1234abc"}])
+        data["endingCommit"] = ""
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
+
+    def test_prose_mixes_comment_id_and_sha_counts_only_sha(self):
+        # #3301 edge: prose with both a decimal ID and a real SHA counts one.
+        data = _json_log(
+            [{"task": "t", "outcome": "fixed in abc1234 per run 29708719280"}]
+        )
+        data["endingCommit"] = ""
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
+
+    def test_all_decimal_ending_commit_still_counted(self):
+        # #3301 edge: endingCommit is a structured field, scanned unfiltered, so
+        # a (rare) all-decimal SHA there is still counted.
+        data = _json_log([{"task": "t", "outcome": "no prose sha"}])
+        data["endingCommit"] = "1234567"
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
+
 
 class TestCommitProvenanceConsistency:
     """Commit events and metrics.commits share one provenance rule so preserve
