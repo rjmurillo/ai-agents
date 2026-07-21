@@ -118,7 +118,7 @@ def get_decision_type(text: str) -> str:
         return "test"
     if re.search(r'recover|fix|retry|fallback', lower):
         return "recovery"
-    if re.search(r'route|delegate|agent|handoff', lower):  # nosemgrep: skill-ldap-injection
+    if re.search(r'route|delegate|agent|handoff', lower):
         return "routing"
     return "implementation"
 
@@ -398,6 +398,11 @@ _FAIL_COUNT_RE = re.compile(
 )
 _PASS_COUNT_RE = re.compile(r"\b(\d+)\s+(?:passed|passing)\b", re.IGNORECASE)
 _SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
+# A commit SHA candidate pulled from free-text prose must contain at least one
+# hex letter. Decimal-only runs of 7 to 40 digits (GitHub comment IDs, run IDs,
+# epoch timestamps, long issue numbers) are a subset of _SHA_RE and would
+# otherwise be misread as commits (issue #3301).
+_HEX_LETTER_RE = re.compile(r"[a-f]")
 _FILES_RE = re.compile(r"\b(\d+)\s+files?\b", re.IGNORECASE)
 _DECISION_RE = re.compile(
     r"\b(chose|decided|selected|opted|adopt|prioriti|"
@@ -546,6 +551,25 @@ def _same_commit(a: str, b: str) -> bool:
     return len(lo) >= 7 and hi.startswith(lo)
 
 
+def _prose_shas(text: str) -> list[str]:
+    """Commit SHAs mentioned in free-text prose.
+
+    Require at least one hex letter (a-f) so decimal-only identifiers (GitHub
+    comment IDs, run IDs, epoch timestamps, long issue numbers) are not misread
+    as commit SHAs (issue #3301). This trades one rare miss for a common false
+    positive: a genuine short SHA prefix that happens to be all decimal digits
+    (uncommon for 7-char prefixes, vanishingly rare for full-length SHAs) is
+    dropped when it appears only in prose.
+    That miss degrades the causal graph gracefully; counting every decimal ID in
+    prose as a commit corrupts it. Structured commit fields (``endingCommit``,
+    ``startingCommit``) are scanned unfiltered, so an all-decimal final SHA is
+    still captured. ``endingCommit`` records only the final commit, so an
+    intermediate all-decimal SHA referenced solely in work-log prose is the one
+    case this filter can miss.
+    """
+    return [sha for sha in _SHA_RE.findall(text) if _HEX_LETTER_RE.search(sha)]
+
+
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     """Distinct commit SHAs from the structured commit fields and work-log
     evidence. Excludes the starting commit by default (it is the base, not a
@@ -561,15 +585,16 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
         if sha not in seen:
             seen.append(sha)
 
-    # Build remaining fields (startingCommit if requested, plus work-log)
-    fields: list[str] = []
+    # startingCommit is a structured field, not prose: scan it unfiltered.
     if include_starting:
-        fields.append(starting)
-    for entry in _as_list(data.get("workLog")):
-        fields.append(_entry_text(entry))
+        for sha in _SHA_RE.findall(starting):
+            if sha not in seen:
+                seen.append(sha)
 
-    for field in fields:
-        for sha in _SHA_RE.findall(field):
+    # work-log entries are free-text prose: require a hex letter so decimal-only
+    # IDs are not counted as commits (issue #3301).
+    for entry in _as_list(data.get("workLog")):
+        for sha in _prose_shas(_entry_text(entry)):
             if not include_starting and starting and _same_commit(sha, starting):
                 continue
             if sha not in seen:
