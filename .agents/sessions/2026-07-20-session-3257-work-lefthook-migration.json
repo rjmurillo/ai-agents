@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This commit includes the ADR-085 amendment, canonical debate log, and session log"
+        "Evidence": "Commit 89db6ea66a includes the ADR-085 amendment, canonical debate log, session log, and generated memory artifacts"
       },
       "validationPassed": {
         "level": "MUST",
@@ -134,7 +134,7 @@
     "ADR reviewers found that Lefthook and CI cannot preserve the PreToolUse raw-gh block. ADR-085 now records the timing loss, binds issue #3217 to observable acceptance evidence, corrects #3218 survivor accounting, and has 6 of 6 Accept consensus.",
     "Created the canonical amendment debate log at .agents/critique/ADR-085-debate-log.md."
   ],
-  "endingCommit": "cc81d30505fd",
+  "endingCommit": "89db6ea66a",
   "nextSteps": [
     "Run the complete branch review against the committed tip.",
     "Create the SHA-bound review marker after every axis clears.",
