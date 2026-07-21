@@ -673,15 +673,15 @@ def _original_main(stdin_bytes):
         gets a fresh mtime but keeps its text, so only content ties evidence to
         the ADR actually being committed.
 
-        Uses word-boundary regex to avoid prefix collisions (ADR-6 matching ADR-62).
+        Tokenizes ADR ids out of the text and compares by equality, so a shorter
+        id (ADR-6) never matches inside a longer one (ADR-62).
         """
         try:
-            text = debate_path.read_text(encoding="utf-8", errors="replace").upper()
+            text = debate_path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return False
-        return any(
-            re.search(rf"\b{re.escape(adr_id)}\b", text) for adr_id in adr_ids
-        )
+        referenced = {match.group(0).upper() for match in _ADR_ID_PATTERN.finditer(text)}
+        return bool(referenced & adr_ids)
 
 
     def check_adr_review_evidence(
