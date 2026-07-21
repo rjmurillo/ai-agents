@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3218,
+    "date": "2026-07-21",
+    "branch": "refactor/3218-retire-hook-drift-guard",
+    "startingCommit": "270f9e07",
+    "objective": "Epic #3197 / #3218 tracer slice: retire the redundant PreToolUse push-time guard invoke_hook_drift_guard.py. Its own docstring states the drift check 'was already shipped at CI level via build_all.py --check', and lefthook.yml now runs that same build_all.py --check as the build-all-check pre-push job (same mechanism, same git-push stage, broader coverage across all generators), with two CI workflows (validate-generated-agents.yml, agent-drift-detection.yml) re-running it. The dedicated push guard adds nothing the lefthook pre-push job does not already enforce. Delete the hook and its test, drop its entry from dispatch_groups.json, correct the ai-agents-generation-and-release SKILL.md references (point drift enforcement at the lefthook build-all-check job; remove the now-redundant hook-shim-drift gate row and the source-pointer row), regenerate the vendored mirror and audit via build_all.py, and bump both project-toolkit plugin manifests in parity. This is the first of the four SAFE-DELETE push guards in Sol's coverage matrix (posted to #3295); it proves the delete-registered-guard-plus-regenerate path end to end before batching the remaining three."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "This Copilot CLI session exposes no serena-* MCP tools; Serena not activatable here. Context loaded directly from .agents/HANDOFF.md, .serena/memories/*.md, and harness-injected memories."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* MCP tools available this session; initial_instructions not retrievable. N/A."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md earlier this session-family (read-only dashboard)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Using .claude/skills/github/scripts (pr/new_pr.py, pr/get_pr_checks.py, pr/merge_pr.py, issue/post_issue_comment.py) for GitHub ops; build/scripts/build_all.py and scripts/validation/pre_pr.py for generation and gates."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory conventions applied; github scripts preferred over raw gh for mutations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS and .claude/rules applied (Python-first, atomic commits <=5 files, no em/en-dashes, generated-artifacts-ship-with-change, plugin parity bump, orphan-ref accuracy, secrets never committed)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository and user memories loaded via harness prompt; plugin-parity bump, dispatch_groups.json hook-registration, and hook-deletion-via-build_all facts applied."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "refactor/3218-retire-hook-drift-guard"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On refactor/3218-retire-hook-drift-guard, branched from main 270f9e07."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status reviewed before each commit; only the hook/test deletion, dispatch edit, SKILL doc edits, vendored regen, and plugin bump staged; auto-retro artifacts kept unstaged."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "270f9e07"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items satisfied at commit boundary: build_all --check clean, tests pass, markdown lint clean, dash byte-check = 0, changes committed atomically. PR babysitting to green is the post-commit phase (see nextSteps)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* MCP tools this session; durable learnings recorded via Copilot store_memory instead."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting check PASS over changed .md files; scoped lint clean."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed atomically on refactor/3218-retire-hook-drift-guard; see workLog for the per-commit file lists."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build_all.py --check exit 0 (no drift after regen); pre_pr.py checks PASS; dash byte-check = 0 on all edited markdown; hook test suite green after deletion."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "PR opened with Refs #3218 #3295 #3197; babysit-to-green tracked in nextSteps."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Pending session end."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Verified invoke_hook_drift_guard.py is genuinely redundant before deleting. Its own docstring records that the drift check 'was already shipped at CI level via build_all.py --check inside validate-generated-agents.yml' and that the guard only moved feedback from CI to git-push time. lefthook.yml now runs that identical build_all.py --check as the build-all-check pre-push job (line 380), which fires at the same git-push stage and covers every generator (broader than the hook-only guard), and two CI workflows (validate-generated-agents.yml:134, agent-drift-detection.yml:156) re-run it. Removed the hook source and its test, and dropped its entry from the pretooluse-2-retrospective_gate group in dispatch_groups.json (7 shims to 6).",
+      "files": [
+        ".claude/hooks/PreToolUse/invoke_hook_drift_guard.py",
+        "tests/hooks/test_hook_drift_guard.py",
+        ".claude/hooks/dispatch_groups.json"
+      ]
+    },
+    {
+      "action": "Corrected the ai-agents-generation-and-release SKILL to reflect the new enforcement home. Repointed the .claude/hooks/ regen row at the build-all-check pre-push job in lefthook.yml; deleted the 'Hook shim drift at push time' gate row (subsumed by the 'Full pipeline staleness' row above it, which already cites build_all.py --check plus the named pre-push job); and removed the retired guard's source-pointer row. Regenerated the Copilot mirror in the same change; 0 hook_drift_guard references remain in either the canonical or the mirror SKILL.",
+      "files": [
+        ".claude/skills/ai-agents-generation-and-release/SKILL.md",
+        "src/copilot-cli/skills/ai-agents-generation-and-release/SKILL.md"
+      ]
+    },
+    {
+      "action": "Ran build_all.py to regenerate derived artifacts: dropped the generated matcher shim invoke_hook_drift_guard__Bash_git_push_0e93bf.py, updated _manifest.json, and recomputed the PreToolUse dispatcher timeout budget in hooks.json from 470 to 440 (the removed guard contributed a 30s timeout to the group). Bumped both project-toolkit plugin manifests 0.6.94 to 0.6.95 in parity (check_plugin_manifest_parity.py exit 0).",
+      "files": [
+        "src/copilot-cli/hooks/PreToolUse/_manifest.json",
+        "src/copilot-cli/hooks/PreToolUse/invoke_hook_drift_guard__Bash_git_push_0e93bf.py",
+        "src/copilot-cli/hooks/hooks.json",
+        ".claude/.claude-plugin/plugin.json",
+        "src/copilot-cli/.claude-plugin/plugin.json"
+      ]
+    },
+    {
+      "action": "Validation: after committing the regenerated output, build_all.py --check reports no uncommitted regen drift; the earlier --check exit 2 was the expected 'uncommitted regen drift' signal for the not-yet-committed deletions, not content drift. dash byte-check = 0 on both edited SKILL files. Pre-commit gates green across all four code commits (skillforge, staged-dash-policy, commit-message-policy, scope-policy). First of the four SAFE-DELETE push guards from Sol's coverage matrix (posted to #3295 comment 5036380560); proves the delete-registered-guard-plus-regenerate path before batching invoke_install_parity_guard, invoke_plugin_version_bump_guard, and invoke_pr_description_guard.",
+      "files": []
+    }
+  ],
+  "endingCommit": "b612fd36",
+  "nextSteps": [
+    "Open PR with Refs #3218 #3295 #3197 (first of four SAFE-DELETE push guards).",
+    "Babysit the PR to green; resolve review-on-push threads; self-merge (squash).",
+    "Batch the remaining three SAFE-DELETE guards (invoke_install_parity_guard, invoke_plugin_version_bump_guard, invoke_pr_description_guard) in a follow-up PR now that the delete-plus-regenerate path is proven green."
+  ]
+}
