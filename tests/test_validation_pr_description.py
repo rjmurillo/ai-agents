@@ -267,11 +267,11 @@ class TestExtractMentionedFiles:
             "Adds five new lifecycle hooks.\n\n"
             "## Design Decisions\n"
             "- **Existing patterns** - follows same structure as "
-            "`invoke_skill_first_guard.py`\n"
+            "`invoke_false_completion_gate.py`\n"
             "- **Python-first** (ADR-042)\n"
         )
         result = extract_mentioned_files(desc)
-        assert "invoke_skill_first_guard.py" not in result
+        assert "invoke_false_completion_gate.py" not in result
 
     def test_related_section_ignored(self) -> None:
         desc = (
