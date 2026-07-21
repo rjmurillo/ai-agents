@@ -308,8 +308,8 @@ def _debate_references_adr(debate_path: Path, adr_ids: set[str]) -> bool:
     gets a fresh mtime but keeps its text, so only content ties evidence to
     the ADR actually being committed.
 
-    Tokenizes ADR ids out of the text and compares by equality, so a shorter
-    id (ADR-6) never matches inside a longer one (ADR-62).
+    Tokenizes whole ADR ids out of the text and compares them by equality, so
+    a shorter id never matches as a substring inside a longer one.
     """
     try:
         text = debate_path.read_text(encoding="utf-8", errors="replace")
@@ -327,8 +327,8 @@ def check_adr_review_evidence(
     """Check session log and artifacts for ADR review evidence.
 
     When ``adr_changes`` names one or more ADR files, at least one debate log
-    must reference one of those ADR identifiers; a stale or unrelated
-    ``*debate*.md`` no longer counts as evidence (issue #3196, line 326).
+    must reference one of those ADR identifiers; a stale or unrelated debate
+    artifact no longer counts as evidence (issue #3196).
 
     Returns dict with 'complete' (bool) and 'reason' or 'evidence' key.
     """
