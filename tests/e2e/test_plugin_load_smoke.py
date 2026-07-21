@@ -71,6 +71,8 @@ finally:
 # Fired-hook probe: ONE source of truth shared with test_cli_hook_e2e.py (#3148).
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
+    copilot_auth_absent,
+    copilot_auth_absent_headline,
     run_copilot_plugin_dir,
     write_marker_probe_plugin,
 )
@@ -300,6 +302,8 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         pytest.skip(
             f"copilot --plugin-dir probe exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
+    if copilot_auth_absent(fired):
+        pytest.fail(copilot_auth_absent_headline(fired))
     assert fired.returncode == 0, (
         f"copilot --plugin-dir probe run failed (rc={fired.returncode}). "
         f"stdout={fired.stdout[-600:]!r} stderr={fired.stderr[-600:]!r}"
@@ -329,6 +333,8 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     except subprocess.TimeoutExpired:
         pytest.skip(f"copilot skill list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
 
+    if copilot_auth_absent(run):
+        pytest.fail(copilot_auth_absent_headline(run))
     assert run.returncode == 0, (
         f"copilot skill list failed (rc={run.returncode}). "
         f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"

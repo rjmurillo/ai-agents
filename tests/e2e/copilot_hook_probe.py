@@ -112,6 +112,56 @@ def write_marker_probe_plugin(plugin_dir: Path, marker: Path) -> str:
     return name
 
 
+# Auth-absent detection (issue #3275). A missing or empty smoke auth secret
+# expands to an empty COPILOT_GITHUB_TOKEN, so the CLI aborts at its own auth
+# gate before it loads any plugin or fires any hook. The downstream marker-miss
+# and rc=1 assertions then misdiagnose a dead secret as a plugin-load or
+# hook-resolution bug. These pure predicates let each smoke lead with an
+# accurate headline instead. Kept pytest-free so they unit-test as plain
+# functions and impose no test-framework dependency on this probe primitive.
+COPILOT_AUTH_ABSENT_MARKERS = (
+    "no authentication information found",
+    "set the copilot_github_token",
+)
+
+
+def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the Copilot CLI aborted because no auth token was provided.
+
+    Copilot prints ``No authentication information found`` and names the
+    ``COPILOT_GITHUB_TOKEN`` env var on stderr when the token is empty. Matches
+    case-insensitively across both stderr and stdout so the signal survives a
+    stream swap or a wrapper that folds stderr into stdout. Tolerates ``None``
+    streams (a timed-out or not-yet-run process). See issue #3275.
+
+    Missing auth is an error path: the CLI aborts non-zero. Gate the marker scan
+    on ``returncode != 0`` so a healthy run (rc=0) that happens to echo a marker
+    string in its output is never misclassified as an auth failure.
+    """
+    if result.returncode == 0:
+        return False
+    haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
+    return any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS)
+
+
+def copilot_auth_absent_headline(result: subprocess.CompletedProcess[str]) -> str:
+    """Accurate failure headline for a Copilot run that aborted with no auth.
+
+    Leads with the real cause (dead auth secret), not the misdiagnosed symptom
+    (missing hook marker / rc=1), so the dogfood failure is actionable at a
+    glance. Surfaces rc and both streams because the detector scans stdout too
+    (stream-swap resilience), so a stdout-only auth failure stays actionable.
+    See issue #3275.
+    """
+    return (
+        "Copilot auth token is empty; the shipped-base dogfood never ran. "
+        "Provision COPILOT_GITHUB_TOKEN for the smoke job (issue #3275). "
+        f"rc={result.returncode} "
+        f"stderr={(result.stderr or '')[-400:]!r} "
+        f"stdout={(result.stdout or '')[-400:]!r}"
+    )
+
+
 def run_copilot_plugin_dir(
     plugin_dir: Path,
     *,
