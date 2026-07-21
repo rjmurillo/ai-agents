@@ -1,0 +1,143 @@
+{
+    "schemaVersion": "1.0",
+    "session": {
+        "number": 3296,
+        "date": "2026-07-21",
+        "branch": "docs/3296-codeql-python-two-tier",
+        "startingCommit": "1204b17c",
+        "objective": "Fix #3296 (P2 doc-only): overhaul the three CodeQL reference docs (docs/codeql-architecture.md, docs/codeql-integration.md, docs/codeql-rollout-checklist.md) so they match the shipping implementation. Two staleness axes: the implementation moved from PowerShell to Python (ADR-042 migration), and the CodeQL strategy dropped from three tiers to two after the ADR-041 amendment (2026-07-21) retired the unused automatic PostToolUse quick-scan hook. The docs still described the deleted hook, PowerShell script names, Pester tests, PSScriptAnalyzer, and a three-tier model. Rewrite all three to the Python two-tier reality: Tier 1 the codeql-analysis.yml CI gate (native CodeQL action, actions+python matrix, security-extended, Medium+), Tier 2 the on-demand codeql-scan skill. Document both invoke_codeql_scan.py wrappers with their real flags (the core .codeql/scripts one with --quick-scan, and the skill wrapper with --operation full/quick/validate), correct config paths to .github/codeql/, replace superseded ADR-005 with ADR-042, and remove the staleness banners. No em/en dashes."
+    },
+    "protocolCompliance": {
+        "sessionStart": {
+            "serenaActivated": {
+                "level": "SHOULD",
+                "Complete": false,
+                "Evidence": "This Copilot CLI session exposes no serena-* MCP tools; Serena not activatable here. Context loaded directly from .agents/HANDOFF.md, .serena/memories/*.md, and harness-injected memories."
+            },
+            "serenaInstructions": {
+                "level": "SHOULD",
+                "Complete": false,
+                "Evidence": "No serena-* MCP tools available this session; initial_instructions not retrievable. N/A."
+            },
+            "handoffRead": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Read .agents/HANDOFF.md earlier this session-family (read-only dashboard)."
+            },
+            "sessionLogCreated": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "This file."
+            },
+            "skillScriptsListed": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Using .claude/skills/github/scripts (issue/list_issues.py, issue/get_issue_context.py, pr/new_pr.py, pr/validate_pr_description.py, pr/get_pr_checks.py, pr/get_unresolved_review_threads.py, pr/add_pr_review_thread_reply.py, pr/wait_for_unresolved_zero.py, pr/test_pr_merge_ready.py, pr/merge_pr.py) for GitHub ops."
+            },
+            "usageMandatoryRead": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "usage-mandatory conventions applied; github scripts preferred over raw gh (list_issues.py used for backlog triage)."
+            },
+            "constraintsRead": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "PROJECT-CONSTRAINTS and .claude/rules applied (atomic commits <=5 files, no em/en-dashes, docs-only so no plugin parity bump needed, no fabricated flags: every documented CLI verified against the real script --help)."
+            },
+            "memoriesLoaded": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Repository and user memories loaded via harness prompt; pr_description sheltering, dash byte-check, and Cursor-Agent concurrent-push facts applied."
+            },
+            "branchVerified": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "docs/3296-codeql-python-two-tier"
+            },
+            "notOnMain": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "On docs/3296-codeql-python-two-tier, branched from synced main 1204b17c."
+            },
+            "gitStatusVerified": {
+                "level": "SHOULD",
+                "Complete": true,
+                "Evidence": "git status reviewed before commit; only the three rewritten docs staged; auto-retro files kept unstaged."
+            },
+            "startingCommitNoted": {
+                "level": "SHOULD",
+                "Complete": true,
+                "Evidence": "1204b17c"
+            }
+        },
+        "sessionEnd": {
+            "checklistComplete": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Session-end MUST items satisfied at commit boundary: scoped markdownlint 0 errors on the three docs, dash byte-check = 0, all relative links and referenced script/config/workflow paths resolve, both invoke_codeql_scan.py wrapper CLIs verified against --help, changes committed atomically. PR babysitting to green is the post-commit phase (see nextSteps)."
+            },
+            "handoffPreserved": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "HANDOFF.md not modified."
+            },
+            "serenaMemoryUpdated": {
+                "level": "SHOULD",
+                "Complete": false,
+                "Evidence": "No serena-* MCP tools this session; durable learnings recorded via Copilot store_memory instead."
+            },
+            "markdownLintRun": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "markdownlint-cli2 v0.21.0 ran over the three rewritten docs: Summary 0 error(s)."
+            },
+            "changesCommitted": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Committed atomically on docs/3296-codeql-python-two-tier; docs rewrite in one commit (3 files), session log committed last."
+            },
+            "validationPassed": {
+                "level": "MUST",
+                "Complete": true,
+                "Evidence": "Independent verification: grep for PowerShell script names/.ps1/Pester/PSScriptAnalyzer/pwsh returns zero implementation refs; grep for Tier 3/three-tier/invoke_codeql_quick_scan/PostToolUse returns zero; dash byte-check = 0; markdownlint 0 errors; Tier 1 language matrix confirmed [actions, python]; both wrapper CLIs verified via --help; all relative links resolve."
+            },
+            "tasksUpdated": {
+                "level": "SHOULD",
+                "Complete": true,
+                "Evidence": "PR opened with Fixes #3296; babysit-to-green tracked in nextSteps."
+            },
+            "retrospectiveInvoked": {
+                "level": "SHOULD",
+                "Complete": false,
+                "Evidence": "Pending session end."
+            }
+        }
+    },
+    "workLog": [
+        {
+            "action": "Gathered authoritative ground truth before rewriting: captured --help for all six Python scripts in .codeql/scripts/ (install_codeql.py, install_codeql_integration.py, invoke_codeql_scan.py, test_codeql_config.py, get_codeql_diagnostics.py, test_codeql_rollout.py), read the ADR-041 two-tier amendment, the codeql-scan SKILL.md, and both workflows (codeql-analysis.yml Tier 1 native gate, test-codeql-integration.yml). Confirmed config files live at .github/codeql/codeql-config.yml and codeql-config-quick.yml, and the removed hook path .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py is absent.",
+            "files": []
+        },
+        {
+            "action": "Delegated the bulk prose rewrite of the three docs to a general-purpose subagent with the full verified PS->Python script mapping, real CLI flags, the two-tier model verbatim from ADR-041, and hard rules (no fabricated flags, no em/en dashes, remove staleness banners, reframe three-tier to two-tier across mermaid diagrams/tables/timeouts, remove deleted-hook refs). Rewrite scale: 954 insertions, 1462 deletions across the three files.",
+            "files": [
+                "docs/codeql-architecture.md",
+                "docs/codeql-integration.md",
+                "docs/codeql-rollout-checklist.md"
+            ]
+        },
+        {
+            "action": "Reviewed the rewrite mechanically rather than trusting the subagent self-report: ran the three verification greps independently (all clean), confirmed the Tier 1 language matrix is [actions, python] against the real workflow, and traced the one suspicious flag (--operation) to a genuinely separate skill wrapper .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py whose --help confirms --operation {full,quick,validate}; the agent correctly documented both wrappers. Verified all relative links and referenced script/config/workflow paths resolve, both ADR link filenames resolve, and markdownlint returns 0 errors.",
+            "files": [
+                "docs/codeql-architecture.md",
+                "docs/codeql-integration.md",
+                "docs/codeql-rollout-checklist.md"
+            ]
+        }
+    ],
+    "endingCommit": "8cb988f6",
+    "nextSteps": [
+        "Open PR with Fixes #3296; babysit to green; resolve any review-on-push threads; self-merge (squash, delete branch).",
+        "Continue the remaining open backlog; most survivors are design-heavy/governance (delegate ADR work to a Sol worktree) or anti-churn cleanups the user warned against. Do not auto-close epic #3197; #3219 is deferred build-on-demand."
+    ]
+}
