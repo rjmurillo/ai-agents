@@ -541,6 +541,21 @@ def _int_field_or_default(
     return parsed
 
 
+_MISSING = object()
+
+
+def _bool_field_or_default(
+    value: object,
+    default: bool,
+    field_name: str,
+) -> bool:
+    if value is _MISSING:
+        return default
+    if not isinstance(value, bool):
+        raise GenerateHooksError(f"{field_name} must be a boolean")
+    return value
+
+
 def _dispatcher_artifact_targets(
     out: dict[str, list[dict[str, Any]]],
     output_scripts: Path,
@@ -806,13 +821,17 @@ def generate_hooks(
         version_field = _int_field_or_default(
             stanza.get("versionField"), 1, "artifacts.hooks.versionField"
         )
+        dispatcher_mode = _bool_field_or_default(
+            stanza.get("dispatcher", _MISSING),
+            False,
+            "artifacts.hooks.dispatcher",
+        )
     except GenerateHooksError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2, result
     # ADR-068 / #2295: when true, collapse classified events' per-shim entries
     # into one in-process dispatcher entry. Default false keeps direct per-shim
     # registrations. Lifecycle events with repository prose remain shell-silent.
-    dispatcher_mode = bool(stanza.get("dispatcher", False))
 
     try:
         paths = _resolve_paths(repo_root, stanza)

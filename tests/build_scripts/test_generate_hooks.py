@@ -2623,6 +2623,23 @@ def test_generator_fails_2_on_invalid_version_field(
     assert rc == 2
 
 
+@pytest.mark.parametrize("dispatcher_value", ['"false"', '"true"', "0", "1", "null"])
+def test_generator_fails_2_on_non_boolean_dispatcher(
+    tmp_path: Path,
+    dispatcher_value: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg, _ = _setup_full_fixture(tmp_path)
+    with cfg.open("a", encoding="utf-8") as handle:
+        handle.write(f"    dispatcher: {dispatcher_value}\n")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "artifacts.hooks.dispatcher must be a boolean" in captured.err
+
+
 def test_generator_remaps_event_names(tmp_path: Path) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
