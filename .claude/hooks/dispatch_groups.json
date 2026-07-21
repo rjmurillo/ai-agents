@@ -146,18 +146,6 @@
         }
       ]
     },
-    "plugin-pretooluse-skill_first_guard": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash([gG][hH] *|*\\[gG][hH].exe *|*\\[gG][hH] *|*/[gG][hH] *|*&& [gG][hH] *|*; [gG][hH] *|[eE][nN][vV] [gG][hH] *|[eE][nN][vV] * [gG][hH] *|[sS][uU][dD][oO] * [gG][hH] *|[eE][xX][eE][cC] [gG][hH] *|[cC][oO][mM][mM][aA][nN][dD] [gG][hH] *)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_skill_first_guard.py",
-          "statusMessage": "Enforcing skills-first policy for GitHub operations (BLOCKING)"
-        }
-      ]
-    },
     "plugin-pretooluse-false_completion_gate": {
       "event": "PreToolUse",
       "mode": "gate",
