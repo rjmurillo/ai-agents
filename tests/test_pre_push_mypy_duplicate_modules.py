@@ -26,6 +26,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRE_PUSH = REPO_ROOT / ".githooks" / "pre-push"
+BRANCH_CONTEXT = REPO_ROOT / "scripts" / "hooks" / "check_branch_context.py"
 
 
 def _text() -> str:
@@ -60,6 +61,9 @@ def _make_hook_repo(tmp_path: Path) -> tuple[Path, str, str, dict[str, str]]:
     hook_dir = repo / ".githooks"
     hook_dir.mkdir()
     _write_executable(hook_dir / "pre-push", _text())
+    branch_context = repo / "scripts" / "hooks" / "check_branch_context.py"
+    branch_context.parent.mkdir(parents=True)
+    branch_context.write_text(BRANCH_CONTEXT.read_text(encoding="utf-8"), encoding="utf-8")
     build_scripts = repo / "build" / "scripts"
     build_scripts.mkdir(parents=True)
     (build_scripts / "generate_pr_quality_prompts.py").write_text(

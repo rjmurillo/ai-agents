@@ -47,6 +47,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRE_PUSH = REPO_ROOT / ".githooks" / "pre-push"
+BRANCH_CONTEXT = REPO_ROOT / "scripts" / "hooks" / "check_branch_context.py"
 
 
 def _text() -> str:
@@ -111,6 +112,9 @@ def _make_hook_repo(
     hook_dir = repo / ".githooks"
     hook_dir.mkdir()
     _write_executable(hook_dir / "pre-push", _text())
+    branch_context = repo / "scripts" / "hooks" / "check_branch_context.py"
+    branch_context.parent.mkdir(parents=True)
+    branch_context.write_text(BRANCH_CONTEXT.read_text(encoding="utf-8"), encoding="utf-8")
 
     (repo / "pyproject.toml").write_text(
         "[project]\nname='hook-fixture'\nversion='0.0.0'\n",
