@@ -128,6 +128,10 @@ None identified. Implementation is production-ready.
 
 **Result**: 14/14 requirements met (100%)
 
+> **Superseded contract note (2026-07-19):** The historical `continue`
+> response in the table is no longer valid. Current Stop hooks emit top-level
+> `{"decision":"block","reason":"..."}` for both Claude Code and Copilot CLI.
+
 ### Analysis Document Alignment
 
 Comparing implementation against `.agents/analysis/claude-code-hooks-opportunity-analysis.md`:

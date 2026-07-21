@@ -1,5 +1,12 @@
 # M5-T0: Pre-flight matcher classification
 
+> [!IMPORTANT]
+> Historical implementation snapshot from 2026-04-28. The event-drop and
+> host-matcher assumptions below are not the current Copilot CLI contract.
+> Current Copilot supports matchers, SubagentStop, PermissionRequest, and
+> PreCompact. See `agent-harness-reference` and
+> `references/official-hook-contracts.md` before changing hooks.
+
 Date: 2026-04-28
 Source: `.claude/settings.json` (HEAD: a1ad941b)
 Spec: REQ-003-007 step 5 disambiguation rules
