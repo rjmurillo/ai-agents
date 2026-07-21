@@ -50,6 +50,7 @@ except (Exception, SystemExit) as exc:  # noqa: BLE001 - launcher must fail clos
     raise
 
 _MANIFEST_NAME = "dispatch_groups.json"
+_BLOCK_EXIT_CODE: int = BLOCK_EXIT
 
 
 def _force_utf8_streams() -> None:
@@ -111,7 +112,10 @@ def _load_group(group_id: str) -> tuple[str, str, list[str]]:
         if not isinstance(entry, dict):
             raise TypeError(f"dispatch group {group_id!r} shim {index} must be an object")
         shims.append(entry.get("file"))
-    return validate_group(group.get("event"), group.get("mode"), shims)
+    validated_group: tuple[str, str, list[str]] = validate_group(
+        group.get("event"), group.get("mode"), shims
+    )
+    return validated_group
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -129,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{args.group!r}: {type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        return BLOCK_EXIT
+        return _BLOCK_EXIT_CODE
 
     try:
         event, mode, shims = _load_group(args.group)
@@ -139,8 +143,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{_HOOKS_DIR / _MANIFEST_NAME}: {type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        block_exit: int = BLOCK_EXIT
-        return block_exit
+        return _BLOCK_EXIT_CODE
 
     try:
         raw_stdin = sys.stdin.buffer.read()
@@ -152,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        return BLOCK_EXIT
+        return _BLOCK_EXIT_CODE
 
 
 if __name__ == "__main__":
