@@ -40,9 +40,10 @@ Design contract (the security-critical part):
   PreCompact stdout is captured at the Python stream, file-descriptor, and
   inherited child-process levels, then discarded because current producers
   include branch-controlled repository prose that must not reach model-visible
-  channels. UserPromptSubmit redirects successful stdout to stderr. Only
-  successful observers contribute; partial stdout from a failing observer is
-  discarded.
+  channels. UserPromptSubmit output is also discarded because Copilot documents
+  no output field for that event and does not document stderr as a model-context
+  channel. Only successful observers contribute; partial stdout from a failing
+  observer is discarded.
 - **Host-timeout residual.**
   ``.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`` records:
   "A `timeoutSec: 2` probe timed out and failed open, then executed the tool."
@@ -61,31 +62,27 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import BinaryIO, TextIO
 
+_LIB_DIR = Path(__file__).resolve().parent
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from hook_dispatch_protocol import (  # noqa: E402
+    OUTPUT_POLICIES as _OUTPUT_POLICIES,
+)
+from hook_dispatch_protocol import (  # noqa: E402
+    copilot_permission_response as _copilot_permission_response,
+)
+from hook_dispatch_protocol import (  # noqa: E402
+    emit_observer_output as _emit_observer_output,
+)
+from hook_dispatch_protocol import observe_output_policy  # noqa: E402,F401
+from hook_dispatch_protocol import (  # noqa: E402
+    record_discarded_observer_output as _record_discarded_observer_output,
+)
+
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
 ALLOW_EXIT = 0
 BLOCK_EXIT = 2
-
-# Canonical Claude PermissionRequest decision -> Copilot behavior mapping.
-# Copilot accepts only allow or deny. Claude's ask means "make no hook
-# decision", so the adapter emits no stdout and lets normal permission
-# handling continue. A 1.0.72-1 noninteractive probe denied in that mode; empty
-# output is not itself a universal deny contract.
-_BEHAVIOR_BY_DECISION = {
-    "approve": "allow",
-    "deny": "deny",
-}
-_ADDITIONAL_CONTEXT_EVENTS = frozenset(
-    {
-        "Notification",
-        "PostToolUse",
-        "SubagentStart",
-        "notification",
-        "postToolUse",
-        "subagentStart",
-    }
-)
-_DISCARD_OUTPUT_EVENTS = frozenset({"PreCompact", "SessionStart", "preCompact", "sessionStart"})
-_OUTPUT_POLICIES = frozenset({"additional_context", "discard", "passthrough", "stderr"})
 
 
 def _install_stdin(raw: bytes) -> None:
@@ -319,143 +316,6 @@ def _run_shim_capturing_output(
     )
 
 
-def observe_output_policy(event: str) -> str:
-    """Return the documented Copilot output policy for an observe event."""
-    if event in _ADDITIONAL_CONTEXT_EVENTS:
-        return "additional_context"
-    if event in _DISCARD_OUTPUT_EVENTS:
-        return "discard"
-    return "stderr"
-
-
-def _record_discarded_observer_output(
-    name: str,
-    raw_stdout: str,
-    raw_stderr: str,
-    event: str,
-) -> bool:
-    """Report suppressed stderr without exposing its untrusted content."""
-    has_stdout = bool(raw_stdout.strip())
-    has_stderr = bool(raw_stderr.strip())
-    if has_stderr:
-        payload = {
-            "guard": "hook-dispatch",
-            "code": "E_OBSERVER_STDERR",
-            "outcome": "stderr_discarded",
-            "reason": "observer_emitted_stderr",
-            "event": event,
-            "shim": name,
-            "exit_code": ALLOW_EXIT,
-        }
-        print(
-            f"EVENT={json.dumps(payload, separators=(',', ':'))}",
-            file=sys.stderr,
-        )
-    return has_stdout or has_stderr
-
-
-def _emit_observer_output(
-    outputs: list[tuple[str, str]],
-    output_policy: str,
-    event: str,
-) -> None:
-    if output_policy == "additional_context":
-        if outputs:
-            context = "\n\n".join(text for _, text in outputs)
-            print(json.dumps({"additionalContext": context}))
-        return
-
-    if output_policy == "discard":
-        for name, _ in outputs:
-            print(
-                f"hook-dispatch: {name} stdout discarded; stderr discarded; "
-                f"{event} hook output is not trusted model context",
-                file=sys.stderr,
-            )
-        return
-
-    if output_policy == "stderr":
-        for name, text in outputs:
-            print(
-                f"hook-dispatch: {name} stdout redirected; "
-                "no documented Copilot context output field",
-                file=sys.stderr,
-            )
-            print(text, file=sys.stderr)
-
-
-def _copilot_permission_response(raw_stdout: str, name: str) -> dict[str, object] | None:
-    """Translate one canonical Claude permission decision to Copilot fields.
-
-    A canonical decision producer emits this contract:
-
-        {
-            "decision": "approve",
-            "reason": "Repository policy approved this request.",
-        }
-
-    Copilot's host contract uses ``behavior``, ``message``, and ``interrupt``.
-    This adapter translates ``approve`` and ``deny``. Canonical ``ask`` has no
-    valid Copilot ``behavior`` value, so it emits nothing and preserves the
-    host's normal permission flow. A 1.0.72-1 noninteractive probe denied after
-    empty output, but that result is mode-dependent host behavior.
-
-    Different than canonical: only the generated Copilot dispatcher calls this
-    adapter. Claude Code receives the canonical object unchanged. Blank stdout
-    remains blank. Malformed or unrecognized exit-0 output is diagnosed on
-    stderr and suppressed so Copilot applies its documented default behavior.
-    """
-    if not raw_stdout.strip():
-        return None
-    decision_text = raw_stdout.strip()
-    try:
-        decision, end = json.JSONDecoder().raw_decode(decision_text)
-    except json.JSONDecodeError as exc:
-        print(
-            f"hook-dispatch: permission shim {name} emitted malformed JSON: {exc}",
-            file=sys.stderr,
-        )
-        return None
-    if decision_text[end:].strip():
-        print(
-            f"hook-dispatch: permission shim {name} emitted trailing content; "
-            "advise mode accepts exactly one decision",
-            file=sys.stderr,
-        )
-        return None
-    if not isinstance(decision, dict):
-        print(
-            f"hook-dispatch: permission shim {name} emitted a non-object decision",
-            file=sys.stderr,
-        )
-        return None
-    decision_value = decision.get("decision")
-    if decision_value == "ask":
-        return None
-    behavior = None
-    if isinstance(decision_value, str):
-        behavior = _BEHAVIOR_BY_DECISION.get(decision_value)
-    reason = decision.get("reason")
-    if behavior is None:
-        print(
-            f"hook-dispatch: permission shim {name} emitted an unrecognized decision",
-            file=sys.stderr,
-        )
-        return None
-    if not isinstance(reason, str):
-        print(
-            f"hook-dispatch: permission shim {name} decision "
-            f"{decision_value!r} requires a string reason",
-            file=sys.stderr,
-        )
-        return None
-    return {
-        "behavior": behavior,
-        "message": reason,
-        "interrupt": False,
-    }
-
-
 def run_permission_dispatch(
     event_dir: Path,
     shim_names: list[str],
@@ -581,6 +441,8 @@ def run_dispatch(
                 continue
 
             timeout_sec = shim_timeouts.get(name) if shim_timeouts else None
+            raw_stdout = ""
+            raw_stderr = ""
             code = _validate_timeout(name, timeout_sec)
             if code is None:
                 if capture_observer_output:
@@ -600,6 +462,18 @@ def run_dispatch(
                 else:
                     code = _run_shim(shim_path, name, raw_stdin)
 
+            discarded_output = False
+            if capture_observer_output and output_policy == "discard":
+                discarded_output = _record_discarded_observer_output(
+                    name,
+                    raw_stdout,
+                    raw_stderr,
+                    event_dir.name,
+                    code,
+                )
+                if discarded_output:
+                    observer_outputs.append((name, ""))
+
             if code != ALLOW_EXIT:
                 if short_circuit:
                     return code
@@ -613,15 +487,7 @@ def run_dispatch(
                 continue
 
             if capture_observer_output:
-                if output_policy == "discard":
-                    if _record_discarded_observer_output(
-                        name,
-                        raw_stdout,
-                        raw_stderr,
-                        event_dir.name,
-                    ):
-                        observer_outputs.append((name, ""))
-                elif raw_stdout.strip():
+                if output_policy != "discard" and raw_stdout.strip():
                     observer_outputs.append((name, raw_stdout.rstrip("\r\n")))
 
         _emit_observer_output(observer_outputs, output_policy, event_dir.name)
