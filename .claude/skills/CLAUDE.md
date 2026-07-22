@@ -52,7 +52,7 @@ which today means `haiku`, and it MUST carry a `model-rationale:` field:
 
 ```yaml
 model: haiku
-model-rationale: cost. Resolves to claude-haiku-4-5, priced below the default; this unit is cheap routing/mechanical work.
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the default; this unit is cheap routing/mechanical work.
 ```
 
 ## Validation Rules

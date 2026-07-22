@@ -5,7 +5,7 @@ allowed-tools:
   - Bash(git:*)
   - Skill
 model: haiku
-model-rationale: cost. Resolves to claude-haiku-4-5, priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 ---
 
 # PR Quality Gate - All Agents

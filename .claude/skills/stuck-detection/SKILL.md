@@ -2,7 +2,7 @@
 name: stuck-detection
 version: 1.2.0
 model: haiku
-model-rationale: cost. Resolves to claude-haiku-4-5, priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 description: >-
   Detect agent conversation loops via topic-signature similarity and emit a
   self-reflection nudge. Use as an orchestrator guard against repetitive
