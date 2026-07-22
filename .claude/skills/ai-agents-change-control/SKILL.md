@@ -61,10 +61,10 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 | Docs-only | Scoped markdownlint on changed files; dash prohibition; session log still required |
 | Investigation-only | Staged-file allowlist check in the pre-commit QA validator (ADR-034) |
 | Code | Full test rigor: positive, negative, edge, branch coverage, mocked I/O; coverage floors 100 security / 80 business / 60 docs (AGENTS.md Standards) |
-| Plugin content | Version-bump gate at three layers: PreToolUse guard `.claude/hooks/PreToolUse/invoke_plugin_version_bump_guard.py`, `pre_pr.py` wrapping `build/scripts/validate_plugin_version_bump.py`, CI `.github/workflows/validate-plugin-version-bump.yml` |
+| Plugin content | Version-bump gate at two layers: `pre_pr.py` wrapping `build/scripts/validate_plugin_version_bump.py` at pre-push, CI `.github/workflows/validate-plugin-version-bump.yml` |
 | Hook | Anchoring validator; runtime-contract tests (`tests/build_scripts/test_generate_hooks_runtime_contract.py`); keep `.claude/settings.json` and `.claude/hooks/hooks.json` in sync by hand |
 | Workflow | SHA-pin validation; yamllint style; local workflow run gate in pre-push (`SKIP_WORKFLOW_LOCAL_TEST` escape exists for unrunnable workflows; semantics in `ai-agents-config-catalog`) |
-| ADR / governance | `adr-review` debate to consensus; PreToolUse guard `invoke_adr_review_guard.py` |
+| ADR / governance | `adr-review` debate to consensus; blocking `git_hook_policy.py adr-review` Lefthook job |
 | Any canonical-source edit | Drift gates: `python3 build/generate_agents.py --validate` and `python3 build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
 
 Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a commit message on the PR skips agent drift detection (`.github/workflows/agent-drift-detection.yml:17`). Using it demands a stated reason and human approval; an unexplained bypass marker reads as the session 1187 pattern (Phase 5) and will be challenged in review.
@@ -107,7 +107,7 @@ Check this table before any push. The incident column is the answer to "why"; do
 | No em or en dashes in authored text | `validate_dash_prohibition` (`scripts/validation/checks_dash.py` via `pre_pr.py`) + dash-guard hook; `tests/hooks/fixtures/` exempt | `.claude/rules/universal.md` MUST NOT 5: bot reviewers open one or more threads per dash, every PR (Issue #1923) |
 | SHA-pin all GitHub Actions | Pre-commit hook + workflow validation (`.agents/governance/PROJECT-CONSTRAINTS.md:162`) | Tags are mutable; SHA pinning blocks supply-chain tag-moving. See the documented tension below |
 | Generated and released hook artifacts fail closed and loud (ADR-066 D1, ADR-071). Scoped, not blanket: push guards fail open on infrastructure errors by design (`.claude/hooks/PreToolUse/push_guard_base.py` docstring); repo-wide audit tracked in #2271. Per-family table: `ai-agents-architecture-contract` Phase 3 | `validate_hook_anchoring.py`, runtime-contract tests, named Lefthook jobs, and CI enforcement | #2205 customer wedge; policy reversal story below |
-| Plugin content change requires a strictly greater plugin.json semver | Guard hook + `pre_pr.py` + `validate-plugin-version-bump.yml` | PR #1942 stale-cache story below |
+| Plugin content change requires a strictly greater plugin.json semver | `pre_pr.py` + `validate-plugin-version-bump.yml` | PR #1942 stale-cache story below |
 | Block-style YAML arrays only in frontmatter | `.agents/governance/PROJECT-CONSTRAINTS.md:224` ("Exceptions: None") | Copilot CLI frontmatter parser fails on CRLF and related formatting: github/copilot-cli#694, cited at PROJECT-CONSTRAINTS.md:220; ADR-044 |
 | `.agents/HANDOFF.md` is read-only | `.claude/rules/universal.md` MUST NOT 3 | ADR-014 (Accepted): the monolithic handoff file bloated and became a chronic merge-conflict magnet; distributed handoffs replaced it |
 | Memory-first: retrieval precedes reasoning | AGENTS.md Retrieval section; session-start gates | ADR-007: Serena memories are canonical, Forgetful supplementary. Search before building; do not re-derive settled decisions |

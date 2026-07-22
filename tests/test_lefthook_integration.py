@@ -254,6 +254,139 @@ def _push_update(
     return policy.PushUpdate(source, "base", head, range_spec, destination_branch)
 
 
+def _write_today_session(repo: Path, content: str) -> Path:
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    session = repo / ".agents" / "sessions" / f"{today}-session-1.json"
+    session.parent.mkdir(parents=True, exist_ok=True)
+    session.write_text(content, encoding="utf-8")
+    return session
+
+
+def test_adr_review_policy_blocks_stale_debate_reference(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    analysis = tmp_path / ".agents" / "analysis"
+    analysis.mkdir(parents=True)
+    (analysis / "old-debate.md").write_text("ADR-042 review", encoding="utf-8")
+
+    result = policy.check_adr_review_policy(
+        [".agents/architecture/ADR-062-navigation.md"],
+        tmp_path,
+    )
+
+    assert result == 1
+    assert "ADR-062" in capsys.readouterr().err
+
+
+def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Path) -> None:
+    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    analysis = tmp_path / ".agents" / "analysis"
+    analysis.mkdir(parents=True)
+    (analysis / "adr-062-debate.md").write_text("ADR-062 review", encoding="utf-8")
+
+    assert (
+        policy.check_adr_review_policy(
+            [".agents/architecture/ADR-062-navigation.md"],
+            tmp_path,
+        )
+        == 0
+    )
+    assert policy.check_adr_review_policy(["README.md"], tmp_path) == 0
+
+
+def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
+    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    analysis = tmp_path / ".agents" / "analysis"
+    analysis.mkdir(parents=True)
+    (analysis / "adr-0620-debate.md").write_text("ADR-0620 review", encoding="utf-8")
+
+    assert (
+        policy.check_adr_review_policy(
+            [".agents/architecture/ADR-062-navigation.md"],
+            tmp_path,
+        )
+        == 1
+    )
+
+
+def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> None:
+    if os.name == "nt":
+        pytest.skip("Symlink creation requires elevated Windows privileges")
+    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    analysis = tmp_path / ".agents" / "analysis"
+    analysis.mkdir(parents=True)
+    evidence = tmp_path / "evidence.md"
+    evidence.write_text("ADR-062 review", encoding="utf-8")
+    (analysis / "adr-062-debate.md").symlink_to(evidence)
+
+    assert (
+        policy.check_adr_review_policy(
+            [".agents/architecture/ADR-062-navigation.md"],
+            tmp_path,
+        )
+        == 1
+    )
+
+
+def test_retrospective_policy_blocks_missing_evidence(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_today_session(tmp_path, '{"notes": "implementation complete"}')
+
+    result = policy.check_retrospective_evidence(
+        ["scripts/one.py", "tests/test_one.py"],
+        tmp_path,
+    )
+
+    assert result == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+    # Empty paths should still check for retrospective evidence (not bypass)
+    assert policy.check_retrospective_evidence([], tmp_path) == 1
+    captured = capsys.readouterr()
+    assert "{push_files} empty" in captured.err
+
+
+def test_retrospective_policy_allows_session_evidence_and_documentation(
+    tmp_path: Path,
+) -> None:
+    _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+    assert policy.check_retrospective_evidence(["README.md"], tmp_path) == 0
+
+
+def test_retrospective_trivial_session_includes_ten_minute_boundary(
+    tmp_path: Path,
+) -> None:
+    session = _write_today_session(tmp_path, '{"notes": "no retrospective"}')
+    boundary = session.stat().st_ctime + 600
+
+    assert policy._is_trivial_retrospective_session(
+        session,
+        ["scripts/one.py"],
+        now_epoch=boundary,
+    )
+    assert not policy._is_trivial_retrospective_session(
+        session,
+        ["scripts/one.py"],
+        now_epoch=boundary + 0.001,
+    )
+    assert not policy._is_trivial_retrospective_session(
+        session,
+        [],
+        now_epoch=boundary,
+    )
+
+
 def test_configuration_uses_named_native_jobs() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
@@ -285,7 +418,7 @@ def test_configuration_uses_named_native_jobs() -> None:
         "memory-size",
         "memory-tier",
         "memory-skill-format",
-        "adr-change-advisory",
+        "adr-review-policy",
         "taste-advisory",
         "scope-policy",
         "generate-mcp-config",
@@ -304,6 +437,7 @@ def test_configuration_uses_named_native_jobs() -> None:
     expected_pre_push = {
         "repair-packed-refs",
         "push-ref-policy",
+        "retrospective-policy",
         "pre-pr-validation",
         "python-tests",
         "python-lint-advisory",
@@ -327,6 +461,14 @@ def test_configuration_uses_named_native_jobs() -> None:
     }
     assert expected_pre_commit <= set(_job_map(config, "pre-commit"))
     assert expected_pre_push <= set(_job_map(config, "pre-push"))
+    pre_commit = _job_map(config, "pre-commit")
+    pre_push = _job_map(config, "pre-push")
+    assert str(pre_commit["adr-review-policy"]["run"]).endswith(
+        "git_hook_policy.py adr-review {staged_files}"
+    )
+    assert str(pre_push["retrospective-policy"]["run"]).endswith(
+        "git_hook_policy.py retrospective {push_files}"
+    )
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
     assert pre_commit_names.index("memory-token-update") < pre_commit_names.index("memory-size")
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
@@ -454,7 +596,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-size",
         "memory-tier",
         "memory-skill-format",
-        "adr-change-advisory",
+        "adr-review-policy",
         "taste-advisory",
     }
     for name in merge_exempt_jobs:
@@ -4486,7 +4628,6 @@ def test_advisories_warn_but_generators_block_before_staging(
     )
 
     assert policy.run_planning_advisory(tmp_path) == 0
-    assert policy.run_adr_reminder(tmp_path) == 0
     assert policy.run_taste_advisory([], tmp_path) == 0
     assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
     assert policy.generate_mcp_advisory(tmp_path) == 1
@@ -4494,44 +4635,6 @@ def test_advisories_warn_but_generators_block_before_staging(
     assert policy.update_memory_tokens(tmp_path) == 1
     assert policy.cross_reference_memories(["memory.md"], tmp_path) == 1
     assert policy.run_memory_sync(tmp_path) == 0
-
-
-def test_adr_reminder_surfaces_child_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(3, "", "detector failed\n"),
-    )
-
-    assert policy.run_adr_reminder(tmp_path) == 0
-
-    output = capsys.readouterr()
-    assert output.err == (
-        "detector failed\n"
-        "WARNING: ADR change detection failed without blocking\n"
-    )
-
-
-def test_adr_reminder_surfaces_success_output(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(0, "no ADR changes\n", ""),
-    )
-
-    assert policy.run_adr_reminder(tmp_path) == 0
-
-    output = capsys.readouterr()
-    assert output.out == "no ADR changes\n"
-    assert output.err == ""
 
 
 def test_memory_cross_reference_requires_successful_json(
@@ -5364,7 +5467,8 @@ def test_old_bot_review_does_not_warn(
         ("stage-generated", ["mcp"], "stage_generated"),
         ("extract-episodes", ["session.json"], "extract_session_episodes"),
         ("planning", [], "run_planning_advisory"),
-        ("adr-reminder", [], "run_adr_reminder"),
+        ("adr-review", ["README.md"], "check_adr_review_policy"),
+        ("retrospective", ["README.md"], "check_retrospective_evidence"),
         ("generate-mcp", [], "generate_mcp_advisory"),
         ("generate-agents", [], "generate_agents_advisory"),
         ("memory-token-update", [], "update_memory_tokens"),

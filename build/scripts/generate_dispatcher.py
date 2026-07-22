@@ -876,18 +876,20 @@ def _collect_orphan_event(
         hooks_root,
     )
     owned.extend(bytecode)
-    targets: list[Path] = []
+    protected: list[tuple[Path, str]] = []
     for candidate in owned:
         reason = regen_detect_reason(candidate)
-        if reason is None:
-            targets.append(candidate)
-        else:
+        if reason is not None:
+            protected.append((candidate, reason))
+    if protected:
+        for candidate, reason in protected:
             print(f"  NOTICE: preserved {candidate} (NO-REGEN: {reason})")
+        return [], []
     known_paths = set(owned) | set(cache_dirs)
     for candidate in sorted(event_dir.iterdir()):
         if candidate not in known_paths:
             print(f"  NOTICE: preserved unknown orphan artifact {candidate}")
-    return targets, [*cache_dirs, event_dir]
+    return owned, [*cache_dirs, event_dir]
 
 
 def find_owned_orphan_artifacts(

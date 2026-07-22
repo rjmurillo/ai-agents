@@ -887,21 +887,13 @@ class TestHooksJsonContract:
         matchers = [block.get("matcher") for block in pre_tool_use]
         assert "Bash(git push*)" in matchers
 
-    def test_settings_json_has_git_push_matcher(self) -> None:
-        """AC-11 at the source.
-
-        ``build/scripts/generate_hooks.py`` emits ``hooks.json`` from
-        ``.claude/settings.json``; locking the contract only at the
-        generated layer would let a regression that drops the matcher
-        from the source pass while the mirror is stale.
-        """
+    def test_settings_json_excludes_git_push_matcher(self) -> None:
+        """ADR-084 keeps the customer gate off the internal settings surface."""
         settings_path = (
             Path(__file__).resolve().parents[2] / ".claude" / "settings.json"
         )
         data = json.loads(settings_path.read_text(encoding="utf-8"))
-        pre_tool_use = data["hooks"]["PreToolUse"]
-        matchers = [block.get("matcher") for block in pre_tool_use]
-        assert "Bash(git push*)" in matchers
+        assert "Bash(git push*)" not in json.dumps(data)
 
 
 class TestMatchGlob:

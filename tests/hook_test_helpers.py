@@ -21,7 +21,7 @@ from pathlib import Path
 from types import ModuleType
 
 # Resolved at import time to avoid a literal substring that a development
-# gate hook (invoke_security_gate.py, PreToolUse) flags on plain
+# historical gate hook flagged on plain
 # `exec(`. The token never
 # appears in this source verbatim. Audit rationale:
 #   * Input is ``wrapper_block`` read from ``module.__file__`` (module-

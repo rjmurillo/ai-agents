@@ -65,7 +65,7 @@ the classifier's module docstring.
 ```bash
 # Default: read .agents/telemetry/*.jsonl, classify, print report.
 python3 build/scripts/aggregate_guard_intercepts.py \
-  --guard markdown-lint --guard manifest-count --guard pr-description --guard session-log-field \
+  --guard markdown-lint --guard manifest-count --guard session-log-field \
   | python3 build/scripts/classify_guard_maturity.py
 ```
 

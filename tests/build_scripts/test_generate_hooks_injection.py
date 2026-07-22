@@ -98,7 +98,7 @@ _VALID_EVENTS = [
 ]
 
 _VALID_SCRIPTS = [
-    "invoke_security_gate.py",
+    "invoke_markdownlint_guard.py",
     "owner.py",
     "a_b-c.d.py",
     "invoke_x__Bash_git_commit_a1b2c3.py",

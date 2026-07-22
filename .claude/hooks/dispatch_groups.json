@@ -1,122 +1,14 @@
 {
   "description": "Claude Code hook-group manifest consumed by invoke_dispatch_claude.py (one process per (event, matcher) group) and expanded by build/scripts/generate_hooks_events.py back to per-hook entries so the generated Copilot tree is unchanged. file is relative to .claude/hooks/. timeout/statusMessage preserve the pre-consolidation per-hook registration values for generator fidelity. copilotMatcher overrides the group matcher for Copilot shim generation only.",
   "groups": {
-    "pretooluse-1-session_log_guard": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_session_log_guard.py",
-          "statusMessage": "Verifying session log exists before commit (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_adr_review_guard.py",
-          "statusMessage": "Verifying ADR review completed (MUST requirement)"
-        },
-        {
-          "file": "PreToolUse/invoke_security_commit_gate.py",
-          "timeout": 10,
-          "statusMessage": "Checking security gate for staged auth files (ADR-033)"
-        }
-      ]
-    },
-    "pretooluse-2-retrospective_gate": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash(git push*)",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_retrospective_gate.py",
-          "statusMessage": "Verifying retrospective evidence (ADR-033)"
-        },
-        {
-          "file": "PreToolUse/invoke_markdownlint_guard.py",
-          "timeout": 90,
-          "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_session_log_field_guard.py",
-          "statusMessage": "Checking session log placeholder values (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_pr_description_guard.py",
-          "timeout": 90,
-          "statusMessage": "Checking PR description vs diff (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_install_parity_guard.py",
-          "timeout": 30,
-          "statusMessage": "Checking install-copy parity for agents and rules (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_plugin_version_bump_guard.py",
-          "timeout": 30,
-          "statusMessage": "Checking plugin.json version bump on plugin source change (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_hook_drift_guard.py",
-          "timeout": 30,
-          "statusMessage": "Checking hook generator drift in src/copilot-cli/hooks/ (BLOCKING)"
-        }
-      ]
-    },
     "sessionstart-1-session_initialization_enforcer": {
       "event": "SessionStart",
       "mode": "observe",
       "matcher": null,
       "shims": [
         {
-          "file": "SessionStart/invoke_session_initialization_enforcer.py",
-          "statusMessage": "Enforcing session protocol initialization (BLOCKING)"
-        },
-        {
-          "file": "SessionStart/invoke_memory_first_enforcer.py",
-          "statusMessage": "Enforcing ADR-007 memory-first evidence (HYBRID)"
-        },
-        {
-          "file": "invoke_adr_change_detection.py",
-          "statusMessage": "Checking for ADR changes"
-        },
-        {
           "file": "SessionStart/invoke_context_loader.py",
           "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
-        }
-      ]
-    },
-    "userpromptsubmit-1-serena_reassertion": {
-      "event": "UserPromptSubmit",
-      "mode": "gate_all",
-      "matcher": null,
-      "shims": [
-        {
-          "file": "UserPromptSubmit/invoke_serena_reassertion.py",
-          "timeout": 3,
-          "statusMessage": "Re-asserting Serena activation (issue #1993)"
-        },
-        {
-          "file": "UserPromptSubmit/invoke_autonomous_execution_detector.py",
-          "statusMessage": "Detecting autonomous execution patterns"
-        },
-        {
-          "file": "UserPromptSubmit/invoke_research_then_implement.py",
-          "timeout": 3,
-          "statusMessage": "Checking for research-before-implementation signals"
-        },
-        {
-          "file": "invoke_user_prompt_memory_check.py",
-          "statusMessage": "Checking memory-first compliance"
-        }
-      ]
-    },
-    "posttooluse-1-markdown_auto_lint": {
-      "event": "PostToolUse",
-      "mode": "observe",
-      "matcher": "^(Write|Edit)$",
-      "shims": [
-        {
-          "file": "PostToolUse/invoke_markdown_auto_lint.py",
-          "statusMessage": "Auto-linting markdown files"
         }
       ]
     },
@@ -126,81 +18,8 @@
       "matcher": null,
       "shims": [
         {
-          "file": "Stop/invoke_session_validator.py",
-          "statusMessage": "Validating session completeness"
-        },
-        {
           "file": "Stop/invoke_auto_retrospective.py",
           "statusMessage": "Auto-generating session retrospective (#1703)"
-        }
-      ]
-    },
-    "pretooluse-write-edit": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "^(Write|Edit)$",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_security_gate.py",
-          "statusMessage": "Checking security gate for auth files (ADR-033)"
-        }
-      ]
-    },
-    "plugin-pretooluse-false_completion_gate": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*|[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_false_completion_gate.py",
-          "timeout": 5,
-          "statusMessage": "Checking for false completion claims without verification (#1703)"
-        }
-      ]
-    },
-    "plugin-pretooluse-5-session_log_guard": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_session_log_guard.py",
-          "statusMessage": "Verifying session log exists before commit (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_adr_review_guard.py",
-          "statusMessage": "Verifying ADR review completed (MUST requirement)"
-        },
-        {
-          "file": "PreToolUse/invoke_security_commit_gate.py",
-          "timeout": 10,
-          "statusMessage": "Checking security gate for staged auth files (ADR-033)"
-        }
-      ]
-    },
-    "plugin-pretooluse-session_log_guard": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_session_log_guard.py",
-          "statusMessage": "Verifying session log exists before PR creation (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-pretooluse-security_gate": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "^(Write|Edit)$",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_security_gate.py",
-          "statusMessage": "Checking security gate for auth files (ADR-033)"
         }
       ]
     },
@@ -211,77 +30,9 @@
       "surface": "plugin",
       "shims": [
         {
-          "file": "PreToolUse/invoke_retrospective_gate.py",
-          "statusMessage": "Verifying retrospective evidence (ADR-033)"
-        },
-        {
           "file": "PreToolUse/invoke_markdownlint_guard.py",
           "timeout": 90,
           "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_session_log_field_guard.py",
-          "statusMessage": "Checking session log placeholder values (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_pr_description_guard.py",
-          "timeout": 90,
-          "statusMessage": "Checking PR description vs diff (BLOCKING)"
-        },
-        {
-          "file": "PreToolUse/invoke_plugin_version_bump_guard.py",
-          "timeout": 30,
-          "statusMessage": "Checking plugin.json version bump on plugin source changes (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-sessionstart-1-session_initialization_enforcer": {
-      "event": "SessionStart",
-      "mode": "observe",
-      "matcher": null,
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "SessionStart/invoke_session_initialization_enforcer.py",
-          "statusMessage": "Enforcing session protocol initialization (BLOCKING)"
-        },
-        {
-          "file": "SessionStart/invoke_memory_first_enforcer.py",
-          "statusMessage": "Enforcing ADR-007 memory-first evidence (HYBRID)"
-        },
-        {
-          "file": "invoke_session_start_memory_first.py",
-          "statusMessage": "Enforcing ADR-007 memory-first requirements"
-        },
-        {
-          "file": "invoke_adr_change_detection.py",
-          "statusMessage": "Checking for ADR changes"
-        }
-      ]
-    },
-    "plugin-userpromptsubmit-1-serena_reassertion": {
-      "event": "UserPromptSubmit",
-      "mode": "gate_all",
-      "matcher": null,
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "UserPromptSubmit/invoke_serena_reassertion.py",
-          "timeout": 3,
-          "statusMessage": "Re-asserting Serena activation (issue #1993)"
-        },
-        {
-          "file": "UserPromptSubmit/invoke_autonomous_execution_detector.py",
-          "statusMessage": "Detecting autonomous execution patterns"
-        },
-        {
-          "file": "UserPromptSubmit/invoke_research_then_implement.py",
-          "timeout": 3,
-          "statusMessage": "Checking for research-before-implementation signals"
-        },
-        {
-          "file": "invoke_user_prompt_memory_check.py",
-          "statusMessage": "Checking memory-first compliance"
         }
       ]
     },
@@ -307,18 +58,6 @@
           "file": "PostToolUse/invoke_observation_sync.py",
           "timeout": 30,
           "statusMessage": "Syncing observation memories to Forgetful"
-        }
-      ]
-    },
-    "plugin-stop-1-skill_learning": {
-      "event": "Stop",
-      "mode": "gate_all",
-      "matcher": null,
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "Stop/invoke_session_validator.py",
-          "statusMessage": "Validating session completeness"
         }
       ]
     }

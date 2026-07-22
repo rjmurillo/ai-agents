@@ -9,56 +9,13 @@
         "type": "command"
       }
     ],
-    "PreCompact": [
-      {
-        "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/PreCompact/_dispatch.py\"",
-        "cwd": ".",
-        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/PreCompact/_dispatch.py\"",
-        "timeoutSec": 35,
-        "type": "command"
-      }
-    ],
     "PreToolUse": [
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/PreToolUse/_dispatch.py\"",
         "cwd": ".",
-        "matcher": "Bash|Write|Edit",
+        "matcher": "Bash",
         "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/PreToolUse/_dispatch.py\"",
-        "timeoutSec": 470,
-        "type": "command"
-      }
-    ],
-    "SessionStart": [
-      {
-        "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/SessionStart/_dispatch.py\"",
-        "cwd": ".",
-        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/SessionStart/_dispatch.py\"",
-        "timeoutSec": 125,
-        "type": "command"
-      }
-    ],
-    "Stop": [
-      {
-        "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/Stop/invoke_session_validator.py\"",
-        "cwd": ".",
-        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/Stop/invoke_session_validator.py\"",
-        "timeoutSec": 30,
-        "type": "command"
-      },
-      {
-        "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/Stop/invoke_auto_retrospective.py\"",
-        "cwd": ".",
-        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/Stop/invoke_auto_retrospective.py\"",
-        "timeoutSec": 30,
-        "type": "command"
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/UserPromptSubmit/_dispatch.py\"",
-        "cwd": ".",
-        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/UserPromptSubmit/_dispatch.py\"",
-        "timeoutSec": 71,
+        "timeoutSec": 95,
         "type": "command"
       }
     ]

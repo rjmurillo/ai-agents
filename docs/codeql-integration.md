@@ -1,26 +1,31 @@
 # CodeQL Integration Guide
 
-This guide covers the complete CodeQL security analysis integration across CI/CD, local development, and automatic scanning workflows.
+This guide explains how to install, run, and troubleshoot the current CodeQL integration. The implementation uses Python scripts in `.codeql/scripts/`, shared configs in `.github/codeql/`, and a two-tier strategy from ADR-041 as amended on 2026-07-21.
+
+The automatic edit-time hook was retired on 2026-07-21. Quick scans are still available on demand through `--quick-scan`. A portable automatic rebuild is deferred to issue #3219.
+
+---
 
 ## Overview
 
-CodeQL is a semantic code analysis engine that helps identify security vulnerabilities and coding errors. This repository implements a multi-tier CodeQL integration strategy providing:
+CodeQL is a semantic code analysis engine for security findings and code-quality defects. This repository uses it in two live tiers:
 
-- **Tier 1 (CI/CD)**: Automated security scanning on all pull requests with SARIF upload to GitHub Security tab
-- **Tier 2 (Local Development)**: Developer-initiated scans via VSCode tasks and Claude Code skills
-- **Tier 3 (Automatic)**: Non-blocking PostToolUse hook for targeted security feedback during development
+- **Tier 1 (CI/CD)**: GitHub's native CodeQL action runs as a blocking PR gate and uploads SARIF to the GitHub Security tab.
+- **Tier 2 (Local, on-demand)**: Developers and agents run the `codeql-scan` skill or `.codeql/scripts/invoke_codeql_scan.py` directly.
 
-**Supported Languages**:
+**Supported local script languages today**:
 
 - Python
 - GitHub Actions workflows
 
+The checked-in CI workflow matrix currently runs CodeQL for `actions` and `python`.
+
 **Benefits**:
 
-- Early vulnerability detection before code review
-- Consistent security standards across all contributions
-- Fast feedback during development with database caching
-- Graceful degradation when CLI unavailable
+- Security findings appear before merge.
+- Local scans let builders fix issues before opening a PR.
+- CI and local scans share `.github/codeql/codeql-config.yml` by default.
+- Quick local scans use `.github/codeql/codeql-config-quick.yml` through `--quick-scan`.
 
 ---
 
@@ -29,27 +34,43 @@ CodeQL is a semantic code analysis engine that helps identify security vulnerabi
 ### One-Command Setup
 
 ```bash
-# Install CodeQL CLI and configure all integrations
 python3 .codeql/scripts/install_codeql_integration.py
 ```
 
-This installs:
+This integration installer can install or configure:
 
-- CodeQL CLI (latest version)
-- Shared configuration
-- VSCode integration
-- Claude Code skill
-- PostToolUse hook
+- CodeQL CLI.
+- VS Code integration.
+- Claude Code `codeql-scan` skill.
+- Pre-commit verification.
+
+Use skip flags when you only want part of the setup:
+
+```bash
+python3 .codeql/scripts/install_codeql_integration.py --skip-vscode --skip-pre-commit
+```
+
+### Full Scan
+
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py
+```
+
+Defaults:
+
+- Repository path: `.` or `CODEQL_REPO_PATH`.
+- Config path: `.github/codeql/codeql-config.yml` or `CODEQL_CONFIG_PATH`.
+- Database path: `.codeql/db` or `CODEQL_DATABASE_PATH`.
+- Results path: `.codeql/results` or `CODEQL_RESULTS_PATH`.
+- Output format: `console`.
 
 ### Quick Scan
 
 ```bash
-# Full repository scan
-python3 .codeql/scripts/invoke_codeql_scan.py
-
-# Quick scan with caching
-python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
+python3 .codeql/scripts/invoke_codeql_scan.py --quick-scan --use-cache
 ```
+
+With the default config path, `--quick-scan` switches to `.github/codeql/codeql-config-quick.yml`.
 
 ---
 
@@ -57,64 +78,57 @@ python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
 
 ### Prerequisites
 
-- **PowerShell 7.5.4+**: Cross-platform PowerShell (`pwsh`)
-- **Internet connection**: For downloading CodeQL CLI
-- **Disk space**: ~500MB for CodeQL CLI and databases
+- Python 3.
+- Internet access for downloading the CodeQL CLI.
+- Disk space for the CLI, databases, and SARIF results.
+- Standard `tar` with gzip support. The installer downloads a `.tar.gz` bundle and extracts it with `tar -xzf`, so it does not need `zstd`.
 
-### Installation Steps
-
-#### 1. Install CodeQL CLI
+### 1. Install CodeQL CLI
 
 ```bash
-# Download and install CodeQL CLI
-python3 .codeql/scripts/install_codeql.py
+python3 .codeql/scripts/install_codeql.py --ci --force
+```
 
-# Add to PATH (optional, for command-line access)
+Optional flags:
+
+```bash
+python3 .codeql/scripts/install_codeql.py --version VERSION
+python3 .codeql/scripts/install_codeql.py --install-path .codeql/cli
 python3 .codeql/scripts/install_codeql.py --add-to-path
 ```
 
-**Verification**:
+Verify the CLI:
 
 ```bash
-# Check CLI version
 .codeql/cli/codeql version
 ```
 
-Expected output:
-
-```text
-CodeQL command-line toolchain release 2.23.9.
-```
-
-#### 2. Configure Integration
+### 2. Configure Integration
 
 ```bash
-# Install all integration components
 python3 .codeql/scripts/install_codeql_integration.py
 ```
 
-This configures:
+Available flags:
 
-- Shared configuration at `.github/codeql/codeql-config.yml`
-- Quick scan configuration at `.github/codeql/codeql-config-quick.yml`
-- VSCode tasks and settings
-- Claude Code skill
-- PostToolUse hook
+| Flag | Use when |
+|------|----------|
+| `--skip-cli` | The CLI is already installed. |
+| `--skip-vscode` | You do not want editor configuration. |
+| `--skip-claude-skill` | You do not want the Claude Code skill installed. |
+| `--skip-pre-commit` | You do not want pre-commit verification. |
+| `--ci` | The command runs in automation. |
 
-#### 3. Verify Configuration
+### 3. Verify Configuration
 
 ```bash
-# Validate configuration files
-python3 .codeql/scripts/test_codeql_config.py
+python3 .codeql/scripts/test_codeql_config.py --ci
 ```
 
-**Expected output**:
+JSON output is available for automation:
 
-```text
-[PASS] Configuration file exists
-[PASS] YAML syntax valid
-[PASS] Query packs resolvable
-[PASS] Configuration ready
+```bash
+python3 .codeql/scripts/test_codeql_config.py --format json --ci
 ```
 
 ---
@@ -123,93 +137,95 @@ python3 .codeql/scripts/test_codeql_config.py
 
 ### Full Repository Scan
 
-Scans all supported languages with complete query packs:
-
 ```bash
 python3 .codeql/scripts/invoke_codeql_scan.py
 ```
 
-**Output**: SARIF results at `.codeql/results/codeql-results.sarif`
+Use this before opening a PR or after larger changes.
 
-**Duration**: ~30-60 seconds (first run), ~10-20 seconds (with cache)
+Expected local outputs:
 
-### Quick Scan with Cache
+- CodeQL databases under `.codeql/db`.
+- SARIF files under `.codeql/results`.
+- Console summary by default.
 
-Uses cached databases for faster feedback:
+### Quick Targeted Scan
 
 ```bash
-python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
+python3 .codeql/scripts/invoke_codeql_scan.py --quick-scan --use-cache
 ```
 
-**Cache invalidation triggers**:
-
-- Git HEAD changes (new commits)
-- Configuration file updates
-- Forced rebuild with `-Force` flag
+Use this during active development when you want faster feedback from targeted queries.
 
 ### Language-Specific Scan
 
-Scan only specific language:
-
 ```bash
-# Python only
 python3 .codeql/scripts/invoke_codeql_scan.py --languages python
-
-# GitHub Actions only
 python3 .codeql/scripts/invoke_codeql_scan.py --languages actions
+python3 .codeql/scripts/invoke_codeql_scan.py --languages python actions
 ```
 
-### Configuration Validation
-
-Verify configuration before scanning:
+### Output Formats
 
 ```bash
-# Validate configuration
-python3 .codeql/scripts/test_codeql_config.py
+python3 .codeql/scripts/invoke_codeql_scan.py --format console
+python3 .codeql/scripts/invoke_codeql_scan.py --format sarif
+python3 .codeql/scripts/invoke_codeql_scan.py --format json
+```
 
-# Verbose diagnostics
-python3 .codeql/scripts/get_codeql_diagnostics.py
+### CI Behavior
+
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py --ci
+```
+
+In CI mode, the scan exits 1 when findings are detected.
+
+### Diagnostics
+
+```bash
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format console
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format json
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format markdown
 ```
 
 ### Claude Code Skill
 
 ```bash
-# Via skill system
 /codeql-scan
+```
 
-# Direct invocation
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py --operation full
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py --operation quick
+The skill wraps the same local scanning path. Its documented direct wrapper supports full, quick, and validate operations:
+
+```bash
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate
 ```
 
 ---
 
-## Multi-Tier Integration
+## Two-Tier Integration
 
 ```mermaid
 flowchart TD
-    A[Code Changes] --> B{Tier Selection}
-    B --> C[Tier 1: CI/CD]
-    B --> D[Tier 2: Local Dev]
-    B --> E[Tier 3: Automatic]
+    Change[Code changes] --> Choice{Where should scan run?}
+    Choice --> CI[Tier 1: CI/CD]
+    Choice --> Local[Tier 2: Local on-demand]
 
-    C --> C1[GitHub Actions Workflow]
-    C1 --> C2[Full Scan + SARIF Upload]
-    C2 --> C3[Blocking on Critical Findings]
+    CI --> Native[GitHub CodeQL action]
+    Native --> Full[Full security-extended analysis]
+    Full --> Upload[SARIF to GitHub Security tab]
+    Upload --> Gate[Required PR check]
 
-    D --> D1[Developer-Initiated]
-    D1 --> D2[VSCode Task]
-    D1 --> D3[Claude Code Skill]
-    D2 --> D4[On-Demand Scan]
-    D3 --> D4
-
-    E --> E1[PostToolUse Hook]
-    E1 --> E2[Targeted Queries]
-    E2 --> E3[Non-Blocking Feedback]
-
-    C3 --> F[Security Tab]
-    D4 --> G[Local Results]
-    E3 --> H[Console Output]
+    Local --> Skill[codeql-scan skill]
+    Local --> Script[invoke_codeql_scan.py]
+    Skill --> Script
+    Script --> Mode{Mode}
+    Mode --> FullLocal[Full scan]
+    Mode --> Quick[Quick targeted scan]
+    FullLocal --> Results[.codeql/results]
+    Quick --> Results
 ```
 
 ### Tier 1: CI/CD Integration
@@ -218,60 +234,49 @@ flowchart TD
 
 **Triggers**:
 
-- All pull requests
-- Pushes to main branch
-- Manual workflow dispatch
+- Push to `main`.
+- Pull request to `main`.
+- Weekly schedule, Monday 09:00 UTC, cron `0 9 * * 1`.
+- Manual dispatch.
 
 **Behavior**:
 
-- Scans all supported languages
-- Uploads SARIF to GitHub Security tab
-- Blocks merge if critical findings detected
-- Results visible in PR checks
+- Runs on all PRs to satisfy required status checks.
+- Uses `check-paths` to skip analysis when no scannable files changed.
+- Uses GitHub's native CodeQL action.
+- Uploads SARIF to the GitHub Security tab.
+- Uses `.github/codeql/codeql-config.yml`.
+- Filters out low severity findings and recommendations.
 
-**Configuration**: Shared config at `.github/codeql/codeql-config.yml`
+**Timeout budget**: 300 seconds for the CodeQL analysis path.
 
-**Timeout**: 300 seconds (5 minutes)
+### Tier 2: Local On-Demand Scanning
 
-### Tier 2: Local Development
+**Entry points**:
 
-**VSCode Tasks** (`.vscode/tasks.json`):
+- `/codeql-scan` skill.
+- `.codeql/scripts/invoke_codeql_scan.py`.
+- Optional editor tasks installed by the integration installer.
 
-- `CodeQL: Full Scan` - Complete repository analysis
-- `CodeQL: Quick Scan` - Fast scan with caching
-- `CodeQL: Validate Config` - Configuration check
-
-**Claude Code Skill** (`.claude/skills/codeql-scan/`):
+**Common commands**:
 
 ```bash
-/codeql-scan  # Interactive skill
+python3 .codeql/scripts/invoke_codeql_scan.py
+python3 .codeql/scripts/invoke_codeql_scan.py --quick-scan --use-cache
+python3 .codeql/scripts/invoke_codeql_scan.py --languages python --format json
 ```
 
-**Features**:
+**Timeout budget**: 60 seconds by default.
 
-- Database caching for fast iterations
-- Immediate feedback without waiting for CI
-- Same query packs as CI for consistency
+### Retired Automatic Edit-Time Scanning
 
-### Tier 3: Automatic Scanning
+The automatic edit-time hook was retired on 2026-07-21. Do not troubleshoot, reinstall, or extend it. Use explicit quick scans for fast feedback:
 
-**PostToolUse Hook** (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`):
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py --quick-scan --use-cache
+```
 
-**Triggers**:
-
-- After Edit, Write, or NotebookEdit tool use
-- When files match Python or Actions patterns
-
-**Behavior**:
-
-- Runs targeted security queries (CWE-078, CWE-079, CWE-089, CWE-022, CWE-798)
-- Non-blocking (errors don't halt workflow)
-- Quick scan configuration (5-10 critical queries)
-- Graceful degradation when CLI unavailable
-
-**Timeout**: 30 seconds
-
-**Configuration**: Quick config at `.github/codeql/codeql-config-quick.yml`
+The portable rebuild is tracked by issue #3219.
 
 ---
 
@@ -281,93 +286,77 @@ flowchart TD
 
 **File**: `.github/codeql/codeql-config.yml`
 
-```yaml
-name: "CodeQL Config"
+This config is used by the CI workflow and local scans by default.
 
-queries:
-  - uses: security-extended
+Key settings:
 
-paths:
-  - .github/workflows
-  - .claude/hooks
-  - .codeql/scripts
-  - scripts
-
-paths-ignore:
-  - tests
-  - "**/*.Tests.ps1"
-  - "**/*.md"
-```
-
-**Query Packs**:
-
-- `security-extended`: Security vulnerabilities + common coding errors
-- Custom packs can be added via `uses:` directive
-
-**Severity Filtering**: Configured in workflow (error, warning, note)
+- `disable-default-queries: false`.
+- Packs for `actions` and `python` security-extended suites.
+- `queries: security-extended`.
+- Query filters exclude low severity and recommendation-tagged findings.
+- Paths include scripts, GitHub automation, Claude skills, hooks, and build code.
+- Paths ignore tests, `.agents/`, docs, and Markdown.
 
 ### Quick Scan Configuration
 
 **File**: `.github/codeql/codeql-config-quick.yml`
 
-```yaml
-name: "CodeQL Quick Config"
+This config is selected by `invoke_codeql_scan.py --quick-scan` when using the default config path.
 
-queries:
-  - uses: security-extended
-    tags:
-      - security
-      - cwe-078  # Command injection
-      - cwe-079  # XSS
-      - cwe-089  # SQL injection
-      - cwe-022  # Path traversal
-      - cwe-798  # Hard-coded credentials
-```
+It targets:
 
-**Purpose**: Fast targeted scans for PostToolUse hook
-
-**Queries**: 5-10 critical security patterns
-
-**Performance**: ~5-15 seconds vs ~30-60 seconds for full scan
+- Command injection.
+- SQL injection.
+- Cross-site scripting.
+- Path traversal.
+- Hardcoded credentials.
 
 ### Customization
 
 #### Adding New Languages
 
-1. Update `.github/codeql/codeql-config.yml`:
+Only document a language as supported after the workflow and config both support it.
 
-   ```yaml
-   languages:
-     - python
-     - actions
-     - javascript  # Add new language
-   ```
+1. Update `.github/workflows/codeql-analysis.yml`.
+2. Update `.github/codeql/codeql-config.yml`.
+3. Add targeted queries to `.github/codeql/codeql-config-quick.yml` if quick coverage is available.
+4. Validate config.
+5. Run a local scan for that language.
 
-2. Update workflow `.github/workflows/codeql-analysis.yml`:
-
-   ```yaml
-   strategy:
-     matrix:
-       language: [python, actions, javascript]
-   ```
+```bash
+python3 .codeql/scripts/test_codeql_config.py --ci
+python3 .codeql/scripts/invoke_codeql_scan.py --languages python --ci
+```
 
 #### Adding Custom Queries
 
+Add trusted query packs to `.github/codeql/codeql-config.yml`:
+
 ```yaml
-queries:
-  - uses: security-extended
-  - uses: ./custom-queries  # Local query pack
-  - uses: owner/repo/query-pack@version  # Remote pack
+packs:
+  - codeql/actions-queries:codeql-suites/actions-security-extended.qls
+  - codeql/python-queries:codeql-suites/python-security-extended.qls
+```
+
+Then validate:
+
+```bash
+python3 .codeql/scripts/test_codeql_config.py --ci
 ```
 
 #### Excluding Paths
 
+Add ignores under `paths-ignore` in `.github/codeql/codeql-config.yml`:
+
 ```yaml
 paths-ignore:
-  - vendor/**
-  - third-party/**
-  - "**/*.generated.*"
+  - tests/
+  - .agents/
+  - docs/
+  - '**/*.md'
 ```
+
+Keep exclusions narrow. Each exclusion removes security coverage.
 
 ---
 
@@ -375,120 +364,87 @@ paths-ignore:
 
 ### CLI Not Found
 
-**Error**:
+**Symptom**:
 
 ```text
-CodeQL CLI not found at .codeql/cli/codeql
+CodeQL CLI not found
 ```
 
-**Solution**:
+**Fix**:
 
 ```bash
-# Install CodeQL CLI
-python3 .codeql/scripts/install_codeql.py
-
-# Verify installation
+python3 .codeql/scripts/install_codeql.py --ci --force
 .codeql/cli/codeql version
 ```
 
 ### Configuration Validation Failed
 
-**Error**:
-
-```text
-[FAIL] YAML syntax invalid
-```
-
-**Solution**:
+**Fix**:
 
 ```bash
-# Validate YAML syntax
-python3 .codeql/scripts/test_codeql_config.py
-
-# Check for common issues:
-# - Incorrect indentation
-# - Missing quotes around paths with special characters
-# - Invalid query pack references
+python3 .codeql/scripts/test_codeql_config.py --ci --format console
 ```
+
+Check:
+
+- YAML syntax.
+- Query pack names.
+- Paths under `.github/codeql/`.
 
 ### Scan Timeout
 
-**Error**:
-
-```text
-Scan exceeded timeout of 300 seconds
-```
-
-**Solutions**:
+**Fix options**:
 
 ```bash
-# Option 1: Scan specific language
+# Scan one language
 python3 .codeql/scripts/invoke_codeql_scan.py --languages python
 
-# Option 2: Increase timeout (in workflow YAML)
-timeout-minutes: 10
-
-# Option 3: Use quick scan for faster feedback
+# Use cached databases
 python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
+
+# Use targeted quick scan
+python3 .codeql/scripts/invoke_codeql_scan.py --quick-scan --use-cache
 ```
 
-### Cache Invalidation Issues
+### Cache Problems
 
-**Symptom**: Old results despite code changes
+**Symptom**: results do not reflect recent code changes.
 
-**Solutions**:
+**Fix options**:
 
 ```bash
-# Force database rebuild
+# Run without cache
 python3 .codeql/scripts/invoke_codeql_scan.py
 
-# Clear cache manually
-Remove-Item -Recurse -Force .codeql/db
+# Write databases to a fresh project-local path
+python3 .codeql/scripts/invoke_codeql_scan.py --database-path .codeql/db-fresh
 ```
 
-### Hook Not Triggering
+Do not commit local database directories.
 
-**Symptom**: PostToolUse hook not running
+### Retired Hook Questions
 
-**Verification**:
+The automatic edit-time hook no longer ships. If a guide or comment tells you to test it, that source is stale. Use the explicit quick scan command instead:
 
 ```bash
-# Check hook exists
-test -f ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py"
-
-# Check hook permissions
-ls -la ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py"
-
-# Manual test
-python3 .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py --file-path "example.py" --tool-name "Edit"
+python3 .codeql/scripts/invoke_codeql_scan.py --quick-scan --use-cache
 ```
-
-**Common Issues**:
-
-- Hook not executable: Set executable permissions
-- CLI not installed: Run `Install-CodeQL.ps1`
-- Configuration invalid: Run `Test-CodeQLConfig.ps1`
 
 ### Database Creation Failed
 
-**Error**:
-
-```text
-Failed to create CodeQL database
-```
-
-**Solutions**:
+Run diagnostics:
 
 ```bash
-# Run diagnostics
-python3 .codeql/scripts/get_codeql_diagnostics.py
-
-# Check for:
-# - Unsupported language
-# - Syntax errors in source files
-# - Insufficient disk space
-# - Permission issues
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format markdown
 ```
+
+Check:
+
+- CLI installation.
+- Config file path.
+- Disk space.
+- File permissions.
+- Supported language value.
 
 ---
 
@@ -496,151 +452,65 @@ python3 .codeql/scripts/get_codeql_diagnostics.py
 
 ### When should I use full scan vs quick scan?
 
-**Full Scan** (`Invoke-CodeQLScan.ps1`):
+Use full scan before opening a PR, after broad changes, or when investigating a security-sensitive path:
 
-- Before creating PR
-- After major refactoring
-- When investigating security concerns
-- Weekly security audit
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py
+```
 
-**Quick Scan** (`Invoke-CodeQLScan.ps1 -UseCache`):
+Use quick scan during active development:
 
-- During active development
-- After small changes
-- For fast feedback loops
-- Via PostToolUse hook
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py --quick-scan --use-cache
+```
 
 ### How does database caching work?
 
-**Cache Location**: `.codeql/db/`
+Local databases live under `.codeql/db` by default. Pass `--use-cache` when you want the script to reuse valid cached databases:
 
-**Invalidation Triggers**:
-
-- Git HEAD changes (new commits)
-- Configuration file modifications
-- Source file changes in scanned paths
-- Manual force rebuild with `-Force`
-
-**Benefits**:
-
-- 3-5x faster scans
-- Reduces CI/CD time
-- Enables frequent local scanning
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
+```
 
 ### What languages are supported?
 
-**Current**:
+The checked-in CI workflow currently scans the `actions` and `python` matrix entries. Local scans accept languages through:
 
-- Python (`.py` files)
-- GitHub Actions (`.github/workflows/*.yml`)
-
-**Potential**:
-
-- JavaScript/TypeScript
-- C#
-- Java
-- Go
-- Ruby
-
-See [CodeQL language support](https://codeql.github.com/docs/codeql-overview/supported-languages-and-frameworks/) for complete list.
-
-### How do I add custom queries?
-
-**Local Query Pack**:
-
-1. Create `.codeql/custom-queries/` directory
-2. Add `qlpack.yml` defining pack
-3. Add `.ql` query files
-4. Reference in configuration:
-
-   ```yaml
-   queries:
-     - uses: ./custom-queries
-   ```
-
-**Remote Query Pack**:
-
-```yaml
-queries:
-  - uses: owner/repo/pack@version
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py --languages python actions
 ```
 
 ### What happens if scan finds vulnerabilities?
 
-**CI/CD (Tier 1)**:
-
-- SARIF uploaded to Security tab
-- PR check fails for critical findings
-- Results shown in PR diff view
-- Merge blocked until fixed
-
-**Local Development (Tier 2)**:
-
-- Results in `.codeql/results/codeql-results.sarif`
-- Summary shown in console
-- Developer reviews and fixes
-
-**Automatic (Tier 3)**:
-
-- Console warning with CWE reference
-- Non-blocking (development continues)
-- Suggestion to run full scan
+- Local default mode reports findings to the selected output format.
+- Local `--ci` mode exits 1 when findings are detected.
+- CI uploads SARIF and uses the workflow gate to block merge when configured blocking findings are present.
 
 ### How do I exclude false positives?
 
-**Option 1**: Suppress in code (language-specific)
+Prefer fixing the code. If a finding is a true false positive, document the reason in the code or CodeQL configuration and keep the suppression narrow.
 
-```python
-# Python example
-result = subprocess.run(command, shell=True)  # codeql[py/command-injection]
-```
+### Why is automatic edit-time scanning retired?
 
-**Option 2**: Exclude path in configuration
-
-```yaml
-paths-ignore:
-  - path/to/false-positive.py
-```
-
-**Option 3**: Custom query pack filtering specific patterns
-
-### Why is the hook non-blocking?
-
-**Design Decision**: PostToolUse hook provides feedback without interrupting workflow
-
-**Benefits**:
-
-- Developer remains in flow state
-- Graceful degradation when CLI unavailable
-- Fast feedback without blocking progress
-
-**Trade-off**: Developer may miss warnings if not paying attention
-
-**Mitigation**: CI/CD blocks merge for critical findings
+The retired hook was not registered in active hook surfaces and did not run. The ADR-041 amendment removed that dead path and kept the useful parts: CI enforcement and explicit local scans. Issue #3219 tracks a portable rebuild.
 
 ---
 
 ## Related Documentation
 
-- **Claude Code Skill**: [.claude/skills/codeql-scan/SKILL.md](../.claude/skills/codeql-scan/SKILL.md)
-- **CI/CD Workflow**: [.github/workflows/codeql-analysis.yml](../.github/workflows/codeql-analysis.yml)
-- **Test Workflow**: [.github/workflows/test-codeql-integration.yml](../.github/workflows/test-codeql-integration.yml)
-- **Architecture Details**: [codeql-architecture.md](./codeql-architecture.md)
-- **Installation Scripts**:
-  - [Install-CodeQL.ps1](../.codeql/scripts/Install-CodeQL.ps1)
-  - [Install-CodeQLIntegration.ps1](../.codeql/scripts/Install-CodeQLIntegration.ps1)
-- **Scanning Scripts**:
-  - [Invoke-CodeQLScan.ps1](../.codeql/scripts/Invoke-CodeQLScan.ps1)
-  - [Test-CodeQLConfig.ps1](../.codeql/scripts/Test-CodeQLConfig.ps1)
-  - [Get-CodeQLDiagnostics.ps1](../.codeql/scripts/Get-CodeQLDiagnostics.ps1)
-
----
+- [CodeQL architecture](./codeql-architecture.md)
+- [CodeQL rollout checklist](./codeql-rollout-checklist.md)
+- [ADR-041: CodeQL Integration Multi-Tier Strategy](../.agents/architecture/ADR-041-codeql-integration.md), amended 2026-07-21 to two tiers.
+- [ADR-042: Python Migration Strategy](../.agents/architecture/ADR-042-python-migration-strategy.md)
+- [CodeQL documentation](https://codeql.github.com/docs/)
+- [GitHub CodeQL action](https://github.com/github/codeql-action)
 
 ## Support
 
-For issues or questions:
+For local setup failures, run diagnostics first:
 
-1. **Diagnostics**: Run `python3 .codeql/scripts/get_codeql_diagnostics.py`
-2. **Validation**: Run `python3 .codeql/scripts/test_codeql_config.py`
-3. **Documentation**: See [CodeQL documentation](https://codeql.github.com/docs/)
-4. **Repository Issues**: [GitHub Issues](https://github.com/rjmurillo/ai-agents/issues)
+```bash
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format markdown
+```
+
+For CI failures, inspect `.github/workflows/codeql-analysis.yml`, the uploaded SARIF artifact, and the GitHub Security tab.

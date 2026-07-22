@@ -87,7 +87,7 @@ Interpreter note: `python3 build/generate_agents.py` runs on bare python3 (no th
 |------------|-----|------|
 | `templates/agents/*.shared.md` | `python3 build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files. If the same agent exists in `src/claude/agents/`, hand-apply the equivalent edit there (ADR-036 manual sync; semantic drift CI is the only net). |
 | `.claude/skills/`, `.claude/commands/`, `.claude/rules/` | `uv run python build/scripts/build_all.py` | bump plugin versions (Phase 4), commit source + generated |
-| `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The pre-push guard `.claude/hooks/PreToolUse/invoke_hook_drift_guard.py` re-runs the hooks generator at `git push` time and blocks if shims under `src/copilot-cli/hooks/` drift, so regenerate BEFORE pushing. |
+| `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The `build-all-check` pre-push job in `lefthook.yml` re-runs `build_all.py --check` at `git push` time and blocks if any generated output (including shims under `src/copilot-cli/hooks/`) drifts, so regenerate BEFORE pushing. |
 | `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `python3 scripts/sync_plugin_lib.py` (writes `.claude/lib/`) THEN `uv run python build/scripts/build_all.py` (writes `src/copilot-cli/lib/`) | BOTH are required; skipping either fails the Validate Generated Files CI. Bump plugin versions. |
 | `src/claude/` (deliberate manual change) | nothing to regenerate | bump `src/claude/.claude-plugin/plugin.json` (Phase 4) |
 
@@ -107,7 +107,6 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-03
 | Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; named pre-push job in `lefthook.yml` |
 | Lib mirror drift | `scripts/` package edited without sync | `python3 scripts/sync_plugin_lib.py --check` | `validate-generated-agents.yml` |
 | Install parity | plugin install layout broken | `python3 scripts/validation/run_install_parity_ci.py` | `validate-generated-agents.yml` |
-| Hook shim drift at push time | hook source vs generated shims | automatic: `invoke_hook_drift_guard.py` on `git push` | same class re-checked by build_all `--check` in CI |
 | Manifest version parity | `.claude` vs `src/copilot-cli` plugin versions differ | `python3 build/scripts/check_plugin_manifest_parity.py` | `validate-generated-agents.yml`, `agent-drift-detection.yml` (fix for #2222) |
 | Plugin version bump | content change without semver bump | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
 | Semantic agent drift (src/claude) | hand-synced tree diverging in meaning | `python3 build/scripts/detect_agent_drift.py` | `drift-detection.yml`, weekly cron Monday 09:00 UTC (line 15); similarity threshold default 80 (detect_agent_drift.py:666), with a recorded-baseline floor so a clean checkout does not fail |
@@ -223,7 +222,6 @@ Verified 2026-07-03 against the working tree. Volatile facts and how to re-check
 | Drift CI wiring | .github/workflows/validate-generated-agents.yml:123,132,151,164; agent-drift-detection.yml:143-168 | `grep -n "python3" .github/workflows/validate-generated-agents.yml` |
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666 | `grep -n "cron" .github/workflows/drift-detection.yml` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
-| Hook drift push guard | .claude/hooks/PreToolUse/invoke_hook_drift_guard.py:1-25 | `head -25 .claude/hooks/PreToolUse/invoke_hook_drift_guard.py` |
 | Ruff exemption for generated Python | pyproject.toml:99-100 | `grep -n "src/copilot-cli" pyproject.toml` |
 | npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:12-17 | `grep -n "tags" .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |

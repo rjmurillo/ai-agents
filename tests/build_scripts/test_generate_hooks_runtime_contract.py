@@ -225,19 +225,18 @@ def test_sessionstart_rollback_runs_silently_with_side_effects(tmp_path: Path) -
     assert proc.stderr == ""
 
 
-def test_committed_sessionstart_timeout_includes_dispatcher_headroom() -> None:
-    """The shipped dispatcher has time beyond its four shim budgets."""
+def test_committed_pretooluse_timeout_includes_dispatcher_headroom() -> None:
+    """The shipped dispatcher has time beyond its shim budgets."""
     hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
     hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
     manifest = json.loads(
-        (hooks_root / "SessionStart" / "_manifest.json").read_text(encoding="utf-8")
+        (hooks_root / "PreToolUse" / "_manifest.json").read_text(encoding="utf-8")
     )
 
     shim_timeouts = list(manifest["timeouts"].values())
-    timeout_sec = hooks_doc["hooks"]["SessionStart"][0]["timeoutSec"]
+    timeout_sec = hooks_doc["hooks"]["PreToolUse"][0]["timeoutSec"]
 
-    assert shim_timeouts == [30, 30, 30, 30]
-    assert timeout_sec == 125
+    assert shim_timeouts
     assert timeout_sec > sum(shim_timeouts)
 
 

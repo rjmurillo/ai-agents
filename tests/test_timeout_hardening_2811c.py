@@ -1,9 +1,8 @@
-"""Subprocess timeout hardening, residual hook sites (issue #2943, deferred #2811).
+"""Subprocess timeout hardening, residual sites (issue #2943, deferred #2811).
 
-Every git call on a hook path (SessionStart / PreToolUse / PostToolUse) and the
-staged-file scan in detect_test_coverage_gaps must pass a timeout kwarg and
-degrade gracefully when the subprocess hangs, so a wedged git call can never
-hang the agent session. See issue #2943.
+Every remaining git call in the observation hook and the staged-file scan in
+detect_test_coverage_gaps must pass a timeout kwarg and degrade gracefully when
+the subprocess hangs. See issue #2943.
 """
 
 from __future__ import annotations
@@ -19,14 +18,11 @@ _HOOKS = _REPO / ".claude" / "hooks"
 
 # Match the import convention used by tests/hooks/* so every test shares one
 # module object per hook (avoids sys.modules pollution across the session).
-for _sub in ("PostToolUse", "PreToolUse", "SessionStart"):
-    _p = str(_HOOKS / _sub)
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_post_tool_use = str(_HOOKS / "PostToolUse")
+if _post_tool_use not in sys.path:
+    sys.path.insert(0, _post_tool_use)
 
-import invoke_adr_review_guard as _adr  # noqa: E402
 import invoke_observation_sync as _obs  # noqa: E402
-import invoke_session_initialization_enforcer as _sess  # noqa: E402
 
 import scripts.detect_test_coverage_gaps as _cov  # noqa: E402
 
@@ -72,41 +68,6 @@ def test_observation_sync_missing_git_refuses_unverified_cwd() -> None:
     ):
         result = _obs._get_repo_root()
     assert result is None
-
-
-# --- adr_review_guard.get_staged_adr_changes ------------------------------
-
-
-def test_adr_guard_passes_timeout() -> None:
-    with patch.object(_adr.subprocess, "run", return_value=_ok_result("")) as run:
-        _adr.get_staged_adr_changes()
-    assert run.call_args.kwargs.get("timeout") == 5
-
-
-def test_adr_guard_timeout_raises_runtime_error() -> None:
-    timeout = subprocess.TimeoutExpired(cmd="git", timeout=5)
-    with patch.object(_adr.subprocess, "run", side_effect=timeout):
-        try:
-            _adr.get_staged_adr_changes()
-        except RuntimeError as exc:
-            assert "timed out" in str(exc)
-        else:
-            raise AssertionError("expected RuntimeError on timeout")
-
-
-# --- session_initialization_enforcer.get_current_branch -------------------
-
-
-def test_session_enforcer_passes_timeout() -> None:
-    with patch.object(_sess.subprocess, "run", return_value=_ok_result("main")) as run:
-        _sess.get_current_branch()
-    assert run.call_args.kwargs.get("timeout") == 5
-
-
-def test_session_enforcer_timeout_returns_none() -> None:
-    timeout = subprocess.TimeoutExpired(cmd="git", timeout=5)
-    with patch.object(_sess.subprocess, "run", side_effect=timeout):
-        assert _sess.get_current_branch() is None
 
 
 # --- detect_test_coverage_gaps.get_staged_ps1_files -----------------------

@@ -1,0 +1,63 @@
+{
+  "id": "episode-2026-07-21-session-3275-repoint-smoke-auth-failfast",
+  "session": "2026-07-21-session-3275-repoint-smoke-auth-failfast",
+  "timestamp": "2026-07-21T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Revive the dead Copilot dogfood safety net (issue #3275). The nightly CLI smoke wired auth to SMOKE_* secrets that were never provisioned, so every run executed unauthenticated and the gate reported a misdiagnosed red. Per owner decision: repoint the workflow to the existing broad COPILOT_GITHUB_TOKEN and ANTHROPIC_API_KEY (repoint_broad), and make the e2e smokes fail fast with an accurate auth-absent headline instead of misdiagnosing a dead secret as a plugin-load or hook-resolution bug (fail_fast). Epic #3197.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repointed the nightly CLI smoke auth from the never-provisioned SMOKE_ANTHROPIC_API_KEY and SMOKE_COPILOT_CLI_TOKEN to the existing broad secrets.ANTHROPIC_API_KEY and secrets.COPILOT_GITHUB_TOKEN, with a comment explaining the repoint (issue #3275).",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a pytest-free auth-absent detector (copilot_auth_absent, copilot_auth_absent_headline) to the shared e2e probe module and wired it into both gated smokes so an empty auth token fails fast with an accurate headline instead of the misdiagnosing marker-miss or rc=1 message. Six always-on unit tests cover positive, token-hint, stream-swap/case, healthy, None-stream, and headline.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed six PR-review threads on #3294: gated copilot_auth_absent on returncode != 0 (no false positive when a healthy rc=0 run echoes a marker); added rc and stdout to the auth-absent headline (stdout-only failure stays actionable); scoped the unit-module sys.path insert with try/finally; replaced text=True with encoding=utf-8/errors=replace on both e2e subprocess.run calls (Windows cp1252 crash class); narrowed the workflow comment to COPILOT_GITHUB_TOKEN; added two unit tests. Replied to and resolved all threads; squash-merged as e07f8a56; #3275 auto-closed COMPLETED.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e07f8a56",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}

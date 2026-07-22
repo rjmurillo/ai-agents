@@ -371,6 +371,8 @@ def _original_main(stdin_bytes):
     on .md files after they are written or edited. This ensures consistent markdown
     formatting across the project without manual intervention.
 
+    Customer value: fixes consumer markdown errors immediately after file edits.
+
     Hook Type: PostToolUse
     Matcher: Write|Edit
     Filter: .md files only

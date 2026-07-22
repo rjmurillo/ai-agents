@@ -14,8 +14,7 @@ This rule is static steering only. It states a preference; nothing blocks a raw
 search at runtime. ADR-062 originally paired this rule with PreToolUse guards
 that hard-blocked Read, Grep, and Glob until an LSP was tried. The 2026-07-17
 amendment (issue #3214) retired that runtime enforcement layer and kept the
-steering. The per-turn Serena re-assertion nudge (issue #1993,
-`invoke_serena_reassertion.py`) still runs; this file does not duplicate it.
+steering.
 
 ## The three tiers
 
@@ -65,6 +64,4 @@ reachable, use grep or glob directly.
 - ADR-062 (conditional LSP-first navigation enforcement), amended 2026-07-17
   (issue #3214) to retire the runtime enforcement layer and keep this rule as
   static steering.
-- `.claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py` (#1993): the
-  per-turn Serena re-activation nudge that survives the enforcement retirement.
 - AGENTS.md (Serena Init is BLOCKING): the session-start activation.

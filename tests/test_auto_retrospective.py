@@ -129,8 +129,8 @@ class TestAutoRetrospective(unittest.TestCase):
         """The create path emits a Stop continuation prompting the model to fill.
 
         Block-and-fill: writing the skeleton is not enough on its own; the hook
-        prompts the in-session model to populate it. Mirrors the
-        invoke_session_validator {"decision": "block", "reason": ...} contract.
+        prompts the in-session model to populate it through the Stop-hook
+        ``{"decision": "block", "reason": ...}`` contract.
         """
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

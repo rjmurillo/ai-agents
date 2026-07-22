@@ -1,441 +1,383 @@
 # CodeQL Integration Rollout Checklist
 
-This checklist provides a systematic approach to deploying and validating the CodeQL security analysis integration across all tiers.
+This checklist validates the current CodeQL integration. The implementation uses Python scripts in `.codeql/scripts/`, shared config files in `.github/codeql/`, and a two-tier strategy from ADR-041 as amended on 2026-07-21.
+
+The automatic edit-time hook was retired on 2026-07-21. Do not include it in rollout, rollback, validation, or troubleshooting steps. Use explicit quick scans through `invoke_codeql_scan.py --quick-scan`.
+
+---
 
 ## Pre-Rollout
 
-Verify all prerequisites are met before beginning rollout:
+Verify all prerequisites before rollout:
 
-- [ ] **Implementation Complete**: All phases of CodeQL integration implemented
-  - [ ] CLI installation scripts (`Install-CodeQL.ps1`, `Install-CodeQLIntegration.ps1`)
-  - [ ] Scanning scripts (`Invoke-CodeQLScan.ps1`, `Test-CodeQLConfig.ps1`, `Get-CodeQLDiagnostics.ps1`)
-  - [ ] Shared configurations (`.github/codeql/codeql-config.yml`, `codeql-config-quick.yml`)
-  - [ ] CI/CD workflows (`.github/workflows/codeql-analysis.yml`, `test-codeql-integration.yml`)
-  - [ ] VSCode integration (`.vscode/tasks.json`, `.vscode/extensions.json`, `.vscode/settings.json`)
-  - [ ] Claude Code skill (`.claude/skills/codeql-scan/`)
-  - [ ] PostToolUse hook (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`)
+- [ ] **Implementation complete**
+  - [ ] CLI installer exists: `.codeql/scripts/install_codeql.py`
+  - [ ] Integration installer exists: `.codeql/scripts/install_codeql_integration.py`
+  - [ ] Scan script exists: `.codeql/scripts/invoke_codeql_scan.py`
+  - [ ] Config validator exists: `.codeql/scripts/test_codeql_config.py`
+  - [ ] Diagnostics script exists: `.codeql/scripts/get_codeql_diagnostics.py`
+  - [ ] Rollout validator exists: `.codeql/scripts/test_codeql_rollout.py`
+  - [ ] Shared config exists: `.github/codeql/codeql-config.yml`
+  - [ ] Quick config exists: `.github/codeql/codeql-config-quick.yml`
+  - [ ] CI workflow exists: `.github/workflows/codeql-analysis.yml`
+  - [ ] Integration test workflow exists: `.github/workflows/test-codeql-integration.yml`
+  - [ ] Claude Code skill exists: `.claude/skills/codeql-scan/`
 
-- [ ] **All Tests Passing**: Unit and integration tests verified
-  - [ ] `tests/test_install_codeql.py` passing
-  - [ ] `tests/test_invoke_codeql_scan_py.py` passing
-  - [ ] `tests/test_install_codeql_integration.py` passing
-  - [ ] `tests/test_test_codeql_rollout.py` passing
-  - [ ] Run: `uv run pytest tests/`
+- [ ] **Tests passing**
+  - [ ] CodeQL script unit tests pass.
+  - [ ] CodeQL skill tests pass.
+  - [ ] Rollout validator tests pass.
+  - [ ] Run targeted pytest command:
 
-- [ ] **Documentation Reviewed**: All documentation complete and accurate
+    ```bash
+    uv run pytest tests/test_install_codeql.py tests/test_install_codeql_integration.py tests/test_invoke_codeql_scan_py.py tests/test_test_codeql_config.py tests/test_get_codeql_diagnostics.py tests/test_test_codeql_rollout.py tests/skills/codeql-scan/test_invoke_codeql_scan_skill.py
+    ```
+
+- [ ] **Documentation reviewed**
   - [ ] User guide: `docs/codeql-integration.md`
-  - [ ] Architecture docs: `docs/codeql-architecture.md`
-  - [ ] ADR-041: `.agents/architecture/ADR-041-codeql-integration.md`
-  - [ ] AGENTS.md updated with CodeQL commands
+  - [ ] Architecture guide: `docs/codeql-architecture.md`
+  - [ ] Rollout checklist: `docs/codeql-rollout-checklist.md`
+  - [ ] ADR-041 amendment reflected: `.agents/architecture/ADR-041-codeql-integration.md`
+  - [ ] ADR-042 Python migration reference reflected: `.agents/architecture/ADR-042-python-migration-strategy.md`
 
-- [ ] **ADR Approved**: ADR-041 reviewed and accepted
-  - [ ] Multi-tier strategy rationale validated
-  - [ ] Alternatives considered documented
-  - [ ] Consequences understood and accepted
-  - [ ] Related decisions linked
+- [ ] **ADR status understood**
+  - [ ] ADR-041 remains the CodeQL strategy record.
+  - [ ] ADR-041 was amended on 2026-07-21 to two live tiers.
+  - [ ] ADR-042 supersedes the older scripting-language decision for new internal automation.
+  - [ ] Issue #3219 tracks the deferred portable automatic scanning rebuild.
 
 ---
 
 ## Rollout Steps
 
-### Step 1: Run Automated Validation
+### Step 1: Run Automated Deployment Validation
 
 ```bash
-python3 .codeql/scripts/test_codeql_rollout.py
+python3 .codeql/scripts/test_codeql_rollout.py --ci
 ```
 
-**Expected Result**: All checks pass (45/45)
+Optional JSON output:
 
-- [ ] **CLI Installation**:
-  - [ ] CodeQL CLI exists at `.codeql/cli/codeql`
-  - [ ] CLI version: v2.23.9 or later
-  - [ ] CLI executable (Unix systems)
+```bash
+python3 .codeql/scripts/test_codeql_rollout.py --format json --ci
+```
 
-- [ ] **Configuration**:
-  - [ ] Shared config exists (`.github/codeql/codeql-config.yml`)
-  - [ ] Quick config exists (`.github/codeql/codeql-config-quick.yml`)
-  - [ ] YAML syntax valid
-  - [ ] Query packs resolvable
+Expected result:
 
-- [ ] **Scripts**:
-  - [ ] All 5 required scripts exist
-  - [ ] Scripts executable (Unix systems)
-  - [ ] Pester tests exist (3 test files)
-
-- [ ] **CI/CD Integration**:
-  - [ ] CodeQL workflow exists (`.github/workflows/codeql-analysis.yml`)
-  - [ ] Test workflow exists (`.github/workflows/test-codeql-integration.yml`)
-  - [ ] SHA-pinned actions configured
-  - [ ] Shared config referenced in workflow
-
-- [ ] **Local Development**:
-  - [ ] VSCode extensions configured
-  - [ ] VSCode tasks configured
-  - [ ] VSCode settings configured
-  - [ ] Claude Code skill exists
-  - [ ] Skill script executable
-
-- [ ] **Automatic Scanning**:
-  - [ ] PostToolUse hook exists
-  - [ ] Hook script executable (Unix systems)
-  - [ ] Quick config referenced by hook
-
-- [ ] **Documentation**:
-  - [ ] User docs exist
-  - [ ] Developer docs exist
-  - [ ] ADR exists
-  - [ ] AGENTS.md updated
-
-- [ ] **Tests**:
-  - [ ] Unit tests discoverable
-  - [ ] Integration tests exist
-
-- [ ] **Gitignore**:
-  - [ ] CodeQL directories excluded (`.codeql/cli/`, `.codeql/db/`, `.codeql/results/`, `.codeql/logs/`)
+- [ ] Validator exits 0.
+- [ ] CLI installation checks pass.
+- [ ] Config file checks pass.
+- [ ] Script existence checks pass.
+- [ ] CI workflow checks pass.
+- [ ] Local development checks pass.
+- [ ] Documentation checks pass.
+- [ ] Gitignore checks pass for `.codeql/cli/`, `.codeql/db/`, `.codeql/results/`, and `.codeql/logs/`.
 
 ### Step 2: Verify CLI Installation
 
 ```bash
-python3 .codeql/scripts/install_codeql.py --add-to-path
+python3 .codeql/scripts/install_codeql.py --ci --force
 .codeql/cli/codeql version
 ```
 
-**Expected Output**:
+Expected result:
 
-```text
-CodeQL command-line toolchain release 2.23.9.
-```
+- [ ] CLI downloads successfully.
+- [ ] CLI executable exists at `.codeql/cli/codeql` on Linux.
+- [ ] `codeql version` prints a version.
 
-- [ ] CLI downloaded successfully
-- [ ] CLI version correct
-- [ ] CLI executable works
-
-### Step 3: Test Full Scan
-
-Run a full repository scan on a sample repository:
+### Step 3: Validate Full Configuration
 
 ```bash
-python3 .codeql/scripts/invoke_codeql_scan.py
+python3 .codeql/scripts/test_codeql_config.py --config-path .github/codeql/codeql-config.yml --ci
 ```
 
-**Expected Results**:
+Expected result:
 
-- [ ] Languages auto-detected (Python, GitHub Actions)
-- [ ] Databases created for each language
-- [ ] Analysis completed successfully
-- [ ] SARIF output generated at `.codeql/results/codeql-results.sarif`
-- [ ] Scan completed within 60 seconds
-- [ ] Exit code 0 (success)
+- [ ] Config file exists.
+- [ ] YAML is valid.
+- [ ] Query packs are resolvable.
+- [ ] Medium-or-higher filtering remains configured.
 
-**If Failures**:
-
-- Check diagnostics: `python3 .codeql/scripts/get_codeql_diagnostics.py`
-- Validate configuration: `python3 .codeql/scripts/test_codeql_config.py`
-- Review logs: `.codeql/logs/`
-
-### Step 4: Test Quick Scan with Caching
-
-Run a second scan to verify caching works:
+### Step 4: Validate Quick Configuration
 
 ```bash
-python3 .codeql/scripts/invoke_codeql_scan.py --use-cache
+python3 .codeql/scripts/test_codeql_config.py --config-path .github/codeql/codeql-config-quick.yml --ci
 ```
 
-**Expected Results**:
+Expected result:
 
-- [ ] Cached databases reused
-- [ ] Scan completed within 20 seconds (much faster than first scan)
-- [ ] Results consistent with full scan
-- [ ] Exit code 0 (success)
+- [ ] Quick config file exists.
+- [ ] YAML is valid.
+- [ ] Targeted query IDs are valid.
+- [ ] Low severity and recommendation filters remain configured.
 
-### Step 5: Verify VSCode Integration
+### Step 5: Test Full Local Scan
 
-Open the repository in VSCode:
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py --languages python actions --format console
+```
 
-- [ ] **Extensions Recommended**:
-  - [ ] VSCode prompts to install CodeQL extension
-  - [ ] Extension can be installed from recommendations
+Expected result:
 
-- [ ] **Tasks Available**:
-  - [ ] Run task: "CodeQL: Full Scan" (`Ctrl+Shift+P` -> "Tasks: Run Task")
-  - [ ] Task executes successfully
-  - [ ] Results appear in terminal
+- [ ] Databases are created under `.codeql/db`.
+- [ ] Results are written under `.codeql/results`.
+- [ ] Console output summarizes the scan.
+- [ ] Exit code is 0 when no scan failure occurs.
 
-- [ ] **Settings Applied**:
-  - [ ] CodeQL CLI path configured
-  - [ ] CodeQL extension recognizes CLI
+If the scan fails:
 
-### Step 6: Test Claude Code Skill
+```bash
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format markdown
+python3 .codeql/scripts/test_codeql_config.py --ci
+```
 
-In Claude Code session:
+### Step 6: Test Quick On-Demand Scan
+
+```bash
+python3 .codeql/scripts/invoke_codeql_scan.py --quick-scan --use-cache --format console
+```
+
+Expected result:
+
+- [ ] Script uses quick scan mode.
+- [ ] Default config switches to `.github/codeql/codeql-config-quick.yml`.
+- [ ] Cached databases are reused when valid.
+- [ ] Results are written under `.codeql/results`.
+- [ ] Scan finishes within the local 60 second default budget.
+
+### Step 7: Test Claude Code Skill
+
+In a Claude Code session:
 
 ```bash
 /codeql-scan
 ```
 
-**Or direct invocation**:
+Direct wrapper checks:
 
 ```bash
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py --operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick
 ```
 
-**Expected Results**:
+Expected result:
 
-- [ ] Skill loads without errors
-- [ ] Scan executes successfully
-- [ ] Results presented clearly
-- [ ] Exit code 0 (success)
-
-### Step 7: Verify PostToolUse Hook
-
-Trigger the hook by editing a Python or Actions file:
-
-1. Edit a `.py` or `.github/workflows/*.yml` file
-2. Observe console output after save
-
-**Expected Results**:
-
-- [ ] Hook triggers automatically after file edit
-- [ ] Quick scan executes (within 30 seconds)
-- [ ] Security warnings displayed (if any findings)
-- [ ] Non-blocking (can continue working immediately)
-- [ ] Graceful degradation if CLI unavailable
-
-**Test Graceful Degradation**:
-
-```bash
-# Temporarily rename CLI to test fallback
-mv .codeql/cli/codeql .codeql/cli/codeql.bak
-
-# Edit a Python file - hook should gracefully skip scan
-
-# Restore CLI
-mv .codeql/cli/codeql.bak .codeql/cli/codeql
-```
-
-- [ ] Hook does not crash when CLI unavailable
-- [ ] Workflow continues uninterrupted
+- [ ] Skill loads without errors.
+- [ ] Validate operation succeeds.
+- [ ] Full operation invokes the core scan path.
+- [ ] Quick operation invokes the targeted local scan path.
+- [ ] Results are clear enough for a developer to act.
 
 ### Step 8: Test CI/CD Workflow
 
-Create a test PR to validate CI integration:
+Use a normal PR that changes a scannable file. Do not create throwaway branches if a real rollout PR already exists.
+
+Expected workflow behavior:
+
+- [ ] `.github/workflows/codeql-analysis.yml` runs on the PR.
+- [ ] `check-paths` detects scannable file changes.
+- [ ] GitHub CodeQL action initializes with `.github/codeql/codeql-config.yml`.
+- [ ] CodeQL analysis runs for the workflow matrix.
+- [ ] SARIF is uploaded to `.codeql/results/<language>.sarif` in the workflow workspace.
+- [ ] SARIF artifact uploads with the `codeql-results-<language>` name.
+- [ ] GitHub Security tab receives uploaded results.
+- [ ] Required check reports pass or fails with actionable findings.
+
+For non-scannable changes:
+
+- [ ] `check-paths` reports no scannable files.
+- [ ] Skip job creates a passing check.
+- [ ] Required status checks are still satisfied.
+
+### Step 9: Test Integration Workflow
+
+The second workflow proves the local Python scripts work in CI.
+
+Expected workflow facts for `.github/workflows/test-codeql-integration.yml`:
+
+- [ ] Runs on `ubuntu-24.04` for CodeQL CLI jobs.
+- [ ] Installs the CLI with:
+
+  ```bash
+  python3 .codeql/scripts/install_codeql.py --ci --force
+  ```
+
+- [ ] Validates config with:
+
+  ```bash
+  python3 .codeql/scripts/test_codeql_config.py --ci
+  ```
+
+- [ ] Scans the language matrix `[actions, python]` with:
+
+  ```bash
+  python3 .codeql/scripts/invoke_codeql_scan.py --languages "$SCAN_LANGUAGE" --ci --format console
+  ```
+
+- [ ] Verifies SARIF files under `.codeql/results`.
+
+### Step 10: Review SARIF Output
+
+Inspect generated SARIF locally or from workflow artifacts:
 
 ```bash
-# Create test branch
-git checkout -b test/codeql-validation
-
-# Make a small change
-echo "# Test comment" >> README.md
-git add README.md
-git commit -m "test: verify CodeQL CI integration"
-
-# Push and create PR
-git push -u origin test/codeql-validation
-gh pr create --title "Test: CodeQL CI Integration" --body "Verify CodeQL workflow runs successfully"
+python3 - <<'PY'
+import json
+from pathlib import Path
+for path in Path('.codeql/results').glob('*.sarif'):
+    data = json.loads(path.read_text())
+    print(path, data.get('version'), len(data.get('runs', [])))
+PY
 ```
 
-**Expected Results**:
+Verify:
 
-- [ ] **Workflow Triggers**:
-  - [ ] CodeQL Analysis workflow runs automatically
-  - [ ] Workflow completes within 5 minutes
-
-- [ ] **Workflow Steps**:
-  - [ ] Checkout step succeeds
-  - [ ] Initialize CodeQL step succeeds
-  - [ ] Autobuild step succeeds (or manual build)
-  - [ ] Perform CodeQL Analysis step succeeds
-  - [ ] Upload SARIF step succeeds
-
-- [ ] **Results**:
-  - [ ] PR check shows green (or red if findings detected)
-  - [ ] SARIF uploaded to Security tab
-  - [ ] Results viewable in GitHub UI
-
-- [ ] **Blocking Behavior** (if critical findings):
-  - [ ] PR cannot be merged until resolved
-  - [ ] Clear error message shown
-
-### Step 9: Review SARIF Output
-
-Examine SARIF results:
-
-```bash
-cat .codeql/results/codeql-results.sarif | jq
-```
-
-**Verify**:
-
-- [ ] Valid SARIF 2.1.0 format
-- [ ] Contains runs for each scanned language
-- [ ] Results include rule ID, message, location
-- [ ] Severity levels populated (error, warning, note)
-- [ ] No sensitive information leaked (credentials, secrets)
+- [ ] SARIF version is present.
+- [ ] Each file has at least one run.
+- [ ] Results include rule ID, message, and location when findings exist.
+- [ ] No secrets are present in output.
+- [ ] Files are not staged for commit.
 
 ---
 
 ## Post-Rollout
 
-### Monitor First PR
+### Monitor First Production PR
 
-After rollout, monitor the next production PR:
-
-- [ ] **CodeQL Analysis Runs**:
-  - [ ] Workflow executes automatically
-  - [ ] Completes successfully (no timeouts)
-  - [ ] Results uploaded to Security tab
-
-- [ ] **Blocking Behavior Verified**:
-  - [ ] Critical findings block merge (if any found)
-  - [ ] Warning/note findings allow merge
-
-- [ ] **Developer Experience**:
-  - [ ] Results clear and actionable
-  - [ ] False positives minimal (< 10%)
-  - [ ] Performance acceptable (< 5 minute PR delay)
+- [ ] CodeQL Analysis workflow starts.
+- [ ] Path filtering behaves correctly.
+- [ ] Analysis completes without timeout.
+- [ ] SARIF uploads to the Security tab.
+- [ ] Required check behavior matches branch protection.
+- [ ] Findings are actionable.
 
 ### Verify SARIF Upload
 
 Check GitHub Security tab:
 
-- [ ] Navigate to repository -> Security -> Code scanning alerts
-- [ ] Verify CodeQL results appear
-- [ ] Check alert details are complete (location, recommendation, severity)
-- [ ] Verify alerts can be dismissed with reason
+- [ ] Navigate to repository -> Security -> Code scanning alerts.
+- [ ] Verify CodeQL results appear.
+- [ ] Check alert detail pages for file, line, rule, severity, and guidance.
+- [ ] Verify dismissal requires a reason.
 
 ### Validate Performance
 
-Check scan times across all tiers:
-
-| Tier | Target | Actual | Status |
+| Path | Target | Actual | Status |
 |------|--------|--------|--------|
-| **Full Scan (CI)** | < 60s | ______ | [ ] PASS |
-| **Quick Scan (Local)** | < 20s | ______ | [ ] PASS |
-| **Hook Scan (Auto)** | < 30s | ______ | [ ] PASS |
+| Tier 1 CI/CD analysis | 300 seconds or less | ______ | [ ] PASS |
+| Tier 2 local full scan | 60 seconds or less | ______ | [ ] PASS |
+| Tier 2 local quick scan | 60 seconds or less | ______ | [ ] PASS |
+| Cache reuse with `--use-cache` | Faster than rebuild | ______ | [ ] PASS |
 
-**If timeouts occur**:
+If timeouts occur:
 
-- [ ] Check database cache is working
-- [ ] Verify query pack selection (quick vs full)
-- [ ] Consider excluding large paths
-- [ ] Review `.codeql/logs/` for bottlenecks
+- [ ] Confirm the scan used the intended language list.
+- [ ] Confirm the config path is correct.
+- [ ] Run diagnostics.
+- [ ] Review `.codeql/results` and workflow logs.
+- [ ] Use quick scan for local iteration, not as a replacement for CI.
+
+```bash
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format markdown
+```
 
 ### Collect Developer Feedback
 
-Survey team members:
+Ask builders:
 
-- [ ] **Ease of Use**:
-  - [ ] Installation process clear?
-  - [ ] Documentation sufficient?
-  - [ ] VSCode integration helpful?
-
-- [ ] **Value**:
-  - [ ] Findings relevant?
-  - [ ] False positive rate acceptable?
-  - [ ] Caught real issues?
-
-- [ ] **Performance**:
-  - [ ] Scan times acceptable?
-  - [ ] Hook intrusive or helpful?
-  - [ ] CI delay tolerable?
+- [ ] Was CLI installation clear?
+- [ ] Did local scan output identify the next action?
+- [ ] Did quick scan feel fast enough for active development?
+- [ ] Did CI findings provide enough location and rule context?
+- [ ] Were false positives rare enough to keep trust?
 
 ---
 
 ## Success Criteria
 
-Mark rollout as successful when ALL criteria met:
+Mark rollout successful when all applicable criteria pass.
 
 ### Functional Criteria
 
-- [x] **All Validation Checks Pass**: `Test-CodeQLRollout.ps1` returns 45/45 checks passed
-- [ ] **CI/CD Workflow Completes**: First production PR shows green check for CodeQL
-- [ ] **SARIF Upload Successful**: Results visible in GitHub Security tab
-- [ ] **Local Development Works**: At least one developer successfully runs local scan
-- [ ] **Hook Functions**: PostToolUse hook executes without errors (or gracefully degrades)
+- [ ] `python3 .codeql/scripts/test_codeql_rollout.py --ci` exits 0.
+- [ ] `python3 .codeql/scripts/test_codeql_config.py --ci` exits 0.
+- [ ] `python3 .codeql/scripts/invoke_codeql_scan.py --languages python actions` completes without scan execution errors.
+- [ ] First production PR shows a CodeQL status check.
+- [ ] SARIF appears in the GitHub Security tab.
+- [ ] At least one developer or agent runs a local scan.
+- [ ] `/codeql-scan` skill loads and reaches the scan path.
 
 ### Performance Criteria
 
 | Metric | Target | Actual | Status |
 |--------|--------|--------|--------|
-| **Full Scan Duration** | < 60s | ______ | [ ] |
-| **Quick Scan Duration** | < 20s | ______ | [ ] |
-| **Hook Scan Duration** | < 30s | ______ | [ ] |
-| **Cache Hit Rate** | > 70% | ______ | [ ] |
-| **False Positive Rate** | < 20% | ______ | [ ] |
+| CI analysis budget | 300 seconds or less | ______ | [ ] |
+| Local full scan budget | 60 seconds or less | ______ | [ ] |
+| Local quick scan budget | 60 seconds or less | ______ | [ ] |
+| Cache reuse | Faster than rebuild | ______ | [ ] |
+| False positive rate | Below 20 percent | ______ | [ ] |
 
 ### Adoption Criteria
 
-- [ ] **Documentation Accessible**: At least 3 team members aware of CodeQL integration
-- [ ] **Local Usage**: At least 3 developers run local scan within first week
-- [ ] **Skill Adoption**: At least 1 developer uses `/codeql-scan` skill
-- [ ] **Zero Incidents**: No blocked PRs due to integration errors (findings are expected)
+- [ ] CodeQL docs are linked from the rollout PR.
+- [ ] At least one maintainer knows how to run the local scan.
+- [ ] At least one maintainer knows where SARIF appears in GitHub.
+- [ ] No rollout issue blocks unrelated PRs.
 
 ### Quality Criteria
 
-- [ ] **No False Positives in First 3 PRs**: Or < 10% of total findings are false positives
-- [ ] **Real Issues Found**: At least 1 legitimate security issue caught (validates value)
-- [ ] **Developer Satisfaction**: Feedback generally positive (no major complaints)
+- [ ] Docs mention the two live tiers only.
+- [ ] Docs point to Python scripts only.
+- [ ] Quick scan is documented as on-demand.
+- [ ] Automatic edit-time scanning is described only as retired.
+- [ ] ADR-041 and ADR-042 references are current.
 
 ---
 
 ## Rollback Plan
 
-If critical issues arise, follow this rollback procedure:
+Use the smallest rollback that restores developer flow.
 
-### Immediate Rollback (Emergency)
+### Immediate Rollback: CI Blocking Incorrectly
 
-**If CI/CD blocking all PRs incorrectly**:
+If CodeQL blocks PRs because of workflow failure or bad configuration:
 
 ```bash
-# Disable CodeQL workflow
 gh workflow disable codeql-analysis.yml
 ```
 
-**If PostToolUse hook causing crashes**:
+Then open a fix PR for the workflow or config. Keep local scanning available while CI is disabled.
 
-```bash
-# Temporarily disable hook
-mv ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py" ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py.disabled"
-```
+### Partial Rollback: Keep Local Scans Only
 
-### Partial Rollback
-
-**Keep Tier 2 (Local), disable Tier 1 (CI) and Tier 3 (Hook)**:
-
-- [ ] Disable CodeQL workflow: `gh workflow disable codeql-analysis.yml`
-- [ ] Disable PostToolUse hook: Rename or remove hook script
-- [ ] Keep local development tools (VSCode tasks, skill) for opt-in usage
+- [ ] Disable the CodeQL workflow with `gh workflow disable codeql-analysis.yml`.
+- [ ] Keep `.codeql/scripts/` for local scans.
+- [ ] Keep `.github/codeql/` for config validation and local scan consistency.
+- [ ] Keep `.claude/skills/codeql-scan/` for on-demand agent use.
+- [ ] Document the reason in the rollback PR.
 
 ### Full Rollback
 
-**Remove all CodeQL integration**:
+Only use full rollback if both CI and local scanning are broken and cannot be fixed quickly.
 
-```bash
-# Remove workflows
-rm .github/workflows/codeql-analysis.yml
-rm .github/workflows/test-codeql-integration.yml
+Move affected paths to a reviewed backup branch or restore them with git from the last known good commit. Do not delete local work with unsafe shell commands.
 
-# Remove configurations
-rm -r .github/codeql
+Paths involved:
 
-# Remove scripts
-rm -r .codeql/scripts
+- `.github/workflows/codeql-analysis.yml`
+- `.github/workflows/test-codeql-integration.yml`
+- `.github/codeql/`
+- `.codeql/scripts/`
+- `.claude/skills/codeql-scan/`
 
-# Remove CLI
-rm -r .codeql/cli
+Rollback PR checklist:
 
-# Remove VSCode integration
-# (Optional - doesn't hurt to keep)
-
-# Remove Claude integration
-rm -r .claude/skills/codeql-scan
-rm ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py"
-
-# Commit rollback
-git add .
-git commit -m "revert: remove CodeQL integration"
-git push
-```
+- [ ] Explain why rollback is needed.
+- [ ] Link the failing workflow run or local diagnostic output.
+- [ ] State which tier remains available, if any.
+- [ ] State the forward-fix plan.
 
 ---
 
@@ -443,8 +385,9 @@ git push
 
 - **User Guide**: [docs/codeql-integration.md](./codeql-integration.md)
 - **Architecture**: [docs/codeql-architecture.md](./codeql-architecture.md)
-- **ADR**: [.agents/architecture/ADR-041-codeql-integration.md](../.agents/architecture/ADR-041-codeql-integration.md)
-- **Validation Script**: [.codeql/scripts/Test-CodeQLRollout.ps1](../.codeql/scripts/Test-CodeQLRollout.ps1)
+- **ADR-041**: [.agents/architecture/ADR-041-codeql-integration.md](../.agents/architecture/ADR-041-codeql-integration.md)
+- **ADR-042**: [.agents/architecture/ADR-042-python-migration-strategy.md](../.agents/architecture/ADR-042-python-migration-strategy.md)
+- **Rollout Validator**: [.codeql/scripts/test_codeql_rollout.py](../.codeql/scripts/test_codeql_rollout.py)
 
 ---
 

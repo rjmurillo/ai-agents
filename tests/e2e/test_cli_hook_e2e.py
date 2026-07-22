@@ -70,6 +70,8 @@ _clean_env = copilot_hook_probe.clean_env
 _manifest = copilot_hook_probe.manifest
 _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
+_copilot_auth_absent = copilot_hook_probe.copilot_auth_absent
+_copilot_auth_absent_headline = copilot_hook_probe.copilot_auth_absent_headline
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
@@ -190,13 +192,16 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
             [resolve_executable("copilot"), "plugin", "install", str(plugin)],
             cwd=userland,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=240,
             check=False,
             env=env,
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot plugin install exceeded 240s (CLI/infra latency)")
+    if _copilot_auth_absent(install):
+        pytest.fail(_copilot_auth_absent_headline(install))
     assert install.returncode == 0, install.stderr or install.stdout
 
     try:
@@ -210,13 +215,16 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
             ],
             cwd=userland,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=240,
             check=False,
             env=env,
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
+    if _copilot_auth_absent(run):
+        pytest.fail(_copilot_auth_absent_headline(run))
 
     assert marker.is_file(), _copilot_failure_diagnostics(
         probe_name, plugin, userland, run, install_root

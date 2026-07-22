@@ -137,10 +137,12 @@ pre-commit:
               --files {staged_files}
             glob: "**/*"
 
-          - name: adr-change-advisory
+          - name: adr-review-policy
             timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py adr-reminder
-            glob: ".agents/architecture/ADR-*.md"
+            run: uv run --frozen python scripts/validation/git_hook_policy.py adr-review {staged_files}
+            glob:
+              - ".agents/architecture/ADR-*.md"
+              - ".agents/SESSION-PROTOCOL.md"
 
           - name: taste-advisory
             timeout: 5m
@@ -324,6 +326,10 @@ pre-push:
     - group:
         parallel: true
         jobs:
+          - name: retrospective-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py retrospective {push_files}
+
           - name: pre-pr-validation
             timeout: 15m
             run: uv run --frozen python scripts/validation/pre_pr.py

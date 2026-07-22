@@ -287,7 +287,7 @@ def _matcher_suffix(matcher: str | None) -> str:
     """Derive a filesystem-safe, collision-free suffix from a matcher.
 
     A single source script registered under multiple matchers (e.g.
-    ``invoke_session_log_guard.py`` against both ``Bash(git commit*)``
+    ``invoke_example_guard.py`` against both ``Bash(git commit*)``
     and ``Bash(gh pr create*)``) must produce DIFFERENT shimmed copies
     on disk; otherwise the second copy clobbers the first and only one
     matcher fires.

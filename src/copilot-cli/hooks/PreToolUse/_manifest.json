@@ -2,33 +2,9 @@
   "event": "PreToolUse",
   "mode": "gate",
   "shims": [
-    "invoke_false_completion_gate__Bash_gG_iI_tT_cC_oO_mM_mM_iI_tT_gG_iI_tT_cC_iI_g_1108b7.py",
-    "invoke_session_log_guard__Bash_gG_iI_tT_cC_oO_mM_mM_iI_tT_gG_iI_tT_cC_iI_g_ec29be.py",
-    "invoke_adr_review_guard__Bash_gG_iI_tT_cC_oO_mM_mM_iI_tT_gG_iI_tT_cC_iI_g_ec29be.py",
-    "invoke_security_commit_gate__Bash_gG_iI_tT_cC_oO_mM_mM_iI_tT_gG_iI_tT_cC_iI_g_ec29be.py",
-    "invoke_session_log_guard__Bash_gG_hH_pP_rR_cC_rR_eE_aA_tT_eE_gG_hH_exe_pP_de420a.py",
-    "invoke_retrospective_gate__Bash_git_push_0e93bf.py",
-    "invoke_markdownlint_guard__Bash_git_push_0e93bf.py",
-    "invoke_session_log_field_guard__Bash_git_push_0e93bf.py",
-    "invoke_pr_description_guard__Bash_git_push_0e93bf.py",
-    "invoke_install_parity_guard__Bash_git_push_0e93bf.py",
-    "invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py",
-    "invoke_hook_drift_guard__Bash_git_push_0e93bf.py",
-    "invoke_security_gate__Write_Edit_c39898.py"
+    "invoke_markdownlint_guard__Bash_git_push_0e93bf.py"
   ],
   "timeouts": {
-    "invoke_false_completion_gate__Bash_gG_iI_tT_cC_oO_mM_mM_iI_tT_gG_iI_tT_cC_iI_g_1108b7.py": 5,
-    "invoke_session_log_guard__Bash_gG_iI_tT_cC_oO_mM_mM_iI_tT_gG_iI_tT_cC_iI_g_ec29be.py": 30,
-    "invoke_adr_review_guard__Bash_gG_iI_tT_cC_oO_mM_mM_iI_tT_gG_iI_tT_cC_iI_g_ec29be.py": 30,
-    "invoke_security_commit_gate__Bash_gG_iI_tT_cC_oO_mM_mM_iI_tT_gG_iI_tT_cC_iI_g_ec29be.py": 10,
-    "invoke_session_log_guard__Bash_gG_hH_pP_rR_cC_rR_eE_aA_tT_eE_gG_hH_exe_pP_de420a.py": 30,
-    "invoke_retrospective_gate__Bash_git_push_0e93bf.py": 30,
-    "invoke_markdownlint_guard__Bash_git_push_0e93bf.py": 90,
-    "invoke_session_log_field_guard__Bash_git_push_0e93bf.py": 30,
-    "invoke_pr_description_guard__Bash_git_push_0e93bf.py": 90,
-    "invoke_install_parity_guard__Bash_git_push_0e93bf.py": 30,
-    "invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py": 30,
-    "invoke_hook_drift_guard__Bash_git_push_0e93bf.py": 30,
-    "invoke_security_gate__Write_Edit_c39898.py": 30
+    "invoke_markdownlint_guard__Bash_git_push_0e93bf.py": 90
   }
 }
