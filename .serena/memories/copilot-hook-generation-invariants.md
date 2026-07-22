@@ -86,14 +86,14 @@ Copilot CLI mirror rather than editing the generated file.
 ## Host contract boundaries
 
 Canonical generation inputs are `.claude/settings.json`,
-`.claude/hooks/dispatch_groups.json`, and
-`templates/platforms/copilot-cli.yaml`. Generated outputs are
+`.claude/hooks/hooks.json`, `.claude/hooks/dispatch_groups.json`, and
+`templates/platforms/copilot-cli.yaml`. A vendored registration must exist in
+both `hooks.json` and the referenced `plugin-*` dispatch group. Generated outputs are
 `src/copilot-cli/hooks/hooks.json` and `src/copilot-cli/hooks/<event>/`.
 
 - Current mappings include PreCompact.
-- Stop and SubagentStop remain direct host registrations. Consolidating
-  structured decisions can concatenate JSON objects and make Copilot ignore
-  the result.
+- Stop and SubagentStop remain direct if registered. Consolidating structured
+  decisions can concatenate JSON objects and make Copilot ignore the result.
 - PermissionRequest `ask` has no Copilot response equivalent. Emit no behavior
   so normal permission handling continues.
 - The PermissionRequest adapter accepts one complete JSON document independent

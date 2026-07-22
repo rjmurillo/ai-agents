@@ -4,9 +4,9 @@
 
 - **ADR**:
   `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`
-- **Review date**: 2026-07-19
+- **Review date**: 2026-07-22
 - **Review cycles**: Initial acceptance, contract hardening, observer output,
-  security policy
+  security policy, observer suppression, post-purge rebaseline
 - **Outcome**: Consensus
 - **Final status**: accepted
 - **Latest tally**: 6 Accept, 0 Disagree-and-Commit, 0 Block
@@ -353,6 +353,191 @@ headroom.
 | security | Accept | The dormant PermissionRequest adapter remains unregistered; any producer requires fresh review. |
 | analyst | Accept | Current counts, timeout arithmetic, and absence tests align with disk bytes. |
 | high-level-advisor | Accept | Historical counts remain inside dated sections; the current rebaseline is explicit. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
+## 2026-07-21 Observer Suppression and State Isolation Amendment
+
+This amendment reviewed the active dispatcher while issues #3295 and #3218
+plan hook removal and machinery retirement. Hardening remains justified because
+both issues are open and the dispatcher still runs 26 source registrations.
+
+### Related Work
+
+- PR #3292 carries the cross-harness contract and implementation changes.
+- Issue #3295 owns removal of the remaining non-LSP internal and advisory hooks.
+- Issue #3218 owns retirement of orphaned dispatcher, parity, and drift
+  machinery after #3295.
+- Issue #3217 owns migration of the surviving hook protections.
+
+Live GitHub issue reads corrected an earlier review statement that described
+#3218 as a hybrid benchmark. Its actual scope is machinery retirement.
+
+### Phase 1 Findings and Corrections
+
+- UserPromptSubmit stdout and stderr are discarded in dispatcher and direct
+  rollback modes. The host documents no model-context output field for this
+  event, and stderr model reach is docs silent.
+- SessionStart has a documented `additionalContext` field. Repository policy
+  still discards current producer output because it contains branch-controlled
+  text.
+- Copilot's memory-first SessionStart observer no longer increments Claude's
+  shared warning counter. The canonical hook checks `COPILOT_PLUGIN_ROOT`, and
+  a regression test proves `increment_invocation_count` is not called.
+- The discarded-stderr test now covers UserPromptSubmit as well as SessionStart
+  and PreCompact.
+- The retirement trigger is concrete: if #3295 leaves no event with more than
+  one shim, #3218 retires the dispatcher machinery.
+- Temporary-file capture has no hard quota. Same-user shim replacement is
+  outside the dispatcher security boundary. Per-shim duration telemetry waits
+  for a diagnostics channel that cannot enter model context.
+
+Some initial reviewers read stale files from another worktree. Their claims
+that the counter guard, its regression test, and branch-context removals were
+missing were rejected after absolute-path reads in the target worktree. The
+convergence round required every role to verify the branch and use absolute
+paths before voting.
+
+### Convergence Votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | ADR, code, tests, and frontmatter align. |
+| critic | Accept | No verified P0 or P1 remains. |
+| independent-thinker | Accept | Interim hardening is justified while retirement issues remain open. |
+| security | Accept | Prompt injection and cross-harness state paths are closed; residuals are explicit. |
+| analyst | Accept | Current claims, counts, issue scopes, and regression tests match source. |
+| high-level-advisor | Accept | The lifecycle states active hardening and planned retirement honestly. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. Consensus reached
+in one convergence round.
+
+## 2026-07-22 Post-Purge Rebaseline (Pre-Security-Removal Snapshot)
+
+This review occurred before the owner removed `observation_sync` from the
+vendored plugin later on 2026-07-22. Its three-source-registration inventory
+and one-process PostToolUse saving are historical.
+
+Issue #3295 closed after the hook purge. Live issue reads on 2026-07-22
+confirmed #3295 closed, while #3218 and #3217 remained open.
+
+The vendored Claude plugin now contains three source registrations across two
+events: one PreToolUse shim and two PostToolUse shims. The generated Copilot
+plugin contains two dispatcher registrations, one for each active event. Local
+`.claude/settings.json` remains a separate repository-only surface with five
+registrations across four events.
+
+The generated PreToolUse manifest now has one 90-second shim and a 95-second
+host request. A timeout can still let that tool call proceed on the measured
+Copilot CLI 1.0.72-1 host, but no later PreToolUse shim exists to bypass. The
+PostToolUse manifest has two 30-second shims and a 65-second host request.
+
+SessionStart, PreCompact, UserPromptSubmit, Stop, SubagentStop,
+PermissionRequest, SessionEnd, and PostToolUseFailure remain supported or tested
+adapter paths, not active vendored registrations. Historical counts in earlier
+dated review sections remain evidence of the tree reviewed at those dates. They
+are not current inventory claims.
+
+Issue #3218 now owns removal or simplification of dispatcher, parity, and drift
+machinery after the purge. ADR-068 remains accepted while that machinery still
+ships. Its value has narrowed from a many-hook optimization to a transitional
+compatibility layer.
+
+### Phase 1 Review
+
+All six required roles reviewed the post-purge draft against the working tree
+and live GitHub state.
+
+| Agent | Preliminary position | Main finding |
+|-------|----------------------|--------------|
+| architect | Accept | Current facts and accepted status align; add ADR-082 and a transition endpoint. |
+| critic | Accept | Correct the frontmatter date and closed #3075 ownership wording. |
+| independent-thinker | Disagree-and-Commit | The original economics have collapsed; quantify current value and define the exit condition. |
+| security | Accept | No P0 or P1 security finding; documented residuals remain accurate. |
+| analyst | Accept | Current arithmetic, inventory, issue state, and file references match evidence. |
+| high-level-advisor | Accept | Keep accepted while code ships; acknowledge low maintenance ROI near the top. |
+
+No reviewer raised a P0. The critic raised two P1 accuracy findings. The
+independent-thinker classified the economics and endpoint gaps as P1. The
+high-level-advisor ruled that the economics gap was P2 because the existing
+aggregate claim was accurate, but required the clarification as part of
+convergence.
+
+### Conflict Resolution and Corrections
+
+- Kept `status: accepted` and `implemented: true`. The dispatcher remains the
+  active runtime authority, and no successor ADR exists.
+- Updated the frontmatter date to 2026-07-22.
+- Changed #3075 from a present-tense owner to the closed delivery issue.
+- Added current per-event economics: PreToolUse saves no process start;
+  PostToolUse saves one.
+- Defined the endpoint: a change that removes or replaces the generated
+  dispatcher must mark ADR-068 deprecated or superseded and update ADR-082.
+- Added ADR-082 to Related Decisions.
+- Recorded the low complexity-to-value ratio as a negative consequence and
+  kept #3218 as the existing retirement owner.
+- Rejected a calendar deadline. A date without an external forcing function
+  would create stale governance text instead of completing the work.
+
+### Convergence Votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | The endpoint, ADR-082 dependency, and status wording now align. |
+| critic | Accept | Both P1 accuracy findings are corrected. |
+| independent-thinker | Accept | Immediate deprecation remains a P2 strategic preference, not a blocker. |
+| security | Accept | No correction weakens the threat model or revives a removed control. |
+| analyst | Accept | Current claims and generated artifacts match. |
+| high-level-advisor | Accept | The conflict is closed; no P0 or P1 remains. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. Consensus reached
+in one correction round.
+
+### Issue Resolution Summary
+
+| Priority | Count | Resolved | Deferred |
+|----------|------:|---------:|---------:|
+| P0 | 0 | 0 | 0 |
+| P1 | 3 | 3 | 0 |
+| P2 | 4 | 1 | 3 |
+
+The P1 set covered frontmatter date, closed-issue tense, and the missing
+transition endpoint. The current economics clarification resolved one P2.
+Existing issue #3218 owns machinery retirement and the remaining maintenance
+residuals. A future PermissionRequest producer must add its missing direct
+runtime test during the same security review that activates the adapter.
+
+## 2026-07-22 PR #3292 Release Convergence
+
+The six roles re-read the post-purge ADR, current source registrations,
+generated manifests, runtime probes, and release workflow before the final
+PR #3292 validation pass.
+
+### Corrections verified
+
+- The vendored source now has one PreToolUse shim and one PostToolUse shim.
+  Consolidation saves no current process start.
+- Issue #3218 must complete before the next feature change that adds or removes
+  a vendored registration or expands dispatcher behavior. Safety fixes remain
+  exempt.
+- The stale `retrospective_gate` group name now identifies
+  `markdownlint_guard` in canonical and generated manifests.
+- The current 90-second PreToolUse shim maps to a 95-second host request. The
+  current 30-second PostToolUse shim maps to a 35-second host request.
+- The final pinned real-CLI replay passed all five cases: three Copilot cases
+  and two Claude cases.
+
+### Final votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | Current mechanics, inventory, and #3218 trigger align. |
+| critic | Accept | The last workflow-gate P1 was fixed and test-locked. |
+| independent-thinker | Accept | The low-value transitional state is explicit. |
+| security | Accept | No P0 or P1 security finding remains. |
+| analyst | Accept | Current files falsified an earlier stale-index finding. |
+| high-level-advisor | Accept | The retirement trigger prevents dateless persistence. |
 
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.

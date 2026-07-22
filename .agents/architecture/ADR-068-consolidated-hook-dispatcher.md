@@ -1,7 +1,7 @@
 ---
 id: ADR-068
 status: accepted
-date: 2026-07-20
+date: 2026-07-22
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -20,12 +20,26 @@ Round 1 P0/P1 accuracy and provenance findings were corrected before the final
 vote. Review evidence and dissent are recorded in
 `.agents/critique/ADR-068-debate-log.md`.
 
-Three later amendments received their own six-role convergence reviews. The
+Five later amendments received their own six-role convergence reviews. The
 contract-hardening amendment closed at 6 Accept. The observer-output amendment
 also closed at 6 Accept after failed-observer output, merge semantics,
 alternatives, and residuals were made explicit. The security-policy amendment
 closed at 6 Accept after evidence, rejected replacements, human-governance
 limits, permission-prompt friction, and ADR-085 reconciliation were recorded.
+The observer-suppression and state-isolation amendment closed at 6 Accept after
+UserPromptSubmit output, SessionStart field provenance, cross-harness counter
+isolation, retirement triggers, and accepted dispatcher residuals were aligned
+with the implementation.
+
+The post-purge rebaseline also closed at 6 Accept after current economics,
+closed issue state, the ADR-082 dependency, and the retirement endpoint were
+made explicit.
+
+The decision remains active but transitional after the 2026-07-22 hook purge.
+The current one-shim PreToolUse and one-shim PostToolUse dispatchers save no
+process starts. Issue #3218 owns removal or simplification while this machinery
+still ships. The same change that removes or replaces the generated dispatcher
+must mark this ADR deprecated or superseded and update ADR-082's dependency.
 
 The security-policy amendment removes test-runner auto-approval from both
 harnesses. Test runners execute repository-controlled code, so an exact command
@@ -40,7 +54,7 @@ reviewed policy.
 
 ## Date
 
-2026-06-02; amended 2026-07-20
+2026-06-02; amended 2026-07-22
 
 ## Context
 
@@ -58,17 +72,21 @@ The proposal-era measurements were:
 - HISTORICAL sequential aggregate of about 8.7 seconds.
 
 Those numbers explain the original decision but do not describe the current
-tree. The current generated tree contains 26 source registrations across six
-events: PostToolUse 2, PreCompact 1, PreToolUse 13, SessionStart 4, Stop 2,
-and UserPromptSubmit 4. The generated `hooks.json` exposes five dispatcher
-entries plus two direct Stop entries. This reduces 26 host command
-registrations to 7, or 73.1 percent.
+tree. PR #3295 completed the hook purge on 2026-07-22. The vendored Claude
+plugin source now contains two registrations across two events: one
+PreToolUse shim and one PostToolUse shim. The generated Copilot plugin exposes
+one dispatcher entry for each event. Consolidation therefore saves no current
+host process start.
 
-The two current PostToolUse producers,
-`invoke_markdown_auto_lint.py` and `invoke_observation_sync.py`, emit plaintext
-diagnostics rather than `modifiedResult` or pre-structured hook JSON. The
-observer merger handles that current text contract only. A field-bearing
-producer changes the dispatcher boundary.
+Local `.claude/settings.json` is a separate repository-only surface. It contains
+five registrations across SessionStart, PostToolUse, Stop, and PreCompact. The
+Copilot plugin generator reads the vendored plugin source, not these local
+settings.
+
+The current PostToolUse producer, `invoke_markdown_auto_lint.py`, emits
+plaintext diagnostics rather than `modifiedResult` or pre-structured hook
+JSON. The observer merger handles that current text contract only. A
+field-bearing producer changes the dispatcher boundary.
 
 Copilot CLI 1.0.72-1 changed two relevant host behaviors:
 
@@ -94,12 +112,12 @@ events and execute those shims in process through
    registered shim order. `_dispatch.py` reads stdin once and delegates each
    named shim to `hook_dispatch.py`, which uses
    `runpy.run_path(str(shim_path), run_name="__main__")`. Configured `Stop` and
-   `SubagentStop` targets bypass consolidation. The current source tree has two
-   Stop registrations and no SubagentStop registration. Native `agentStop` and
-   `subagentStop` names are defensive exclusions if future mappings target
-   them. Copilot removes progress records, concatenates remaining stdout, then
-   parses one JSON document per command hook. A dispatcher that passes through
-   multiple Stop decisions would produce invalid JSON and discard them.
+   `SubagentStop` targets bypass consolidation. The current vendored source has
+   neither event. Native `agentStop` and `subagentStop` names are defensive
+   exclusions if future mappings target them. Copilot removes progress records,
+   concatenates remaining stdout, then parses one JSON document per command
+   hook. A dispatcher that passes through multiple Stop decisions would produce
+   invalid JSON and discard them.
 
 2. **Host matcher union plus per-shim self-filtering.** For `PreToolUse`,
    `PostToolUse`, and `PermissionRequest`, the generator emits a host-side
@@ -109,8 +127,8 @@ events and execute those shims in process through
    matcher. A supporting host can then avoid nonmatching dispatcher spawns.
    A host that ignores the field, and every no-matcher fallback, still invokes
    the dispatcher. The retained generated shims remain the final matcher
-   authority and self-filter in process. Issue #3075 owns the host-union
-   optimization.
+   authority and self-filter in process. Closed issue #3075 delivered the
+   host-union optimization.
 
    Manifest order preserves canonical registration order. The dispatcher does
    not infer a security priority from file names or reorder guards.
@@ -126,30 +144,32 @@ events and execute those shims in process through
      unexpected dispatcher exception returns 2. If every registered shim
      returns 0, the dispatcher returns 0.
    - `observe`, used only by the explicit PostToolUse, PreCompact,
-     SessionStart, and UserPromptSubmit allowlist, runs every shim. Missing
-     shims and nonzero exits are
+     SessionStart, and UserPromptSubmit allowlist, runs every shim. Only
+     PostToolUse has active vendored registrations. The other adapters remain
+     tested but dormant. Missing shims and nonzero exits are
      reported to stderr, but do not stop siblings. Normal observer dispatch
      returns 0. Entrypoint or manifest validation failure still returns 2,
      after which the host applies that event's policy. PostToolUse captures
      nonblank stdout only from successful shims, preserves registration order,
      and emits one documented `additionalContext` object. The merger creates
      flat text separated by one blank line. It does not preserve per-shim
-     attribution. SessionStart and PreCompact capture Python stream output,
-     direct writes to file descriptor 1, inherited child-process stdout,
-     Python stderr, direct writes to file descriptor 2, and inherited
-     child-process stderr, then discard the raw content. Normal discard
-     diagnostics name the lifecycle event and never repeat the content.
+     attribution. SessionStart, PreCompact, and UserPromptSubmit capture Python
+     stream output, direct writes to file descriptor 1, inherited child-process
+     stdout, Python stderr, direct writes to file descriptor 2, and inherited
+     child-process stderr, then discard the raw content. SessionStart has a
+     documented `additionalContext` field, but repository policy rejects the
+     current branch-controlled producer text as model context. PreCompact and
+     UserPromptSubmit have no documented config-file output field. Normal
+     discard diagnostics name the lifecycle event and never repeat the content
+     if a future vendored source activates one of these adapters.
      Capture-failure and observer-exit diagnostics are fixed but can be generic.
      Silent observers emit nothing. Partial output from a failing observer is
      discarded.
-     UserPromptSubmit has no documented
-     config-file output field, so successful shim stdout is redirected to
-     stderr. Its side effects still run. Stderr is not a documented
-     model-context path, and whether it enters model context remains docs
-     silent. Any event outside the explicit mode allowlists stays as direct host
-     registrations until its output and failure contracts are reviewed. A
-     future `modifiedResult` or pre-structured JSON producer must add a
-     field-specific merger or remain direct.
+     Static instructions own equivalent Copilot guidance. Any event outside the
+     explicit mode allowlists stays as direct host registrations until its output
+     and failure contracts are reviewed. A future `modifiedResult` or
+     pre-structured JSON producer must add a field-specific merger or remain
+     direct.
    - `advise`, used by `PermissionRequest`, requires exactly one decision
      producer. A recognized exit-0 Claude object
      `{"decision":"approve|deny|ask","reason":"R"}` becomes
@@ -165,11 +185,10 @@ events and execute those shims in process through
 4. **No in-process budget watchdog.** The manifest records positive,
    non-boolean integer timeout metadata. The consolidated host entry uses the
    sum of per-shim timeout values plus five seconds of dispatcher headroom. The
-   current PreToolUse manifest has 13 shims whose configured values sum to 465
-   seconds, so the generated host entry requests 470 seconds. The host owns the
-   aggregate process timeout. The 1.0.72-1 probe tested only a 2-second timeout.
-   No evidence proves the host grants, caps, or enforces the requested 470
-   seconds.
+   current PreToolUse manifest has one shim with a 90-second configured value,
+   so the generated host entry requests 95 seconds. The host owns the aggregate
+   process timeout. The 1.0.72-1 probe tested only a 2-second timeout. No
+   evidence proves the host grants, caps, or enforces the requested 95 seconds.
    There is no `COPILOT_HOOK_DISPATCH_BUDGET_MS`, 1500 ms default, `SIGALRM`,
    watchdog thread, or structured `budget_exceeded` result.
    In-process termination was rejected because a watchdog thread cannot safely
@@ -235,11 +254,11 @@ process would restore termination isolation but also restore the spawn cost
 this ADR removes.
 
 The remaining timeout boundary is therefore the host process. On the measured
-Copilot CLI 1.0.72-1 behavior, a host timeout fails open. In the worst manifest
-order, a hung first PreToolUse shim can prevent up to 12 later registered shims
-from running, including any applicable guard among them. The host can then
-allow the tool. Consolidation increases this blast radius. It does not claim
-universal fail-closed behavior.
+Copilot CLI 1.0.72-1 behavior, a host timeout fails open. The current
+PreToolUse manifest has one shim, so a hang cannot bypass a later PreToolUse
+shim. The host can still allow the tool whose only gate timed out. Consolidation
+therefore adds no current intra-event gate bypass, but the host fail-open
+residual remains.
 
 ## Prior Art and Current Rationale
 
@@ -249,7 +268,9 @@ registration count, not canonical guard authorship or matcher semantics.
 
 The current reasons to keep the dispatcher are:
 
-1. One host process per event avoids repeated Python startup.
+1. One implementation path preserves reviewed dispatch and output policy for
+   active events. With one shim per active event, it saves no current process
+   start.
 2. Per-shim self-filtering provides a fallback for old hosts and matchers that
    cannot be represented safely as a host union.
 3. Generic PermissionRequest translation prevents future policy producers from
@@ -265,10 +286,10 @@ The current reasons to keep the dispatcher are:
 | Run each guard in a child process | Rejected because it restores the process-spawn cost and complexity. |
 | Persistent daemon | Rejected because lifecycle, IPC, stale state, and recovery exceed the current need. |
 | Keep output-bearing observers direct | Required unless an event-specific merger preserves one valid JSON document. |
-| Keep PreCompact direct with shell suppression | Rejected as the normal mode because it restores repeated startup. Retained as the behavior-preserving rollback shape. |
-| Keep UserPromptSubmit direct | Rejected because plaintext output has no documented host field and direct entries restore repeated startup. |
-| Discard observer stdout by default | Rejected. Only SessionStart and PreCompact have reviewed discard policies. UserPromptSubmit uses stderr, and unclassified events stay direct. |
-| Consolidate observers but direct-register every PreToolUse gate | Reduces aggregate gate blast radius, but restores one host process per gate and the startup cost this ADR addressed. Re-evaluate under #3218 using the decision rule below. |
+| Keep PreCompact direct with shell suppression | Rejected as the normal mode when a vendored source exists because it restores repeated startup. Retained as a tested rollback shape. |
+| Keep UserPromptSubmit direct | Rejected when a vendored source exists because plaintext output has no documented host field and direct entries restore repeated startup. |
+| Discard observer stdout by default | Rejected. Dormant SessionStart, PreCompact, and UserPromptSubmit adapters have reviewed discard policies. Active PostToolUse uses `additionalContext`, and unclassified events stay direct. |
+| Consolidate observers but direct-register every PreToolUse gate | The current PreToolUse inventory is one shim, so direct registration would not increase gate process count. Issue #3218 owns removal or simplification of the now-low-value dispatcher machinery. |
 | Reorder guards by perceived risk, or split selected critical gates | No stable criticality contract exists, and reordering only changes which later guards a hang bypasses. A split is a narrower form of the hybrid and needs the same measurement. |
 | Tighten test-runner command matching | Rejected because a narrower pattern keeps the same trust flaw. A command name cannot prove the code executed by the runner is safe. |
 | Replace the hook with `permissions.allow` (#3192, #3217) | Rejected for test runners because it recreates the same trust flaw on a declarative surface. |
@@ -280,8 +301,8 @@ The current reasons to keep the dispatcher are:
 
 ### Positive
 
-- The current tree reduces 26 source registrations to seven host command
-  entries.
+- The current vendored tree keeps one host entry per active event and preserves
+  one generation path for future safely consolidatable events.
 - Hosts that support matchers can skip a dispatcher spawn for safely reduced
   nonmatching tool calls.
 - Retained self-filtering keeps the generated shim matcher grammar as the
@@ -299,30 +320,35 @@ The current reasons to keep the dispatcher are:
 ### Negative
 
 - One dispatcher defect affects every shim registered for that event.
-- One hung consolidated gate can reach the host timeout before later guards
-  execute. On the measured 1.0.72-1 host, that timeout fails open. A first-shim
-  hang can bypass up to 12 later registered PreToolUse shims.
+- The current complexity-to-value ratio is low. Neither active event saves a
+  process start. Issue #3218 owns removal or simplification.
+- One hung consolidated gate can reach the host timeout. On the measured
+  1.0.72-1 host, that timeout fails open. The current one-shim PreToolUse
+  manifest has no later gate to bypass, but its tool call can still proceed.
 - In-process guards share interpreter state, stdin replay, and module state.
-- The current PreToolUse manifest values sum to 465 seconds. The generated host
-  entry requests 470 seconds after five seconds of dispatcher headroom. No
+- The current PreToolUse manifest value is 90 seconds. The generated host entry
+  requests 95 seconds after five seconds of dispatcher headroom. No
   current evidence shows whether the host grants, caps, or enforces it.
 - The observer merger treats PostToolUse stdout as context text. The flat
   blank-line merge loses per-shim attribution. It does not merge
   `modifiedResult` or pre-structured JSON.
-- SessionStart and PreCompact stdout and stderr are discarded on Copilot.
-  Capture covers Python streams, direct writes to file descriptors 1 and 2,
-  and inherited child-process output on both channels. Current producers load
-  branch-controlled session state, so sending that text through a host-visible
-  output channel would create a prompt-injection path.
+- Dormant SessionStart, PreCompact, and UserPromptSubmit adapters discard stdout
+  and stderr if a future vendored source activates them. Capture covers Python
+  streams, direct writes to file descriptors 1 and 2, and inherited
+  child-process output on both channels.
 - PostToolUseFailure remains direct. Generic observe mode discards nonzero-shim
   stdout, but the host converts exit-2 stdout for this event into recovery
   context.
-- Observer stdout has no repository-enforced size ceiling. Registered shims are
-  generated, trusted artifacts, but a defective shim can produce an oversized
-  host response.
-- UserPromptSubmit text is diagnostic-only on Copilot because the official
-  config-file contract documents no output field for that event. Whether stderr
-  enters model context remains docs silent.
+- Observer capture uses temporary files and has no per-shim output ceiling.
+  Registered shims are trusted executable plugin content, but a defective shim
+  can fill local storage or produce an oversized PostToolUse host response.
+- The dispatcher does not pin a shim inode between the manifest check and
+  `runpy`. A same-user writer who can replace a plugin shim can also replace its
+  imported modules, so file identity is not a separate security boundary.
+- Discard telemetry records content-free stderr metadata and the real exit code.
+  The dispatcher does not emit per-shim start, finish, or duration events.
+  Sending one event per successful shim through host stderr would add noise to
+  every tool call without a documented diagnostics side channel.
 - Unclassified future events remain direct. This preserves host-defined output
   and exit semantics until an event-specific review authorizes consolidation.
 - Test-runner commands now use normal host permission prompts. This is accepted
@@ -337,20 +363,19 @@ The current reasons to keep the dispatcher are:
 - Guard nonzero exits keep their values in gate and advise modes.
 - Observer shim failures remain diagnostics rather than gates during normal
   dispatch.
-- PreCompact generation follows the official event contract. The 1.0.72-1
-  trigger probe was inconclusive.
+- PreCompact remains a supported dormant adapter based on the official event
+  contract. The 1.0.72-1 trigger probe was inconclusive.
 
 ## Reversibility and Rollback
 
 The decision owns no persistent data. Setting `artifacts.hooks.dispatcher` to
 false and regenerating restores per-shim `hooks.json` registrations. Direct
-SessionStart and PreCompact commands retain every producer and its side effects,
+SessionStart, PreCompact, and UserPromptSubmit test fixtures retain side effects,
 but the generator appends shell-level stdout and stderr redirection before the
 Python process starts. This also suppresses direct file-descriptor and inherited
-child-process output. The generation-level rollback test executes the direct
-SessionStart command, proves its file side effect, and proves both captured
-channels are empty. Direct UserPromptSubmit commands redirect stdout to stderr.
-Do not remove lifecycle registrations as a rollback step.
+child-process output. The generation-level rollback test creates a dormant
+SessionStart source, executes its direct command, proves its file side effect,
+and proves both captured channels are empty.
 Existing dispatcher support files become unregistered artifacts and must be
 removed only through an ownership-proven generator change, not a hand deletion.
 
@@ -369,23 +394,30 @@ Reopen this decision when any of these occurs:
 
 1. A material Copilot CLI version changes matcher, timeout, nonzero-exit, or
    structured-output behavior.
-2. The active PreToolUse manifest grows beyond 13 shims or its summed requested
-   timeout grows beyond 465 seconds.
+2. The active PreToolUse manifest grows beyond one shim or its summed requested
+   timeout grows beyond 90 seconds.
 3. A new PermissionRequest producer or a new blocking gate joins the
    consolidated path.
 4. A PostToolUseFailure producer emits repository-controlled or other untrusted
    content. Its direct exit-2 stdout becomes model recovery context and requires
    security review.
-5. #3218 produces a Linux and Windows comparison of the current dispatcher and
-   the hybrid direct-gate alternative.
+5. Issue #3218 starts implementation. The vendored source now has one
+   PreToolUse shim and one PostToolUse shim. The retirement issue owns removal
+   or simplification of dispatcher, translation, parity, and drift machinery.
+   It must complete before the next feature change that adds or removes a
+   vendored registration or expands dispatcher behavior. Safety fixes remain
+   allowed while retirement is in progress.
+6. Untrusted extension authors gain write access to the packaged hook tree, or
+   observer output requires a hard storage quota.
+7. The host adds a diagnostics side channel that can carry per-shim duration
+   events without entering model context.
 
-For #3218, declare the interactive latency budget before running the comparison.
-Measure p50, p95, and p99 latency, host-process count, and maximum later-gate
-bypass for both modes on the same CLI version and workload. Adopt the hybrid
-only if every direct gate's p99 stays below half the shortest observed host
-timeout and total p95 stays inside the predeclared user-facing latency budget.
-Otherwise retain consolidation and record the rejected measurement. No current
-benchmark means no architecture change.
+Live GitHub verification on 2026-07-22 confirms that #3295 is closed and #3218
+remains open. The latter owns retirement of orphaned dispatcher machinery. It
+does not own a hybrid benchmark. Sources:
+<https://github.com/rjmurillo/ai-agents/issues/3295> and
+<https://github.com/rjmurillo/ai-agents/issues/3218>. Retirement is planned but
+not complete.
 
 ## Impact on Dependent Components
 
@@ -397,9 +429,10 @@ benchmark means no architecture change.
 | `src/copilot-cli/lib/hook_dispatch.py` | Generated runtime mirror, regenerated from `.claude/lib/hook_dispatch.py` | High |
 | `build/scripts/generate_hooks.py` | CLI facade and module-level generation contract | Medium |
 | `src/copilot-cli/hooks/**` | Generated manifests, entrypoints, bootstrap copies, and retained shims | Medium |
-| `.claude/settings.json` | Claude hook registrations; must not carry the removed test-runner approval | Medium |
-| `.claude/hooks/hooks.json` | Plugin hook registrations; must not carry the removed test-runner approval | Medium |
+| `.claude/settings.json` | Repository-only Claude registrations; not an input to Copilot plugin generation | Medium |
+| `.claude/hooks/hooks.json` | Two vendored plugin registrations; must not carry removed or local-only hooks | Medium |
 | `.claude/hooks/dispatch_groups.json` | Grouped hook source; must not carry the removed approval producer | Medium |
+| `.claude/rules/lsp-first.md` | Static cross-harness source for Serena symbolic-tool steering | Medium |
 | `.claude/skills/agent-harness-reference/references/official-hook-contracts.md` | Pinned output-field authority and docs-silent ledger | High |
 | `tests/test_hook_dispatch.py` | In-process output-policy and merger contract tests | High |
 | `tests/build_scripts/test_copilot_dispatcher_artifact.py` | Proves the producer, generated event directory, and all permission allow rules remain absent | High |
@@ -430,17 +463,19 @@ important ways:
    from an assertion that the committed authenticated E2E was run.
 7. Generic PermissionRequest tests translate approve and deny. Ask produces no
    output. No PermissionRequest producer is registered in either harness.
-8. PreCompact is a supported generated observe event based on the official
-   contract. The 1.0.72-1 trigger probe was inconclusive.
+8. PreCompact is a supported but dormant generated observe event based on the
+   official contract. The 1.0.72-1 trigger probe was inconclusive.
 9. Observe mode merges PostToolUse text into one `additionalContext` response.
    Only successful shims contribute; failed-shim partial output is discarded.
-   SessionStart and PreCompact capture includes Python stdout and stderr,
-   direct writes to file descriptors 1 and 2, and inherited child-process
-   output on both channels. Their text is discarded because current producers
-   load branch-controlled repository prose. Normal discard diagnostics name the
-   actual event and never repeat captured content. Capture-failure and
-   observer-exit diagnostics remain fixed but can be event-neutral.
-   UserPromptSubmit text is redirected to stderr.
+   Dormant SessionStart and PreCompact adapters capture Python stdout and
+   stderr, direct writes to file descriptors 1 and 2, and inherited
+   child-process output on both channels. Their text is discarded. Normal
+   discard diagnostics name the actual event and never repeat captured content.
+   Content-bearing discarded stderr emits a fixed `EVENT=` record with the
+   observer exit code and no raw content. Capture-failure and observer-exit
+   diagnostics remain fixed but can be event-neutral. The dormant
+   UserPromptSubmit adapter also discards both channels because no output field
+   is documented and stderr model reach is docs silent.
    PostToolUseFailure stays direct so exit-2 recovery context reaches the host.
    Every unclassified event stays direct. A new field-bearing producer requires
    a field-specific merger or direct registration.
@@ -458,6 +493,8 @@ important ways:
 - ADR-066: prevention-first launcher policy. It does not override measured
   host timeout behavior.
 - ADR-071: version-scoped hook runtime contract and evidence.
+- ADR-082: Claude-side grouped dispatch reuses dispatcher helpers. Any
+  retirement change must preserve or replace that dependency.
 - ADR-035: repository exit-code categories.
 - ADR-084: host-native mechanism preference applies only when the effect is
   equivalent.
