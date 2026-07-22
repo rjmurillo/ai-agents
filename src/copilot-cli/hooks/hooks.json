@@ -4,8 +4,9 @@
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/PostToolUse/_dispatch.py\"",
         "cwd": ".",
+        "matcher": "Write|Edit",
         "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/PostToolUse/_dispatch.py\"",
-        "timeoutSec": 65,
+        "timeoutSec": 35,
         "type": "command"
       }
     ],
