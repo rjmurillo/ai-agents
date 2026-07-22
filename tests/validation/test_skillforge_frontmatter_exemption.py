@@ -92,6 +92,23 @@ def test_removing_only_field_leaving_empty_frontmatter_is_not_exempt(
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
 
 
+def test_comment_only_new_frontmatter_is_not_exempt(monkeypatch, tmp_path):
+    # Non-empty raw frontmatter that yaml-loads to an empty dict (comment only)
+    # must be validated, not treated as a model-pin-only change.
+    old = _doc("model: claude-haiku-4-5\nmodel-rationale: cost.\n", _BODY)
+    new = _doc("# only a comment, no fields\n", _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+def test_whitespace_only_new_frontmatter_is_not_exempt(monkeypatch, tmp_path):
+    # Whitespace-only frontmatter also yaml-loads to an empty dict; validate it.
+    old = _doc("model: claude-haiku-4-5\nmodel-rationale: cost.\n", _BODY)
+    new = _doc("   \n", _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
 def test_identical_blob_is_not_exempt(monkeypatch, tmp_path):
     doc = _doc("model: haiku\n", _BODY)
     _patch_blobs(monkeypatch, doc, doc)

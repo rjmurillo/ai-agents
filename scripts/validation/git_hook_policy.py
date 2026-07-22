@@ -571,7 +571,11 @@ def _only_model_pin_fields_changed(
 ) -> bool:
     old_fields = _parse_frontmatter(old_frontmatter)
     new_fields = _parse_frontmatter(new_frontmatter)
-    if old_fields is None or new_fields is None:
+    # Require both parsed dicts non-empty (falsy covers None and {}). Comment-only
+    # or whitespace-only frontmatter yaml-loads to an empty dict; treating that as
+    # a model-pin-only change would skip validation on a SKILL.md that effectively
+    # has no frontmatter fields, which is invalid and must be validated.
+    if not old_fields or not new_fields:
         return False
     changed = {
         key
