@@ -3835,7 +3835,7 @@ def _write_source(tmp_path: Path, name: str = "source.py") -> None:
     (tmp_path / name).write_text("value: int = 1\n", encoding="utf-8")
 
 
-def test_parse_added_lines_maps_hunks_to_files() -> None:
+def test_parse_changed_lines_maps_hunks_to_files() -> None:
     diff = (
         "diff --git a/pkg/a.py b/pkg/a.py\n"
         "--- a/pkg/a.py\n"
@@ -3852,11 +3852,27 @@ def test_parse_added_lines_maps_hunks_to_files() -> None:
         "-deleted only, no additions\n"
     )
 
-    added = policy._parse_added_lines(diff)
+    changed = policy._parse_changed_lines(diff)
 
-    assert added["pkg/a.py"] == {2, 11, 12}
-    # Pure deletion hunk (+5,0) contributes no added lines.
-    assert added["pkg/b.py"] == set()
+    assert changed["pkg/a.py"] == {2, 11, 12}
+    # Pure deletion hunk (+5,0) contributes no changed lines: adding the
+    # neighbor line would flag unchanged code (the issue #2993 regression).
+    assert changed["pkg/b.py"] == set()
+
+
+def test_parse_changed_lines_ignores_pure_rename() -> None:
+    # A content-free rename carries no ``+++ b/`` hunk, so the renamed path
+    # never enters the map and its unchanged lines cannot block the ratchet.
+    diff = (
+        "diff --git a/pkg/old.py b/pkg/new.py\n"
+        "similarity index 100%\n"
+        "rename from pkg/old.py\n"
+        "rename to pkg/new.py\n"
+    )
+
+    changed = policy._parse_changed_lines(diff)
+
+    assert changed == {}
 
 
 def test_parse_mypy_error_locations_selects_errors_only() -> None:

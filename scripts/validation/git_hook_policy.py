@@ -1307,7 +1307,7 @@ MYPY_RATCHET_DEFAULT_BASE = "origin/main"
 # ``note`` lines are advisory and ignored.
 MYPY_ERROR_RE = re.compile(r"^(?P<path>.+?):(?P<line>\d+):(?:\d+:)?\s*error:")
 # Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file; the
-# ``+c,d`` field of each hunk header is the added-line span.
+# ``+c,d`` field of each hunk header is the changed-line span (post-image).
 DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ b/(?P<path>.+)$")
 DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
 
@@ -1329,14 +1329,23 @@ def _mypy_ratchet_base_ref() -> str:
     return MYPY_RATCHET_DEFAULT_BASE
 
 
-def _parse_added_lines(diff_text: str) -> dict[str, set[int]]:
-    added: dict[str, set[int]] = {}
+def _parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
+    # Post-image line numbers touched per file: both added and modified lines
+    # land in the ``+start,count`` span. Two hunk shapes intentionally
+    # contribute nothing, so the ratchet never blocks mypy errors on them:
+    #   * Deletion-only hunks (``+N,0``) touch no post-image line. Adding
+    #     ``start`` here would flag errors on an unchanged neighboring line,
+    #     reintroducing the false positives on untouched code that the
+    #     per-file gate produced before this ratchet (issue #2993).
+    #   * Pure renames carry no ``+++ b/`` hunk, so the renamed path stays
+    #     absent from the map; unchanged content cannot add new type debt.
+    changed: dict[str, set[int]] = {}
     current: str | None = None
     for line in diff_text.splitlines():
         file_match = DIFF_ADDED_FILE_RE.match(line)
         if file_match is not None:
             current = _normalize_ratchet_path(file_match.group("path"))
-            added.setdefault(current, set())
+            changed.setdefault(current, set())
             continue
         hunk_match = DIFF_HUNK_RE.match(line)
         if hunk_match is None or current is None:
@@ -1344,8 +1353,8 @@ def _parse_added_lines(diff_text: str) -> dict[str, set[int]]:
         start = int(hunk_match.group("start"))
         count_raw = hunk_match.group("count")
         count = int(count_raw) if count_raw is not None else 1
-        added[current].update(range(start, start + count))
-    return added
+        changed[current].update(range(start, start + count))
+    return changed
 
 
 def _changed_line_map(
@@ -1366,7 +1375,7 @@ def _changed_line_map(
     )
     if result.returncode != 0:
         return None
-    return _parse_added_lines(result.stdout)
+    return _parse_changed_lines(result.stdout)
 
 
 def _parse_mypy_error_locations(stdout: str) -> list[tuple[str, int]]:
