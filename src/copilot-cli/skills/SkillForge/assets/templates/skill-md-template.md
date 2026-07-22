@@ -3,7 +3,6 @@ name: {{SKILL_NAME}}
 description: >
   {{DESCRIPTION}}
 license: MIT
-model: claude-opus-4-6
 user-invocable: true
 # Uncomment to restrict available tools:
 # allowed-tools:

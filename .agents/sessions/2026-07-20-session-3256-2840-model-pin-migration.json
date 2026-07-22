@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3256,
+    "date": "2026-07-20",
+    "branch": "feat/2840-model-pin-migration",
+    "startingCommit": "14701788449eb387eddf85e73993dd3d88fcf3be",
+    "objective": "Resolve the safe, no-eval half of issue #2840 (ADR-080 model-pin migration): de-version every skill and command model pin, regenerate the Copilot mirrors, drain the governance baseline, and close the regrowth sources. Flag the agent + generator half as owner-gated because agent_registry requires a model field and ADR-080 step 2b conflicts with ADR-002/templates.md."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active for this project; initial_instructions loaded and the memory-index queried before acting (ADR-007)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called mcp__serena__initial_instructions; the Serena manual loaded."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md via the SessionStart context loader; observed the read-only rule (ADR-014) and did not modify it."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned feat/2840-model-pin-migration, created from origin/main after fetching (local main was 101 commits stale)."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work is on feature branch feat/2840-model-pin-migration, tracking origin/main at 14701788."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index plus copilot-cli-frontmatter-regression-runbook and the auto-memory index (pr-autofix-stale-main-and-serialization, which flagged the 101-commit stale-main risk that proved real)."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status inspected; moved four untracked shadow files and graphify-out aside to a scratchpad backup so checkout from origin/main succeeded; only intended changes staged."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill and command de-version migration complete: 67 units transformed (66 skills + 1 command); 8 skills excluded for pre-existing structural/dash debt; SkillForge validator taught model-rationale (ADR-080); mirrors regenerated; baseline drained 113 to 52; model-pin check clean in warn and enforce modes."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Wrote decision memory tasks/issue-2840-model-pin-migration recording the kind-split (skills inherit, agents owner-gated) and the agent_registry model-required constraint."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran markdownlint-cli2 --fix scoped to the changed markdown units; zero remaining errors. Byte-checked edited docs for em/en dashes: zero."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "De-version source, regenerated mirrors, drained baseline, closed regrowth sources, plugin parity bump to 0.6.90, and this session log committed on feat/2840-model-pin-migration."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "check_model_pins passes warn and enforce (52 scanned, 46 grandfathered, zero violations); 31 model-pin tests green; the 5 remaining haiku skills pass SkillForge validation (exit 0) with the model-rationale allow-list fix."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task tracker updated per step; owner-gated agent/generator work left as a tracked follow-up on issue #2840."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Reviewed the full #2840 discourse and ADR-080. Found local main 101 commits behind origin; ADR-080 governance check, baseline, and manifest already shipped in #3071. Branched feat/2840-model-pin-migration from fresh origin/main."
+    },
+    {
+      "time": "T1",
+      "entry": "Ground-truthed the state: baseline 113 grandfathered pins, warn mode wired into pre_pr, manifest empty. Confirmed the check contract: skills/commands may not carry a versioned id; a bare alias is legal only when it prices below the default (haiku only)."
+    },
+    {
+      "time": "T2",
+      "entry": "De-versioned 66 skills + 1 command via a scripted frontmatter transform: sonnet/opus versioned ids removed (inherit); haiku ids converted to bare alias plus a cost model-rationale. Excluded 8 skills whose pre-existing structural or em-dash debt the per-file validators surfaced on touch (out of #2840 scope); they keep their pins and stay grandfathered."
+    },
+    {
+      "time": "T3",
+      "entry": "Regenerated the Copilot skill mirrors (build_all): 73 mirrors updated (merge-resolver correctly omitted from the ship set). Closed the regrowth sources: SkillForge skill-md-template, output-structure examples, github/fix-ci pin, and the .claude/skills/CLAUDE.md model-selection guidance."
+    },
+    {
+      "time": "T4",
+      "entry": "Taught the SkillForge validator the model-rationale property (_constants.py, per ADR-080 point 4) so the haiku alias skills validate. Drained the baseline 113 to 52 (frozen_count 52) and reran the check: warn OK, enforce exit 0, 31 tests green. Confirmed agent_registry.py requires model on agents, which is why the agent half stays owner-gated (removing agent pins breaks validation; keeping them fails the alias rule)."
+    }
+  ],
+  "endingCommit": "63499ec39f20dcf6e6b72c44c92159c0dbdb8435",
+  "nextSteps": [
+    "Owner decision A: reconcile ADR-080 step 2b (generator must stop injecting model) against ADR-002 and templates.md MUST-4/5 and agent_registry required model field. The three disagree; agents cannot both drop the pin and pass validation.",
+    "Owner decision B: authorize eval API spend to sweep the ~17 fixture-backed agents (KEEP_PIN over >= 8 fixtures records a manifest entry; DROP_PIN or no fixtures removes the pin).",
+    "De-version the 8 skills excluded here once their pre-existing debt is fixed (structural: analysis-provenance, avoiding-manufactured-work, encode-repo-serena, taste-lints, observability, fix-markdown-fences; em-dash: negotiation, pipeline-validator). This is #2993-class latent-debt-on-touch, not #2840.",
+    "After A and B, migrate the remaining agent/command pins, drain the baseline to empty, and flip check_model_pins to enforce."
+  ]
+}

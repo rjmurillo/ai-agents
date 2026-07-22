@@ -26,8 +26,6 @@ import pytest
 from scripts.validation.skill_frontmatter import (
     _NAME_PATTERN,
     _XML_TAG_PATTERN,
-    DATED_SNAPSHOT_PATTERN,
-    VALID_MODEL_ALIASES,
     parse_frontmatter,
 )
 
@@ -78,7 +76,8 @@ def test_skill_within_size_limit(skill_text):
 
 
 def test_frontmatter_required_fields(skill_metadata):
-    for field in ("name", "description", "version", "model"):
+    # ADR-080: model is no longer required; skills default to the harness model.
+    for field in ("name", "description", "version"):
         assert field in skill_metadata, f"missing frontmatter field: {field}"
 
 
@@ -102,10 +101,18 @@ def test_description_constraints(skill_metadata):
 
 
 def test_model_is_supported(skill_metadata):
-    model = skill_metadata["model"]
-    assert model in VALID_MODEL_ALIASES or DATED_SNAPSHOT_PATTERN.match(model), (
-        f"model {model!r} not in supported list "
-        "(see scripts/validation/skill_frontmatter.py)"
+    # ADR-080: skills default to the harness-inherited model; no model line is
+    # the correct state. When pinned, only `haiku` with `model-rationale` is valid
+    # (prices below default). Versioned pins like `claude-sonnet-4-6` are forbidden.
+    model = skill_metadata.get("model")
+    if model is None:
+        return
+    assert model == "haiku", (
+        f"ADR-080: skill model pin must be 'haiku' "
+        f"(only alias below default), got {model!r}"
+    )
+    assert skill_metadata.get("model-rationale"), (
+        "ADR-080: skill model pin requires a model-rationale field"
     )
 
 

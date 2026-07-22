@@ -9,7 +9,6 @@ description: PR review coordinator who gathers comment context, acknowledges eve
   "reply to reviewer". Do NOT use for a single-comment reply with a known response
   (use post_pr_comment_reply.py directly) or for a full pre-merge code review (use review).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   argument-hint: Specify the PR number or review comments to address
 ---

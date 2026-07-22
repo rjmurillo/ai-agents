@@ -74,10 +74,19 @@ class TestSkillFrontmatter:
         )
         assert fm.get("license") == "MIT"
 
-    def test_model_is_set(self) -> None:
+    def test_model_is_optional(self) -> None:
+        # ADR-080: model is optional; skills inherit the harness default. When
+        # pinned, only `haiku` with `model-rationale` is valid (prices below default).
         fm = _read_skill_md_frontmatter()
-        assert "model" in fm
-        assert fm["model"], "model must be non-empty"
+        model = fm.get("model")
+        if model is not None:
+            assert model == "haiku", (
+                f"ADR-080: skill model pin must be 'haiku' "
+                f"(only alias below default), got {model!r}"
+            )
+            assert fm.get("model-rationale"), (
+                "ADR-080: skill model pin requires a model-rationale field"
+            )
 
 
 class TestStructure:

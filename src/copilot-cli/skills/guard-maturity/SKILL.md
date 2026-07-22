@@ -1,7 +1,8 @@
 ---
 name: guard-maturity
 version: 1.0.0
-model: claude-haiku-4-5
+model: haiku
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 description: Classify push guards by Hook Maturity Model tier. Aggregates EVENT lines emitted by push_guard_base.py and assigns each guard a tier (Budding, Growing, Mature, Proficient, Inert, Harmful) based on age, intercept count, and fitness derived from block rate. Use to decide when to promote a new guard, when to prune dead weight, and when to remove a harmful one. Triggers `guard maturity report`, `classify push guards`, `hook maturity tiers`.
 license: MIT
 ---

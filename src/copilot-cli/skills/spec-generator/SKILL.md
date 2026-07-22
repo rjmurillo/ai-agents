@@ -1,7 +1,6 @@
 ---
 name: spec-generator
 version: 1.0.1
-model: claude-sonnet-4-6
 description: >-
   Transform feature descriptions into 3-tier specifications (Requirements,
   Design, Tasks) using EARS syntax, with schema-validated frontmatter on every

@@ -6,7 +6,6 @@ description: >
   Use when you say "add a citation", "verify this memory's code refs", "check memory health".
   Do NOT use for searching or creating memories (use memory) or for documentary reports (use memory-documentary).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   domains: [memory, citations, verification]
   type: utility

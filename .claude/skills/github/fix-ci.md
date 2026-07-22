@@ -5,7 +5,6 @@ description: Autonomously inspect failing GitHub Actions CI checks, fetch logs, 
   for log retrieval. Use for "fix ci", "why is ci failing", "debug ci failures".
 license: MIT
 version: 1.0.0
-model: claude-sonnet-4-6
 metadata:
   domains:
     - github

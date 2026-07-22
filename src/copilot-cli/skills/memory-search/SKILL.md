@@ -8,7 +8,6 @@ description: Tier 1 semantic memory search across Serena and Forgetful with
   session episodes, update the causal graph, or add citations (use memory or
   memory-enhancement).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   adr: ADR-007, ADR-037, ADR-038, ADR-056, ADR-063
   type: operation
