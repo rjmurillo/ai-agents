@@ -48,7 +48,7 @@ Current load-bearing facts:
 | Matcher | Supported; PascalCase tool events use Claude-compatible tool names |
 | PreToolUse deny | Top-level `permissionDecision`; nonzero denies; timeout fails open |
 | PermissionRequest | `behavior` accepts only allow or deny; translated ask emits nothing |
-| Observer output | PostToolUse text merges into one `additionalContext`; SessionStart and PreCompact repository prose is discarded; UserPromptSubmit text goes to stderr; unclassified events stay direct |
+| Observer output | Active PostToolUse text merges into one `additionalContext`; dormant SessionStart, PreCompact, and UserPromptSubmit adapters discard output; unclassified events stay direct |
 | Cloud reach | Only default-branch `.github/hooks/*.json` loads |
 | Plugin paths | Anchor through plugin-root variables; do not depend on cwd |
 
@@ -68,28 +68,27 @@ Use this repository mapping:
 
 | Claude source | Copilot target | Generated form |
 |---|---|---|
-| PreToolUse | PreToolUse | One gate dispatcher |
-| PostToolUse | PostToolUse | Observe dispatcher, text to `additionalContext` |
+| PreToolUse | PreToolUse | Active gate dispatcher, one source shim |
+| PostToolUse | PostToolUse | Active observe dispatcher, one source shim, text to `additionalContext` |
 | PermissionRequest | PermissionRequest | Supported translation path; no current producer |
-| SessionStart | SessionStart | Observe dispatcher, stdout and stderr discarded because current producers load branch-controlled prose |
-| UserPromptSubmit | UserPromptSubmit | Observe dispatcher, text to stderr only |
-| PreCompact | PreCompact | Observe dispatcher, stdout and stderr discarded because checkpoint text includes branch-controlled session state |
-| Stop | Stop | Separate direct registrations |
-| SubagentStop | SubagentStop | Separate direct registrations |
+| SessionStart | SessionStart | No current vendored source; observe/discard adapter if added |
+| UserPromptSubmit | UserPromptSubmit | No current vendored source; observe/discard adapter if added |
+| PreCompact | PreCompact | No current vendored source; observe/discard adapter if added |
+| Stop | Stop | No current vendored source; separate direct registrations if added |
+| SubagentStop | SubagentStop | Separate direct registrations if added |
 | SessionEnd | SessionEnd | No current source registration; stays direct if added until reviewed |
 | PostToolUseFailure | PostToolUseFailure | Direct registration preserves exit-2 recovery context |
 
 Why Stop stays direct: Copilot parses one final JSON document from each command
 hook. Concatenating two decision objects makes invalid JSON and discards both.
 The same parser boundary applies to `additionalContext`, `modifiedResult`, and
-other structured outputs. The current PostToolUse merger treats successful
+other structured outputs. The active PostToolUse merger treats successful
 observer stdout as ordered, flat context text and emits one `additionalContext`
 object. Failed-observer partial output is discarded. It does not merge
-`modifiedResult` or pre-structured JSON. SessionStart and PreCompact stdout and
-stderr are discarded because current producers load branch-controlled
-repository prose.
-Their direct rollback commands preserve side effects but suppress stdout and
-stderr. PostToolUseFailure stays direct because exit-2 stdout becomes recovery
+`modifiedResult` or pre-structured JSON. Dormant SessionStart and PreCompact
+adapters discard stdout and stderr. Their direct rollback tests preserve side
+effects but suppress both channels. PostToolUseFailure stays direct because
+exit-2 stdout becomes recovery
 context. Copilot documents no output field for UserPromptSubmit, so its stdout is
 redirected to stderr in dispatcher and direct rollback modes. Stderr is not a
 documented model-context path. Every unclassified event stays direct until its
@@ -139,7 +138,8 @@ Rules:
   stdout and stderr while preserving producer side effects.
 - Keep PostToolUseFailure direct unless an event-specific merger preserves
   exit-2 recovery context.
-- Redirect UserPromptSubmit text to stderr. Do not invent fields.
+- Discard UserPromptSubmit stdout and stderr. Do not invent fields or treat
+  undocumented stderr as model context.
 - Keep unclassified events direct. Do not assign observe mode by default.
 
 ### Phase 3: Test Before Generation
@@ -173,22 +173,25 @@ change containing canonical sources and every generated artifact.
 uv run python build/scripts/build_all.py
 ```
 
-Expected Copilot hook shape for the current `.claude/settings.json`:
+Current inventories:
+
+- Local `.claude/settings.json`: four events, five registrations.
+- Vendored `.claude/hooks/hooks.json`: two events, two registrations.
+- Generated `src/copilot-cli/hooks/hooks.json`: two events, two dispatcher
+  registrations.
+
+Expected generated Copilot hook shape:
 
 | Event | Entries |
 |---|---:|
 | PostToolUse | 1 dispatcher |
-| PreCompact | 1 dispatcher |
 | PreToolUse | 1 dispatcher |
-| SessionStart | 1 dispatcher |
-| Stop | 2 direct hooks |
-| UserPromptSubmit | 1 dispatcher |
 
 No `PermissionRequest` policy hook is registered. Generic `advise` translation
 remains covered by generator and dispatcher tests for a future reviewed policy.
 
-The generated Stop directory must not contain `_manifest.json`,
-`_dispatch.py`, or `_bootstrap.py`.
+Only the generated PreToolUse and PostToolUse event directories may remain.
+Inactive event directories must be removed through ownership-proven generation.
 
 ### Phase 5: Test Shipped Artifacts
 
@@ -256,9 +259,22 @@ tests, shipped-artifact tests, real CLI probe, and generated mirrors together.
 - [ ] Each hook has an event, payload, matcher, output, failure, and cloud classification.
 - [ ] PermissionRequest ask produces empty stdout.
 - [ ] No multi-producer structured output is concatenated.
-- [ ] PreCompact remains mapped.
+- [ ] PreCompact remains available in `eventRemap`, even with no active vendored registration.
 - [ ] Canonical and generated artifacts changed together.
 - [ ] Targeted generator and runtime tests pass.
 - [ ] Real CLI ran for runtime-only changes.
 - [ ] Both project-toolkit plugin manifests were bumped to the same version.
 - [ ] No stale contract claim remains in requirements, audits, memories, or mirrors.
+
+## Provenance and Maintenance
+
+Verified 2026-07-22 against `.claude/settings.json`,
+`.claude/hooks/hooks.json`, generated Copilot manifests, ADR-068, ADR-071,
+ADR-085, `agent-harness-reference`, and the hook contract knowledge tests.
+
+Refresh this campaign after a host CLI version change, hook inventory change,
+dispatcher design change, or vendor documentation update. First refresh
+`agent-harness-reference` and its official and empirical sidecars. Then amend
+affected ADRs, review them through `adr-review`, regenerate every mirror, and
+rerun this skill's verification commands. Do not preserve dated inventory
+counts as current operational guidance.
