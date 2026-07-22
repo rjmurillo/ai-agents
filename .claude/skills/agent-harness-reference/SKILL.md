@@ -58,13 +58,13 @@ citations, and docs-silent classifications.
 
 | Dimension | Contract | Grade | Evidence |
 |-----------|----------|-------|----------|
-| stdin | One JSON object per invocation; PreToolUse carries `tool_name` (string) and `tool_input` (parsed dict) | CODE | `.claude/hooks/PreToolUse/invoke_security_gate.py:331` reads the snake_case `tool_input` key directly from the parsed payload (Claude side is snake_case only; no alias normalization) |
-| Exit 0 | Allow. Plain stdout is injected as context (SessionStart, UserPromptSubmit); a JSON `{"systemMessage": ...}` on stdout is an advisory shown to the user | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:12-13,342` prints plain stdout for context injection; the `systemMessage` JSON form is a Claude Code harness affordance |
-| Exit 2 | Block the action via exit 2. The block reason is surfaced on stderr (the agent-visible channel for PreToolUse blocks) and/or printed to stdout | CODE | `.claude/hooks/PreToolUse/invoke_security_gate.py:220-227,375-376` (block reason on stderr, exit 2); `invoke_retrospective_gate.py:325,327` (block reason on stdout, exit 2) |
-| JSON decision payload | Alternative to exit 2: exit 0 plus `hookSpecificOutput.permissionDecision` (allow/deny/ask). The legacy top-level `{"decision":"deny"}` form is ignored by the harness | CODE | `invoke_security_commit_gate.py:16,168-171` documents that the exit-0 `{"decision":"deny"}` form was ignored, so the gate denies via `hookSpecificOutput.permissionDecision` or exit 2 |
-| Exit codes vs ADR-035 | Claude hooks are EXEMPT from ADR-035 exit-code taxonomy; non-blocking hook types must exit 0 | CODE | Exit-code blocks in hook docstrings, e.g. `.claude/hooks/PreToolUse/invoke_security_gate.py:10` "exempt from ADR-035" |
+| stdin | One JSON object per invocation; PascalCase tool events use snake_case payload fields such as `tool_name` and `tool_input` | OFFICIAL | <https://code.claude.com/docs/en/hooks>; pinned summary in `references/official-hook-contracts.md` |
+| Exit 0 | Allow. Plain stdout can become context on context-bearing events; `systemMessage` is an advisory shown to the user | OFFICIAL | <https://code.claude.com/docs/en/hooks> |
+| Exit 2 | Block supported actions and surface stderr according to the event contract | OFFICIAL | <https://code.claude.com/docs/en/hooks> |
+| JSON decision payload | PreToolUse uses nested `hookSpecificOutput.permissionDecision`; Stop uses top-level `decision: "block"` | OFFICIAL + CODE | <https://code.claude.com/docs/en/hooks>; strict classification in `.claude/lib/claude_hook_protocol.py` |
+| Exit codes vs ADR-035 | Claude hooks are exempt from ADR-035 exit-code taxonomy; each event follows the harness contract | CODE | Surviving hook contract in `.claude/hooks/PostToolUse/invoke_markdown_auto_lint.py:10-16` |
 | `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir; cwd is the USER working dir, not the plugin root | EMPIRICAL (Claude Code 2.1.159, session 1873) | ADR-071 "Verified Runtime Contract" section |
-| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set, else manifest walk-up to `.claude-plugin/plugin.json` | CODE | Bootstrap block in `.claude/hooks/PreToolUse/invoke_security_gate.py:24-42` (works in `.claude/` source tree and installed copies) |
+| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set, else manifest walk-up to `.claude-plugin/plugin.json` | CODE | `.claude/hooks/PostToolUse/invoke_observation_sync.py:36-63` |
 
 ## When to Refresh
 
@@ -144,17 +144,27 @@ by this repository. Event casing selects payload casing:
 - `userPromptSubmitted` maps to PascalCase `UserPromptSubmit`;
 - `Stop` is per-turn completion. `SessionEnd` is process lifecycle.
 
-Current repository mapping:
+Current shipped inventory:
+
+- Vendored Claude plugin source, `.claude/hooks/hooks.json`: two registrations
+  across PreToolUse and PostToolUse.
+- Generated Copilot plugin, `src/copilot-cli/hooks/hooks.json`: two dispatcher
+  registrations, one for each active event.
+- Local repository settings, `.claude/settings.json`: five registrations across
+  SessionStart, PostToolUse, Stop, and PreCompact. These local hooks do not feed
+  the vendored Copilot plugin generator.
+
+Repository mapping and dormant adapter policy:
 
 | Claude source | Copilot registration | Policy |
 |---|---|---|
-| PreToolUse | PreToolUse | Consolidated gate dispatcher |
-| PostToolUse | PostToolUse | Consolidated observe dispatcher |
+| PreToolUse | PreToolUse | Active consolidated gate dispatcher, one source shim |
+| PostToolUse | PostToolUse | Active consolidated observe dispatcher, one source shim |
 | PermissionRequest | None | Generic approve/deny translation remains tested; test-runner auto-approval is removed |
-| SessionStart | SessionStart | Consolidated observe dispatcher |
-| UserPromptSubmit | UserPromptSubmit | Consolidated observe dispatcher |
-| PreCompact | PreCompact | Consolidated observe dispatcher |
-| Stop | Stop | Direct entries, one JSON decision per command |
+| SessionStart | None | Supported observe/discard policy if a vendored source registration is added |
+| UserPromptSubmit | None | Supported observe/discard policy if a vendored source registration is added |
+| PreCompact | None | Supported observe/discard policy if a vendored source registration is added |
+| Stop | None | Direct entries if added, one JSON decision per command |
 | SubagentStop | SubagentStop | Direct if a source registration is added |
 | SessionEnd | SessionEnd | Direct lifecycle event, never a Stop alias |
 | PostToolUseFailure | PostToolUseFailure | Supported if a source is added |
@@ -302,26 +312,22 @@ no protocol keys becomes context and later guards run. Malformed object-shaped
 JSON, allow-shaped decisions, unsupported decision fields, and invalid field
 types fail closed in gate modes.
 
-SessionStart supports `additionalContext`, but the repository does not use that
-channel today. Current SessionStart producers include branch-controlled
-HANDOFF and retrospective prose. The Copilot adapter captures Python stdout and
-stderr, direct writes to file descriptors 1 and 2, and inherited child-process
-output on both channels, then discards the content instead of turning repository
-text into model instructions.
-Copilot documents no config-file output field for PreCompact. The repository
-uses the same discard policy because its checkpoint text includes
-branch-controlled session-log prose. Direct rollback commands preserve both
-events' side effects but suppress stdout and stderr at the shell boundary.
+SessionStart supports `additionalContext`, but the vendored plugin has no current
+SessionStart registration. The tested adapter policy captures Python streams,
+direct file-descriptor writes, and inherited child-process output, then discards
+the content instead of turning repository text into model instructions.
+Copilot documents no config-file output field for PreCompact. It also has no
+current vendored source registration. Direct rollback tests preserve lifecycle
+side effects while suppressing stdout and stderr at the shell boundary.
 PostToolUseFailure also stays direct because exit-2 stdout has host-defined
 recovery-context semantics that generic observe mode cannot preserve.
 
 Copilot documents no config-file output field for UserPromptSubmitted, including
-its PascalCase UserPromptSubmit compatibility event. The generated dispatcher
-redirects its stdout to stderr, and direct rollback commands keep that
-redirection. Its side effects still run, but do not rely on that text reaching
-model context. Whether stderr enters model context is docs silent. Every
-unclassified future event remains a direct host registration until its output
-and failure semantics are reviewed.
+its PascalCase UserPromptSubmit compatibility event. No current vendored source
+registration exists. The tested dispatcher and direct rollback policies keep its
+output out of model context. Whether stderr enters model context is docs silent.
+Every unclassified future event remains a direct host registration until its
+output and failure semantics are reviewed.
 
 ### Cloud agent
 
@@ -392,7 +398,8 @@ Before changing cross-harness hooks:
       dispatch groups before any shim runs.
 - [ ] Keep PostToolUseFailure direct unless an event-specific merger preserves
       exit-2 recovery context.
-- [ ] Keep UserPromptSubmit stdout out of the host JSON channel.
+- [ ] Keep UserPromptSubmit stdout and stderr out of host channels unless the
+      host documents a model-context output field.
 - [ ] Keep unclassified events direct until their host contracts are reviewed.
 - [ ] Keep PermissionRequest `ask` silent.
 - [ ] Run generator tests and committed-artifact tests.
@@ -413,6 +420,20 @@ Add a contract row when a harness adds an event, payload field, decision shape,
 or loading surface. Pin the official source, add a versioned probe when
 documentation is silent, then update the adapter tests and generated mirrors.
 
+## Provenance and Maintenance
+
+Verified 2026-07-22. Official citations, access dates, and commit-pinned vendor
+sources live in `references/official-hook-contracts.md`. Version-scoped probes
+and negative results live in `references/probe-evidence.md`. ADR-071 owns the
+plugin-root and launcher contract. ADR-068 owns dispatcher economics.
+
+Refresh this reference when either host changes its hook documentation, event
+set, payload schema, exit semantics, matcher behavior, timeout behavior, or
+cloud loading rules. Re-run the applicable recipes in
+`ai-agents-empirical-probe-toolkit`, update both reference files, amend affected
+ADRs, refresh Serena memories, regenerate Copilot mirrors, and run
+`tests/build_scripts/test_hook_contract_knowledge.py`.
+
 ## Vendored Use
 
 <!-- vendor-portability: .agents/ and .serena/ paths below are upstream maintainer provenance only. Vendored consumers use this skill's bundled references/ sidecars and do not require those repository trees (issue #2050). -->
@@ -425,13 +446,13 @@ skill behavior.
 ## Related
 
 - ADR-071 `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` (Verified Runtime Contract: Copilot 1.0.57, Claude Code 2.1.159, env dump quote); status Accepted 2026-06-02
-- ADR-068 `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md` (matcher ignoring, 2-3 s kill, 246 ms cold start); status Proposed as of 2026-07-02
+- ADR-068 `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md` (historical matcher incident, process kill, and cold-start evidence); status Accepted
 - `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` (probe evidence, docs wrong by omission)
 - `.serena/memories/copilot-hooks-observations.md` (payload casing, exit 143, toolArgs JSON string)
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `2026-06-02-issue-2290-copilot-hook-payload-format.md`
 - `build/scripts/generate_hooks_emit.py:335-421`; `build/scripts/generate_hooks_events.py:381-385`; `templates/platforms/copilot-cli.yaml:52-62`
 - `.claude/rules/generated-artifacts.md`; `.claude/rules/lsp-first.md`; `.claude/rules/claude-agents.md` (MUST 2)
-- `build/scripts/generate_hooks_shim.py:315-325`; `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py:17`
+- `.claude/lib/claude_hook_protocol.py`; `.claude/lib/hook_dispatch_protocol.py`
 - Manifests and `.mcp.json` read directly 2026-07-03
 
 - `ai-agents-portability-campaign`: execute a contract change.

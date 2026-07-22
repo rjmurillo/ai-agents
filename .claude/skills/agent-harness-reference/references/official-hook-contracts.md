@@ -255,9 +255,9 @@ Repository consequence: the generated adapter emits `additionalContext` for
 successful PostToolUse observers. It discards SessionStart and PreCompact stdout
 because current producers include branch-controlled repository prose that must
 not reach model-visible channels. Direct rollback commands suppress both stdout
-and stderr while retaining producer side effects. It redirects successful
-UserPromptSubmit stdout to stderr in dispatcher and direct rollback modes rather
-than inventing a host field.
+and stderr while retaining producer side effects. It also discards
+UserPromptSubmit stdout and stderr in dispatcher and direct rollback modes
+because no model-context field is documented and stderr reach is docs silent.
 PostToolUseFailure remains a direct host registration so exit-2 stdout keeps its
 documented recovery-context behavior. Unclassified events also remain direct
 until reviewed. Partial output from failed consolidated observers is discarded
