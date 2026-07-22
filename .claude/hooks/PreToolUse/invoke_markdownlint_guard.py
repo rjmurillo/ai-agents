@@ -6,6 +6,8 @@ the push changeset and runs ``markdownlint-cli2`` against them. Failures
 of the binary itself (missing PATH entry, timeout, OSError) fail-open;
 only real lint violations block.
 
+Customer value: prevents markdown lint failures from reaching consumer branches.
+
 Hook Type: PreToolUse
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
     0 = Allow (no .md files, binary missing, timeout, OSError, clean)

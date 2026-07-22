@@ -370,9 +370,6 @@ def write_audit_log(
 ) -> None:
     """Append a per-hook JSONL audit record for this run.
 
-    Canonical source: ``.claude/hooks/PreToolUse/invoke_false_completion_gate.py``
-    (function ``write_audit_log``, lines 191-234). Quoted contract:
-
     - Audit root is ``project_dir / ".agents" / ".hook-state"``.
     - Skip silently when ``.agents/`` does not exist (consumer-repo guard).
     - JSONL line carries ``schema=1``, ``timestamp`` (ISO-8601 UTC),
@@ -520,16 +517,14 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 def write_continue_response(reason: str) -> None:
     """Emit a Stop-hook continuation so Claude fills the retro before stopping.
 
-    Mirrors the proven contract in
-    ``.claude/hooks/Stop/invoke_session_validator.py::write_continue_response``,
-    quoted verbatim:
+    Uses the Claude Stop-hook continuation contract:
 
         response = json.dumps({"continue": True, "reason": reason})
         print(response)
 
     The harness keeps the turn alive and surfaces ``reason`` to the model.
-    Identical to canonical; this hook reuses the same shape so a single Stop
-    event can carry both the session-validator and the retro-fill prompt.
+    The hook uses this shape so the same Stop event carries the retro-fill
+    prompt.
     """
     print(json.dumps({"continue": True, "reason": reason}))
 
@@ -537,9 +532,8 @@ def write_continue_response(reason: str) -> None:
 def _read_stop_payload() -> dict[str, Any]:
     """Read and parse the Stop/SessionEnd JSON payload from stdin.
 
-    Draining stdin is mandatory even when we do not use the body: a sibling
-    hook (invoke_false_completion_gate.py) documents that leaving stdin unread
-    can surface as EPIPE/SIGPIPE if the harness pipe buffer fills. Returns an
+    Draining stdin is mandatory even when we do not use the body. Leaving stdin
+    unread can surface as EPIPE/SIGPIPE if the harness pipe buffer fills. Returns an
     empty dict on a TTY, empty input, or malformed JSON (fail-open); the caller
     then treats the run as a normal parent stop. Issue #3140: the payload was
     previously discarded, so a subagent stop could not be told from a parent one.
@@ -701,8 +695,7 @@ def _create_retro_and_prompt(project_dir: Path, today: str) -> int:
     # Auto-fill: prompt the in-session model to populate the skeleton it just
     # created, while it still has the full session context. Fires ONLY on the
     # run that creates the file; the next Stop hits has_retro_today and returns
-    # 0, so there is no loop and at most one prompt per day. Mirrors the
-    # continuation contract in invoke_session_validator.py.
+    # 0, so there is no loop and at most one prompt per day.
     try:
         rel = retro_path.relative_to(project_dir)
     except ValueError:
@@ -727,9 +720,8 @@ def _create_retro_and_prompt(project_dir: Path, today: str) -> int:
 def main() -> int:
     """Generate retrospective on session stop."""
     # Read the Stop/SessionEnd payload (Issue #3140). Draining stdin is
-    # mandatory even on the early-skip paths: sibling hook
-    # invoke_false_completion_gate.py documents that an unread stdin can surface
-    # as EPIPE/SIGPIPE if the harness pipe buffer fills. The payload was
+    # mandatory even on the early-skip paths. An unread stdin can surface as
+    # EPIPE/SIGPIPE if the harness pipe buffer fills. The payload was
     # previously discarded, so a subagent stop could not be told from a parent.
     payload = _read_stop_payload()
 

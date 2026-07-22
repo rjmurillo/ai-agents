@@ -67,8 +67,8 @@ known weak point (see `ai-agents-architecture-contract`).
 
 | Surface | Consumer | Shape (verified 2026-07-19) |
 |---------|----------|-----------------------------|
-| `.claude/settings.json` `hooks` key | Claude Code running in this repo | 7 events, 15 matcher groups: PreToolUse 7, SessionStart 2, PostToolUse 2, UserPromptSubmit 1, Stop 1, PreCompact 1, PermissionRequest 1 |
-| `.claude/hooks/hooks.json` | Claude Code plugin install (project-toolkit) | Hand-ported twin: 6 events, 15 groups (no PreCompact); commands anchored as `python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/..."` |
+| `.claude/settings.json` `hooks` key | Claude Code running in this repo | 5 events, 6 groups: SessionStart 2, PostToolUse 1, Stop 1, PreCompact 1, PermissionRequest 1 |
+| `.claude/hooks/hooks.json` | Claude Code plugin install (project-toolkit) | 3 events, 4 groups: PreToolUse 1, PostToolUse 2, PermissionRequest 1; commands anchored as `python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/..."` |
 
 Grade: CODE. Re-verify command in Provenance.
 
@@ -76,22 +76,22 @@ Grade: CODE. Re-verify command in Provenance.
 
 | Dimension | Contract | Grade | Evidence |
 |-----------|----------|-------|----------|
-| stdin | One JSON object per invocation; PreToolUse carries `tool_name` (string) and `tool_input` (parsed dict) | CODE | `.claude/hooks/PreToolUse/invoke_security_gate.py:331` reads the snake_case `tool_input` key directly from the parsed payload (Claude side is snake_case only; no alias normalization) |
+| stdin | One JSON object per invocation; PreToolUse carries `tool_name` (string) and `tool_input` (parsed dict) | CODE | `.claude/hooks/PreToolUse/push_guard_base.py:388-415` validates the object payload and reads the snake_case `tool_input` key |
 | Exit 0 | Allow. Plain stdout is injected as context (SessionStart, UserPromptSubmit); a JSON `{"systemMessage": ...}` on stdout is an advisory shown to the user | CODE | `.claude/hooks/SessionStart/invoke_context_loader.py:12-13,342` prints plain stdout for context injection; the `systemMessage` JSON form is a Claude Code harness affordance |
-| Exit 2 | Block the action via exit 2. The block reason is surfaced on stderr (the agent-visible channel for PreToolUse blocks) and/or printed to stdout | CODE | `.claude/hooks/PreToolUse/invoke_security_gate.py:220-227,375-376` (block reason on stderr, exit 2); `invoke_retrospective_gate.py:325,327` (block reason on stdout, exit 2) |
-| JSON decision payload | Alternative to exit 2: exit 0 plus `hookSpecificOutput.permissionDecision` (allow/deny/ask). The legacy top-level `{"decision":"deny"}` form is ignored by the harness | CODE | `invoke_security_commit_gate.py:16,168-171` documents that the exit-0 `{"decision":"deny"}` form was ignored, so the gate denies via `hookSpecificOutput.permissionDecision` or exit 2 |
-| Exit codes vs ADR-035 | Claude hooks are EXEMPT from ADR-035 exit-code taxonomy; non-blocking hook types must exit 0 | CODE | Exit-code blocks in hook docstrings, e.g. `.claude/hooks/PreToolUse/invoke_security_gate.py:10` "exempt from ADR-035" |
+| Exit 2 | Block the action via exit 2. The block reason is surfaced on stderr, the agent-visible channel for PreToolUse blocks | CODE | `.claude/hooks/PreToolUse/invoke_markdownlint_guard.py:10-15` declares exit 2 for lint violations |
+| JSON decision payload | Alternative to exit 2: exit 0 plus `hookSpecificOutput.permissionDecision` (allow/deny/ask). The legacy top-level `{"decision":"deny"}` form is ignored by the harness | EMPIRICAL | ADR-071 "Verified Runtime Contract" |
+| Exit codes vs ADR-035 | Claude hooks are EXEMPT from ADR-035 exit-code taxonomy; non-blocking hook types must exit 0 | CODE | `.claude/hooks/PreToolUse/invoke_markdownlint_guard.py:12` states the exemption |
 | `CLAUDE_PLUGIN_ROOT` | Set by Claude Code to the plugin install dir; cwd is the USER working dir, not the plugin root | EMPIRICAL (Claude Code 2.1.159, session 1873) | ADR-071 "Verified Runtime Contract" section |
-| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set, else manifest walk-up to `.claude-plugin/plugin.json` | CODE | Bootstrap block in `.claude/hooks/PreToolUse/invoke_security_gate.py:24-42` (works in `.claude/` source tree and installed copies) |
+| Lib bootstrap | Hooks resolve shared lib via `CLAUDE_PLUGIN_ROOT` when set, else manifest walk-up to `.claude-plugin/plugin.json` | CODE | `.claude/hooks/PreToolUse/_bootstrap.py` and `.claude/hooks/PreToolUse/invoke_markdownlint_guard.py:21-23` |
 
 ### Which events can block
 
 | Event | Can block? | Grade | Evidence |
 |-------|-----------|-------|----------|
-| PreToolUse | Yes (exit 2 or deny payload stops the tool call) | CODE | The 7 PreToolUse matcher groups in `.claude/settings.json` (registering 16 guard scripts under `.claude/hooks/PreToolUse/`) are built on this |
-| UserPromptSubmit, Stop | Treated as blockable here; registered with guard semantics | REPO-ASSERTED | `.claude/settings.json` registrations; not separately probed |
+| PreToolUse | Yes (exit 2 or deny payload stops the tool call) | CODE | The plugin markdownlint registration uses gate mode and exit 2 |
+| Stop | Treated as blockable here; registered with guard semantics | REPO-ASSERTED | `.claude/settings.json` registration; not separately probed |
 | PostToolUse | Cannot undo the tool call; output is feedback only | REPO-ASSERTED | Hook docstrings; the tool already ran by definition |
-| SessionStart | CANNOT block. "exit 2 only shows stderr as error" | REPO-ASSERTED | `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py:17` and `invoke_session_initialization_enforcer.py:14` state it verbatim |
+| SessionStart | CANNOT block. Exit 2 only shows stderr as an error | REPO-ASSERTED | ADR-071 "Verified Runtime Contract" |
 
 Matchers: each PreToolUse group carries a `matcher` (tool name, regex, or
 glob) and Claude Code honors it, so only matching hooks run. Copilot CLI does
@@ -214,7 +214,7 @@ Sources (path:line where load-bearing):
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `2026-06-02-issue-2290-copilot-hook-payload-format.md`
 - `build/scripts/generate_hooks_emit.py:335-421`; `build/scripts/generate_hooks_events.py:381-385`; `templates/platforms/copilot-cli.yaml:52-62`
 - `.claude/rules/generated-artifacts.md`; `.claude/rules/lsp-first.md`; `.claude/rules/claude-agents.md` (MUST 2)
-- `build/scripts/generate_hooks_shim.py:315-325`; `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py:17`
+- `build/scripts/generate_hooks_shim.py:315-325`; ADR-071 "Verified Runtime Contract"
 - Manifests and `.mcp.json` read directly 2026-07-03
 
 Re-verification one-liners for volatile facts:

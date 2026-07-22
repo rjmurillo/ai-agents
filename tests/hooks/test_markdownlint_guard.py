@@ -253,14 +253,24 @@ class TestHooksJsonRegistration:
         )
         assert any("invoke_markdownlint_guard.py" in cmd for cmd in commands)
 
-    def test_settings_json_includes_markdownlint_guard(self):
-        """Source-of-truth check.
+    def test_settings_json_excludes_markdownlint_guard(self):
+        settings = json.loads(
+            (self._ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
+        )
+        assert "invoke_markdownlint_guard.py" not in json.dumps(settings)
 
-        ``build/scripts/generate_hooks.py`` reads ``.claude/settings.json``
-        and emits the generated Copilot mirror. Testing only the mirror
-        would let a regression that drops the registration from the source
-        pass as long as the mirror was stale. Assert the source explicitly
-        so the contract is locked at both layers.
-        """
-        commands = self._push_commands(self._ROOT / ".claude" / "settings.json")
-        assert any("invoke_markdownlint_guard.py" in cmd for cmd in commands)
+    def test_generated_copilot_manifest_includes_markdownlint_guard(self):
+        manifest = json.loads(
+            (
+                self._ROOT
+                / "src"
+                / "copilot-cli"
+                / "hooks"
+                / "PreToolUse"
+                / "_manifest.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert any(
+            shim.startswith("invoke_markdownlint_guard__")
+            for shim in manifest["shims"]
+        )

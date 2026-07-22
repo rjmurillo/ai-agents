@@ -130,7 +130,7 @@ class TestAutoRetrospective(unittest.TestCase):
 
         Block-and-fill: writing the skeleton is not enough on its own; the hook
         prompts the in-session model to populate it. Mirrors the
-        invoke_session_validator {"continue": true, "reason": ...} contract.
+        Stop-hook {"continue": true, "reason": ...} contract.
         """
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

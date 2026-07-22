@@ -3,62 +3,6 @@
     "AI_AGENTS_PROJECT_REPO": "1"
   },
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*|[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [mM][eE][rR][gG][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [mM][eE][rR][gG][eE]*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_false_completion_gate.py",
-            "timeout": 5,
-            "statusMessage": "Checking for false completion claims without verification (#1703)"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash([gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] [cC][iI]*|[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[gG][iI][tT] -* [cC][iI]*|*\\[gG][iI][tT].exe [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe [cC][iI]*|*\\[gG][iI][tT].exe -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT].exe -* [cC][iI]*|*\\[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] [cC][iI]*|*\\[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*\\[gG][iI][tT] -* [cC][iI]*|*/[gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] [cC][iI]*|*/[gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*/[gG][iI][tT] -* [cC][iI]*|*&& [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] [cC][iI]*|*&& [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*&& [gG][iI][tT] -* [cC][iI]*|*; [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] [cC][iI]*|*; [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|*; [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] [cC][iI]*|[eE][nN][vV] [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][oO][mM][mM][iI][tT]*|[eE][nN][vV] [gG][iI][tT] -* [cC][iI]*|[eE][nN][vV] * [gG][iI][tT] -* [cC][iI]*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-1-session_log_guard",
-            "timeout": 140,
-            "statusMessage": "Running pretooluse-1-session_log_guard hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash([gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH].exe [pP][rR] [cC][rR][eE][aA][tT][eE]*|*\\[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*/[gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*&& [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|*; [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*|[eE][nN][vV] * [gG][hH] [pP][rR] [cC][rR][eE][aA][tT][eE]*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_guard.py",
-            "statusMessage": "Verifying session log exists before PR creation (BLOCKING)"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(git push*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-2-retrospective_gate",
-            "timeout": 300,
-            "statusMessage": "Running pretooluse-2-retrospective_gate hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "^(Write|Edit)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group pretooluse-write-edit",
-            "timeout": 60,
-            "statusMessage": "Running pretooluse-write-edit hooks (grouped, #3075)"
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
         "hooks": [
@@ -81,30 +25,7 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group userpromptsubmit-1-serena_reassertion",
-            "timeout": 66,
-            "statusMessage": "Running userpromptsubmit-1-serena_reassertion hooks (grouped, #3075)"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
-      {
-        "matcher": "^(Write|Edit)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group posttooluse-1-markdown_auto_lint",
-            "timeout": 90,
-            "statusMessage": "Running posttooluse-1-markdown_auto_lint hooks (grouped, #3075)"
-          }
-        ]
-      },
       {
         "matcher": "mcp__serena__write_memory",
         "hooks": [

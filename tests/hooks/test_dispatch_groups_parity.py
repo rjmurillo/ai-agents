@@ -126,8 +126,9 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
     # deliberately made. A plugin shim missing here would silently never
     # run during this repo's own sessions (the 19-day dead-hook class).
     pruned = {
-        # Duplicate ADR-007 guidance; invoke_memory_first_enforcer.py stays.
-        "invoke_session_start_memory_first.py",
+        # ADR-084 keeps customer-value markdown hooks plugin-only.
+        "invoke_markdown_auto_lint.py",
+        "invoke_markdownlint_guard.py",
     }
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)

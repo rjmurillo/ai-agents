@@ -64,7 +64,7 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 | Plugin content | Version-bump gate at two layers: `pre_pr.py` wrapping `build/scripts/validate_plugin_version_bump.py` at pre-push, CI `.github/workflows/validate-plugin-version-bump.yml` |
 | Hook | Anchoring validator; runtime-contract tests (`tests/build_scripts/test_generate_hooks_runtime_contract.py`); keep `.claude/settings.json` and `.claude/hooks/hooks.json` in sync by hand |
 | Workflow | SHA-pin validation; yamllint style; local workflow run gate in pre-push (`SKIP_WORKFLOW_LOCAL_TEST` escape exists for unrunnable workflows; semantics in `ai-agents-config-catalog`) |
-| ADR / governance | `adr-review` debate to consensus; PreToolUse guard `invoke_adr_review_guard.py` |
+| ADR / governance | `adr-review` debate to consensus; blocking `git_hook_policy.py adr-review` Lefthook job |
 | Any canonical-source edit | Drift gates: `python3 build/generate_agents.py --validate` and `python3 build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
 
 Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a commit message on the PR skips agent drift detection (`.github/workflows/agent-drift-detection.yml:17`). Using it demands a stated reason and human approval; an unexplained bypass marker reads as the session 1187 pattern (Phase 5) and will be challenged in review.
