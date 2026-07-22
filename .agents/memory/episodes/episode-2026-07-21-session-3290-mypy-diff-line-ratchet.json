@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Reworked run_mypy into a diff-line ratchet: added _changed_line_map (git diff --unified=0 base...HEAD parsing), _parse_mypy_error_locations (error-severity only), _mypy_result_blocks (block only errors on changed lines of pushed files; block fatal no-error-line invocations; fall back to block-on-any when the diff base is unresolved), a MYPY_RATCHET_BASE_REF env override with zero-SHA guard and origin/main fallback, and a rationale comment recording the invocation-dependence finding.",
       "caused_by": [
-        "e008"
+        "e011"
       ],
       "leads_to": [
         "e002"
@@ -84,7 +84,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e008",
@@ -93,6 +95,40 @@
       "content": "Commit: 9bd7facdd9249154901de8cb80d1994bcad90504",
       "caused_by": [
         "e003"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed Copilot re-review on b55d135888: renamed the mypy ratchet helper _parse_added_lines -> _parse_changed_lines (it returns post-image added-and-modified lines, matching _changed_line_map), documented why deletion-only (+N,0) and pure-rename hunks intentionally contribute no changed lines (crediting a neighbor line would re-flag unchanged code, the #2993 false-positive class), and added a rename-only test. The reviewer's second thread (deletion cascade) was declined as correct-by-design and already covered by the deletion-only assertion.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: cd6b7d11720b7437f8a78c44caf425195c82e54e",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b55d135888",
+      "caused_by": [
+        "e010"
       ],
       "leads_to": [
         "e001"
@@ -104,7 +140,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 4,
     "files_changed": 3
   },
   "lessons": []

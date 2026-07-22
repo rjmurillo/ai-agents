@@ -14420,6 +14420,33 @@
         "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
       ],
       "created": "2026-07-22T15:25:09.504842+00:00"
+    },
+    {
+      "id": "20a5497c6ebb",
+      "type": "milestone",
+      "label": "milestone: Addressed Copilot re-review on b55d135888: renamed the mypy ratchet helper _parse_added_lines -> _parse_changed_lines (it returns post-image added-and-modified lines, matching _changed_line_map), documented why deletion-only (+N,0) and pure-rename hunks intentionally contribute no changed lines (crediting a neighbor line would re-flag unchanged code, the #2993 false-positive class), and added a rename-only test. The reviewer's second thread (deletion cascade) was declined as correct-by-design and already covered by the deletion-only assertion.",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T15:39:37.620726+00:00"
+    },
+    {
+      "id": "d6319f7e3234",
+      "type": "commit",
+      "label": "commit: Commit: cd6b7d11720b7437f8a78c44caf425195c82e54e",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T15:39:37.620803+00:00"
+    },
+    {
+      "id": "57ba5c7fc708",
+      "type": "commit",
+      "label": "commit: Commit: b55d135888",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T15:39:37.620865+00:00"
     }
   ],
   "patterns": [
