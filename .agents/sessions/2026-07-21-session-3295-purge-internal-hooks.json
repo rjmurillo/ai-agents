@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3295,
+    "date": "2026-07-21",
+    "branch": "chore/3295-purge-internal-hooks",
+    "startingCommit": "fc4a1ba6",
+    "objective": "Purge redundant internal hooks under ADR-084"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "N/A: Serena project activation is unavailable in this Copilot CLI session."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "N/A: Serena project activation is unavailable in this Copilot CLI session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md. No issue 3295 handoff matched .agents/sessions/handoffs/*-3295-handoff.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts Python entry points."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index, hook generation, git hook, git workflow, GitHub CLI, session-init, and PreToolUse advisory memories."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/3295-purge-internal-hooks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/3295-purge-internal-hooks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Only this new session log was untracked at session start."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fc4a1ba6"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-end fields are complete. The delivery blocker is recorded in the work log and next steps."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "N/A: Serena MCP is unavailable in this Copilot CLI session."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Lefthook markdown-autofix and markdown-check completed with zero issues on each staged Markdown batch."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Final code commit: 5828139b67f94b7dcccf0c677455239350b2fd17"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py exited 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "N/A: issue and PR state were not changed because validation blocked delivery."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Retrospective authored at .agents/retrospective/2026-07-21-3295-hook-purge-finish.md; classified Failure Mode 3 (Ambiguous Instruction Inversion). The full-Ruff stop was a pre-existing #2993 repo-wide condition, not a real gate; pre_pr.py passes."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-21T14:48:00-07:00",
+      "action": "Verified issue scope and repository state",
+      "result": "Branch starts at fc4a1ba6 with zero commits over origin/main. Issue #3295 has no existing PR. ADR-084 and the re-scope comment confirm two gates require re-home before deletion."
+    },
+    {
+      "time": "2026-07-21T15:05:00-07:00",
+      "action": "Completed security review of re-homed policies",
+      "result": "Fixed empty push path and symlink evidence gaps. Retained the documented override and 10-minute trivial-session exception to preserve the issue's required behavior. Local Git hooks are not an authorization boundary."
+    },
+    {
+      "time": "2026-07-21T16:05:00-07:00",
+      "action": "Purged internal and advisory hook surfaces",
+      "result": "Removed 16 canonical hooks and 29 dedicated tests. Deregistered internal and plugin groups. Retained markdown lint hooks on the customer plugin surface with Customer value docstrings."
+    },
+    {
+      "time": "2026-07-21T16:18:00-07:00",
+      "action": "Regenerated the Copilot plugin surface",
+      "result": "Switched Copilot hook generation to the plugin manifest, added stale event cleanup with tests, removed internal generated events, retained three customer plugin hooks, and bumped both manifests to 0.6.98."
+    },
+    {
+      "time": "2026-07-21T16:27:00-07:00",
+      "action": "Ran final validation",
+      "result": "build_all.py --check passed. The full 13,428-test collection passed. Scoped Ruff passed. Full Ruff found 361 violations, with zero findings in branch-changed files."
+    },
+    {
+      "time": "2026-07-21T16:29:40-07:00",
+      "action": "Stopped delivery on validation blocker",
+      "result": "Did not push or open a PR because the required full Ruff command is not clean. The branch contains no uncommitted code changes."
+    }
+  ],
+  "endingCommit": "c9e72760016fb3de3acde76a0050db1fb4f18370",
+  "nextSteps": [
+    "Resolve or explicitly waive the 361 pre-existing Ruff findings.",
+    "Rerun uv run ruff check ., then push the branch and open the issue 3295 PR."
+  ]
+}
