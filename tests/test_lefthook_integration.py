@@ -343,7 +343,10 @@ def test_retrospective_policy_blocks_missing_evidence(
 
     assert result == 1
     assert "retrospective evidence" in capsys.readouterr().err
-    assert policy.check_retrospective_evidence([], tmp_path) == 0
+    # Empty paths should still check for retrospective evidence (not bypass)
+    assert policy.check_retrospective_evidence([], tmp_path) == 1
+    captured = capsys.readouterr()
+    assert "{push_files} empty" in captured.err
 
 
 def test_retrospective_policy_allows_session_evidence_and_documentation(

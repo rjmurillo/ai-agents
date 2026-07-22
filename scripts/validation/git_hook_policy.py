@@ -649,12 +649,16 @@ def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
         print("Retrospective policy bypassed via SKIP_RETROSPECTIVE_GATE=true")
         return 0
     if not paths:
-        return 0
-    if _documentation_only(paths):
+        print(
+            "WARNING: {push_files} empty; cannot determine documentation-only or "
+            "trivial-session bypass—retrospective evidence still required",
+            file=sys.stderr,
+        )
+    if paths and _documentation_only(paths):
         return 0
 
     session_log = _today_session_log(repo_root / ".agents" / "sessions")
-    if _is_trivial_retrospective_session(session_log, paths):
+    if paths and _is_trivial_retrospective_session(session_log, paths):
         return 0
     if _today_retrospective_exists(repo_root):
         return 0
