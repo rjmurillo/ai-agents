@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All local session-end MUST items are complete, including the final skill portability correction. Push, review-thread closure, CI, and merge remain external PR actions."
+        "Evidence": "All local session-end MUST items are complete. Push, review-thread closure, CI, and merge remain external PR actions."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -84,27 +84,27 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit a6c61c2af4 includes decision-adr-085-permission-surface-asymmetry.md plus corrected GitHub skill and tool memories."
+        "Evidence": "Commits d5248d216eca and ecf94879c7ca include the final dispatcher and permission-surface Serena memory updates."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx --yes markdownlint-cli2 ran on the 126 Markdown paths changed from the first merge parent. Repository exclusions selected 28 files; exit code 0."
+        "Evidence": "npx markdownlint-cli2@0.23.1 --no-globs ran on every changed Markdown path. Repository exclusions selected 6 files; exit code 0."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All substantive merge, review, generated-artifact, ADR, test, memory, and skill portability changes are committed through 327398e17a4eee30d76f5253d9371366b01c1dc8. Only this closing session record remains for its metadata commit."
+        "Evidence": "All substantive hook, generator, workflow, ADR, debate, memory, generated-artifact, and test changes are committed through 743e5bd14c6fdd355b49509b14690ff1db499d08. Only this closing session record remains for its metadata commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run python scripts/validate_session_json.py passes. Full pre-PR validation completed all 34 checks; every required gate passed, including Skill Markdown Portability."
+        "Evidence": "The full suite passed 13,531 tests; 23 opt-in cases were not selected. Pre-PR completed with 30 passed and 0 failed; 4 environment-dependent checks were not applicable. Ruff, per-file mypy, Python 3.10 syntax, generation drift, plugin parity, Renovate validation, five pinned real-CLI cases, and security scan passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Merge reconciliation, review fixes, ADR convergence, generation, and local validation are complete. PR delivery actions remain in nextSteps."
+        "Evidence": "Merge reconciliation, review fixes, six-role ADR convergence, generation, runtime probes, local validation, and 21 atomic commits are complete. PR delivery actions remain in nextSteps."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -153,9 +153,14 @@
       "time": "2026-07-21T16:10:51Z",
       "action": "Ran the full pre-PR validation gate after the portability fix.",
       "result": "All 34 checks completed with 30 passed, 0 failed, and 4 skipped. The only remaining advisory is the required SHA-bound empty review marker."
+    },
+    {
+      "time": "2026-07-22T05:58:40Z",
+      "action": "Completed the final PR 3292 contract, security, ADR, runtime, and release pass.",
+      "result": "All six ADR roles accepted ADR-068, ADR-071, and ADR-085 with no P0 or P1 findings. Five pinned real-CLI cases passed. The full suite passed with 13,531 passed and 23 skipped. The 72-file change landed as 21 commits with no commit above five files."
     }
   ],
-  "endingCommit": "327398e17a4eee30d76f5253d9371366b01c1dc8",
+  "endingCommit": "743e5bd14c6fdd355b49509b14690ff1db499d08",
   "nextSteps": [
     "Push fix/copilot-hook-contract and update PR 3292 evidence.",
     "Resolve existing and newly generated review threads, then merge PR 3292 after required checks pass."
