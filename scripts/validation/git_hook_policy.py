@@ -89,6 +89,13 @@ DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
 MYPY_TIMEOUT_SECONDS = 840
 WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
+# Scope the workflow-local gate to workflows this push changed versus the
+# origin/main merge base (three-dot diff). Lefthook's {push_files} is a
+# two-dot tree diff against the stale remote tip, so a rebase or force-push
+# imports every workflow main advanced past; those are not this branch's
+# delta. Override the base ref for tests or non-standard remotes.
+WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
+WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 SKIPPED_DASH_PREFIXES = (
@@ -769,9 +776,13 @@ def check_branch_context(repo_root: Path) -> int:
         # No session log, let session_log_guard handle this
         # No branch in session log, skip check
 
-    Only a determinate ``current_branch != session_branch`` blocks.
+    Only a determinate ``current_branch != session_branch`` blocks. A merge
+    in progress is exempt: a merge legitimately imports another branch's newer
+    session log into the tree, which would otherwise read as a mismatch.
     """
     try:
+        if _merge_in_progress(repo_root):
+            return 0
         sessions_dir = repo_root / ".agents" / "sessions"
         if not sessions_dir.is_dir():
             return 0
@@ -1276,6 +1287,129 @@ def _stage_causal_graph(graph_path: Path, repo_root: Path) -> int:
     return result.returncode
 
 
+# --- mypy diff-line ratchet (issue #2993) --------------------------------
+# The pre-push mypy gate used to block on ANY error mypy reported in a touched
+# file, including pre-existing debt the current push never changed. That
+# coupled unrelated shared-file edits to old type errors and blocked pushes.
+# The ratchet below blocks only on errors whose line was added or modified
+# versus the merge base, so a push is judged on the lines it actually changed.
+#
+# A stored per-file signature baseline was rejected: mypy's reported error set
+# is invocation-dependent (the same file yields different errors checked alone
+# versus batched with siblings, because module resolution changes). Diff
+# locality is invocation-independent, so it survives the batch/isolation split
+# that _mypy_invocations() creates.
+MYPY_RATCHET_BASE_REF_ENV = "MYPY_RATCHET_BASE_REF"
+MYPY_RATCHET_DEFAULT_BASE = "origin/main"
+# mypy default output: "path:line: error: message  [code]"; the column is
+# absent in this repo's config but tolerated. Only ``error`` severity blocks;
+# ``note`` lines are advisory and ignored.
+MYPY_ERROR_RE = re.compile(r"^(?P<path>.+?):(?P<line>\d+):(?:\d+:)?\s*error:")
+# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file; the
+# ``+c,d`` field of each hunk header is the changed-line span (post-image).
+DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ b/(?P<path>.+)$")
+DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
+
+
+def _normalize_ratchet_path(path: str) -> str:
+    # mypy on Windows can echo OS-native backslash separators, while git diff
+    # names and command-line inputs are forward-slash; normalize so the pushed
+    # set, the changed-line map, and parsed mypy paths compare equal.
+    cleaned = path.strip().replace("\\", "/")
+    if cleaned.startswith("./"):
+        cleaned = cleaned[2:]
+    return cleaned
+
+
+def _mypy_ratchet_base_ref() -> str:
+    raw = os.environ.get(MYPY_RATCHET_BASE_REF_ENV, "").strip()
+    if raw and not _is_zero_sha(raw):
+        return raw
+    return MYPY_RATCHET_DEFAULT_BASE
+
+
+def _parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
+    # Post-image line numbers touched per file: both added and modified lines
+    # land in the ``+start,count`` span. Two hunk shapes intentionally
+    # contribute nothing, so the ratchet never blocks mypy errors on them:
+    #   * Deletion-only hunks (``+N,0``) touch no post-image line. Adding
+    #     ``start`` here would flag errors on an unchanged neighboring line,
+    #     reintroducing the false positives on untouched code that the
+    #     per-file gate produced before this ratchet (issue #2993).
+    #   * Pure renames carry no ``+++ b/`` hunk, so the renamed path stays
+    #     absent from the map; unchanged content cannot add new type debt.
+    changed: dict[str, set[int]] = {}
+    current: str | None = None
+    for line in diff_text.splitlines():
+        file_match = DIFF_ADDED_FILE_RE.match(line)
+        if file_match is not None:
+            current = _normalize_ratchet_path(file_match.group("path"))
+            changed.setdefault(current, set())
+            continue
+        hunk_match = DIFF_HUNK_RE.match(line)
+        if hunk_match is None or current is None:
+            continue
+        start = int(hunk_match.group("start"))
+        count_raw = hunk_match.group("count")
+        count = int(count_raw) if count_raw is not None else 1
+        changed[current].update(range(start, start + count))
+    return changed
+
+
+def _changed_line_map(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> dict[str, set[int]] | None:
+    """Return added or modified line numbers per path versus ``base_ref``.
+
+    ``None`` signals that the diff base could not be resolved; callers then
+    fall back to blocking on any error so the gate is never weaker than before.
+    """
+    if not paths:
+        return {}
+    result = _run_git(
+        repo_root,
+        ["diff", "--unified=0", "--no-color", f"{base_ref}...HEAD", "--", *paths],
+    )
+    if result.returncode != 0:
+        return None
+    return _parse_changed_lines(result.stdout)
+
+
+def _parse_mypy_error_locations(stdout: str) -> list[tuple[str, int]]:
+    locations: list[tuple[str, int]] = []
+    for line in stdout.splitlines():
+        match = MYPY_ERROR_RE.match(line)
+        if match is None:
+            continue
+        locations.append(
+            (_normalize_ratchet_path(match.group("path")), int(match.group("line"))),
+        )
+    return locations
+
+
+def _mypy_result_blocks(
+    result: subprocess.CompletedProcess[str],
+    pushed: set[str],
+    changed_lines: dict[str, set[int]] | None,
+) -> bool:
+    if result.returncode == 0:
+        return False
+    locations = _parse_mypy_error_locations(result.stdout)
+    if not locations:
+        # Non-zero exit with no parseable error line is a fatal invocation
+        # failure (crash, bad package name, hyphenated dir); block it.
+        return True
+    if changed_lines is None:
+        # Diff base unresolved: block on any error (pre-ratchet behavior).
+        return True
+    return any(
+        path in pushed and line in changed_lines.get(path, frozenset())
+        for path, line in locations
+    )
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     checked_paths: list[str] = []
     for raw_path in paths:
@@ -1290,11 +1424,16 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
             print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
             return 2
         checked_paths.append(path)
+    if not checked_paths:
+        return 0
+    pushed = {_normalize_ratchet_path(path) for path in checked_paths}
+    changed_lines = _changed_line_map(checked_paths, repo_root, _mypy_ratchet_base_ref())
     failed = False
     for invocation, needs_validation_path in _mypy_invocations(checked_paths):
         result = _invoke_mypy(invocation, repo_root, needs_validation_path)
         _print_process_output(result)
-        failed |= result.returncode != 0
+        if _mypy_result_blocks(result, pushed, changed_lines):
+            failed = True
     return 1 if failed else 0
 
 
@@ -2604,13 +2743,69 @@ def run_pytest(repo_root: Path) -> int:
     return result.returncode
 
 
+def _workflow_local_base_ref() -> str:
+    raw = os.environ.get(WORKFLOW_LOCAL_BASE_REF_ENV, "").strip()
+    if raw and not _is_zero_sha(raw):
+        return raw
+    return WORKFLOW_LOCAL_DEFAULT_BASE
+
+
+def _pushed_workflow_paths(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> set[str] | None:
+    """Return the workflow paths this branch changed versus ``base_ref``.
+
+    Uses the three-dot diff ``base_ref...HEAD`` so only commits unique to this
+    branch since the merge base count; workflows that main advanced past on a
+    rebase or force-push are excluded. ``None`` signals that ``base_ref`` could
+    not be resolved, so callers validate every provided path and the gate is
+    never weaker than before.
+    """
+    if not paths:
+        return set()
+    result = _run_git(
+        repo_root,
+        ["diff", "--name-only", f"{base_ref}...HEAD", "--", *paths],
+    )
+    if result.returncode != 0:
+        return None
+    return {
+        _normalize_ratchet_path(line)
+        for line in result.stdout.splitlines()
+        if line.strip()
+    }
+
+
+def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:
+    base_ref = _workflow_local_base_ref()
+    changed = _pushed_workflow_paths(paths, repo_root, base_ref)
+    if changed is None:
+        print(
+            f"WARNING: workflow-local could not resolve {base_ref}; "
+            "validating all provided workflows",
+            file=sys.stderr,
+        )
+        return list(paths)
+    return [path for path in paths if _normalize_ratchet_path(path) in changed]
+
+
 def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
+    selected = _select_pushed_workflows(paths, repo_root)
+    if not selected:
+        print(
+            "workflow-local: no workflow files changed versus "
+            f"{_workflow_local_base_ref()}; skipping act "
+            "(imported or unchanged workflows excluded)",
+        )
+        return 0
     result = _run_command(
         [
             sys.executable,
             "scripts/validation/run_workflow_local_test.py",
             "--files",
-            *paths,
+            *selected,
             "--repo-root",
             str(repo_root),
         ],
