@@ -14339,8 +14339,8 @@
         "episode-2026-07-21-session-3295-remove-dead-codeql-hook"
       ],
       "created": "2026-07-21T15:46:40.279732+00:00"
-      },
-      {
+    },
+    {
       "id": "3f59981c6b16",
       "type": "milestone",
       "label": "milestone: Reworked run_mypy into a diff-line ratchet: added _changed_line_map (git diff --unified=0 base...HEAD parsing), _parse_mypy_error_locations (error-severity only), _mypy_result_blocks (block only errors on changed lines of pushed files; block fatal no-error-line invocations; fall back to block-on-any when the diff base is unresolved), a MYPY_RATCHET_BASE_REF env override with zero-SHA guard and origin/main fallback, and a rationale comment recording the invocation-dependence finding.",
@@ -14375,6 +14375,51 @@
         "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
       ],
       "created": "2026-07-22T13:27:47.809897+00:00"
+    },
+    {
+      "id": "8d3fac74d04f",
+      "type": "milestone",
+      "label": "milestone: Fixed a coupled branch-context merge-guard defect in check_branch_context: it treated an in-progress merge as a policy violation and blocked legitimate merge commits; now exempts merge state.",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T15:25:09.504622+00:00"
+    },
+    {
+      "id": "9b50becf08e9",
+      "type": "milestone",
+      "label": "milestone: Fixed the coupled workflow-local-run gate (same #2993 root defect: judging unchanged content). It ran act against every workflow in lefthook's two-dot push range, which after a rebase imports the base branch workflows. Added _select_pushed_workflows/_pushed_workflow_paths to filter to workflows changed versus the merge base (git diff --name-only base...HEAD), a WORKFLOW_LOCAL_BASE_REF env override, and a clean skip when the delta is empty; unresolved base validates all provided workflows (fail-safe). Added 7 tests.",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T15:25:09.504689+00:00"
+    },
+    {
+      "id": "d68672e679bf",
+      "type": "milestone",
+      "label": "milestone: Addressed Copilot review: normalized path separators in _normalize_ratchet_path so mypy backslash paths on Windows match the forward-slash pushed set and changed-line map (the ratchet would otherwise let a real error on a changed line slip past on Windows). Added 3 tests (parser, normalizer, end-to-end backslash-blocks). Updated the PR description with a Coupled fixes section per reviewer request.",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T15:25:09.504741+00:00"
+    },
+    {
+      "id": "e3d4b996c80a",
+      "type": "milestone",
+      "label": "milestone: Normalized causal-graph.json indentation (union-merge left two six-space object braces) by re-serializing with the canonical save_causal_graph call (json.dumps indent=2); node and edge counts and key order preserved.",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T15:25:09.504792+00:00"
+    },
+    {
+      "id": "dda8ffb0e8ee",
+      "type": "commit",
+      "label": "commit: Commit: 9bd7facdd9249154901de8cb80d1994bcad90504",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T15:25:09.504842+00:00"
     }
   ],
   "patterns": [

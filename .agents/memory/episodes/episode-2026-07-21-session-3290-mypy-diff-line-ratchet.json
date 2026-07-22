@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Reworked run_mypy into a diff-line ratchet: added _changed_line_map (git diff --unified=0 base...HEAD parsing), _parse_mypy_error_locations (error-severity only), _mypy_result_blocks (block only errors on changed lines of pushed files; block fatal no-error-line invocations; fall back to block-on-any when the diff base is unresolved), a MYPY_RATCHET_BASE_REF env override with zero-SHA guard and origin/main fallback, and a rationale comment recording the invocation-dependence finding.",
       "caused_by": [
-        "e003"
+        "e008"
       ],
       "leads_to": [
         "e002"
@@ -26,7 +26,9 @@
       "caused_by": [
         "e001"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e003",
@@ -34,6 +36,64 @@
       "type": "commit",
       "content": "Commit: 184ec83eeb38a56f54f954e02617ebdfe00c0a1c",
       "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed a coupled branch-context merge-guard defect in check_branch_context: it treated an in-progress merge as a policy violation and blocked legitimate merge commits; now exempts merge state.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the coupled workflow-local-run gate (same #2993 root defect: judging unchanged content). It ran act against every workflow in lefthook's two-dot push range, which after a rebase imports the base branch workflows. Added _select_pushed_workflows/_pushed_workflow_paths to filter to workflows changed versus the merge base (git diff --name-only base...HEAD), a WORKFLOW_LOCAL_BASE_REF env override, and a clean skip when the delta is empty; unresolved base validates all provided workflows (fail-safe). Added 7 tests.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed Copilot review: normalized path separators in _normalize_ratchet_path so mypy backslash paths on Windows match the forward-slash pushed set and changed-line map (the ratchet would otherwise let a real error on a changed line slip past on Windows). Added 3 tests (parser, normalizer, end-to-end backslash-blocks). Updated the PR description with a Coupled fixes section per reviewer request.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Normalized causal-graph.json indentation (union-merge left two six-space object braces) by re-serializing with the canonical save_causal_graph call (json.dumps indent=2); node and edge counts and key order preserved.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9bd7facdd9249154901de8cb80d1994bcad90504",
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": [
         "e001"
       ]
@@ -44,8 +104,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 3
   },
   "lessons": []
 }

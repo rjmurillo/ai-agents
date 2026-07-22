@@ -125,12 +125,38 @@
       "files": [
         "tests/test_lefthook_integration.py"
       ]
+    },
+    {
+      "action": "Fixed a coupled branch-context merge-guard defect in check_branch_context: it treated an in-progress merge as a policy violation and blocked legitimate merge commits; now exempts merge state.",
+      "files": [
+        "scripts/validation/git_hook_policy.py"
+      ]
+    },
+    {
+      "action": "Fixed the coupled workflow-local-run gate (same #2993 root defect: judging unchanged content). It ran act against every workflow in lefthook's two-dot push range, which after a rebase imports the base branch workflows. Added _select_pushed_workflows/_pushed_workflow_paths to filter to workflows changed versus the merge base (git diff --name-only base...HEAD), a WORKFLOW_LOCAL_BASE_REF env override, and a clean skip when the delta is empty; unresolved base validates all provided workflows (fail-safe). Added 7 tests.",
+      "files": [
+        "scripts/validation/git_hook_policy.py",
+        "tests/test_lefthook_integration.py"
+      ]
+    },
+    {
+      "action": "Addressed Copilot review: normalized path separators in _normalize_ratchet_path so mypy backslash paths on Windows match the forward-slash pushed set and changed-line map (the ratchet would otherwise let a real error on a changed line slip past on Windows). Added 3 tests (parser, normalizer, end-to-end backslash-blocks). Updated the PR description with a Coupled fixes section per reviewer request.",
+      "files": [
+        "scripts/validation/git_hook_policy.py",
+        "tests/test_lefthook_integration.py"
+      ]
+    },
+    {
+      "action": "Normalized causal-graph.json indentation (union-merge left two six-space object braces) by re-serializing with the canonical save_causal_graph call (json.dumps indent=2); node and edge counts and key order preserved.",
+      "files": [
+        ".agents/memory/causality/causal-graph.json"
+      ]
     }
   ],
-  "endingCommit": "184ec83eeb38a56f54f954e02617ebdfe00c0a1c",
+  "endingCommit": "9bd7facdd9249154901de8cb80d1994bcad90504",
   "nextSteps": [
-    "Push chore/2993-mypy-ratchet and open the PR with Refs #2993; byte-check the PR body for 0 U+2014/U+2013 dashes; keep any file paths under a ## References H2.",
-    "Babysit the PR: drive CI green, resolve bot review threads, self-merge once mergeStateStatus is CLEAN.",
-    "No plugin manifest bump needed (scripts/validation/** is outside the .claude/, src/copilot-cli/, src/claude/ plugin trees)."
+    "Push the session-log and causal-graph normalization; resolve the causal-graph review thread.",
+    "Drive PR #3314 to merge once all required checks are green and every review thread is resolved (ruleset: 0 approvals, squash-only, Copilot review on push, required thread resolution).",
+    "The ruff half of #2993 (627 pre-existing violations plus a whole-repo ruff regression guard) remains separate follow-up work; not in this PR."
   ]
 }
