@@ -5835,3 +5835,134 @@ def test_module_entrypoint_returns_cli_exit_code(
     with pytest.raises(SystemExit) as error:
         runpy.run_path(str(script), run_name="__main__")
     assert error.value.code == 2
+
+
+# --- workflow-local merge-base scoping (issue #2993) ---
+
+
+def _workflow_repo_with_base(tmp_path: Path) -> tuple[Path, str]:
+    """Repo with an imported workflow on main; returns (repo, base_sha).
+
+    The caller checks out a feature branch and adds its own changes; the base
+    SHA marks the merge base so ``base...HEAD`` isolates the branch delta.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, ".github/workflows/imported.yml", "name: imported\n")
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "checkout", "-q", "-b", "feature/test")
+    return repo, base
+
+
+def test_pushed_workflow_paths_selects_only_branch_delta(tmp_path: Path) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    _commit_file(repo, ".github/workflows/mine.yml", "name: mine\n")
+
+    changed = policy._pushed_workflow_paths(
+        [".github/workflows/imported.yml", ".github/workflows/mine.yml"],
+        repo,
+        base,
+    )
+
+    assert changed == {".github/workflows/mine.yml"}
+
+
+def test_pushed_workflow_paths_returns_none_when_base_unresolved(
+    tmp_path: Path,
+) -> None:
+    repo, _ = _workflow_repo_with_base(tmp_path)
+
+    assert (
+        policy._pushed_workflow_paths(
+            [".github/workflows/imported.yml"], repo, "origin/main"
+        )
+        is None
+    )
+
+
+def test_pushed_workflow_paths_empty_input_returns_empty(tmp_path: Path) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+
+    assert policy._pushed_workflow_paths([], repo, base) == set()
+
+
+def _stub_act_run(
+    monkeypatch: pytest.MonkeyPatch,
+    sink: dict[str, object],
+) -> None:
+    """Run git for real; intercept only the act runner invocation.
+
+    run_workflow_local reaches _run_command twice: once for the merge-base
+    ``git diff`` and once for the workflow runner. Patching the low-level
+    helper naively would break the diff, so this dispatcher forwards git calls
+    to the real implementation and captures or stubs the runner call.
+    """
+    real_run = policy._run_command
+
+    def _fake_run(
+        cmd: Sequence[str],
+        repo_root: Path,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if any("run_workflow_local_test.py" in str(part) for part in cmd):
+            sink["act_cmd"] = list(cmd)
+            return _completed(0, "")
+        return real_run(cmd, repo_root)
+
+    monkeypatch.setattr(policy, "_run_command", _fake_run)
+    monkeypatch.setattr(policy, "_print_process_output", lambda *_a: None)
+
+
+def test_run_workflow_local_skips_imported_only_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    _commit_file(repo, "src/mod.py", "x = 1\n")  # non-workflow branch change
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+    sink: dict[str, object] = {}
+    _stub_act_run(monkeypatch, sink)
+
+    assert policy.run_workflow_local([".github/workflows/imported.yml"], repo) == 0
+    assert "act_cmd" not in sink
+    assert "skipping act" in capsys.readouterr().out
+
+
+def test_run_workflow_local_validates_changed_workflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    _commit_file(repo, ".github/workflows/mine.yml", "name: mine\n")
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+    sink: dict[str, object] = {}
+    _stub_act_run(monkeypatch, sink)
+
+    rc = policy.run_workflow_local(
+        [".github/workflows/imported.yml", ".github/workflows/mine.yml"],
+        repo,
+    )
+
+    assert rc == 0
+    act_cmd = sink["act_cmd"]
+    assert isinstance(act_cmd, list)
+    assert ".github/workflows/mine.yml" in act_cmd
+    assert ".github/workflows/imported.yml" not in act_cmd
+
+
+def test_run_workflow_local_validates_all_when_base_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _ = _workflow_repo_with_base(tmp_path)
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, "does/not/exist")
+    sink: dict[str, object] = {}
+    _stub_act_run(monkeypatch, sink)
+
+    rc = policy.run_workflow_local([".github/workflows/imported.yml"], repo)
+
+    assert rc == 0
+    act_cmd = sink["act_cmd"]
+    assert isinstance(act_cmd, list)
+    assert ".github/workflows/imported.yml" in act_cmd

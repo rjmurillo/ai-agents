@@ -89,6 +89,13 @@ DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
 MYPY_TIMEOUT_SECONDS = 840
 WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
+# Scope the workflow-local gate to workflows this push changed versus the
+# merge base, mirroring the mypy ratchet. Lefthook's {push_files} is a
+# two-dot tree diff against the stale remote tip, so a rebase or force-push
+# imports every workflow main advanced past; those are not this branch's
+# delta. Override the base ref for tests or non-standard remotes.
+WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
+WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 TEST_SUITE_TIMEOUT_SECONDS = 1_740
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 SKIPPED_DASH_PREFIXES = (
@@ -2725,13 +2732,69 @@ def run_pytest(repo_root: Path) -> int:
     return result.returncode
 
 
+def _workflow_local_base_ref() -> str:
+    raw = os.environ.get(WORKFLOW_LOCAL_BASE_REF_ENV, "").strip()
+    if raw and not _is_zero_sha(raw):
+        return raw
+    return WORKFLOW_LOCAL_DEFAULT_BASE
+
+
+def _pushed_workflow_paths(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> set[str] | None:
+    """Return the workflow paths this branch changed versus ``base_ref``.
+
+    Uses the three-dot diff ``base_ref...HEAD`` so only commits unique to this
+    branch since the merge base count; workflows that main advanced past on a
+    rebase or force-push are excluded. ``None`` signals that ``base_ref`` could
+    not be resolved, so callers validate every provided path and the gate is
+    never weaker than before.
+    """
+    if not paths:
+        return set()
+    result = _run_git(
+        repo_root,
+        ["diff", "--name-only", f"{base_ref}...HEAD", "--", *paths],
+    )
+    if result.returncode != 0:
+        return None
+    return {
+        _normalize_ratchet_path(line)
+        for line in result.stdout.splitlines()
+        if line.strip()
+    }
+
+
+def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:
+    base_ref = _workflow_local_base_ref()
+    changed = _pushed_workflow_paths(paths, repo_root, base_ref)
+    if changed is None:
+        print(
+            f"WARNING: workflow-local could not resolve {base_ref}; "
+            "validating all provided workflows",
+            file=sys.stderr,
+        )
+        return list(paths)
+    return [path for path in paths if _normalize_ratchet_path(path) in changed]
+
+
 def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
+    selected = _select_pushed_workflows(paths, repo_root)
+    if not selected:
+        print(
+            "workflow-local: no workflow files changed versus "
+            f"{_workflow_local_base_ref()}; skipping act "
+            "(imported or unchanged workflows excluded)",
+        )
+        return 0
     result = _run_command(
         [
             sys.executable,
             "scripts/validation/run_workflow_local_test.py",
             "--files",
-            *paths,
+            *selected,
             "--repo-root",
             str(repo_root),
         ],
