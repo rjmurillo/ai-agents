@@ -3809,6 +3809,181 @@ def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
     assert policy.run_mypy(["source.py"], tmp_path) == 2
 
 
+def _write_source(tmp_path: Path, name: str = "source.py") -> None:
+    (tmp_path / name).write_text("value: int = 1\n", encoding="utf-8")
+
+
+def test_parse_added_lines_maps_hunks_to_files() -> None:
+    diff = (
+        "diff --git a/pkg/a.py b/pkg/a.py\n"
+        "--- a/pkg/a.py\n"
+        "+++ b/pkg/a.py\n"
+        "@@ -2 +2 @@\n"
+        "+changed line two\n"
+        "@@ -10,0 +11,2 @@\n"
+        "+added eleven\n"
+        "+added twelve\n"
+        "diff --git a/pkg/b.py b/pkg/b.py\n"
+        "--- a/pkg/b.py\n"
+        "+++ b/pkg/b.py\n"
+        "@@ -5,1 +5,0 @@\n"
+        "-deleted only, no additions\n"
+    )
+
+    added = policy._parse_added_lines(diff)
+
+    assert added["pkg/a.py"] == {2, 11, 12}
+    # Pure deletion hunk (+5,0) contributes no added lines.
+    assert added["pkg/b.py"] == set()
+
+
+def test_parse_mypy_error_locations_selects_errors_only() -> None:
+    stdout = (
+        "pkg/a.py:12: error: Incompatible types  [assignment]\n"
+        "pkg/a.py:12:5: error: With a column here  [misc]\n"
+        "pkg/a.py:20: note: advisory only\n"
+        "pyproject.toml: note: unused section(s): module = ['x']\n"
+        "Found 2 errors in 1 file (checked 1 source file)\n"
+    )
+
+    locations = policy._parse_mypy_error_locations(stdout)
+
+    assert locations == [("pkg/a.py", 12), ("pkg/a.py", 12)]
+
+
+def test_mypy_ratchet_base_ref_prefers_env_over_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, "origin/release")
+    assert policy._mypy_ratchet_base_ref() == "origin/release"
+
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, "0" * 40)
+    assert policy._mypy_ratchet_base_ref() == policy.MYPY_RATCHET_DEFAULT_BASE
+
+    monkeypatch.delenv(policy.MYPY_RATCHET_BASE_REF_ENV, raising=False)
+    assert policy._mypy_ratchet_base_ref() == policy.MYPY_RATCHET_DEFAULT_BASE
+
+
+def test_changed_line_map_reads_real_git_diff(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "mod.py", "line one\nline two\nline three\n")
+    (repo / "mod.py").write_text(
+        "line one\nline TWO changed\nline three\nline four\nline five\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "--", "mod.py")
+    _git(repo, "commit", "-qm", "test: modify mod.py")
+
+    changed = policy._changed_line_map(["mod.py"], repo, base)
+
+    assert changed is not None
+    assert 2 in changed["mod.py"]
+    assert 4 in changed["mod.py"]
+    assert 5 in changed["mod.py"]
+    assert 1 not in changed["mod.py"]
+    assert 3 not in changed["mod.py"]
+
+
+def test_changed_line_map_returns_none_when_base_unresolved(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "mod.py", "line one\n")
+
+    # origin/main does not exist in this fresh repo, so the diff fails.
+    assert policy._changed_line_map(["mod.py"], repo, "origin/main") is None
+
+
+def test_mypy_ratchet_blocks_error_on_changed_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_passes_preexisting_error_on_unchanged_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {5}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: preexisting  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 0
+
+
+def test_mypy_ratchet_new_file_blocks_all_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path, "new.py")
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"new.py": {1, 2, 3}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "new.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["new.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_fatal_without_error_line_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {5}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(2, "mod is not a valid Python package name\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_falls_back_to_block_all_when_base_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: None)
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:99: error: anything  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_ignores_error_in_unpushed_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "imported.py:2: error: not pushed  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 0
+
+
 def test_mypy_invocation_sets_validation_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

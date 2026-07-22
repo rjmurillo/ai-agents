@@ -1276,6 +1276,117 @@ def _stage_causal_graph(graph_path: Path, repo_root: Path) -> int:
     return result.returncode
 
 
+# --- mypy diff-line ratchet (issue #2993) --------------------------------
+# The pre-push mypy gate used to block on ANY error mypy reported in a touched
+# file, including pre-existing debt the current push never changed. That
+# coupled unrelated shared-file edits to old type errors and blocked pushes.
+# The ratchet below blocks only on errors whose line was added or modified
+# versus the merge base, so a push is judged on the lines it actually changed.
+#
+# A stored per-file signature baseline was rejected: mypy's reported error set
+# is invocation-dependent (the same file yields different errors checked alone
+# versus batched with siblings, because module resolution changes). Diff
+# locality is invocation-independent, so it survives the batch/isolation split
+# that _mypy_invocations() creates.
+MYPY_RATCHET_BASE_REF_ENV = "MYPY_RATCHET_BASE_REF"
+MYPY_RATCHET_DEFAULT_BASE = "origin/main"
+# mypy default output: "path:line: error: message  [code]"; the column is
+# absent in this repo's config but tolerated. Only ``error`` severity blocks;
+# ``note`` lines are advisory and ignored.
+MYPY_ERROR_RE = re.compile(r"^(?P<path>.+?):(?P<line>\d+):(?:\d+:)?\s*error:")
+# Unified diff (``--unified=0``) markers. ``+++ b/<path>`` names the file; the
+# ``+c,d`` field of each hunk header is the added-line span.
+DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ b/(?P<path>.+)$")
+DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
+
+
+def _normalize_ratchet_path(path: str) -> str:
+    cleaned = path.strip()
+    if cleaned.startswith("./"):
+        cleaned = cleaned[2:]
+    return cleaned
+
+
+def _mypy_ratchet_base_ref() -> str:
+    raw = os.environ.get(MYPY_RATCHET_BASE_REF_ENV, "").strip()
+    if raw and not _is_zero_sha(raw):
+        return raw
+    return MYPY_RATCHET_DEFAULT_BASE
+
+
+def _parse_added_lines(diff_text: str) -> dict[str, set[int]]:
+    added: dict[str, set[int]] = {}
+    current: str | None = None
+    for line in diff_text.splitlines():
+        file_match = DIFF_ADDED_FILE_RE.match(line)
+        if file_match is not None:
+            current = _normalize_ratchet_path(file_match.group("path"))
+            added.setdefault(current, set())
+            continue
+        hunk_match = DIFF_HUNK_RE.match(line)
+        if hunk_match is None or current is None:
+            continue
+        start = int(hunk_match.group("start"))
+        count_raw = hunk_match.group("count")
+        count = int(count_raw) if count_raw is not None else 1
+        added[current].update(range(start, start + count))
+    return added
+
+
+def _changed_line_map(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> dict[str, set[int]] | None:
+    """Return added or modified line numbers per path versus ``base_ref``.
+
+    ``None`` signals that the diff base could not be resolved; callers then
+    fall back to blocking on any error so the gate is never weaker than before.
+    """
+    if not paths:
+        return {}
+    result = _run_git(
+        repo_root,
+        ["diff", "--unified=0", "--no-color", f"{base_ref}...HEAD", "--", *paths],
+    )
+    if result.returncode != 0:
+        return None
+    return _parse_added_lines(result.stdout)
+
+
+def _parse_mypy_error_locations(stdout: str) -> list[tuple[str, int]]:
+    locations: list[tuple[str, int]] = []
+    for line in stdout.splitlines():
+        match = MYPY_ERROR_RE.match(line)
+        if match is None:
+            continue
+        locations.append(
+            (_normalize_ratchet_path(match.group("path")), int(match.group("line"))),
+        )
+    return locations
+
+
+def _mypy_result_blocks(
+    result: subprocess.CompletedProcess[str],
+    pushed: set[str],
+    changed_lines: dict[str, set[int]] | None,
+) -> bool:
+    if result.returncode == 0:
+        return False
+    locations = _parse_mypy_error_locations(result.stdout)
+    if not locations:
+        # Non-zero exit with no parseable error line is a fatal invocation
+        # failure (crash, bad package name, hyphenated dir); block it.
+        return True
+    if changed_lines is None:
+        # Diff base unresolved: block on any error (pre-ratchet behavior).
+        return True
+    return any(
+        path in pushed and line in changed_lines.get(path, frozenset())
+        for path, line in locations
+    )
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     checked_paths: list[str] = []
     for raw_path in paths:
@@ -1290,11 +1401,16 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
             print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
             return 2
         checked_paths.append(path)
+    if not checked_paths:
+        return 0
+    pushed = {_normalize_ratchet_path(path) for path in checked_paths}
+    changed_lines = _changed_line_map(checked_paths, repo_root, _mypy_ratchet_base_ref())
     failed = False
     for invocation, needs_validation_path in _mypy_invocations(checked_paths):
         result = _invoke_mypy(invocation, repo_root, needs_validation_path)
         _print_process_output(result)
-        failed |= result.returncode != 0
+        if _mypy_result_blocks(result, pushed, changed_lines):
+            failed = True
     return 1 if failed else 0
 
 
