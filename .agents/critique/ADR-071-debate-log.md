@@ -148,7 +148,10 @@ The ADR now records blank-output behavior, the blank-line delimiter, loss of
 per-shim attribution, failed-output discard, and that stderr is not a documented
 model-context path. No P0 or P1 issue remained.
 
-## 2026-07-21 Post-Merge Timeout Rebaseline
+## 2026-07-21 Post-Merge Timeout Rebaseline (Historical Snapshot)
+
+This section records the tree reviewed on 2026-07-21. The 13-shim and
+465/470-second values are historical, not current inventory.
 
 PR #3259 removed two PreToolUse shims and one SessionStart shim. PR #3293
 removed one more PreToolUse shim. The current PreToolUse manifest now contains
@@ -157,7 +160,7 @@ requests 470 seconds after five seconds of dispatcher headroom. The 1.0.72-1
 timeout probe remains bounded to 2 seconds, so the host-cap uncertainty and
 fail-open residual do not change.
 
-## 2026-07-21 Final Reconciliation Convergence
+## 2026-07-21 Final Reconciliation Convergence (Historical Snapshot)
 
 The six roles reviewed the current worktree, generated manifest, and corrected
 timeout wording. The manifest contains 13 PreToolUse shims whose configured
@@ -174,6 +177,44 @@ runtime probe remains limited to 2 seconds.
 | security | Accept | The 470-second host-cap uncertainty and fail-open residual remain explicit. |
 | analyst | Accept | ADR, debate log, generated artifact, and regression test agree. |
 | high-level-advisor | Accept | The 2-second probe gap is retained as an accepted residual. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
+## 2026-07-22 PR #3292 Release Convergence
+
+The six roles reviewed the supply-chain amendment, current workflow, Renovate
+resolution, exact CLI package pins, shared Copilot launcher helper, and pinned
+real-CLI evidence.
+
+### Corrections verified
+
+- The npm install step receives no smoke credentials. Only the two real-CLI
+  execution steps receive `ANTHROPIC_API_KEY` and `COPILOT_GITHUB_TOKEN`.
+- Claude Code 2.1.217 and Copilot CLI 1.0.73 are exact top-level pins. The ADR
+  states that transitive dependencies remain range-resolved.
+- Renovate tracks both pins, cannot auto-merge their updates, and excludes them
+  from the general minor and patch auto-merge rule.
+- Plain startup from `@github/copilot@1.0.73` executed binary 1.0.74-0. The
+  shared `copilot_command` helper now inserts `--no-auto-update`, and a unit
+  test locks that flag.
+- A pinned replay passed three Copilot cases and two Claude cases. The JUnit
+  gate parses exactly one `--smoke-substr test_plugin_load_smoke` and one
+  `--expected-count 3`, so one skipped plugin-load case cannot read green.
+- The nightly remains a lagging, pin-specific signal. Anchoring, static gates,
+  simulated runtime tests, and loud launcher failure protect users before a
+  reviewed pin change lands.
+
+### Final votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | Pins, Renovate behavior, and runtime evidence align. |
+| critic | Accept | The duplicate JUnit gate argument was removed and test-locked. |
+| independent-thinker | Accept | The reviewed-pin and lagging-signal trade is explicit. |
+| security | Accept | Credential scope and update suppression close both blockers. |
+| analyst | Accept | Direct file reads confirmed every Copilot start uses the helper. |
+| high-level-advisor | Accept | The helper test reduces the update-bypass risk to normal review. |
 
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.

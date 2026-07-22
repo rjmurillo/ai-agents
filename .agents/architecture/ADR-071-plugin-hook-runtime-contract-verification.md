@@ -145,43 +145,55 @@ plugin scripts. They use the documented plugin-root variables.
 
 The consolidated PreToolUse dispatcher has a host-timeout residual. The host
 owns the aggregate timeout, and the measured 1.0.72-1 host fails open after a
-timeout. One hung dispatcher can therefore be killed before later guards run,
-allowing the tool and bypassing every guard that did not complete. No
-in-process watchdog is implemented. The current manifest contains 13 shims whose configured timeout values sum to
-465 seconds. The generated host entry requests 470 seconds, including five
-seconds of dispatcher headroom. The probe tested only 2 seconds. No evidence
-shows whether the host grants, caps, or enforces 470 seconds.
+timeout. No in-process watchdog is implemented. After the 2026-07-22 hook
+purge, the active manifest contains one shim with a 90-second configured
+timeout. The generated host entry requests 95 seconds, including five seconds
+of dispatcher headroom. A hung dispatcher can therefore allow the tool without
+completing the only active guard. The probe tested only 2 seconds. No evidence
+shows whether the host grants, caps, or enforces 95 seconds.
 
-Copilot parses at most one final JSON document per command hook. The current
-observe dispatcher captures nonblank stdout from successful PostToolUse shims,
-preserves registration order, and emits one
-`additionalContext` object when captured output exists. It separates shim
-output with one blank line and does not preserve per-shim attribution. It
-discards partial stdout from failed observers. SessionStart and PreCompact
-capture Python streams, direct file-descriptor writes, and inherited
-child-process stdout, then discard the raw content because current producers
-load branch-controlled session state. Direct rollback commands preserve those
-producers but suppress stdout and stderr at the shell boundary. UserPromptSubmit
-redirects stdout to stderr in dispatcher and direct rollback modes because the
-official config-file contract documents no output field for that event. Stderr
-is not a documented
-model-context path. PostToolUseFailure and every unclassified event remain
-direct because their host output semantics have no generic merger.
-PostToolUseFailure exit-2 stdout becomes recovery context. A future
-`modifiedResult` or pre-structured JSON producer must add an event-specific
-merger or remain a direct registration.
+Copilot parses at most one final JSON document per command hook. The active
+observe dispatcher captures nonblank stdout from one successful PostToolUse
+shim and emits one `additionalContext` object when captured output exists. It
+separates shim output with one blank line, does not preserve per-shim
+attribution, and discards partial stdout from failed observers. The vendored
+plugin currently has no active SessionStart,
+UserPromptSubmit, PreCompact, PostToolUseFailure, Stop, or PermissionRequest
+registration. Generator support for those event contracts is dormant and does
+not define current runtime behavior. Stderr is not a documented model-context
+path. A future `modifiedResult` or pre-structured JSON producer must add an
+event-specific merger or remain a direct registration.
 
 This amendment relies on the isolated probe transcript above. It does not
 claim that the committed authenticated
 `tests/e2e/test_cli_hook_e2e.py` harness was run for these observations.
 
+The 2026-07-22 supply-chain amendment pins the nightly smoke to reviewed Claude
+Code and Copilot CLI npm versions. Repository credentials are available only to
+the two real-CLI execution steps, never checkout, setup, or npm lifecycle
+scripts. Renovate opens non-automerge updates for both pins. A new vendor
+release therefore becomes a reviewable top-level version-change event instead
+of receiving broad job-scoped credentials during installation. npm still
+resolves each package's transitive dependency tree, so the pins are not a full
+supply-chain lock.
+
+The current pins are Copilot CLI 1.0.73 and Claude Code 2.1.217, with the
+workflow as their authoritative source. Both committed real-CLI smoke files ran
+against those versions on 2026-07-22: three Copilot cases and two Claude cases
+passed. An uncontrolled Copilot version check auto-updated an exact
+`@github/copilot@1.0.73` install to binary 1.0.74-0. A fresh run with
+`--no-auto-update` stayed on 1.0.73. The shared smoke helper now inserts that
+flag on every Copilot invocation. The empirical transcript is summarized in
+`agent-harness-reference/references/probe-evidence.md`.
+
 The plugin-root variables are now an official changelog contract. A future CLI
 can still change that contract. If both fallback variables disappear, the bash
 form `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}` expands to `/hooks/...` and
-fails at the launcher. Anchoring remains necessary but not sufficient. The
-runtime-contract gate catches a broken launcher before release, and an escaped
-launcher failure stays loud. Decision item 4 re-verifies on a material CLI
-version change.
+fails at the launcher. Anchoring remains necessary but not sufficient. Static
+validation and the no-auth runtime test catch artifact path defects under the
+simulated contract. Only an executed real-CLI smoke detects vendor launcher
+drift. An escaped launcher failure stays loud. Decision item 4 re-verifies on a
+material CLI version change.
 
 ## Decision
 
@@ -219,17 +231,27 @@ version change.
    never be masked by a wrapper that exits 0 with only a warning. A silent exit 0
    disables the hook without anyone knowing, trading a loud, learnable bug for a
    silently lost protection (the silent-failure anti-pattern). The defense against
-   the environment-wedge is prevention: anchoring (item 1), the runtime-contract
-   gate (item 2), and the real-CLI smoke catch a broken launcher before release.
+   the environment-wedge is prevention: anchoring and the runtime-contract gate
+   catch artifact defects; an executed real-CLI smoke catches vendor launcher
+   drift. Release evidence must distinguish those two coverage levels.
    Launcher-level fail-open was proposed and rejected on this basis; issue #2230
    is closed addressed-by-prevention.
+
+6. **Authenticated smoke MUST install reviewed top-level CLI versions before
+   receiving credentials.** `.github/workflows/nightly-cli-smoke.yml` installs
+   exact npm versions with no smoke credentials in job or install-step scope.
+   Only the real-CLI execution steps receive `ANTHROPIC_API_KEY` and
+   `COPILOT_GITHUB_TOKEN`. Renovate tracks both pins but cannot auto-merge their
+   updates. Every Copilot smoke command also passes `--no-auto-update`; the npm
+   pin alone does not hold the runtime binary version. Each accepted bump is a
+   material host-version change under Decision item 4.
 
 ## Consequences
 
 ### Positive
 
-- A non-resolving hook is caught at three distinct layers, two of which run in
-  CI with no auth:
+- A non-resolving hook is covered by three distinct layers. Two run in CI with
+  no auth. The third supplies vendor-runtime evidence only when it executes:
   - `scripts/validation/validate_hook_anchoring.py`: validates the committed
     artifact against the generator's shape. Runs pre-push and in CI
     (`validate-plugin-manifests.yml`). No auth.
@@ -241,8 +263,7 @@ version change.
     plugin into real Copilot and Claude CLIs and running a hook. It needs
     auth/credits. Pre-push selects it on hook-path changes, and it skips loudly
     when prerequisites are absent. This ADR does not claim the harness was run
-    for the 1.0.72-1 amendment. Full cross-platform (Windows PowerShell)
-    coverage is tracked in #2231.
+    for the 1.0.72-1 amendment.
 - The runtime contract is documented, so the next maintainer does not re-derive
   it or assume it from analogy.
 - The verification requirement generalizes to other customer-facing generated
@@ -252,11 +273,22 @@ version change.
 
 - The real-CLI e2e needs the CLIs plus authentication and model credits, which
   bare CI lacks. Pre-push selects it, but absent prerequisites cause a loud
-  skip rather than evidence of execution. Full cross-platform coverage
-  (Windows PowerShell field) requires a separate authenticated release/nightly
-  smoke, which is deferred (needs secrets governance).
+  skip rather than evidence of execution. The trusted nightly workflow runs
+  authenticated cross-platform smoke and fails when the smoke skips, but a
+  branch run still needs explicit evidence before claiming vendor-runtime
+  verification.
 - When invoked with prerequisites, the selected pre-push e2e adds latency and
   credit cost on hook-path changes.
+- A vendor release is not exercised until its pinned update is reviewed and
+  merged. This delay prevents a newly published npm package from receiving
+  repository credentials before review.
+- Top-level pins do not lock transitive npm dependencies. A compromised
+  transitive install could alter the CLI that later receives credentials. The
+  current control removes credentials from package installation and makes
+  top-level release changes reviewable; it is not an egress containment boundary.
+- The nightly is a lagging, pin-specific signal. It does not test a vendor
+  release before the pin update merges. Anchoring, static and simulated runtime
+  gates, and loud launcher failure remain the user protection during that gap.
 
 ### Residual risk (mitigated by prevention and loud failure)
 
@@ -270,12 +302,16 @@ that still escapes fails loud so it is detected and fixed rather than masked.
 Launcher-level fail-open was considered and rejected (issue #2230, closed
 addressed-by-prevention).
 
-### Tracked follow-ups (not silent deferrals)
+### Delivered follow-ups
 
-- **Windows PowerShell contract simulation in CI** (no auth needed), **glob-based
-  artifact discovery in the validator** (so a new hook-bearing platform fails
-  closed), and the **authenticated nightly cross-platform smoke** (needs secrets
-  governance): issue #2231.
+Issue #2231 is closed. The Windows PowerShell simulation runs in
+`.github/workflows/pytest.yml`; `validate_hook_anchoring.py` discovers platform
+hook artifacts from template configuration; and
+`.github/workflows/nightly-cli-smoke.yml` runs authenticated smoke from trusted
+contexts and fails if the smoke does not execute. It installs exact reviewed
+top-level CLI versions, scopes credentials to execution steps, and relies on
+non-automerge Renovate updates to surface new releases. This is version-specific
+evidence after a pin update merges, not an immediate latest-release tripwire.
 
 (Launcher-level fail-open was considered and rejected; issue #2230 is closed
 addressed-by-prevention. The defense is prevention plus loud failure, per Decision
@@ -299,10 +335,11 @@ item 5.)
 - **Exit trigger:** a host CLI version that changes the cwd semantics or renames
   or drops the plugin-root variables. Detection: Decision item 4's
   re-verification on a material version bump and the real-CLI e2e when it runs
-  (#2231 for cross-platform).
+  (nightly cross-platform workflow).
 - **Mitigation:** the runtime-contract test and the recorded decision memory make
-  a contract change observable; a launcher failure fails loud (caught by the gate
-  before release, or surfaced at runtime) instead of being silently swallowed.
+  an artifact defect observable; a launcher failure fails loud. Vendor-runtime
+  drift is caught by an executed real-CLI smoke or surfaced at runtime instead
+  of being silently swallowed.
   The decision is reversible: if the vendor publishes a stable mechanism, swap the
   anchor token in
   `build/scripts/generate_hooks_emit.py::_build_copilot_entry` and regenerate.
@@ -319,6 +356,13 @@ item 5.)
   selected by pre-push.
 - Serena memory `decision-copilot-cli-hook-plugin-root-contract`. Verified contract.
 - `.github/workflows/validate-plugin-manifests.yml`. Server-side anchoring gate.
+- `.github/workflows/nightly-cli-smoke.yml`. Authenticated, version-pinned
+  cross-platform vendor-runtime smoke.
+- `tests/test_nightly_cli_smoke_security.py`. CLI pin and credential-scope
+  regression contract.
+- `tests/e2e/copilot_hook_probe.py`. Shared no-auto-update Copilot command
+  contract.
+- `renovate.json`. Non-automerge update path for the two CLI pins.
 - `.agents/critique/ADR-071-debate-log.md`. Six-agent review debate.
 - `.claude/skills/agent-harness-reference/references/probe-evidence.md`.
   Curated probe summary for the 1.0.72-1 amendment.
@@ -327,5 +371,5 @@ item 5.)
 - [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference).
   Official DOCS-SAY event and behavior contract.
 - Issues #2205 (fix), #2223 (module-size/complexity debt), #2230 (launcher
-  fail-open, closed: rejected, addressed-by-prevention), #2231 (Windows
-  contract sim, glob artifact discovery, authenticated nightly smoke).
+  fail-open, closed: rejected, addressed-by-prevention), #2231 (closed:
+  Windows contract simulation, artifact discovery, authenticated smoke).

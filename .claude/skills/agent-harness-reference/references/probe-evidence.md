@@ -2,7 +2,7 @@
 
 # Probe Evidence Behind the Hook Contract
 
-Updated: 2026-07-20
+Updated: 2026-07-22
 
 This file records version-scoped runtime observations. Official behavior belongs
 in `official-hook-contracts.md`. Keep a probe here when the docs are silent, when
@@ -171,7 +171,48 @@ including URL and trusted-directory settings, but no tool-command allow or deny
 key. The official guide identifies `permissions-config.json` as an automatically
 managed user file, not a repository artifact.
 
-## 6. Re-running a probe
+## 6. Pinned-package runtime verification and Copilot auto-update
+
+Date: 2026-07-22.
+
+Versions:
+
+- `@github/copilot@1.0.73`
+- `@anthropic-ai/claude-code@2.1.217`
+
+Method:
+
+1. Install both exact npm package versions into isolated prefixes with API,
+   GitHub, and npm credentials removed from the installation environment.
+2. Run each binary from the isolated prefix.
+3. Repeat Copilot from a fresh prefix with `--no-auto-update`.
+4. Run the committed real-CLI hook and plugin-load smokes against the pinned
+   binaries.
+
+Observed:
+
+```text
+copilot --version after exact package install: GitHub Copilot CLI 1.0.74-0
+copilot --no-auto-update --version from a fresh install: GitHub Copilot CLI 1.0.73
+claude --version: 2.1.217 (Claude Code)
+pinned Copilot smoke: 3 passed
+pinned Claude smoke: 2 passed
+```
+
+An exact `@github/copilot` npm package pin does not pin the executed binary by
+itself. Copilot can update at process startup. Every committed Copilot smoke
+command therefore goes through `copilot_command`, which inserts
+`--no-auto-update` before the command arguments. The nightly workflow's package
+pin and the helper's runtime flag are one contract; removing either makes the
+recorded version ambiguous.
+
+Durable tests:
+
+- `tests/e2e/copilot_hook_probe.py`
+- `tests/e2e/test_plugin_load_smoke.py::test_copilot_commands_disable_auto_update`
+- `tests/test_nightly_cli_smoke_security.py`
+
+## 7. Re-running a probe
 
 Use `ai-agents-empirical-probe-toolkit` recipe 1.
 
