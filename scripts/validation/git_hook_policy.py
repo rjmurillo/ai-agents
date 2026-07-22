@@ -90,7 +90,7 @@ SEMGREP_TIMEOUT_SECONDS = 840
 MYPY_TIMEOUT_SECONDS = 840
 WORKFLOW_LOCAL_TIMEOUT_SECONDS = 1_740
 # Scope the workflow-local gate to workflows this push changed versus the
-# merge base, mirroring the mypy ratchet. Lefthook's {push_files} is a
+# origin/main merge base (three-dot diff). Lefthook's {push_files} is a
 # two-dot tree diff against the stale remote tip, so a rebase or force-push
 # imports every workflow main advanced past; those are not this branch's
 # delta. Override the base ref for tests or non-standard remotes.
@@ -778,8 +778,7 @@ def check_branch_context(repo_root: Path) -> int:
 
     Only a determinate ``current_branch != session_branch`` blocks. A merge
     in progress is exempt: a merge legitimately imports another branch's newer
-    session log into the tree, which would otherwise read as a mismatch. This
-    mirrors the ``check_sessions`` merge guard.
+    session log into the tree, which would otherwise read as a mismatch.
     """
     try:
         if _merge_in_progress(repo_root):
