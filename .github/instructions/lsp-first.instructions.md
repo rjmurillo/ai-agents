@@ -9,11 +9,12 @@ For code navigation, prefer a Language Server over text search. A symbol query
 a grep returns noisy matches and several wrong-file reads. The token difference
 is large on a real codebase.
 
-This rule is static steering only. It states a preference; nothing blocks a raw
-search at runtime. ADR-062 originally paired this rule with PreToolUse guards
-that hard-blocked Read, Grep, and Glob until an LSP was tried. The 2026-07-17
-amendment (issue #3214) retired that runtime enforcement layer and kept the
-steering.
+This rule is the cross-harness source of truth. It states a preference; nothing
+blocks a raw search at runtime. ADR-062 originally paired this rule with
+PreToolUse guards that hard-blocked Read, Grep, and Glob until an LSP was tried.
+The 2026-07-17 amendment (issue #3214) retired that runtime enforcement layer
+and kept the steering. This always-loaded rule now carries the direction on
+both Claude and Copilot. No per-turn navigation hook remains.
 
 ## The three tiers
 
