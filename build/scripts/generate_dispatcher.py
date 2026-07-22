@@ -11,8 +11,10 @@ Each consolidated event runs in one of three modes:
   shim exit and returns that exit code.
 - ``observe`` (``PostToolUse``, ``PreCompact``, ``SessionStart``,
   ``UserPromptSubmit``): the dispatcher runs every shim regardless of an
-  earlier non-zero exit and always returns 0, matching the pre-consolidation
-  host behavior where the host ran every observer entry.
+  earlier non-zero shim exit and returns 0 for shim outcomes and oversize input,
+  matching the pre-consolidation host behavior where the host ran every observer
+  entry. Entrypoint faults still return 2 after a fixed diagnostic; the host
+  decides whether an observer failure blocks or continues.
 - ``advise`` (``PermissionRequest``): exactly one canonical Claude decision
   producer runs. Its stdout is translated to Copilot's permission response.
 
@@ -85,6 +87,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path, PureWindowsPath
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -223,7 +226,11 @@ def _load_manifest(event_dir):
     return event, shims, _manifest_timeouts(manifest, shims), mode
 
 
-def _read_payload(event, shims, mode):
+def _read_payload(
+    event: str,
+    shims: list[str],
+    mode: str,
+) -> tuple[bytes, int | None]:
     raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
     if len(raw) <= _MAX_STDIN_BYTES:
         return raw, None
@@ -241,11 +248,12 @@ def _read_payload(event, shims, mode):
 
 
 def _main() -> int:
+    event_dir = Path(__file__).resolve().parent
+    mode = None
     try:
         ensure_plugin_paths()
         from hook_dispatch import observe_output_policy, run_dispatch  # noqa: E402
 
-        event_dir = Path(__file__).resolve().parent
         event, shims, shim_timeouts, mode = _load_manifest(event_dir)
         raw, oversize_exit = _read_payload(event, shims, mode)
         if oversize_exit is not None:
@@ -253,21 +261,36 @@ def _main() -> int:
         if mode == "advise":
             from hook_dispatch import run_permission_dispatch  # noqa: E402
 
-            return run_permission_dispatch(event_dir, shims, raw, shim_timeouts)
-        return run_dispatch(
-            event_dir,
-            shims,
-            raw,
-            shim_timeouts,
-            short_circuit=mode == "gate",
-            output_policy=(
-                observe_output_policy(event) if mode == "observe" else "passthrough"
+            return cast(
+                int,
+                run_permission_dispatch(event_dir, shims, raw, shim_timeouts),
+            )
+        return cast(
+            int,
+            run_dispatch(
+                event_dir,
+                shims,
+                raw,
+                shim_timeouts,
+                short_circuit=mode == "gate",
+                output_policy=(
+                    observe_output_policy(event) if mode == "observe" else "passthrough"
+                ),
             ),
         )
-    except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
+    except Exception as exc:  # noqa: BLE001 - generated entrypoint must stay loud
+        fail_closed = mode in ("gate", "advise") or event_dir.name.lower() in (
+            "pretooluse",
+            "permissionrequest",
+        )
+        consequence = (
+            "denying (fail-closed)"
+            if fail_closed
+            else "observer failed; host continues"
+        )
         print(
             f"hook-dispatch-entrypoint: {type(exc).__name__}: "
-            f"{_diag(str(exc))}; denying (fail-closed)",
+            f"{_diag(str(exc))}; {consequence}",
             file=sys.stderr,
         )
         return 2
@@ -1010,14 +1033,9 @@ def consolidate(
             )
         shim_timeouts = dict(shim_entries)
         timeout = (
-            sum(timeout_sec for _, timeout_sec in shim_entries)
-            + _DISPATCHER_TIMEOUT_HEADROOM_SEC
+            sum(timeout_sec for _, timeout_sec in shim_entries) + _DISPATCHER_TIMEOUT_HEADROOM_SEC
         )
-        matchers = [
-            entry.get("claudeMatcher")
-            for entry in entries
-            if isinstance(entry, dict)
-        ]
+        matchers = [entry.get("claudeMatcher") for entry in entries if isinstance(entry, dict)]
         event_dir = Path(hooks_dir) / event
         new_out[event] = [
             emit_dispatcher(

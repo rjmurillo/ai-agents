@@ -19,6 +19,15 @@ import generate_dispatcher as gd  # noqa: E402
 from generate_hooks_shim import _SHIM_BEGIN  # noqa: E402
 
 
+def _copy_dispatch_lib(lib: Path) -> None:
+    source = _REPO / ".claude" / "lib"
+    for name in ("hook_dispatch.py", "hook_dispatch_protocol.py"):
+        (lib / name).write_text(
+            (source / name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+
 class TestDispatcherEntry:
     def test_entry_points_at_event_dispatcher(self):
         entry = gd.dispatcher_entry("preToolUse", 90)
@@ -124,9 +133,8 @@ class TestEmit:
         (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
-        # Copy the real dispatcher lib and a minimal bootstrap into the lib/hooks.
-        src_lib = _REPO / ".claude" / "lib" / "hook_dispatch.py"
-        (lib / "hook_dispatch.py").write_text(src_lib.read_text(encoding="utf-8"), encoding="utf-8")
+        # Copy the real dispatcher libs and a minimal bootstrap into the plugin.
+        _copy_dispatch_lib(lib)
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
         (event_dir / "_bootstrap.py").write_text(
@@ -161,10 +169,7 @@ class TestEmit:
         (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
-        (lib / "hook_dispatch.py").write_text(
-            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        _copy_dispatch_lib(lib)
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
         (event_dir / "_bootstrap.py").write_text(
@@ -194,10 +199,7 @@ class TestEmit:
         (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
-        (lib / "hook_dispatch.py").write_text(
-            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        _copy_dispatch_lib(lib)
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
         (event_dir / "_bootstrap.py").write_text(
@@ -226,6 +228,30 @@ class TestEmit:
         assert "hook-dispatch-entrypoint" in stderr
         assert "fail-closed" in stderr
 
+    def test_generated_observer_exception_names_nonblocking_host_behavior(self, tmp_path):
+        root, event_dir = _stage_plugin(tmp_path, "postToolUse")
+        (event_dir / "observer.py").write_text("pass\n", encoding="utf-8")
+        gd.emit_dispatcher(
+            event_dir,
+            "postToolUse",
+            ["observer.py"],
+            5,
+            mode="observe",
+        )
+        (root / "lib" / "hook_dispatch.py").write_text(
+            "def observe_output_policy(event):\n"
+            "    return 'additional_context'\n"
+            "def run_dispatch(*args, **kwargs):\n"
+            "    raise RuntimeError('observer boom')\n",
+            encoding="utf-8",
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        assert proc.returncode == 2
+        assert b"observer failed; host continues" in proc.stderr
+        assert b"denying" not in proc.stderr
+
     def test_generated_entrypoint_below_ceiling_allows_unmatched(self, tmp_path):
         # Contract change (#3074, ADR-066): the ceiling was raised from 2 MiB to a
         # genuine-anomaly cap (64 MiB). A ~2 MiB payload that the old cap DENIED is
@@ -249,10 +275,7 @@ class TestEmit:
         (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
-        (lib / "hook_dispatch.py").write_text(
-            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+        _copy_dispatch_lib(lib)
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
         (event_dir / "_bootstrap.py").write_text(
@@ -311,8 +334,8 @@ class TestEmit:
 def _stage_plugin(tmp_path, event):
     """Stage a minimal plugin tree the canonical _bootstrap.py can resolve.
 
-    Returns ``(root, event_dir)``. The plugin has ``lib/hook_dispatch.py`` (the
-    real lib) and an ``hooks/<event>/`` dir, which is exactly what the canonical
+    Returns ``(root, event_dir)``. The plugin has the real dispatcher libraries
+    and a ``hooks/<event>/`` dir, which is exactly what the canonical
     bootstrap's env-var resolution needs. ``emit_dispatcher`` drops the real
     ``_bootstrap.py`` (and ``_dispatch.py`` + manifest) into the event dir.
     """
@@ -321,10 +344,7 @@ def _stage_plugin(tmp_path, event):
     (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
     lib = root / "lib"
     lib.mkdir()
-    (lib / "hook_dispatch.py").write_text(
-        (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
+    _copy_dispatch_lib(lib)
     event_dir = root / "hooks" / event
     event_dir.mkdir(parents=True)
     return root, event_dir
@@ -538,8 +558,37 @@ class TestObserveMode:
             "exit_code": 0,
         }
 
+    def test_failed_precompact_observer_reports_stderr_presence(self, tmp_path):
+        event = "PreCompact"
+        root, event_dir = _stage_plugin(tmp_path, event)
+        (event_dir / "failed.py").write_text(
+            "import sys\n"
+            "print('branch-controlled failure detail', file=sys.stderr)\n"
+            "raise SystemExit(7)\n",
+            encoding="utf-8",
+        )
+        gd.emit_dispatcher(
+            event_dir,
+            event,
+            ["failed.py"],
+            5,
+            mode="observe",
+        )
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        event_line = next(
+            line for line in proc.stderr.splitlines() if line.startswith(b"EVENT=")
+        )
+        payload = json.loads(event_line.removeprefix(b"EVENT="))
+        assert proc.returncode == 0
+        assert proc.stdout == b""
+        assert payload["shim"] == "failed.py"
+        assert payload["exit_code"] == 7
+        assert b"branch-controlled failure detail" not in proc.stderr
+
     @pytest.mark.parametrize("event", ["UserPromptSubmit"])
-    def test_observe_redirects_unsupported_context_output(self, tmp_path, event):
+    def test_observe_discards_unsupported_context_output(self, tmp_path, event):
         root, event_dir = _stage_plugin(tmp_path, event)
         (event_dir / "observer.py").write_text(
             self._stdout_shim("unsupported context"),
@@ -557,8 +606,8 @@ class TestObserveMode:
 
         assert proc.returncode == 0
         assert proc.stdout == b""
-        assert b"no documented Copilot context output field" in proc.stderr
-        assert b"unsupported context" in proc.stderr
+        assert b"hook output is not trusted model context" in proc.stderr
+        assert b"unsupported context" not in proc.stderr
 
     def test_observe_runs_all_shims_even_when_one_signals(self, tmp_path):
         # A failing observer must NOT stop later observers (the pre-consolidation
