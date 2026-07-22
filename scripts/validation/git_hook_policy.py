@@ -416,21 +416,34 @@ def _current_branch(repo_root: Path) -> str | None:
     return branch or None
 
 
-def _today_session_log(sessions_dir: Path) -> Path | None:
-    """Return today's newest session log by mtime, or None.
+def _recent_date_prefixes() -> tuple[str, str]:
+    """Return today's and yesterday's UTC date strings for cross-midnight tolerance."""
+    from datetime import timedelta
 
-    Follows hook_utilities.get_today_session_log selection semantics (newest
-    UTC-dated session log by mtime) with the per-file stat resilience of
-    hook_utilities._newest_by_mtime: a single unreadable candidate (deleted or
-    renamed mid-scan, permission race) is skipped rather than blinding the
-    check to every other valid log. An empty match or an unreadable directory
-    yields None so branch-context checking fails open.
+    now = datetime.now(tz=UTC)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    return today, yesterday
+
+
+def _today_session_log(sessions_dir: Path) -> Path | None:
+    """Return the newest recent session log by mtime, or None.
+
+    Checks both today's and yesterday's UTC dates to handle cross-midnight
+    sessions gracefully. Follows hook_utilities.get_today_session_log selection
+    semantics (newest UTC-dated session log by mtime) with the per-file stat
+    resilience of hook_utilities._newest_by_mtime: a single unreadable candidate
+    (deleted or renamed mid-scan, permission race) is skipped rather than
+    blinding the check to every other valid log. An empty match or an unreadable
+    directory yields None so branch-context checking fails open.
     """
     if not sessions_dir.is_dir():
         return None
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    today, yesterday = _recent_date_prefixes()
+    candidates: list[Path] = []
     try:
-        candidates = list(sessions_dir.glob(f"{today}-session-*.json"))
+        candidates.extend(sessions_dir.glob(f"{today}-session-*.json"))
+        candidates.extend(sessions_dir.glob(f"{yesterday}-session-*.json"))
     except OSError:
         return None
     best: Path | None = None
@@ -599,9 +612,12 @@ def _today_retrospective_exists(repo_root: Path) -> bool:
     retro_dir = repo_root / ".agents" / "retrospective"
     if not retro_dir.is_dir():
         return False
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    today, yesterday = _recent_date_prefixes()
     try:
-        return any(not path.is_symlink() for path in retro_dir.glob(f"{today}*.md"))
+        for prefix in (today, yesterday):
+            if any(not path.is_symlink() for path in retro_dir.glob(f"{prefix}*.md")):
+                return True
+        return False
     except OSError:
         return False
 
@@ -2511,6 +2527,7 @@ def run_pytest(repo_root: Path) -> int:
         "GIT_NO_REPLACE_OBJECTS",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "SKIP_RETROSPECTIVE_GATE",
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
