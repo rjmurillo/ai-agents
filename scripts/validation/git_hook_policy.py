@@ -632,6 +632,8 @@ def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
     if os.environ.get("SKIP_RETROSPECTIVE_GATE") == "true":
         print("Retrospective policy bypassed via SKIP_RETROSPECTIVE_GATE=true")
         return 0
+    if not paths:
+        return 0
     if _documentation_only(paths):
         return 0
 
