@@ -39,6 +39,11 @@ superseded by deletion after a deeper security review.
 - D-B: delete `test_auto_approval`. Remove its registrations and generated
   Copilot artifacts. Do not replace it with `permissions.allow`. Retain the
   generic PermissionRequest adapter without an active producer.
+- D-C (2026-07-22): remove `observation_sync` from the vendored plugin. Its
+  basename-only repository identity check allowed a different repository named
+  `ai-agents` to execute repository-controlled importer code through an
+  installed plugin. Keep the local `.claude/settings.json` registration for the
+  canonical repository.
 
 The owner selected deletion after being shown the conflict with the accepted
 keep-as-hook decision. ADR-085 and ADR-068 now align.
@@ -63,7 +68,8 @@ historical initial debate lives in `analysis/`; a future ADR with only a
   keep-as-hook decision.
 - PR #3293 implemented D-A Retirement and removed the runtime guard.
 - `fix/copilot-hook-contract` carries the D-B deletion amendment, review evidence,
-  producer removal, generated cleanup, and absence regressions.
+  producer removal, the D-C vendored observation-sync removal, generated
+  cleanup, and absence regressions.
 - Historical initial debate:
   `.agents/analysis/ADR-085-permission-surface-debate.md`.
 - Superseding security amendment:

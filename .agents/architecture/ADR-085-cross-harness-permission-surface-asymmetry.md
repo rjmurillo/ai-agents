@@ -1,7 +1,7 @@
 ---
 id: ADR-085
 status: accepted
-date: 2026-07-20
+date: 2026-07-22
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -28,7 +28,9 @@ conflict with the accepted ADR, the owner explicitly superseded D-B and chose
 deletion. D-A remains internal-only. The D-B removal is implemented by
 `fix/copilot-hook-contract`. PR #3293 selected D-A's Retirement terminal state
 and removed the guard source, registrations, generated artifacts, and dedicated
-tests. The #3218 rescope remains follow-up work, so `implemented` stays false.
+tests. On 2026-07-22 the owner chose to remove `observation_sync` from the
+vendored plugin while retaining the local repository hook. The #3218
+component-retirement review remains open, so `implemented` stays false.
 
 ## Amendment Record
 
@@ -51,7 +53,7 @@ blocking.
 Issue #3197 authorized shrinking the vendored hook surface the project ships to
 consumers. ADR-062 (amended, #3214) retired the LSP-first enforcement family.
 ADR-084 (#3215) set the ROI bar that stops the surface re-accreting. Issue #3216
-purged non-customer hooks. A small set of survivor guards remain.
+purged non-customer hooks. A small set of survivor hooks remain.
 
 Issue #3217 proposed the next step: move the survivors off hooks and onto
 host-native permissions (`permissions.deny`, `permissions.allow`). Its stated
@@ -71,9 +73,9 @@ Three survivor hooks were named in #3217 when this ADR began:
   ADR started. The hook-contract branch briefly generated a Copilot translation,
   then removed both registrations after Finding 3.
 - `invoke_observation_sync.py` (PostToolUse). Syncs this repo's internal Serena
-  and Forgetful memories. Ships to Copilot
-  (`src/copilot-cli/hooks/PostToolUse/invoke_observation_sync__*.py`) but has no
-  consumer value.
+  and Forgetful memories. It had no documented plugin-consumer contract. The
+  2026-07-22 owner decision removes it from the vendored Copilot surface and
+  retains it only in local repository settings.
 
 ### Finding 1: Copilot has no repo-committed permission surface, and the guard self-neutered before retirement
 
@@ -235,7 +237,8 @@ raw `gh` command before it executes. Under #3217, the implementation MUST:
 3. Record retirement of pre-execution blocking unless a separate decision
    approves a non-vendored agent-time carrier.
 
-#3217 may close only in one of two terminal states:
+The D-A portion of #3217 may reach completion only in one of two terminal
+states:
 
 1. **Repository-only agent-time carrier.** A separate decision approves a
    non-vendored PreToolUse carrier. Build and artifact tests prove the guard is
@@ -254,7 +257,8 @@ satisfies the rule's non-vendoring purpose.
 PR #3293 selected terminal state 2, Retirement. It removed the guard source,
 all registrations, generated Copilot artifacts, and dedicated tests. Repository
 instructions retain skill-first as a static MUST-level rule. No Lefthook or CI
-surface claims equivalent pre-execution interception.
+surface claims equivalent pre-execution interception. That completes D-A. The 2026-07-22 owner decision also closes the remaining
+`observation_sync` disposition by removing its vendored registration.
 
 ### 3. `test_auto_approval`: delete the auto-approval path (D-B superseded)
 
@@ -275,37 +279,52 @@ and an explicit reconciliation against the accepted ADR, the owner superseded th
 decision and chose deletion. Normal host permission handling now remains
 authoritative for test execution.
 
-### 4. `observation_sync`: out of scope, route to #3216
+### 4. `observation_sync`: remove from the vendored surface
 
 It makes no permission decision, so it is not a permissions candidate. As a
 PostToolUse hook it fires after tool execution; permissions gate only before
-execution, so no permission rule can carry its behavior in any case. It syncs this
-repo's internal Serena and Forgetful stores, not consumer state, so it carries no
-consumer value in the shipped configuration. Its removal belongs to the #3216
-non-customer hook purge, not this ADR.
+execution, so no permission rule can carry its behavior. It syncs this repo's
+internal Serena and Forgetful stores. The installed plugin previously executed a repository-controlled importer
+after checking only the repository basename. A different repository named
+`ai-agents` could satisfy that identity check. The owner chose removal from the
+vendored source. Local `.claude/settings.json` retains the hook for this
+repository. Issue #3217 owns delivery of that terminal state.
 
-### 5. Partial dispatcher retirement (#3218)
+### 5. Component-level machinery retirement (#3218)
 
-While any hook survives on the Copilot surface, #3218 cannot fully retire the
-dispatcher, parity, and drift machinery. Rescope #3218 to retire only machinery
-whose last hook consumer is gone. Full retirement requires either removal of every
-surviving Copilot hook or a future committed Copilot permission surface.
+#3218 evaluates the dispatcher, translation adapters, parity checks, and drift
+checks as separate components. A surviving hook retains only the components it
+uses. The dispatcher may be removed or replaced by direct host registrations
+while hooks remain. A future permission surface can replace only eligible
+pre-execution policy hooks; it cannot carry PostToolUse observers. A component
+may retire when it has zero active consumers or when a tested replacement
+preserves its host contract.
 
 ### 6. Confirmation
 
 The eligibility test (Decision 1) is applied at adr-review time for any future
 hook-to-permissions migration proposal. ADR-084 rule 5's vendored-hook presence
-check is the containing gate that surfaces such hooks for review. The #3218 rescope
-(Decision 5) is confirmed done when both hold: every dispatcher, parity, and drift
-component whose last surviving hook consumer is gone is removed; and each component
-still referenced by a surviving hook (`observation_sync` until #3216, plus
-`compact_checkpoint` and `markdownlint_guard`) is listed
-as retained with the hook that keeps it alive. Those three are the surviving
-hooks discussed by this ADR, not the complete dispatcher inventory. #3218 must derive the full
-consumer list from every active source registration and generated manifest. In
-the current tree that means 26 registrations across six events. A component may
-be retired only after reference search, regeneration, and artifact tests prove
-it has zero active consumers.
+check is planned but not built; human ADR and PR review is the current gate. The
+#3218 rescope (Decision 5) is confirmed done when both hold: every
+dispatcher, translation-adapter, parity, and drift component whose last
+surviving hook consumer is gone is either removed or retained by a named
+accepted decision with dedicated tests; and each component still referenced by
+a surviving vendored hook is listed with the hook that keeps it alive. Decision
+3 is the named retention decision for the dormant generic PermissionRequest
+adapter. Removing that adapter requires superseding this decision, not treating
+zero active producers as implicit approval. The 2026-07-22 vendored
+source has two registrations across two events: `markdownlint_guard` and
+`markdown_auto_lint`. Copilot generation emits two host registrations. #3218
+must derive its consumer list from
+every active source registration and generated manifest. Retirement or
+replacement requires reference search, regeneration, and artifact tests that
+prove no active consumer lost its required behavior.
+
+A survivor inventory alone does not complete #3218. Each retained component
+must record why direct registration or deletion would lose a measured host
+contract or cost more than the retained machinery. Otherwise #3218 removes or
+simplifies it. This makes the one-shim dispatcher state a decision to resolve,
+not permanent debt accepted by documentation.
 
 ## Resolved Owner Decisions
 
@@ -419,8 +438,8 @@ repository-only carrier is approved; Lefthook and CI cannot preserve that timing
 
 ### Negative
 
-- #3218's dispatcher retirement is only partial while any Copilot hook survives.
-  #3218 must be rescoped to "last consumer gone."
+- #3218 remains open for a component-level cost and consumer review. Current
+  hook survival does not by itself require consolidated dispatch.
 - D-A Retirement removes `skill_first_guard`'s pre-execution block. Lefthook
   and CI do not preserve that timing.
 - The retained-consumer inventory must include ADR-083 security controls and
@@ -433,7 +452,7 @@ repository-only carrier is approved; Lefthook and CI cannot preserve that timing
 
 ### Neutral
 
-- `observation_sync` stays governed by #3216.
+- `observation_sync` stays governed by #3217.
 - The eligibility test remains falsifiable for other hook migrations. A committed
   Copilot permission surface can reopen `skill_first_guard` portability.
 - Better shell matching does not reopen test-runner auto-approval. Reintroduction
@@ -447,14 +466,13 @@ repository-only carrier is approved; Lefthook and CI cannot preserve that timing
 
 | Component | Dependency Type | Required Update | Risk |
 |-----------|-----------------|-----------------|------|
-| Issue #3217 | Direct | D-A Retirement is implemented by PR #3293; D-B deletion is complete | Medium |
-| Issue #3218 | Direct | Rescope to "retire only machinery whose last hook consumer is gone" | Medium |
+| Issue #3217 | Direct | D-A Retirement, D-B deletion, and vendored `observation_sync` removal are implemented on this branch | Medium |
+| Issue #3218 | Direct | Evaluate dispatcher, translation, parity, and drift components against active consumers and direct-registration alternatives | Medium |
 | Historical `.claude/hooks/PreToolUse/invoke_skill_first_guard.py` | Direct | Removed by PR #3293 under the Retirement terminal state | High |
 | `.claude/settings.json`, `.claude/hooks/hooks.json`, `.claude/hooks/dispatch_groups.json` | Direct | `test_auto_approval` and `skill_first_guard` registrations are removed | High |
 | `.claude/hooks/PermissionRequest/invoke_test_auto_approval.py` | Direct | Delete the producer and its dedicated tests | High |
 | `src/copilot-cli/hooks/PermissionRequest/` | Generated | Remove through regeneration and prove the event directory stays absent | High |
 | `src/copilot-cli/hooks/PreToolUse/invoke_skill_first_guard__*.py` | Generated | Removed from the vendored surface under #3217 (stops shipping) | Medium |
-| Issue #3216 | Governance | Retain ownership of `observation_sync` removal | Low |
 
 ## Implementation Notes
 
@@ -462,8 +480,9 @@ The initial ADR changed no code. The `fix/copilot-hook-contract` implementation
 applies superseding D-B: delete `test_auto_approval`, remove both registration
 surfaces, regenerate the Copilot tree, retain the generic adapter, and add absence
 regressions. PR #3293 applies D-A Retirement: delete `skill_first_guard`, its
-registrations, generated artifacts, and dedicated tests. #3218 remains responsible
-for retiring machinery whose last hook consumer is gone.
+registrations, generated artifacts, and dedicated tests. #3218 remains
+responsible for component-level retirement or replacement. #3217 remains
+responsible for shipping the vendored `observation_sync` removal.
 
 ## Related Decisions
 

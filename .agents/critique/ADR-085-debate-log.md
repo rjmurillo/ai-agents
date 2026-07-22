@@ -205,7 +205,7 @@ Final tally: **5 Accept, 1 Disagree-and-Commit, 0 Block**. Consensus reached.
 - **Second-system effect**: Pass. The ADR rejects a dual-surface replacement and
   does not add a new permission framework.
 
-## 2026-07-21 Post-Merge Reconciliation
+## 2026-07-21 Post-Merge Reconciliation (Historical Snapshot)
 
 The review reconciled the accepted ADR with PR #3259 and PR #3293 on
 `origin/main`.
@@ -213,10 +213,11 @@ The review reconciled the accepted ADR with PR #3259 and PR #3293 on
 - D-A now records the implemented Retirement terminal state.
 - D-B remains deleted with semantic absence regressions.
 - Finding 3 now names its later discovery point and causal role.
-- Current dispatcher inventory is 26 source registrations across six events.
+- The reviewed dispatcher inventory was 26 source registrations across six
+  events. This value is historical, not current inventory.
 - Historical D&C detail remains unavailable and is labeled as evidence loss.
 
-## 2026-07-21 Final Reconciliation Convergence
+## 2026-07-21 Final Reconciliation Convergence (Historical Snapshot)
 
 The six roles reviewed the accepted ADR against absolute worktree bytes after a
 stale Serena/LSP index returned deleted files from another worktree. Filesystem
@@ -234,6 +235,39 @@ shims, and dedicated tests.
 | security | Accept | The dormant adapter and CVSS privilege assumption remain documented residuals. |
 | analyst | Accept | Finding 3 chronology, evidence loss, and current artifacts align. |
 | high-level-advisor | Accept | D-A and D-B are complete; #3218 still owns the remaining implementation state. |
+
+Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
+finding remained.
+
+## 2026-07-22 PR #3292 Release Convergence
+
+The six roles reviewed the final post-purge hook inventory, dormant adapter
+decision, and issue #3218 completion criteria against current registrations and
+generated artifacts.
+
+### Corrections verified
+
+- `skill_first_guard`, `test_auto_approval`, and vendored
+  `observation_sync` registrations remain absent.
+- The vendored surface retains only `markdownlint_guard` and
+  `markdown_auto_lint`.
+- A zero-consumer component must be removed unless a named accepted decision
+  plus dedicated tests retains it.
+- Decision 3 explicitly retains the dormant PermissionRequest adapter. Its
+  removal requires a superseding decision, not an empty current inventory.
+- Inventory alone cannot complete #3218. The issue owns component retirement,
+  parity, translation, and drift review.
+
+### Final votes
+
+| Agent | Vote | Remaining position |
+|-------|------|--------------------|
+| architect | Accept | Survivor disposition and completion criteria align. |
+| critic | Accept | The dormant-adapter contradiction is closed. |
+| independent-thinker | Accept | Inventory-only closure is no longer possible. |
+| security | Accept | Unsafe approval and unrequested vendored execution stay removed. |
+| analyst | Accept | Current files and absence regressions match the ADR. |
+| high-level-advisor | Accept | Named-decision retention preserves accountability. |
 
 Final tally: **6 Accept, 0 Disagree-and-Commit, 0 Block**. No P0 or P1
 finding remained.
