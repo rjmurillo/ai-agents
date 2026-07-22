@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-07-21-session-3290-mypy-diff-line-ratchet",
+  "session": "2026-07-21-session-3290-mypy-diff-line-ratchet",
+  "timestamp": "2026-07-21T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix the per-file pre-push mypy gate (#2993) so it blocks only NEW type errors, not pre-existing debt in touched shared files. Implement a diff-line ratchet in git_hook_policy.run_mypy that blocks only errors on lines added or changed versus origin/main, mirroring the existing ruff_ratchet base-detection.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reworked run_mypy into a diff-line ratchet: added _changed_line_map (git diff --unified=0 base...HEAD parsing), _parse_mypy_error_locations (error-severity only), _mypy_result_blocks (block only errors on changed lines of pushed files; block fatal no-error-line invocations; fall back to block-on-any when the diff base is unresolved), a MYPY_RATCHET_BASE_REF env override with zero-SHA guard and origin/main fallback, and a rationale comment recording the invocation-dependence finding.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 10 tests (pos+neg+edge): _parse_added_lines hunk mapping incl. pure-deletion; _parse_mypy_error_locations error-vs-note-vs-column; base-ref env/zero-SHA/default; real-git _changed_line_map integration + base-unresolved None; ratchet blocks new-line error; passes pre-existing unchanged-line error; new-file blocks all; fatal-no-error-line blocks; base-unresolved falls back to block-all; ignores errors in non-pushed imported files.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-21T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 184ec83eeb38a56f54f954e02617ebdfe00c0a1c",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

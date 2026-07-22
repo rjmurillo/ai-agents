@@ -14339,6 +14339,42 @@
         "episode-2026-07-21-session-3295-remove-dead-codeql-hook"
       ],
       "created": "2026-07-21T15:46:40.279732+00:00"
+      },
+      {
+      "id": "3f59981c6b16",
+      "type": "milestone",
+      "label": "milestone: Reworked run_mypy into a diff-line ratchet: added _changed_line_map (git diff --unified=0 base...HEAD parsing), _parse_mypy_error_locations (error-severity only), _mypy_result_blocks (block only errors on changed lines of pushed files; block fatal no-error-line invocations; fall back to block-on-any when the diff base is unresolved), a MYPY_RATCHET_BASE_REF env override with zero-SHA guard and origin/main fallback, and a rationale comment recording the invocation-dependence finding.",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T13:27:47.809730+00:00"
+    },
+    {
+      "id": "4741f7c5d74c",
+      "type": "milestone",
+      "label": "milestone: Added 10 tests (pos+neg+edge): _parse_added_lines hunk mapping incl. pure-deletion; _parse_mypy_error_locations error-vs-note-vs-column; base-ref env/zero-SHA/default; real-git _changed_line_map integration + base-unresolved None; ratchet blocks new-line error; passes pre-existing unchanged-line error; new-file blocks all; fatal-no-error-line blocks; base-unresolved falls back to block-all; ignores errors in non-pushed imported files.",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T13:27:47.809794+00:00"
+    },
+    {
+      "id": "35667779a8d6",
+      "type": "commit",
+      "label": "commit: Commit: 184ec83eeb38a56f54f954e02617ebdfe00c0a1c",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T13:27:47.809846+00:00"
+    },
+    {
+      "id": "c05c6603873e",
+      "type": "outcome",
+      "label": "Outcome: success - Fix the per-file pre-push mypy gate (#2993) so it blocks only NEW type errors, not pre-existing debt in touched shared files. Implement a diff-line ratchet in git_hook_policy.run_mypy that blocks only errors on lines added or changed versus origin/main, mirroring the existing ruff_ratchet base-detection.",
+      "episodes": [
+        "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
+      ],
+      "created": "2026-07-22T13:27:47.809897+00:00"
     }
   ],
   "patterns": [

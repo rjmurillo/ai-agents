@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3290,
+    "date": "2026-07-21",
+    "branch": "chore/2993-mypy-ratchet",
+    "startingCommit": "8f391b3c",
+    "objective": "Fix the per-file pre-push mypy gate (#2993) so it blocks only NEW type errors, not pre-existing debt in touched shared files. Implement a diff-line ratchet in git_hook_policy.run_mypy that blocks only errors on lines added or changed versus origin/main, mirroring the existing ruff_ratchet base-detection."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "This Copilot CLI harness exposes no serena-* MCP tools in the function list; Serena not activated. Context sourced directly from HANDOFF, memories, and constraints (issue #2909 fallback)."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena-* tools available in this harness; initial_instructions not retrievable here."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md treated as read-only dashboard (ADR-014); not modified this session."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file (.agents/sessions/2026-07-21-session-3290-mypy-diff-line-ratchet.json)."
+      },
+      "resumeCheck": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Resumed from compaction summary for #2993; decisions D1 (fix mypy coupling), D2 (baseline), D3 (diff-line ratchet) already settled; proceeded to build."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first honored: reused ruff_ratchet base-detection pattern rather than writing a sibling; no raw gh used (harness blocks it)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS applied: Python-only change, atomic commit scope (2 code files), TESTING-RIGOR pos+neg+edge, security-critical file handled with care."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository + user Copilot memories loaded via prompt context; ruff-batch, plugin-versioning, and session-log-validation memories referenced."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current confirmed chore/2993-mypy-ratchet before every git operation."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/2993-mypy-ratchet, not main; branch created off clean tree at 8f391b3c."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short inspected; only the two intended files staged; pre-existing untracked retro/session files intentionally excluded."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "8f391b3c (origin/main HEAD at branch creation)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All satisfiable MUST sessionStart items complete; Serena items honestly recorded SHOULD/false (harness lacks Serena)."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read only, not modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored repository Copilot memory: mypy pre-push gate is a diff-line ratchet + the invocation-dependence finding that rejected a signature baseline. Serena MCP unavailable in this harness, so memory persisted via Copilot store_memory plus an in-code rationale comment above run_mypy."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed; only Python source and a Python test were edited, so scoped markdownlint had no in-scope files to lint."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed the two staged files as 184ec83eeb38a56f54f954e02617ebdfe00c0a1c on chore/2993-mypy-ratchet (fix(hooks): make pre-push mypy gate a diff-line ratchet, Refs #2993). Prior exit-2 denials were the false-completion gate firing before this evidence-bearing session log existed; the gate allowed the commit once the log carried the pytest result."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run ruff check (both files) clean; uv run mypy on both files clean; uv run pytest tests/test_lefthook_integration.py = 321 passed (10 new mypy-ratchet tests + all pre-existing). End-to-end: run_mypy on the modified git_hook_policy.py against origin/main returned 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Followed the plan: implement ratchet, add pos+neg+edge tests, validate, store memory, write session log, hand off commit/push (harness-blocked)."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reworked run_mypy into a diff-line ratchet: added _changed_line_map (git diff --unified=0 base...HEAD parsing), _parse_mypy_error_locations (error-severity only), _mypy_result_blocks (block only errors on changed lines of pushed files; block fatal no-error-line invocations; fall back to block-on-any when the diff base is unresolved), a MYPY_RATCHET_BASE_REF env override with zero-SHA guard and origin/main fallback, and a rationale comment recording the invocation-dependence finding.",
+      "files": [
+        "scripts/validation/git_hook_policy.py"
+      ]
+    },
+    {
+      "action": "Added 10 tests (pos+neg+edge): _parse_added_lines hunk mapping incl. pure-deletion; _parse_mypy_error_locations error-vs-note-vs-column; base-ref env/zero-SHA/default; real-git _changed_line_map integration + base-unresolved None; ratchet blocks new-line error; passes pre-existing unchanged-line error; new-file blocks all; fatal-no-error-line blocks; base-unresolved falls back to block-all; ignores errors in non-pushed imported files.",
+      "files": [
+        "tests/test_lefthook_integration.py"
+      ]
+    }
+  ],
+  "endingCommit": "184ec83eeb38a56f54f954e02617ebdfe00c0a1c",
+  "nextSteps": [
+    "Push chore/2993-mypy-ratchet and open the PR with Refs #2993; byte-check the PR body for 0 U+2014/U+2013 dashes; keep any file paths under a ## References H2.",
+    "Babysit the PR: drive CI green, resolve bot review threads, self-merge once mergeStateStatus is CLEAN.",
+    "No plugin manifest bump needed (scripts/validation/** is outside the .claude/, src/copilot-cli/, src/claude/ plugin trees)."
+  ]
+}
