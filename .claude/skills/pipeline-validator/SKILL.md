@@ -275,7 +275,7 @@ Match the failure against the patterns in `references/error-patterns.md`. If no 
 
 Analyze error messages against known patterns. See [references/error-patterns.md](references/error-patterns.md) for the full pattern catalog.
 
-**Quick Reference, Error-to-Fix Map:**
+**Quick Reference: Error-to-Fix Map**
 
 | Error Pattern | Auto-Fixable? | Fix Action |
 |---------------|---------------|------------|
@@ -287,7 +287,7 @@ Analyze error messages against known patterns. See [references/error-patterns.md
 | `Test failure` | ✅/⚠️ | Fix code or update test; re-trigger if flaky |
 | `Subscription key conflict` | ✅ | Rename generic subscription key |
 | `YAML syntax error` | ✅ | Fix YAML syntax |
-| `Permission / 403` | ❌ | Report to user, cannot auto-fix |
+| `Permission / 403` | ❌ | Report to user (cannot auto-fix) |
 | `Infrastructure / transient` | ⚠️ | Retry without code changes |
 
 #### 5.3 Apply the Fix
@@ -438,7 +438,7 @@ After complete execution:
 | Failed At | Action |
 |-----------|--------|
 | Pipeline keeps failing after max retries | Report to user with all logs and attempted fixes |
-| Permission / access denied | Report to user, cannot self-fix |
+| Permission / access denied | Report to user (cannot self-fix) |
 | Infrastructure outage | Report to user, suggest retrying later |
 | Fix introduced new failures | `git revert HEAD` to undo the fix, report to user |
 
