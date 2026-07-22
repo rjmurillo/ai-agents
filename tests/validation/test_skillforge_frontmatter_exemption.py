@@ -55,8 +55,13 @@ def test_frontmatter_only_change_is_exempt(monkeypatch, tmp_path):
 
 
 def test_frontmatter_add_field_body_unchanged_is_exempt(monkeypatch, tmp_path):
-    old = _doc("model: claude-haiku-4-5\n", _BODY)
-    new = _doc("model: haiku\nmodel-rationale: cost.\n", _BODY)
+    # Real skills keep required name/description; only the pin fields change here
+    # (model value updated, model-rationale added).
+    old = _doc("name: example\ndescription: x\nmodel: claude-haiku-4-5\n", _BODY)
+    new = _doc(
+        "name: example\ndescription: x\nmodel: haiku\nmodel-rationale: cost.\n",
+        _BODY,
+    )
     _patch_blobs(monkeypatch, old, new)
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is True
 
