@@ -528,6 +528,36 @@ def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
     return _only_implemented_field_changed(old_frontmatter, new_frontmatter)
 
 
+def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
+    """Return True when a staged SKILL.md change touches only its frontmatter.
+
+    SkillForge structural validation inspects the body (Triggers, Process,
+    Verification, Scripts sections). When the body is byte-identical to HEAD,
+    the structural verdict cannot have regressed from this edit, so a
+    frontmatter-only change (for example an ADR-080 model-pin migration) must
+    not be forced to pay down unrelated pre-existing structural debt. Mirrors
+    the body-unchanged precedent in ``_is_frontmatter_only_metadata_change`` but
+    permits any frontmatter field to change, since structural checks read the
+    body, not the frontmatter.
+
+    Returns False for newly added skills (no HEAD blob) so genuinely new skills
+    are always validated.
+    """
+    old_blob = _read_head_blob(repo_root, path)
+    new_blob = _read_index_blob(repo_root, path)
+    if old_blob is None or new_blob is None:
+        return False
+    old_frontmatter, old_body = _split_frontmatter(
+        old_blob.decode("utf-8", errors="replace")
+    )
+    new_frontmatter, new_body = _split_frontmatter(
+        new_blob.decode("utf-8", errors="replace")
+    )
+    if not old_frontmatter or not new_frontmatter:
+        return False
+    return old_body == new_body and old_frontmatter != new_frontmatter
+
+
 def _gated_adr_review_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
     gated: list[str] = []
     for path in paths:
@@ -2280,6 +2310,8 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
     for path in paths:
         if _skip_skillforge_path(path):
+            continue
+        if _is_skill_frontmatter_only_change(path, repo_root):
             continue
         result = _run_command(
             [
