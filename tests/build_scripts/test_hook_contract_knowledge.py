@@ -177,8 +177,7 @@ def test_official_sidecar_lists_both_exact_event_sets() -> None:
 def test_reference_separates_stop_from_session_end() -> None:
     text = _reference_text()
 
-    assert "| Stop | Stop |" in text
-    assert "| Stop | Stop | Direct entries, one JSON decision per command |" in text
+    assert "| Stop | None | Direct entries if added, one JSON decision per command |" in text
     assert "| SessionEnd | SessionEnd | Direct lifecycle event, never a Stop alias |" in text
     assert "host merges structured decisions" not in text
     assert "Stop: SessionEnd" not in text
@@ -219,12 +218,12 @@ def test_locked_schema_matches_copilot_artifact_configuration() -> None:
 
 
 def test_runtime_adr_tracks_observer_output_merge() -> None:
-    text = RUNTIME_ADR.read_text(encoding="utf-8")
+    text = _normalized_text(RUNTIME_ADR)
 
-    assert "emits one\n`additionalContext` object when captured output exists" in text
-    assert "separates shim\noutput with one blank line" in text
+    assert "emits one `additionalContext` object when captured output exists" in text
+    assert "separates shim output with one blank line" in text
     assert "does not preserve per-shim attribution" in text
-    assert re.search(r"Stderr\s+is not a documented\s+model-context path", text)
+    assert "Stderr is not a documented model-context path" in text
     assert "observe dispatcher passes stdout through" not in text
 
 
@@ -235,7 +234,7 @@ def test_reference_versions_matcher_and_timeout_evidence() -> None:
     assert "Copilot CLI 1.0.57 and 1.0.58 had matcher bugs." in text
     assert "| PreToolUse exit 2 | Denies |" in text
     assert "| Any command-hook timeout | Fails open, including policy PreToolUse |" in text
-    assert "PreCompact | PreCompact | Consolidated observe dispatcher" in text
+    assert "PreCompact | None | Supported observe/discard policy" in text
     probe = (SKILL_ROOT / "references" / "probe-evidence.md").read_text(encoding="utf-8")
     assert "Manual `/compact` is therefore a negative control" in probe
     assert "Automatic-compaction delivery remains unmeasured" in probe
@@ -279,16 +278,33 @@ def test_reference_preserves_cross_harness_decision_shapes() -> None:
     assert '"decision": "block"' in text
 
 
-def test_stop_producers_use_shared_block_decision() -> None:
-    stop_hooks = (
-        REPO_ROOT / ".claude" / "hooks" / "Stop" / "invoke_session_validator.py",
-        REPO_ROOT / ".claude" / "hooks" / "Stop" / "invoke_auto_retrospective.py",
-    )
+def test_stop_policy_is_local_only_after_vendored_hook_purge() -> None:
+    local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
+    vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
+    generated_hooks = _read_json(
+        REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json"
+    )["hooks"]
+    dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")[
+        "groups"
+    ]
+    stop_commands = [
+        hook["command"]
+        for group in local_hooks["Stop"]
+        for hook in group["hooks"]
+    ]
 
-    for path in stop_hooks:
-        text = path.read_text(encoding="utf-8")
-        assert '"decision": "block"' in text, path
-        assert '{"continue": True' not in text, path
+    assert len(local_hooks["Stop"]) == 1
+    assert len(stop_commands) == 1
+    assert stop_commands[0].endswith("--group stop-1-skill_learning")
+    assert dispatch_groups["stop-1-skill_learning"]["shims"] == [
+        {
+            "file": "Stop/invoke_auto_retrospective.py",
+            "statusMessage": "Auto-generating session retrospective (#1703)",
+        }
+    ]
+    assert "Stop" not in vendored_hooks
+    assert "Stop" not in generated_hooks
+    assert "agentStop" not in generated_hooks
 
     sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
     assert "Shared Stop producers can emit this shape on" in sidecar
@@ -348,8 +364,8 @@ def test_generated_copilot_skill_mirrors_settled_contract() -> None:
     )
     assert "The exact 14 native events are:" in reference
     assert "The adapter must emit no stdout" in reference
-    assert "| PreCompact | PreCompact | Consolidated observe dispatcher |" in reference
-    assert "| Stop | Stop | Direct entries, one JSON decision per command |" in reference
+    assert "| PreCompact | None | Supported observe/discard policy" in reference
+    assert "| Stop | None | Direct entries if added" in reference
 
 
 def test_generated_instruction_mirrors_route_to_contract() -> None:
@@ -466,17 +482,6 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
     host_timeout = copilot_hooks["PreToolUse"][0]["timeoutSec"]
     timeout_headroom = host_timeout - timeout_total
     reduction = 100 * (1 - host_total / source_total)
-    event_order = (
-        "PostToolUse",
-        "PreCompact",
-        "PreToolUse",
-        "SessionStart",
-        "Stop",
-        "UserPromptSubmit",
-    )
-    event_parts = [f"{event} {source_counts[event]}" for event in event_order]
-    event_summary = f"{', '.join(event_parts[:-1])}, and {event_parts[-1]}"
-
     adr_068 = _normalized_text(
         REPO_ROOT / ".agents" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
     )
@@ -493,20 +498,23 @@ def test_dispatcher_adrs_match_current_generated_metrics() -> None:
         / "ADR-071-plugin-hook-runtime-contract-verification.md"
     )
 
-    assert len(source_counts) == 6
-    assert f"{source_total} source registrations across six events: {event_summary}" in adr_068
-    assert (
-        f"reduces {source_total} host command registrations to {host_total}, "
-        f"or {reduction:.1f} percent"
-    ) in adr_068
-    assert f"current PreToolUse manifest has {len(pretool_manifest['shims'])} shims" in adr_068
-    assert f"sum to {timeout_total} seconds" in adr_068
+    assert source_counts == {"PreToolUse": 1, "PostToolUse": 1}
+    assert source_total == 2
+    assert host_total == 2
+    assert round(reduction, 1) == 0.0
+    assert "two registrations across two events" in adr_068
+    assert "one PreToolUse shim and one PostToolUse shim" in adr_068
+    assert "saves no current host process start" in adr_068
+    assert len(pretool_manifest["shims"]) == 1
+    assert timeout_total == 90
+    assert "current PreToolUse manifest has one shim" in adr_068
+    assert "90-second configured value" in adr_068
     assert f"host entry requests {host_timeout} seconds" in adr_068
     assert "five seconds of dispatcher headroom" in adr_068
-    assert f"prevent up to {len(pretool_manifest['shims']) - 1} later registered shims" in adr_068
-    assert f"{source_total} registrations across six events" in adr_085
-    assert f"current manifest contains {len(pretool_manifest['shims'])} shims" in adr_071
-    assert f"configured timeout values sum to {timeout_total} seconds" in adr_071
+    assert "cannot bypass a later PreToolUse shim" in adr_068
+    assert "two registrations across two events" in adr_085
+    assert "active manifest contains one shim" in adr_071
+    assert "90-second configured timeout" in adr_071
     assert f"host entry requests {host_timeout} seconds" in adr_071
     assert timeout_headroom == 5
 

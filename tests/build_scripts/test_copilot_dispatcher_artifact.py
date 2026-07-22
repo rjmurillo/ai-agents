@@ -147,6 +147,8 @@ class TestDispatcherArtifacts:
         assert all(script in serialized_plugin for script in plugin_keepers)
         assert all(script not in serialized_settings for script in plugin_keepers)
         assert all(script in serialized_settings for script in internal_keepers)
+        assert "invoke_observation_sync.py" not in serialized_plugin
+        assert "invoke_observation_sync.py" in serialized_settings
 
         pretooluse_manifest = json.loads(
             (_COPILOT / "hooks" / "PreToolUse" / "_manifest.json").read_text(
@@ -170,7 +172,6 @@ class TestDispatcherArtifacts:
             for shim in posttooluse_manifest["shims"]
         } == {
             "invoke_markdown_auto_lint.py",
-            "invoke_observation_sync.py",
         }
 
         generated_events = {
