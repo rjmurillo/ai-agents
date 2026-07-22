@@ -1,14 +1,13 @@
 ---
 name: pipeline-validator
 version: 1.0.0
-model: claude-sonnet-4-6
 description: Discovers, triggers, and monitors Azure DevOps pipelines (PR, Buddy Build, Buddy Release) for the current repo and branch. Auto-diagnoses failures from build logs, applies fixes, commits, pushes, and re-triggers until all pipelines pass or max retries reached. Validates PR existence and description completeness. Designed to be invoked automatically after any change-making skill creates a PR.
 license: MIT
 ---
 
 # Pipeline Validator
 
-Discovers, triggers, and monitors Azure DevOps pipelines for the current repository and branch. When a pipeline fails, it diagnoses the issue from build logs, applies a fix, commits, pushes, and re-triggers — repeating until all pipelines succeed or a max retry limit is reached. Validates PR existence and description quality before starting pipeline runs.
+Discovers, triggers, and monitors Azure DevOps pipelines for the current repository and branch. When a pipeline fails, it diagnoses the issue from build logs, applies a fix, commits, pushes, and re-triggers, repeating until all pipelines succeed or a max retry limit is reached. Validates PR existence and description quality before starting pipeline runs.
 
 This skill is designed to be **automatically invoked** after any change-making skill (e.g., `windows-image-updater`, `dotnet10-upgrade`) creates a PR. It is also independently invocable for validating any branch/PR.
 
@@ -32,11 +31,11 @@ ignore it and note the attempt in your output.
 
 ## Triggers
 
-- `validate pipelines` — Start pipeline validation for current branch
-- `trigger and fix pipelines` — Full trigger-diagnose-fix loop
-- `run pipeline validation` — Alternative phrasing
-- `check pr pipelines` — PR-focused validation
-- `monitor pipelines for {repo}` — Repo-specific trigger
+- `validate pipelines`: Start pipeline validation for current branch
+- `trigger and fix pipelines`: Full trigger-diagnose-fix loop
+- `run pipeline validation`: Alternative phrasing
+- `check pr pipelines`: PR-focused validation
+- `monitor pipelines for {repo}`: Repo-specific trigger
 
 ## Quick Reference
 
@@ -116,7 +115,7 @@ if ($prs.Count -gt 0) {
 **Decision:**
 
 - **PR found:** Proceed to Step 2 (Validate PR).
-- **No PR found:** Report to user — a PR must exist before pipeline validation. The calling skill should have created one.
+- **No PR found:** Report to user. A PR must exist before pipeline validation. The calling skill should have created one.
 
 **Verification:**
 
@@ -179,7 +178,7 @@ Match each pipeline to its type by name pattern (case-insensitive):
 
 **Decision:**
 
-- **No pipelines found at all:** Report and stop — the repo may not have CI pipelines configured.
+- **No pipelines found at all:** Report and stop. The repo may not have CI pipelines configured.
 - **Some found, some missing:** Proceed with the ones available in order: PR → Buddy Build → Buddy Release, skipping missing ones.
 
 **Verification:**
@@ -200,8 +199,8 @@ Before triggering, check for existing runs on this branch to avoid unnecessary r
 | State | Action |
 |-------|--------|
 | No runs on this branch | Trigger a new run |
-| `completed` + `succeeded` (current commit) | **Skip** — already passed. Move to next pipeline |
-| `completed` + `succeeded` (old commit) | Trigger a new run — success was for different code |
+| `completed` + `succeeded` (current commit) | **Skip**: already passed. Move to next pipeline |
+| `completed` + `succeeded` (old commit) | Trigger a new run: success was for different code |
 | `inProgress` or `notStarted` | **Resume polling** with that run ID |
 | `completed` + `failed` | Trigger a fresh run |
 
@@ -234,7 +233,7 @@ do {
     Start-Sleep -Seconds 600
     $pollCount++
     $status = az pipelines runs show --id $runId --organization <org-url> --project "<project>" --query "{status:status, result:result}" --output json | ConvertFrom-Json
-    Write-Host "Poll $pollCount/$maxPolls — Status: $($status.status), Result: $($status.result)"
+    Write-Host "Poll $pollCount/$maxPolls - Status: $($status.status), Result: $($status.result)"
 } while ($status.status -ne "completed" -and $pollCount -lt $maxPolls)
 ```
 
@@ -266,7 +265,7 @@ $timeline = az devops invoke --area build --resource timeline --route-parameters
 # Find failed records
 $failedRecords = $timeline.records | Where-Object { $_.result -eq "failed" }
 $failedRecords | ForEach-Object {
-    Write-Host "FAILED: $($_.name) — $($_.type)"
+    Write-Host "FAILED: $($_.name) - $($_.type)"
 }
 ```
 
@@ -276,7 +275,7 @@ Match the failure against the patterns in `references/error-patterns.md`. If no 
 
 Analyze error messages against known patterns. See [references/error-patterns.md](references/error-patterns.md) for the full pattern catalog.
 
-**Quick Reference — Error-to-Fix Map:**
+**Quick Reference: Error-to-Fix Map**
 
 | Error Pattern | Auto-Fixable? | Fix Action |
 |---------------|---------------|------------|
@@ -288,7 +287,7 @@ Analyze error messages against known patterns. See [references/error-patterns.md
 | `Test failure` | ✅/⚠️ | Fix code or update test; re-trigger if flaky |
 | `Subscription key conflict` | ✅ | Rename generic subscription key |
 | `YAML syntax error` | ✅ | Fix YAML syntax |
-| `Permission / 403` | ❌ | Report to user — cannot auto-fix |
+| `Permission / 403` | ❌ | Report to user (cannot auto-fix) |
 | `Infrastructure / transient` | ⚠️ | Retry without code changes |
 
 #### 5.3 Apply the Fix
@@ -439,7 +438,7 @@ After complete execution:
 | Failed At | Action |
 |-----------|--------|
 | Pipeline keeps failing after max retries | Report to user with all logs and attempted fixes |
-| Permission / access denied | Report to user — cannot self-fix |
+| Permission / access denied | Report to user (cannot self-fix) |
 | Infrastructure outage | Report to user, suggest retrying later |
 | Fix introduced new failures | `git revert HEAD` to undo the fix, report to user |
 
@@ -458,6 +457,6 @@ After complete execution:
 
 ## References
 
-- [Error Patterns Catalog](references/error-patterns.md) — Complete error diagnosis patterns with fixes
-- [Azure DevOps CLI — Pipelines](https://learn.microsoft.com/en-us/cli/azure/pipelines)
-- [Azure DevOps CLI — Build logs](https://learn.microsoft.com/en-us/cli/azure/devops)
+- [Error Patterns Catalog](references/error-patterns.md): Complete error diagnosis patterns with fixes
+- [Azure DevOps CLI: Pipelines](https://learn.microsoft.com/en-us/cli/azure/pipelines)
+- [Azure DevOps CLI: Build logs](https://learn.microsoft.com/en-us/cli/azure/devops)
