@@ -50,7 +50,8 @@ def _copilot_root(tmp_path: Path, mutate: Callable[[dict], None]) -> Path:
 
 def test_copilot_bare_bash_path_fails(tmp_path: Path) -> None:
     def mutate(doc: dict) -> None:
-        doc["hooks"]["SessionStart"][0]["bash"] = 'python3 -u "./hooks/SessionStart/x.py"'
+        entry = next(iter(doc["hooks"].values()))[0]
+        entry["bash"] = 'python3 -u "./hooks/PreToolUse/x.py"'
 
     _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
     assert config == 0
@@ -59,8 +60,9 @@ def test_copilot_bare_bash_path_fails(tmp_path: Path) -> None:
 
 def test_copilot_asymmetric_powershell_fails(tmp_path: Path) -> None:
     def mutate(doc: dict) -> None:
-        doc["hooks"]["SessionStart"][0]["powershell"] = (
-            'py -3 -u "$env:COPILOT_PLUGIN_ROOT/hooks/SessionStart/x.py"'
+        entry = next(iter(doc["hooks"].values()))[0]
+        entry["powershell"] = (
+            'py -3 -u "$env:COPILOT_PLUGIN_ROOT/hooks/PreToolUse/x.py"'
         )
 
     _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))

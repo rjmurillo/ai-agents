@@ -645,7 +645,15 @@ def _stage_dispatcher_artifacts(
         raise GenerateHooksError(
             f"dispatcher cleanup path validation failed: {exc}"
         ) from exc
-    stale_targets: list[Path] = []
+    try:
+        stale_targets = generate_dispatcher.find_stale_event_artifacts(
+            output_scripts,
+            set(out),
+        )
+    except ValueError as exc:
+        raise GenerateHooksError(
+            f"dispatcher cleanup path validation failed: {exc}"
+        ) from exc
     for event in sorted(out):
         manifest_path = stage_root / event / "_manifest.json"
         if not manifest_path.is_file():

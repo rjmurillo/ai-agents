@@ -80,10 +80,8 @@ def test_committed_pretooluse_entry_has_matcher_and_others_do_not():
     )["hooks"]
     pre = hooks["PreToolUse"][0]
     tokens = set(pre["matcher"].split("|"))
-    # After the ADR-062 LSP-enforcement retirement (#3216), the LSP guards
-    # were the only PreToolUse hooks matching Grep/Glob/Read/Agent/Task, so
-    # the committed union reduces to the remaining Bash/Write/Edit surface.
-    assert {"Bash", "Write", "Edit"} == tokens
+    # ADR-084 leaves only the customer-value push gate on this event.
+    assert {"Bash"} == tokens
     for event, entries in hooks.items():
         if event == "PreToolUse":
             continue

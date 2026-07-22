@@ -31,6 +31,36 @@ PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_PATH_RE = re.compile(r"^\.agents/memory/episodes/episode-[A-Za-z0-9._-]+\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
+ADR_REVIEW_PATH_RE = re.compile(
+    r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$|SESSION-PROTOCOL\.md$",
+    re.IGNORECASE,
+)
+ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
+ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
+FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
+ADR_REVIEW_PATTERNS = (
+    re.compile(r"/adr-review"),
+    re.compile(r"adr-review skill"),
+    re.compile(r"ADR Review Protocol"),
+    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL),
+    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL),
+)
+RETROSPECTIVE_EVIDENCE_PATTERNS = (
+    re.compile(
+        r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"
+    ),
+    re.compile(r"(?i)(\.agents/retrospective/|retrospective[-_]?file|retro[-_]?\d{4})"),
+)
+DOCUMENTATION_PATTERNS = (
+    re.compile(r"\.md$"),
+    re.compile(r"\.txt$"),
+    re.compile(r"(^|/)README$"),
+    re.compile(r"(^|/)LICENSE$"),
+    re.compile(r"(^|/)CHANGELOG$"),
+    re.compile(r"\.gitignore$"),
+    re.compile(r"\.editorconfig$"),
+)
+TRIVIAL_SESSION_SECONDS = 10 * 60
 SECURITY_SUPPRESSION_RE = re.compile(
     r"(?:#|//|/\*)\s*"
     r"(?:lgtm\[|nosec|nosem(?:grep)?|noqa:\s*S|type:\s*ignore\[|cwe-suppress)"
@@ -418,6 +448,203 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
             best_mtime = mtime
             best = candidate
     return best
+
+
+def _split_frontmatter(content: str) -> tuple[str, str]:
+    lines = content.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return "", content
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            return "".join(lines[1:index]), "".join(lines[index + 1 :])
+    return "", content
+
+
+def _has_duplicate_frontmatter_keys(frontmatter: str) -> bool:
+    seen: set[str] = set()
+    for line in frontmatter.splitlines():
+        if line.startswith((" ", "\t")):
+            continue
+        match = FRONTMATTER_FIELD_RE.match(line)
+        if match is None:
+            continue
+        key = match.group(1)
+        if key in seen:
+            return True
+        seen.add(key)
+    return False
+
+
+def _parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
+    if _has_duplicate_frontmatter_keys(frontmatter):
+        return None
+    try:
+        loaded = yaml.safe_load(frontmatter)
+    except yaml.YAMLError:
+        return None
+    if loaded is None:
+        return {}
+    return loaded if isinstance(loaded, dict) else None
+
+
+def _only_implemented_field_changed(
+    old_frontmatter: str,
+    new_frontmatter: str,
+) -> bool:
+    old_fields = _parse_frontmatter(old_frontmatter)
+    new_fields = _parse_frontmatter(new_frontmatter)
+    if old_fields is None or new_fields is None:
+        return False
+    changed = {
+        key
+        for key in old_fields.keys() | new_fields.keys()
+        if old_fields.get(key) != new_fields.get(key)
+    }
+    return bool(changed) and changed <= {"implemented"}
+
+
+def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
+    old_blob = _read_head_blob(repo_root, path)
+    new_blob = _read_index_blob(repo_root, path)
+    if old_blob is None or new_blob is None:
+        return False
+    old_frontmatter, old_body = _split_frontmatter(old_blob.decode("utf-8", errors="replace"))
+    new_frontmatter, new_body = _split_frontmatter(new_blob.decode("utf-8", errors="replace"))
+    if not old_frontmatter or not new_frontmatter or old_body != new_body:
+        return False
+    return _only_implemented_field_changed(old_frontmatter, new_frontmatter)
+
+
+def _gated_adr_review_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
+    gated: list[str] = []
+    for path in paths:
+        if ADR_REVIEW_PATH_RE.search(path) is None:
+            continue
+        if ADR_PATH_RE.search(path) and _is_frontmatter_only_metadata_change(path, repo_root):
+            continue
+        gated.append(path)
+    return gated
+
+
+def _extract_adr_ids(paths: Sequence[str]) -> set[str]:
+    return {
+        match.group(0).upper()
+        for path in paths
+        if (match := ADR_ID_RE.search(Path(path).name)) is not None
+    }
+
+
+def _debate_references_adr(debate_path: Path, adr_ids: set[str]) -> bool:
+    if debate_path.is_symlink():
+        return False
+    try:
+        content = debate_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    referenced = {match.group(0).upper() for match in ADR_ID_RE.finditer(content)}
+    return bool(referenced & adr_ids)
+
+
+def _session_has_adr_review(session_log: Path) -> bool:
+    if session_log.is_symlink():
+        return False
+    try:
+        content = session_log.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return any(pattern.search(content) for pattern in ADR_REVIEW_PATTERNS)
+
+
+def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
+    gated_paths = _gated_adr_review_paths(paths, repo_root)
+    if not gated_paths:
+        return 0
+
+    session_log = _today_session_log(repo_root / ".agents" / "sessions")
+    if session_log is None or not _session_has_adr_review(session_log):
+        print(
+            "ERROR: ADR changes require adr-review evidence in today's session log",
+            file=sys.stderr,
+        )
+        return 1
+
+    analysis_dir = repo_root / ".agents" / "analysis"
+    try:
+        debate_logs = list(analysis_dir.glob("*debate*.md"))
+    except OSError:
+        debate_logs = []
+    if not debate_logs:
+        print("ERROR: ADR changes require a debate log in .agents/analysis", file=sys.stderr)
+        return 1
+
+    adr_ids = _extract_adr_ids(gated_paths)
+    if adr_ids and not any(_debate_references_adr(path, adr_ids) for path in debate_logs):
+        names = ", ".join(sorted(adr_ids))
+        print(f"ERROR: no debate log references the staged ADR IDs: {names}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _session_has_retrospective_evidence(session_log: Path) -> bool:
+    if session_log.is_symlink():
+        return False
+    try:
+        content = session_log.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return any(pattern.search(content) for pattern in RETROSPECTIVE_EVIDENCE_PATTERNS)
+
+
+def _today_retrospective_exists(repo_root: Path) -> bool:
+    retro_dir = repo_root / ".agents" / "retrospective"
+    if not retro_dir.is_dir():
+        return False
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    try:
+        return any(not path.is_symlink() for path in retro_dir.glob(f"{today}*.md"))
+    except OSError:
+        return False
+
+
+def _documentation_only(paths: Sequence[str]) -> bool:
+    return bool(paths) and all(
+        any(pattern.search(path) for pattern in DOCUMENTATION_PATTERNS) for path in paths
+    )
+
+
+def _is_trivial_retrospective_session(
+    session_log: Path | None,
+    paths: Sequence[str],
+    *,
+    now_epoch: float | None = None,
+) -> bool:
+    if session_log is None or len(paths) != 1:
+        return False
+    try:
+        created = session_log.stat().st_ctime
+    except OSError:
+        return False
+    current = datetime.now(tz=UTC).timestamp() if now_epoch is None else now_epoch
+    return current - created <= TRIVIAL_SESSION_SECONDS
+
+
+def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
+    if os.environ.get("SKIP_RETROSPECTIVE_GATE") == "true":
+        print("Retrospective policy bypassed via SKIP_RETROSPECTIVE_GATE=true")
+        return 0
+    if _documentation_only(paths):
+        return 0
+
+    session_log = _today_session_log(repo_root / ".agents" / "sessions")
+    if _is_trivial_retrospective_session(session_log, paths):
+        return 0
+    if _today_retrospective_exists(repo_root):
+        return 0
+    if session_log is not None and _session_has_retrospective_evidence(session_log):
+        return 0
+
+    print("ERROR: git push requires retrospective evidence for this session", file=sys.stderr)
+    return 1
 
 
 def _session_branch(session_log: Path) -> str | None:
@@ -2084,23 +2311,6 @@ def run_planning_advisory(repo_root: Path) -> int:
     return 0
 
 
-def run_adr_reminder(repo_root: Path) -> int:
-    result = _run_command(
-        [
-            sys.executable,
-            ".claude/skills/adr-review/scripts/detect_adr_changes.py",
-            "--base-path",
-            str(repo_root),
-        ],
-        repo_root,
-    )
-    if result.returncode != 0:
-        _print_advisory_failure("ADR change detection", result)
-        return 0
-    _print_process_output(result)
-    return 0
-
-
 def run_taste_advisory(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         return 0
@@ -2567,8 +2777,12 @@ def _handle_planning(args: argparse.Namespace) -> int:
     return run_planning_advisory(_repo_root(args))
 
 
-def _handle_adr_reminder(args: argparse.Namespace) -> int:
-    return run_adr_reminder(_repo_root(args))
+def _handle_adr_review(args: argparse.Namespace) -> int:
+    return check_adr_review_policy(args.paths, _repo_root(args))
+
+
+def _handle_retrospective(args: argparse.Namespace) -> int:
+    return check_retrospective_evidence(args.paths, _repo_root(args))
 
 
 def _handle_taste(args: argparse.Namespace) -> int:
@@ -2683,12 +2897,13 @@ def build_parser() -> argparse.ArgumentParser:
         ("sessions", _handle_sessions),
         ("observations", _handle_observations),
         ("extract-episodes", _handle_extract_episodes),
+        ("adr-review", _handle_adr_review),
+        ("retrospective", _handle_retrospective),
     )
     simple_commands = (
         ("branch", _handle_branch),
         ("branch-context", _handle_branch_context),
         ("planning", _handle_planning),
-        ("adr-reminder", _handle_adr_reminder),
         ("generate-mcp", _handle_generate_mcp),
         ("generate-agents", _handle_generate_agents),
         ("memory-token-update", _handle_memory_tokens),

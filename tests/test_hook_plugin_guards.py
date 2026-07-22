@@ -1,16 +1,10 @@
-"""Tests for plugin-mode hook guards.
-
-Verifies that project-specific hooks skip gracefully in consumer repos
-(repos without .agents/ directory).
-"""
+"""Tests for plugin-mode hook guard utilities."""
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
-from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -19,163 +13,7 @@ import pytest
 from scripts.hook_utilities import guards
 from scripts.hook_utilities.guards import is_project_repo, skip_if_consumer_repo
 
-# Hook scripts that should skip in consumer repos (no .agents/ dir).
-PROJECT_SPECIFIC_HOOKS = [
-    ".claude/hooks/SessionStart/invoke_session_initialization_enforcer.py",
-    ".claude/hooks/SessionStart/invoke_memory_first_enforcer.py",
-    ".claude/hooks/invoke_session_start_memory_first.py",
-    ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
-    ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
-    ".claude/hooks/invoke_adr_change_detection.py",
-    ".claude/hooks/Stop/invoke_session_validator.py",
-    ".claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py",
-    ".claude/hooks/invoke_user_prompt_memory_check.py",
-]
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _dispatch_group_files() -> dict[str, list[str]]:
-    manifest = json.loads(
-        (REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    return {
-        group_id: [shim["file"] for shim in spec["shims"]]
-        for group_id, spec in manifest["groups"].items()
-    }
-
-
-def _configured_matchers(script_suffix: str, config_path: Path) -> list[str]:
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    portable_suffix = script_suffix.removeprefix(".claude/")
-    hooks_suffix = portable_suffix.removeprefix("hooks/")
-    group_files = _dispatch_group_files()
-
-    def covers(hook: dict) -> bool:
-        command = hook["command"].strip().rstrip('"')
-        if "invoke_dispatch_claude.py" in command:
-            # Grouped registration (#3075): the matcher covers every shim
-            # in the referenced dispatch group.
-            group_id = command.rsplit("--group", 1)[1].strip().strip('"')
-            return any(
-                file.endswith(hooks_suffix) for file in group_files.get(group_id, [])
-            )
-        return command.endswith((script_suffix, portable_suffix))
-
-    matchers = [
-        group["matcher"]
-        for group in config["hooks"]["PreToolUse"]
-        if any(covers(hook) for hook in group["hooks"])
-    ]
-    if not matchers:
-        raise AssertionError(f"No PreToolUse matcher found for {script_suffix}")
-    return matchers
-
-
-def _settings_matchers(script_suffix: str) -> list[str]:
-    return _configured_matchers(script_suffix, REPO_ROOT / ".claude" / "settings.json")
-
-
-def _plugin_matchers(script_suffix: str) -> list[str]:
-    return _configured_matchers(script_suffix, REPO_ROOT / ".claude" / "hooks" / "hooks.json")
-
-
-def _matches_bash_command(matcher: str, command: str) -> bool:
-    assert matcher.startswith("Bash(") and matcher.endswith(")")
-    return any(fnmatchcase(command, branch) for branch in matcher[5:-1].split("|"))
-
-
-def _matches_configured_command(script_suffix: str, command: str) -> bool:
-    return any(
-        _matches_bash_command(matcher, command) for matcher in _settings_matchers(script_suffix)
-    )
-
-
-_MATCHER_SCOPED_SCRIPTS = [
-    ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
-]
-
-_COMMIT_GATE_SCRIPTS = [
-    ".claude/hooks/PreToolUse/invoke_session_log_guard.py",
-    ".claude/hooks/PreToolUse/invoke_adr_review_guard.py",
-    ".claude/hooks/PreToolUse/invoke_security_commit_gate.py",
-]
-
-
-class TestShellHookMatcherScope:
-    @pytest.mark.parametrize(
-        "script_suffix,commands",
-        [
-            (
-                ".claude/hooks/PreToolUse/invoke_false_completion_gate.py",
-                [
-                    "git -C repo commit -m fix",
-                    r"C:\tools\git.exe -C repo commit -m fix",
-                    "env gh pr create --fill",
-                ],
-            ),
-        ],
-    )
-    def test_matchers_preserve_guard_command_coverage(
-        self, script_suffix: str, commands: list[str]
-    ) -> None:
-        assert all(_matches_configured_command(script_suffix, command) for command in commands)
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "Write-Output TRACE_TOOL_OK",
-            "git status --short",
-            "git log commit",
-            "echo git commit",
-            "python -m pytest",
-            "npm test",
-            "cargo test",
-            "docker tag image",
-            "echo org name",
-            "echo gh",
-            "echo though",
-            'echo "gh pr create"',
-        ],
-    )
-    def test_unrelated_shell_commands_start_no_direct_guard(self, command: str) -> None:
-        assert not any(
-            _matches_configured_command(script, command) for script in _MATCHER_SCOPED_SCRIPTS
-        )
-
-    @pytest.mark.parametrize("script_suffix", _COMMIT_GATE_SCRIPTS)
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "git -C repo commit -m fix",
-            r"C:\tools\git.exe -C repo commit -m fix",
-        ],
-    )
-    def test_commit_hard_gates_cover_git_context_options(
-        self, script_suffix: str, command: str
-    ) -> None:
-        assert _matches_configured_command(script_suffix, command)
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "gh pr create --fill",
-            "echo ready && gh pr create --fill",
-            r"C:\tools\gh.exe pr create --fill",
-        ],
-    )
-    def test_session_log_guard_covers_pr_creation(self, command: str) -> None:
-        assert _matches_configured_command(
-            ".claude/hooks/PreToolUse/invoke_session_log_guard.py", command
-        )
-
-    @pytest.mark.parametrize(
-        "script_suffix", sorted(set(_MATCHER_SCOPED_SCRIPTS + _COMMIT_GATE_SCRIPTS))
-    )
-    def test_plugin_matchers_match_repository_settings(self, script_suffix: str) -> None:
-        assert _plugin_matchers(script_suffix) == _settings_matchers(script_suffix)
 
 
 def test_copilot_pretooluse_has_no_unregistered_matcher_shims() -> None:
@@ -278,12 +116,13 @@ class TestRemoteRepoName:
         assert captured_kwargs["errors"] == "replace"
         assert captured_kwargs["check"] is True
 
-    def test_origin_lookup_timeout_under_host_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_origin_lookup_timeout_under_host_budget(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """The per-tool-call git lookup must finish inside the tightest host timeout.
 
         ``skip_if_consumer_repo`` calls ``_remote_repo_name`` on every tool use,
-        and several PreToolUse Bash hooks invoke it (correction-applier,
-        routing-gates). If this git subprocess timeout is
+        and project-only hooks invoke it. If this git subprocess timeout is
         >= a host hook's timeout, a slow or hung git lets the host SIGKILL the
         whole hook before the caller can fail open, which Copilot surfaces as a
         hard "hook errored" deny of every command (repo-settings Bash-hook
@@ -293,13 +132,14 @@ class TestRemoteRepoName:
         settings_path = REPO_ROOT / ".claude" / "settings.json"
         settings = json.loads(settings_path.read_text(encoding="utf-8"))
         host_timeouts: list[int] = []
-        for group in settings.get("hooks", {}).get("PreToolUse", []):
-            if not isinstance(group, dict):
-                continue
-            for entry in group.get("hooks", []):
-                if isinstance(entry, dict) and isinstance(entry.get("timeout"), int):
-                    host_timeouts.append(entry["timeout"])
-        assert host_timeouts, "expected explicit PreToolUse hook timeouts in settings.json"
+        for groups in settings.get("hooks", {}).values():
+            for group in groups:
+                if not isinstance(group, dict):
+                    continue
+                for entry in group.get("hooks", []):
+                    if isinstance(entry, dict) and isinstance(entry.get("timeout"), int):
+                        host_timeouts.append(entry["timeout"])
+        assert host_timeouts, "expected explicit hook timeouts in settings.json"
         tightest_host_timeout = min(host_timeouts)
 
         captured_kwargs: dict[str, object] = {}
@@ -356,54 +196,6 @@ class TestSkipIfConsumerRepo:
         captured = capsys.readouterr()
         assert "[SKIP] test-hook" in captured.err
         assert "cannot verify ai-agents project repo identity" in captured.err
-
-
-class TestHookSkipsInConsumerRepo:
-    """Run each project-specific hook in a temp dir and verify it exits 0."""
-
-    @pytest.fixture
-    def consumer_dir(self, tmp_path: Path) -> Path:
-        """Create a minimal consumer repo directory (no .agents/)."""
-        (tmp_path / ".claude" / "lib" / "hook_utilities").mkdir(parents=True)
-        (tmp_path / ".claude" / "lib" / "github_core").mkdir(parents=True)
-        return tmp_path
-
-    @pytest.mark.parametrize("hook_path", PROJECT_SPECIFIC_HOOKS, ids=lambda p: Path(p).stem)
-    def test_hook_exits_zero_in_consumer_repo(self, hook_path: str, consumer_dir: Path) -> None:
-        full_path = REPO_ROOT / hook_path
-        if not full_path.exists():
-            pytest.skip(f"Hook not found: {hook_path}")
-
-        # Some hooks read stdin for hook input JSON
-        hook_input = '{"tool_name": "Bash", "tool_input": {"command": "echo hi"}}'
-
-        # Force consumer-repo identity for the spawned hook. The suite-wide
-        # autouse default sets AI_AGENTS_PROJECT_REPO=1; override to "0" so the
-        # subprocess takes the skip path (#2610).
-        env = {**os.environ, "AI_AGENTS_PROJECT_REPO": "0"}
-
-        result = subprocess.run(
-            [sys.executable, str(full_path)],
-            capture_output=True,
-            text=True,
-            cwd=str(consumer_dir),
-            input=hook_input,
-            timeout=10,
-            env=env,
-        )
-
-        assert result.returncode == 0, (
-            f"{hook_path} exited {result.returncode} in consumer repo.\n"
-            f"stdout: {result.stdout[:500]}\n"
-            f"stderr: {result.stderr[:500]}"
-        )
-        # Verify skip message appears (either stdout or stderr)
-        combined = result.stdout + result.stderr
-        assert "[SKIP]" in combined, (
-            f"{hook_path} did not print [SKIP] message in consumer repo.\n"
-            f"stdout: {result.stdout[:500]}\n"
-            f"stderr: {result.stderr[:500]}"
-        )
 
 
 class TestSyncPluginLib:

@@ -62,7 +62,9 @@ python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 
 ## When to Use
 
-**REQUIRED** before closing any session. The Stop hook at `.claude/hooks/Stop/invoke_session_validator.py` enforces this: sessions will not close until `protocolCompliance.sessionEnd` MUST items are complete. If you attempt to close without running session-end, the hook will force continuation.
+**REQUIRED** before closing any session. The `validate_session_end` pre-push and
+CI policy blocks delivery until `protocolCompliance.sessionEnd` MUST items are
+complete.
 
 Specifically:
 

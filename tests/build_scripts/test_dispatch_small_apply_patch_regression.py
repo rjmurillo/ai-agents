@@ -143,17 +143,12 @@ def test_oversized_unmatched_apply_patch_payload_allows(tmp_path: Path) -> None:
     assert b"P" * 4096 not in proc.stderr
 
 
-def test_oversized_matched_edit_payload_denies_with_context(tmp_path: Path) -> None:
+def test_oversized_matched_push_payload_denies_with_context(tmp_path: Path) -> None:
     payload = {
-        "sessionId": "regression-3074-matched",
-        "cwd": "consumer-repo",
-        "toolCalls": [
-            {
-                "id": "call_edit_large",
-                "name": "Edit",
-                "args": "E" * (_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES + 1),
-            }
-        ],
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "git push " + "E" * (_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES + 1)
+        },
     }
     raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     assert len(raw) > _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES
@@ -162,8 +157,8 @@ def test_oversized_matched_edit_payload_denies_with_context(tmp_path: Path) -> N
 
     stderr = proc.stderr.decode("utf-8", errors="replace")
     assert proc.returncode == 2
-    assert "^(Write|Edit)$" in stderr
-    assert "toolCalls.args" in stderr
+    assert "Bash(git push*)" in stderr
+    assert "tool_input" in stderr
     assert str(_MATCHED_SHIM_PAYLOAD_LIMIT_BYTES) in stderr
     for stream in (proc.stdout, proc.stderr):
         assert b"E" * 4096 not in stream

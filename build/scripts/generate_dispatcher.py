@@ -65,6 +65,7 @@ _PWSH_TEMPLATE = (
     'py -3 -u "$(if ($env:COPILOT_PLUGIN_ROOT) {{$env:COPILOT_PLUGIN_ROOT}} '
     'else {{$env:CLAUDE_PLUGIN_ROOT}})/hooks/{event}/_dispatch.py"'
 )
+_GENERATED_EVENT_MARKERS = ("_manifest.json", "_dispatch.py", "_bootstrap.py")
 
 _ENTRYPOINT = '''\
 from __future__ import annotations
@@ -514,6 +515,63 @@ def find_stale_matcher_shims(
             continue
         stale_shims.append(candidate)
     return stale_shims
+
+
+def find_stale_event_artifacts(
+    hooks_dir: Path,
+    active_events: set[str],
+) -> list[Path]:
+    """Return generated files for events omitted from the current manifest."""
+    try:
+        hooks_stat = hooks_dir.lstat()
+    except FileNotFoundError:
+        return []
+    if stat.S_ISLNK(hooks_stat.st_mode):
+        raise ValueError(f"refusing symlinked hooks directory: {hooks_dir}")
+    if not stat.S_ISDIR(hooks_stat.st_mode):
+        raise ValueError(f"hooks output path is not a directory: {hooks_dir}")
+
+    hooks_root = hooks_dir.resolve(strict=True)
+    stale_artifacts: list[Path] = []
+    for event_dir in sorted(hooks_dir.iterdir()):
+        if event_dir.name in active_events:
+            continue
+        event_stat = event_dir.lstat()
+        if stat.S_ISLNK(event_stat.st_mode):
+            raise ValueError(f"refusing symlinked event directory: {event_dir}")
+        if not stat.S_ISDIR(event_stat.st_mode):
+            continue
+        if not all(
+            (event_dir / name).is_file() for name in _GENERATED_EVENT_MARKERS
+        ):
+            continue
+
+        resolved_event = _resolve_within(
+            event_dir,
+            hooks_root,
+            "stale hook event directory",
+        )
+        candidates: list[Path] = []
+        protected: tuple[Path, str] | None = None
+        for candidate in sorted(event_dir.iterdir()):
+            candidate_stat = candidate.lstat()
+            if stat.S_ISLNK(candidate_stat.st_mode):
+                raise ValueError(f"refusing symlinked hook candidate: {candidate}")
+            if not stat.S_ISREG(candidate_stat.st_mode):
+                continue
+            _resolve_within(candidate, resolved_event, "stale hook candidate")
+            candidates.append(candidate)
+            reason = regen_detect_reason(candidate)
+            if reason is not None:
+                protected = (candidate, reason)
+                break
+
+        if protected is not None:
+            target, reason = protected
+            print(f"  NOTICE: skipped stale event {event_dir} ({target}: {reason})")
+            continue
+        stale_artifacts.extend(candidates)
+    return stale_artifacts
 
 
 def _remove_stale_matcher_shims(event_dir: Path, shim_names: list[str]) -> None:
