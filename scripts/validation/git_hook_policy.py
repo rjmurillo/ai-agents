@@ -528,6 +528,63 @@ def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
     return _only_implemented_field_changed(old_frontmatter, new_frontmatter)
 
 
+def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
+    """Return True for a staged SKILL.md ADR-080 model-pin-only frontmatter edit.
+
+    SkillForge validation (``validate-skill.py``) checks both the body
+    (Triggers, Process, Verification, Scripts sections) and the frontmatter
+    (required and allowed keys). A body-unchanged edit cannot regress the
+    structural verdict, but a frontmatter edit still can, so this exemption is
+    deliberately narrow: it skips validation only when the body text is
+    unchanged from HEAD (bodies decoded as UTF-8 with ``errors="replace"`` and
+    compared as strings, not raw bytes) AND the sole changed frontmatter keys
+    are the ADR-080 model-pin
+    fields (``model``, ``model-rationale``). Any other frontmatter delta, for
+    example deleting ``name``/``description`` or introducing an unexpected key,
+    still runs the validator. Mirrors the field-scoped precedent in
+    ``_only_implemented_field_changed``.
+
+    Returns False for newly added skills (no HEAD blob) so genuinely new skills
+    are always validated.
+    """
+    old_blob = _read_head_blob(repo_root, path)
+    new_blob = _read_index_blob(repo_root, path)
+    if old_blob is None or new_blob is None:
+        return False
+    old_frontmatter, old_body = _split_frontmatter(
+        old_blob.decode("utf-8", errors="replace")
+    )
+    new_frontmatter, new_body = _split_frontmatter(
+        new_blob.decode("utf-8", errors="replace")
+    )
+    if not old_frontmatter or not new_frontmatter or old_body != new_body:
+        return False
+    return _only_model_pin_fields_changed(old_frontmatter, new_frontmatter)
+
+
+_ADR080_MODEL_PIN_FIELDS = frozenset({"model", "model-rationale"})
+
+
+def _only_model_pin_fields_changed(
+    old_frontmatter: str,
+    new_frontmatter: str,
+) -> bool:
+    old_fields = _parse_frontmatter(old_frontmatter)
+    new_fields = _parse_frontmatter(new_frontmatter)
+    # Require both parsed dicts non-empty (falsy covers None and {}). Comment-only
+    # or whitespace-only frontmatter yaml-loads to an empty dict; treating that as
+    # a model-pin-only change would skip validation on a SKILL.md that effectively
+    # has no frontmatter fields, which is invalid and must be validated.
+    if not old_fields or not new_fields:
+        return False
+    changed = {
+        key
+        for key in old_fields.keys() | new_fields.keys()
+        if old_fields.get(key) != new_fields.get(key)
+    }
+    return bool(changed) and changed <= _ADR080_MODEL_PIN_FIELDS
+
+
 def _gated_adr_review_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
     gated: list[str] = []
     for path in paths:
@@ -2280,6 +2337,8 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
     for path in paths:
         if _skip_skillforge_path(path):
+            continue
+        if _is_skill_frontmatter_only_change(path, repo_root):
             continue
         result = _run_command(
             [

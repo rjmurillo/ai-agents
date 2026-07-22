@@ -42,18 +42,14 @@
     ".claude/commands/pr-quality/roadmap.md": "opus",
     ".claude/commands/pr-quality/security.md": "sonnet",
     ".claude/commands/research.md": "opus",
-    ".claude/skills/analysis-provenance/SKILL.md": "claude-sonnet-4-6",
-    ".claude/skills/avoiding-manufactured-work/SKILL.md": "claude-sonnet-4-6",
-    ".claude/skills/encode-repo-serena/SKILL.md": "claude-sonnet-4-6",
-    ".claude/skills/fix-markdown-fences/SKILL.md": "claude-haiku-4-5",
+    ".claude/skills/fix-markdown-fences/SKILL.md": "haiku",
     ".claude/skills/guard-maturity/SKILL.md": "haiku",
     ".claude/skills/metrics/SKILL.md": "haiku",
     ".claude/skills/negotiation/SKILL.md": "claude-opus-4-6",
-    ".claude/skills/observability/SKILL.md": "claude-haiku-4-5",
+    ".claude/skills/observability/SKILL.md": "haiku",
     ".claude/skills/pipeline-validator/SKILL.md": "claude-sonnet-4-6",
     ".claude/skills/security-detection/SKILL.md": "haiku",
     ".claude/skills/steering-matcher/SKILL.md": "haiku",
-    ".claude/skills/stuck-detection/SKILL.md": "haiku",
-    ".claude/skills/taste-lints/SKILL.md": "claude-sonnet-4-6"
+    ".claude/skills/stuck-detection/SKILL.md": "haiku"
   }
 }

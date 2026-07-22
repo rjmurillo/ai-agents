@@ -1,7 +1,8 @@
 ---
 name: fix-markdown-fences
 version: 1.1.0
-model: claude-haiku-4-5
+model: haiku
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 description: >-
   Repair malformed markdown code fence closings. Use when you say "fix markdown
   fences", "repair code block closings", "markdown rendering broken", "code

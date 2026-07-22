@@ -2146,9 +2146,19 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         tmp_path,
     )
 
+    # Fixtures and command mirrors are skipped before any subprocess runs, so
+    # the only skill that reaches SkillForge is the real one. The
+    # frontmatter-only exemption probes HEAD and index blobs via _run_command
+    # first, so filter to the validator invocation rather than counting every
+    # subprocess call.
+    validate_calls = [
+        call
+        for call in calls
+        if any("validate-skill.py" in str(arg) for arg in call)
+    ]
     assert result == 0
-    assert len(calls) == 1
-    assert calls[0][-1] == ".claude/skills/real-skill"
+    assert len(validate_calls) == 1
+    assert validate_calls[0][-1] == ".claude/skills/real-skill"
 
 
 def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:

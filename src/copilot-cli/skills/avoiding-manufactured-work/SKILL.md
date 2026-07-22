@@ -1,7 +1,6 @@
 ---
 name: avoiding-manufactured-work
 version: 1.0.0
-model: claude-sonnet-4-6
 description: Detect and stop manufactured work after a deliverable appears done. Use when a worker has produced a plan, issue, PR, backlog item, research artifact, or follow-up task and you need to verify it was demanded by a real user, acceptance criterion, or blocked decision instead of reward-seeking activity.
 license: MIT
 ---
