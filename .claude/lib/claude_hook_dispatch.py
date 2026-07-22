@@ -74,6 +74,7 @@ _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+from claude_hook_protocol import _classify_stdout  # noqa: E402
 from hook_dispatch import (  # noqa: E402
     ALLOW_EXIT,
     BLOCK_EXIT,
@@ -102,11 +103,6 @@ _PLAIN_CONTEXT_EVENTS = frozenset(
     {"UserPromptSubmit", "SessionStart", "Stop", "SubagentStop", "PreCompact"}
 )
 
-_DECISION_KEYS = frozenset({"decision", "continue", "permissionDecision"})
-_TOP_LEVEL_COMMON_KEYS = frozenset({"suppressOutput", "systemMessage"})
-_STOP_DECISION_EVENTS = frozenset({"Stop", "SubagentStop"})
-
-
 @dataclass
 class _ShimOutcome:
     """One shim's classified result."""
@@ -125,113 +121,6 @@ class _RunState:
     context_parts: list[str] = field(default_factory=list)
     decision: str | None = None
     first_block: int = ALLOW_EXIT
-
-
-def _has_valid_common_fields(doc: dict[str, object]) -> bool:
-    """Return whether optional top-level Claude fields have valid types."""
-    if "suppressOutput" in doc and not isinstance(doc["suppressOutput"], bool):
-        return False
-    return "systemMessage" not in doc or isinstance(doc["systemMessage"], str)
-
-
-def _is_valid_blocking_document(doc: dict[str, object], event: str) -> bool:
-    """Return whether ``doc`` is a strict blocking output for ``event``."""
-    if not _has_valid_common_fields(doc):
-        return False
-    if "continue" in doc:
-        allowed = _TOP_LEVEL_COMMON_KEYS | {"continue", "stopReason"}
-        return (
-            set(doc) <= allowed
-            and doc.get("continue") is False
-            and (
-                "stopReason" not in doc
-                or isinstance(doc["stopReason"], str)
-            )
-        )
-
-    if "decision" in doc:
-        allowed = _TOP_LEVEL_COMMON_KEYS | {"decision", "reason"}
-        return (
-            event in _STOP_DECISION_EVENTS
-            and set(doc) <= allowed
-            and doc.get("decision") == "block"
-            and isinstance(doc.get("reason"), str)
-        )
-
-    hso = doc.get("hookSpecificOutput")
-    if not isinstance(hso, dict):
-        return False
-    allowed_top = _TOP_LEVEL_COMMON_KEYS | {"hookSpecificOutput"}
-    allowed_hso = {
-        "hookEventName",
-        "permissionDecision",
-        "permissionDecisionReason",
-        "additionalContext",
-    }
-    return (
-        event == "PreToolUse"
-        and set(doc) <= allowed_top
-        and set(hso) <= allowed_hso
-        and hso.get("hookEventName") == "PreToolUse"
-        and hso.get("permissionDecision") == "deny"
-        and isinstance(hso.get("permissionDecisionReason"), str)
-        and (
-            "additionalContext" not in hso
-            or isinstance(hso["additionalContext"], str)
-        )
-    )
-
-
-def _classify_stdout(text: str, event: str) -> tuple[str | None, str | None, bool]:
-    """Return ``(context, decision, recognized)`` for one shim's stdout.
-
-    ``recognized`` is False for generic JSON with no protocol keys and for
-    invalid structured output. Callers distinguish them by whether ``decision``
-    is populated: generic JSON becomes context, while invalid structured output
-    fails closed in gate modes.
-    """
-    stripped = text.strip()
-    if not stripped:
-        return None, None, True
-    try:
-        doc = json.loads(stripped)
-    except ValueError:
-        if stripped.startswith("{"):
-            return None, stripped, False
-        return stripped, None, True
-    if not isinstance(doc, dict):
-        return stripped, None, True
-    if not _has_valid_common_fields(doc):
-        return None, stripped, False
-    if _DECISION_KEYS & doc.keys():
-        return None, stripped, _is_valid_blocking_document(doc, event)
-    hso = doc.get("hookSpecificOutput")
-    if "hookSpecificOutput" in doc and not isinstance(hso, dict):
-        return None, stripped, False
-    if isinstance(hso, dict):
-        extra_keys = set(hso.keys()) - {"hookEventName", "additionalContext"}
-        top_keys = set(doc.keys()) - {"hookSpecificOutput", "suppressOutput", "systemMessage"}
-        if extra_keys or top_keys:
-            return None, stripped, _is_valid_blocking_document(doc, event)
-        if hso.get("hookEventName") != event:
-            return None, stripped, False
-        context = hso.get("additionalContext")
-        if "additionalContext" in hso and not isinstance(context, str):
-            return None, stripped, False
-        if isinstance(context, str) and context.strip():
-            return context, None, True
-        return None, None, True
-    # Advisory-only documents (the LSP guards emit standalone
-    # {"systemMessage": ...} on their warn path) must never terminate a
-    # gate group: surface the message as context and keep running.
-    if set(doc.keys()) <= {"systemMessage", "suppressOutput"}:
-        message = doc.get("systemMessage")
-        if isinstance(message, str) and message.strip():
-            return message, None, True
-        return None, None, True
-    # Unknown JSON is context, not a terminal decision. Passing it through as
-    # a decision would let an advisory producer skip every later gate.
-    return stripped, None, False
 
 
 def validate_group(
@@ -491,6 +380,13 @@ def run_group(
                 )
 
             if outcome.decision is not None:
+                if mode == OBSERVE:
+                    print(
+                        f"claude-hook-dispatch: shim {name} emitted a valid "
+                        "blocking decision; suppressing decision in observe mode",
+                        file=sys.stderr,
+                    )
+                    continue
                 if state.decision is None:
                     state.decision = outcome.decision
                 else:
