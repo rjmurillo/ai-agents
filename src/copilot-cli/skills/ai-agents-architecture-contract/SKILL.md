@@ -57,7 +57,7 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 | Memory skill decomposition into tiers | ADR-063 | Accepted | Tier 1 semantic (Serena plus Forgetful search), Tier 2 episodic, Tier 3 causal |
 | Hook failure policy: prevention-first, fail-closed-and-loud | ADR-066 | Proposed, but the position is the owner's canonical one after incident #2205 | Launcher fail-open hid a broken hook from every customer for 33 days |
 | Plugin hook runtime-contract verification | ADR-071 | Accepted (six-agent adr-review) | Vendor docs were wrong by omission twice; contracts are tested, not assumed |
-| Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Proposed; implementation exists (`build/scripts/generate_dispatcher.py`) | Historical matcher and timeout behavior made one process per shim unsafe; current hosts also get host-side matcher filtering |
+| Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted; transitional after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; #3218 owns removal or simplification |
 | JTBD plugin slicing, per-harness emission | ADR-072 | Proposed, five approval conditions unmet, "No code moves on this ADR alone" | Plugins are sliced by directory today, not by job-to-be-done |
 | Context corpus is the product | ADR-069 | Proposed | Thesis only; do not cite as settled |
 | LSP-first navigation (static steering) | ADR-062 | Amended 2026-07; runtime enforcement retired (#3216) | Symbol queries beat grep on token cost |
@@ -70,23 +70,29 @@ Two meta-patterns bind these together:
 
 ### Phase 3: Understand the hook runtime and its failure policy
 
-Registration is DUAL and partly hand-synced:
+Registration is split by consumer. These source files are intentionally not
+parity twins:
 
-| Surface | File | Registered (re-verified 2026-07-20) |
+| Surface | File | Registered (re-verified 2026-07-22) |
 |---|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key | 6 events, 12 groups |
-| Plugin twin | `.claude/hooks/hooks.json` | 5 events, 10 groups; PreCompact is absent |
-| Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 6 events, 7 registrations; Stop has two direct decision producers, and each other event has one dispatcher |
+| Claude Code direct | `.claude/settings.json` `hooks` key | 4 events, 5 groups |
+| Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 2 groups |
+| Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 2 events, 2 registrations |
 
 Failure policy is PER FAMILY, not global. Do not copy a policy across families:
 
 | Family | Policy | Where stated |
 |---|---|---|
-| Push guards | fail-open on infrastructure errors, emitting `EVENT={...}` telemetry with `outcome="fail_open"`; bootstrap failure (missing plugin lib) exits 2, NOT fail-open | `.claude/hooks/PreToolUse/push_guard_base.py:20` and `:28` |
-| Generated/released hook artifacts | prevention-first, fail-closed-and-loud: validate anchoring pre-release, and a novel runtime escape exits non-zero with actionable stderr | ADR-066 D1, ADR-071 |
-| Copilot dispatcher | `gate` handles PreToolUse; dormant `advise` support translates one future PermissionRequest producer; `observe` runs lifecycle observers | `build/scripts/generate_dispatcher.py` docstring |
+| Local Claude hooks | Follow each event contract. SessionStart cannot block; Stop may return a block decision | `.claude/settings.json`; `agent-harness-reference` |
+| Generated/released hook artifacts | Prevention-first and loud: validate anchoring before release, then surface escaped launcher failures | ADR-066 D1, ADR-071 |
+| Copilot dispatcher | Active `gate` handles one PreToolUse shim; active `observe` handles one PostToolUse shim; dormant `advise` translates a future PermissionRequest producer | Generated manifests; `build/scripts/generate_dispatcher.py` |
 
-The rationale for the split: guards that ASSERT AN INVARIANT on shipped artifacts must fail loud (a silent exit 0 disabled a hook for 33 days in #2205); guards that add ADVICE OR STEERING inside a session must not block the user's turn when their own machinery breaks. Older ADRs (008, 033, 035) still carry blanket fail-open language; ADR-066 is the reconciliation and the binding direction even while its status field reads Proposed. SessionStart hooks cannot block regardless.
+The rationale for the split: guards that assert an invariant on shipped
+artifacts must fail loud. A silent exit 0 disabled a hook for 33 days in #2205.
+Observer and lifecycle behavior follows the host event contract instead of a
+repository-wide exit policy. Older ADRs (008, 033, 035) still carry blanket
+fail-open language; ADR-066 and ADR-071 own the released-artifact direction.
+SessionStart hooks cannot block regardless.
 
 The dispatcher (ADR-068) originated in Copilot CLI 1.0.57-era matcher and
 timeout behavior. Copilot CLI 1.0.72-1 honors supported matchers and fails open
@@ -143,7 +149,7 @@ State these plainly when working near them; do not design as if they were sound.
 
 | Weak point | Evidence (as of 2026-07-03) | Consequence |
 |---|---|---|
-| `hooks.json` twin is hand-synced and already differs | `.claude/settings.json` registers 6 events and 13 groups; `.claude/hooks/hooks.json` registers 5 events and 11 groups, with no PreCompact and one fewer SessionStart group | Plugin installs may lack hooks the repo itself runs; verify intent before "fixing" either side |
+| Hook sources serve different consumers | `.claude/settings.json` has 4 events and 5 groups; `.claude/hooks/hooks.json` has 2 events and 3 groups | Do not force parity. Verify whether a hook is repository-only or vendored before editing either source |
 | `src/claude/` manual dual-edit | `templates/README.md:131` | Shared-template edits silently skip the Claude surface unless you remember the second edit |
 | Stale docs contradict reality | `CONTRIBUTING.md:155` said the removed PowerShell Generate-Agents command until PR #2871 repointed it to `python3 build/generate_agents.py`; zero `.ps1` files exist outside `.venv/` (ADR-042). `GENERATOR-FILES.md` lists `src/claude/` as a `generate_agents.py` output ("`src/claude/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML)"), but `generate_agents.py` contains no `src/claude` write and no claude platform YAML exists | Following docs verbatim fails; quote the canonical source when correcting (FM-9) |
 | ruff is advisory in CI | `pytest.yml` comments around lines 107-119, issue #2194 style backlog | Lint debt accumulates invisibly; only syntax parsing blocks |
@@ -157,7 +163,7 @@ State these plainly when working near them; do not design as if they were sound.
 - Editing a generated tree to fix drift. The next `build_all.py` run erases your work; the drift gate flags the diff, not the direction. Edit the canonical side per the Phase 1 table.
 - Deleting a hook, skill, or script because "nothing references it". Dispatch is name-based; check string references and `orphan-ref-validator` first.
 - Copying a failure policy across hook families. Push-guard fail-open reasoning does not transfer to released hook artifacts (ADR-066), and vice versa.
-- Citing a Proposed ADR (069, 072) as settled architecture, or dismissing a live enforcement mechanism because its ADR reads Proposed (062, 066, 068).
+- Citing a Proposed ADR (069, 072) as settled architecture, or dismissing a live enforcement mechanism because an older ADR status is stale.
 - Treating `.serena/memories/` as inert docs. The advisory correction-applier and topical-memory-injection hooks were deleted (issue #3184; see the Phase 4 observation-loop entry above); they were never active runtime inputs. Explicit retrieval through the `memory` or `memory-search` skill is what makes memories load-bearing, not an automatic hook.
 - Adding a rule without a gate. Verification-based governance means prose without enforcement is dead on arrival (route new rules through `ai-agents-change-control`).
 - Bumping the wrong plugin.json, or none. The bump belongs to the tree whose content changed, strictly greater.
@@ -168,7 +174,7 @@ Before relying on or amending this contract:
 
 - [ ] Ran `python3 build/scripts/build_all.py --check` and `python3 build/generate_agents.py --validate` from repo root; both exit 0 on a clean tree
 - [ ] Confirmed the canonical side of any file you plan to edit against the Phase 1 table (and `GENERATOR-FILES.md`, minding its known `src/claude` row error)
-- [ ] Confirmed event counts still match: `python3 -c "import json; d=json.load(open('.claude/settings.json'))['hooks']; print(len(d), sum(len(v) for v in d.values()))"` (expected 6 and 13 as of 2026-07-20)
+- [ ] Confirmed event counts still match: local settings print `4 5`, vendored source prints `2 2`, and generated Copilot config prints `2 2`
 - [ ] Checked the ADR status header of any decision you cite (statuses drift; content beats number, and ADR numbers have collided historically)
 - [ ] If you touched `.claude/`, `src/claude/`, or `src/copilot-cli/`: bumped that tree's plugin.json strictly greater
 
@@ -183,10 +189,10 @@ Verified 2026-07-03 against the working tree. Volatile facts are date-stamped in
 | REQ-003-010 no-write invariant | `build/scripts/build_all.py:962` | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | src/claude manual sync | `templates/README.md:131`; ADR-036 Accepted | `grep -n "MANUAL" templates/README.md` |
 | lib sync pairs | `scripts/sync_plugin_lib.py:27` SYNC_PAIRS | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| 6 events / 13 groups; twin has 5 events / 11 groups and lacks PreCompact | `.claude/settings.json`, `.claude/hooks/hooks.json` | the Verification checkbox one-liner, plus `python3 -c "import json; d=json.load(open('.claude/hooks/hooks.json'))['hooks']; print(len(d), sum(len(v) for v in d.values()), list(d))"` |
-| Push-guard fail policy | `.claude/hooks/PreToolUse/push_guard_base.py:20,28` | `grep -n "fail-open" .claude/hooks/PreToolUse/push_guard_base.py` |
+| Local 4 events / 5 groups; vendored 2 events / 2 groups; generated 2 events / 2 registrations | `.claude/settings.json`, `.claude/hooks/hooks.json`, `src/copilot-cli/hooks/hooks.json` | `python3 -c "import json; from pathlib import Path; [print(p, len((d:=json.loads(Path(p).read_text()))['hooks']), sum(map(len,d['hooks'].values()))) for p in ('.claude/settings.json','.claude/hooks/hooks.json','src/copilot-cli/hooks/hooks.json')]"` |
+| Per-event hook failure policy | `agent-harness-reference`; ADR-071 | Read the reference's exit and failure matrices |
 | Fail-closed reversal, #2205 rationale | `.agents/architecture/ADR-066-*.md`, ADR-071 (Accepted) | `grep -n -A2 "## Status" .agents/architecture/ADR-066*.md .agents/architecture/ADR-071*.md` |
-| Dispatcher modes, ~75% spawn reduction | `build/scripts/generate_dispatcher.py` docstring | `head -20 build/scripts/generate_dispatcher.py` |
+| Dispatcher modes and current inventory | generated manifests; ADR-068 | `find src/copilot-cli/hooks -name _manifest.json -print -exec cat {} \;` |
 | Skill vs subagent latency 5-20ms vs 100-200ms | `.agents/architecture/ADR-030-skills-pattern-superiority.md:31` | `grep -n "100-200ms" .agents/architecture/ADR-030*.md` |
 | Memory sync direction | `scripts/memory_sync/sync_engine.py` module docstring | `head -8 scripts/memory_sync/sync_engine.py` |
 | Explicit correction and topical-memory retrieval | `memory` and `memory-search` skills; retained hook files are unregistered | `uv run pytest -q tests/build_scripts/test_copilot_dispatcher_artifact.py::test_only_advisory_pretooluse_registrations_are_absent` |

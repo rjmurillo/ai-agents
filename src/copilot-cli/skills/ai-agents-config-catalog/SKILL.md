@@ -113,14 +113,18 @@ needs no bump; any other file in the tree does.
 
 ## Hook Registration Surfaces
 
-Two registration files, kept in sync BY HAND (a known-weak point, see `ai-agents-architecture-contract`):
+Two independent registration sources serve different consumers. Do not force
+parity between them:
 
-| Surface | Consumer | Shape re-verified 2026-07-20 |
+| Surface | Consumer | Shape re-verified 2026-07-22 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct | 6 events, 12 groups (PreToolUse 5, SessionStart 2, UserPromptSubmit 1, PostToolUse 2, Stop 1, PreCompact 1) |
-| `.claude/hooks/hooks.json` | Plugin packaging twin | 5 events, 10 groups; PreCompact and one SessionStart group are absent |
+| `.claude/settings.json` | Claude Code direct in this repository | 4 events, 5 groups |
+| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 2 groups |
 
-If you register a hook in one file only, one harness silently lacks it. Check both in any hook PR.
+The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A
+one-file registration is valid only when its consumer scope is deliberate.
+Check both sources in any hook PR and document repository-only versus vendored
+intent.
 No `PermissionRequest` policy hook is registered. Test runners execute
 repository-controlled code, so command-name matching is not a safe approval boundary.
 
