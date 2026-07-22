@@ -9,8 +9,9 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterator, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
+from typing import Self
 
 import pytest
 import yaml
@@ -384,6 +385,105 @@ def test_retrospective_trivial_session_includes_ten_minute_boundary(
         session,
         [],
         now_epoch=boundary,
+    )
+
+
+def _freeze_policy_clock(monkeypatch: pytest.MonkeyPatch, instant: datetime) -> None:
+    """Freeze git_hook_policy's UTC clock to a fixed instant for date-window tests.
+
+    The retrospective and session-log helpers derive today/yesterday from
+    ``datetime.now(tz=UTC)``. Pinning it removes the once-per-day midnight-tick
+    race that would otherwise make the cross-midnight assertions flaky.
+    """
+
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> Self:
+            return cls.fromtimestamp(instant.timestamp(), tz)
+
+    monkeypatch.setattr(policy, "datetime", _FrozenDateTime)
+
+
+def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retro dated yesterday UTC satisfies the gate today (cross-midnight grace).
+
+    Regression guard for #3305: a session that does real work on day N and
+    pushes just after 00:00 UTC on day N+1 must not be blocked when the day-N
+    retrospective exists. ``_today_retrospective_exists`` globs today AND
+    yesterday, so the yesterday-dated retro is honored.
+    """
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-14-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    retro.write_text("# Retrospective\nreal work\n", encoding="utf-8")
+
+    # Two paths avoid the trivial-session bypass, isolating the yesterday grace.
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
+def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Evidence in a yesterday-dated session log satisfies the gate today.
+
+    Regression guard for #3305: ``_today_session_log`` globs today AND
+    yesterday, so evidence committed in the day-N session log is consulted on
+    day N+1 even with no retrospective file present.
+    """
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    (sessions / "2026-03-14-session-1.json").write_text(
+        '{"notes": "Learnings captured"}', encoding="utf-8"
+    )
+
+    # No retrospective file: the only passing path is the yesterday session log.
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
+def test_retrospective_policy_blocks_evidence_older_than_grace_window(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retro/session two days old is outside the 24h grace and still blocks.
+
+    Negative control for #3305: the cross-midnight tolerance is exactly one day
+    (today + yesterday). Evidence from two days ago must not satisfy the gate,
+    so the widened window cannot silently accept arbitrarily stale sessions.
+    """
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-x.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    retro.write_text("# Retrospective\nstale\n", encoding="utf-8")
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    (sessions / "2026-03-13-session-1.json").write_text(
+        '{"notes": "Learnings captured"}', encoding="utf-8"
+    )
+
+    # Two paths avoid the trivial-session bypass; two-days-old evidence is stale.
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 1
     )
 
 
@@ -776,12 +876,12 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
 
 def test_configuration_and_tree_have_no_payload_scripts() -> None:
     config_text = (PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8")
-    policy_text = (
-        PROJECT_ROOT / "scripts/validation/git_hook_policy.py"
-    ).read_text(encoding="utf-8")
-    auto_retro_text = (
-        PROJECT_ROOT / ".claude/hooks/Stop/invoke_auto_retrospective.py"
-    ).read_text(encoding="utf-8")
+    policy_text = (PROJECT_ROOT / "scripts/validation/git_hook_policy.py").read_text(
+        encoding="utf-8"
+    )
+    auto_retro_text = (PROJECT_ROOT / ".claude/hooks/Stop/invoke_auto_retrospective.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "scripts/hooks/pre-commit" not in config_text
     assert "scripts/hooks/pre-push" not in config_text
@@ -1508,9 +1608,7 @@ def test_branch_context_skips_unreadable_newest_log(
     _init_repo(repo, branch="feature/x")
     _commit_file(repo, "tracked", "value\n")
     _write_session_log(repo, branch="feature/other", name="session-1", mtime=1000.0)
-    unreadable = _write_session_log(
-        repo, branch="feature/x", name="session-2", mtime=2000.0
-    )
+    unreadable = _write_session_log(repo, branch="feature/x", name="session-2", mtime=2000.0)
 
     real_stat = Path.stat
 
@@ -1756,10 +1854,7 @@ def test_binary_command_boundary_maps_timeout_to_external_error(
 
     assert result.returncode == 3
     assert result.stdout == b"partial bytes\n"
-    assert result.stderr == (
-        b"binary child stalled\n"
-        b"ERROR: git diff timed out after 90 seconds\n"
-    )
+    assert result.stderr == (b"binary child stalled\nERROR: git diff timed out after 90 seconds\n")
 
 
 @pytest.mark.parametrize(

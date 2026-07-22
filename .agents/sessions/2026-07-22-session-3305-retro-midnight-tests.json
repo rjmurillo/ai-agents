@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3305,
+    "date": "2026-07-22",
+    "branch": "fix/3305-retrospective-midnight-regression-tests",
+    "startingCommit": "b1fd4f91842a88ac5603fce18297242c4c52feec",
+    "objective": "Regression-guard the retrospective gate cross-midnight yesterday-grace (issue #3305) and correct the issue's diagnosis."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP activation tools are not exposed in this Copilot CLI session toolset (only lsp is present)."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena initial_instructions tool is not exposed in this Copilot CLI session toolset."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md directly this session."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created for branch fix/3305-retrospective-midnight-regression-tests."
+      },
+      "skillScriptsListed": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "github skill PR/CI scripts under .claude/skills/github/scripts used for the ship step."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md directly this session."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md directly this session."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded repository and user memories from the session prompt and verified relevant ones against source files."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3305-retrospective-midnight-regression-tests."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Confirmed working in a dedicated worktree on a feature branch, not main."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status inspected; only the intended test file and session artifacts are changed."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "startingCommit b1fd4f91842a88ac5603fce18297242c4c52feec recorded."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end MUST items satisfied with honest evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only and left unmodified this session."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena memory write tools are not exposed; durable facts recorded via the Copilot memory surface instead."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 scoped run completed with 0 issues; the retro under .agents is config-excluded and no other markdown changed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Test code and the regression guard committed at 645ec1b882663167e9bef22b43653ab4c937fffe, recorded as endingCommit for this session."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exited 0; pytest retrospective tests pass; ruff check and mypy clean."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Progress tracked through session checkpoints across the ship sequence."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Wrote .agents/retrospective/2026-07-22-3305-retro-midnight-regression-guard.md documenting the diagnosis reversal."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-22T00:20:00Z",
+      "action": "Re-diagnosed issue #3305 against current main",
+      "result": "Found the retrospective gate is already yesterday-aware: _today_retrospective_exists and _today_session_log both glob today and yesterday via _recent_date_prefixes. The originally filed root cause was wrong."
+    },
+    {
+      "time": "2026-07-22T00:45:00Z",
+      "action": "Ran frozen-clock reproduction (frozen 2026-07-22 00:15)",
+      "result": "Scenario A (yesterday retro file, cross-midnight) rc=0 pass; negative controls (no evidence) rc=1 block; edge (2-day-old evidence) rc=1 block. #3305 does not reproduce on main."
+    },
+    {
+      "time": "2026-07-22T01:00:00Z",
+      "action": "Added pos+neg+edge regression tests plus a freeze helper",
+      "result": "Three tests in tests/test_lefthook_integration.py lock in the yesterday-grace on both the retro-file and session-log paths, plus a negative control past the grace window. ruff check, ruff format, mypy, and pytest all green."
+    },
+    {
+      "time": "2026-07-22T01:10:00Z",
+      "action": "Mutation-tested the new guards",
+      "result": "Neutralizing _recent_date_prefixes (today twice) flipped both positive scenarios to rc=1, proving the tests catch a real regression rather than passing tautologically."
+    },
+    {
+      "time": "2026-07-22T01:20:00Z",
+      "action": "Wrote the #3305 retrospective and this session log",
+      "result": "Documented the confident-wrong-diagnosis failure mode and the corrected deliverable (regression guard, not a fix, to avoid manufactured work)."
+    }
+  ],
+  "endingCommit": "645ec1b882663167e9bef22b43653ab4c937fffe",
+  "nextSteps": [
+    "Push the branch and open a PR referencing issue #3305.",
+    "Correct issue #3305 with the accurate diagnosis and close it once the PR lands."
+  ]
+}
