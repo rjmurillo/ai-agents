@@ -14,6 +14,7 @@ import io
 import json
 import ntpath
 import os
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -28,7 +29,17 @@ for search_path in (LIB_DIR, HOOKS_DIR):
         sys.path.insert(0, search_path)
 
 import claude_hook_dispatch as chd  # noqa: E402
+import claude_hook_protocol as protocol  # noqa: E402
 import invoke_dispatch_claude as entry  # noqa: E402
+
+
+def test_module_bootstrap_adds_lib_directory(monkeypatch):
+    lib_dir = str(Path(chd.__file__).resolve().parent)
+    monkeypatch.setattr(sys, "path", [entry for entry in sys.path if entry != lib_dir])
+
+    runpy.run_path(chd.__file__, run_name="claude_hook_dispatch_bootstrap_probe")
+
+    assert lib_dir in sys.path
 
 
 def _write_shim(directory: Path, name: str, body: str) -> str:
@@ -473,7 +484,6 @@ def test_wrong_event_blocker_fails_closed(
 
 def test_gate_all_missing_shim_blocks_but_continues(tmp_path, capsys):
     shims = [
-        _write_shim(tmp_path, "error.py", "raise SystemExit(1)\n"),
         "absent.py",
         _write_shim(tmp_path, "b.py", "print('still ran')"),
     ]
@@ -481,6 +491,44 @@ def test_gate_all_missing_shim_blocks_but_continues(tmp_path, capsys):
     assert code == 2
     assert "still ran" in out
     assert "missing on disk" in err
+
+
+def test_gate_all_nonzero_shim_preserves_context(tmp_path, capsys):
+    shims = [
+        _write_shim(
+            tmp_path,
+            "partial.py",
+            "print('partial guidance')\nraise SystemExit(1)\n",
+        ),
+    ]
+
+    code, out, err = _run(capsys, tmp_path, "Stop", chd.GATE_ALL, shims)
+
+    assert code == 1
+    assert out.strip() == "partial guidance"
+    assert "partial.py exited 1" in err
+
+
+def test_gate_all_logs_second_decision_and_keeps_first(tmp_path, capsys):
+    shims = [
+        _write_shim(
+            tmp_path,
+            "first.py",
+            "import json\nprint(json.dumps({'decision': 'block', 'reason': 'first'}))\n",
+        ),
+        _write_shim(
+            tmp_path,
+            "second.py",
+            "import json\nprint(json.dumps({'decision': 'block', 'reason': 'second'}))\n",
+        ),
+    ]
+
+    code, out, err = _run(capsys, tmp_path, "Stop", chd.GATE_ALL, shims)
+
+    assert code == 0
+    assert json.loads(out)["reason"] == "first"
+    assert "second decision document" in err
+    assert '"reason": "second"' in err
 
 
 def test_gate_all_invalid_output_overrides_earlier_nonblocking_error(
@@ -542,6 +590,29 @@ def test_observe_suppresses_invalid_structured_output(tmp_path, capsys):
     assert "suppressing in observe mode" in err
 
 
+def test_observe_suppresses_valid_blocking_document(tmp_path, capsys):
+    marker = tmp_path / "later-ran"
+    shims = [
+        _write_shim(
+            tmp_path,
+            "decision.py",
+            "import json\nprint(json.dumps({'continue': False, 'stopReason': 'stop'}))\n",
+        ),
+        _write_shim(
+            tmp_path,
+            "later.py",
+            f"from pathlib import Path\nPath({str(marker)!r}).touch()\n",
+        ),
+    ]
+
+    code, out, err = _run(capsys, tmp_path, "SessionStart", chd.OBSERVE, shims)
+
+    assert code == 0
+    assert out == ""
+    assert marker.exists()
+    assert "suppressing decision in observe mode" in err
+
+
 def test_unknown_mode_fails_closed(tmp_path, capsys):
     code, _, err = _run(capsys, tmp_path, "PreToolUse", "bogus", [])
     assert code == 2
@@ -568,6 +639,29 @@ def test_empty_group_fails_closed(tmp_path, capsys):
 def test_validate_group_rejects_unsafe_shim_entries(shims):
     with pytest.raises(ValueError):
         chd.validate_group("PreToolUse", chd.GATE, shims)
+
+
+def test_validate_group_rejects_nonlist_shims():
+    with pytest.raises(TypeError, match="group shims must be a list"):
+        chd.validate_group("PreToolUse", chd.GATE, ("guard.py",))
+
+
+def test_hooks_directory_resolution_error_fails_closed(tmp_path, monkeypatch, capsys):
+    name = _write_shim(tmp_path, "guard.py", "pass\n")
+    real_realpath = chd.os.path.realpath
+
+    def fail_hooks_directory(path):
+        if Path(path) == tmp_path:
+            raise OSError("hooks directory unavailable")
+        return real_realpath(path)
+
+    monkeypatch.setattr(chd.os.path, "realpath", fail_hooks_directory)
+
+    code, _, err = _run(capsys, tmp_path, "PreToolUse", chd.GATE, [name])
+
+    assert code == 2
+    assert "hooks directory cannot be resolved" in err
+    assert "hooks directory unavailable" in err
 
 
 def test_shim_resolution_error_fails_closed(tmp_path, monkeypatch, capsys):
@@ -613,6 +707,73 @@ def test_resolved_shim_escape_fails_closed(tmp_path, monkeypatch, capsys):
 
     assert code == 2
     assert "registered shim path is unsafe" in err
+
+
+def test_gate_all_unsafe_shim_sets_block_and_continues(tmp_path, monkeypatch, capsys):
+    marker = tmp_path / "later-ran"
+    name = _write_shim(tmp_path, "escape.py", "pass\n")
+    later = _write_shim(
+        tmp_path,
+        "later.py",
+        f"from pathlib import Path\nPath({str(marker)!r}).touch()\n",
+    )
+    outside = tmp_path.parent / "outside.py"
+    outside.write_text("pass\n", encoding="utf-8")
+    real_realpath = chd.os.path.realpath
+    outside_resolved = real_realpath(outside)
+
+    def escape_hooks_directory(path):
+        if Path(path).name == name:
+            return outside_resolved
+        return real_realpath(path)
+
+    monkeypatch.setattr(chd.os.path, "realpath", escape_hooks_directory)
+
+    code, _, err = _run(
+        capsys,
+        tmp_path,
+        "Stop",
+        chd.GATE_ALL,
+        [name, later],
+    )
+
+    assert code == 2
+    assert marker.exists()
+    assert "registered shim path is unsafe" in err
+
+
+def test_observe_unsafe_and_missing_shims_log_and_continue(tmp_path, monkeypatch, capsys):
+    marker = tmp_path / "later-ran"
+    unsafe = _write_shim(tmp_path, "unsafe.py", "pass\n")
+    later = _write_shim(
+        tmp_path,
+        "later.py",
+        f"from pathlib import Path\nPath({str(marker)!r}).touch()\n",
+    )
+    outside = tmp_path.parent / "outside.py"
+    outside.write_text("pass\n", encoding="utf-8")
+    real_realpath = chd.os.path.realpath
+    outside_resolved = real_realpath(outside)
+
+    def escape_hooks_directory(path):
+        if Path(path).name == unsafe:
+            return outside_resolved
+        return real_realpath(path)
+
+    monkeypatch.setattr(chd.os.path, "realpath", escape_hooks_directory)
+
+    code, _, err = _run(
+        capsys,
+        tmp_path,
+        "SessionStart",
+        chd.OBSERVE,
+        [unsafe, "missing.py", later],
+    )
+
+    assert code == 0
+    assert marker.exists()
+    assert "registered shim path is unsafe" in err
+    assert "registered shim missing on disk: missing.py" in err
 
 
 def test_path_containment_rejects_sibling_prefix(tmp_path):
@@ -814,6 +975,19 @@ def test_argv_and_path_mutations_do_not_leak_between_shims(tmp_path, capsys):
         ('{"systemMessage": "warn text"}', "warn text", None),
         ('{"suppressOutput": true}', None, None),
         ('{"systemMessage": "warn", "suppressOutput": true}', "warn", None),
+        (
+            '{"hookSpecificOutput": {"hookEventName": "PostToolUse", '
+            '"additionalContext": "wrong event"}}',
+            None,
+            '{"hookSpecificOutput": {"hookEventName": "PostToolUse", '
+            '"additionalContext": "wrong event"}}',
+        ),
+        (
+            '{"hookSpecificOutput": {"hookEventName": "PreToolUse", '
+            '"additionalContext": "  "}}',
+            None,
+            None,
+        ),
     ],
 )
 def test_classify_stdout(stdout_text, expected_context, expected_decision):
@@ -824,6 +998,16 @@ def test_classify_stdout(stdout_text, expected_context, expected_decision):
     else:
         assert decision is not None
         assert json.loads(decision) == json.loads(expected_decision)
+
+
+def test_blocking_document_rejects_invalid_common_fields():
+    document = {
+        "continue": False,
+        "stopReason": "stop",
+        "systemMessage": 7,
+    }
+
+    assert not protocol._is_valid_blocking_document(document, "Stop")
 
 
 def test_standalone_system_message_does_not_terminate_gate_group(tmp_path, capsys):
@@ -956,6 +1140,46 @@ def test_entry_runtime_exception_fails_closed(monkeypatch, capsys):
 
     assert code == 2
     assert "runtime failed" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_code"),
+    [(chd.GATE, 2), (chd.GATE_ALL, 2), (chd.OBSERVE, 0)],
+)
+def test_entry_bounds_stdin_by_dispatch_mode(
+    monkeypatch,
+    capsys,
+    mode,
+    expected_code,
+):
+    monkeypatch.setattr(entry, "_project_self_hosts_plugin", lambda: False)
+    monkeypatch.setattr(
+        entry,
+        "_load_group",
+        lambda _group_id: (
+            "SessionStart" if mode == chd.OBSERVE else "PreToolUse",
+            mode,
+            ["guard.py"],
+        ),
+    )
+    monkeypatch.setattr(entry, "_MAX_STDIN_BYTES", 8)
+    monkeypatch.setattr(
+        entry.sys,
+        "stdin",
+        io.TextIOWrapper(io.BytesIO(b"123456789")),
+    )
+    ran = False
+
+    def record_run(*_args, **_kwargs):
+        nonlocal ran
+        ran = True
+        return 0
+
+    monkeypatch.setattr(entry, "run_group", record_run)
+
+    assert entry.main(["--group", "test-group"]) == expected_code
+    assert ran is False
+    assert "stdin exceeds 8 bytes" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

@@ -51,6 +51,8 @@ except (Exception, SystemExit) as exc:  # noqa: BLE001 - launcher must fail clos
 
 _MANIFEST_NAME = "dispatch_groups.json"
 _BLOCK_EXIT_CODE: int = BLOCK_EXIT
+_HOOK_STDIN_CEILING_MIB = 64
+_MAX_STDIN_BYTES = _HOOK_STDIN_CEILING_MIB * 1024 * 1024
 
 
 def _force_utf8_streams() -> None:
@@ -118,6 +120,20 @@ def _load_group(group_id: str) -> tuple[str, str, list[str]]:
     return validated_group
 
 
+def _read_payload(mode: str) -> tuple[bytes, int | None]:
+    """Read one bounded hook payload and return an oversized-input verdict."""
+    raw_stdin = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
+    if len(raw_stdin) <= _MAX_STDIN_BYTES:
+        return raw_stdin, None
+    blocks = mode in {"gate", "gate_all"}
+    verdict = "denying" if blocks else "allowing without observer dispatch"
+    print(
+        f"claude-hook-dispatch: stdin exceeds {_MAX_STDIN_BYTES} bytes; {verdict}",
+        file=sys.stderr,
+    )
+    return raw_stdin, _BLOCK_EXIT_CODE if blocks else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -146,7 +162,9 @@ def main(argv: list[str] | None = None) -> int:
         return _BLOCK_EXIT_CODE
 
     try:
-        raw_stdin = sys.stdin.buffer.read()
+        raw_stdin, oversized_exit = _read_payload(mode)
+        if oversized_exit is not None:
+            return oversized_exit
         exit_code: int = run_group(_HOOKS_DIR, event, mode, shims, raw_stdin)
         return exit_code
     except Exception as exc:  # noqa: BLE001 - hook boundary must fail closed
