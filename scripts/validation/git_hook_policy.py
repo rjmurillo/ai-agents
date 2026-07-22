@@ -769,9 +769,14 @@ def check_branch_context(repo_root: Path) -> int:
         # No session log, let session_log_guard handle this
         # No branch in session log, skip check
 
-    Only a determinate ``current_branch != session_branch`` blocks.
+    Only a determinate ``current_branch != session_branch`` blocks. A merge
+    in progress is exempt: a merge legitimately imports another branch's newer
+    session log into the tree, which would otherwise read as a mismatch. This
+    mirrors the ``check_sessions`` merge guard.
     """
     try:
+        if _merge_in_progress(repo_root):
+            return 0
         sessions_dir = repo_root / ".agents" / "sessions"
         if not sessions_dir.is_dir():
             return 0

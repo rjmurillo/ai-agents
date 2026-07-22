@@ -1539,6 +1539,28 @@ def test_branch_context_fails_open_without_sessions_directory(tmp_path: Path) ->
     assert policy.check_branch_context(repo) == 0
 
 
+def test_branch_context_exempt_during_merge(tmp_path: Path) -> None:
+    """A merge in progress imports another branch's log; that is not a mismatch.
+
+    A merge checks out the incoming branch's newer session log into the tree,
+    so ``_today_session_log`` would name a branch other than the current one.
+    The merge guard must exempt that case, matching ``check_sessions``.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    head = _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other")
+
+    # Negative control: without a merge the mismatch still blocks, so the
+    # merge-guard assertion below cannot pass vacuously.
+    assert policy.check_branch_context(repo) == 1
+
+    merge_head = repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
+    merge_head.write_text(f"{head}\n", encoding="utf-8")
+
+    assert policy.check_branch_context(repo) == 0
+
+
 def test_branch_context_fails_open_without_today_log(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
