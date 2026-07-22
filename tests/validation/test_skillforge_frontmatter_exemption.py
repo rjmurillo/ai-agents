@@ -3,7 +3,9 @@
 SkillForge validation (``validate-skill.py``) checks both the body (Triggers,
 Process, Verification, Scripts sections) and the frontmatter (required and
 allowed keys). The exemption is deliberately narrow: it skips validation only
-when the body is byte-identical AND the sole changed frontmatter keys are the
+when the body text is unchanged (bodies decoded as UTF-8 with
+``errors="replace"`` and compared as strings, not raw bytes) AND the sole
+changed frontmatter keys are the
 ADR-080 model-pin fields (``model``, ``model-rationale``), so a pin migration
 is not forced to pay down unrelated pre-existing structural debt while any other
 frontmatter change still reaches the validator. These tests pin that behavior:
@@ -34,7 +36,7 @@ _BODY = "## Overview\n\nDo the thing.\n\n## Verification\n\n- [ ] works\n"
 
 
 def _doc(frontmatter: str, body: str) -> bytes:
-    return f"---\n{frontmatter}---\n{body}".encode("utf-8")
+    return f"---\n{frontmatter}---\n{body}".encode()
 
 
 def _patch_blobs(

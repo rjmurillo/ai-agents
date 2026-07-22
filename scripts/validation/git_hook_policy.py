@@ -535,8 +535,10 @@ def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
     (Triggers, Process, Verification, Scripts sections) and the frontmatter
     (required and allowed keys). A body-unchanged edit cannot regress the
     structural verdict, but a frontmatter edit still can, so this exemption is
-    deliberately narrow: it skips validation only when the body is byte-identical
-    to HEAD AND the sole changed frontmatter keys are the ADR-080 model-pin
+    deliberately narrow: it skips validation only when the body text is
+    unchanged from HEAD (bodies decoded as UTF-8 with ``errors="replace"`` and
+    compared as strings, not raw bytes) AND the sole changed frontmatter keys
+    are the ADR-080 model-pin
     fields (``model``, ``model-rationale``). Any other frontmatter delta, for
     example deleting ``name``/``description`` or introducing an unexpected key,
     still runs the validator. Mirrors the field-scoped precedent in
