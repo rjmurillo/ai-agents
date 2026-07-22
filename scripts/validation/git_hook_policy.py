@@ -529,16 +529,18 @@ def _is_frontmatter_only_metadata_change(path: str, repo_root: Path) -> bool:
 
 
 def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
-    """Return True when a staged SKILL.md change touches only its frontmatter.
+    """Return True for a staged SKILL.md ADR-080 model-pin-only frontmatter edit.
 
-    SkillForge structural validation inspects the body (Triggers, Process,
-    Verification, Scripts sections). When the body is byte-identical to HEAD,
-    the structural verdict cannot have regressed from this edit, so a
-    frontmatter-only change (for example an ADR-080 model-pin migration) must
-    not be forced to pay down unrelated pre-existing structural debt. Mirrors
-    the body-unchanged precedent in ``_is_frontmatter_only_metadata_change`` but
-    permits any frontmatter field to change, since structural checks read the
-    body, not the frontmatter.
+    SkillForge validation (``validate-skill.py``) checks both the body
+    (Triggers, Process, Verification, Scripts sections) and the frontmatter
+    (required and allowed keys). A body-unchanged edit cannot regress the
+    structural verdict, but a frontmatter edit still can, so this exemption is
+    deliberately narrow: it skips validation only when the body is byte-identical
+    to HEAD AND the sole changed frontmatter keys are the ADR-080 model-pin
+    fields (``model``, ``model-rationale``). Any other frontmatter delta, for
+    example deleting ``name``/``description`` or introducing an unexpected key,
+    still runs the validator. Mirrors the field-scoped precedent in
+    ``_only_implemented_field_changed``.
 
     Returns False for newly added skills (no HEAD blob) so genuinely new skills
     are always validated.
@@ -553,9 +555,28 @@ def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
     new_frontmatter, new_body = _split_frontmatter(
         new_blob.decode("utf-8", errors="replace")
     )
-    if not old_frontmatter or not new_frontmatter:
+    if not old_frontmatter or not new_frontmatter or old_body != new_body:
         return False
-    return old_body == new_body and old_frontmatter != new_frontmatter
+    return _only_model_pin_fields_changed(old_frontmatter, new_frontmatter)
+
+
+_ADR080_MODEL_PIN_FIELDS = frozenset({"model", "model-rationale"})
+
+
+def _only_model_pin_fields_changed(
+    old_frontmatter: str,
+    new_frontmatter: str,
+) -> bool:
+    old_fields = _parse_frontmatter(old_frontmatter)
+    new_fields = _parse_frontmatter(new_frontmatter)
+    if old_fields is None or new_fields is None:
+        return False
+    changed = {
+        key
+        for key in old_fields.keys() | new_fields.keys()
+        if old_fields.get(key) != new_fields.get(key)
+    }
+    return bool(changed) and changed <= _ADR080_MODEL_PIN_FIELDS
 
 
 def _gated_adr_review_paths(paths: Sequence[str], repo_root: Path) -> list[str]:

@@ -1,16 +1,18 @@
 """Tests for the skillforge frontmatter-only exemption (Refs #2840).
 
-SkillForge structural validation inspects a skill's body (Triggers, Process,
-Verification, Scripts sections). A frontmatter-only edit (for example the
-ADR-080 model-pin migration) leaves the body byte-identical, so the structural
-verdict cannot regress. ``_is_skill_frontmatter_only_change`` lets
-``run_skillforge`` skip those edits instead of forcing unrelated structural
-debt to be paid down. These tests pin that behavior:
+SkillForge validation (``validate-skill.py``) checks both the body (Triggers,
+Process, Verification, Scripts sections) and the frontmatter (required and
+allowed keys). The exemption is deliberately narrow: it skips validation only
+when the body is byte-identical AND the sole changed frontmatter keys are the
+ADR-080 model-pin fields (``model``, ``model-rationale``), so a pin migration
+is not forced to pay down unrelated pre-existing structural debt while any other
+frontmatter change still reaches the validator. These tests pin that behavior:
 
-- positive: frontmatter changed, body unchanged -> exempt (skip);
-- negative: body changed -> not exempt (validate); new skill (no HEAD) ->
-  not exempt (validate); and ``run_skillforge`` actually invokes the validator
-  and propagates its failure when not exempt;
+- positive: only the model pin changes, body unchanged -> exempt (skip);
+- negative: body changed; a non-pin field changes; a required field is deleted;
+  an unexpected key is added; a pin change is bundled with a non-pin change; a
+  new skill (no HEAD); each is not exempt (validate). ``run_skillforge`` also
+  invokes the validator and propagates its failure when not exempt;
 - edge: a file without frontmatter, and a no-op (identical) blob, are both not
   exempt.
 """
@@ -129,3 +131,38 @@ def test_run_skillforge_validates_and_propagates_failure_when_not_exempt(
     assert rc == 1
     assert len(calls) == 1  # validator invoked exactly once
     assert calls[0][1].endswith("validate-skill.py")
+
+
+def test_non_pin_field_change_is_not_exempt(monkeypatch, tmp_path):
+    # Editing description (a body-independent but validator-checked field) with
+    # an unchanged body must still validate: the narrowed exemption only covers
+    # the ADR-080 model-pin fields.
+    old = _doc("name: example\nmodel: haiku\ndescription: old\n", _BODY)
+    new = _doc("name: example\nmodel: haiku\ndescription: new\n", _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+def test_deleting_required_field_is_not_exempt(monkeypatch, tmp_path):
+    # Accidentally dropping name must not slip past validation.
+    old = _doc("name: example\nmodel: haiku\ndescription: x\n", _BODY)
+    new = _doc("model: haiku\ndescription: x\n", _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+def test_adding_unexpected_field_is_not_exempt(monkeypatch, tmp_path):
+    # Introducing an unexpected key must reach the validator's allowed-key check.
+    old = _doc("name: example\nmodel: haiku\ndescription: x\n", _BODY)
+    new = _doc("name: example\nmodel: haiku\ndescription: x\nbogus: 1\n", _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
+
+
+def test_pin_change_mixed_with_other_field_is_not_exempt(monkeypatch, tmp_path):
+    # A model-pin edit bundled with a non-pin change is not exempt: the whole
+    # frontmatter change set must be a subset of the model-pin fields.
+    old = _doc("name: example\nmodel: claude-sonnet-4-6\ndescription: old\n", _BODY)
+    new = _doc("name: example\ndescription: new\n", _BODY)
+    _patch_blobs(monkeypatch, old, new)
+    assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
