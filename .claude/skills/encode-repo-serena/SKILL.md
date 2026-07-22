@@ -8,7 +8,6 @@ description: Populates the Forgetful knowledge base using Serena's LSP-powered s
   use to analyze existing repo structure (use serena-code-architecture) or for symbol-edit
   guidance (use using-serena-symbols).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   argument-hint: 'Project path or name to encode (default: current directory)'
 ---
