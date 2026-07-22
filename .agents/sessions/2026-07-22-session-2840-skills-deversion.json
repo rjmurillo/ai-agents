@@ -4,9 +4,9 @@
     "date": "2026-07-22",
     "branch": "chore/2840-skills-deversion",
     "startingCommit": "2b229187",
-    "endingCommit": "",
     "objective": "De-version 6 grandfathered skill model pins per ADR-080: remove unjustified sonnet/opus pins so units inherit the harness default; keep haiku on two mechanical-routing skills with a cost rationale. Skills track of #2840 (model-pin migration). Two skills with pre-existing banned dashes (negotiation, pipeline-validator) are deferred to a focused cleanup."
   },
+  "endingCommit": "1c46b56c",
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
