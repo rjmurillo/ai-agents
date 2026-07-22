@@ -1313,7 +1313,10 @@ DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+)
 
 
 def _normalize_ratchet_path(path: str) -> str:
-    cleaned = path.strip()
+    # mypy on Windows can echo OS-native backslash separators, while git diff
+    # names and command-line inputs are forward-slash; normalize so the pushed
+    # set, the changed-line map, and parsed mypy paths compare equal.
+    cleaned = path.strip().replace("\\", "/")
     if cleaned.startswith("./"):
         cleaned = cleaned[2:]
     return cleaned

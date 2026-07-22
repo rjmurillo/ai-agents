@@ -3873,6 +3873,46 @@ def test_parse_mypy_error_locations_selects_errors_only() -> None:
     assert locations == [("pkg/a.py", 12), ("pkg/a.py", 12)]
 
 
+def test_parse_mypy_error_locations_normalizes_windows_paths() -> None:
+    stdout = (
+        "C:/proj/pkg/a.py:12: error: drive-letter absolute  [assignment]\n"
+        "pkg\\a.py:20: error: relative backslash  [misc]\n"
+        "pkg\\a.py:20:5: error: backslash with column  [misc]\n"
+    )
+
+    locations = policy._parse_mypy_error_locations(stdout)
+
+    assert locations == [
+        ("C:/proj/pkg/a.py", 12),
+        ("pkg/a.py", 20),
+        ("pkg/a.py", 20),
+    ]
+
+
+def test_normalize_ratchet_path_converts_backslashes_and_strips_dot_slash() -> None:
+    assert policy._normalize_ratchet_path("pkg\\mod.py") == "pkg/mod.py"
+    assert policy._normalize_ratchet_path(".\\pkg\\mod.py") == "pkg/mod.py"
+    assert policy._normalize_ratchet_path("  pkg/mod.py  ") == "pkg/mod.py"
+
+
+def test_mypy_ratchet_blocks_backslash_path_on_changed_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # mypy on Windows can report a backslash-separated path; the ratchet must
+    # still match it against the forward-slash pushed set and changed-line map.
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "mod.py").write_text("value: int = 1\n", encoding="utf-8")
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"pkg/mod.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "pkg\\mod.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["pkg/mod.py"], tmp_path) == 1
+
+
 def test_mypy_ratchet_base_ref_prefers_env_over_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
