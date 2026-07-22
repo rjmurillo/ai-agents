@@ -59,6 +59,8 @@ artifacts:
     outputScripts: "plugin/hooks"
     eventRemap:
       SessionStart: SessionStart
+      PreCompact: PreCompact
+      UserPromptSubmit: UserPromptSubmit
       PreToolUse: PreToolUse
     eventDrop: []
     matcherPolicy: "inline-script-shim"
@@ -80,8 +82,29 @@ print("BRANCH_CONTROLLED_STDERR", file=sys.stderr)
 sys.exit(0)
 """
 
+_USER_PROMPT_SCRIPT_BODY = """\
+import json
+import os
+import sys
+from pathlib import Path
+
+raw = sys.stdin.read()
+if raw:
+    try:
+        json.loads(raw)
+    except json.JSONDecodeError:
+        print("BRANCH_CONTROLLED_PARSE_ERROR", file=sys.stderr)
+        sys.exit(2)
+marker = os.environ.get("HOOK_MARKER")
+if marker:
+    Path(marker).write_text("HOOK_RAN", encoding="utf-8")
+sys.exit(0)
+"""
+
 _HOOK_SCRIPTS = [
     ("SessionStart", "init.py", None),
+    ("PreCompact", "compact.py", None),
+    ("UserPromptSubmit", "prompt.py", None),
     ("PreToolUse", "guard.py", "Bash"),  # matcher -> inline-script-shim
 ]
 
@@ -95,7 +118,8 @@ def _materialize(tmp_path: Path) -> Path:
     for event, fname, matcher in _HOOK_SCRIPTS:
         script = tmp_path / "hooks_src" / event / fname
         script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text(_SCRIPT_BODY, encoding="utf-8")
+        body = _USER_PROMPT_SCRIPT_BODY if event == "UserPromptSubmit" else _SCRIPT_BODY
+        script.write_text(body, encoding="utf-8")
         group: dict[str, object] = {
             "hooks": [{"type": "command", "command": f"python3 -u .claude/hooks/{event}/{fname}"}]
         }
@@ -201,16 +225,20 @@ def test_bash_falls_back_to_claude_plugin_root(tmp_path: Path) -> None:
         assert Path(resolved).is_file(), f"fallback failed: {resolved!r}"
 
 
-def test_sessionstart_rollback_runs_silently_with_side_effects(tmp_path: Path) -> None:
+@pytest.mark.parametrize("event", ["SessionStart", "PreCompact", "UserPromptSubmit"])
+def test_direct_rollback_runs_silently_with_side_effects(
+    tmp_path: Path,
+    event: str,
+) -> None:
     """A direct rollback command retains work without leaking repository prose."""
     doc = _generate(tmp_path)
     plugin_root = str(tmp_path / "plugin")
     userland = tmp_path / "userland"
     env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
-    marker = tmp_path / "session-start-ran.txt"
+    marker = tmp_path / f"{event}-ran.txt"
     env["HOOK_MARKER"] = str(marker)
     proc = subprocess.run(
-        ["bash", "-c", _first_bash_command(doc, "SessionStart")],
+        ["bash", "-c", _first_bash_command(doc, event)],
         env=env,
         cwd=userland,
         capture_output=True,
@@ -221,6 +249,28 @@ def test_sessionstart_rollback_runs_silently_with_side_effects(tmp_path: Path) -
     )
     assert proc.returncode == 0, proc.stderr
     assert marker.read_text(encoding="utf-8") == "HOOK_RAN"
+    assert proc.stdout == ""
+    assert proc.stderr == ""
+
+
+def test_user_prompt_direct_failure_is_silent_and_nonzero(tmp_path: Path) -> None:
+    doc = _generate(tmp_path)
+    plugin_root = str(tmp_path / "plugin")
+    userland = tmp_path / "userland"
+    env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
+
+    proc = subprocess.run(
+        ["bash", "-c", _first_bash_command(doc, "UserPromptSubmit")],
+        env=env,
+        cwd=userland,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        input="{bad json",
+        check=False,
+    )
+
+    assert proc.returncode == 2
     assert proc.stdout == ""
     assert proc.stderr == ""
 

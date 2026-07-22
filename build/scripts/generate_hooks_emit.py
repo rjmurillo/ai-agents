@@ -58,11 +58,14 @@ class GenerateHooksError(Exception):
 # component is a path-traversal vector (#3213, CWE-22) or a shell
 # command-injection vector (#3212, CWE-78).
 _EVENT_NAME_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
-_SILENT_DIRECT_EVENTS = frozenset({"PreCompact", "SessionStart", "preCompact", "sessionStart"})
-_STDERR_DIRECT_EVENTS = frozenset(
+_SILENT_DIRECT_EVENTS = frozenset(
     {
+        "PreCompact",
+        "SessionStart",
         "UserPromptSubmit",
         "UserPromptSubmitted",
+        "preCompact",
+        "sessionStart",
         "userPromptSubmit",
         "userPromptSubmitted",
     }
@@ -211,11 +214,11 @@ def _resolve_paths(repo_root: Path, stanza: dict[str, Any]) -> dict[str, Path]:
     return resolved
 
 
-# --- Settings.json reader -------------------------------------------------
+# --- Hook-source reader ---------------------------------------------------
 
 
-def _load_claude_settings(path: Path) -> dict[str, Any]:
-    """Parse ``.claude/settings.json`` and return its ``hooks`` map."""
+def _load_hook_source(path: Path) -> dict[str, Any]:
+    """Parse the configured ``settingsSource`` and return its ``hooks`` map."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
@@ -477,10 +480,10 @@ def _build_copilot_entry(
     Direct SessionStart and PreCompact registrations suppress stdout and
     stderr at the shell boundary. Their current producers still run and retain
     side effects, but branch-controlled prose cannot reach either host channel
-    if dispatcher consolidation is disabled. Dispatcher mode replaces these
-    entries with its event-specific capture policy. Direct UserPromptSubmit
-    registrations redirect stdout to stderr, matching the dispatcher fallback
-    without inventing a host JSON field.
+    if dispatcher consolidation is disabled. UserPromptSubmit uses the same
+    suppression because the host documents no output field for that event and
+    does not document stderr as a model-context channel. Dispatcher mode replaces
+    these entries with its event-specific capture policy.
     """
     rel = f"hooks/{_validate_event_name(target_event)}/{_validate_script_name(script_name)}"
     bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
@@ -492,9 +495,6 @@ def _build_copilot_entry(
     if target_event in _SILENT_DIRECT_EVENTS:
         bash_command += " >/dev/null 2>&1"
         powershell_command += " *> $null"
-    elif target_event in _STDERR_DIRECT_EVENTS:
-        bash_command += " 1>&2"
-        powershell_command += " 1>&2"
     return {
         "type": "command",
         "bash": bash_command,

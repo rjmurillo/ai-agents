@@ -42,7 +42,7 @@ from generate_hooks_emit import (  # noqa: E402
     _build_copilot_entry,
     _copy_script,
     _ensure_exact_case_dir,
-    _load_claude_settings,
+    _load_hook_source,
     _read_stanza,
     _relative_script_target,
     _resolve_paths,
@@ -859,7 +859,7 @@ def generate_hooks(
         return 0, result
 
     try:
-        hooks_map = _load_claude_settings(settings_source)
+        hooks_map = _load_hook_source(settings_source)
         hooks_map = _expand_dispatch_groups(hooks_map, script_source)
     except GenerateHooksError as exc:
         print(f"Error: {exc}", file=sys.stderr)

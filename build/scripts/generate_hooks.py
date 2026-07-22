@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate Copilot CLI hook config from ``.claude/settings.json`` (REQ-003-007).
+"""Generate Copilot CLI hook config from the configured hook source (REQ-003-007).
 
 Reads ``artifacts.hooks`` from a platform YAML, parses Claude's
-``settings.json`` ``hooks`` object, and copies each registered Python script
+``settingsSource`` ``hooks`` object, and copies each registered Python script
 under ``.claude/hooks/`` into the Copilot output tree. Matcher registrations
 retain one generated shim wrapper each. Every wrapper buffers stdin,
 self-filters with the matcher grammar below, and either runs its canonical
@@ -142,7 +142,7 @@ from generate_hooks_emit import (  # noqa: E402, F401
     _build_copilot_entry,
     _copy_script,
     _ensure_exact_case_dir,
-    _load_claude_settings,
+    _load_hook_source,
     _matcher_suffix,
     _read_stanza,
     _relative_script_target,

@@ -166,29 +166,22 @@ def test_build_copilot_entry_valid_renders_commands() -> None:
 
 @pytest.mark.parametrize(
     "event",
-    ["SessionStart", "sessionStart", "PreCompact", "preCompact"],
-)
-def test_build_copilot_entry_silences_direct_repository_context(event: str) -> None:
-    entry = _build_copilot_entry(event, "owner.py")
-
-    assert entry["bash"].endswith(" >/dev/null 2>&1")
-    assert entry["powershell"].endswith(" *> $null")
-
-
-@pytest.mark.parametrize(
-    "event",
     [
+        "SessionStart",
+        "sessionStart",
+        "PreCompact",
+        "preCompact",
         "UserPromptSubmit",
         "userPromptSubmit",
         "UserPromptSubmitted",
         "userPromptSubmitted",
     ],
 )
-def test_build_copilot_entry_redirects_direct_prompt_output(event: str) -> None:
+def test_build_copilot_entry_silences_direct_repository_context(event: str) -> None:
     entry = _build_copilot_entry(event, "owner.py")
 
-    assert entry["bash"].endswith(" 1>&2")
-    assert entry["powershell"].endswith(" 1>&2")
+    assert entry["bash"].endswith(" >/dev/null 2>&1")
+    assert entry["powershell"].endswith(" *> $null")
 
 
 @pytest.mark.parametrize("event", [n for n in _HOSTILE_EVENTS if n != ""])
