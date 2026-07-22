@@ -67,6 +67,7 @@ from scripts.cli_exec import resolve_executable  # noqa: E402
 _COPILOT_EVENT = copilot_hook_probe.PROBE_EVENT
 _PROMPT = copilot_hook_probe.PROBE_PROMPT
 _clean_env = copilot_hook_probe.clean_env
+_copilot_command = copilot_hook_probe.copilot_command
 _manifest = copilot_hook_probe.manifest
 _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
@@ -189,7 +190,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
     install_root = isolated_home / ".copilot" / "installed-plugins"
     try:
         install = subprocess.run(
-            [resolve_executable("copilot"), "plugin", "install", str(plugin)],
+            _copilot_command("plugin", "install", str(plugin)),
             cwd=userland,
             capture_output=True,
             encoding="utf-8",
@@ -206,13 +207,12 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
 
     try:
         run = subprocess.run(
-            [
-                resolve_executable("copilot"),
+            _copilot_command(
                 "-p",
                 _PROMPT,
                 "--allow-all-tools",
                 "--allow-all-paths",
-            ],
+            ),
             cwd=userland,
             capture_output=True,
             encoding="utf-8",

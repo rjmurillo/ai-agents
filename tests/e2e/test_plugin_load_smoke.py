@@ -73,6 +73,7 @@ from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
     copilot_auth_absent,
     copilot_auth_absent_headline,
+    copilot_command,
     run_copilot_plugin_dir,
     write_marker_probe_plugin,
 )
@@ -212,61 +213,6 @@ def _read_manifest_version(manifest_path: Path) -> str:
     return version
 
 
-def _skip_unless_plugin_dir_mechanism_works(tmp_path: Path) -> None:
-    """Skip when the CLI cannot load ANY ``--plugin-dir`` plugin (issue #3104).
-
-    Copilot CLI 1.0.71 on some hosts loads zero skills from any
-    ``--plugin-dir`` directory (installed plugins still load). Probe the
-    mechanism with a minimal known-good fixture plugin: when even the
-    fixture fails to surface a ``source: plugin`` skill, the environment
-    cannot exercise this smoke and the test SKIPS loudly (the file's
-    documented skip contract). When the mechanism works but the shipped
-    plugin does not load, the test still fails.
-    """
-    fixture = tmp_path / "plugin-dir-probe"
-    (fixture / ".claude-plugin").mkdir(parents=True)
-    (fixture / ".claude-plugin" / "plugin.json").write_text(
-        json.dumps({"name": "plugin-dir-probe", "version": "0.0.1"}),
-        encoding="utf-8",
-    )
-    skill_dir = fixture / "skills" / "probe-skill"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: probe-skill\ndescription: plugin-dir mechanism probe\n---\nprobe\n",
-        encoding="utf-8",
-    )
-    try:
-        probe = _run_cli(
-            [
-                resolve_executable("copilot"),
-                "--plugin-dir",
-                str(fixture),
-                "skill",
-                "list",
-                "--json",
-            ],
-            cwd=tmp_path,
-            timeout=_CLI_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        pytest.skip("copilot timed out during the plugin-dir mechanism probe")
-    try:
-        records = json.loads(probe.stdout or "[]")
-    except ValueError:
-        records = []
-    fixture_loaded = any(
-        isinstance(record, dict)
-        and record.get("name") == "probe-skill"
-        and record.get("source") == "plugin"
-        for record in records
-    )
-    if not fixture_loaded:
-        pytest.skip(
-            "Copilot CLI cannot load any --plugin-dir plugin in this "
-            "environment (issue #3104); mechanism probe fixture did not load"
-        )
-
-
 @pytest.mark.smoke
 @requires_copilot
 def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
@@ -283,7 +229,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     fails).
     """
     version = _run_cli(
-        [resolve_executable("copilot"), "--version"],
+        copilot_command("--version"),
         timeout=60,
     )
     print(f"copilot --version: {version.stdout.strip() or version.stderr.strip()}")
@@ -317,16 +263,14 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
 
     # CO-PRIMARY (issue #2736): the shipped plugin lists skills with no loader warning.
     try:
-        _skip_unless_plugin_dir_mechanism_works(tmp_path)
         run = _run_cli(
-            [
-                resolve_executable("copilot"),
+            copilot_command(
                 "--plugin-dir",
                 str(_COPILOT_PLUGIN_DIR),
                 "skill",
                 "list",
                 "--json",
-            ],
+            ),
             cwd=tmp_path,
             timeout=_CLI_TIMEOUT_SECONDS,
         )
@@ -669,6 +613,13 @@ def test_clean_env_strips_plugin_root_keys_case_insensitively(
 
     assert "KEEP_ME" in env
     assert not any(key.upper() in _PLUGIN_ROOT_ENV_KEYS for key in env)
+
+
+def test_copilot_commands_disable_auto_update() -> None:
+    """Pinned smoke runs must not replace the tested binary at startup."""
+    command = copilot_command("skill", "list", "--json")
+
+    assert command[1:] == ["--no-auto-update", "skill", "list", "--json"]
 
 
 def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
