@@ -85,9 +85,10 @@ as load-bearing as the artifact's bytes.
    both channels, then discards the content because current producers include
    branch-controlled repository prose.
    Their direct rollback commands suppress stdout and stderr while preserving
-   side effects. It redirects UserPromptSubmit text to stderr because the
-   official config-file contract documents no output field for that event;
-   direct rollback commands preserve that channel choice.
+   side effects. It also suppresses UserPromptSubmit stdout and stderr because
+   the official config-file contract documents no output field for that event
+   and does not document stderr as a model-context channel. Direct rollback
+   commands preserve that channel choice.
    PostToolUseFailure and unclassified future events remain direct because their
    host output semantics have no reviewed generic merger. Do not invent or erase
    event semantics. Claude grouped gates may terminate only on a validated,
