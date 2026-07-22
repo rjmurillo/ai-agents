@@ -92,7 +92,9 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
         )
         rels = [line for line in completed.stdout.splitlines() if line.strip()]
         return [repo_root / rel for rel in rels]
-    except (OSError, subprocess.SubprocessError):
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("git ls-files timed out after 10 seconds") from exc
+    except (OSError, subprocess.CalledProcessError):
         return _walk_python_files(repo_root)
 
 

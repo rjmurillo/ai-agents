@@ -133,7 +133,8 @@ def test_tracked_file_discovery_has_a_bounded_git_timeout(
 
     monkeypatch.setattr(subprocess, "run", timeout_git)
 
-    assert _tracked_python_files(tmp_path) == []
+    with pytest.raises(RuntimeError, match="git ls-files timed out"):
+        _tracked_python_files(tmp_path)
 
 
 def test_staged_broken_file_missing_from_worktree_is_rejected(
