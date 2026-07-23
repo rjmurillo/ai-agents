@@ -22,7 +22,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.170.1",
+    "semgrep==1.171.0",
     "lefthook==2.1.10",
 ]
 eval = [
@@ -242,6 +242,6 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.170.1",
+    "semgrep==1.171.0",
     "lefthook==2.1.10",
 ]
