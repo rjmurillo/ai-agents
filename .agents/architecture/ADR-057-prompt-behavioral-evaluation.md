@@ -217,7 +217,7 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ### Enforced (automated gates)
 
-These gates run inside `eval-prompt-change.py`. They fire whenever the eval runner is invoked: advisorily when a contributor runs it before a PR, and as a blocking check when the `/spec` CI leg (`slash-command-quality.yml`) invokes it on a same-repo PR that touches `spec.md`. No commit-time hook auto-invokes them (see Amendment 2026-07-22).
+These gates run inside `eval-prompt-change.py`. They fire whenever the eval runner is invoked: advisorily when a contributor runs it before a PR, and as a blocking check when the `/spec` CI leg (`slash-command-quality.yml`) invokes it on a same-repo PR that changes the `/spec` command, its scenario set, or the eval runner. That leg always evaluates the `/spec` command behavior only; a change to the scenario set or the runner triggers a re-evaluation of that same command. No commit-time hook auto-invokes them (see Amendment 2026-07-22).
 
 | Rule | Enforced By | Mechanism |
 |------|-------------|-----------|
@@ -244,7 +244,7 @@ These gates run inside `eval-prompt-change.py`. They fire whenever the eval runn
 
 ### Enforcement Path
 
-- **Current**: No commit-time gate. The PreToolUse hook that nominally blocked commits (`invoke_prompt_eval_gate.py`) was inert (it printed `{"decision":"deny"}` with exit 0, a payload the Claude Code harness ignores) and was deleted in #3184. One CI leg does block: `.github/workflows/slash-command-quality.yml` runs the `eval-prompt-change.py` acceptance gate against `.claude/commands/spec.md` on same-repo PRs and fails the check on regression. That leg covers `spec.md` only. For every other prompt, skill, and agent file the eval evidence requirement is advisory, verified at PR review. The `eval-prompt-change.py` acceptance gate enforces regression, flakiness, and security-critical rules only when it is run.
+- **Current**: No commit-time gate. The PreToolUse hook that nominally blocked commits (`invoke_prompt_eval_gate.py`) was inert (it printed `{"decision":"deny"}` with exit 0, a payload the Claude Code harness ignores) and was deleted in #3184. One CI leg does block: `.github/workflows/slash-command-quality.yml` runs the `eval-prompt-change.py` acceptance gate against `.claude/commands/spec.md` on same-repo PRs that change the `/spec` command, its scenario set (`tests/evals/spec-scenarios.json`), or the eval runner, and fails the check on regression. That leg covers `spec.md` only. For every other prompt, skill, and agent file the eval evidence requirement is advisory, verified at PR review. The `eval-prompt-change.py` acceptance gate enforces regression, flakiness, and security-critical rules only when it is run.
 - **Not automated**: Scenario adequacy, monthly cadence, cost tracking. These require human judgment or scheduling infrastructure not yet built.
 - **Future**: Broader CI automation of eval runs, beyond the `/spec` leg that already ships. Deferred until the eval runner stabilizes and the cost model is validated.
 
