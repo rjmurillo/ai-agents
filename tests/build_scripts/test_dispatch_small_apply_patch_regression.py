@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Regression guard for issue #3083 (Copilot host-versus-direct-replay code 1).
 
+Also guards issues #3203 and #3321 (freeform ``apply_patch`` denied by the
+plugin's PreToolUse gate) via the string-``tool_input`` fixtures below.
+
 On Windows the Copilot CLI host reported ``Hook command failed with code 1`` on a
 small ``apply_patch`` PreToolUse payload, yet a direct replay of the same payload
 through ``_dispatch.py`` returned exit 0. No PreToolUse shim matches
@@ -74,6 +77,46 @@ _RECORDED_HOST_EVENT: dict[str, object] = {
 # the guard to apply_patch rather than to "any shape lacking tool_name".
 _NORMALIZED_EVENT: dict[str, object] = {"tool_name": "apply_patch", "tool_input": {}}
 
+# Issues #3203 and #3321: the host delivers a freeform patch as a raw V4A STRING
+# in tool_input, not an object, and it reached the retired Write/Edit security
+# gate under both the apply_patch name and the Edit name. That gate required a
+# dict and denied (#3203); #3204 taught it to parse the string; #3295 retired the
+# gate and narrowed the host matcher to Bash. These fixtures carry the #3321
+# reproduction bytes (an *** Add File: header with an absolute Windows path to a
+# nested Markdown file) so a future guard that reintroduces a dict-only
+# tool_input assumption fails here instead of in a consumer's session.
+_WINDOWS_ADD_FILE_PATCH = (
+    "*** Begin Patch\n"
+    "*** Add File: C:\\Users\\op\\repo\\.agentlog\\feat-x\\copilot-cli\\workflow.md\n"
+    "+# Workflow\n"
+    "*** End Patch\n"
+)
+_FREEFORM_STRING_EVENT: dict[str, object] = {
+    "tool_name": "apply_patch",
+    "tool_input": _WINDOWS_ADD_FILE_PATCH,
+}
+_FREEFORM_EDIT_STRING_EVENT: dict[str, object] = {
+    "tool_name": "Edit",
+    "tool_input": _WINDOWS_ADD_FILE_PATCH,
+}
+# The concrete #3321 denial mechanism on plugin versions 0.6.66 through 0.6.97:
+# the retired gate treated EVERY column-0 ``***`` line it could not attribute to
+# a path as a malformed header and failed closed, so the standard V4A
+# ``*** End of File`` marker denied the whole patch. Replaying that exact byte
+# sequence against 8318d1c350^ reproduces
+# "tool_input carries malformed patch header(s)... : *** End of File" (exit 2);
+# the same bytes exit 0 here.
+_FREEFORM_END_OF_FILE_EVENT: dict[str, object] = {
+    "tool_name": "Edit",
+    "tool_input": (
+        "*** Begin Patch\n"
+        "*** Add File: C:\\Users\\op\\repo\\.agentlog\\feat-x\\copilot-cli\\workflow.md\n"
+        "+# Workflow\n"
+        "*** End of File\n"
+        "*** End Patch\n"
+    ),
+}
+
 
 def _run_dispatch(
     payload: bytes, plugin_root: Path, cwd: Path
@@ -100,8 +143,20 @@ def _run_dispatch(
 
 @pytest.mark.parametrize(
     "payload",
-    [_RECORDED_HOST_EVENT, _NORMALIZED_EVENT],
-    ids=["recorded-host-event", "normalized-tool-name"],
+    [
+        _RECORDED_HOST_EVENT,
+        _NORMALIZED_EVENT,
+        _FREEFORM_STRING_EVENT,
+        _FREEFORM_EDIT_STRING_EVENT,
+        _FREEFORM_END_OF_FILE_EVENT,
+    ],
+    ids=[
+        "recorded-host-event",
+        "normalized-tool-name",
+        "freeform-patch-string",
+        "freeform-patch-string-as-edit",
+        "freeform-patch-end-of-file-marker",
+    ],
 )
 def test_small_apply_patch_payload_allows(payload: dict[str, object], tmp_path: Path) -> None:
     raw = json.dumps(payload).encode("utf-8")
