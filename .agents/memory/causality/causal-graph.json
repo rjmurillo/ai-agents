@@ -14447,6 +14447,78 @@
         "episode-2026-07-21-session-3290-mypy-diff-line-ratchet"
       ],
       "created": "2026-07-22T15:39:37.620865+00:00"
+    },
+    {
+      "id": "a370df207b3f",
+      "type": "milestone",
+      "label": "milestone: Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: #3295 (8318d1c350, version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-24T19:16:22.233994+00:00"
+    },
+    {
+      "id": "71b90211a8ea",
+      "type": "milestone",
+      "label": "milestone: Replayed six realistic payload shapes through the shipped src/copilot-cli/hooks/PreToolUse/_dispatch.py on main: top-level apply_patch with a raw patch string, the recorded toolCalls host event, Edit and Write with a raw patch string, a JSON-object args string, and a headerless string. All exit 0. Local Copilot CLI is 1.0.74, the same build the reporter names.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-24T19:16:22.234057+00:00"
+    },
+    {
+      "id": "da23ae98496b",
+      "type": "milestone",
+      "label": "milestone: Ran a live probe with copilot 1.0.74 and --plugin-dir src/copilot-cli. This Linux build exposes no apply_patch tool (Unknown tool name in the tool allowlist), so the end-to-end reproduction the reporter describes is reachable only on their harness. Fell back to direct dispatcher replay, which is what the existing #3083 guard already uses.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-24T19:16:22.234110+00:00"
+    },
+    {
+      "id": "33093c70775b",
+      "type": "milestone",
+      "label": "milestone: Extracted the pre-purge plugin tree (git archive 8318d1c350^ src/copilot-cli) and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-24T19:16:22.234162+00:00"
+    },
+    {
+      "id": "d5b0bb9da17a",
+      "type": "milestone",
+      "label": "milestone: Learnings captured in Serena memory decision-3321-freeform-apply-patch-gate. Added three fixtures to the existing #3083 guard rather than a new module: freeform-patch-string, freeform-patch-string-as-edit, and freeform-patch-end-of-file-marker, all replayed through the committed dispatcher with the file's existing non-plugin-root negative control supplying teeth. 8 tests green.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-24T19:16:22.234213+00:00"
+    },
+    {
+      "id": "fec86ee3f3f4",
+      "type": "commit",
+      "label": "commit: Commit: 8385764d799b84a32c18d55a0bb3a8b1dd3162a5",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-24T19:16:22.234264+00:00"
+    },
+    {
+      "id": "1d53fea0023d",
+      "type": "commit",
+      "label": "commit: Commit: 8318d1c350",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-24T19:16:22.234315+00:00"
+    },
+    {
+      "id": "9cc0a372473b",
+      "type": "outcome",
+      "label": "Outcome: success - Triage issue #3321 (P0): project-toolkit denies a valid Copilot CLI freeform apply_patch on CLI 1.0.74. Determine whether main still reproduces, find the real denial mechanism, and lock the behavior with a regression guard on the shipped dispatcher.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-24T19:16:22.234366+00:00"
     }
   ],
   "patterns": [
