@@ -191,7 +191,7 @@ def copilot_auth_failed(result: subprocess.CompletedProcess[str]) -> bool:
     return copilot_auth_rejected(result) or copilot_auth_absent(result)
 
 
-def copilot_auth_absent_headline(result: subprocess.CompletedProcess[str]) -> str:
+def copilot_auth_failure_headline(result: subprocess.CompletedProcess[str]) -> str:
     """Accurate failure headline for a Copilot run that died at the auth gate.
 
     Leads with the real cause (dead auth secret), not the misdiagnosed symptom

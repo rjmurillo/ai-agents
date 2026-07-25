@@ -21,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from copilot_hook_probe import (  # noqa: E402
         copilot_auth_absent,
-        copilot_auth_absent_headline,
         copilot_auth_failed,
+        copilot_auth_failure_headline,
         copilot_auth_rejected,
     )
 finally:
@@ -78,7 +78,7 @@ def test_auth_absent_tolerates_none_streams() -> None:
 
 def test_auth_absent_headline_leads_with_cause_and_tolerates_none() -> None:
     """The headline names the real cause, cites #3275, and survives None stderr."""
-    headline = copilot_auth_absent_headline(_completed(stderr=None, returncode=1))
+    headline = copilot_auth_failure_headline(_completed(stderr=None, returncode=1))
     assert headline.startswith("Copilot auth token is empty")
     assert "COPILOT_GITHUB_TOKEN" in headline
     assert "#3275" in headline
@@ -86,7 +86,7 @@ def test_auth_absent_headline_leads_with_cause_and_tolerates_none() -> None:
 
 def test_auth_absent_headline_surfaces_rc_and_stdout() -> None:
     """A stdout-only auth failure stays actionable: rc and stdout appear (#3275)."""
-    headline = copilot_auth_absent_headline(
+    headline = copilot_auth_failure_headline(
         _completed(stdout="No authentication information found", stderr="", returncode=1)
     )
     assert "rc=1" in headline
@@ -141,9 +141,7 @@ def test_auth_failed_covers_both_classes_and_ignores_success() -> None:
     """The gate the smokes call fires for either auth failure and nothing else."""
     assert copilot_auth_failed(_completed(stderr=_REJECTED_STDERR, returncode=1)) is True
     assert (
-        copilot_auth_failed(
-            _completed(stderr="No authentication information found.", returncode=1)
-        )
+        copilot_auth_failed(_completed(stderr="No authentication information found.", returncode=1))
         is True
     )
     assert copilot_auth_failed(_completed(stderr="some other crash", returncode=1)) is False
@@ -156,14 +154,14 @@ def test_headline_says_rotate_not_provision_for_a_rejected_token() -> None:
     The remediation differs, so the headline has to differ. This is the exact
     stderr from run 30148661127, which matches the absent markers too.
     """
-    headline = copilot_auth_absent_headline(_completed(stderr=_REJECTED_STDERR, returncode=1))
+    headline = copilot_auth_failure_headline(_completed(stderr=_REJECTED_STDERR, returncode=1))
     assert "rejected" in headline
     assert "rotate" in headline
     assert "is empty" not in headline
 
 
 def test_headline_still_says_provision_for_an_absent_token() -> None:
-    headline = copilot_auth_absent_headline(
+    headline = copilot_auth_failure_headline(
         _completed(stderr="No authentication information found.", returncode=1)
     )
     assert "is empty" in headline
