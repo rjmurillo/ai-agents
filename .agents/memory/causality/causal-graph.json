@@ -14564,6 +14564,78 @@
         "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859525+00:00"
+    },
+    {
+      "id": "81608772ddff",
+      "type": "milestone",
+      "label": "milestone: Audited the live model-pin state against ADR-080 rule 1 for issue #2840",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T10:44:47.893612+00:00"
+    },
+    {
+      "id": "f5c5ea305c47",
+      "type": "milestone",
+      "label": "milestone: Traced why scripts/validation/check_model_pins.py reported zero violations on those three files",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T10:44:47.893685+00:00"
+    },
+    {
+      "id": "66d4bb19d5e1",
+      "type": "milestone",
+      "label": "milestone: Exposed the already-computed typed structure instead of adding a second parser",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T10:44:47.893738+00:00"
+    },
+    {
+      "id": "e7fc07f85b60",
+      "type": "milestone",
+      "label": "milestone: Taught check_model_pins.py to see a pin nested below the top level and to reject it outright",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T10:44:47.893790+00:00"
+    },
+    {
+      "id": "4f6ad92b4ff0",
+      "type": "milestone",
+      "label": "milestone: Removed the three nested versioned pins and regenerated the customer-facing mirrors",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T10:44:47.893841+00:00"
+    },
+    {
+      "id": "ee10cfa556b7",
+      "type": "milestone",
+      "label": "milestone: Ran two negative controls with teeth",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T10:44:47.893892+00:00"
+    },
+    {
+      "id": "8cd0439d2906",
+      "type": "test",
+      "label": "test: Ran two negative controls with teeth      Blinding the gate to nested pins fails 3 of the 6 new tests; dropping the parser's typed field fails 4. Restoring both returns 27 passed.",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T10:44:47.893946+00:00"
+    },
+    {
+      "id": "abdac8914488",
+      "type": "outcome",
+      "label": "Outcome: success - Close the nested-frontmatter hole in the ADR-080 model-pin gate and drop the three versioned skill pins it could not see, advancing issue 2840 criterion 4 with no eval spend.",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T10:44:47.893998+00:00"
     }
   ],
   "patterns": [

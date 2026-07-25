@@ -290,3 +290,71 @@ def test_alias_prices_below_default_helper(tmp_path: Path) -> None:
     assert cmp.alias_prices_below_default("haiku", tiers, "claude-sonnet-4-6") is True
     assert cmp.alias_prices_below_default("opus", tiers, "claude-sonnet-4-6") is False
     assert cmp.alias_prices_below_default("sonnet", tiers, "claude-sonnet-4-6") is False
+
+
+# ---------------------------------------------------------------------------
+# Nested pins (issue #2840): a pin below the top level is invisible to the flat
+# frontmatter view, ships to customers in the mirrors, and rots on retirement.
+# ---------------------------------------------------------------------------
+
+
+def test_nested_versioned_skill_pin_fails(tmp_path: Path) -> None:
+    _skill(tmp_path, "nested", "name: nested\nmetadata:\n  version: 1.0.0\n  model: claude-opus-4-6")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 1
+    assert any("nested under 'metadata'" in v for v in report.violations)
+
+
+def test_nested_bare_alias_fails_even_with_rationale(tmp_path: Path) -> None:
+    # A rationale cannot rescue a key no harness reads, so the cost exception
+    # in ADR-080 rule 3 does not apply below the top level.
+    _skill(
+        tmp_path,
+        "nested-alias",
+        "name: nested-alias\nmetadata:\n  model: haiku\n  model-rationale: cheap lookups only",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("nested under 'metadata'" in v for v in report.violations)
+
+
+def test_nested_agent_pin_fails_despite_valid_manifest(tmp_path: Path) -> None:
+    # Evidence is keyed to the unit, but a nested key never reaches the harness,
+    # so a KEEP_PIN entry must not launder it into compliance.
+    unit = ".claude/agents/critic.md"
+    _agent(tmp_path, "critic", "name: critic\nmetadata:\n  model: claude-opus-4-6")
+    report = _run(
+        tmp_path,
+        baseline={},
+        manifest=[_keep_entry(tmp_path, unit, "claude-opus-4-6")],
+    )
+    assert any("nested under 'metadata'" in v for v in report.violations)
+
+
+def test_top_level_pin_wins_over_nested(tmp_path: Path) -> None:
+    # The harness reads the top-level key, so that is the pin under policy; the
+    # nested value must not shadow it or the failure message would misattribute.
+    _skill(
+        tmp_path,
+        "both",
+        "name: both\nmodel: haiku\nmodel-rationale: cheap lookups only\nmetadata:\n  model: claude-opus-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.violations == []
+
+
+def test_nested_non_model_keys_do_not_register_a_pin(tmp_path: Path) -> None:
+    _skill(tmp_path, "quiet", "name: quiet\nmetadata:\n  version: 1.0.0\n  tier: integration")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 0
+    assert report.violations == []
+
+
+def test_frontmatter_parser_exposes_nested_structure() -> None:
+    # The flat view collapses a nested mapping to an empty string; the typed
+    # view is what makes the nested pin visible at all.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
+    from skill_frontmatter import parse_frontmatter
+
+    parsed = parse_frontmatter("---\nname: x\nmetadata:\n  model: claude-opus-4-6\n---\nbody\n")
+    assert parsed.frontmatter["metadata"] == ""
+    assert parsed.typed["metadata"] == {"model": "claude-opus-4-6"}

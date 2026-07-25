@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-07-25-session-2840-nested-model-pins",
+  "session": "2026-07-25-session-2840-nested-model-pins",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Close the nested-frontmatter hole in the ADR-080 model-pin gate and drop the three versioned skill pins it could not see, advancing issue 2840 criterion 4 with no eval spend.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audited the live model-pin state against ADR-080 rule 1 for issue #2840",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced why scripts/validation/check_model_pins.py reported zero violations on those three files",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Exposed the already-computed typed structure instead of adding a second parser",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Taught check_model_pins.py to see a pin nested below the top level and to reject it outright",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the three nested versioned pins and regenerated the customer-facing mirrors",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran two negative controls with teeth",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran two negative controls with teeth      Blinding the gate to nested pins fails 3 of the 6 new tests; dropping the parser's typed field fails 4. Restoring both returns 27 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": [
+    "When a governance gate reports clean against a violation you can see, suspect the parser before the policy. Dump what the parser actually returns for the offending file. Here it returned metadata as an empty string, which located the hole in one step.",
+    "Avoid: Hand-rolling a second frontmatter parse to reach data the shared parser already computed. Expose the typed structure the shared parser already builds for validation, and read it from the caller."
+  ]
+}

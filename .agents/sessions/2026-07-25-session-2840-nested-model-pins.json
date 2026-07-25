@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2840,
+    "date": "2026-07-25",
+    "branch": "fix/2840-nested-model-pins",
+    "startingCommit": "c0e6d4c1ad506fd0a629b7988c8d21085a2eab15",
+    "objective": "Close the nested-frontmatter hole in the ADR-080 model-pin gate and drop the three versioned skill pins it could not see, advancing issue 2840 criterion 4 with no eval spend."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP activation tools are not exposed in this Copilot CLI session toolset."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena initial_instructions tool is not exposed in this Copilot CLI session toolset."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md at session start; treated as the read-only dashboard per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, .agents/sessions/2026-07-25-session-2840-nested-model-pins.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch created with git checkout -b fix/2840-nested-model-pins origin/main and confirmed by git branch --show-current."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working branch is fix/2840-nested-model-pins, not main."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status --porcelain inspected before branching; only unrelated untracked retrospective and cache files present."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "startingCommit recorded as c0e6d4c1ad506fd0a629b7988c8d21085a2eab15, the origin/main tip this branch was cut from."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end checklist walked: tests run, mirrors regenerated, manifests bumped, lint scoped to changed files."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP write tools are not exposed in this Copilot CLI session toolset; the finding is recorded in this log and in the issue comment on #2840."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint run on the three changed SKILL.md files; no prose changed beyond one deleted frontmatter line each."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed on fix/2840-nested-model-pins."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/validation/ -q returned 643 passed; check_model_pins.py --mode enforce returned rc=0."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings recorded in this log's learnings block; the parser-blindness pattern is the reusable finding."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-25T02:00:00Z",
+      "action": "Audited the live model-pin state against ADR-080 rule 1 for issue #2840",
+      "result": "git grep found three skills still carrying a versioned Claude id (programming-advisor claude-opus-4-6, security-scan and style-enforcement claude-sonnet-4-6), contradicting the 2026-07-22 status that skills were fully de-versioned."
+    },
+    {
+      "time": "2026-07-25T02:10:00Z",
+      "action": "Traced why scripts/validation/check_model_pins.py reported zero violations on those three files",
+      "result": "parse_frontmatter is line-based: its key regex is anchored at column 0, so an indented key under a nested mapping is dropped and metadata collapses to an empty string. The parser already yaml.safe_loads the block for validation and then discards the typed structure."
+    },
+    {
+      "time": "2026-07-25T02:20:00Z",
+      "action": "Exposed the already-computed typed structure instead of adding a second parser",
+      "result": "Added FrontmatterResult.typed in scripts/validation/skill_frontmatter.py; additive dataclass field with a default factory, so every existing caller is unaffected (643 validation tests still pass)."
+    },
+    {
+      "time": "2026-07-25T02:30:00Z",
+      "action": "Taught check_model_pins.py to see a pin nested below the top level and to reject it outright",
+      "result": "A nested pin fails regardless of alias, rationale, or manifest evidence, because no harness reads the key: it is pure drift. Running the gate surfaced exactly the three known files and nothing else."
+    },
+    {
+      "time": "2026-07-25T02:40:00Z",
+      "action": "Removed the three nested versioned pins and regenerated the customer-facing mirrors",
+      "result": "build_all.py propagated the deletion to src/copilot-cli/skills; git grep for a nested claude- id across both trees returns nothing. Both plugin manifests bumped to 0.6.103 and parity confirmed."
+    },
+    {
+      "time": "2026-07-25T02:50:00Z",
+      "action": "Ran two negative controls with teeth",
+      "result": "Blinding the gate to nested pins fails 3 of the 6 new tests; dropping the parser's typed field fails 4. Restoring both returns 27 passed."
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "When a governance gate reports clean against a violation you can see, suspect the parser before the policy",
+        "context": "check_model_pins.py had a correct ADR-080 rule for versioned skill pins and still passed three files that carried one.",
+        "application": "Dump what the parser actually returns for the offending file. Here it returned metadata as an empty string, which located the hole in one step."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Hand-rolling a second frontmatter parse to reach data the shared parser already computed",
+        "consequence": "Two parsers drift apart and the next nested-key bug has to be fixed twice.",
+        "correction": "Expose the typed structure the shared parser already builds for validation, and read it from the caller."
+      }
+    ]
+  },
+  "endingCommit": "",
+  "nextSteps": [
+    "Push fix/2840-nested-model-pins and open a PR referencing Refs #2840.",
+    "Post the parser-blindness finding on #2840 so the remaining agent-track criteria are not assumed to cover it."
+  ]
+}

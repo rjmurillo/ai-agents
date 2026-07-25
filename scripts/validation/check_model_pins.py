@@ -89,6 +89,7 @@ class Unit:
     kind: str
     model: str | None
     rationale: str | None
+    nested_under: str | None = None
 
 
 @dataclass
@@ -172,6 +173,31 @@ def alias_prices_below_default(
     return alias_price < default_price
 
 
+def _find_nested_model(node: object) -> str | None:
+    """Return the first ``model`` value nested anywhere below ``node``.
+
+    A pin written as ``metadata.model`` still ships to customers in the
+    generated mirrors and still rots when the id retires, so it carries the
+    same drift and retirement cost ADR-080 exists to remove. The flat
+    frontmatter view drops it, so the check walks the typed structure instead
+    (issue #2840).
+    """
+    if isinstance(node, dict):
+        model = node.get("model")
+        if isinstance(model, str) and model.strip():
+            return model.strip()
+        for value in node.values():
+            found = _find_nested_model(value)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_nested_model(item)
+            if found is not None:
+                return found
+    return None
+
+
 def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     """Read a unit's model state, or None when it has no frontmatter."""
     try:
@@ -182,6 +208,10 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     fm = parsed.frontmatter
     model = fm.get("model")
     rationale = fm.get("model-rationale")
+    nested_path: str | None = None
+    if not isinstance(model, str) or not model.strip():
+        model, nested_path = _nested_pin(parsed.typed)
+        rationale = None
     try:
         rel = path.relative_to(repo_root).as_posix()
     except ValueError:
@@ -191,7 +221,19 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
         kind=kind,
         model=model.strip() if isinstance(model, str) else None,
         rationale=rationale.strip() if isinstance(rationale, str) else None,
+        nested_under=nested_path,
     )
+
+
+def _nested_pin(typed: dict[str, object]) -> tuple[str | None, str | None]:
+    """Find a model pin below the top level, with the key it hides under."""
+    for key, value in typed.items():
+        if key == "model":
+            continue
+        found = _find_nested_model(value)
+        if found is not None:
+            return found, str(key)
+    return None, None
 
 
 def scan_units(repo_root: Path = _REPO_ROOT) -> list[Unit]:
@@ -270,6 +312,11 @@ def _unit_rule_failure(
 ) -> str | None:
     """Return why a unit violates ADR-080 rules 1-3, or None when it complies."""
     model = unit.model or ""
+    if unit.nested_under:
+        return (
+            f"model pin '{model}' is nested under '{unit.nested_under}'; no "
+            f"harness reads it, so it is drift with no effect (ADR-080)"
+        )
     if model in ROLLING_ALIASES:
         if not unit.rationale:
             return f"bare alias '{model}' lacks a model-rationale field"

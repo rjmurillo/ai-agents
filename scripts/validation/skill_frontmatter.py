@@ -122,9 +122,16 @@ class FrontmatterResult(ValidationResult):
 
     Extends ValidationResult with parsed frontmatter data.
     is_valid is derived from the errors list (no errors = valid).
+
+    ``frontmatter`` is the flat string view every existing caller uses. It is
+    line-based, so a nested mapping collapses to an empty string and the keys
+    under it are dropped. ``typed`` is the full YAML structure, which this
+    parser already computes for validation; callers that must see nested keys
+    read it instead of re-parsing the block (issue #2840).
     """
 
     frontmatter: dict[str, str] = field(default_factory=dict)
+    typed: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -231,6 +238,7 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
         frontmatter[current_key] = current_value.strip()
 
     result.frontmatter = frontmatter
+    result.typed = typed_frontmatter
     return result
 
 
