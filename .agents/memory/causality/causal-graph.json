@@ -14620,31 +14620,31 @@
       "created": "2026-07-25T08:41:42.830933+00:00"
     },
     {
-      "id": "09e94413d792",
+      "id": "0270c846dc87",
       "type": "milestone",
-      "label": "milestone: Weighed the launcher-guard proposal in issue #3332 against documenting the failure mode, and shipped the documentation.",
+      "label": "milestone: Added a merged-history discriminator to check_branch_context. The mismatch is exempt only when the branch owns a recent session log AND the newest log already exists on the upstream default branch, which makes it settled history rather than a claim about current work. Fails closed with no resolvable origin/HEAD, so the issue #682 co-mingling case keeps its teeth.",
       "episodes": [
-        "episode-2026-07-25-session-3332-stale-plugin-root-doc"
+        "episode-2026-07-25-session-3343-branch-context-merge"
       ],
-      "created": "2026-07-25T11:55:56.169510+00:00"
+      "created": "2026-07-25T13:35:39.032165+00:00"
     },
     {
-      "id": "cc6376358593",
+      "id": "98610cb7c0b9",
       "type": "outcome",
-      "label": "Outcome: success - Decide and document the stale-plugin-root failure mode (issue #3332)",
+      "label": "Outcome: success - Fix branch-context-policy permanently wedging any branch that merges main (issue #3343). A committed merge imports the merged branch's session log, which outlives the MERGE_HEAD exemption and wins the recency comparison forever.",
       "episodes": [
-        "episode-2026-07-25-session-3332-stale-plugin-root-doc"
+        "episode-2026-07-25-session-3343-branch-context-merge"
       ],
-      "created": "2026-07-25T11:55:56.169573+00:00"
+      "created": "2026-07-25T13:35:39.032230+00:00"
     },
     {
-      "id": "0e69853c3274",
+      "id": "e6517a765378",
       "type": "commit",
-      "label": "commit: Commit: f268d1f2df",
+      "label": "commit: Commit: 61b8255184",
       "episodes": [
-        "episode-2026-07-25-session-3332-stale-plugin-root-doc"
+        "episode-2026-07-25-session-3343-branch-context-merge"
       ],
-      "created": "2026-07-25T14:41:59.019422+00:00"
+      "created": "2026-07-25T14:05:27.596517+00:00"
     }
   ],
   "patterns": [

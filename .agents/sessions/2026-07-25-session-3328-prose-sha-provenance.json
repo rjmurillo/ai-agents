@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3328,
+    "date": "2026-07-25",
+    "branch": "fix/3328-foreign-prose-sha",
+    "startingCommit": "c0e6d4c1ad506fd0a629b7988c8d21085a2eab15",
+    "objective": "Stop the episode extractor counting third-party SHAs in work-log prose as commits the session produced (issue #3328). Pick a discriminator that holds against this repo's squash-merge history rather than the one the issue proposed.",
+    "endingCommit": "a2038a99017058e99f45de015e6b1886bb538e65"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active on this Copilot CLI harness; serena-initial_instructions returned the manual."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions before making any edit."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3328-foreign-prose-sha, cut from origin/main at 013cb0124c."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits land on fix/3328-foreign-prose-sha; main was only read."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-parity bump rule and the squash-only merge ruleset entry that turned out to be the load-bearing fact for this change."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching; pre-existing untracked retrospectives and worktrees left alone."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prose SHAs that already existed at the session's starting commit no longer count as session commits, and the fix was measured against every session log in the repo before it was committed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recorded the squash-merge ancestry finding so the descendant-based form is not proposed again."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The diff carries one markdown file, .agents/retrospective/INDEX.md. The scoped ADR-043 set still resolves to zero files because .markdownlint-cli2.yaml:118 excludes .agents/** wholesale; running markdownlint-cli2 against that path directly reports 'Linting: 0 files'. Byte-checked every hand-authored file in the diff for em and en dashes: zero found."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on fix/3328-foreign-prose-sha across seven commits: the canonical extractor script, its vendored copilot-cli mirror, the extractor tests, both plugin manifests, this session log, its generated episode artifact, and the retrospective index. Enumerating categories rather than file names so the record does not drift as review commits land."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "153 tests green in tests/skills/memory/test_extract_session_episode.py. Negative control run: reverting the filter fails exactly the two cases that assert exclusion and leaves the four fail-open cases passing. ruff and mypy clean; build_all.py reproduces the vendored mirror byte-identically; manifest parity check reports 0.6.103 on both."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3328 gets the measurement that removes its option 2 as written and records why the inverted form is the sound one."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Issue #3328 offers three options and calls option 2, verifying each prose SHA is a descendant of the starting commit, accurate. Implemented it first because it looked free: the extractor already shells out to git for staged-file counts, so it adds no dependency, and all 140 existing tests passed unchanged because their fixture SHAs are not git objects and fail open."
+    },
+    {
+      "time": "T1",
+      "entry": "Passing tests were not enough evidence, so the rule was replayed against all 916 session logs in the repo. It changed 13 of them. Every case inspected was wrong. This repo squash-merges, and a squash commit discards the branch's parentage, so a session's own merge commit is not a descendant of the branch base it came from. Option 2 as written drops exactly the commits it is supposed to keep."
+    },
+    {
+      "time": "T2",
+      "entry": "Inverted the test. A commit already reachable from the starting commit existed before the session began, so the session cannot have produced it. That is a tautology, which is what makes it safe, and it cannot misfire on a squash merge because a squash merge comes after the base rather than before it. Checked the discriminator against the SHA named in the issue report and against the three squash cases: the report SHA is an ancestor of its session's base, and none of the squash cases are."
+    },
+    {
+      "time": "T3",
+      "entry": "Re-swept all 878 logs that carry a work log. Nine change, all downward, and reading the prose around each dropped SHA confirms every one is a citation rather than a session commit: another PR's merge commit, a different branch's tip, a git-blame result, and a version-pin reference. Zero false positives. Fails open on an unresolvable SHA, a missing starting commit, or no git, so the metric degrades to today's behavior rather than silently dropping real commits."
+    },
+    {
+      "time": "T4",
+      "entry": "Six regression cases added, including one that pins the squash-merge behavior directly so the descendant form cannot be reintroduced without a red test, and one that asserts the event stream and the metric agree so the causal graph cannot carry a commit node the metric does not."
+    },
+    {
+      "task": "Replace the unsound ancestry discriminator with a committer-date floor",
+      "outcome": "Adversarial review (gpt-5.6-sol) disproved the ancestor form against the real corpus. .agents/sessions/2026-05-11-session-1832.json opened its log after the green-phase commit, so its own spec and red-phase commits are ancestors of its own startingCommit and were dropped. Nothing in the schema or validate_session_json.py requires the anchor to precede the work, so the 'tautology' framing was wrong. Switched the discriminator to the commit's own committer timestamp against a floor of one day before session.date, which needs no anchor and no assumption about merge strategy. Re-swept all 917 session logs: 5 SHAs excluded across 5 logs, every one an explicit citation (Verified PR #2168 merge commit, git-blamed exit-4 added #2394, Recovered ADR-075 from orphan commit), and no session-authored commit lost.",
+      "result": "149 tests pass. Two negative controls: disabling the filter fails 2 exclusion tests; reinstating the ancestor rule fails the session-1832 regression test."
+    },
+    {
+      "task": "Address the remaining Copilot review threads on PR #3334",
+      "outcome": "Three merited. (1) The _session_floor docstring claimed 'The schema also accepts a full ISO timestamp'; the schema pins session.date to an anchored ^[0-9]{4}-[0-9]{2}-[0-9]{2}$, so the sentence was false and pointed a reader at a schema branch that does not exist. Reworded in both mirrors to say the parser is deliberately tolerant of input the schema rejects. (2) The derived episode carried metrics.commits 0 while the log claimed changesCommitted complete; that was stale output from before 3669adec84 populated endingCommit. Re-ran the extractor with --preserve, which restored the commit events the causal graph was missing. The count tracks whatever the branch has accumulated at extraction time, so it moved from 1 to 2 when the next commit landed; the committed artifact reports metrics.commits 2 with events e007 and e009, matching the log. (3) The E303 blank-line finding and the empty-endingCommit finding were already fixed by earlier commits on this branch; ruff reports clean and endingCommit reads a2038a99017058e99f45de015e6b1886bb538e65. The PR description still described the rejected startingCommit reachability rule and was rewritten to describe the committer-date floor that actually shipped.",
+      "filesChanged": [
+        ".claude/skills/memory/scripts/extract_session_episode.py",
+        "src/copilot-cli/skills/memory/scripts/extract_session_episode.py",
+        ".agents/memory/episodes/episode-2026-07-25-session-3328-prose-sha-provenance.json",
+        ".agents/retrospective/INDEX.md"
+      ]
+    }
+  ],
+  "endingCommit": "a2038a99017058e99f45de015e6b1886bb538e65",
+  "nextSteps": [
+    "Options 1 and 3 in the issue stay open. This change reduces over-counting but does not make the inference exact, because a prose SHA created during the session that the session did not author is still indistinguishable from one it did.",
+    "Existing episode artifacts under .agents/memory/episodes are not backfilled; the extractor only runs on logs at commit time. Decide separately whether a one-time re-extraction is worth the churn."
+  ]
+}

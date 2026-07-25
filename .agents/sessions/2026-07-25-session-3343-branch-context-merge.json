@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3343,
+    "date": "2026-07-25",
+    "branch": "fix/3343-branch-context-merge",
+    "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
+    "objective": "Fix branch-context-policy permanently wedging any branch that merges main (issue #3343). A committed merge imports the merged branch's session log, which outlives the MERGE_HEAD exemption and wins the recency comparison forever."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live on this Copilot CLI harness; serena-initial_instructions returned the manual and serena-write_memory recorded the finding."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions read; Serena symbolic tools used for lookup in this repo."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3343-branch-context-merge, cut from origin/main at 1ffee3834e."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits land on fix/3343-branch-context-merge; main was only read, and the one accidental checkout of main was reverted with git reset --hard before any commit."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-parity bump rule and the branch-protection ruleset entry."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching; pre-existing untracked retrospectives and worktrees left alone."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The merge exemption in check_branch_context now keys on upstream presence rather than on MERGE_HEAD, and the change was measured against the real wedged branch before it was committed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Wrote serena memory decision-branch-context-merged-history recording why the branch-ownership-only fix was wrong and why upstream presence is the sound discriminator."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git diff --name-only lists one Python module, one Python test file, and this JSON log; zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "One atomic commit on fix/3343-branch-context-merge carrying the policy module, the integration tests, and this log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "17 branch_context tests green, including the three pre-existing recency tests left unchanged. Negative controls: dropping the merged-history requirement fails 5, dropping the owned-log requirement fails 1, and failing open with no upstream fails 4. Empirical check on the real wedged branch with the imported log forced newest: the old policy exits 1, the new policy exits 0. ruff and mypy clean."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3343 filed with the inverted-window analysis, plus a follow-up comment recording that the old behavior was nondeterministic under checkout mtime rewrites."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "implementation",
+      "summary": "Added a merged-history discriminator to check_branch_context. The mismatch is exempt only when the branch owns a recent session log AND the newest log already exists on the upstream default branch, which makes it settled history rather than a claim about current work. Fails closed with no resolvable origin/HEAD, so the issue #682 co-mingling case keeps its teeth.",
+      "files": [
+        "scripts/validation/git_hook_policy.py",
+        "tests/test_lefthook_integration.py"
+      ]
+    }
+  ],
+  "endingCommit": "61b8255184",
+  "nextSteps": [
+    "Open PR, verify a branch that has committed a merge of main can push once this lands.",
+    "Out of scope: the ADR-review evidence check in git_hook_policy.py uses the same newest-by-mtime selection and may share the defect."
+  ]
+}

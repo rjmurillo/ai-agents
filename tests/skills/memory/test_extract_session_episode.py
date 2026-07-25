@@ -1,7 +1,11 @@
 """Tests for extract_session_episode.py."""
 
 import json
+import os
+import shutil
+import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -1469,3 +1473,185 @@ class TestSequentialEventLinks:
         for e in episode["events"]:
             for ref in e["caused_by"] + e["leads_to"]:
                 assert ref in ids, f"dangling reference {ref} in {e['id']}"
+
+
+
+def _git(repo, *args, when=None):
+    env = None
+    if when is not None:
+        env = {**os.environ, "GIT_COMMITTER_DATE": when, "GIT_AUTHOR_DATE": when}
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=True,
+    ).stdout.strip()
+
+
+def _commit(repo, name, body, when=None):
+    (repo / name).write_text(body, encoding="utf-8")
+    _git(repo, "add", name)
+    _git(repo, "commit", "-q", "-m", f"add {name}", when=when)
+    return _git(repo, "rev-parse", "HEAD")
+
+
+SESSION_DAY = "2026-05-11"
+# Evening before the labelled session day, in a timezone seven hours behind UTC.
+# This is the real shape of .agents/sessions/2026-05-11-session-1832.json, whose
+# own commits carry 2026-05-10T20:4x-07:00. See TestPredatingProseShaExclusion.
+EVENING_BEFORE = "2026-05-10T20:42:03-07:00"
+SESSION_DAY_NOON = "2026-05-11T12:00:00+00:00"
+TEN_DAYS_EARLIER = "2026-05-01T12:00:00+00:00"
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestPredatingProseShaExclusion:
+    """Work-log prose cites SHAs the session did not author (issue #3328).
+
+    A commit whose committer timestamp precedes the session's date window by a
+    full day cannot be a commit that session produced, so it must not count
+    toward ``metrics.commits``. Whenever git cannot answer, the count is
+    unchanged.
+
+    Both ancestry forms issue #3328 proposes fail here, so each has a test
+    pinning the case that breaks it: ``test_squash_merge_of_own_work_is_counted``
+    for the descendant form, ``test_own_commit_from_the_evening_before_is_counted``
+    for the ancestor form.
+    """
+
+    @staticmethod
+    def _repo(tmp_path):
+        """History: cited -> evening -> anchor, plus a same-day orphan.
+
+        ``cited`` stands for a third-party commit the session quotes as
+        evidence. ``evening`` and ``anchor`` reproduce a log whose
+        ``startingCommit`` was captured after work had already begun, so
+        ``evening`` is an ancestor of the anchor and still the session's own
+        work. ``squashed`` is an orphan, sharing no parentage with the anchor,
+        which is the shape a squash-merge of the session's own branch takes.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        cited = _commit(repo, "cited.txt", "cited", when=TEN_DAYS_EARLIER)
+        evening = _commit(repo, "evening.txt", "evening", when=EVENING_BEFORE)
+        anchor = _commit(repo, "anchor.txt", "anchor", when=EVENING_BEFORE)
+        _git(repo, "checkout", "-q", "--orphan", "squash")
+        _git(repo, "rm", "-q", "-rf", ".")
+        squashed = _commit(repo, "squashed.txt", "squashed", when=SESSION_DAY_NOON)
+        _git(repo, "checkout", "-q", "main")
+        return repo, cited, evening, anchor, squashed
+
+    @staticmethod
+    def _log(anchor, prose, *, date=SESSION_DAY):
+        data = _json_log([{"task": "Cited", "outcome": prose}])
+        data["session"]["date"] = date
+        data["session"]["startingCommit"] = anchor
+        data["endingCommit"] = anchor
+        return data
+
+    def test_sha_predating_the_session_is_not_counted(self, tmp_path, monkeypatch):
+        repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(anchor, f"reproduced against {cited}")
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
+
+    def test_own_commit_from_the_evening_before_is_counted(self, tmp_path, monkeypatch):
+        # Regression for the ancestor form of this check. ``evening`` is an
+        # ancestor of the session's own ``startingCommit`` because the log was
+        # opened late, and it is dated the calendar day before the session. It
+        # is still the session's work and must survive both traps.
+        repo, _cited, evening, anchor, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(anchor, f"spec committed in {evening}")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_squash_merge_of_own_work_is_counted(self, tmp_path, monkeypatch):
+        # Regression for the descendant form. A squash commit shares no
+        # parentage with the branch base it came from.
+        repo, _cited, _evening, anchor, squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(anchor, f"merged as {squashed}")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_commit_made_during_the_session_day_is_counted(self, tmp_path, monkeypatch):
+        repo, _cited, _evening, anchor, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        later = _commit(repo, "later.txt", "later", when=SESSION_DAY_NOON)
+        data = self._log(anchor, f"landed {later}")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_unresolvable_sha_fails_open(self, tmp_path, monkeypatch):
+        repo, _cited, _evening, anchor, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(anchor, "see deadbee for context")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_non_commit_object_fails_open(self, tmp_path, monkeypatch):
+        # A blob SHA cannot be peeled to a commit, so git exits nonzero and the
+        # SHA keeps its pre-#3328 treatment rather than vanishing silently.
+        repo, _cited, _evening, anchor, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        blob = _git(repo, "rev-parse", "HEAD:anchor.txt")
+        data = self._log(anchor, f"blob {blob}")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_missing_session_date_fails_open(self, tmp_path, monkeypatch):
+        repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(anchor, f"reproduced against {cited}", date="")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_outside_a_git_repo_fails_open(self, tmp_path, monkeypatch):
+        outside = tmp_path / "not-a-repo"
+        outside.mkdir()
+        monkeypatch.chdir(outside)
+        data = _json_log([{"task": "Cited", "outcome": "1234abc. Added parser"}])
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_events_and_metrics_agree(self, tmp_path, monkeypatch):
+        repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(anchor, f"reproduced against {cited}")
+        events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
+        commit_events = [e for e in events if e.get("type") == "commit"]
+        # json_events and json_metrics must agree, or the causal graph carries a
+        # commit node the metric does not (issue #3328 provenance consistency).
+        assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
+        assert all(cited not in json.dumps(e) for e in commit_events)
+
+    def test_offset_bearing_session_date_keeps_its_offset(self):
+        # The schema pins session.date to a bare YYYY-MM-DD, but _session_floor
+        # is deliberately tolerant of a full ISO timestamp, so an offset can
+        # reach it. replace(tzinfo=UTC) would relabel +14:00 as UTC and move the
+        # floor 14 hours later, which is enough to drop a commit the session
+        # made. Conversion, not relabelling.
+        floor = extract_session_episode._session_floor("2026-05-11T00:00:00+14:00")
+        assert floor == datetime(2026, 5, 9, 10, 0, tzinfo=UTC)
+
+    def test_naive_session_date_is_read_as_utc(self):
+        floor = extract_session_episode._session_floor("2026-05-11")
+        assert floor == datetime(2026, 5, 10, 0, 0, tzinfo=UTC)
+
+    def test_unparseable_session_date_has_no_floor(self):
+        assert extract_session_episode._session_floor("not-a-date") is None
+        assert extract_session_episode._session_floor("") is None
+
+    def test_commit_inside_an_offset_shifted_window_is_counted(self, tmp_path, monkeypatch):
+        # A session labelled +14:00 legitimately reaches further back in UTC
+        # than the same calendar day read as UTC would. Relabelling the offset
+        # excludes this commit; converting it keeps it.
+        repo = tmp_path / "offset-repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        early = _commit(repo, "early.txt", "early", when="2026-05-09T23:57:45+00:00")
+        anchor = _commit(repo, "anchor.txt", "anchor", when="2026-05-10T12:00:00+00:00")
+        monkeypatch.chdir(repo)
+        data = self._log(anchor, f"landed in {early}", date="2026-05-11T00:00:00+14:00")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
