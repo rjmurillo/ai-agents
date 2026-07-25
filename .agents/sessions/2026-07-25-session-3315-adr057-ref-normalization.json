@@ -42,7 +42,7 @@
       "gitStatusVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git status and git diff inspected; only ADR-057, the debate log, the retrospective, and this session log are intended for staging."
+        "Evidence": "git status and git diff inspected; ADR-057, the debate log, the retrospective, and this session log are hand-authored, and the commit hooks additionally regenerate the memory episode and .agents/memory/causality/causal-graph.json, for six files total in commit b2c8a534e7."
       },
       "startingCommitNoted": {
         "level": "MUST",
@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR-057 normalization, the adr-review debate log, the retrospective, and this session log committed together as one atomic docs(adr) commit on branch docs/adr-057-normalize-workflow-refs."
+        "Evidence": "ADR-057 normalization, the adr-review debate log, the retrospective, this session log, and the hook-generated memory episode and causal-graph updates committed together as one atomic docs(adr) commit b2c8a534e7 (six files) on branch docs/adr-057-normalize-workflow-refs."
       },
       "validationPassed": {
         "level": "MUST",
@@ -107,7 +107,7 @@
     {
       "time": "2026-07-25T00:45:00Z",
       "action": "Produced the governance artifacts and prepared the stacked commit",
-      "result": "Wrote the debate log, the retrospective, and this session log to satisfy the adr-review, session, and retrospective gates honestly, then staged only the four intended files."
+      "result": "Wrote the debate log, the retrospective, and this session log to satisfy the adr-review, session, and retrospective gates honestly, then staged those four hand-authored files; the commit hooks added the memory episode and causal-graph regeneration, so commit b2c8a534e7 carries six files."
     }
   ],
   "learnings": {

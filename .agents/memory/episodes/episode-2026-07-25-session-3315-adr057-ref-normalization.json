@@ -48,6 +48,18 @@
       "caused_by": [
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Committed b2c8a534e7 (six files: ADR-057, the debate log, the retrospective, the session log, this episode, and the causal-graph regeneration) on branch docs/adr-057-normalize-workflow-refs",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": []
     }
   ],
@@ -56,8 +68,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 5
+    "commits": 1,
+    "files_changed": 6
   },
   "lessons": [
     "Right-size the adr-review panel to the change surface and record omitted lenses. Convene only the lenses with real surface (architect, critic), run them for real, and document in the debate log why the others were not convened, instead of producing empty six-agent verdicts.",
