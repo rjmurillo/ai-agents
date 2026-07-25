@@ -373,10 +373,10 @@ python.exe: can't open file '...\project-toolkit/hooks/PreToolUse/_dispatch.py':
 POSIX reads `python3: can't open file` with forward slashes. Search for
 `_dispatch.py` plus `Errno 2`, not the interpreter name, which varies by OS.
 
-`_direct` in that path is the local development shadow, not the published
-install. Every tool call is denied for the rest of the session, including read
-tools, because a `PreToolUse` launcher that cannot start its interpreter fails
-closed before matcher evaluation.
+When `_direct` appears in that path, it identifies the local development shadow,
+not the published install. Every tool call is denied for the rest of the
+session, including read tools, because a `PreToolUse` launcher that cannot start
+its interpreter fails closed before matcher evaluation.
 
 Remedy: restart the Copilot session. Reinstalling the plugin without restarting
 does not help when the root moved, since the exported value does not change.
