@@ -14645,6 +14645,15 @@
         "episode-2026-07-25-session-2840-nested-model-pins"
       ],
       "created": "2026-07-25T10:45:29.469422+00:00"
+    },
+    {
+      "id": "de35f5597d24",
+      "type": "milestone",
+      "label": "milestone: Close the three bypasses an adversarial review found in the nested-pin check",
+      "episodes": [
+        "episode-2026-07-25-session-2840-nested-model-pins"
+      ],
+      "created": "2026-07-25T11:24:41.491256+00:00"
     }
   ],
   "patterns": [

@@ -74,7 +74,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e007",
@@ -97,6 +99,16 @@
       "leads_to": [
         "e007"
       ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close the three bypasses an adversarial review found in the nested-pin check",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

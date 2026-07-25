@@ -5,7 +5,8 @@
     "date": "2026-07-25",
     "branch": "fix/2840-nested-model-pins",
     "startingCommit": "c0e6d4c1ad506fd0a629b7988c8d21085a2eab15",
-    "objective": "Close the nested-frontmatter hole in the ADR-080 model-pin gate and drop the three versioned skill pins it could not see, advancing issue 2840 criterion 4 with no eval spend."
+    "objective": "Close the nested-frontmatter hole in the ADR-080 model-pin gate and drop the three versioned skill pins it could not see, advancing issue 2840 criterion 4 with no eval spend.",
+    "endingCommit": "80ee0d9e8b342a12d22c37c6d5f85483e0c2104f"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -118,6 +119,14 @@
       "time": "2026-07-25T02:50:00Z",
       "action": "Ran two negative controls with teeth",
       "result": "Blinding the gate to nested pins fails 3 of the 6 new tests; dropping the parser's typed field fails 4. Restoring both returns 27 passed."
+    },
+    {
+      "task": "Close the three bypasses an adversarial review found in the nested-pin check",
+      "outcome": "All three merited and all three were the same design error: the detector answered 'is there a nested pin' with a single value when the honest answer is a list. (1) A compliant top-level alias hid every nested pin, because _classify_and_read only walked below the top level when the top-level model was absent. That is a one-line laundering path: keep the versioned id under metadata and satisfy the gate with an alias above it. (2) The first nested hit masked every later one, so a two-pin file reported one and the second survived the commit that fixed the first. (3) A self-referential YAML anchor raised RecursionError, which reads as a broken gate rather than a broken file. _nested_pins now returns every occurrence sorted by dotted path, runs unconditionally, and carries the recursion path as a cycle guard. write_baseline no longer writes a nested-only unit as an empty-string pin that a later comparison would read as matching. test_top_level_pin_wins_over_nested asserted bypass 1 as intended behavior and was replaced. Four new cases the old tests could not distinguish: two pins both reported, a pin outside metadata, a pin inside a list, a cyclic anchor. Four negative controls each fail only their own case. Gate output on the real tree is byte-identical before and after, so this closes bypasses without reclassifying anything that exists.",
+      "filesChanged": [
+        "scripts/validation/check_model_pins.py",
+        "tests/validation/test_check_model_pins.py"
+      ]
     }
   ],
   "learnings": {
