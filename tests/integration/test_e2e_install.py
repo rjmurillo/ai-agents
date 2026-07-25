@@ -659,8 +659,8 @@ class TestSubprocessDecoding:
     guard this without a Windows runner and a real binary.
     """
 
-    #: Kwargs that route child output back into the parent process.
-    _CAPTURING = frozenset({"capture_output", "stdout", "stderr"})
+    #: Stream kwargs that route a subprocess pipe back into this process.
+    _PIPE_KWARGS = frozenset({"stdout", "stderr"})
     #: Kwargs that put the pipes into text mode, which is what forces a decode.
     _TEXT_MODE = frozenset({"text", "universal_newlines", "encoding", "errors"})
 
@@ -697,7 +697,21 @@ class TestSubprocessDecoding:
                     "the decoding guard cannot inspect bundled arguments"
                 )
             kwargs = {kw.arg for kw in node.keywords}
-            if kwargs & cls._CAPTURING and kwargs & cls._TEXT_MODE:
+            captures_output = any(
+                keyword.arg == "capture_output"
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value is True
+                for keyword in node.keywords
+            )
+            captures_pipe = any(
+                keyword.arg in cls._PIPE_KWARGS
+                and isinstance(keyword.value, ast.Attribute)
+                and keyword.value.attr == "PIPE"
+                and isinstance(keyword.value.value, ast.Name)
+                and keyword.value.value.id == "subprocess"
+                for keyword in node.keywords
+            )
+            if (captures_output or captures_pipe) and kwargs & cls._TEXT_MODE:
                 calls.append(node)
         return calls
 
@@ -726,6 +740,17 @@ class TestSubprocessDecoding:
         """stdout=PIPE decodes exactly like capture_output=True does."""
         snippet = "subprocess.run(cmd, stdout=subprocess.PIPE, universal_newlines=True)"
         assert len(self._captured_runs(snippet)) == 1
+
+    @pytest.mark.parametrize(
+        "snippet",
+        [
+            "subprocess.run(cmd, capture_output=False, text=True)",
+            "subprocess.run(cmd, stderr=subprocess.STDOUT, text=True)",
+            "subprocess.run(cmd, stdout=subprocess.DEVNULL, text=True)",
+        ],
+    )
+    def test_non_pipe_redirection_is_not_a_target(self, snippet: str) -> None:
+        assert self._captured_runs(snippet) == []
 
     def test_bundled_kwargs_cannot_bypass_the_guard(self) -> None:
         with pytest.raises(AssertionError, match=r"expands \*\*kwargs"):
