@@ -145,15 +145,20 @@ jobs:
       # open-ended `ruff>=`, so a `uv pip install` resolves whatever is newest
       # and a future ruff rule change could fail this baseline on an unrelated
       # PR. --base-ref makes the ratchet one-directional: without it, raising
-      # the baseline in the same PR that adds the violations passes.
+      # the baseline in the same PR that adds the violations passes. For push
+      # events, compare against the commit before the push (github.event.before)
+      # to enforce the same monotonicity guarantee on direct pushes.
       - name: Run ruff count ratchet (whole tree, may only decrease)
         if: steps.should-run.outputs.skip != 'true'
         env:
-          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+          PR_BASE: ${{ github.event_name == 'pull_request' && github.base_ref || '' }}
+          PUSH_BASE: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
-          if [ -n "$BASE_REF" ]; then
-            git fetch --depth=1 origin "${BASE_REF#origin/}"
+          if [ -n "$PR_BASE" ]; then
+            git fetch --depth=1 origin "$PR_BASE"
             uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
+          elif [ -n "$PUSH_BASE" ] && [ "$PUSH_BASE" != "0000000000000000000000000000000000000000" ]; then
+            uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref "$PUSH_BASE"
           else
             uv run --frozen python scripts/ci/ruff_count_ratchet.py
           fi
