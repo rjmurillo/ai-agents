@@ -138,6 +138,8 @@ class WorkflowValidator:
                 self._check_pinned(file_path, f"Job '{job_name}'", job["uses"])
             steps = job.get("steps", [])
             for step_idx, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    continue
                 if "uses" in step:
                     self._check_pinned(
                         file_path, f"Job '{job_name}' step {step_idx + 1}", step["uses"]
@@ -155,9 +157,9 @@ class WorkflowValidator:
             return
 
         action_ref = uses.split("@")[1].split()[0]
-        # SHA is 40 characters hex
+        # SHA is 40 characters hex (case-insensitive)
         is_sha = len(action_ref) == 40
-        is_hex = all(c in "0123456789abcdef" for c in action_ref)
+        is_hex = all(c in "0123456789abcdefABCDEF" for c in action_ref)
         if not (is_sha and is_hex):
             self.errors.append(
                 f"{file_path}: {where}: Action '{uses}' must use SHA pinning (found: {action_ref})"

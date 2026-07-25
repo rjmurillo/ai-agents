@@ -5,8 +5,7 @@
     "date": "2026-07-25",
     "branch": "fix/3330-ci-workflow-validation",
     "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
-    "objective": "Wire workflow YAML validation into CI and add a wiring guard for the scripts/ci family (issue #3330)",
-    "endingCommit": "6cdc90a4059ae677ac79c328a1f57ecbc2147681"
+    "objective": "Wire workflow YAML validation into CI and add a wiring guard for the scripts/ci family (issue #3330)"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -28,17 +27,17 @@
       "sessionLogCreated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This file, .agents/sessions/2026-07-25-session-2840-nested-model-pins.json."
+        "Evidence": "This file, .agents/sessions/2026-07-25-session-3330-ci-workflow-validation.json."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Branch created with git checkout -b fix/2840-nested-model-pins origin/main and confirmed by git branch --show-current."
+        "Evidence": "Branch created with git checkout -b fix/3330-ci-workflow-validation origin/main and confirmed by git branch --show-current."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Working branch is fix/2840-nested-model-pins, not main."
+        "Evidence": "Working branch is fix/3330-ci-workflow-validation, not main."
       },
       "gitStatusVerified": {
         "level": "MUST",
@@ -48,7 +47,7 @@
       "startingCommitNoted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "startingCommit recorded as c0e6d4c1ad506fd0a629b7988c8d21085a2eab15, the origin/main tip this branch was cut from."
+        "Evidence": "startingCommit recorded as 1ffee3834e910608ed6c03c374fb71ff7c39bdc3, the origin/main tip this branch was cut from."
       }
     },
     "sessionEnd": {
@@ -94,7 +93,11 @@
       "time": "2026-07-25T12:00:00Z",
       "action": "Wire scripts/validate_workflows.py into the pr-validation validate-pr job and add tests/ci/test_ci_scripts_are_wired.py",
       "result": "Workflow YAML was checked only by lefthook, so it landed unvalidated from Renovate, Dependabot, the web editor, the API, and any clone without hooks installed. No workflow triggers on .github/workflows/**, and pytest.yml gates on python-changed, so a workflow-only PR passed through every gate untouched. The validate-pr job is the right host because it runs on every PR regardless of path. actionlint stays out on purpose: it is not in the runner image, so adding it is a download-and-trust decision worth making on its own. The wiring test is the more durable half. Issue #3329 was two guards with green tests and no caller, which unit tests cannot catch because the missing thing is the call site. The new test parametrizes over every scripts/ci/*.py and asserts a workflow references it, with a documented allowlist so an exemption is a decision rather than a silent skip. Negative controls: an unwired probe script fails only its own parametrized case; deleting the new workflow step fails only the named validator test.",
-      "files": [".github/workflows/pr-validation.yml", "scripts/validate_workflows.py", "tests/ci/test_ci_scripts_are_wired.py"]
+      "files": [
+        ".github/workflows/pr-validation.yml",
+        "scripts/validate_workflows.py",
+        "tests/ci/test_ci_scripts_are_wired.py"
+      ]
     }
   ],
   "learnings": [

@@ -449,16 +449,12 @@ jobs:
       # This script runs in under a second across all the workflows and covers
       # YAML syntax, duplicate keys, structure, and action SHA pinning.
       #
-      # Neither this step nor the two below carry the bot-skip guard. Renovate and
-      # Dependabot are exactly the actors that open workflow-only PRs (action SHA
-      # bumps), so gating workflow validation on `skip != 'true'` would exempt the
-      # traffic this check exists to cover. The job already reports status
-      # unconditionally, so an ungated step blocks the merge it should block.
-      # Neither this step nor the two below carry the bot-skip guard. Renovate and
-      # Dependabot are exactly the actors that open workflow-only PRs (action SHA
-      # bumps), so gating workflow validation on `skip != 'true'` would exempt the
-      # traffic this check exists to cover. The job already reports status
-      # unconditionally, so an ungated step blocks the merge it should block.
+      # The uv-setup and validate steps below are unconditional. The checkout
+      # step fires only when the bot-skip guard suppressed the earlier checkout
+      # (skip == 'true'), so validation still has source to read regardless of
+      # who opened the PR. Renovate and Dependabot are exactly the actors that
+      # open workflow-only PRs (action SHA bumps), so exempting them would defeat
+      # the purpose of this gate.
       - name: Checkout repository for workflow validation
         if: steps.should-run.outputs.skip == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

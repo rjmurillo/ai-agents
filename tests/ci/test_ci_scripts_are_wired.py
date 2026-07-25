@@ -24,6 +24,7 @@ literal `if: false` form is treated as dead.
 
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 from typing import Any
 
@@ -83,9 +84,15 @@ def _steps_of(document: Any) -> list[dict[str, Any]]:
     return steps
 
 
-def _live_run_blocks() -> list[tuple[Path, str]]:
-    """`run:` bodies of every step that is not statically disabled."""
-    blocks: list[tuple[Path, str]] = []
+@functools.lru_cache(maxsize=1)
+def _live_run_blocks() -> tuple[tuple[str, str], ...]:
+    """`run:` bodies of every step that is not statically disabled.
+
+    Returns a tuple of (path-as-string, body) pairs so the result is hashable
+    and cacheable.  Re-parsing every YAML file per parametrized case is wasteful
+    because the file set does not change within a test session.
+    """
+    blocks: list[tuple[str, str]] = []
     for path in _yaml_files():
         try:
             document = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -94,12 +101,12 @@ def _live_run_blocks() -> list[tuple[Path, str]]:
         for step in _steps_of(document):
             body = step.get("run")
             if isinstance(body, str) and not _is_disabled(step):
-                blocks.append((path, body))
-    return blocks
+                blocks.append((str(path), body))
+    return tuple(blocks)
 
 
 def _invoking_files(script_path: str) -> list[Path]:
-    return sorted({path for path, body in _live_run_blocks() if script_path in body})
+    return sorted({Path(path) for path, body in _live_run_blocks() if script_path in body})
 
 
 def _ci_scripts() -> list[Path]:
