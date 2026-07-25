@@ -503,8 +503,10 @@ class TestSubprocessDecoding:
     error that says nothing about the contract it was guarding.
     """
 
-    _CAPTURING = "capture_output=True,"
     # Built from parts so the guard below does not match its own needle.
+    _CAPTURING = "capture_output" + "=True,"
+    _CODEC = 'encoding="' + 'utf-8",'
+    _ERRORS = 'errors="' + 'replace",'
     _TEXT_MODE = "text" + "=True"
 
     def _source(self) -> str:
@@ -512,11 +514,11 @@ class TestSubprocessDecoding:
 
     def test_every_capture_pins_the_codec(self) -> None:
         source = self._source()
-        assert source.count(self._CAPTURING) == source.count('encoding="utf-8",')
+        assert source.count(self._CAPTURING) == source.count(self._CODEC)
 
     def test_every_capture_tolerates_undecodable_bytes(self) -> None:
         source = self._source()
-        assert source.count(self._CAPTURING) == source.count('errors="replace",')
+        assert source.count(self._CAPTURING) == source.count(self._ERRORS)
 
     def test_no_capture_relies_on_text_mode_alone(self) -> None:
         assert self._TEXT_MODE not in self._source()
