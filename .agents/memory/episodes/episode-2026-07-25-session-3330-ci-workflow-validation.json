@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-07-25-session-3330-ci-workflow-validation",
+  "session": "2026-07-25-session-3330-ci-workflow-validation",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Wire workflow YAML validation into CI and add a wiring guard for the scripts/ci family (issue #3330)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wire scripts/validate_workflows.py into the pr-validation validate-pr job and add tests/ci/test_ci_scripts_are_wired.py",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": [
+    "A guard with passing tests and no call site is not half-finished, it is unverified: its tests exercise the interface while the scope, which is where #3329's ratchet was wrong by a factor of two, goes unexercised until something actually runs it."
+  ]
+}
