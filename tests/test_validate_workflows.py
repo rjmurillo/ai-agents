@@ -297,3 +297,127 @@ class TestExpressionInjection:
         }
         validator.validate_expression_injection(tmp_path / "t.yml", content)
         assert len(validator.errors) == 1
+
+
+class TestDuplicateKeyRejection:
+    """yaml.safe_load keeps the last duplicate silently; GitHub rejects the file."""
+
+    def _write(self, tmp_path: Path, body: str) -> Path:
+        path = tmp_path / "wf.yml"
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def test_duplicate_top_level_key_is_a_syntax_error(self, tmp_path: Path):
+        path = self._write(
+            tmp_path,
+            "name: X\non: [push]\n"
+            "jobs:\n  a:\n    runs-on: ubuntu-latest\n    steps: []\n"
+            "jobs:\n  b:\n    runs-on: ubuntu-latest\n    steps: []\n",
+        )
+        validator = WorkflowValidator(tmp_path)
+        assert validator.validate_yaml_syntax(path) is False
+        assert "duplicate key" in validator.errors[0]
+
+    def test_duplicate_nested_key_is_a_syntax_error(self, tmp_path: Path):
+        path = self._write(
+            tmp_path,
+            "name: X\non: [push]\njobs:\n  a:\n"
+            "    runs-on: ubuntu-latest\n    runs-on: windows-latest\n    steps: []\n",
+        )
+        validator = WorkflowValidator(tmp_path)
+        assert validator.validate_yaml_syntax(path) is False
+
+    def test_a_clean_workflow_still_parses(self, tmp_path: Path):
+        path = self._write(
+            tmp_path,
+            "name: X\non: [push]\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps: []\n",
+        )
+        validator = WorkflowValidator(tmp_path)
+        assert validator.validate_yaml_syntax(path) is True
+        assert validator.errors == []
+
+    def test_repeated_keys_in_sibling_mappings_are_not_duplicates(self, tmp_path: Path):
+        """Two jobs may both carry runs-on. Only same-mapping repeats are errors."""
+        path = self._write(
+            tmp_path,
+            "name: X\non: [push]\njobs:\n"
+            "  a:\n    runs-on: ubuntu-latest\n    steps: []\n"
+            "  b:\n    runs-on: ubuntu-latest\n    steps: []\n",
+        )
+        validator = WorkflowValidator(tmp_path)
+        assert validator.validate_yaml_syntax(path) is True
+
+
+class TestJobsAreRunnable:
+    """A job with neither runs-on nor uses is accepted by YAML and rejected by GitHub."""
+
+    def test_job_without_runs_on_is_an_error(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {"name": "X", "on": ["push"], "jobs": {"a": {"steps": []}}}
+        validator.validate_workflow_structure(tmp_path / "wf.yml", content)
+        assert any("neither 'runs-on' nor 'uses'" in e for e in validator.errors)
+
+    def test_reusable_workflow_job_needs_no_runs_on(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {
+            "name": "X",
+            "on": ["push"],
+            "jobs": {"a": {"uses": "o/r/.github/workflows/w.yml@" + "a" * 40}},
+        }
+        validator.validate_workflow_structure(tmp_path / "wf.yml", content)
+        assert validator.errors == []
+
+    def test_non_mapping_job_is_an_error(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {"name": "X", "on": ["push"], "jobs": {"a": "oops"}}
+        validator.validate_workflow_structure(tmp_path / "wf.yml", content)
+        assert any("must be a mapping" in e for e in validator.errors)
+
+    def test_well_formed_job_produces_no_error(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {
+            "name": "X",
+            "on": ["push"],
+            "jobs": {"a": {"runs-on": "ubuntu-latest", "steps": []}},
+        }
+        validator.validate_workflow_structure(tmp_path / "wf.yml", content)
+        assert validator.errors == []
+
+
+class TestReusableWorkflowPinning:
+    """A job-level `uses` carries the same supply-chain risk as a step-level one."""
+
+    def test_unpinned_reusable_workflow_is_an_error(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {"jobs": {"a": {"uses": "octo/repo/.github/workflows/w.yml@main"}}}
+        validator.validate_action_pinning(tmp_path / "wf.yml", content)
+        assert len(validator.errors) == 1
+        assert "must use SHA pinning" in validator.errors[0]
+        assert "Job 'a'" in validator.errors[0]
+
+    def test_pinned_reusable_workflow_passes(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        sha = "b" * 40
+        content = {"jobs": {"a": {"uses": f"octo/repo/.github/workflows/w.yml@{sha}"}}}
+        validator.validate_action_pinning(tmp_path / "wf.yml", content)
+        assert validator.errors == []
+
+    def test_local_reusable_workflow_is_exempt(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {"jobs": {"a": {"uses": "./.github/workflows/local.yml"}}}
+        validator.validate_action_pinning(tmp_path / "wf.yml", content)
+        assert validator.errors == []
+
+    def test_step_level_pinning_still_reports_the_step_number(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {
+            "jobs": {
+                "a": {
+                    "runs-on": "ubuntu-latest",
+                    "steps": [{"run": "echo"}, {"uses": "actions/checkout@v4"}],
+                }
+            }
+        }
+        validator.validate_action_pinning(tmp_path / "wf.yml", content)
+        assert len(validator.errors) == 1
+        assert "step 2" in validator.errors[0]

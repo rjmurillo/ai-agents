@@ -35,6 +35,35 @@ except ImportError:
     sys.exit(2)
 
 
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate mapping keys instead of last-wins."""
+
+
+def _no_duplicate_keys(
+    loader: _StrictLoader, node: yaml.MappingNode, deep: bool = False
+) -> dict[Any, Any]:
+    seen: set[Any] = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in seen
+        except TypeError:  # unhashable key; YAML permits it, GitHub does not use it
+            continue
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate key {key!r}",
+                key_node.start_mark,
+            )
+        seen.add(key)
+    mapping: dict[Any, Any] = loader.construct_mapping(node, deep=deep)
+    return mapping
+
+
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys)
+
+
 class WorkflowValidator:
     """Validates GitHub Actions workflow files."""
 
@@ -46,10 +75,16 @@ class WorkflowValidator:
         self.warnings: list[str] = []
 
     def validate_yaml_syntax(self, file_path: Path) -> bool:
-        """Validate YAML syntax."""
+        """Validate YAML syntax, rejecting duplicate keys.
+
+        ``yaml.safe_load`` silently keeps the last value for a duplicated key,
+        so a workflow that defines ``jobs:`` twice loads clean here and then
+        runs only half of itself. GitHub rejects it; the loader below makes this
+        check agree with the service.
+        """
         try:
             with open(file_path, encoding="utf-8") as f:
-                yaml.safe_load(f)
+                yaml.load(f, Loader=_StrictLoader)
             return True
         except yaml.YAMLError as e:
             self.errors.append(f"{file_path}: YAML syntax error: {e}")
@@ -71,36 +106,62 @@ class WorkflowValidator:
             self.errors.append(f"{file_path}: 'jobs' must be a dictionary")
         elif not content["jobs"]:
             self.errors.append(f"{file_path}: 'jobs' section is empty")
+        else:
+            self._validate_jobs_are_runnable(file_path, content["jobs"])
+
+    def _validate_jobs_are_runnable(self, file_path: Path, jobs: dict[str, Any]) -> None:
+        """Every job must say where it runs, or call a reusable workflow.
+
+        A job with neither is accepted by every YAML parser and rejected by
+        GitHub at dispatch time, which turns a typo into a red run rather than
+        a red check.
+        """
+        for job_name, job in jobs.items():
+            if not isinstance(job, dict):
+                self.errors.append(f"{file_path}: Job '{job_name}' must be a mapping")
+                continue
+            if "runs-on" not in job and "uses" not in job:
+                self.errors.append(
+                    f"{file_path}: Job '{job_name}' has neither 'runs-on' nor 'uses'"
+                )
 
     def validate_action_pinning(self, file_path: Path, content: dict[str, Any]) -> None:
         """Validate that actions use SHA pinning (security requirement)."""
         jobs = content.get("jobs", {})
         for job_name, job in jobs.items():
+            if not isinstance(job, dict):
+                continue
+            # A job-level 'uses' calls a reusable workflow. It carries the same
+            # supply-chain risk as a step-level action and was previously
+            # unchecked, so an unpinned reusable workflow passed the gate.
+            if "uses" in job:
+                self._check_pinned(file_path, f"Job '{job_name}'", job["uses"])
             steps = job.get("steps", [])
             for step_idx, step in enumerate(steps):
                 if "uses" in step:
-                    uses = step["uses"]
-                    # Skip local actions (start with ./)
-                    if uses.startswith("./"):
-                        continue
+                    self._check_pinned(
+                        file_path, f"Job '{job_name}' step {step_idx + 1}", step["uses"]
+                    )
 
-                    # Check for SHA pinning (format: owner/repo@sha # vX.Y.Z)
-                    if "@" not in uses:
-                        self.errors.append(
-                            f"{file_path}: Job '{job_name}' step {step_idx + 1}: "
-                            f"Action '{uses}' is not pinned"
-                        )
-                        continue
+    def _check_pinned(self, file_path: Path, where: str, uses: str) -> None:
+        """Record an error unless ``uses`` is a local path or a 40-hex SHA."""
+        # Skip local actions (start with ./)
+        if uses.startswith("./"):
+            return
 
-                    action_ref = uses.split("@")[1].split()[0]
-                    # SHA is 40 characters hex
-                    is_sha = len(action_ref) == 40
-                    is_hex = all(c in "0123456789abcdef" for c in action_ref)
-                    if not (is_sha and is_hex):
-                        self.errors.append(
-                            f"{file_path}: Job '{job_name}' step {step_idx + 1}: "
-                            f"Action '{uses}' must use SHA pinning (found: {action_ref})"
-                        )
+        # Check for SHA pinning (format: owner/repo@sha # vX.Y.Z)
+        if "@" not in uses:
+            self.errors.append(f"{file_path}: {where}: Action '{uses}' is not pinned")
+            return
+
+        action_ref = uses.split("@")[1].split()[0]
+        # SHA is 40 characters hex
+        is_sha = len(action_ref) == 40
+        is_hex = all(c in "0123456789abcdef" for c in action_ref)
+        if not (is_sha and is_hex):
+            self.errors.append(
+                f"{file_path}: {where}: Action '{uses}' must use SHA pinning (found: {action_ref})"
+            )
 
     def validate_workflow_size(self, file_path: Path) -> None:
         """Validate workflow file size (ADR-006: thin orchestration)."""
@@ -108,10 +169,7 @@ class WorkflowValidator:
             lines = f.readlines()
 
         # Filter out comments and empty lines for accurate count
-        code_lines = [
-            line for line in lines
-            if line.strip() and not line.strip().startswith("#")
-        ]
+        code_lines = [line for line in lines if line.strip() and not line.strip().startswith("#")]
 
         if len(code_lines) > 100:
             self.warnings.append(
@@ -125,13 +183,9 @@ class WorkflowValidator:
             concurrency = content["concurrency"]
             if isinstance(concurrency, dict):
                 if "group" not in concurrency:
-                    self.warnings.append(
-                        f"{file_path}: Concurrency block missing 'group' field"
-                    )
+                    self.warnings.append(f"{file_path}: Concurrency block missing 'group' field")
             elif not isinstance(concurrency, str):
-                self.errors.append(
-                    f"{file_path}: Concurrency must be a string or dict"
-                )
+                self.errors.append(f"{file_path}: Concurrency must be a string or dict")
 
     def validate_permissions(self, file_path: Path, content: dict[str, Any]) -> None:
         """Validate permissions are explicitly set (security requirement).
@@ -145,8 +199,7 @@ class WorkflowValidator:
             # Check if every job declares its own permissions
             jobs = content.get("jobs", {})
             all_jobs_have_perms = jobs and all(
-                "permissions" in job for job in jobs.values()
-                if isinstance(job, dict)
+                "permissions" in job for job in jobs.values() if isinstance(job, dict)
             )
             if not all_jobs_have_perms:
                 self.errors.append(
@@ -174,9 +227,7 @@ class WorkflowValidator:
         r"github\.head_ref",
     ]
 
-    def validate_expression_injection(
-        self, file_path: Path, content: dict[str, Any]
-    ) -> None:
+    def validate_expression_injection(self, file_path: Path, content: dict[str, Any]) -> None:
         """Detect expression injection in run blocks.
 
         Flags ${{...}} in run: blocks when the expression references
@@ -253,7 +304,7 @@ class WorkflowValidator:
                 cwd=self.repo_root,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             changed_files = result.stdout.strip().split("\n")
 
@@ -263,7 +314,7 @@ class WorkflowValidator:
                 cwd=self.repo_root,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             if result.stdout.strip():
                 changed_files.extend(result.stdout.strip().split("\n"))
@@ -275,8 +326,10 @@ class WorkflowValidator:
                     continue
                 file_path = self.repo_root / file
                 if (
-                    file.startswith(".github/workflows/") and file.endswith((".yml", ".yaml"))
-                    or file.startswith(".github/actions/") and file.endswith("action.yml")
+                    file.startswith(".github/workflows/")
+                    and file.endswith((".yml", ".yaml"))
+                    or file.startswith(".github/actions/")
+                    and file.endswith("action.yml")
                 ):
                     if file_path.exists():
                         workflow_files.append(file_path)
@@ -294,12 +347,10 @@ class WorkflowValidator:
                 cwd=self.repo_root,
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
             )
             if result.returncode != 0:
-                self.errors.append(
-                    f"{workflow_path}: act validation failed:\n{result.stderr}"
-                )
+                self.errors.append(f"{workflow_path}: act validation failed:\n{result.stderr}")
                 return False
             return True
         except FileNotFoundError:
@@ -326,20 +377,12 @@ def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Validate GitHub Actions workflows")
     parser.add_argument(
-        "files",
-        nargs="*",
-        help="Specific workflow files to validate (default: all)"
+        "files", nargs="*", help="Specific workflow files to validate (default: all)"
     )
     parser.add_argument(
-        "--changed",
-        action="store_true",
-        help="Only validate changed files in git working tree"
+        "--changed", action="store_true", help="Only validate changed files in git working tree"
     )
-    parser.add_argument(
-        "--act",
-        action="store_true",
-        help="Run validation with act (if installed)"
-    )
+    parser.add_argument("--act", action="store_true", help="Run validation with act (if installed)")
     args = parser.parse_args()
 
     # Find repo root

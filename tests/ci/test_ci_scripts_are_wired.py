@@ -1,4 +1,4 @@
-"""Every guard under scripts/ci must be called by a workflow.
+"""Every guard under scripts/ci must be called by a live workflow step.
 
 Issue #3329: `ruff_count_ratchet.py` and `adr006_run_block_scanner.py` both
 shipped with passing test suites and no caller. Their tests exercised the
@@ -9,14 +9,26 @@ number was 361.
 
 A unit test cannot catch that class of defect, because the thing that is missing
 is the call site. This checks the call site.
+
+"Live" is doing real work here. An earlier version of this file asserted only
+that the script path appeared somewhere in the concatenated workflow text, which
+a comment, a disabled step, a heredoc, or a similarly-named file all satisfy.
+This version parses the YAML and looks at `run:` bodies of steps that are not
+statically disabled.
+
+What this does not do: evaluate GitHub expressions. A step guarded by
+`if: ${{ needs.x.outputs.y == 'true' }}` counts as live, because deciding
+otherwise would mean interpreting the whole expression language. Only the
+literal `if: false` form is treated as dead.
 """
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CI_SCRIPTS_DIR = _REPO_ROOT / "scripts" / "ci"
@@ -25,20 +37,69 @@ _WORKFLOW_DIRS = (
     _REPO_ROOT / ".github" / "actions",
 )
 
-# Guards that are deliberately not invoked from a workflow. Each needs a reason,
-# so that adding one is a decision rather than a way to silence this test.
+# Guards that are deliberately not invoked from a workflow. Each needs a
+# non-empty reason, so that adding one is a decision rather than a way to
+# silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {}
 
 
-def _workflow_text() -> str:
-    """Every workflow and composite action body, concatenated."""
-    parts: list[str] = []
+def _yaml_files() -> list[Path]:
+    paths: list[Path] = []
     for directory in _WORKFLOW_DIRS:
         if not directory.is_dir():
             continue
-        for path in sorted(directory.rglob("*.yml")) + sorted(directory.rglob("*.yaml")):
-            parts.append(path.read_text(encoding="utf-8"))
-    return "\n".join(parts)
+        paths.extend(directory.rglob("*.yml"))
+        paths.extend(directory.rglob("*.yaml"))
+    return sorted(paths)
+
+
+def _is_disabled(step: dict[str, Any]) -> bool:
+    """True only for the literal `if: false` form. See the module docstring."""
+    condition = step.get("if")
+    if condition is False:
+        return True
+    return isinstance(condition, str) and condition.strip().lower() in {
+        "false",
+        "${{ false }}",
+    }
+
+
+def _steps_of(document: Any) -> list[dict[str, Any]]:
+    """Every step in a workflow (jobs.*.steps) or composite action (runs.steps)."""
+    steps: list[dict[str, Any]] = []
+    if not isinstance(document, dict):
+        return steps
+
+    jobs = document.get("jobs")
+    if isinstance(jobs, dict):
+        for job in jobs.values():
+            if isinstance(job, dict) and isinstance(job.get("steps"), list):
+                steps.extend(s for s in job["steps"] if isinstance(s, dict))
+
+    runs = document.get("runs")
+    if isinstance(runs, dict) and isinstance(runs.get("steps"), list):
+        steps.extend(s for s in runs["steps"] if isinstance(s, dict))
+
+    return steps
+
+
+def _live_run_blocks() -> list[tuple[Path, str]]:
+    """`run:` bodies of every step that is not statically disabled."""
+    blocks: list[tuple[Path, str]] = []
+    for path in _yaml_files():
+        try:
+            document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except yaml.YAMLError:  # validate_workflows.py owns reporting this
+            continue
+        for step in _steps_of(document):
+            body = step.get("run")
+            if isinstance(body, str) and not _is_disabled(step):
+                blocks.append((path, body))
+    return blocks
+
+
+def _invoking_files(script_path: str) -> list[Path]:
+    return sorted({path for path, body in _live_run_blocks() if script_path in body})
 
 
 def _ci_scripts() -> list[Path]:
@@ -52,32 +113,90 @@ def test_ci_script_is_invoked_by_a_workflow(script: Path) -> None:
     if script.name in _NOT_WORKFLOW_INVOKED:
         pytest.skip(_NOT_WORKFLOW_INVOKED[script.name])
     rel = script.relative_to(_REPO_ROOT).as_posix()
-    assert rel in _workflow_text(), (
-        f"{rel} has no call site in .github/workflows or .github/actions. "
-        f"A guard nothing runs is not a guard, and its own tests will stay "
-        f"green while it protects nothing (issue #3329). Wire it into a "
-        f"workflow, or add it to _NOT_WORKFLOW_INVOKED with a reason."
+    assert _invoking_files(rel), (
+        f"{rel} is not run by any enabled step in .github/workflows or "
+        f".github/actions. A guard nothing runs is not a guard, and its own "
+        f"tests will stay green while it protects nothing (issue #3329). Wire "
+        f"it into a workflow, or add it to _NOT_WORKFLOW_INVOKED with a reason."
     )
 
 
+def test_every_allowlist_entry_carries_a_reason() -> None:
+    """An empty reason turns the allowlist into a silent opt-out."""
+    for name, reason in _NOT_WORKFLOW_INVOKED.items():
+        assert reason.strip(), f"_NOT_WORKFLOW_INVOKED[{name!r}] needs a reason"
+
+
 def test_workflow_yaml_validator_runs_in_ci() -> None:
-    """Issue #3330: workflow YAML was checked only by a local hook.
+    """Issue #3330: workflow schema had no required CI gate.
 
     Named separately from the parametrized case above because the validator does
     not live under scripts/ci, and because the specific requirement is that it
     runs on a path-independent job: a workflow-only PR changes no Python, so
     every path-filtered gate skips it.
     """
-    text = _workflow_text()
-    assert "scripts/validate_workflows.py" in text, (
-        "scripts/validate_workflows.py is invoked only by lefthook, so workflow "
-        "YAML lands unvalidated from Renovate, Dependabot, the web editor, the "
-        "API, and any clone without hooks installed (issue #3330)."
+    assert _invoking_files("scripts/validate_workflows.py"), (
+        "scripts/validate_workflows.py is run by no enabled workflow step, so "
+        "workflow schema lands unvalidated from Renovate, Dependabot, the web "
+        "editor, the API, and any clone without hooks installed (issue #3330)."
     )
+
+
+def test_workflow_validation_is_not_gated_on_the_bot_exclusion() -> None:
+    """Renovate and Dependabot are the traffic this gate exists to cover.
+
+    pr-validation.yml skips most steps for bot actors. Workflow-only PRs are
+    overwhelmingly bot-authored action-pin bumps, so a workflow-validation step
+    carrying that guard would exempt exactly the case it was added for.
+    """
+    document = yaml.safe_load(
+        (_REPO_ROOT / ".github" / "workflows" / "pr-validation.yml").read_text(encoding="utf-8")
+    )
+    validating = [
+        step
+        for step in _steps_of(document)
+        if isinstance(step.get("run"), str) and "scripts/validate_workflows.py" in step["run"]
+    ]
+    assert validating, "pr-validation.yml no longer runs the workflow validator"
+    for step in validating:
+        condition = str(step.get("if", ""))
+        assert "should-run" not in condition, (
+            f"step {step.get('name')!r} is gated on the bot exclusion, so "
+            f"dependabot, renovate, and github-actions bypass it"
+        )
 
 
 def test_the_wiring_probe_reads_real_workflow_files() -> None:
     """Guard the guard: an empty corpus would make every case above vacuous."""
-    text = _workflow_text()
-    assert len(text) > 10_000
-    assert re.search(r"^\s*runs-on:", text, re.MULTILINE)
+    blocks = _live_run_blocks()
+    assert len(blocks) > 50
+    assert any("uv run" in body for _, body in blocks)
+
+
+def test_a_disabled_step_does_not_count_as_a_call_site() -> None:
+    """The substring form this replaced accepted `if: false` steps."""
+    assert _is_disabled({"if": False, "run": "x"})
+    assert _is_disabled({"if": "false", "run": "x"})
+    assert not _is_disabled({"run": "x"})
+    assert not _is_disabled({"if": "${{ github.event_name == 'push' }}", "run": "x"})
+
+
+def test_a_comment_mention_does_not_count_as_a_call_site() -> None:
+    """Parsed YAML drops comments, so a mentioned-but-never-run script fails."""
+    document = yaml.safe_load(
+        "name: X\non: [push]\njobs:\n"
+        "  j:\n    runs-on: ubuntu-latest\n    steps:\n"
+        "      # scripts/ci/ghost.py used to run here\n"
+        "      - run: echo hi\n"
+    )
+    bodies = [s.get("run", "") for s in _steps_of(document)]
+    assert not any("ghost.py" in b for b in bodies)
+
+
+def test_composite_action_steps_are_searched() -> None:
+    """.github/actions bodies use runs.steps, not jobs.*.steps."""
+    document = yaml.safe_load(
+        "name: A\nruns:\n  using: composite\n  steps:\n"
+        "    - run: python3 scripts/ci/example.py\n      shell: bash\n"
+    )
+    assert [s["run"] for s in _steps_of(document)] == ["python3 scripts/ci/example.py"]
