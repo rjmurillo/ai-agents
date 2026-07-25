@@ -109,7 +109,7 @@
       "result": "1 test fails per control; the rest stay green. 42 passed, 16 skipped overall."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "6ddb43db5c49bf2296c8cd6fae8acf48052f7546",
   "nextSteps": [
     "Owner action: rotate the COPILOT_GITHUB_TOKEN secret. Nothing in-repo can fix an expired credential."
   ]
