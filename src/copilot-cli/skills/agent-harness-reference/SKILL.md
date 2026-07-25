@@ -372,6 +372,9 @@ python.exe: can't open file
 [Errno 2] No such file or directory
 ```
 
+POSIX reads `python3: can't open file` with forward slashes. Search for
+`_dispatch.py` plus `Errno 2`, not the interpreter name, which varies by OS.
+
 `_direct` in that path is the local development shadow, not the published
 install. Every tool call is denied for the rest of the session, including read
 tools, because a `PreToolUse` launcher that cannot start its interpreter fails
@@ -386,6 +389,10 @@ sentence, and it costs branching logic inside the highest-blast-radius string in
 the repository, in a generated artifact, in two shell dialects. This is the same
 argument ADR-006 makes against logic in workflow YAML. Evidence: issues #3321
 and #3332, GitHub Copilot CLI 1.0.72-1.
+
+`test_stale_plugin_root_failure_names_the_missing_path` guards that claim: it
+runs a real launcher against a missing root and fails if the path leaves
+stderr. If it goes red, revisit this decision before editing the text.
 
 ## Claude Code Delta
 

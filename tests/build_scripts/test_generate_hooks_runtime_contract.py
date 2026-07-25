@@ -372,3 +372,43 @@ def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
             )
             assert proc.returncode == 0, proc.stderr
             assert "OK" in proc.stdout, f"unresolved powershell path: {ps_expr!r}"
+
+
+def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> None:
+    """A stale plugin root fails closed AND the error names the full path.
+
+    ``agent-harness-reference`` documents this failure mode and rejects an
+    existence check in the launcher command strings on the grounds that the
+    interpreter error already names the missing path (issues #3321, #3332).
+    That rejection is only sound while the claim holds. This test makes the
+    claim falsifiable: if a future interpreter or launcher shape stopped
+    naming the path, the guard argument would have to be revisited and this
+    goes red first.
+    """
+    doc = _generate(tmp_path)
+    stale_root = tmp_path / "moved-away"
+    assert not stale_root.exists()
+    env = _contract_env(copilot_root=str(stale_root), claude_root=str(stale_root))
+    userland = tmp_path / "userland"
+
+    command = _first_bash_command(doc, "PreToolUse")
+    proc = subprocess.run(
+        ["bash", "-c", command],
+        env=env,
+        cwd=userland,
+        input="{}",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+
+    assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
+    expected_path = _bash_resolve(_path_arg(command), env, userland)
+    assert str(stale_root) in expected_path, expected_path
+    assert expected_path in proc.stderr, (
+        "interpreter error must name the missing path, otherwise the "
+        f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
+    )
