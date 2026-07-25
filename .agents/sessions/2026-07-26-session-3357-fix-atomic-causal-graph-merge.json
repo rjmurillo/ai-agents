@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code committed as 4033554b78; session artifacts staged for closing commit"
+        "Evidence": "Code committed as 4033554b78"
       },
       "validationPassed": {
         "level": "MUST",
