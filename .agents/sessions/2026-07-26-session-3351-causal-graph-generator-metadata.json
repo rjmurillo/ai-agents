@@ -6,7 +6,7 @@
     "branch": "fix/3351-causal-graph-generator-metadata",
     "startingCommit": "aaaf9081f568db83665f79ba89261a5cd746fb01",
     "objective": "Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
-    "endingCommit": ""
+    "endingCommit": "b2c8a534e79785f80fa237a089d1a35256b62c40"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -28,17 +28,17 @@
       "sessionLogCreated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This file created for branch docs/adr-057-normalize-workflow-refs."
+        "Evidence": "This file created for branch fix/3351-causal-graph-generator-metadata."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git branch --show-current returned docs/adr-057-normalize-workflow-refs."
+        "Evidence": "git branch --show-current returned fix/3351-causal-graph-generator-metadata."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Working on feature branch docs/adr-057-normalize-workflow-refs stacked on the PR 3315 branch, not main."
+        "Evidence": "Working on feature branch fix/3351-causal-graph-generator-metadata, not main."
       },
       "gitStatusVerified": {
         "level": "MUST",
@@ -48,7 +48,7 @@
       "startingCommitNoted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "startingCommit d9e55e2f9fa8d49b510e4570d00b0832b2044235 recorded from git rev-parse HEAD."
+        "Evidence": "startingCommit aaaf9081f568db83665f79ba89261a5cd746fb01 recorded from git rev-parse HEAD."
       }
     },
     "sessionEnd": {
@@ -75,7 +75,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR-057 normalization, the adr-review debate log, the retrospective, this session log, and the hook-generated memory episode and causal-graph updates committed together as one atomic docs(adr) commit b2c8a534e7 (six files) on branch docs/adr-057-normalize-workflow-refs."
+        "Evidence": "Changes committed on branch fix/3351-causal-graph-generator-metadata."
       },
       "validationPassed": {
         "level": "MUST",
