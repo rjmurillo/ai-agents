@@ -14564,6 +14564,51 @@
         "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859525+00:00"
+    },
+    {
+      "id": "46d80c6da15d",
+      "type": "milestone",
+      "label": "milestone: Re-diagnose #3275 against the current nightly",
+      "episodes": [
+        "episode-2026-07-25-session-3275-smoke-signal"
+      ],
+      "created": "2026-07-25T10:04:39.743924+00:00"
+    },
+    {
+      "id": "0ba1866af641",
+      "type": "milestone",
+      "label": "milestone: Fix the Windows leg of the Claude plugin-root smoke (#3335)",
+      "episodes": [
+        "episode-2026-07-25-session-3275-smoke-signal"
+      ],
+      "created": "2026-07-25T10:04:39.743985+00:00"
+    },
+    {
+      "id": "353efba5263f",
+      "type": "milestone",
+      "label": "milestone: Negative controls",
+      "episodes": [
+        "episode-2026-07-25-session-3275-smoke-signal"
+      ],
+      "created": "2026-07-25T10:04:39.744038+00:00"
+    },
+    {
+      "id": "dfef6b3083a7",
+      "type": "test",
+      "label": "test: Three run: neutering the rejected-token branch of the headline, and returning a str from _marker_path.",
+      "episodes": [
+        "episode-2026-07-25-session-3275-smoke-signal"
+      ],
+      "created": "2026-07-25T10:04:39.744089+00:00"
+    },
+    {
+      "id": "491ef271cee8",
+      "type": "outcome",
+      "label": "Outcome: success - Make the nightly CLI smoke report the auth failure it actually hit (#3275) and stop the Windows leg failing on a path-separator spelling (#3335)",
+      "episodes": [
+        "episode-2026-07-25-session-3275-smoke-signal"
+      ],
+      "created": "2026-07-25T10:04:39.744141+00:00"
     }
   ],
   "patterns": [

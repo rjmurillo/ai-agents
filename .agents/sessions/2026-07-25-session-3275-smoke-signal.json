@@ -1,0 +1,116 @@
+{
+  "session": {
+    "number": 3275,
+    "date": "2026-07-25",
+    "branch": "fix/3275-3335-smoke-signal",
+    "startingCommit": "c0e6d4c1ad506fd0a629b7988c8d21085a2eab15",
+    "objective": "Make the nightly CLI smoke report the auth failure it actually hit (#3275) and stop the Windows leg failing on a path-separator spelling (#3335)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP not probed this session; proceeding per AGENTS.md fallback."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "See serenaActivated."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/*.md directly."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "gitVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current -> fix/3275-3335-smoke-signal, branched from origin/main."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3275-3335-smoke-signal, not main."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git checkout -b fix/3275-3335-smoke-signal origin/main."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Both issues addressed with runnable checks."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on fix/3275-3335-smoke-signal."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/e2e/ -q -> 42 passed, 16 skipped. ruff clean."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed; scoped lint has no targets."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP not probed this session; finding recorded in this log and on issues #3275 and #3335."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Re-diagnose #3275 against the current nightly",
+      "outcome": "The repo-side fail-fast landed and the workflow now reads secrets.COPILOT_GITHUB_TOKEN, but the nightly has been red for six consecutive runs. The secret is populated; the token is refused: 'Failed to fetch PAT user login (401): GitHub returned: Bad credentials'. The CLI still prints its generic 'you can use any of the following methods' list, which matches COPILOT_AUTH_ABSENT_MARKERS, so the headline said the token was empty. That is the same misdiagnosis class #3275 was filed to remove, in a new form.",
+      "result": "Added COPILOT_AUTH_REJECTED_MARKERS and copilot_auth_rejected; the headline now says rotate for a refused token and provision for a missing one. copilot_auth_failed gates both, and all three smoke call sites use it."
+    },
+    {
+      "task": "Fix the Windows leg of the Claude plugin-root smoke (#3335)",
+      "outcome": "The assertion interpolated a Path into a substring test. Claude exports CLAUDE_PLUGIN_ROOT with forward slashes even on Windows, so a correct value failed. Parsed the marker into Path via a _marker_path helper and compared locations; folded the existing hand-rolled script= parse into the same helper.",
+      "result": "Two always-on unit checks pin the parse and the separator equivalence, so the fix is covered in bare CI rather than only in the gated nightly."
+    },
+    {
+      "task": "Negative controls",
+      "outcome": "Three run: neutering the rejected-token branch of the headline, and returning a str from _marker_path.",
+      "result": "1 test fails per control; the rest stay green. 42 passed, 16 skipped overall."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Owner action: rotate the COPILOT_GITHUB_TOKEN secret. Nothing in-repo can fix an expired credential."
+  ]
+}
