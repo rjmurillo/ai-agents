@@ -14519,6 +14519,51 @@
         "episode-2026-07-24-session-3321-apply-patch-regression-guard"
       ],
       "created": "2026-07-25T07:38:28.278709+00:00"
+    },
+    {
+      "id": "e547f1628cea",
+      "type": "milestone",
+      "label": "milestone: Applied the three ADR-057 reference normalizations and verified against source",
+      "episodes": [
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+      ],
+      "created": "2026-07-25T07:04:38.859304+00:00"
+    },
+    {
+      "id": "85f73290142d",
+      "type": "milestone",
+      "label": "milestone: Ran a proportionate adr-review under the ADR Review Protocol",
+      "episodes": [
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+      ],
+      "created": "2026-07-25T07:04:38.859367+00:00"
+    },
+    {
+      "id": "d87165caf8c3",
+      "type": "milestone",
+      "label": "milestone: Re-verified the reviewers' factual claims directly against the working tree",
+      "episodes": [
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+      ],
+      "created": "2026-07-25T07:04:38.859420+00:00"
+    },
+    {
+      "id": "aa39913f2197",
+      "type": "milestone",
+      "label": "milestone: Produced the governance artifacts and prepared the stacked commit",
+      "episodes": [
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+      ],
+      "created": "2026-07-25T07:04:38.859471+00:00"
+    },
+    {
+      "id": "7fd809b1bae4",
+      "type": "outcome",
+      "label": "Outcome: success - Normalize three bare slash-command-quality.yml references in ADR-057 to the full workflow path, resolving the PR 3315 consistency nit via a stacked PR under the ADR Review Protocol.",
+      "episodes": [
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+      ],
+      "created": "2026-07-25T07:04:38.859525+00:00"
     }
   ],
   "patterns": [

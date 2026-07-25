@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-07-25-session-3315-adr057-ref-normalization",
+  "session": "2026-07-25-session-3315-adr057-ref-normalization",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Normalize three bare slash-command-quality.yml references in ADR-057 to the full workflow path, resolving the PR 3315 consistency nit via a stacked PR under the ADR Review Protocol.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied the three ADR-057 reference normalizations and verified against source",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a proportionate adr-review under the ADR Review Protocol",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-verified the reviewers' factual claims directly against the working tree",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Produced the governance artifacts and prepared the stacked commit",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Committed b2c8a534e7 (six files: ADR-057, the debate log, the retrospective, the session log, this episode, and the causal-graph regeneration) on branch docs/adr-057-normalize-workflow-refs",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": [
+    "Right-size the adr-review panel to the change surface and record omitted lenses. Convene only the lenses with real surface (architect, critic), run them for real, and document in the debate log why the others were not convened, instead of producing empty six-agent verdicts.",
+    "Avoid: Claiming a six-agent debate ran when it did not, to satisfy the gate. Run the reviews that genuinely apply, verify their claims independently, and state the panel scope honestly in the artifact."
+  ]
+}

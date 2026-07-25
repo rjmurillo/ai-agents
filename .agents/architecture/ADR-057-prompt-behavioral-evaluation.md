@@ -78,7 +78,7 @@ Each evaluation consists of:
 The gate blocks regressions. It does not mandate an improvement on every edit. A prompt change passes behavioral evaluation when these criteria hold:
 
 1. `after_score >= before_score` (no regression on existing scenarios)
-2. No scenario flips from pass to fail. Every pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. Where the gate runs as a blocking CI leg (currently the `/spec` eval in `slash-command-quality.yml`), a deliberate behavior change normally lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes without a bypass. Only accepting a regression against unchanged expectations requires a human override (admin merge) with the rationale documented in the PR. For prompt files with no blocking CI leg, the gate is advisory and PR review carries the same judgment (see Amendment 2026-07-22).
+2. No scenario flips from pass to fail. Every pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. Where the gate runs as a blocking CI leg (currently the `/spec` eval in `.github/workflows/slash-command-quality.yml`), a deliberate behavior change normally lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes without a bypass. Only accepting a regression against unchanged expectations requires a human override (admin merge) with the rationale documented in the PR. For prompt files with no blocking CI leg, the gate is advisory and PR review carries the same judgment (see Amendment 2026-07-22).
 3. Flakiness on any scenario stays at or below the 40% block threshold.
 
 A change that targets a failing scenario SHOULD move it from fail to pass. This is recorded as `has_improvement` and surfaced in the gate output, but it is not a hard pass requirement (see the 2026-06-01 relaxation note below).
@@ -217,7 +217,7 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ### Enforced (automated gates)
 
-These gates run inside `eval-prompt-change.py`. They fire whenever the eval runner is invoked: advisorily when a contributor runs it before a PR, and as a blocking check when the `/spec` CI leg (`slash-command-quality.yml`) invokes it on a same-repo PR that changes the `/spec` command, its scenario set, or the eval runner. That leg always evaluates the `/spec` command behavior only; a change to the scenario set or the runner triggers a re-evaluation of that same command. No commit-time hook auto-invokes them (see Amendment 2026-07-22).
+These gates run inside `eval-prompt-change.py`. They fire whenever the eval runner is invoked: advisorily when a contributor runs it before a PR, and as a blocking check when the `/spec` CI leg (`.github/workflows/slash-command-quality.yml`) invokes it on a same-repo PR that changes the `/spec` command, its scenario set, or the eval runner. That leg always evaluates the `/spec` command behavior only; a change to the scenario set or the runner triggers a re-evaluation of that same command. No commit-time hook auto-invokes them (see Amendment 2026-07-22).
 
 | Rule | Enforced By | Mechanism |
 |------|-------------|-----------|
@@ -281,7 +281,7 @@ If a broader deterministic gate is later warranted (Deliverable A), it belongs i
 |-----------|----------------|-----------------|------|
 | ADR-023 structural tests | Complementary | Add cross-reference to this ADR | Low |
 | PR template | Direct | Add eval score reporting fields | Low |
-| CI workflows | Indirect | `spec.md` evals run as a blocking CI leg (`slash-command-quality.yml`); other prompt files are not CI-enforced yet | Low |
+| CI workflows | Indirect | `spec.md` evals run as a blocking CI leg (`.github/workflows/slash-command-quality.yml`); other prompt files are not CI-enforced yet | Low |
 | `.agents/testing/prompt-eval-methodology.md` | Source document | Add ADR-057 back-reference | Low |
 
 ## Related Decisions
