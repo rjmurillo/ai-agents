@@ -78,7 +78,7 @@ Each evaluation consists of:
 The gate blocks regressions. It does not mandate an improvement on every edit. A prompt change passes behavioral evaluation when these criteria hold:
 
 1. `after_score >= before_score` (no regression on existing scenarios)
-2. No scenario flips from pass to fail. Every pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the automated gate has no mechanism to accept a "justified" regression. Landing a deliberate trade-off requires a human override (admin merge) with the rationale documented in the PR, not a gate bypass.
+2. No scenario flips from pass to fail. Every pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. Where the gate runs as a blocking CI leg (currently the `/spec` eval in `slash-command-quality.yml`), a deliberate behavior change normally lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes without a bypass. Only accepting a regression against unchanged expectations requires a human override (admin merge) with the rationale documented in the PR. For prompt files with no blocking CI leg, the gate is advisory and PR review carries the same judgment (see Amendment 2026-07-22).
 3. Flakiness on any scenario stays at or below the 40% block threshold.
 
 A change that targets a failing scenario SHOULD move it from fail to pass. This is recorded as `has_improvement` and surfaced in the gate output, but it is not a hard pass requirement (see the 2026-06-01 relaxation note below).
@@ -114,9 +114,9 @@ For non-security prompts, when a scenario produces inconsistent results across r
 
 | Trigger | Level | Enforced By | Rationale |
 |---------|-------|-------------|-----------|
-| Prompt change alters instructions, thresholds, or decision logic | MUST | invoke_prompt_eval_gate.py (blocks commit) | Direct behavioral impact |
+| Prompt change alters instructions, thresholds, or decision logic | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block; the `/spec` CI leg is the one blocking exception (see Amendment 2026-07-22) | Direct behavioral impact |
 | Prompt change alters text structure only | N/A | N/A (structural tests suffice) | No behavioral risk |
-| Ambiguous (rewording that may shift semantics) | MUST | invoke_prompt_eval_gate.py (blocks commit) | When in doubt, treat as behavioral |
+| Ambiguous (rewording that may shift semantics) | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block; the `/spec` CI leg is the one blocking exception (see Amendment 2026-07-22) | When in doubt, treat as behavioral |
 | Monthly for prompts under active iteration | SHOULD | Not automated (manual cadence) | Detect model drift |
 | After Anthropic model version bump | SHOULD | Not automated (manual trigger) | Catch interpretation shifts |
 
@@ -196,7 +196,7 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ### Positive
 
-- Behavioral regressions in prompt changes are caught before merge
+- Behavioral regressions are caught before merge where the eval runs as a blocking CI leg (currently `/spec`); for other in-scope prompt files the eval is advisory at PR review (see Amendment 2026-07-22)
 - Evaluation results are versioned and reproducible
 - Model drift is detectable through scheduled reruns
 - Completes the testing story that ADR-023 left open
@@ -217,9 +217,10 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ### Enforced (automated gates)
 
+These gates run inside `eval-prompt-change.py`. They fire whenever the eval runner is invoked: advisorily when a contributor runs it before a PR, and as a blocking check when the `/spec` CI leg (`slash-command-quality.yml`) invokes it on a same-repo PR that changes the `/spec` command, its scenario set, or the eval runner. That leg always evaluates the `/spec` command behavior only; a change to the scenario set or the runner triggers a re-evaluation of that same command. No commit-time hook auto-invokes them (see Amendment 2026-07-22).
+
 | Rule | Enforced By | Mechanism |
 |------|-------------|-----------|
-| Prompt/skill/agent changes require eval evidence before commit | invoke_prompt_eval_gate.py | Claude Code PreToolUse hook, blocks `git commit` |
 | Scenario file must contain >= 1 scenario | eval-prompt-change.py load_scenarios() | RuntimeError on empty file |
 | after_score >= before_score (no regression) | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
 | No scenario flips pass to fail | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
@@ -233,6 +234,7 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 | Rule | Why Not Automated | Mitigation |
 |------|-------------------|------------|
+| Prompt/skill/agent changes require eval evidence | No commit-time hook (deleted in #3184); one CI leg blocks for `spec.md` only, broader CI automation deferred (below) | PR reviewer checks for eval evidence; advisory except the `/spec` CI leg |
 | >= 1 scenario per decision branch | Requires understanding prompt semantics | PR reviewer checks scenario adequacy |
 | >= 1 regression scenario | Same | PR reviewer checks |
 | Monthly drift reruns | Scheduling concern, not commit-time | Manual cadence, future cron job |
@@ -242,9 +244,24 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ### Enforcement Path
 
-- **Current**: Claude Code hook blocks commits. Acceptance gate enforces regression, flakiness, and security-critical rules automatically.
+- **Current**: No commit-time gate. The PreToolUse hook that nominally blocked commits (`invoke_prompt_eval_gate.py`) was inert (it printed `{"decision":"deny"}` with exit 0, a payload the Claude Code harness ignores) and was deleted in #3184. One CI leg does block: `.github/workflows/slash-command-quality.yml` runs the `eval-prompt-change.py` acceptance gate against `.claude/commands/spec.md` on same-repo PRs that change the `/spec` command, its scenario set (`tests/evals/spec-scenarios.json`), or the eval runner, and fails the check on regression. That leg covers `spec.md` only. For every other prompt, skill, and agent file the eval evidence requirement is advisory, verified at PR review. The `eval-prompt-change.py` acceptance gate enforces regression, flakiness, and security-critical rules only when it is run.
 - **Not automated**: Scenario adequacy, monthly cadence, cost tracking. These require human judgment or scheduling infrastructure not yet built.
-- **Future**: CI automation of eval runs. Deferred until eval runner stabilizes and cost model is validated.
+- **Future**: Broader CI automation of eval runs, beyond the `/spec` leg that already ships. Deferred until the eval runner stabilizes and the cost model is validated.
+
+## Amendment 2026-07-22 (Issue #3185): eval enforcement is advisory, not commit-blocking
+
+The original ADR claimed a Claude Code PreToolUse hook (`invoke_prompt_eval_gate.py`) blocked commits lacking eval evidence. That claim was false from the start: the hook emitted a `{"decision":"deny"}` payload with exit 0, which the harness ignores (the same bug class fixed in `invoke_security_commit_gate.py`, Issue #2521). The hook never blocked a commit. Measured drain: from 2026-06-01, 108 commits touched eval-scoped prompt files while 1 commit added eval evidence.
+
+#3184 deleted the inert hook. This amendment corrects the resulting torn references (the Acceptance Gate note, the "When to Run" and "Confirmation" tables, the Consequences list, the Enforcement Path, and the dependent-components table) so the ADR no longer points at a deleted file or asserts an automated block that never existed, and it scopes the one real block (the `/spec` CI leg) precisely.
+
+Decision (Deliverable B of #3185): keep **enforcement** of the eval evidence requirement advisory (PR review) for every prompt file except the `/spec` CI leg that already blocks; the contributor obligation to run the eval on a behavioral change stays MUST. Do not add a new blocking gate. Rationale:
+
+- The hook-ROI reduction program (#3197) is removing gates and re-homing them into deterministic layers, not adding new blocking hooks.
+- Two distinct automation options exist, and they are not the same deliverable. Option 1 is Deliverable A of #3185: deterministic evidence enforcement (check that eval evidence exists for a changed prompt file) in `scripts/validation/pre_pr.py` plus a CI leg. It needs no LLM and no cost model, reusing changed-path detection (the paths-filter mechanism the `/spec` leg uses to trigger) and then checking for committed eval evidence; it is deferred only on ROI grounds. Option 2 is separate and out of scope for Deliverable A: running the behavioral evals themselves in CI on every prompt change, which spawns LLM calls per change and stays deferred until the cost model is validated.
+- This ADR's own Future path already defers broad CI eval automation "until the eval runner stabilizes and cost model is validated." One exception already shipped: the `/spec` leg runs the behavioral eval for `spec.md` because that command is high-traffic and its scenario set is maintained.
+- The acceptance gate inside `eval-prompt-change.py` remains real and is used both by the `/spec` CI leg and by any contributor who runs an eval before a PR.
+
+If a broader deterministic gate is later warranted (Deliverable A), it belongs in `scripts/validation/pre_pr.py` plus a CI leg with real change-to-evidence matching, not a PreToolUse hook. Running the behavioral evals for all prompt files in CI stays deferred until the cost model this ADR defers is validated.
 
 ## Reversibility Assessment
 
@@ -264,7 +281,7 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 |-----------|----------------|-----------------|------|
 | ADR-023 structural tests | Complementary | Add cross-reference to this ADR | Low |
 | PR template | Direct | Add eval score reporting fields | Low |
-| CI workflows | Indirect | No change required (evals are pre-merge, not CI-enforced yet) | Low |
+| CI workflows | Indirect | `spec.md` evals run as a blocking CI leg (`slash-command-quality.yml`); other prompt files are not CI-enforced yet | Low |
 | `.agents/testing/prompt-eval-methodology.md` | Source document | Add ADR-057 back-reference | Low |
 
 ## Related Decisions
