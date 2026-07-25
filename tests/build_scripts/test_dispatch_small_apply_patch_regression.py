@@ -7,8 +7,9 @@ plugin's PreToolUse gate) via the string-``tool_input`` fixtures below.
 On Windows the Copilot CLI host reported ``Hook command failed with code 1`` on a
 small ``apply_patch`` PreToolUse payload, yet a direct replay of the same payload
 through ``_dispatch.py`` returned exit 0. No PreToolUse shim matches
-``apply_patch`` (the manifest carries Bash, Write/Edit, Grep, Glob, Read, Task,
-and Agent shims), so on this payload every shim skips and the dispatcher returns
+``apply_patch``: the committed manifest registers a single ``Bash``-scoped
+markdownlint guard, and the broader shim set it replaced carried no
+``apply_patch`` matcher either. Every shim skips and the dispatcher returns
 0. The dispatcher is not limited to {0, 2} in general: ``hook_dispatch.run_dispatch``
 propagates a matching shim's first non-zero exit code, so a registered shim that
 exited 1 would surface 1. It is the ABSENCE of an ``apply_patch`` matcher, not a
@@ -21,8 +22,9 @@ What this preserves: the in-repo half of that discrepancy. It replays a small
 ``apply_patch`` payload through the SHIPPED, committed
 ``src/copilot-cli/hooks/PreToolUse/_dispatch.py`` under the verified plugin-root
 contract and asserts exit 0. No registered PreToolUse shim matches
-``apply_patch`` (the manifest carries Bash, Write/Edit, Grep, Glob, Read, Task,
-and Agent shims), so every guard skips and the dispatcher allows. If a future
+``apply_patch`` (see the shim list in
+``src/copilot-cli/hooks/PreToolUse/_manifest.json``), so every guard skips and
+the dispatcher allows. If a future
 dispatcher change ever made this benign payload return a non-zero code, this
 guard fails and localizes the regression to the dispatcher rather than the host.
 
