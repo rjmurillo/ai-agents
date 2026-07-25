@@ -206,7 +206,7 @@ def _bash_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
 def _pwsh_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
     """Expand a PowerShell path expression under ``env`` and ``cwd``."""
     proc = subprocess.run(
-        ["pwsh", "-NoProfile", "-Command", f'Write-Host -NoNewline "{path_expr}"'],
+        ["pwsh", "-NoProfile", "-Command", f'[Console]::Out.Write("{path_expr}")'],
         env=env,
         cwd=cwd,
         capture_output=True,
@@ -382,7 +382,8 @@ def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
                 env=env,
                 cwd=userland,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
                 check=False,
             )
