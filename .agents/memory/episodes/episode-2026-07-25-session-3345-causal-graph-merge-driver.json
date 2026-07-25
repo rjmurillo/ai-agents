@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-07-25-session-3345-causal-graph-merge-driver",
+  "session": "2026-07-25-session-3345-causal-graph-merge-driver",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Stop .agents/memory/causality/causal-graph.json conflicting on every merge (issue #3345) without the data loss the issue's own workaround causes. Resolve by content union through a git merge driver instead of by line.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a content-union merge driver for the causal graph and registered it. Records key on stable identities, counters reconcile three-way against the ancestor instead of summing, episode lists union, created takes the earliest and last_used the latest. A side that will not parse exits nonzero so git leaves the conflict for a human rather than silently taking one side. Registration runs from pre-commit because merge=<name> in .gitattributes is a no-op without per-clone git config.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "32 tests covering union semantics, counter reconciliation, field policies, malformed-record tolerance, load-time refusal, the driver exit contract, and two end-to-end git merges in a scratch repo. The end-to-end set includes a control that omits git config and asserts the merge still conflicts, proving the .gitattributes entry alone does nothing. Three negative controls fired: taking ours instead of the union turned 7 tests red, summing counters instead of three-way reconciliation turned 3 red, and swallowing parse errors turned 4 red.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
