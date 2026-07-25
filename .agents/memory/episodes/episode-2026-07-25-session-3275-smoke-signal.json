@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-07-25-session-3275-smoke-signal",
+  "session": "2026-07-25-session-3275-smoke-signal",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Make the nightly CLI smoke report the auth failure it actually hit (#3275) and stop the Windows leg failing on a path-separator spelling (#3335)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-diagnose #3275 against the current nightly",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix the Windows leg of the Claude plugin-root smoke (#3335)",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Negative controls",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "test",
+      "content": "Three run: neutering the rejected-token branch of the headline, and returning a str from _marker_path.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6ddb43db5c49bf2296c8cd6fae8acf48052f7546",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

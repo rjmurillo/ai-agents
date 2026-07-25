@@ -45,7 +45,7 @@ import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -71,8 +71,8 @@ _copilot_command = copilot_hook_probe.copilot_command
 _manifest = copilot_hook_probe.manifest
 _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
-_copilot_auth_absent = copilot_hook_probe.copilot_auth_absent
-_copilot_auth_absent_headline = copilot_hook_probe.copilot_auth_absent_headline
+_copilot_auth_failed = copilot_hook_probe.copilot_auth_failed
+_copilot_auth_failure_headline = copilot_hook_probe.copilot_auth_failure_headline
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
@@ -201,8 +201,8 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot plugin install exceeded 240s (CLI/infra latency)")
-    if _copilot_auth_absent(install):
-        pytest.fail(_copilot_auth_absent_headline(install))
+    if _copilot_auth_failed(install):
+        pytest.fail(_copilot_auth_failure_headline(install))
     assert install.returncode == 0, install.stderr or install.stdout
 
     try:
@@ -223,20 +223,35 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
-    if _copilot_auth_absent(run):
-        pytest.fail(_copilot_auth_absent_headline(run))
+    if _copilot_auth_failed(run):
+        pytest.fail(_copilot_auth_failure_headline(run))
 
     assert marker.is_file(), _copilot_failure_diagnostics(
         probe_name, plugin, userland, run, install_root
     )
     text = marker.read_text(encoding="utf-8")
     assert "MARKER" in text
-    script_value = text.split("script=", 1)[1].splitlines()[0]
-    script_path = Path(script_value)
+    script_path = _marker_path(text, "script")
     assert "installed-plugins" in script_path.parts
     assert isolated_home in script_path.parents
     assert plugin not in script_path.parents
     assert userland not in script_path.parents
+
+
+def _marker_path(text: str, key: str) -> Path:
+    """Read one ``key=<path>`` line out of the probe marker as a ``Path``.
+
+    The probe writes some values with the separators the CLI handed it, which on
+    Windows can be POSIX while ``str(Path)`` is not. Parsing into ``Path`` makes
+    the comparison about the location rather than about the byte spelling of the
+    separator (issue #3335).
+    """
+    prefix = f"{key}="
+    line = next((line for line in text.splitlines() if line.startswith(prefix)), None)
+    assert line is not None, f"marker missing {prefix!r}; tail={text[-500:]!r}"
+    value = line[len(prefix) :].strip()
+    assert value, f"marker has empty {prefix!r}; tail={text[-500:]!r}"
+    return Path(value)
 
 
 @pytest.mark.smoke
@@ -290,8 +305,39 @@ def test_claude_plugin_dir_hook_resolves(tmp_path: Path) -> None:
     text = marker.read_text(encoding="utf-8")
     assert "MARKER" in text
     # CLAUDE_PLUGIN_ROOT pointed at the loaded plugin and the script ran from it.
-    assert f"CLAUDE_PLUGIN_ROOT={plugin}" in text
-    assert f"script={plugin}" in text
+    # Compare as paths, not strings: Claude exports the root with POSIX
+    # separators even on Windows, where str(Path) yields backslashes, so a raw
+    # substring test fails on a correct value (issue #3335).
+    assert _marker_path(text, "CLAUDE_PLUGIN_ROOT") == plugin
+    assert _marker_path(text, "script") == plugin / "hooks" / "probe.py"
+
+
+def test_marker_path_reads_one_key_and_trims_the_line() -> None:
+    """The marker parser picks the right line and tolerates trailing bytes."""
+    text = "MARKER\r\nscript=/tmp/p/hooks/probe.py \ncwd=/tmp/u\nCLAUDE_PLUGIN_ROOT=/tmp/p\n"
+    assert _marker_path(text, "CLAUDE_PLUGIN_ROOT") == Path("/tmp/p")
+    assert _marker_path(text, "script") == Path("/tmp/p/hooks/probe.py")
+
+
+def test_marker_path_reports_a_missing_key_with_context() -> None:
+    """A truncated marker fails with the missing key and marker tail."""
+    text = "MARKER\ncwd=/tmp/u\n"
+    with pytest.raises(AssertionError, match="marker missing 'script='") as error:
+        _marker_path(text, "script")
+    assert "cwd=/tmp/u" in str(error.value)
+
+
+def test_plugin_root_comparison_is_separator_insensitive() -> None:
+    """Claude exports CLAUDE_PLUGIN_ROOT with POSIX separators even on Windows.
+
+    Comparing as paths accepts that; comparing as strings does not, which is why
+    the Windows leg of this smoke failed on a correct value (issue #3335). The
+    string inequality below is the failure the old assertion produced.
+    """
+    posix_spelling = "C:/Users/runneradmin/AppData/Local/Temp/plugin"
+    native_spelling = r"C:\Users\runneradmin\AppData\Local\Temp\plugin"
+    assert posix_spelling != native_spelling
+    assert PureWindowsPath(posix_spelling) == PureWindowsPath(native_spelling)
 
 
 # Always-on unit checks. They need no real CLI, so they run in bare CI and pin

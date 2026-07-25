@@ -129,6 +129,35 @@ COPILOT_AUTH_ABSENT_MARKERS = (
     "set the copilot_github_token",
 )
 
+# Auth-rejected detection. A populated but expired or revoked token reaches the
+# CLI's auth gate and is turned away by GitHub, and the CLI still prints its
+# "you can use any of the following methods" list naming COPILOT_GITHUB_TOKEN.
+# That list matches COPILOT_AUTH_ABSENT_MARKERS, so a rejected token reads as an
+# empty one and the headline sends the reader to provision a secret that is
+# already provisioned. These markers only appear when a credential was actually
+# presented, so they take precedence over the absent markers. Both are anchored
+# to the CLI's own auth-gate phrasing: a bare "401" or a bare "bad credentials"
+# is too loose for a stream that carries arbitrary model output, which can quote
+# either while auth is fine.
+COPILOT_AUTH_REJECTED_MARKERS = (
+    "github returned: bad credentials",
+    "failed to fetch pat user login",
+)
+
+
+def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the Copilot CLI presented a credential and GitHub refused it.
+
+    Distinguishes an expired or revoked token from a missing one. Both abort the
+    run before any plugin loads, so both gate the same failure, but they need
+    different remediation: rotate the secret versus create it. Same rc and
+    stream handling as :func:`copilot_auth_absent`.
+    """
+    if result.returncode == 0:
+        return False
+    haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
+    return any(marker in haystack for marker in COPILOT_AUTH_REJECTED_MARKERS)
+
 
 def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     """True when the Copilot CLI aborted because no auth token was provided.
@@ -142,25 +171,45 @@ def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     Missing auth is an error path: the CLI aborts non-zero. Gate the marker scan
     on ``returncode != 0`` so a healthy run (rc=0) that happens to echo a marker
     string in its output is never misclassified as an auth failure.
+
+    A rejected token is excluded, not merely deprioritized. The CLI prints the
+    same "you can use any of the following methods" list after a refusal, so the
+    absent markers match a token that plainly exists. Returning True there would
+    make this predicate's own name false and would silently depend on every
+    caller checking :func:`copilot_auth_rejected` first.
     """
     if result.returncode == 0:
+        return False
+    if copilot_auth_rejected(result):
         return False
     haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
     return any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS)
 
 
-def copilot_auth_absent_headline(result: subprocess.CompletedProcess[str]) -> str:
-    """Accurate failure headline for a Copilot run that aborted with no auth.
+def copilot_auth_failed(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the run died at the auth gate, whether absent or rejected."""
+    return copilot_auth_rejected(result) or copilot_auth_absent(result)
+
+
+def copilot_auth_failure_headline(result: subprocess.CompletedProcess[str]) -> str:
+    """Accurate failure headline for a Copilot run that died at the auth gate.
 
     Leads with the real cause (dead auth secret), not the misdiagnosed symptom
     (missing hook marker / rc=1), so the dogfood failure is actionable at a
-    glance. Surfaces rc and both streams because the detector scans stdout too
+    glance. Names which of the two auth failures happened, because "provision
+    the secret" is wrong advice for a secret that exists and has expired.
+    Surfaces rc and both streams because the detectors scan stdout too
     (stream-swap resilience), so a stdout-only auth failure stays actionable.
     See issue #3275.
     """
+    cause = (
+        "Copilot auth token was rejected (expired or revoked); rotate "
+        "COPILOT_GITHUB_TOKEN for the smoke job"
+        if copilot_auth_rejected(result)
+        else "Copilot auth token is empty; provision COPILOT_GITHUB_TOKEN for the smoke job"
+    )
     return (
-        "Copilot auth token is empty; the shipped-base dogfood never ran. "
-        "Provision COPILOT_GITHUB_TOKEN for the smoke job (issue #3275). "
+        f"{cause}. The shipped-base dogfood never ran (issue #3275). "
         f"rc={result.returncode} "
         f"stderr={(result.stderr or '')[-400:]!r} "
         f"stdout={(result.stdout or '')[-400:]!r}"
