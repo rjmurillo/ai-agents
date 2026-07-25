@@ -246,7 +246,12 @@ def _marker_path(text: str, key: str) -> Path:
     the comparison about the location rather than about the byte spelling of the
     separator (issue #3335).
     """
-    return Path(text.split(f"{key}=", 1)[1].splitlines()[0].strip())
+    prefix = f"{key}="
+    line = next((line for line in text.splitlines() if line.startswith(prefix)), None)
+    assert line is not None, f"marker missing {prefix!r}; tail={text[-500:]!r}"
+    value = line[len(prefix) :].strip()
+    assert value, f"marker has empty {prefix!r}; tail={text[-500:]!r}"
+    return Path(value)
 
 
 @pytest.mark.smoke
@@ -312,6 +317,14 @@ def test_marker_path_reads_one_key_and_trims_the_line() -> None:
     text = "MARKER\r\nscript=/tmp/p/hooks/probe.py \ncwd=/tmp/u\nCLAUDE_PLUGIN_ROOT=/tmp/p\n"
     assert _marker_path(text, "CLAUDE_PLUGIN_ROOT") == Path("/tmp/p")
     assert _marker_path(text, "script") == Path("/tmp/p/hooks/probe.py")
+
+
+def test_marker_path_reports_a_missing_key_with_context() -> None:
+    """A truncated marker fails with the missing key and marker tail."""
+    text = "MARKER\ncwd=/tmp/u\n"
+    with pytest.raises(AssertionError, match="marker missing 'script='") as error:
+        _marker_path(text, "script")
+    assert "cwd=/tmp/u" in str(error.value)
 
 
 def test_plugin_root_comparison_is_separator_insensitive() -> None:
