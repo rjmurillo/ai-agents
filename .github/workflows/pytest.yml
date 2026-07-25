@@ -150,8 +150,14 @@ jobs:
       # per ADR-006 (no decision logic in workflow YAML). Both compare against a
       # ref, which is what makes the baseline one-directional: without
       # --base-ref, raising the baseline in the same change that adds the
-      # violations passes as an improvement. A ref name is attacker-controlled text, so it
-      # stays in env rather than being interpolated into the run block.
+      # violations passes as an improvement. A ref name is attacker-controlled
+      # text and gets three separate defenses. Keeping it in env means the
+      # `${{ }}` expression is never substituted into the script source, so a
+      # ref name cannot inject shell syntax. Quoting `"$BASE_REF"` at the one
+      # place the shell does expand it keeps it a single argument to git rather
+      # than a word-split command line. And the ratchet script is handed the
+      # fixed literal FETCH_HEAD, never the ref name, so nothing
+      # attacker-controlled reaches Python argv.
       #
       # The non-PR leg compares against the default branch, not
       # github.event.before: event.before is the branch's own previous tip, so
