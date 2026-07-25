@@ -108,6 +108,11 @@
     {
       "time": "T4",
       "entry": "Six regression cases added, including one that pins the squash-merge behavior directly so the descendant form cannot be reintroduced without a red test, and one that asserts the event stream and the metric agree so the causal graph cannot carry a commit node the metric does not."
+    },
+    {
+      "task": "Replace the unsound ancestry discriminator with a committer-date floor",
+      "outcome": "Adversarial review (gpt-5.6-sol) disproved the ancestor form against the real corpus. .agents/sessions/2026-05-11-session-1832.json opened its log after the green-phase commit, so its own spec and red-phase commits are ancestors of its own startingCommit and were dropped. Nothing in the schema or validate_session_json.py requires the anchor to precede the work, so the 'tautology' framing was wrong. Switched the discriminator to the commit's own committer timestamp against a floor of one day before session.date, which needs no anchor and no assumption about merge strategy. Re-swept all 917 session logs: 5 SHAs excluded across 5 logs, every one an explicit citation (Verified PR #2168 merge commit, git-blamed exit-4 added #2394, Recovered ADR-075 from orphan commit), and no session-authored commit lost.",
+      "result": "149 tests pass. Two negative controls: disabling the filter fails 2 exclusion tests; reinstating the ancestor rule fails the session-1832 regression test."
     }
   ],
   "endingCommit": "",

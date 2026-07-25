@@ -14618,6 +14618,15 @@
         "episode-2026-07-25-session-3328-prose-sha-provenance"
       ],
       "created": "2026-07-25T09:14:18.884510+00:00"
+    },
+    {
+      "id": "b0a5f94846b6",
+      "type": "milestone",
+      "label": "milestone: Replace the unsound ancestry discriminator with a committer-date floor",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T09:55:32.228667+00:00"
     }
   ],
   "patterns": [
