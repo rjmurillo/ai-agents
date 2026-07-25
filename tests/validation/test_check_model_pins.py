@@ -382,6 +382,18 @@ def test_nested_pin_inside_a_list_is_found(tmp_path: Path) -> None:
     assert any("'claude-opus-4-6' under 'variants[1].model'" in v for v in report.violations)
 
 
+def test_model_sequence_pins_are_found(tmp_path: Path) -> None:
+    _skill(
+        tmp_path,
+        "sequence",
+        "name: sequence\nmetadata:\n  model:\n    - claude-opus-4-6\n    - claude-sonnet-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    joined = " ".join(report.violations)
+    assert "'claude-opus-4-6' under 'metadata.model[0]'" in joined
+    assert "'claude-sonnet-4-6' under 'metadata.model[1]'" in joined
+
+
 def test_cyclic_yaml_alias_does_not_crash_the_gate(tmp_path: Path) -> None:
     # A self-referential anchor is valid YAML. An unguarded walk raises
     # RecursionError, which reads as a broken gate rather than a broken file.
