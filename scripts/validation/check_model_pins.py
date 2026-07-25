@@ -89,7 +89,7 @@ class Unit:
     kind: str
     model: str | None
     rationale: str | None
-    nested_under: str | None = None
+    nested_pins: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass
@@ -173,29 +173,36 @@ def alias_prices_below_default(
     return alias_price < default_price
 
 
-def _find_nested_model(node: object) -> str | None:
-    """Return the first ``model`` value nested anywhere below ``node``.
+def _collect_nested_pins(
+    node: object, prefix: str, stack: frozenset[int], out: list[tuple[str, str]]
+) -> None:
+    """Append every ``model`` value at or below ``node`` as (dotted path, value).
 
-    A pin written as ``metadata.model`` still ships to customers in the
-    generated mirrors and still rots when the id retires, so it carries the
-    same drift and retirement cost ADR-080 exists to remove. The flat
-    frontmatter view drops it, so the check walks the typed structure instead
-    (issue #2840).
+    Walks the typed YAML rather than the flat frontmatter view, which drops
+    indented keys entirely (issue #2840). Collecting every occurrence rather
+    than the first matters: a unit can carry a compliant top-level alias and a
+    versioned id under ``metadata`` at the same time, and reporting only one of
+    them lets the other ship.
+
+    ``stack`` holds the ids of the containers currently being walked, so a
+    cyclic YAML alias terminates instead of raising RecursionError. It is the
+    recursion path rather than a global visited set, so a node reachable twice
+    through different keys is still reported under both paths.
     """
+    if isinstance(node, (dict, list)):
+        if id(node) in stack:
+            return
+        stack = stack | {id(node)}
     if isinstance(node, dict):
-        model = node.get("model")
-        if isinstance(model, str) and model.strip():
-            return model.strip()
-        for value in node.values():
-            found = _find_nested_model(value)
-            if found is not None:
-                return found
+        for key, value in node.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if key == "model" and isinstance(value, str) and value.strip():
+                out.append((path, value.strip()))
+                continue
+            _collect_nested_pins(value, path, stack, out)
     elif isinstance(node, list):
-        for item in node:
-            found = _find_nested_model(item)
-            if found is not None:
-                return found
-    return None
+        for index, item in enumerate(node):
+            _collect_nested_pins(item, f"{prefix}[{index}]", stack, out)
 
 
 def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
@@ -208,10 +215,6 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     fm = parsed.frontmatter
     model = fm.get("model")
     rationale = fm.get("model-rationale")
-    nested_path: str | None = None
-    if not isinstance(model, str) or not model.strip():
-        model, nested_path = _nested_pin(parsed.typed)
-        rationale = None
     try:
         rel = path.relative_to(repo_root).as_posix()
     except ValueError:
@@ -219,21 +222,25 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     return Unit(
         path=rel,
         kind=kind,
-        model=model.strip() if isinstance(model, str) else None,
+        model=model.strip() if isinstance(model, str) and model.strip() else None,
         rationale=rationale.strip() if isinstance(rationale, str) else None,
-        nested_under=nested_path,
+        nested_pins=_nested_pins(parsed.typed),
     )
 
 
-def _nested_pin(typed: dict[str, object]) -> tuple[str | None, str | None]:
-    """Find a model pin below the top level, with the key it hides under."""
+def _nested_pins(typed: dict[str, object]) -> tuple[tuple[str, str], ...]:
+    """Every model pin below the top level, sorted by its dotted path.
+
+    A pin written as ``metadata.model`` still ships to customers in the
+    generated mirrors and still rots when the id retires, so it carries the
+    same drift and retirement cost ADR-080 exists to remove.
+    """
+    out: list[tuple[str, str]] = []
     for key, value in typed.items():
         if key == "model":
             continue
-        found = _find_nested_model(value)
-        if found is not None:
-            return found, str(key)
-    return None, None
+        _collect_nested_pins(value, str(key), frozenset(), out)
+    return tuple(sorted(out))
 
 
 def scan_units(repo_root: Path = _REPO_ROOT) -> list[Unit]:
@@ -251,7 +258,7 @@ def scan_units(repo_root: Path = _REPO_ROOT) -> list[Unit]:
                 continue
             seen.add(key)
             unit = _classify_and_read(path, kind, repo_root)
-            if unit is not None and unit.model:
+            if unit is not None and (unit.model or unit.nested_pins):
                 units.append(unit)
     return units
 
@@ -312,10 +319,11 @@ def _unit_rule_failure(
 ) -> str | None:
     """Return why a unit violates ADR-080 rules 1-3, or None when it complies."""
     model = unit.model or ""
-    if unit.nested_under:
+    if unit.nested_pins:
+        listed = ", ".join(f"'{value}' under '{key}'" for key, value in unit.nested_pins)
         return (
-            f"model pin '{model}' is nested under '{unit.nested_under}'; no "
-            f"harness reads it, so it is drift with no effect (ADR-080)"
+            f"model pin(s) nested below the top level: {listed}; no harness "
+            f"reads them, so they are drift with no effect (ADR-080)"
         )
     if model in ROLLING_ALIASES:
         if not unit.rationale:
@@ -414,7 +422,7 @@ def run_check(
         if failure is None:
             continue
         model = unit.model or ""
-        if unit.nested_under:
+        if unit.nested_pins:
             report.fail(unit.path, f"[nested pin] {failure}")
         elif unit.path not in baseline:
             report.fail(unit.path, f"[new pin] {failure}")
@@ -437,7 +445,10 @@ def write_baseline(units: list[Unit], baseline_path: Path = _BASELINE_PATH) -> i
     """
     _, existing_frozen_count = load_baseline(baseline_path)
 
-    pins = {u.path: (u.model or "") for u in sorted(units, key=lambda u: u.path)}
+    # A nested-only unit has no top-level model to freeze, and a nested pin is a
+    # hard violation forever, so it must never enter the baseline as an empty
+    # string that a later comparison would read as a matching pin.
+    pins = {u.path: u.model for u in sorted(units, key=lambda u: u.path) if u.model}
 
     frozen_count = existing_frozen_count if existing_frozen_count > 0 else len(pins)
 

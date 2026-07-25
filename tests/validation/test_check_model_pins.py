@@ -306,7 +306,7 @@ def test_nested_versioned_skill_pin_fails(tmp_path: Path) -> None:
     )
     report = _run(tmp_path, baseline={}, manifest=[])
     assert report.scanned == 1
-    assert any("nested under 'metadata'" in v for v in report.violations)
+    assert any("'claude-opus-4-6' under 'metadata.model'" in v for v in report.violations)
 
 
 def test_nested_bare_alias_fails_even_with_rationale(tmp_path: Path) -> None:
@@ -318,7 +318,7 @@ def test_nested_bare_alias_fails_even_with_rationale(tmp_path: Path) -> None:
         "name: nested-alias\nmetadata:\n  model: haiku\n  model-rationale: cheap lookups only",
     )
     report = _run(tmp_path, baseline={}, manifest=[])
-    assert any("nested under 'metadata'" in v for v in report.violations)
+    assert any("'haiku' under 'metadata.model'" in v for v in report.violations)
 
 
 def test_nested_agent_pin_fails_despite_valid_manifest(tmp_path: Path) -> None:
@@ -331,12 +331,13 @@ def test_nested_agent_pin_fails_despite_valid_manifest(tmp_path: Path) -> None:
         baseline={},
         manifest=[_keep_entry(tmp_path, unit, "claude-opus-4-6")],
     )
-    assert any("nested under 'metadata'" in v for v in report.violations)
+    assert any("'claude-opus-4-6' under 'metadata.model'" in v for v in report.violations)
 
 
-def test_top_level_pin_wins_over_nested(tmp_path: Path) -> None:
-    # The harness reads the top-level key, so that is the pin under policy; the
-    # nested value must not shadow it or the failure message would misattribute.
+def test_compliant_top_level_alias_does_not_hide_a_nested_pin(tmp_path: Path) -> None:
+    # Otherwise the laundering path is one line: keep the versioned id below the
+    # top level and satisfy the gate with a compliant alias above it. The
+    # versioned id still ships in the mirrors and still rots on retirement.
     _skill(
         tmp_path,
         "both",
@@ -344,7 +345,48 @@ def test_top_level_pin_wins_over_nested(tmp_path: Path) -> None:
         "metadata:\n  model: claude-opus-4-6",
     )
     report = _run(tmp_path, baseline={}, manifest=[])
-    assert report.violations == []
+    assert any("'claude-opus-4-6' under 'metadata.model'" in v for v in report.violations)
+
+
+def test_every_nested_pin_is_reported_not_just_the_first(tmp_path: Path) -> None:
+    # Reporting one at a time turns a single fix into a game of whack-a-mole and
+    # lets the unreported id survive the commit that "fixed" the file.
+    _skill(
+        tmp_path,
+        "two",
+        "name: two\nalpha:\n  model: claude-opus-4-6\nbeta:\n  model: claude-sonnet-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    joined = " ".join(report.violations)
+    assert "'claude-opus-4-6' under 'alpha.model'" in joined
+    assert "'claude-sonnet-4-6' under 'beta.model'" in joined
+
+
+def test_nested_pin_is_found_outside_metadata(tmp_path: Path) -> None:
+    # The three real offenders all hid under metadata, so a detector that only
+    # searched that key would pass every test written from them and still miss
+    # the next one.
+    _skill(tmp_path, "elsewhere", "name: elsewhere\nconfig:\n  runtime:\n    model: haiku")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("'haiku' under 'config.runtime.model'" in v for v in report.violations)
+
+
+def test_nested_pin_inside_a_list_is_found(tmp_path: Path) -> None:
+    _skill(
+        tmp_path,
+        "listed",
+        "name: listed\nvariants:\n  - name: fast\n  - name: slow\n    model: claude-opus-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("'claude-opus-4-6' under 'variants[1].model'" in v for v in report.violations)
+
+
+def test_cyclic_yaml_alias_does_not_crash_the_gate(tmp_path: Path) -> None:
+    # A self-referential anchor is valid YAML. An unguarded walk raises
+    # RecursionError, which reads as a broken gate rather than a broken file.
+    _skill(tmp_path, "cyclic", "name: cyclic\nloop: &a\n  self: *a\n  model: haiku")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("'haiku' under 'loop.model'" in v for v in report.violations)
 
 
 def test_nested_non_model_keys_do_not_register_a_pin(tmp_path: Path) -> None:
