@@ -355,7 +355,36 @@ class TestJobsAreRunnable:
         validator = WorkflowValidator(tmp_path)
         content = {"name": "X", "on": ["push"], "jobs": {"a": {"steps": []}}}
         validator.validate_workflow_structure(tmp_path / "wf.yml", content)
-        assert any("neither 'runs-on' nor 'uses'" in e for e in validator.errors)
+        assert any("no 'runs-on' value and no 'uses' value" in e for e in validator.errors)
+
+    def test_an_empty_runs_on_value_is_an_error(self, tmp_path: Path):
+        """A bare `runs-on:` parses as None and GitHub rejects it at dispatch.
+
+        Testing key presence let this through, so the typo surfaced as a red
+        run rather than a red check.
+        """
+        validator = WorkflowValidator(tmp_path)
+        content = {"name": "X", "on": ["push"], "jobs": {"a": {"runs-on": None, "steps": []}}}
+        validator.validate_workflow_structure(tmp_path / "wf.yml", content)
+        assert any("no 'runs-on' value" in e for e in validator.errors)
+
+    def test_an_empty_matrix_label_list_is_an_error(self, tmp_path: Path):
+        """`runs-on: []` is the list-shaped spelling of the same typo."""
+        validator = WorkflowValidator(tmp_path)
+        content = {"name": "X", "on": ["push"], "jobs": {"a": {"runs-on": [], "steps": []}}}
+        validator.validate_workflow_structure(tmp_path / "wf.yml", content)
+        assert any("no 'runs-on' value" in e for e in validator.errors)
+
+    def test_a_matrix_label_list_is_runnable(self, tmp_path: Path):
+        """Guard the guard: a populated list must not trip the emptiness check."""
+        validator = WorkflowValidator(tmp_path)
+        content = {
+            "name": "X",
+            "on": ["push"],
+            "jobs": {"a": {"runs-on": ["self-hosted", "linux"], "steps": []}},
+        }
+        validator.validate_workflow_structure(tmp_path / "wf.yml", content)
+        assert validator.errors == []
 
     def test_reusable_workflow_job_needs_no_runs_on(self, tmp_path: Path):
         validator = WorkflowValidator(tmp_path)
@@ -452,3 +481,85 @@ class TestReusableWorkflowPinning:
         assert "must be a string" in validator.errors[0]
         assert "int" in validator.errors[0]
         assert "SHA pinning" in validator.errors[1]
+
+
+class TestMalformedJobsDoesNotAbortThePass:
+    """A wrong-typed `jobs` must be reported, not raised.
+
+    ``validate_workflow_structure`` already reports it. The later passes used
+    to call ``.items()`` on whatever was there, so one malformed file took down
+    validation for every remaining file in the repo and the run reported
+    nothing about them.
+    """
+
+    def test_list_shaped_jobs_does_not_raise_in_action_pinning(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        content = {"jobs": [{"a": {"runs-on": "ubuntu-latest"}}]}
+        validator.validate_action_pinning(tmp_path / "wf.yml", content)
+        assert validator.errors == []
+
+    def test_string_shaped_jobs_does_not_raise_in_action_pinning(self, tmp_path: Path):
+        validator = WorkflowValidator(tmp_path)
+        validator.validate_action_pinning(tmp_path / "wf.yml", {"jobs": "oops"})
+        assert validator.errors == []
+
+    def test_structure_still_reports_the_wrong_type_exactly_once(self, tmp_path: Path):
+        """The skip above must not silence the one place that owns the message."""
+        validator = WorkflowValidator(tmp_path)
+        content = {"name": "X", "on": ["push"], "jobs": "oops"}
+        validator.validate_workflow_structure(tmp_path / "wf.yml", content)
+        validator.validate_action_pinning(tmp_path / "wf.yml", content)
+        assert len([e for e in validator.errors if "must be a dictionary" in e]) == 1
+
+
+class TestLoaderIsSafe:
+    """ADR-006 forbids calling yaml.load at all, SafeLoader subclass or not."""
+
+    def test_the_module_never_names_yaml_load(self):
+        source = Path(_mod.__file__).read_text(encoding="utf-8")
+        assert "yaml.load(" not in source, (
+            "ADR-006 line 293: consumers MUST never call yaml.load(). A later "
+            "edit that drops the Loader argument reaches the unsafe default."
+        )
+
+    def test_a_python_object_tag_is_rejected(self, tmp_path: Path):
+        """The property the ban protects, asserted behaviourally."""
+        wf = tmp_path / "wf.yml"
+        wf.write_text("name: !!python/object/apply:os.system ['echo pwned']\n", encoding="utf-8")
+        validator = WorkflowValidator(tmp_path)
+        assert validator.validate_yaml_syntax(wf) is False
+        assert any("YAML syntax error" in e for e in validator.errors)
+
+    def test_a_well_formed_workflow_still_parses(self, tmp_path: Path):
+        """Guard the guard: the rejection above must not be blanket."""
+        wf = tmp_path / "wf.yml"
+        wf.write_text("name: X\non: [push]\njobs:\n  a:\n    runs-on: ubuntu-latest\n", "utf-8")
+        validator = WorkflowValidator(tmp_path)
+        assert validator.validate_yaml_syntax(wf) is True
+        assert validator.errors == []
+
+
+class TestSubprocessDecoding:
+    """Captured child output must be decoded explicitly, not by locale default.
+
+    On Windows an unset encoding makes subprocess decode as cp1252. Git prints
+    UTF-8 (branch glyphs, non-ASCII paths), the reader thread dies mid-decode,
+    and ``result.stdout`` silently comes back as None instead of raising. The
+    caller then treats "no changed workflows" as a clean run.
+    """
+
+    _CAPTURING = "capture_output=True,"
+
+    def _source(self) -> str:
+        return Path(_mod.__file__).read_text(encoding="utf-8")
+
+    def test_every_capture_pins_the_codec(self):
+        source = self._source()
+        assert source.count(self._CAPTURING) == source.count('encoding="utf-8",')
+
+    def test_no_capture_relies_on_text_mode_alone(self):
+        assert "text=True" not in self._source()
+
+    def test_every_capture_tolerates_undecodable_bytes(self):
+        source = self._source()
+        assert source.count(self._CAPTURING) == source.count('errors="replace",')

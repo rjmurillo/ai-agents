@@ -25,6 +25,7 @@ literal `if: false` form is treated as dead.
 from __future__ import annotations
 
 import functools
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -105,8 +106,31 @@ def _live_run_blocks() -> tuple[tuple[str, str], ...]:
     return tuple(blocks)
 
 
+def _strip_commented_lines(body: str) -> str:
+    """Drop whole-line shell comments from a `run:` body.
+
+    A step that reads::
+
+        # python scripts/ci/foo.py   # disabled, see #1234
+        echo skipping
+
+    used to count as wiring, so commenting a script out left the probe green
+    and the guard asleep.  Only leading-`#` lines are removed: a trailing `#`
+    can sit inside single quotes, a double-quoted string, or a `${VAR#pat}`
+    expansion, and stripping from there mangles live commands.
+    """
+    kept = [line for line in body.splitlines() if not line.lstrip().startswith("#")]
+    return "\n".join(kept)
+
+
 def _invoking_files(script_path: str) -> list[Path]:
-    return sorted({Path(path) for path, body in _live_run_blocks() if script_path in body})
+    return sorted(
+        {
+            Path(path)
+            for path, body in _live_run_blocks()
+            if script_path in _strip_commented_lines(body)
+        }
+    )
 
 
 def _ci_scripts() -> list[Path]:
@@ -216,3 +240,50 @@ def test_composite_action_steps_are_searched() -> None:
         "    - run: python3 scripts/ci/example.py\n      shell: bash\n"
     )
     assert [s["run"] for s in _steps_of(document)] == ["python3 scripts/ci/example.py"]
+
+
+_this = sys.modules[__name__]
+
+
+class TestCommentedOutInvocationsDoNotCount:
+    """A commented-out call is not wiring, and the probe must say so.
+
+    The whole point of this module is to catch a script that ships with tests
+    and is wired into nothing.  Substring matching over the raw `run:` body
+    scored a `#`-prefixed mention as a live call, so the cheapest way to
+    silence a red guard was to comment the invocation out.
+
+    These exercise ``_invoking_files``, not the stripper it calls: testing the
+    helper alone passes even when nothing routes through it.
+    """
+
+    @staticmethod
+    def _with_corpus(monkeypatch, *bodies: str) -> None:
+        blocks = tuple((f".github/workflows/w{i}.yml", b) for i, b in enumerate(bodies))
+        monkeypatch.setattr(_this, "_live_run_blocks", lambda: blocks)
+
+    def test_a_commented_line_does_not_count_as_wiring(self, monkeypatch):
+        self._with_corpus(monkeypatch, "# python scripts/ci/foo.py\necho hi")
+        assert _invoking_files("scripts/ci/foo.py") == []
+
+    def test_an_indented_comment_does_not_count_as_wiring(self, monkeypatch):
+        self._with_corpus(monkeypatch, "if true; then\n    # python scripts/ci/foo.py\nfi")
+        assert _invoking_files("scripts/ci/foo.py") == []
+
+    def test_a_live_call_still_counts(self, monkeypatch):
+        self._with_corpus(monkeypatch, "# set up\npython scripts/ci/foo.py --max 87")
+        assert _invoking_files("scripts/ci/foo.py") == [Path(".github/workflows/w0.yml")]
+
+    def test_a_trailing_comment_does_not_truncate_the_command(self, monkeypatch):
+        """Mid-line `#` is left alone: it appears inside quotes and expansions."""
+        self._with_corpus(monkeypatch, "python scripts/ci/foo.py  # ratchet, see ADR-006")
+        assert _invoking_files("scripts/ci/foo.py") == [Path(".github/workflows/w0.yml")]
+
+    def test_a_hash_inside_a_parameter_expansion_survives(self, monkeypatch):
+        self._with_corpus(monkeypatch, 'python scripts/ci/foo.py --tag "${REF#refs/heads/}"')
+        assert _invoking_files("scripts/ci/foo.py") == [Path(".github/workflows/w0.yml")]
+
+    def test_a_live_call_beside_a_commented_one_still_counts(self, monkeypatch):
+        """Stripping must not throw away the rest of a multi-line body."""
+        self._with_corpus(monkeypatch, "# python scripts/ci/foo.py --old\npython scripts/ci/foo.py")
+        assert _invoking_files("scripts/ci/foo.py") == [Path(".github/workflows/w0.yml")]

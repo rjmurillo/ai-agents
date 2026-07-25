@@ -84,7 +84,15 @@ class WorkflowValidator:
         """
         try:
             with open(file_path, encoding="utf-8") as f:
-                yaml.load(f, Loader=_StrictLoader)
+                # ADR-006 line 293 bans the module-level generic loader entry
+                # point outright, SafeLoader subclass or not: the next edit that
+                # drops the Loader argument silently reaches the unsafe default.
+                # This is that function's body, with no such argument to lose.
+                loader = _StrictLoader(f)
+                try:
+                    loader.get_single_data()
+                finally:
+                    loader.dispose()
             return True
         except yaml.YAMLError as e:
             self.errors.append(f"{file_path}: YAML syntax error: {e}")
@@ -120,14 +128,24 @@ class WorkflowValidator:
             if not isinstance(job, dict):
                 self.errors.append(f"{file_path}: Job '{job_name}' must be a mapping")
                 continue
-            if "runs-on" not in job and "uses" not in job:
+            # Presence is not enough. A bare `runs-on:` parses as None and an
+            # empty matrix label list parses as [], both of which GitHub
+            # rejects at dispatch. Testing the value turns that into a red
+            # check instead of a red run.
+            if not job.get("runs-on") and not job.get("uses"):
                 self.errors.append(
-                    f"{file_path}: Job '{job_name}' has neither 'runs-on' nor 'uses'"
+                    f"{file_path}: Job '{job_name}' has no 'runs-on' value and no 'uses' value"
                 )
 
     def validate_action_pinning(self, file_path: Path, content: dict[str, Any]) -> None:
         """Validate that actions use SHA pinning (security requirement)."""
         jobs = content.get("jobs", {})
+        # validate_workflow_structure already reports a non-mapping `jobs`.
+        # Repeating the error here would double-count it, but iterating it
+        # would raise and abort the pass over every remaining file, so the
+        # wrong type is skipped and stays reported exactly once.
+        if not isinstance(jobs, dict):
+            return
         for job_name, job in jobs.items():
             if not isinstance(job, dict):
                 continue
@@ -254,6 +272,12 @@ class WorkflowValidator:
         """
         combined = re.compile("|".join(self._DANGEROUS_PATTERNS))
         jobs = content.get("jobs", {})
+        # validate_workflow_structure already reports a non-mapping `jobs`.
+        # Repeating the error here would double-count it, but iterating it
+        # would raise and abort the pass over every remaining file, so the
+        # wrong type is skipped and stays reported exactly once.
+        if not isinstance(jobs, dict):
+            return
         for job_name, job in jobs.items():
             if not isinstance(job, dict):
                 continue
@@ -321,7 +345,8 @@ class WorkflowValidator:
                 ["git", "diff", "--name-only", "HEAD"],
                 cwd=self.repo_root,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
             )
             changed_files = result.stdout.strip().split("\n")
@@ -331,7 +356,8 @@ class WorkflowValidator:
                 ["git", "ls-files", "--others", "--exclude-standard"],
                 cwd=self.repo_root,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=True,
             )
             if result.stdout.strip():
@@ -364,7 +390,8 @@ class WorkflowValidator:
                 ["act", "--list", "-W", str(workflow_path)],
                 cwd=self.repo_root,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
             if result.returncode != 0:
