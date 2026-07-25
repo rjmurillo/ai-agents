@@ -1296,3 +1296,76 @@ def test_format_text_surfaces_warning_detail_on_ok() -> None:
     out = w._format_text(report)
     assert out.startswith("workflow-local-test: OK")
     assert "[WARN]" in out
+
+
+def test_act_limitation_hint_matches_paths_filter_missing_base() -> None:
+    # act's synthetic event payload omits repository.default_branch, so
+    # dorny/paths-filter aborts (#3331). GitHub always populates it, so this
+    # signature cannot arise in CI and is safe to downgrade for every event.
+    verbatim = (
+        "[Python Tests/Check Changed Paths]   ::error::This action requires "
+        "'base' input to be configured or 'repository.default_branch' to be "
+        "set in the event payload"
+    )
+    hint = w._act_limitation_hint(verbatim)
+    assert hint is not None
+    assert "repository.default_branch" in hint
+    # Not event-scoped: the payload gap is identical on every act event.
+    assert w._act_limitation_hint(verbatim, "pull_request") is not None
+    assert w._act_limitation_hint(verbatim, "workflow_dispatch") is not None
+
+
+def test_act_limitation_hint_does_not_match_unrelated_base_error() -> None:
+    # A genuine workflow defect that merely mentions 'base' must keep blocking.
+    assert w._act_limitation_hint("Error: base branch not found") is None
+    assert w._act_limitation_hint("::error::invalid 'base' input value 'xyz'") is None
+
+
+def test_act_limitation_hint_blocks_when_a_genuine_error_rides_along() -> None:
+    # The downgrade used to match anywhere in the combined output, so one act
+    # limitation excused every other failure in the same workflow run. An
+    # ::error:: annotation no limitation explains must keep the stage blocking.
+    combined = (
+        "[Python Tests/Check Changed Paths]   ::error::This action requires "
+        "'base' input to be configured or 'repository.default_branch' to be "
+        "set in the event payload\n"
+        "[Python Tests/Run tests]   ::error::pytest exited with 1"
+    )
+    assert w._act_limitation_hint(combined) is None
+
+
+def test_act_limitation_hint_downgrades_when_every_annotation_is_explained() -> None:
+    # Two limitations in one run is still a limitation, not a defect.
+    combined = (
+        "[A/Filter]   ::error::This action requires 'base' input to be "
+        "configured or 'repository.default_branch' to be set in the event "
+        "payload\n"
+        "[A/Checkout]   fatal: not a git repository"
+    )
+    assert w._act_limitation_hint(combined) is not None
+
+
+def test_act_limitation_hint_ignores_non_annotation_noise() -> None:
+    # act prints job-level failure lines that carry no attribution. Treating
+    # those as unexplained would make every downgrade unreachable.
+    combined = (
+        "[A/Filter]   ::error::This action requires 'base' input to be "
+        "configured or 'repository.default_branch' to be set in the event "
+        "payload\n"
+        "[A/Filter]   \u274c  Failure - Main dorny/paths-filter@v3\n"
+        "Job 'filter' failed"
+    )
+    assert w._act_limitation_hint(combined) is not None
+
+
+def test_pr_context_annotation_is_unexplained_outside_pull_request() -> None:
+    # The pull_request rules are event-scoped, so under workflow_dispatch their
+    # annotation is unexplained and must veto an otherwise-downgradable run.
+    combined = (
+        "[A/Filter]   ::error::This action requires 'base' input to be "
+        "configured or 'repository.default_branch' to be set in the event "
+        "payload\n"
+        "[A/Validate]   ::error::PR_TITLE environment variable is required"
+    )
+    assert w._act_limitation_hint(combined, "pull_request") is not None
+    assert w._act_limitation_hint(combined, "workflow_dispatch") is None
