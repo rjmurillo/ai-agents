@@ -112,7 +112,7 @@
     {
       "time": "2026-07-25T02:40:00Z",
       "action": "Removed the three nested versioned pins and regenerated the customer-facing mirrors",
-      "result": "build_all.py propagated the deletion to src/copilot-cli/skills; git grep for a nested claude- id across both trees returns nothing. Both plugin manifests bumped to 0.6.103 and parity confirmed."
+      "result": "build_all.py propagated the deletion to src/copilot-cli/skills; git grep for a nested claude- id across both trees returns nothing. Both plugin manifests bumped to 0.6.104 and parity confirmed."
     },
     {
       "time": "2026-07-25T02:50:00Z",
