@@ -195,7 +195,8 @@ def _bash_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
         env=env,
         cwd=cwd,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         check=False,
     )
@@ -258,7 +259,8 @@ def test_direct_rollback_runs_silently_with_side_effects(
         env=env,
         cwd=userland,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         input="",
         check=False,
@@ -280,7 +282,8 @@ def test_user_prompt_direct_failure_is_silent_and_nonzero(tmp_path: Path) -> Non
         env=env,
         cwd=userland,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         input="{bad json",
         check=False,
@@ -319,7 +322,8 @@ def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
         env=env,
         cwd=userland,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         input="",
         check=False,
@@ -424,7 +428,6 @@ def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> Non
         cwd=userland,
         input="{}",
         capture_output=True,
-        text=True,
         encoding="utf-8",
         errors="replace",
         timeout=30,
@@ -460,7 +463,6 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
         cwd=tmp_path,
         input="{}",
         capture_output=True,
-        text=True,
         encoding="utf-8",
         errors="replace",
         timeout=30,
@@ -475,3 +477,32 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
         "PowerShell interpreter error must name the missing path, otherwise the "
         f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
     )
+
+
+class TestSubprocessDecoding:
+    """Captured launcher output must be decoded explicitly, not by locale.
+
+    This module drives real ``bash`` and ``pwsh`` and asserts on their stderr.
+    On Windows an unset encoding decodes as cp1252, the reader thread dies
+    mid-decode on a non-ASCII path, and ``proc.stderr`` comes back as None
+    instead of raising. The stale-root assertion then fails with a NoneType
+    error that says nothing about the contract it was guarding.
+    """
+
+    _CAPTURING = "capture_output=True,"
+    # Built from parts so the guard below does not match its own needle.
+    _TEXT_MODE = "text" + "=True"
+
+    def _source(self) -> str:
+        return Path(__file__).read_text(encoding="utf-8")
+
+    def test_every_capture_pins_the_codec(self) -> None:
+        source = self._source()
+        assert source.count(self._CAPTURING) == source.count('encoding="utf-8",')
+
+    def test_every_capture_tolerates_undecodable_bytes(self) -> None:
+        source = self._source()
+        assert source.count(self._CAPTURING) == source.count('errors="replace",')
+
+    def test_no_capture_relies_on_text_mode_alone(self) -> None:
+        assert self._TEXT_MODE not in self._source()
