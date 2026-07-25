@@ -76,7 +76,7 @@ def test_auth_absent_tolerates_none_streams() -> None:
     assert copilot_auth_absent(result) is False
 
 
-def test_auth_absent_headline_leads_with_cause_and_tolerates_none() -> None:
+def test_auth_failure_headline_leads_with_cause_and_tolerates_none() -> None:
     """The headline names the real cause, cites #3275, and survives None stderr."""
     headline = copilot_auth_failure_headline(_completed(stderr=None, returncode=1))
     assert headline.startswith("Copilot auth token is empty")
@@ -84,7 +84,7 @@ def test_auth_absent_headline_leads_with_cause_and_tolerates_none() -> None:
     assert "#3275" in headline
 
 
-def test_auth_absent_headline_surfaces_rc_and_stdout() -> None:
+def test_auth_failure_headline_surfaces_rc_and_stdout() -> None:
     """A stdout-only auth failure stays actionable: rc and stdout appear (#3275)."""
     headline = copilot_auth_failure_headline(
         _completed(stdout="No authentication information found", stderr="", returncode=1)
