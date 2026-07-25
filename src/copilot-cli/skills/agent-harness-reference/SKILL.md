@@ -367,9 +367,7 @@ every hook invocation fails before any repository code runs, because the shell
 expands a path that no longer exists. Signature:
 
 ```text
-python.exe: can't open file
-'...\.copilot\installed-plugins\_direct\project-toolkit/hooks/PreToolUse/_dispatch.py':
-[Errno 2] No such file or directory
+python.exe: can't open file '...\project-toolkit/hooks/PreToolUse/_dispatch.py': [Errno 2] No such file or directory
 ```
 
 POSIX reads `python3: can't open file` with forward slashes. Search for

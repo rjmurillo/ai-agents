@@ -386,8 +386,9 @@ def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> Non
     goes red first.
 
     Uses the committed hooks.json dispatcher command (the shipped artifact)
-    instead of generating via _generate(), which omits dispatcher: true.
-    This aligns the test with what actually ships (ADR-068).
+    instead of the _generate() fixture, whose platform config does not enable
+    consolidated dispatcher routing. This aligns the test with what actually
+    ships (ADR-068).
     """
     # Read the committed hooks.json - the shipped artifact uses the dispatcher
     hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
