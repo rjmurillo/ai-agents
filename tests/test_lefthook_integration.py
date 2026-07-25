@@ -11,7 +11,7 @@ import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from typing import Self
+from typing import NoReturn, Self
 
 import pytest
 import yaml
@@ -1557,6 +1557,36 @@ def test_branch_context_exempt_during_merge(tmp_path: Path) -> None:
 
     merge_head = repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
     merge_head.write_text(f"{head}\n", encoding="utf-8")
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_fails_open_when_git_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No git binary means the check passes, not that it blocks.
+
+    ``_is_merged_history`` says it fails closed, and it does for every
+    indeterminate answer it can observe. A missing git binary is not one of
+    those: ``_run_command`` catches only ``TimeoutExpired``, so the
+    ``FileNotFoundError`` unwinds past it into the blanket handler in
+    ``check_branch_context``, which returns 0 by design. Pinning that here
+    keeps the docstring from drifting back into claiming a block that a
+    reader would then rely on.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other")
+
+    # Negative control: with git working the mismatch blocks, so the assertion
+    # below cannot pass just because the fixture is inert.
+    assert policy.check_branch_context(repo) == 1
+
+    def no_git(*args: object, **kwargs: object) -> NoReturn:
+        raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+    monkeypatch.setattr(policy.subprocess, "run", no_git)
 
     assert policy.check_branch_context(repo) == 0
 

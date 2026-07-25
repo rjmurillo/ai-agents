@@ -476,8 +476,18 @@ def _is_merged_history(repo_root: Path, path: Path) -> bool:
     working on now. A log authored on some other local branch is not there, so
     the co-mingling case from issue #682 keeps its teeth.
 
-    Fails closed. Anything indeterminate (no remote, detached upstream, git
-    unavailable) returns False and the mismatch still blocks.
+    Fails closed on every indeterminate answer it can observe: a path outside
+    the repo, no resolvable ``origin/HEAD``, or a failed probe all return False
+    and the mismatch still blocks.
+
+    It cannot fail closed on git being unavailable, and does not claim to.
+    ``_run_command`` catches only ``TimeoutExpired``, so a missing git binary
+    raises ``FileNotFoundError`` past this function into the blanket handler in
+    ``check_branch_context``, which returns 0. That is the deliberate fail-open
+    contract of the caller, not an exemption this function grants, and
+    ``_current_branch`` would already have taken the same exit several lines
+    earlier. Pinned by
+    ``test_branch_context_fails_open_when_git_is_unavailable``.
     """
     try:
         relative = path.relative_to(repo_root).as_posix()
