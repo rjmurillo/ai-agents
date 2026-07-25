@@ -1625,8 +1625,9 @@ class TestPredatingProseShaExclusion:
         assert all(cited not in json.dumps(e) for e in commit_events)
 
     def test_offset_bearing_session_date_keeps_its_offset(self):
-        # The schema accepts a full ISO timestamp, so session.date can carry an
-        # offset. replace(tzinfo=UTC) would relabel +14:00 as UTC and move the
+        # The schema pins session.date to a bare YYYY-MM-DD, but _session_floor
+        # is deliberately tolerant of a full ISO timestamp, so an offset can
+        # reach it. replace(tzinfo=UTC) would relabel +14:00 as UTC and move the
         # floor 14 hours later, which is enough to drop a commit the session
         # made. Conversion, not relabelling.
         floor = extract_session_episode._session_floor("2026-05-11T00:00:00+14:00")
