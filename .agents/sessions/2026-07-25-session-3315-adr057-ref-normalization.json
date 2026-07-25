@@ -126,9 +126,8 @@
       }
     ]
   },
-  "endingCommit": "",
+  "endingCommit": "b2c8a534e79785f80fa237a089d1a35256b62c40",
   "nextSteps": [
-    "Commit the four files with a conventional docs(adr) message and required trailers, letting lefthook run without --no-verify.",
     "Push branch docs/adr-057-normalize-workflow-refs and open a PR with base fix/3185-adr057-eval-enforcement-torn-state, referencing the nit and Refs #3185.",
     "Report the new PR URL and state; do not merge without explicit user direction."
   ]
