@@ -6,7 +6,7 @@
     "branch": "fix/3330-ci-workflow-validation",
     "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
     "objective": "Wire workflow YAML validation into CI and add a wiring guard for the scripts/ci family (issue #3330)",
-    "endingCommit": ""
+    "endingCommit": "6cdc90a4059ae677ac79c328a1f57ecbc2147681"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -99,7 +99,7 @@
   "learnings": [
     "A guard with passing tests and no call site is not half-finished, it is unverified: its tests exercise the interface while the scope, which is where #3329's ratchet was wrong by a factor of two, goes unexercised until something actually runs it."
   ],
-  "endingCommit": "",
+  "endingCommit": "6cdc90a4059ae677ac79c328a1f57ecbc2147681",
   "nextSteps": [
     "Decide separately whether to add actionlint to CI, which requires a pinned download step."
   ]

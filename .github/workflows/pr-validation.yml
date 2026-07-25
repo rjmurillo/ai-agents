@@ -448,4 +448,4 @@ jobs:
       # workflows, and covers YAML syntax, structure, and action SHA pinning.
       - name: Validate workflow YAML
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 scripts/validate_workflows.py
+        run: uv run --frozen python3 scripts/validate_workflows.py
