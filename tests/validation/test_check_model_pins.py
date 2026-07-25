@@ -535,7 +535,42 @@ def test_quoted_model_rationale_key_is_read_from_typed_view(tmp_path: Path) -> N
     # The flat frontmatter view misses alternate YAML key spellings like quoted
     # keys, but the typed view sees them. A valid cost rationale must not be
     # flagged as missing when it uses a quoted key (bug fix: issue #2840).
-    _skill(tmp_path, "quoted-rationale", "name: quoted-rationale\nmodel: haiku\n'model-rationale': cheap lookups only")
+    _skill(
+        tmp_path,
+        "quoted-rationale",
+        "name: quoted-rationale\nmodel: haiku\n'model-rationale': cheap lookups only",
+    )
     report = _run(tmp_path, baseline={}, manifest=[])
     assert report.violations == []
     assert report.backlog == []
+
+
+class TestPreferTyped:
+    """The typed-over-flat rule is shared by model and model-rationale.
+
+    It was duplicated once per field, and the two copies had already drifted:
+    model preferred the typed view while model-rationale read only the flat
+    one, so a rationale written with a quoted or explicit YAML key read as
+    missing. Testing the rule directly keeps a future third caller honest.
+    """
+
+    def test_typed_wins_when_it_is_a_non_blank_string(self) -> None:
+        assert cmp._prefer_typed("typed", "flat") == "typed"
+
+    def test_flat_wins_when_typed_is_absent(self) -> None:
+        assert cmp._prefer_typed(None, "flat") == "flat"
+
+    @pytest.mark.parametrize("blank", ["", "   ", "\n", "\t"])
+    def test_flat_wins_when_typed_is_blank(self, blank: str) -> None:
+        assert cmp._prefer_typed(blank, "flat") == "flat"
+
+    @pytest.mark.parametrize("wrong", [123, True, ["a"], {"k": "v"}, 1.5])
+    def test_flat_wins_when_typed_is_not_a_string(self, wrong: object) -> None:
+        assert cmp._prefer_typed(wrong, "flat") == "flat"
+
+    def test_returns_none_when_neither_view_has_the_key(self) -> None:
+        assert cmp._prefer_typed(None, None) is None
+
+    def test_does_not_strip_the_value_it_returns(self) -> None:
+        """Blankness gates selection; it must not mutate the payload."""
+        assert cmp._prefer_typed("  typed  ", "flat") == "  typed  "

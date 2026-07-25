@@ -208,6 +208,20 @@ def _collect_nested_pins(
             _collect_nested_pins(item, f"{prefix}[{index}]", seen, out)
 
 
+def _prefer_typed(typed: object, flat: object) -> object:
+    """Return the typed-view value when it is a non-blank string, else flat.
+
+    Both ``model`` and ``model-rationale`` are read this way. The typed view
+    normalises alternate YAML key spellings (quoted keys, explicit key
+    notation) that the flat view misses, so preferring it stops a valid
+    rationale from reading as missing. The flat fallback keeps files whose
+    YAML failed to parse scannable.
+    """
+    if isinstance(typed, str) and typed.strip():
+        return typed
+    return flat
+
+
 def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     """Read a unit's model state, or None when it has no frontmatter."""
     try:
@@ -221,10 +235,8 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     # same key ('model':, ? model, !!str model), each of which otherwise hides
     # a pin from the gate while still shipping it. Fall back to the flat view
     # only when YAML parsing produced nothing, so a malformed file still scans.
-    typed_model = parsed.typed.get("model")
-    model = typed_model if isinstance(typed_model, str) and typed_model.strip() else fm.get("model")
-    typed_rationale = parsed.typed.get("model-rationale")
-    rationale = typed_rationale if isinstance(typed_rationale, str) and typed_rationale.strip() else fm.get("model-rationale")
+    model = _prefer_typed(parsed.typed.get("model"), fm.get("model"))
+    rationale = _prefer_typed(parsed.typed.get("model-rationale"), fm.get("model-rationale"))
     try:
         rel = path.relative_to(repo_root).as_posix()
     except ValueError:
