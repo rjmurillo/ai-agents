@@ -384,14 +384,22 @@ def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> Non
     claim falsifiable: if a future interpreter or launcher shape stopped
     naming the path, the guard argument would have to be revisited and this
     goes red first.
+
+    Uses the committed hooks.json dispatcher command (the shipped artifact)
+    instead of generating via _generate(), which omits dispatcher: true.
+    This aligns the test with what actually ships (ADR-068).
     """
-    doc = _generate(tmp_path)
+    # Read the committed hooks.json - the shipped artifact uses the dispatcher
+    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
+    hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
+
     stale_root = tmp_path / "moved-away"
     assert not stale_root.exists()
     env = _contract_env(copilot_root=str(stale_root), claude_root=str(stale_root))
     userland = tmp_path / "userland"
+    userland.mkdir(parents=True, exist_ok=True)
 
-    command = _first_bash_command(doc, "PreToolUse")
+    command = _first_bash_command(hooks_doc, "PreToolUse")
     proc = subprocess.run(
         ["bash", "-c", command],
         env=env,
