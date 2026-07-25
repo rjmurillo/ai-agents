@@ -746,7 +746,16 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
                 seen.append(sha)
 
     _add_structured(str(data.get("endingCommit") or ""))
-    _add_structured(_changes_committed_evidence(data))
+
+    # changesCommitted evidence is prose, not a structured single-SHA field:
+    # apply the hex-letter filter to avoid counting decimal-only tokens as
+    # commits (issue #3363, mirrors _prose_shas logic from issue #3301).
+    evidence = _changes_committed_evidence(data)
+    for sha in _prose_shas(evidence):
+        if not include_starting and starting and _same_commit(sha, starting):
+            continue
+        if not _already_seen(sha, seen):
+            seen.append(sha)
 
     # startingCommit is a structured field, not prose: scan it unfiltered.
     if include_starting:
