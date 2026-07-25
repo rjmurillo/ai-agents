@@ -52,12 +52,12 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/3371-collect-mirror-suites"
+        "Evidence": "fix/3355-session-number-filename"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On fix/3371-collect-mirror-suites, branched off main 663bbac488"
+        "Evidence": "On fix/3355-session-number-filename, branched off main 263ce89d05"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "663bbac488"
+        "Evidence": "263ce89d05"
       }
     },
     "sessionEnd": {
@@ -153,7 +153,7 @@
       "files": []
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "d655c5237b",
   "nextSteps": [
     "Comment on issue 3355 explaining why guard 1 (branch to number) was rejected, with the 207/276 measurement.",
     "Remaining unwired validators from issue 3360: traceability.py and consistency.py."

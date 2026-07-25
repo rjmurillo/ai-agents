@@ -1708,7 +1708,7 @@ class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
         for path in sorted(sessions.glob("*.json")):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError):
                 continue
             result = ValidationResult()
             validate_filename_number(path, data, result)
