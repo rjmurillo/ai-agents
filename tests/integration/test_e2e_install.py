@@ -46,6 +46,7 @@ PLUGIN_NAME = "project-toolkit"
 # real user profile lets an isolated run load a cached package from outside the
 # sandbox, and lets it write there. HOME and USERPROFILE alone are not enough.
 _COPILOT_CACHE_VARS = ("LOCALAPPDATA", "XDG_CACHE_HOME", "COPILOT_CACHE_HOME")
+_COPILOT_CREDENTIAL_VARS = ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
 
 
 def isolated_copilot_env(home: Path) -> dict[str, str]:
@@ -68,6 +69,8 @@ def isolated_copilot_env(home: Path) -> dict[str, str]:
     }
     for name in _COPILOT_CACHE_VARS:
         env[name] = str(home / "cache" / name.lower())
+    for name in _COPILOT_CREDENTIAL_VARS:
+        env.pop(name, None)
     return env
 
 
@@ -606,6 +609,13 @@ class TestIsolatedCopilotEnv:
     def test_auto_update_is_disabled(self, tmp_path: Path) -> None:
         """A background update writes outside the sandbox and adds network flake."""
         assert isolated_copilot_env(tmp_path)["COPILOT_AUTO_UPDATE"] == "false"
+
+    @pytest.mark.parametrize("name", _COPILOT_CREDENTIAL_VARS)
+    def test_credentials_are_removed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+    ) -> None:
+        monkeypatch.setenv(name, "ambient-secret")
+        assert name not in isolated_copilot_env(tmp_path)
 
     def test_no_isolated_var_is_passed_through_from_the_ambient_environment(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
