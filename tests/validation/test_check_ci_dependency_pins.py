@@ -7,9 +7,12 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
-
-import check_ci_dependency_pins as gate  # noqa: E402
+_validation_path = str(Path(__file__).resolve().parents[2] / "scripts" / "validation")
+sys.path.insert(0, _validation_path)
+try:
+    import check_ci_dependency_pins as gate  # noqa: E402
+finally:
+    sys.path.remove(_validation_path)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
