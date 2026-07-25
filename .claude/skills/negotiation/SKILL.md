@@ -1,8 +1,7 @@
 ---
 name: negotiation
 version: 1.0.0
-model: claude-opus-4-6
-description: Deal intelligence skill for offer analysis and counter-proposal drafting. Trigger on `review this offer`, `analyze counter`, `value gap`, `draft counter`, `should I walk`. Apply when reviewing any offer (real estate, compensation, vendor, resource allocation) or designing negotiation analysis behavior in agentic systems. Quantifies value gaps, applies RADAR protocol, enforces senior-tier model routing.
+description: Deal intelligence skill for offer analysis and counter-proposal drafting. Trigger on `review this offer`, `analyze counter`, `value gap`, `draft counter`, `should I walk`. Apply when reviewing any offer (real estate, compensation, vendor, resource allocation) or designing negotiation analysis behavior in agentic systems. Quantifies value gaps and applies the RADAR protocol.
 license: MIT
 metadata:
   domains: [negotiation, deal-intelligence, behavioral-influence, agent-design]
@@ -121,7 +120,7 @@ Output is acceptable when ALL of the following hold:
 
 ## References
 
-- `references/skills.md` — full canonical 10 crystallized skills
+- `references/skills.md`: full canonical 10 crystallized skills
   with implementation patterns, evidence citations, and tags.
 - Source citations: Fisher and Ury _Getting to Yes_, Voss _Never Split
   the Difference_, Navarro _What Every BODY Is Saying_, Hughes

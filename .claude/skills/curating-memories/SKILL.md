@@ -3,7 +3,6 @@ name: curating-memories
 description: Guidance for maintaining memory quality through curation. Covers updating outdated memories, marking obsolete content, and linking related knowledge. Use when memories need modification, when new information supersedes old, or when building knowledge graph connections.
 license: MIT
 version: 1.1.0
-model: claude-sonnet-4-6
 ---
 
 # Curating Memories

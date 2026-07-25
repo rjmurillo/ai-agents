@@ -10,7 +10,6 @@ description: >-
   generation pipeline (use `ai-agents-generation-and-release`) or CI gate
   evidence rules (use `ai-agents-validation-and-qa`).
 license: MIT
-model: claude-sonnet-4-6
 ---
 
 # ai-agents Build and Environment Runbook

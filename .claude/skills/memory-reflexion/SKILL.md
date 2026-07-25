@@ -9,7 +9,6 @@ description: Tier 2 episode extraction and Tier 3 causal-graph update, the
   Tier 1 lookups (use memory-search) or for adding citations (use
   memory-enhancement).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   adr: ADR-007, ADR-037, ADR-038, ADR-056, ADR-063
   type: operation

@@ -1,0 +1,91 @@
+{
+  "session": {
+    "number": 2840,
+    "date": "2026-07-22",
+    "branch": "chore/2840-skills-deversion",
+    "startingCommit": "2b229187",
+    "objective": "De-version 6 grandfathered skill model pins per ADR-080: remove unjustified sonnet/opus pins so units inherit the harness default; keep haiku on two mechanical-routing skills with a cost rationale. Skills track of #2840 (model-pin migration). Two skills with pre-existing banned dashes (negotiation, pipeline-validator) are deferred to a focused cleanup."
+  },
+  "endingCommit": "1c46b56c",
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Serena MCP is not exposed as serena-* tools in this Copilot CLI 1.0.74 session (verified by tool-list absence; only lsp is present). Used lsp and direct file reads instead. Issue #2909."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "No serena-* tools available this session, so initial_instructions could not be fetched. Grounded on AGENTS.md, ADR-080, and .claude/rules instead. Issue #2909."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md at start (read-only dashboard per ADR-014) to ground epic #3197 state before acting."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Created this log for branch chore/2840-skills-deversion to satisfy the branch-context and session policies."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .serena/memories/usage-mandatory.md to confirm skill-first and gate obligations before the de-version edits."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Copilot repository and user memories were supplied in prompt context and applied (plugin-parity, session-log fallback, generated-artifacts rules)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read ADR-080 and .claude/rules universal/generated-artifacts rules; applied the gate logic in check_model_pins.py directly."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "git branch --show-current returned chore/2840-skills-deversion."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Working on chore/2840-skills-deversion (forked from origin/main at 2b229187), not main or master."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "All sessionStart items addressed; the 6-skill de-version slice is complete, regenerated, and locally validated. Two dash-carrying skills deferred."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Did not modify .agents/HANDOFF.md; it stays read-only per ADR-014."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": "Serena MCP unavailable this session (issue #2909). This mechanical de-version produced no novel cross-session learning warranting a memory write; Copilot store_memory used elsewhere when warranted."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "markdownlint-cli2 0.23.1 run on staged markdown; skill SKILL.md files carry only frontmatter edits and pass. Zero lint errors."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Committed the 6 source skills, 6 regenerated copilot-cli mirrors, both plugin.json bumps, and the drained baseline as one coupled generated artifact change on this branch, plus a prior commit for the skillforge frontmatter-only guard exemption and its tests."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "check_model_pins.py exits 0 (baseline drained to 48 pins); manifest parity gate passes; generate_skills.py reruns idempotently (589 files, zero new git drift beyond the staged 16); the new guard exemption has 9 passing pos/neg/edge tests."
+      }
+    }
+  }
+}

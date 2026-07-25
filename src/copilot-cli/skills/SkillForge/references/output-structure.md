@@ -10,7 +10,8 @@ Skills must use only these allowed frontmatter properties:
 | `description` | Yes | Max 1024 chars, no angle brackets |
 | `license` | No | MIT, Apache-2.0, etc. |
 | `allowed-tools` | No | Restrict tool access (comma-separated or YAML list) |
-| `model` | No | Specific Claude model (e.g., `claude-sonnet-4-20250514`) |
+| `model` | No | Omit to inherit the harness default. If pinned, only a bare alias pricing below the default (`haiku`) is allowed; a versioned id is rejected. |
+| `model-rationale` | No | Required when `model` is set; one line justifying the pin. |
 | `context` | No | Set to `fork` for isolated sub-agent context |
 | `agent` | No | Agent type when `context: fork` (`Explore`, `Plan`, `general-purpose`) |
 | `hooks` | No | Lifecycle hooks (`PreToolUse`, `PostToolUse`, `Stop`) |
@@ -24,7 +25,6 @@ Skills must use only these allowed frontmatter properties:
 name: my-skill
 description: What this skill does and when to use it
 license: MIT
-model: claude-opus-4-6
 user-invocable: true
 metadata:
   version: 1.0.0
@@ -39,7 +39,6 @@ metadata:
 name: isolated-analyzer
 description: Runs analysis in isolated context with validation hooks
 license: MIT
-model: claude-opus-4-6
 context: fork
 agent: Explore
 user-invocable: true

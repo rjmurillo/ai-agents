@@ -8,7 +8,6 @@ description: Thin router for the four-tier memory system. Points callers at the
   you need. Do NOT use for adding citations (use memory-enhancement) or narrative
   cross-system reports (use memory-documentary).
 license: MIT
-model: claude-sonnet-4-6
 metadata:
   adr: ADR-037, ADR-038, ADR-063
   timelessness: 8/10

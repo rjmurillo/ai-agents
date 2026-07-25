@@ -1,7 +1,6 @@
 ---
 name: git-advanced-workflows
 version: 1.1.0
-model: claude-sonnet-4-6
 description: Advanced Git workflows including rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repository issues.
 license: MIT
 ---

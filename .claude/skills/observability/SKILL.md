@@ -1,7 +1,8 @@
 ---
 name: observability
 version: 1.0.0
-model: claude-haiku-4-5
+model: haiku
+model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 description: Query and analyze agent JSONL event logs for debugging, performance analysis, and decision tracing. Use when investigating agent behavior, finding slow tool calls, tracing decisions, or analyzing session performance.
 license: MIT
 ---

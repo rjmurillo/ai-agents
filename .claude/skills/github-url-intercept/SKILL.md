@@ -3,7 +3,6 @@ name: github-url-intercept
 version: 2.1.0
 description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: pull/, issues/, blob/, tree/, commit/, compare/, discussions/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
 license: MIT
-model: claude-opus-4-6
 metadata:
   domains:
   - github

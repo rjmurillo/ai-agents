@@ -1,7 +1,6 @@
 ---
 name: doc-accuracy
 version: 1.0.0
-model: claude-sonnet-4-6
 description: >-
   Multi-phase documentation verification treating code as source of truth. Use
   when you say "check documentation accuracy", "verify code examples compile",

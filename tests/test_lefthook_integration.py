@@ -9,8 +9,9 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterator, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
+from typing import Self
 
 import pytest
 import yaml
@@ -384,6 +385,105 @@ def test_retrospective_trivial_session_includes_ten_minute_boundary(
         session,
         [],
         now_epoch=boundary,
+    )
+
+
+def _freeze_policy_clock(monkeypatch: pytest.MonkeyPatch, instant: datetime) -> None:
+    """Freeze git_hook_policy's UTC clock to a fixed instant for date-window tests.
+
+    The retrospective and session-log helpers derive today/yesterday from
+    ``datetime.now(tz=UTC)``. Pinning it removes the once-per-day midnight-tick
+    race that would otherwise make the cross-midnight assertions flaky.
+    """
+
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> Self:
+            return cls.fromtimestamp(instant.timestamp(), tz)
+
+    monkeypatch.setattr(policy, "datetime", _FrozenDateTime)
+
+
+def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retro dated yesterday UTC satisfies the gate today (cross-midnight grace).
+
+    Regression guard for #3305: a session that does real work on day N and
+    pushes just after 00:00 UTC on day N+1 must not be blocked when the day-N
+    retrospective exists. ``_today_retrospective_exists`` globs today AND
+    yesterday, so the yesterday-dated retro is honored.
+    """
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-14-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    retro.write_text("# Retrospective\nreal work\n", encoding="utf-8")
+
+    # Two paths avoid the trivial-session bypass, isolating the yesterday grace.
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
+def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Evidence in a yesterday-dated session log satisfies the gate today.
+
+    Regression guard for #3305: ``_today_session_log`` globs today AND
+    yesterday, so evidence committed in the day-N session log is consulted on
+    day N+1 even with no retrospective file present.
+    """
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    (sessions / "2026-03-14-session-1.json").write_text(
+        '{"notes": "Learnings captured"}', encoding="utf-8"
+    )
+
+    # No retrospective file: the only passing path is the yesterday session log.
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
+def test_retrospective_policy_blocks_evidence_older_than_grace_window(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retro/session two days old is outside the 24h grace and still blocks.
+
+    Negative control for #3305: the cross-midnight tolerance is exactly one day
+    (today + yesterday). Evidence from two days ago must not satisfy the gate,
+    so the widened window cannot silently accept arbitrarily stale sessions.
+    """
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-x.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    retro.write_text("# Retrospective\nstale\n", encoding="utf-8")
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    (sessions / "2026-03-13-session-1.json").write_text(
+        '{"notes": "Learnings captured"}', encoding="utf-8"
+    )
+
+    # Two paths avoid the trivial-session bypass; two-days-old evidence is stale.
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 1
     )
 
 
@@ -776,12 +876,12 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
 
 def test_configuration_and_tree_have_no_payload_scripts() -> None:
     config_text = (PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8")
-    policy_text = (
-        PROJECT_ROOT / "scripts/validation/git_hook_policy.py"
-    ).read_text(encoding="utf-8")
-    auto_retro_text = (
-        PROJECT_ROOT / ".claude/hooks/Stop/invoke_auto_retrospective.py"
-    ).read_text(encoding="utf-8")
+    policy_text = (PROJECT_ROOT / "scripts/validation/git_hook_policy.py").read_text(
+        encoding="utf-8"
+    )
+    auto_retro_text = (PROJECT_ROOT / ".claude/hooks/Stop/invoke_auto_retrospective.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "scripts/hooks/pre-commit" not in config_text
     assert "scripts/hooks/pre-push" not in config_text
@@ -1439,6 +1539,28 @@ def test_branch_context_fails_open_without_sessions_directory(tmp_path: Path) ->
     assert policy.check_branch_context(repo) == 0
 
 
+def test_branch_context_exempt_during_merge(tmp_path: Path) -> None:
+    """A merge in progress imports another branch's log; that is not a mismatch.
+
+    A merge checks out the incoming branch's newer session log into the tree,
+    so ``_today_session_log`` would name a branch other than the current one.
+    The merge guard must exempt that case, matching ``check_sessions``.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    head = _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/other")
+
+    # Negative control: without a merge the mismatch still blocks, so the
+    # merge-guard assertion below cannot pass vacuously.
+    assert policy.check_branch_context(repo) == 1
+
+    merge_head = repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
+    merge_head.write_text(f"{head}\n", encoding="utf-8")
+
+    assert policy.check_branch_context(repo) == 0
+
+
 def test_branch_context_fails_open_without_today_log(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
@@ -1508,9 +1630,7 @@ def test_branch_context_skips_unreadable_newest_log(
     _init_repo(repo, branch="feature/x")
     _commit_file(repo, "tracked", "value\n")
     _write_session_log(repo, branch="feature/other", name="session-1", mtime=1000.0)
-    unreadable = _write_session_log(
-        repo, branch="feature/x", name="session-2", mtime=2000.0
-    )
+    unreadable = _write_session_log(repo, branch="feature/x", name="session-2", mtime=2000.0)
 
     real_stat = Path.stat
 
@@ -1756,10 +1876,7 @@ def test_binary_command_boundary_maps_timeout_to_external_error(
 
     assert result.returncode == 3
     assert result.stdout == b"partial bytes\n"
-    assert result.stderr == (
-        b"binary child stalled\n"
-        b"ERROR: git diff timed out after 90 seconds\n"
-    )
+    assert result.stderr == (b"binary child stalled\nERROR: git diff timed out after 90 seconds\n")
 
 
 @pytest.mark.parametrize(
@@ -2051,9 +2168,19 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         tmp_path,
     )
 
+    # Fixtures and command mirrors are skipped before any subprocess runs, so
+    # the only skill that reaches SkillForge is the real one. The
+    # frontmatter-only exemption probes HEAD and index blobs via _run_command
+    # first, so filter to the validator invocation rather than counting every
+    # subprocess call.
+    validate_calls = [
+        call
+        for call in calls
+        if any("validate-skill.py" in str(arg) for arg in call)
+    ]
     assert result == 0
-    assert len(calls) == 1
-    assert calls[0][-1] == ".claude/skills/real-skill"
+    assert len(validate_calls) == 1
+    assert validate_calls[0][-1] == ".claude/skills/real-skill"
 
 
 def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
@@ -3702,6 +3829,237 @@ def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
         lambda path: path == source or original_is_symlink(path),
     )
     assert policy.run_mypy(["source.py"], tmp_path) == 2
+
+
+def _write_source(tmp_path: Path, name: str = "source.py") -> None:
+    (tmp_path / name).write_text("value: int = 1\n", encoding="utf-8")
+
+
+def test_parse_changed_lines_maps_hunks_to_files() -> None:
+    diff = (
+        "diff --git a/pkg/a.py b/pkg/a.py\n"
+        "--- a/pkg/a.py\n"
+        "+++ b/pkg/a.py\n"
+        "@@ -2 +2 @@\n"
+        "+changed line two\n"
+        "@@ -10,0 +11,2 @@\n"
+        "+added eleven\n"
+        "+added twelve\n"
+        "diff --git a/pkg/b.py b/pkg/b.py\n"
+        "--- a/pkg/b.py\n"
+        "+++ b/pkg/b.py\n"
+        "@@ -5,1 +5,0 @@\n"
+        "-deleted only, no additions\n"
+    )
+
+    changed = policy._parse_changed_lines(diff)
+
+    assert changed["pkg/a.py"] == {2, 11, 12}
+    # Pure deletion hunk (+5,0) contributes no changed lines: adding the
+    # neighbor line would flag unchanged code (the issue #2993 regression).
+    assert changed["pkg/b.py"] == set()
+
+
+def test_parse_changed_lines_ignores_pure_rename() -> None:
+    # A content-free rename carries no ``+++ b/`` hunk, so the renamed path
+    # never enters the map and its unchanged lines cannot block the ratchet.
+    diff = (
+        "diff --git a/pkg/old.py b/pkg/new.py\n"
+        "similarity index 100%\n"
+        "rename from pkg/old.py\n"
+        "rename to pkg/new.py\n"
+    )
+
+    changed = policy._parse_changed_lines(diff)
+
+    assert changed == {}
+
+
+def test_parse_mypy_error_locations_selects_errors_only() -> None:
+    stdout = (
+        "pkg/a.py:12: error: Incompatible types  [assignment]\n"
+        "pkg/a.py:12:5: error: With a column here  [misc]\n"
+        "pkg/a.py:20: note: advisory only\n"
+        "pyproject.toml: note: unused section(s): module = ['x']\n"
+        "Found 2 errors in 1 file (checked 1 source file)\n"
+    )
+
+    locations = policy._parse_mypy_error_locations(stdout)
+
+    assert locations == [("pkg/a.py", 12), ("pkg/a.py", 12)]
+
+
+def test_parse_mypy_error_locations_normalizes_windows_paths() -> None:
+    stdout = (
+        "C:/proj/pkg/a.py:12: error: drive-letter absolute  [assignment]\n"
+        "pkg\\a.py:20: error: relative backslash  [misc]\n"
+        "pkg\\a.py:20:5: error: backslash with column  [misc]\n"
+    )
+
+    locations = policy._parse_mypy_error_locations(stdout)
+
+    assert locations == [
+        ("C:/proj/pkg/a.py", 12),
+        ("pkg/a.py", 20),
+        ("pkg/a.py", 20),
+    ]
+
+
+def test_normalize_ratchet_path_converts_backslashes_and_strips_dot_slash() -> None:
+    assert policy._normalize_ratchet_path("pkg\\mod.py") == "pkg/mod.py"
+    assert policy._normalize_ratchet_path(".\\pkg\\mod.py") == "pkg/mod.py"
+    assert policy._normalize_ratchet_path("  pkg/mod.py  ") == "pkg/mod.py"
+
+
+def test_mypy_ratchet_blocks_backslash_path_on_changed_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # mypy on Windows can report a backslash-separated path; the ratchet must
+    # still match it against the forward-slash pushed set and changed-line map.
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "mod.py").write_text("value: int = 1\n", encoding="utf-8")
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"pkg/mod.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "pkg\\mod.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["pkg/mod.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_base_ref_prefers_env_over_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, "origin/release")
+    assert policy._mypy_ratchet_base_ref() == "origin/release"
+
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, "0" * 40)
+    assert policy._mypy_ratchet_base_ref() == policy.MYPY_RATCHET_DEFAULT_BASE
+
+    monkeypatch.delenv(policy.MYPY_RATCHET_BASE_REF_ENV, raising=False)
+    assert policy._mypy_ratchet_base_ref() == policy.MYPY_RATCHET_DEFAULT_BASE
+
+
+def test_changed_line_map_reads_real_git_diff(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "mod.py", "line one\nline two\nline three\n")
+    (repo / "mod.py").write_text(
+        "line one\nline TWO changed\nline three\nline four\nline five\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "--", "mod.py")
+    _git(repo, "commit", "-qm", "test: modify mod.py")
+
+    changed = policy._changed_line_map(["mod.py"], repo, base)
+
+    assert changed is not None
+    assert 2 in changed["mod.py"]
+    assert 4 in changed["mod.py"]
+    assert 5 in changed["mod.py"]
+    assert 1 not in changed["mod.py"]
+    assert 3 not in changed["mod.py"]
+
+
+def test_changed_line_map_returns_none_when_base_unresolved(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "mod.py", "line one\n")
+
+    # origin/main does not exist in this fresh repo, so the diff fails.
+    assert policy._changed_line_map(["mod.py"], repo, "origin/main") is None
+
+
+def test_mypy_ratchet_blocks_error_on_changed_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_passes_preexisting_error_on_unchanged_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {5}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: preexisting  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 0
+
+
+def test_mypy_ratchet_new_file_blocks_all_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path, "new.py")
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"new.py": {1, 2, 3}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "new.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["new.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_fatal_without_error_line_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {5}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(2, "mod is not a valid Python package name\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_falls_back_to_block_all_when_base_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: None)
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:99: error: anything  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_ratchet_ignores_error_in_unpushed_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "imported.py:2: error: not pushed  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 0
 
 
 def test_mypy_invocation_sets_validation_path(
@@ -5533,3 +5891,134 @@ def test_module_entrypoint_returns_cli_exit_code(
     with pytest.raises(SystemExit) as error:
         runpy.run_path(str(script), run_name="__main__")
     assert error.value.code == 2
+
+
+# --- workflow-local merge-base scoping (issue #2993) ---
+
+
+def _workflow_repo_with_base(tmp_path: Path) -> tuple[Path, str]:
+    """Repo with an imported workflow on main; returns (repo, base_sha).
+
+    The caller checks out a feature branch and adds its own changes; the base
+    SHA marks the merge base so ``base...HEAD`` isolates the branch delta.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, ".github/workflows/imported.yml", "name: imported\n")
+    base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "checkout", "-q", "-b", "feature/test")
+    return repo, base
+
+
+def test_pushed_workflow_paths_selects_only_branch_delta(tmp_path: Path) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    _commit_file(repo, ".github/workflows/mine.yml", "name: mine\n")
+
+    changed = policy._pushed_workflow_paths(
+        [".github/workflows/imported.yml", ".github/workflows/mine.yml"],
+        repo,
+        base,
+    )
+
+    assert changed == {".github/workflows/mine.yml"}
+
+
+def test_pushed_workflow_paths_returns_none_when_base_unresolved(
+    tmp_path: Path,
+) -> None:
+    repo, _ = _workflow_repo_with_base(tmp_path)
+
+    assert (
+        policy._pushed_workflow_paths(
+            [".github/workflows/imported.yml"], repo, "origin/main"
+        )
+        is None
+    )
+
+
+def test_pushed_workflow_paths_empty_input_returns_empty(tmp_path: Path) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+
+    assert policy._pushed_workflow_paths([], repo, base) == set()
+
+
+def _stub_act_run(
+    monkeypatch: pytest.MonkeyPatch,
+    sink: dict[str, object],
+) -> None:
+    """Run git for real; intercept only the act runner invocation.
+
+    run_workflow_local reaches _run_command twice: once for the merge-base
+    ``git diff`` and once for the workflow runner. Patching the low-level
+    helper naively would break the diff, so this dispatcher forwards git calls
+    to the real implementation and captures or stubs the runner call.
+    """
+    real_run = policy._run_command
+
+    def _fake_run(
+        cmd: Sequence[str],
+        repo_root: Path,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if any("run_workflow_local_test.py" in str(part) for part in cmd):
+            sink["act_cmd"] = list(cmd)
+            return _completed(0, "")
+        return real_run(cmd, repo_root)
+
+    monkeypatch.setattr(policy, "_run_command", _fake_run)
+    monkeypatch.setattr(policy, "_print_process_output", lambda *_a: None)
+
+
+def test_run_workflow_local_skips_imported_only_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    _commit_file(repo, "src/mod.py", "x = 1\n")  # non-workflow branch change
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+    sink: dict[str, object] = {}
+    _stub_act_run(monkeypatch, sink)
+
+    assert policy.run_workflow_local([".github/workflows/imported.yml"], repo) == 0
+    assert "act_cmd" not in sink
+    assert "skipping act" in capsys.readouterr().out
+
+
+def test_run_workflow_local_validates_changed_workflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    _commit_file(repo, ".github/workflows/mine.yml", "name: mine\n")
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+    sink: dict[str, object] = {}
+    _stub_act_run(monkeypatch, sink)
+
+    rc = policy.run_workflow_local(
+        [".github/workflows/imported.yml", ".github/workflows/mine.yml"],
+        repo,
+    )
+
+    assert rc == 0
+    act_cmd = sink["act_cmd"]
+    assert isinstance(act_cmd, list)
+    assert ".github/workflows/mine.yml" in act_cmd
+    assert ".github/workflows/imported.yml" not in act_cmd
+
+
+def test_run_workflow_local_validates_all_when_base_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _ = _workflow_repo_with_base(tmp_path)
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, "does/not/exist")
+    sink: dict[str, object] = {}
+    _stub_act_run(monkeypatch, sink)
+
+    rc = policy.run_workflow_local([".github/workflows/imported.yml"], repo)
+
+    assert rc == 0
+    act_cmd = sink["act_cmd"]
+    assert isinstance(act_cmd, list)
+    assert ".github/workflows/imported.yml" in act_cmd
