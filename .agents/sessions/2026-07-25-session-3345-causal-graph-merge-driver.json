@@ -54,7 +54,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The merge exemption in check_branch_context now keys on upstream presence rather than on MERGE_HEAD, and the change was measured against the real wedged branch before it was committed."
+        "Evidence": "Causal-graph merge driver implemented, registered from pre-commit, and tested with 32 tests covering union semantics, counter reconciliation, field policies, and end-to-end git merges."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -115,7 +115,7 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "e2c860e1c",
   "nextSteps": [
     "File the causal-graph drift finding: 41 of 242 episodes have no node in the committed graph and no hook path backfills them.",
     "File that the generator drops the version and updated keys when it writes a graph from scratch.",

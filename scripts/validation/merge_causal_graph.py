@@ -222,8 +222,15 @@ def merge_graphs(
     merged: dict[str, Any] = {}
 
     for field in ("version",):
-        merged[field] = _prefer_diverged(base.get(field), ours.get(field), theirs.get(field))
-    merged["updated"] = _extreme(ours.get("updated"), theirs.get("updated"), latest=True)
+        result = _prefer_diverged(base.get(field), ours.get(field), theirs.get(field))
+        if result is None:
+            result = base.get(field)
+        merged[field] = result
+
+    updated_result = _extreme(ours.get("updated"), theirs.get("updated"), latest=True)
+    if updated_result is None:
+        updated_result = base.get("updated")
+    merged["updated"] = updated_result
 
     for collection, fields in _COLLECTIONS.items():
         merged[collection] = _merge_collection(base, ours, theirs, collection, fields)
