@@ -128,10 +128,16 @@ class FrontmatterResult(ValidationResult):
     under it are dropped. ``typed`` is the full YAML structure, which this
     parser already computes for validation; callers that must see nested keys
     read it instead of re-parsing the block (issue #2840).
+
+    ``typed`` is keyed by ``object`` because YAML allows non-string scalars as
+    keys, so ``true:`` or ``1:`` parses to a bool or int key. Narrowing the
+    annotation to ``str`` would be a lie, and normalising those keys to strings
+    would let one contrived file collide two distinct keys and drop a pin the
+    gate exists to find.
     """
 
     frontmatter: dict[str, str] = field(default_factory=dict)
-    typed: dict[str, object] = field(default_factory=dict)
+    typed: dict[object, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -177,9 +183,7 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
 
     # Check for tab characters
     if "\t" in frontmatter_content:
-        result.errors.append(
-            "Frontmatter must use spaces for indentation (tabs not allowed)"
-        )
+        result.errors.append("Frontmatter must use spaces for indentation (tabs not allowed)")
 
     try:
         typed_frontmatter = yaml.safe_load(frontmatter_content) or {}
@@ -192,9 +196,7 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
         typed_frontmatter = {}
 
     for field_name in STRING_ONLY_FIELDS:
-        if field_name in typed_frontmatter and not isinstance(
-            typed_frontmatter[field_name], str
-        ):
+        if field_name in typed_frontmatter and not isinstance(typed_frontmatter[field_name], str):
             result.errors.append(f"{field_name} must be a string")
 
     # Parse YAML using simple key-value parsing
@@ -263,18 +265,14 @@ def validate_name(name: str | None) -> list[str]:
         if re.search(r"[A-Z]", name):
             reason_parts.append("contains uppercase letters")
         if re.search(r"[^a-z0-9-]", name):
-            reason_parts.append(
-                "contains invalid characters (only a-z, 0-9, hyphen allowed)"
-            )
+            reason_parts.append("contains invalid characters (only a-z, 0-9, hyphen allowed)")
         if len(name) > 64:
             reason_parts.append(f"exceeds 64 characters (found {len(name)})")
         if len(name) == 0:
             reason_parts.append("is empty")
 
         reason = f" ({', '.join(reason_parts)})" if reason_parts else ""
-        errors.append(
-            f"Invalid name format: '{name}'{reason} (must match ^[a-z0-9-]{{1,64}}$)"
-        )
+        errors.append(f"Invalid name format: '{name}'{reason} (must match ^[a-z0-9-]{{1,64}}$)")
 
     return errors
 
@@ -288,9 +286,7 @@ def validate_description(description: str | None) -> list[str]:
         return errors
 
     if len(description) > 1024:
-        errors.append(
-            f"Description exceeds 1024 characters (found {len(description)})"
-        )
+        errors.append(f"Description exceeds 1024 characters (found {len(description)})")
 
     if _XML_TAG_PATTERN.search(description):
         errors.append("Description contains XML tags (not allowed)")
@@ -400,8 +396,7 @@ def get_skill_files(
         root = Path(path)
         skill_files = [f for f in changed_files if _is_skill_file_path(f, root)]
         if not skill_files:
-            print("No SKILL.md files in changed files list. "
-                  "Skipping frontmatter validation.")
+            print("No SKILL.md files in changed files list. Skipping frontmatter validation.")
             return []
 
         return [Path(f) for f in skill_files if Path(f).exists()]
@@ -458,17 +453,13 @@ def validate_skill_file(file_path: Path) -> FileValidationResult:
 
     if yaml_result.is_valid and yaml_result.frontmatter:
         all_errors.extend(validate_name(yaml_result.frontmatter.get("name")))
-        all_errors.extend(
-            validate_description(yaml_result.frontmatter.get("description"))
-        )
+        all_errors.extend(validate_description(yaml_result.frontmatter.get("description")))
 
         if "model" in yaml_result.frontmatter:
             all_errors.extend(validate_model(yaml_result.frontmatter["model"]))
 
         if "allowed-tools" in yaml_result.frontmatter:
-            all_errors.extend(
-                validate_allowed_tools(yaml_result.frontmatter["allowed-tools"])
-            )
+            all_errors.extend(validate_allowed_tools(yaml_result.frontmatter["allowed-tools"]))
 
     if not all_errors:
         print("    [PASS] Frontmatter is valid")
@@ -478,9 +469,7 @@ def validate_skill_file(file_path: Path) -> FileValidationResult:
     for error in all_errors:
         print(f"      - {error}")
 
-    return FileValidationResult(
-        file_path=str(relative), passed=False, errors=all_errors
-    )
+    return FileValidationResult(file_path=str(relative), passed=False, errors=all_errors)
 
 
 # ---------------------------------------------------------------------------

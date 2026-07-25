@@ -233,8 +233,10 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     # The typed view is authoritative: it is what a harness reading YAML sees.
     # The flat view is a line scan that misses every alternate spelling of the
     # same key ('model':, ? model, !!str model), each of which otherwise hides
-    # a pin from the gate while still shipping it. Fall back to the flat view
-    # only when YAML parsing produced nothing, so a malformed file still scans.
+    # a pin from the gate while still shipping it. The flat view is the
+    # fallback whenever the typed view has no usable string for the key, which
+    # covers a file whose YAML failed to parse as well as one whose key holds a
+    # mapping or a blank; see _prefer_typed for the exact rule.
     model = _prefer_typed(parsed.typed.get("model"), fm.get("model"))
     rationale = _prefer_typed(parsed.typed.get("model-rationale"), fm.get("model-rationale"))
     try:
@@ -245,12 +247,15 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
         path=rel,
         kind=kind,
         model=model.strip() if isinstance(model, str) and model.strip() else None,
-        rationale=rationale.strip() if isinstance(rationale, str) else None,
+        # Blank normalises to None for the same reason model does: a whitespace
+        # rationale is an absent rationale, and leaving "" in place would give
+        # Unit.rationale a third state that means nothing to any reader.
+        rationale=rationale.strip() if isinstance(rationale, str) and rationale.strip() else None,
         nested_pins=_nested_pins(parsed.typed),
     )
 
 
-def _nested_pins(typed: dict[str, object]) -> tuple[tuple[str, str], ...]:
+def _nested_pins(typed: dict[object, object]) -> tuple[tuple[str, str], ...]:
     """Every model pin below the top level, sorted by its dotted path.
 
     A pin written as ``metadata.model`` still ships to customers in the
@@ -343,10 +348,16 @@ def _display(value: str) -> str:
     ``repr`` escapes newlines and control characters, so a pin value cannot
     forge an extra status line in the gate's output (CWE-117), and the cap
     stops a padded value from burying the rest of the report.
+
+    The cap is applied to the rendered form, not the raw value. Escaping
+    expands: eighty newlines render as a hundred and sixty characters, so
+    capping first measures a string nobody ever sees and lets the printed
+    token run to twice the stated bound.
     """
-    if len(value) > _MAX_DISPLAY_CHARS:
-        value = value[:_MAX_DISPLAY_CHARS] + "..."
-    return repr(value)
+    rendered = repr(value)
+    if len(rendered) > _MAX_DISPLAY_CHARS:
+        return rendered[:_MAX_DISPLAY_CHARS] + "..."
+    return rendered
 
 
 def _unit_rule_failure(

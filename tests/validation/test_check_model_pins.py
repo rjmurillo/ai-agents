@@ -11,7 +11,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-import time
 from datetime import date
 from pathlib import Path
 
@@ -398,15 +397,34 @@ def test_nested_non_model_keys_do_not_register_a_pin(tmp_path: Path) -> None:
     assert report.violations == []
 
 
-def test_frontmatter_parser_exposes_nested_structure() -> None:
+def test_frontmatter_parser_exposes_nested_structure(monkeypatch: pytest.MonkeyPatch) -> None:
     # The flat view collapses a nested mapping to an empty string; the typed
     # view is what makes the nested pin visible at all.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
+    # syspath_prepend, not sys.path.insert: an unrestored insert leaks into
+    # every later test in the process and turns an import failure elsewhere
+    # into an order-dependent mystery.
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
     from skill_frontmatter import parse_frontmatter
 
     parsed = parse_frontmatter("---\nname: x\nmetadata:\n  model: claude-opus-4-6\n---\nbody\n")
     assert parsed.frontmatter["metadata"] == ""
     assert parsed.typed["metadata"] == {"model": "claude-opus-4-6"}
+
+
+def test_non_string_yaml_key_still_surfaces_its_nested_pin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # YAML allows non-string scalar keys, so 'true:' parses to the bool True.
+    # If the parser normalised keys to str or rejected the document, a pin
+    # hidden under such a key would ship unseen. That is the evasion the
+    # dict[object, object] annotation on FrontmatterResult.typed exists to keep
+    # honest, so the walk has to reach it.
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
+    from skill_frontmatter import parse_frontmatter
+
+    parsed = parse_frontmatter("---\nname: x\ntrue:\n  model: claude-opus-4-6\n---\nbody\n")
+    assert True in parsed.typed
+    assert cmp._nested_pins(parsed.typed) == (("True.model", "claude-opus-4-6"),)
 
 
 def test_nested_pin_not_grandfathered_by_baseline(tmp_path: Path) -> None:
@@ -454,19 +472,35 @@ def test_explicit_and_tagged_top_level_model_keys_are_not_bypasses(tmp_path: Pat
     assert len(report.violations) == 2
 
 
-def test_alias_dag_does_not_expand_exponentially(tmp_path: Path) -> None:
+def test_alias_dag_does_not_expand_exponentially(monkeypatch: pytest.MonkeyPatch) -> None:
     # A 32-line alias graph re-walked through every path took over five seconds
     # under the earlier recursion-path guard. Visiting each container once
-    # bounds it at O(nodes). Depth 20 is 2**20 paths: a few seconds for the
-    # unbounded walk, instant for the bounded one. Deeper would prove the same
-    # thing by hanging, which burns a CI job instead of reporting a failure.
+    # bounds it at O(nodes). Depth 20 is 2**20 distinct paths.
+    #
+    # Count the visits rather than the seconds. A wall-clock assertion measures
+    # the runner as much as the algorithm, so it goes red on a loaded CI box
+    # and gets marked flaky and then skipped. The visit count is the property
+    # the fix actually established: bounded is ~65 calls, unbounded is 2**20,
+    # so any threshold in between separates them by four orders of magnitude
+    # and never depends on how busy the machine is.
     lines = ["n0: &n0 {model: claude-opus-4-6}"]
     lines += [f"n{i}: &n{i} {{left: *n{i - 1}, right: *n{i - 1}}}" for i in range(1, 21)]
     lines.append("root: *n20")
     typed = yaml.safe_load("\n".join(lines))
-    start = time.perf_counter()
+
+    original = cmp._collect_nested_pins
+    calls = 0
+
+    def counting(*args: object, **kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        # Recursion resolves _collect_nested_pins as a module global at call
+        # time, so patching the attribute counts the inner calls too.
+        return original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(cmp, "_collect_nested_pins", counting)
     pins = cmp._nested_pins(typed)
-    assert time.perf_counter() - start < 1.0
+    assert calls < 1000
     assert len(pins) == 1
 
 
@@ -574,3 +608,67 @@ class TestPreferTyped:
     def test_does_not_strip_the_value_it_returns(self) -> None:
         """Blankness gates selection; it must not mutate the payload."""
         assert cmp._prefer_typed("  typed  ", "flat") == "  typed  "
+
+
+class TestBlankRationaleNormalisation:
+    """A whitespace-only rationale is an absent rationale.
+
+    ``model`` already normalised blank to None. ``rationale`` kept the empty
+    string, which gave the field a third state that no reader distinguishes
+    from None. The rule check treats both as falsy today, so the fix is about
+    the contract rather than the verdict: one less state to reason about the
+    next time someone adds a branch on ``unit.rationale``.
+    """
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "model-rationale:",
+            "model-rationale: ",
+            # A quoted key the flat line scan cannot match, so only the typed
+            # view sees it and the blank has to normalise on that path too.
+            "'model-rationale':",
+        ],
+    )
+    def test_blank_rationale_reads_as_absent(self, tmp_path: Path, line: str) -> None:
+        _skill(tmp_path, "s", f"name: s\nmodel: haiku\n{line}\n")
+        unit = cmp._classify_and_read(
+            tmp_path / ".claude" / "skills" / "s" / "SKILL.md", "skill", tmp_path
+        )
+        assert unit is not None
+        assert unit.rationale is None
+
+    def test_real_rationale_survives_stripping(self, tmp_path: Path) -> None:
+        _skill(tmp_path, "s", "name: s\nmodel: haiku\nmodel-rationale: '  cheap  '\n")
+        unit = cmp._classify_and_read(
+            tmp_path / ".claude" / "skills" / "s" / "SKILL.md", "skill", tmp_path
+        )
+        assert unit is not None
+        assert unit.rationale == "cheap"
+
+
+class TestDisplayBound:
+    """The cap has to measure the string that gets printed.
+
+    ``repr`` escapes, and escaping expands: one newline renders as two
+    characters. Capping the raw value first bounded a string nobody sees and
+    let the printed token run to roughly twice the stated limit, which is
+    exactly the report-burying the cap exists to prevent.
+    """
+
+    def test_escape_expansion_cannot_exceed_the_cap(self) -> None:
+        rendered = cmp._display("\n" * cmp._MAX_DISPLAY_CHARS)
+        assert len(rendered) <= cmp._MAX_DISPLAY_CHARS + len("...")
+
+    def test_padded_value_cannot_exceed_the_cap(self) -> None:
+        rendered = cmp._display("x" * (cmp._MAX_DISPLAY_CHARS * 10))
+        assert len(rendered) <= cmp._MAX_DISPLAY_CHARS + len("...")
+
+    def test_short_value_is_rendered_whole_and_unmarked(self) -> None:
+        assert cmp._display("haiku") == "'haiku'"
+
+    def test_control_characters_are_still_escaped(self) -> None:
+        # CWE-117: a raw newline in the report forges a status line. The cap
+        # change must not reintroduce one by slicing after the escape.
+        assert "\n" not in cmp._display("a\nb")
+        assert "\\n" in cmp._display("a\nb")
