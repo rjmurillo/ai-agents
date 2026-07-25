@@ -14636,6 +14636,33 @@
         "episode-2026-07-25-session-3330-ci-workflow-validation"
       ],
       "created": "2026-07-25T11:43:28.519518+00:00"
+    },
+    {
+      "id": "0270c846dc87",
+      "type": "milestone",
+      "label": "milestone: Added a merged-history discriminator to check_branch_context. The mismatch is exempt only when the branch owns a recent session log AND the newest log already exists on the upstream default branch, which makes it settled history rather than a claim about current work. Fails closed with no resolvable origin/HEAD, so the issue #682 co-mingling case keeps its teeth.",
+      "episodes": [
+        "episode-2026-07-25-session-3343-branch-context-merge"
+      ],
+      "created": "2026-07-25T13:35:39.032165+00:00"
+    },
+    {
+      "id": "98610cb7c0b9",
+      "type": "outcome",
+      "label": "Outcome: success - Fix branch-context-policy permanently wedging any branch that merges main (issue #3343). A committed merge imports the merged branch's session log, which outlives the MERGE_HEAD exemption and wins the recency comparison forever.",
+      "episodes": [
+        "episode-2026-07-25-session-3343-branch-context-merge"
+      ],
+      "created": "2026-07-25T13:35:39.032230+00:00"
+    },
+    {
+      "id": "e6517a765378",
+      "type": "commit",
+      "label": "commit: Commit: 61b8255184",
+      "episodes": [
+        "episode-2026-07-25-session-3343-branch-context-merge"
+      ],
+      "created": "2026-07-25T14:05:27.596517+00:00"
     }
   ],
   "patterns": [

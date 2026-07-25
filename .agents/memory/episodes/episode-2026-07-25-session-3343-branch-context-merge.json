@@ -1,0 +1,39 @@
+{
+  "id": "episode-2026-07-25-session-3343-branch-context-merge",
+  "session": "2026-07-25-session-3343-branch-context-merge",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix branch-context-policy permanently wedging any branch that merges main (issue #3343). A committed merge imports the merged branch's session log, which outlives the MERGE_HEAD exemption and wins the recency comparison forever.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a merged-history discriminator to check_branch_context. The mismatch is exempt only when the branch owns a recent session log AND the newest log already exists on the upstream default branch, which makes it settled history rather than a claim about current work. Fails closed with no resolvable origin/HEAD, so the issue #682 co-mingling case keeps its teeth.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 61b8255184",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
