@@ -14636,6 +14636,15 @@
         "episode-2026-07-25-session-3332-stale-plugin-root-doc"
       ],
       "created": "2026-07-25T11:55:56.169573+00:00"
+    },
+    {
+      "id": "0e69853c3274",
+      "type": "commit",
+      "label": "commit: Commit: f268d1f2df",
+      "episodes": [
+        "episode-2026-07-25-session-3332-stale-plugin-root-doc"
+      ],
+      "created": "2026-07-25T14:41:59.019422+00:00"
     }
   ],
   "patterns": [

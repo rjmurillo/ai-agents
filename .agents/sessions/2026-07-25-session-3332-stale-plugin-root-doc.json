@@ -5,20 +5,19 @@
     "date": "2026-07-25",
     "branch": "fix/3332-stale-plugin-root-doc",
     "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
-    "objective": "Decide and document the stale-plugin-root failure mode (issue #3332)",
-    "endingCommit": "657a44ad56aadb9a43b30533480d861210a4b0da"
+    "objective": "Decide and document the stale-plugin-root failure mode (issue #3332)"
   },
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
-        "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Serena MCP activation tools are not exposed in this Copilot CLI session toolset."
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live in this harness. Probed with serena-list_memories, which returned the project memory index (adr-reference-index, usage-mandatory, and the rest). The earlier 'not exposed' claim in this field was false and is withdrawn."
       },
       "serenaInstructions": {
-        "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Serena initial_instructions tool is not exposed in this Copilot CLI session toolset."
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual for this project."
       },
       "handoffRead": {
         "level": "MUST",
@@ -55,7 +54,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session-end checklist walked: mirror regenerated with build_all.py, scoped markdownlint run, no code changed."
+        "Evidence": "Session-end checklist walked: build_all.py regenerated the copilot-cli mirror, scoped markdownlint run on the changed SKILL.md files. No executable code changed; the diff is skill documentation, the generated mirror of it, both plugin manifests, and a runtime-contract test."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -64,8 +63,8 @@
       },
       "serenaMemoryUpdated": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Serena MCP write tools are not exposed in this Copilot CLI session toolset; the finding is recorded in this log and on issue #3332."
+        "Complete": true,
+        "Evidence": "Serena memory decision-branch-context-merged-history written this session; the stale-plugin-root finding itself is recorded in agent-harness-reference/SKILL.md, which is the durable surface for harness runtime contracts."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -80,7 +79,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "build_all.py regenerated the copilot-cli mirror; skill frontmatter description is 470 of 1024 characters."
+        "Evidence": "build_all.py regenerated the copilot-cli mirror; skill frontmatter description is 470 of 1024 characters; 11 tests in tests/build_scripts/test_generate_hooks_runtime_contract.py pass."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -99,7 +98,7 @@
   "learnings": [
     "Before building a diagnostic, read the message the failure already prints. Here it already carried the path, so the whole delta was one sentence of missing runtime-contract knowledge, which is a documentation shape, not a code shape."
   ],
-  "endingCommit": "657a44ad56aadb9a43b30533480d861210a4b0da",
+  "endingCommit": "f268d1f2df",
   "nextSteps": [
     "Close issue #3332 with this reasoning."
   ]
