@@ -7,13 +7,13 @@ per ADR-042.
 
 from __future__ import annotations
 
-import inspect
 import json
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest import mock
 
 import pytest
 
@@ -68,6 +68,33 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from _pytest.capture import CaptureFixture
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture
+def scratch() -> Iterator[Path]:
+    """A throwaway directory inside the repo.
+
+    `validate_safe_path` rejects any path outside the project root, so a
+    `tmp_path` fixture would make every CLI case exit 1 for a path reason and
+    prove nothing about the load or the schema.
+    """
+    with tempfile.TemporaryDirectory(dir=_REPO_ROOT) as name:
+        yield Path(name)
+
+
+def _run_cli(path: Path) -> subprocess.CompletedProcess[str]:
+    """Drive the validator as the hooks and the workflow drive it."""
+    return subprocess.run(
+        [sys.executable, "scripts/validate_session_json.py", str(path)],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 class TestConstants:
@@ -610,25 +637,32 @@ class TestEvidenceContradiction:
 class TestValidateProtocolCompliance:
     """Tests for validate_protocol_compliance function."""
 
-    def test_missing_session_start(self) -> None:
-        """Missing sessionStart causes error."""
-        protocol = {"sessionEnd": {}}
+    def test_missing_session_start_is_left_to_the_schema(self) -> None:
+        """The schema's protocolCompliance.required already names it (issue #3346).
+
+        This layer only walks the section it was given; it must not restate the
+        absence under a second spelling. The one-message guarantee is pinned in
+        TestSectionAbsenceIsReportedOnce, which drives the full validator.
+        """
         result = ValidationResult()
 
-        validate_protocol_compliance(protocol, result)
+        validate_protocol_compliance({"sessionEnd": {}}, result)
 
-        assert not result.is_valid
-        assert "Missing: protocolCompliance.sessionStart" in result.errors
+        assert not any("protocolCompliance.sessionStart" in error for error in result.errors)
+        assert any(
+            error.startswith("Missing required item: sessionEnd.") for error in result.errors
+        )
 
-    def test_missing_session_end(self) -> None:
-        """Missing sessionEnd causes error."""
-        protocol = {"sessionStart": {}}
+    def test_missing_session_end_is_left_to_the_schema(self) -> None:
+        """Mirror of the sessionStart case."""
         result = ValidationResult()
 
-        validate_protocol_compliance(protocol, result)
+        validate_protocol_compliance({"sessionStart": {}}, result)
 
-        assert not result.is_valid
-        assert "Missing: protocolCompliance.sessionEnd" in result.errors
+        assert not any("protocolCompliance.sessionEnd" in error for error in result.errors)
+        assert any(
+            error.startswith("Missing required item: sessionStart.") for error in result.errors
+        )
 
     def test_both_sections_present(self) -> None:
         """Both sections present passes section validation."""
@@ -1093,13 +1127,28 @@ class TestHistoricalLogsAreExemptByConstruction:
     turn every historical log into a blocking failure.
     """
 
-    def test_git_hook_policy_validates_only_the_paths_it_is_given(self) -> None:
-        from scripts.validation.git_hook_policy import validate_branch_sessions
+    @staticmethod
+    def _invoked_paths(paths: list[str]) -> list[str]:
+        """Return the session paths validate_branch_sessions actually shelled out for."""
+        from scripts.validation import git_hook_policy
 
-        source = inspect.getsource(validate_branch_sessions)
-        assert "for path in paths:" in source
-        assert "glob" not in source
-        assert "iterdir" not in source
+        seen: list[str] = []
+
+        def _record(command: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            seen.append(command[-1])
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(git_hook_policy, "_run_command", _record):
+            git_hook_policy.validate_branch_sessions(paths, Path.cwd())
+        return seen
+
+    def test_git_hook_policy_validates_only_the_paths_it_is_given(self) -> None:
+        given = ["a/one.json", "b/two.json"]
+        assert self._invoked_paths(given) == given
+
+    def test_git_hook_policy_validates_nothing_when_given_nothing(self) -> None:
+        """No path list means no work. A directory fallback would fail 131 logs."""
+        assert self._invoked_paths([]) == []
 
     def test_workflow_validates_one_file_per_invocation(self) -> None:
         workflow = (
@@ -1121,31 +1170,15 @@ class TestMainNarrowsOnThePayload:
     schema.
     """
 
-    @pytest.fixture
-    def scratch(self) -> Iterator[Path]:
-        root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory(dir=root) as name:
-            yield Path(name)
-
-    def _run(self, path: Path) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, "scripts/validate_session_json.py", str(path)],
-            cwd=Path(__file__).resolve().parents[1],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-
     def test_missing_file_exits_one_with_the_load_error(self, scratch: Path) -> None:
-        proc = self._run(scratch / "absent.json")
+        proc = _run_cli(scratch / "absent.json")
         assert proc.returncode == 1
         assert "not found" in (proc.stdout + proc.stderr)
 
     def test_unparseable_file_exits_one(self, scratch: Path) -> None:
         bad = scratch / "bad.json"
         bad.write_text("{not json", encoding="utf-8")
-        proc = self._run(bad)
+        proc = _run_cli(bad)
         assert proc.returncode == 1
         assert "Invalid JSON" in (proc.stdout + proc.stderr)
 
@@ -1153,12 +1186,134 @@ class TestMainNarrowsOnThePayload:
         """The headline acceptance criterion, driven through the CLI."""
         log = scratch / "log.json"
         log.write_text(json.dumps(_make_valid_log(number="not-an-integer")), encoding="utf-8")
-        proc = self._run(log)
+        proc = _run_cli(log)
         assert proc.returncode == 1
         assert "Schema:" in (proc.stdout + proc.stderr)
 
     def test_valid_file_exits_zero(self, scratch: Path) -> None:
         log = scratch / "log.json"
         log.write_text(json.dumps(_make_valid_log()), encoding="utf-8")
-        proc = self._run(log)
+        proc = _run_cli(log)
         assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+class TestNonObjectPayloadsAreReportedNotCrashed:
+    """A session log is an object, but any JSON value can reach the validator.
+
+    Before issue #3346's review, a top-level array reached ``data.get`` and
+    exited 2 with ``'list' object has no attribute 'get'``: a crash, reported as
+    an internal error, for input the schema already describes.
+    """
+
+    @pytest.mark.parametrize("payload", [[1, 2, 3], "a string", 7, True])
+    def test_the_schema_reports_the_type_instead_of_crashing(self, payload: object) -> None:
+        result = validate_session_log(payload)
+        assert not result.is_valid
+        assert any("is not of type 'object'" in error for error in result.errors)
+
+    def test_protocol_checks_do_not_run_on_a_non_object(self) -> None:
+        """Only the schema speaks. A protocol message here means a mapping was assumed."""
+        result = validate_session_log([1, 2, 3])
+        assert all(error.startswith("Schema:") for error in result.errors)
+
+    def test_a_non_object_file_exits_one_not_two(self, scratch: Path) -> None:
+        path = scratch / "array.json"
+        path.write_text("[1, 2, 3]", encoding="utf-8")
+        assert _run_cli(path).returncode == 1
+
+    def test_json_null_reaches_the_schema_rather_than_looking_like_a_load_error(
+        self, scratch: Path
+    ) -> None:
+        """`json.loads('null')` succeeds, so the loader reports no error for it.
+
+        `main` therefore branches on `error`, not on the payload. Branching on
+        the payload would print `ERROR: None` for a file that parsed fine.
+        """
+        path = scratch / "null.json"
+        path.write_text("null", encoding="utf-8")
+
+        data, error = load_session_file(path)
+        assert data is None
+        assert error is None
+
+        proc = _run_cli(path)
+        assert proc.returncode == 1
+        assert "ERROR: None" not in (proc.stdout + proc.stderr)
+        assert "is not of type 'object'" in (proc.stdout + proc.stderr)
+
+
+class TestValidatorFollowsTheSchemaDeclaration:
+    """The committed schema declares draft-07; pinning another draft changes meaning.
+
+    Asserting `validator_for` returns Draft7Validator would only test jsonschema.
+    These drive `validate_against_schema` against a schema whose result differs
+    between the two drafts, so a hard-coded validator fails them.
+    """
+
+    # Array-form `items` is tuple validation in draft-07. Draft 2020-12 replaced
+    # it with `prefixItems` and ignores this spelling, so the two drafts disagree
+    # on whether [1] is valid here.
+    _DIVERGENT = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "array",
+        "items": [{"type": "string"}],
+    }
+
+    def test_draft_seven_semantics_are_applied(
+        self, scratch: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import scripts.validate_session_json as module
+
+        schema_path = scratch / "divergent.schema.json"
+        schema_path.write_text(json.dumps(self._DIVERGENT), encoding="utf-8")
+        monkeypatch.setattr(module, "SCHEMA_PATH", schema_path)
+
+        result = ValidationResult()
+        module.validate_against_schema([1], result)
+
+        assert result.errors, "draft-07 tuple validation was not applied"
+        assert any("is not of type 'string'" in error for error in result.errors)
+
+    def test_the_committed_schema_declares_draft_seven(self) -> None:
+        """Pins the premise. If the schema is upgraded, the test above must be revisited."""
+        import scripts.validate_session_json as module
+
+        schema = json.loads(module.SCHEMA_PATH.read_text(encoding="utf-8"))
+        assert schema["$schema"].startswith("http://json-schema.org/draft-07/")
+
+    def test_the_committed_schema_is_itself_valid(self) -> None:
+        """A malformed schema would silently accept everything."""
+        from jsonschema.validators import validator_for
+
+        import scripts.validate_session_json as module
+
+        schema = json.loads(module.SCHEMA_PATH.read_text(encoding="utf-8"))
+        validator_for(schema).check_schema(schema)
+
+
+class TestSectionAbsenceIsReportedOnce:
+    """protocolCompliance.required names both sections, so Python must not restate it."""
+
+    def test_a_missing_session_start_is_named_once(self) -> None:
+        log = _make_valid_log()
+        del log["protocolCompliance"]["sessionStart"]
+        result = validate_session_log(log)
+        naming = [error for error in result.errors if "sessionStart" in error]
+        assert len(naming) == 1
+        assert naming[0].startswith("Schema:")
+
+    def test_a_missing_session_end_is_named_once(self) -> None:
+        log = _make_valid_log()
+        del log["protocolCompliance"]["sessionEnd"]
+        result = validate_session_log(log)
+        naming = [error for error in result.errors if "sessionEnd" in error]
+        assert len(naming) == 1
+        assert naming[0].startswith("Schema:")
+
+    def test_a_non_mapping_section_does_not_reach_the_protocol_checks(self) -> None:
+        log = _make_valid_log()
+        log["protocolCompliance"]["sessionStart"] = "not a mapping"
+        result = validate_session_log(log)
+        assert any(
+            "sessionStart" in error and error.startswith("Schema:") for error in result.errors
+        )

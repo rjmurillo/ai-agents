@@ -35,12 +35,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import jsonschema
+from jsonschema.validators import validator_for
+
 # Add project root to path for imports
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
-
-import jsonschema  # noqa: E402
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
@@ -446,15 +447,14 @@ def validate_protocol_compliance(
         protocol: The protocolCompliance section data.
         result: ValidationResult to update with errors/warnings.
     """
-    if "sessionStart" in protocol:
+    # protocolCompliance.required already names both sections, so the schema
+    # reports either one missing. These guards exist only to hand the checks
+    # below a mapping, not to restate that fact.
+    if isinstance(protocol.get("sessionStart"), dict):
         validate_session_start(protocol["sessionStart"], result)
-    else:
-        result.errors.append("Missing: protocolCompliance.sessionStart")
 
-    if "sessionEnd" in protocol:
+    if isinstance(protocol.get("sessionEnd"), dict):
         validate_session_end(protocol["sessionEnd"], result)
-    else:
-        result.errors.append("Missing: protocolCompliance.sessionEnd")
 
 
 def _load_schema() -> dict[str, Any]:
@@ -473,13 +473,17 @@ def _describe(error: jsonschema.ValidationError) -> str:
     return f"Schema: {location}: {error.message}"
 
 
-def validate_against_schema(data: Any, result: ValidationResult) -> None:  # noqa: ANN401
+def validate_against_schema(data: object, result: ValidationResult) -> None:
     """Append every schema violation in ``data`` to ``result``.
 
     Reports all violations rather than the first, so one commit round fixes the
     log instead of one field per round. A missing or unreadable schema file is
     an error, not a silent pass: a gate that cannot load its contract has not
     checked anything and must say so.
+
+    The validator comes from ``validator_for``, which reads the schema's own
+    ``$schema`` key. The committed schema declares draft-07, and pinning a
+    different draft here would silently change what several keywords mean.
     """
     try:
         schema = _load_schema()
@@ -487,16 +491,19 @@ def validate_against_schema(data: Any, result: ValidationResult) -> None:  # noq
         result.errors.append(f"Schema: cannot load {SCHEMA_PATH.name}, nothing was checked: {exc}")
         return
 
-    validator = jsonschema.Draft202012Validator(schema)
+    validator = validator_for(schema)(schema)
     for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
         result.errors.append(_describe(error))
 
 
-def validate_session_log(data: Any) -> ValidationResult:  # noqa: ANN401
+def validate_session_log(data: object) -> ValidationResult:
     """Validate a session log against the committed schema and protocol rules.
 
     Args:
-        data: Parsed JSON data from session log.
+        data: Whatever ``json.loads`` produced. A session log is an object, but
+            any JSON value can reach here, so the type is the parser's, not the
+            schema's. The schema reports a non-object; the protocol checks below
+            need a mapping and are skipped without one.
 
     Returns:
         ValidationResult with errors and warnings.
@@ -523,7 +530,7 @@ def validate_session_log(data: Any) -> ValidationResult:  # noqa: ANN401
     return result
 
 
-def load_session_file(session_path: Path) -> tuple[Any | None, str | None]:
+def load_session_file(session_path: Path) -> tuple[object | None, str | None]:
     """Load and parse a session log file.
 
     Args:
