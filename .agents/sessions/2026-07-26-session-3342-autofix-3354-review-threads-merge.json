@@ -109,7 +109,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Needs-split analysis saved at .agents/retrospective/PR-3354-needs-split-analysis.md with the 15-commit category breakdown."
+        "Evidence": "Needs-split analysis saved at .agents/retrospective/2026-07-26-pr-3354-session-log-churn.md with the 15-commit category breakdown."
       }
     }
   },
