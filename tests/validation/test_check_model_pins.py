@@ -529,3 +529,13 @@ def test_write_baseline_round_trips_a_nested_only_tree(tmp_path: Path) -> None:
     pins, frozen = cmp.load_baseline(out)
     assert pins == {".claude/skills/pinned/SKILL.md": "claude-opus-4-6"}
     assert frozen == len(pins)
+
+
+def test_quoted_model_rationale_key_is_read_from_typed_view(tmp_path: Path) -> None:
+    # The flat frontmatter view misses alternate YAML key spellings like quoted
+    # keys, but the typed view sees them. A valid cost rationale must not be
+    # flagged as missing when it uses a quoted key (bug fix: issue #2840).
+    _skill(tmp_path, "quoted-rationale", "name: quoted-rationale\nmodel: haiku\n'model-rationale': cheap lookups only")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.violations == []
+    assert report.backlog == []

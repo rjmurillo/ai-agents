@@ -223,7 +223,8 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     # only when YAML parsing produced nothing, so a malformed file still scans.
     typed_model = parsed.typed.get("model")
     model = typed_model if isinstance(typed_model, str) and typed_model.strip() else fm.get("model")
-    rationale = fm.get("model-rationale")
+    typed_rationale = parsed.typed.get("model-rationale")
+    rationale = typed_rationale if isinstance(typed_rationale, str) and typed_rationale.strip() else fm.get("model-rationale")
     try:
         rel = path.relative_to(repo_root).as_posix()
     except ValueError:
