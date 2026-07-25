@@ -1296,3 +1296,26 @@ def test_format_text_surfaces_warning_detail_on_ok() -> None:
     out = w._format_text(report)
     assert out.startswith("workflow-local-test: OK")
     assert "[WARN]" in out
+
+
+def test_act_limitation_hint_matches_paths_filter_missing_base() -> None:
+    # act's synthetic event payload omits repository.default_branch, so
+    # dorny/paths-filter aborts (#3331). GitHub always populates it, so this
+    # signature cannot arise in CI and is safe to downgrade for every event.
+    verbatim = (
+        "[Python Tests/Check Changed Paths]   ::error::This action requires "
+        "'base' input to be configured or 'repository.default_branch' to be "
+        "set in the event payload"
+    )
+    hint = w._act_limitation_hint(verbatim)
+    assert hint is not None
+    assert "repository.default_branch" in hint
+    # Not event-scoped: the payload gap is identical on every act event.
+    assert w._act_limitation_hint(verbatim, "pull_request") is not None
+    assert w._act_limitation_hint(verbatim, "workflow_dispatch") is not None
+
+
+def test_act_limitation_hint_does_not_match_unrelated_base_error() -> None:
+    # A genuine workflow defect that merely mentions 'base' must keep blocking.
+    assert w._act_limitation_hint("Error: base branch not found") is None
+    assert w._act_limitation_hint("::error::invalid 'base' input value 'xyz'") is None

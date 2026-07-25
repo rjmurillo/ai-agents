@@ -488,6 +488,19 @@ def _select_act_event(wf_path: Path) -> str | None:
 # this exact prefix. See issue #2719.
 _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
 
+# dorny/paths-filter resolves its comparison base from the event payload. On a
+# real push or pull_request run GitHub always populates
+# ``repository.default_branch``, so this branch is unreachable in CI. act builds
+# a synthetic payload that omits it, and the action aborts with this exact text.
+# Seen only when the act container CAN reach a .git (otherwise the action fails
+# earlier with _GIT_REPO_MISSING_PATTERN instead), which is why a linked
+# worktree hits the other pattern and a normal checkout hits this one. See
+# issue #3331.
+_ACT_PATHS_FILTER_BASE_PATTERN = re.compile(
+    r"requires 'base' input to be configured or 'repository\.default_branch' "
+    r"to be set in the event payload"
+)
+
 _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
     r"Cannot read properties of undefined \(reading "
     r"'(?:number|head|base|title|body|labels|draft|merged|user|html_url|state|id"
@@ -527,6 +540,12 @@ def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
         return (
             "act container lacks .git; git-calling actions (e.g. dorny/paths-filter) "
             "fail only in local act, not in CI."
+        )
+    if _ACT_PATHS_FILTER_BASE_PATTERN.search(combined):
+        return (
+            "act's synthetic event payload omits repository.default_branch, so "
+            "dorny/paths-filter cannot resolve a comparison base. GitHub always "
+            "populates it, so this fails only in local act, not in CI."
         )
     if event == "pull_request" and _ACT_PR_CONTEXT_MISSING_PATTERN.search(combined):
         return (
