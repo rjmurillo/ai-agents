@@ -74,17 +74,43 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e007",
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 62c24183fc",
-      "caused_by": [],
+      "content": "Commit: 632072417b",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [
-        "e001"
+        "e008"
       ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e53975cadf",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 62c24183fc",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -92,8 +118,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 4
+    "commits": 3,
+    "files_changed": 5
   },
   "lessons": []
 }
