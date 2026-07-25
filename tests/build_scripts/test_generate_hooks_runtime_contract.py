@@ -210,7 +210,8 @@ def _pwsh_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
         env=env,
         cwd=cwd,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         check=False,
     )
@@ -450,7 +451,8 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
     command = hooks_doc["hooks"]["PreToolUse"][0]["powershell"]
 
     # Linux CI has pwsh and python3, but not the Windows py launcher.
-    command = command.replace("py -3", "python3", 1)
+    if sys.platform != "win32":
+        command = command.replace("py -3", "python3", 1)
     proc = subprocess.run(
         ["pwsh", "-NoProfile", "-Command", command],
         env=env,
