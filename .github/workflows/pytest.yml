@@ -133,6 +133,15 @@ jobs:
           RUFF_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/ruff_ratchet.py
 
+      # Issue #2993 acceptance criterion 2 (regression guard, option C). The
+      # diff-scoped ratchet above cannot see debt a PR adds to a file it does
+      # not otherwise touch, so the whole-tree total is frozen in
+      # scripts/ci/ruff_count_baseline.txt and may only go down. Lower it with
+      # `python scripts/ci/ruff_count_ratchet.py --update` after a cleanup.
+      - name: Run ruff count ratchet (whole tree, may only decrease)
+        if: steps.should-run.outputs.skip != 'true'
+        run: python scripts/ci/ruff_count_ratchet.py
+
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'
         run: |
