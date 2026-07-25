@@ -25,7 +25,8 @@
         "!@anthropic-ai/claude-code",
         "!@github/copilot"
       ],
-      "automerge": true
+      "automerge": true,
+      "minimumReleaseAge": "7 days"
     },
     {
       "matchUpdateTypes": [
@@ -45,7 +46,8 @@
         "minor",
         "patch"
       ],
-      "automerge": false
+      "automerge": false,
+      "minimumReleaseAge": "7 days"
     }
   ],
   "platformAutomerge": true
