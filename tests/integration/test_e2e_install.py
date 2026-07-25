@@ -69,8 +69,9 @@ def isolated_copilot_env(home: Path) -> dict[str, str]:
     }
     for name in _COPILOT_CACHE_VARS:
         env[name] = str(home / "cache" / name.lower())
-    for name in _COPILOT_CREDENTIAL_VARS:
-        env.pop(name, None)
+    for name in list(env):
+        if name.upper() in _COPILOT_CREDENTIAL_VARS:
+            env.pop(name)
     return env
 
 
@@ -610,7 +611,15 @@ class TestIsolatedCopilotEnv:
         """A background update writes outside the sandbox and adds network flake."""
         assert isolated_copilot_env(tmp_path)["COPILOT_AUTO_UPDATE"] == "false"
 
-    @pytest.mark.parametrize("name", _COPILOT_CREDENTIAL_VARS)
+    @pytest.mark.parametrize(
+        "name",
+        (
+            *_COPILOT_CREDENTIAL_VARS,
+            "copilot_github_token",
+            "Gh_Token",
+            "github_token",
+        ),
+    )
     def test_credentials_are_removed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
     ) -> None:
