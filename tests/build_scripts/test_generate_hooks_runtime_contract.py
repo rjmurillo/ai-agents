@@ -432,7 +432,7 @@ def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> Non
 
     assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
     expected_path = _bash_resolve(_path_arg(command), env, userland)
-    assert str(stale_root) in expected_path, expected_path
+    assert stale_root.as_posix() in expected_path, expected_path
     assert expected_path in proc.stderr, (
         "interpreter error must name the missing path, otherwise the "
         f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
