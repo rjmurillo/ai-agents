@@ -33,7 +33,7 @@ import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 import pytest
@@ -480,10 +480,12 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
     )
 
     assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
-    # Every operand here is slash-normalized; see _slash for why.
+    # stale_root is a Path, so pathlib owns its normalization. The other two
+    # operands are strings from a subprocess, where str.replace is the only
+    # tool; _slash keeps that in one place and makes it testable off Windows.
     expected_path = _slash(_pwsh_resolve(_path_arg(command), env, tmp_path))
     normalized_stderr = _slash(proc.stderr.replace("\\\\", "\\"))
-    assert _slash(str(stale_root)) in expected_path, expected_path
+    assert stale_root.as_posix() in expected_path, expected_path
     assert expected_path in normalized_stderr, (
         "PowerShell interpreter error must name the missing path, otherwise the "
         f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
@@ -527,17 +529,22 @@ class TestSeparatorNormalization:
     feed the shapes directly.
     """
 
-    def test_a_windows_root_matches_a_normalized_resolved_path(self) -> None:
-        root = r"C:\Users\runneradmin\AppData\Local\Temp\moved-away"
-        resolved = "C:/Users/runneradmin/AppData/Local/Temp/moved-away/hooks/x.py"
-        assert _slash(root) in _slash(resolved)
+    def test_a_windows_resolved_path_is_converted(self) -> None:
+        resolved = r"C:\Users\runneradmin\Temp\moved-away\hooks\PreToolUse\x.py"
+        assert _slash(resolved) == "C:/Users/runneradmin/Temp/moved-away/hooks/PreToolUse/x.py"
 
-    def test_a_posix_root_is_left_alone(self) -> None:
-        root = "/tmp/pytest-0/moved-away"
-        assert _slash(root) == root
+    def test_a_posix_path_is_left_alone(self) -> None:
+        resolved = "/tmp/pytest-0/moved-away/hooks/PreToolUse/x.py"
+        assert _slash(resolved) == resolved
+
+    def test_a_windows_root_then_matches_the_resolved_path(self) -> None:
+        """The comparison the stale-root test makes, with Windows shapes."""
+        root = PurePosixPath(PureWindowsPath(r"C:\Users\runneradmin\moved-away").as_posix())
+        resolved = r"C:\Users\runneradmin\moved-away\hooks\PreToolUse\x.py"
+        assert str(root) in _slash(resolved)
 
     def test_a_mismatched_root_still_fails(self) -> None:
         """Guard the guard: normalization must not make everything match."""
-        root = r"C:\Users\runneradmin\somewhere-else"
-        resolved = "C:/Users/runneradmin/AppData/Local/Temp/moved-away/hooks/x.py"
-        assert _slash(root) not in _slash(resolved)
+        root = PurePosixPath(PureWindowsPath(r"C:\Users\runneradmin\elsewhere").as_posix())
+        resolved = r"C:\Users\runneradmin\moved-away\hooks\PreToolUse\x.py"
+        assert str(root) not in _slash(resolved)
