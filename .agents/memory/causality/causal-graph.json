@@ -14618,6 +14618,24 @@
         "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
       "created": "2026-07-25T08:41:42.830933+00:00"
+    },
+    {
+      "id": "09e94413d792",
+      "type": "milestone",
+      "label": "milestone: Weighed the launcher-guard proposal in issue #3332 against documenting the failure mode, and shipped the documentation.",
+      "episodes": [
+        "episode-2026-07-25-session-3332-stale-plugin-root-doc"
+      ],
+      "created": "2026-07-25T11:55:56.169510+00:00"
+    },
+    {
+      "id": "cc6376358593",
+      "type": "outcome",
+      "label": "Outcome: success - Decide and document the stale-plugin-root failure mode (issue #3332)",
+      "episodes": [
+        "episode-2026-07-25-session-3332-stale-plugin-root-doc"
+      ],
+      "created": "2026-07-25T11:55:56.169573+00:00"
     }
   ],
   "patterns": [

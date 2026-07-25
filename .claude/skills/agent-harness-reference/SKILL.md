@@ -1,6 +1,6 @@
 ---
 name: agent-harness-reference
-description: Field reference for Claude Code and GitHub Copilot CLI hook contracts. Covers hook locations, events, matchers, payloads, decisions, exit codes, timeouts, plugin roots, and cloud limits with official URLs and versioned probes. Use for `harness contract`, `copilot cli hook behavior`, `hook payload format`, or before changing cross-harness hooks. Do NOT use to run the porting campaign (use `ai-agents-portability-campaign`).
+description: Field reference for Claude Code and GitHub Copilot CLI hook contracts. Covers hook locations, events, matchers, payloads, decisions, exit codes, timeouts, plugin roots, and cloud limits with official URLs and versioned probes. Use for `harness contract`, `copilot cli hook behavior`, `hook payload format`, `stale plugin root`, `Errno 2 _dispatch.py`, or before changing cross-harness hooks. Do NOT use to run the porting campaign (use `ai-agents-portability-campaign`).
 version: 1.1.0
 license: MIT
 ---
@@ -358,6 +358,34 @@ directory. Treat the exact aliases as implementation-sensitive. Keep the
 runtime test and negative control when changing launcher paths. The 1.0.72-1
 probe did not independently measure the effect of generated `cwd: "."`.
 Launchers do not rely on it to locate plugin scripts.
+
+### Stale plugin root wedges a running session
+
+Copilot CLI resolves the plugin root once and exports the same value for the
+life of the process. Delete or move the plugin install directory mid-session and
+every hook invocation fails before any repository code runs, because the shell
+expands a path that no longer exists. Signature:
+
+```text
+python.exe: can't open file
+'...\.copilot\installed-plugins\_direct\project-toolkit/hooks/PreToolUse/_dispatch.py':
+[Errno 2] No such file or directory
+```
+
+`_direct` in that path is the local development shadow, not the published
+install. Every tool call is denied for the rest of the session, including read
+tools, because a `PreToolUse` launcher that cannot start its interpreter fails
+closed before matcher evaluation.
+
+Remedy: restart the Copilot session. Reinstalling the plugin without restarting
+does not help when the root moved, since the exported value does not change.
+
+Do not add an existence check to the launcher command strings. The interpreter
+error already names the missing path, so a guard buys only the restart
+sentence, and it costs branching logic inside the highest-blast-radius string in
+the repository, in a generated artifact, in two shell dialects. This is the same
+argument ADR-006 makes against logic in workflow YAML. Evidence: issues #3321
+and #3332, GitHub Copilot CLI 1.0.72-1.
 
 ## Claude Code Delta
 
