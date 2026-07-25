@@ -363,3 +363,18 @@ def test_frontmatter_parser_exposes_nested_structure() -> None:
     parsed = parse_frontmatter("---\nname: x\nmetadata:\n  model: claude-opus-4-6\n---\nbody\n")
     assert parsed.frontmatter["metadata"] == ""
     assert parsed.typed["metadata"] == {"model": "claude-opus-4-6"}
+
+
+def test_nested_pin_not_grandfathered_by_baseline(tmp_path: Path) -> None:
+    # A nested pin must not be grandfathered even when its unit/model pair matches
+    # the baseline. The nested location was never checked before, so baseline
+    # should not apply - it must be a hard violation, not backlog.
+    unit = ".claude/skills/legacy/SKILL.md"
+    _skill(
+        tmp_path,
+        "legacy",
+        "name: legacy\nmetadata:\n  model: haiku",
+    )
+    report = _run(tmp_path, baseline={unit: "haiku"}, manifest=[])
+    assert any("[nested pin]" in v for v in report.violations)
+    assert report.backlog == []

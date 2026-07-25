@@ -414,7 +414,9 @@ def run_check(
         if failure is None:
             continue
         model = unit.model or ""
-        if unit.path not in baseline:
+        if unit.nested_under:
+            report.fail(unit.path, f"[nested pin] {failure}")
+        elif unit.path not in baseline:
             report.fail(unit.path, f"[new pin] {failure}")
         elif _normalize_id(baseline[unit.path]) != _normalize_id(model):
             report.fail(
