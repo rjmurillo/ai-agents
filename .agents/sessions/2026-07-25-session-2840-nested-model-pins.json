@@ -5,20 +5,19 @@
     "date": "2026-07-25",
     "branch": "fix/2840-nested-model-pins",
     "startingCommit": "c0e6d4c1ad506fd0a629b7988c8d21085a2eab15",
-    "objective": "Close the nested-frontmatter hole in the ADR-080 model-pin gate and drop the three versioned skill pins it could not see, advancing issue 2840 criterion 4 with no eval spend.",
-    "endingCommit": "80ee0d9e8b342a12d22c37c6d5f85483e0c2104f"
+    "objective": "Close the nested-frontmatter hole in the ADR-080 model-pin gate and drop the three versioned skill pins it could not see, advancing issue 2840 criterion 4 with no eval spend."
   },
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
-        "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Serena MCP activation tools are not exposed in this Copilot CLI session toolset."
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live on this Copilot CLI harness. The earlier SHOULD downgrade on this log claimed the tools were not exposed; a tool-search probe returned serena-initial_instructions, serena-write_memory, and the symbolic lookup tools, so the premise was wrong and the downgrade is withdrawn."
       },
       "serenaInstructions": {
-        "level": "SHOULD",
-        "Complete": false,
-        "Evidence": "Serena initial_instructions tool is not exposed in this Copilot CLI session toolset."
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions called and the manual read; Serena symbolic editing tools used for the check_model_pins and skill_frontmatter changes."
       },
       "handoffRead": {
         "level": "MUST",
@@ -146,7 +145,7 @@
       }
     ]
   },
-  "endingCommit": "25affff50cae263f0d4300f1c2b51564b7cedfd9",
+  "endingCommit": "7a760505f8",
   "nextSteps": [
     "Push fix/2840-nested-model-pins and open a PR referencing Refs #2840.",
     "Post the parser-blindness finding on #2840 so the remaining agent-track criteria are not assumed to cover it."
