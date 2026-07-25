@@ -203,6 +203,21 @@ def _bash_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
     return proc.stdout
 
 
+def _pwsh_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
+    """Expand a PowerShell path expression under ``env`` and ``cwd``."""
+    proc = subprocess.run(
+        ["pwsh", "-NoProfile", "-Command", f'Write-Host -NoNewline "{path_expr}"'],
+        env=env,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
+
+
 def test_every_bash_command_resolves_to_an_existing_script(tmp_path: Path) -> None:
     """Every emitted bash path resolves to a real file under the contract."""
     doc = _generate(tmp_path)
@@ -449,9 +464,10 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
         check=False,
     )
 
-    expected_path = stale_root / "hooks" / "PreToolUse" / "_dispatch.py"
     assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
-    assert str(expected_path) in proc.stderr, (
+    expected_path = _pwsh_resolve(_path_arg(command), env, tmp_path)
+    assert str(stale_root) in expected_path, expected_path
+    assert expected_path in proc.stderr, (
         "PowerShell interpreter error must name the missing path, otherwise the "
         f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
     )
