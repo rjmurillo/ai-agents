@@ -681,6 +681,11 @@ class TestSubprocessDecoding:
                 continue
             if not (isinstance(func.value, ast.Name) and func.value.id == "subprocess"):
                 continue
+            if any(keyword.arg is None for keyword in node.keywords):
+                raise AssertionError(
+                    f"subprocess.run at line {node.lineno} expands **kwargs; "
+                    "the decoding guard cannot inspect bundled arguments"
+                )
             kwargs = {kw.arg for kw in node.keywords}
             if kwargs & cls._CAPTURING and kwargs & cls._TEXT_MODE:
                 calls.append(node)
@@ -711,6 +716,10 @@ class TestSubprocessDecoding:
         """stdout=PIPE decodes exactly like capture_output=True does."""
         snippet = "subprocess.run(cmd, stdout=subprocess.PIPE, universal_newlines=True)"
         assert len(self._captured_runs(snippet)) == 1
+
+    def test_bundled_kwargs_cannot_bypass_the_guard(self) -> None:
+        with pytest.raises(AssertionError, match=r"expands \*\*kwargs"):
+            self._captured_runs("subprocess.run(cmd, **kwargs)")
 
     def test_every_captured_run_pins_encoding_and_errors(self) -> None:
         for call in self._captured_runs():
