@@ -52,12 +52,12 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/3371-collect-mirror-suites"
+        "Evidence": "fix/3370-causal-graph-repair"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On fix/3371-collect-mirror-suites, branched off main 663bbac488"
+        "Evidence": "On fix/3370-causal-graph-repair, branched off main 263ce89d05"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "663bbac488"
+        "Evidence": "263ce89d05"
       }
     },
     "sessionEnd": {
@@ -143,7 +143,7 @@
       "summary": "The pre-push suite caught a real defect in the first draft: the repair message hard-coded .claude/skills/memory/scripts/update_causal_graph.py, a path that does not exist in the Copilot CLI mirror, which tripped the vendor-portability ratchet (issue 2050). Replaced it with _repair_invocation(), which derives the script's own location from __file__ and returns it relative to the caller's cwd when possible. Also gave git_hook_policy.py a single _CAUSAL_UPDATER constant so the subprocess invocation and the repair advice cannot drift apart. Added 4 tests and ran a sixth negative control: restoring the literal turned both the ratchet and a test red."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "d655c5237b",
   "nextSteps": [
     "Open a PR referencing issue 3370 and reply on the issue with the stale-asymmetry finding.",
     "Re-poll the three open PRs for new review threads and CI status.",

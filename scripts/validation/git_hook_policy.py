@@ -1340,7 +1340,7 @@ def _run_causal_updater(
     result = _run_command(
         [
             sys.executable,
-            ".claude/skills/memory/scripts/update_causal_graph.py",
+            _CAUSAL_UPDATER,
             "--episode-path",
             str(episode_path),
             "--graph-path",
