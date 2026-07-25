@@ -661,8 +661,10 @@ class TestSubprocessDecoding:
 
     #: Stream kwargs that route a subprocess pipe back into this process.
     _PIPE_KWARGS = frozenset({"stdout", "stderr"})
-    #: Kwargs that put the pipes into text mode, which is what forces a decode.
-    _TEXT_MODE = frozenset({"text", "universal_newlines", "encoding", "errors"})
+    #: Boolean kwargs that put captured pipes into text mode when true.
+    _TEXT_FLAGS = frozenset({"text", "universal_newlines"})
+    #: Codec kwargs whose presence enables text-mode decoding.
+    _TEXT_OPTIONS = frozenset({"encoding", "errors"})
 
     @classmethod
     def _captured_runs(cls, source: str | None = None) -> list[ast.Call]:
@@ -711,7 +713,13 @@ class TestSubprocessDecoding:
                 and keyword.value.value.id == "subprocess"
                 for keyword in node.keywords
             )
-            if (captures_output or captures_pipe) and kwargs & cls._TEXT_MODE:
+            text_mode = bool(kwargs & cls._TEXT_OPTIONS) or any(
+                keyword.arg in cls._TEXT_FLAGS
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value is True
+                for keyword in node.keywords
+            )
+            if (captures_output or captures_pipe) and text_mode:
                 calls.append(node)
         return calls
 
@@ -735,6 +743,14 @@ class TestSubprocessDecoding:
     def test_captured_text_mode_is_a_target(self) -> None:
         """The intersection is the cp1252 failure mode, so it must be caught."""
         assert len(self._captured_runs("subprocess.run(cmd, capture_output=True, text=True)")) == 1
+
+    @pytest.mark.parametrize("flag", ["text", "universal_newlines"])
+    def test_explicit_false_text_flag_is_not_a_target(self, flag: str) -> None:
+        assert self._captured_runs(f"subprocess.run(cmd, capture_output=True, {flag}=False)") == []
+
+    def test_one_true_text_flag_overrides_the_other_false_flag(self) -> None:
+        snippet = "subprocess.run(cmd, capture_output=True, text=False, universal_newlines=True)"
+        assert len(self._captured_runs(snippet)) == 1
 
     def test_redirected_pipe_counts_as_capture(self) -> None:
         """stdout=PIPE decodes exactly like capture_output=True does."""

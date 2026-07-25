@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed on fix/3324-windows-home-isolation across four commits: the isolation fix and its proof in the integration test, the credential-free smoke workflow change, and this log with its generated episode. Enumerating categories rather than a file count so the record does not drift as review commits land."
+        "Evidence": "Committed on fix/3324-windows-home-isolation across three commits: the isolation fix and its proof in the integration test, the credential-free smoke workflow change, and this log with its generated episode. Enumerating categories rather than a file count so the record does not drift as review commits land."
       },
       "validationPassed": {
         "level": "MUST",
