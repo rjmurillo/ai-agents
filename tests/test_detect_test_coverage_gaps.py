@@ -101,6 +101,8 @@ class TestTheDetectorRunsWithoutAnEditableInstall:
             env=self._clean_env(),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
         )
 
@@ -118,6 +120,8 @@ class TestTheDetectorRunsWithoutAnEditableInstall:
             cwd=str(repo),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=180,
         )
         if add.returncode != 0:
@@ -134,6 +138,8 @@ class TestTheDetectorRunsWithoutAnEditableInstall:
                 env=self._clean_env(),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=60,
             )
             assert "ModuleNotFoundError" not in result.stderr, result.stderr
@@ -144,5 +150,7 @@ class TestTheDetectorRunsWithoutAnEditableInstall:
                 cwd=str(repo),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=180,
             )
