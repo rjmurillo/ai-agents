@@ -607,12 +607,29 @@ class TestIsolatedCopilotEnv:
         """A background update writes outside the sandbox and adds network flake."""
         assert isolated_copilot_env(tmp_path)["COPILOT_AUTO_UPDATE"] == "false"
 
-    def test_no_isolated_var_leaks_the_real_home(self, tmp_path: Path) -> None:
-        """Guard the guard: catches a typo that silently reuses os.environ."""
+    def test_no_isolated_var_is_passed_through_from_the_ambient_environment(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Guard the guard: catches a typo that silently reuses os.environ.
+
+        Asserting the values sit under ``tmp_path`` cannot catch this, and
+        every such assertion is already made above, one test per variable. The
+        distinct question here is where the value came from, not what shape it
+        has, so each variable gets a sentinel in the ambient environment first.
+        A helper that reads ``os.environ[name]`` returns the sentinel; one that
+        derives from ``tmp_path`` cannot.
+        """
+        names = ("HOME", "USERPROFILE", "COPILOT_HOME", *_COPILOT_CACHE_VARS)
+        sentinels = {name: f"/sentinel/ambient/{name}" for name in names}
+        for name, value in sentinels.items():
+            monkeypatch.setenv(name, value)
+
         env = isolated_copilot_env(tmp_path)
-        for name in ("HOME", "USERPROFILE", "COPILOT_HOME", *_COPILOT_CACHE_VARS):
-            assert Path(env[name]).is_relative_to(tmp_path), (
-                f"{name} still references the real home"
+
+        for name, value in sentinels.items():
+            assert env[name] != value, (
+                f"{name} was copied out of the ambient environment instead of "
+                f"being derived from the sandbox root"
             )
 
     def test_unrelated_environment_is_preserved(self, tmp_path: Path) -> None:
