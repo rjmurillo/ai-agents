@@ -4,7 +4,6 @@ description: Detect CWE-78 (command injection) regex patterns in Python, PowerSh
 license: MIT
 metadata:
   version: 2.0.0
-  model: claude-sonnet-4-6
 ---
 
 # Security Scan
