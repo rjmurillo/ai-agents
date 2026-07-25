@@ -91,7 +91,7 @@
   "workLog": [
     {
       "time": "T0",
-      "entry": "Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: #3295 (8318d1c350, version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101."
+      "entry": "Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: PR #3295 (version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101. The merge SHA is cited in PR #3326 and in the Serena memory rather than here, because the episode extractor reads work-log prose SHAs as commits this session produced."
     },
     {
       "time": "T1",
@@ -103,7 +103,7 @@
     },
     {
       "time": "T3",
-      "entry": "Extracted the pre-purge plugin tree (git archive 8318d1c350^ src/copilot-cli) and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths."
+      "entry": "Extracted the pre-purge plugin tree with git archive against the parent of the PR #3295 merge commit and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths."
     },
     {
       "time": "T4",

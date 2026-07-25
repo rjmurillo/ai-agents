@@ -14503,15 +14503,6 @@
       "created": "2026-07-24T19:16:22.234264+00:00"
     },
     {
-      "id": "1d53fea0023d",
-      "type": "commit",
-      "label": "commit: Commit: 8318d1c350",
-      "episodes": [
-        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
-      ],
-      "created": "2026-07-24T19:16:22.234315+00:00"
-    },
-    {
       "id": "9cc0a372473b",
       "type": "outcome",
       "label": "Outcome: success - Triage issue #3321 (P0): project-toolkit denies a valid Copilot CLI freeform apply_patch on CLI 1.0.74. Determine whether main still reproduces, find the real denial mechanism, and lock the behavior with a regression guard on the shipped dispatcher.",
@@ -14519,6 +14510,24 @@
         "episode-2026-07-24-session-3321-apply-patch-regression-guard"
       ],
       "created": "2026-07-24T19:16:22.234366+00:00"
+    },
+    {
+      "id": "5c796af2eaf2",
+      "type": "milestone",
+      "label": "milestone: Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: PR #3295 (version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101. The merge SHA is cited in PR #3326 and in the Serena memory rather than here, because the episode extractor reads work-log prose SHAs as commits this session produced.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-25T07:36:38.720762+00:00"
+    },
+    {
+      "id": "b4544b1913ac",
+      "type": "milestone",
+      "label": "milestone: Extracted the pre-purge plugin tree with git archive against the parent of the PR #3295 merge commit and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-25T07:36:38.720823+00:00"
     }
   ],
   "patterns": [
