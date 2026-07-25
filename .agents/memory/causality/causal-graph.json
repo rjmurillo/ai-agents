@@ -14449,15 +14449,6 @@
       "created": "2026-07-22T15:39:37.620865+00:00"
     },
     {
-      "id": "a370df207b3f",
-      "type": "milestone",
-      "label": "milestone: Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: #3295 (8318d1c350, version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101.",
-      "episodes": [
-        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
-      ],
-      "created": "2026-07-24T19:16:22.233994+00:00"
-    },
-    {
       "id": "71b90211a8ea",
       "type": "milestone",
       "label": "milestone: Replayed six realistic payload shapes through the shipped src/copilot-cli/hooks/PreToolUse/_dispatch.py on main: top-level apply_patch with a raw patch string, the recorded toolCalls host event, Edit and Write with a raw patch string, a JSON-object args string, and a headerless string. All exit 0. Local Copilot CLI is 1.0.74, the same build the reporter names.",
@@ -14474,15 +14465,6 @@
         "episode-2026-07-24-session-3321-apply-patch-regression-guard"
       ],
       "created": "2026-07-24T19:16:22.234110+00:00"
-    },
-    {
-      "id": "33093c70775b",
-      "type": "milestone",
-      "label": "milestone: Extracted the pre-purge plugin tree (git archive 8318d1c350^ src/copilot-cli) and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths.",
-      "episodes": [
-        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
-      ],
-      "created": "2026-07-24T19:16:22.234162+00:00"
     },
     {
       "id": "d5b0bb9da17a",
@@ -14528,6 +14510,15 @@
         "episode-2026-07-24-session-3321-apply-patch-regression-guard"
       ],
       "created": "2026-07-25T07:36:38.720823+00:00"
+    },
+    {
+      "id": "6f405e8c431e",
+      "type": "milestone",
+      "label": "milestone: Worked PR #3326 review threads. Corrected a stale shim list in the guard docstring, two undercounted changed-file claims in this log, and an episode that recorded PR #3295's merge SHA as a commit this session produced. Verified the root cause instead of hand-patching the metric: the pre-commit extractor re-derives metrics.commits from commit-typed events, so an earlier hand-edit was silently reverted. Fixed by citing #3295 by PR number in this log so a fresh extraction reproduces the committed episode exactly. Left the extractor's bare-SHA sweep unchanged; narrowing it breaks four tests that encode the #2170, #3123, and #3301 contract, which is a separate decision.",
+      "episodes": [
+        "episode-2026-07-24-session-3321-apply-patch-regression-guard"
+      ],
+      "created": "2026-07-25T07:38:28.278709+00:00"
     }
   ],
   "patterns": [

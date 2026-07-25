@@ -10,7 +10,7 @@
       "id": "e001",
       "timestamp": "2026-07-24T00:00:00+00:00",
       "type": "milestone",
-      "content": "Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: #3295 (8318d1c350, version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101.",
+      "content": "Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: PR #3295 (version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101. The merge SHA is cited in PR #3326 and in the Serena memory rather than here, because the episode extractor reads work-log prose SHAs as commits this session produced.",
       "caused_by": [
         "e006"
       ],
@@ -46,7 +46,7 @@
       "id": "e004",
       "timestamp": "2026-07-24T00:00:00+00:00",
       "type": "milestone",
-      "content": "Extracted the pre-purge plugin tree (git archive 8318d1c350^ src/copilot-cli) and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths.",
+      "content": "Extracted the pre-purge plugin tree with git archive against the parent of the PR #3295 merge commit and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths.",
       "caused_by": [
         "e003"
       ],
@@ -80,21 +80,9 @@
       "id": "e007",
       "timestamp": "2026-07-24T00:00:00+00:00",
       "type": "milestone",
-      "content": "Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: PR #3295 (version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101. The merge SHA is cited in PR #3326 and in the Serena memory rather than here, because the episode extractor reads work-log prose SHAs as commits this session produced.",
+      "content": "Worked PR #3326 review threads. Corrected a stale shim list in the guard docstring, two undercounted changed-file claims in this log, and an episode that recorded PR #3295's merge SHA as a commit this session produced. Verified the root cause instead of hand-patching the metric: the pre-commit extractor re-derives metrics.commits from commit-typed events, so an earlier hand-edit was silently reverted. Fixed by citing #3295 by PR number in this log so a fresh extraction reproduces the committed episode exactly. Left the extractor's bare-SHA sweep unchanged; narrowing it breaks four tests that encode the #2170, #3123, and #3301 contract, which is a separate decision.",
       "caused_by": [
         "e005"
-      ],
-      "leads_to": [
-        "e008"
-      ]
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-07-24T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Extracted the pre-purge plugin tree with git archive against the parent of the PR #3295 merge commit and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths.",
-      "caused_by": [
-        "e007"
       ],
       "leads_to": []
     }

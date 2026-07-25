@@ -108,6 +108,10 @@
     {
       "time": "T4",
       "entry": "Learnings captured in Serena memory decision-3321-freeform-apply-patch-gate. Added three fixtures to the existing #3083 guard rather than a new module: freeform-patch-string, freeform-patch-string-as-edit, and freeform-patch-end-of-file-marker, all replayed through the committed dispatcher with the file's existing non-plugin-root negative control supplying teeth. 8 tests green."
+    },
+    {
+      "time": "T5",
+      "entry": "Worked PR #3326 review threads. Corrected a stale shim list in the guard docstring, two undercounted changed-file claims in this log, and an episode that recorded PR #3295's merge SHA as a commit this session produced. Verified the root cause instead of hand-patching the metric: the pre-commit extractor re-derives metrics.commits from commit-typed events, so an earlier hand-edit was silently reverted. Fixed by citing #3295 by PR number in this log so a fresh extraction reproduces the committed episode exactly. Left the extractor's bare-SHA sweep unchanged; narrowing it breaks four tests that encode the #2170, #3123, and #3301 contract, which is a separate decision."
     }
   ],
   "endingCommit": "8385764d799b84a32c18d55a0bb3a8b1dd3162a5",
