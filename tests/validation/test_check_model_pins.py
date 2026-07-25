@@ -491,12 +491,12 @@ def test_alias_dag_does_not_expand_exponentially(monkeypatch: pytest.MonkeyPatch
     original = cmp._collect_nested_pins
     calls = 0
 
-    def counting(*args: object, **kwargs: object) -> None:
+    def counting(node: object, prefix: str, seen: set[int], out: list[tuple[str, str]]) -> None:
         nonlocal calls
         calls += 1
         # Recursion resolves _collect_nested_pins as a module global at call
         # time, so patching the attribute counts the inner calls too.
-        return original(*args, **kwargs)  # type: ignore[arg-type]
+        original(node, prefix, seen, out)
 
     monkeypatch.setattr(cmp, "_collect_nested_pins", counting)
     pins = cmp._nested_pins(typed)
