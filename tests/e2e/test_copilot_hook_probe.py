@@ -169,3 +169,31 @@ def test_headline_still_says_provision_for_an_absent_token() -> None:
     assert "is empty" in headline
     assert "provision" in headline.lower()
     assert "rejected" not in headline
+
+
+def test_auth_absent_is_false_for_a_rejected_token() -> None:
+    """A refused token is not an absent one, even though the CLI prints both.
+
+    The rejection stderr carries the CLI's own "you can use any of the
+    following methods" list, so the absent markers match a credential that
+    plainly exists. The predicate must exclude that case itself rather than
+    rely on every caller ordering the two checks correctly.
+    """
+    result = _completed(stderr=_REJECTED_STDERR, returncode=1)
+    assert copilot_auth_rejected(result) is True
+    assert copilot_auth_absent(result) is False
+    assert copilot_auth_failed(result) is True
+
+
+def test_auth_rejected_ignores_a_bare_bad_credentials_mention() -> None:
+    """Model output may quote the phrase; only the CLI's auth-gate line counts.
+
+    Misclassifying an unrelated crash as a rejection sends the reader to rotate
+    a healthy secret, which is worse than no headline at all.
+    """
+    noisy = _completed(
+        stdout="the API replied with bad credentials for the sample request",
+        returncode=1,
+    )
+    assert copilot_auth_rejected(noisy) is False
+    assert copilot_auth_failed(noisy) is False

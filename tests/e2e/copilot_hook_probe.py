@@ -135,11 +135,12 @@ COPILOT_AUTH_ABSENT_MARKERS = (
 # That list matches COPILOT_AUTH_ABSENT_MARKERS, so a rejected token reads as an
 # empty one and the headline sends the reader to provision a secret that is
 # already provisioned. These markers only appear when a credential was actually
-# presented, so they take precedence over the absent markers. Deliberately not
-# matching a bare "401": too loose for a stream that carries arbitrary model
-# output.
+# presented, so they take precedence over the absent markers. Both are anchored
+# to the CLI's own auth-gate phrasing: a bare "401" or a bare "bad credentials"
+# is too loose for a stream that carries arbitrary model output, which can quote
+# either while auth is fine.
 COPILOT_AUTH_REJECTED_MARKERS = (
-    "bad credentials",
+    "github returned: bad credentials",
     "failed to fetch pat user login",
 )
 
@@ -170,8 +171,16 @@ def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     Missing auth is an error path: the CLI aborts non-zero. Gate the marker scan
     on ``returncode != 0`` so a healthy run (rc=0) that happens to echo a marker
     string in its output is never misclassified as an auth failure.
+
+    A rejected token is excluded, not merely deprioritized. The CLI prints the
+    same "you can use any of the following methods" list after a refusal, so the
+    absent markers match a token that plainly exists. Returning True there would
+    make this predicate's own name false and would silently depend on every
+    caller checking :func:`copilot_auth_rejected` first.
     """
     if result.returncode == 0:
+        return False
+    if copilot_auth_rejected(result):
         return False
     haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
     return any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS)
