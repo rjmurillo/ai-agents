@@ -6,7 +6,7 @@
     "branch": "fix/3332-stale-plugin-root-doc",
     "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
     "objective": "Decide and document the stale-plugin-root failure mode (issue #3332)",
-    "endingCommit": ""
+    "endingCommit": "657a44ad56aadb9a43b30533480d861210a4b0da"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -28,17 +28,17 @@
       "sessionLogCreated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This file, .agents/sessions/2026-07-25-session-2840-nested-model-pins.json."
+        "Evidence": "This file, .agents/sessions/2026-07-25-session-3332-stale-plugin-root-doc.json."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Branch created with git checkout -b fix/2840-nested-model-pins origin/main and confirmed by git branch --show-current."
+        "Evidence": "Branch created with git checkout -b fix/3332-stale-plugin-root-doc origin/main and confirmed by git branch --show-current."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Working branch is fix/2840-nested-model-pins, not main."
+        "Evidence": "Working branch is fix/3332-stale-plugin-root-doc, not main."
       },
       "gitStatusVerified": {
         "level": "MUST",
@@ -48,7 +48,7 @@
       "startingCommitNoted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "startingCommit recorded as c0e6d4c1ad506fd0a629b7988c8d21085a2eab15, the origin/main tip this branch was cut from."
+        "Evidence": "startingCommit recorded as 1ffee3834e910608ed6c03c374fb71ff7c39bdc3, the origin/main tip this branch was cut from."
       }
     },
     "sessionEnd": {
@@ -99,7 +99,7 @@
   "learnings": [
     "Before building a diagnostic, read the message the failure already prints. Here it already carried the path, so the whole delta was one sentence of missing runtime-contract knowledge, which is a documentation shape, not a code shape."
   ],
-  "endingCommit": "",
+  "endingCommit": "657a44ad56aadb9a43b30533480d861210a4b0da",
   "nextSteps": [
     "Close issue #3332 with this reasoning."
   ]
