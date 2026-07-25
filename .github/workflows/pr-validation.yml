@@ -428,3 +428,24 @@ jobs:
       - name: Run ADR-006 run-block ratchet
         if: steps.should-run.outputs.skip != 'true'
         run: python3 scripts/ci/adr006_run_block_scanner.py --max 87
+
+      # Issue #3330: workflow YAML was validated only by lefthook, so it landed
+      # unvalidated on every path that does not run local hooks: Renovate and
+      # Dependabot action-pin bumps, the web editor, the API, a clone where
+      # `lefthook install` was never run. The blast radius is CI itself, and a
+      # malformed workflow surfaces when it next fires, which for a scheduled job
+      # is hours or days later. #3275 is a live example of exactly that.
+      #
+      # This job is the right host because it runs on every PR regardless of
+      # touched paths. No workflow triggers on `.github/workflows/**`, and
+      # pytest.yml gates on python-changed, so a workflow-only PR touches no
+      # other gate at all.
+      #
+      # actionlint stays out on purpose. It is not in the runner image, so adding
+      # it means adding a download-and-trust step, which is a supply-chain
+      # decision worth making on its own rather than smuggling into this one.
+      # This script is dependency-free, runs in under a second across all the
+      # workflows, and covers YAML syntax, structure, and action SHA pinning.
+      - name: Validate workflow YAML
+        if: steps.should-run.outputs.skip != 'true'
+        run: python3 scripts/validate_workflows.py

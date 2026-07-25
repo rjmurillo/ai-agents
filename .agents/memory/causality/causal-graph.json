@@ -14618,6 +14618,24 @@
         "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
       "created": "2026-07-25T08:41:42.830933+00:00"
+    },
+    {
+      "id": "5a9b94be9a71",
+      "type": "milestone",
+      "label": "milestone: Wire scripts/validate_workflows.py into the pr-validation validate-pr job and add tests/ci/test_ci_scripts_are_wired.py",
+      "episodes": [
+        "episode-2026-07-25-session-3330-ci-workflow-validation"
+      ],
+      "created": "2026-07-25T11:43:28.519455+00:00"
+    },
+    {
+      "id": "13a3a9977891",
+      "type": "outcome",
+      "label": "Outcome: success - Wire workflow YAML validation into CI and add a wiring guard for the scripts/ci family (issue #3330)",
+      "episodes": [
+        "episode-2026-07-25-session-3330-ci-workflow-validation"
+      ],
+      "created": "2026-07-25T11:43:28.519518+00:00"
     }
   ],
   "patterns": [

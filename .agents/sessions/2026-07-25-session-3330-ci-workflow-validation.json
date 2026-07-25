@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3330,
+    "date": "2026-07-25",
+    "branch": "fix/3330-ci-workflow-validation",
+    "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
+    "objective": "Wire workflow YAML validation into CI and add a wiring guard for the scripts/ci family (issue #3330)",
+    "endingCommit": ""
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP activation tools are not exposed in this Copilot CLI session toolset."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena initial_instructions tool is not exposed in this Copilot CLI session toolset."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md at session start; treated as the read-only dashboard per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, .agents/sessions/2026-07-25-session-2840-nested-model-pins.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch created with git checkout -b fix/2840-nested-model-pins origin/main and confirmed by git branch --show-current."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working branch is fix/2840-nested-model-pins, not main."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status --porcelain inspected before branching; only unrelated untracked retrospective and cache files present."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "startingCommit recorded as c0e6d4c1ad506fd0a629b7988c8d21085a2eab15, the origin/main tip this branch was cut from."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end checklist walked: tests run with negative controls, workflow validated locally with actionlint and act, lint scoped to changed files."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP write tools are not exposed in this Copilot CLI session toolset; the finding is recorded in this log and on issue #3330."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed on this branch."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed on fix/3330-ci-workflow-validation."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/ci/test_ci_scripts_are_wired.py -q returned 11 passed; scripts/validate_workflows.py and run_workflow_local_test.py --files .github/workflows/pr-validation.yml both returned OK."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings recorded in this log; the reusable finding is that a guard with no call site is unverified, not merely unused."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-25T12:00:00Z",
+      "action": "Wire scripts/validate_workflows.py into the pr-validation validate-pr job and add tests/ci/test_ci_scripts_are_wired.py",
+      "result": "Workflow YAML was checked only by lefthook, so it landed unvalidated from Renovate, Dependabot, the web editor, the API, and any clone without hooks installed. No workflow triggers on .github/workflows/**, and pytest.yml gates on python-changed, so a workflow-only PR passed through every gate untouched. The validate-pr job is the right host because it runs on every PR regardless of path. actionlint stays out on purpose: it is not in the runner image, so adding it is a download-and-trust decision worth making on its own. The wiring test is the more durable half. Issue #3329 was two guards with green tests and no caller, which unit tests cannot catch because the missing thing is the call site. The new test parametrizes over every scripts/ci/*.py and asserts a workflow references it, with a documented allowlist so an exemption is a decision rather than a silent skip. Negative controls: an unwired probe script fails only its own parametrized case; deleting the new workflow step fails only the named validator test."
+    }
+  ],
+  "learnings": [
+    "A guard with passing tests and no call site is not half-finished, it is unverified: its tests exercise the interface while the scope, which is where #3329's ratchet was wrong by a factor of two, goes unexercised until something actually runs it."
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Decide separately whether to add actionlint to CI, which requires a pinned download step."
+  ]
+}
