@@ -1,6 +1,8 @@
 """Tests for extract_session_episode.py."""
 
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1469,3 +1471,108 @@ class TestSequentialEventLinks:
         for e in episode["events"]:
             for ref in e["caused_by"] + e["leads_to"]:
                 assert ref in ids, f"dangling reference {ref} in {e['id']}"
+
+
+
+def _git(repo, *args):
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    ).stdout.strip()
+
+
+def _commit(repo, name, body):
+    (repo / name).write_text(body, encoding="utf-8")
+    _git(repo, "add", name)
+    _git(repo, "commit", "-q", "-m", f"add {name}")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestPredatingProseShaExclusion:
+    """Work-log prose cites SHAs the session did not author (issue #3328).
+
+    A commit already reachable from ``startingCommit`` existed before the
+    session began, so the session cannot have produced it. When git can prove
+    that, the SHA must not count toward ``metrics.commits``. When git cannot
+    answer, the count is unchanged.
+    """
+
+    @staticmethod
+    def _repo(tmp_path):
+        """History: old -> base -> own, plus a squash-shaped orphan.
+
+        ``old`` stands for a third-party commit the session cites as evidence.
+        ``squashed`` stands for this repo's squash-merge of the session's own
+        branch: it is neither an ancestor nor a descendant of ``base``, which
+        is exactly why the descendant-based form of this check was wrong.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        old = _commit(repo, "old.txt", "old")
+        base = _commit(repo, "base.txt", "base")
+        own = _commit(repo, "own.txt", "own")
+        _git(repo, "checkout", "-q", "--orphan", "squash")
+        _git(repo, "rm", "-q", "-rf", ".")
+        squashed = _commit(repo, "squashed.txt", "squashed")
+        _git(repo, "checkout", "-q", "main")
+        return repo, old, base, own, squashed
+
+    @staticmethod
+    def _log(repo, base, own, prose):
+        data = _json_log([{"task": "Cited", "outcome": prose}])
+        data["session"]["startingCommit"] = base
+        data["endingCommit"] = own
+        return data
+
+    def test_sha_predating_the_session_is_not_counted(self, tmp_path, monkeypatch):
+        repo, old, base, own, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(repo, base, own, f"reproduced against {old}")
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
+
+    def test_squash_merge_of_own_work_is_still_counted(self, tmp_path, monkeypatch):
+        # The session's own squash-merge commit is neither an ancestor nor a
+        # descendant of the branch base. The descendant form of this check
+        # dropped it; the ancestor form must not.
+        repo, _old, base, own, squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(repo, base, own, f"merged as {squashed}")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_later_commit_on_the_same_line_is_still_counted(self, tmp_path, monkeypatch):
+        repo, _old, base, own, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        extra = _commit(repo, "extra.txt", "extra")
+        data = self._log(repo, base, own, f"landed {extra}")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_unresolvable_sha_fails_open(self, tmp_path, monkeypatch):
+        repo, _old, base, own, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(repo, base, own, "see deadbee for context")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_outside_a_git_repo_fails_open(self, tmp_path, monkeypatch):
+        outside = tmp_path / "not-a-repo"
+        outside.mkdir()
+        monkeypatch.chdir(outside)
+        data = _json_log([{"task": "Cited", "outcome": "1234abc. Added parser"}])
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_events_and_metrics_agree(self, tmp_path, monkeypatch):
+        repo, old, base, own, _squashed = self._repo(tmp_path)
+        monkeypatch.chdir(repo)
+        data = self._log(repo, base, own, f"reproduced against {old}")
+        events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
+        commit_events = [e for e in events if e.get("type") == "commit"]
+        # json_events and json_metrics must agree, or the causal graph carries a
+        # commit node the metric does not (issue #3328 provenance consistency).
+        assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
+        assert all(old not in json.dumps(e) for e in commit_events)

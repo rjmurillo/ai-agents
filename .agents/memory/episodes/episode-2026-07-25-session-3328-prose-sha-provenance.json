@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-07-25-session-3328-prose-sha-provenance",
+  "session": "2026-07-25-session-3328-prose-sha-provenance",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Stop the episode extractor counting third-party SHAs in work-log prose as commits the session produced (issue #3328). Pick a discriminator that holds against this repo's squash-merge history rather than the one the issue proposed.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #3328 offers three options and calls option 2, verifying each prose SHA is a descendant of the starting commit, accurate. Implemented it first because it looked free: the extractor already shells out to git for staged-file counts, so it adds no dependency, and all 140 existing tests passed unchanged because their fixture SHAs are not git objects and fail open.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Passing tests were not enough evidence, so the rule was replayed against all 916 session logs in the repo. It changed 13 of them. Every case inspected was wrong. This repo squash-merges, and a squash commit discards the branch's parentage, so a session's own merge commit is not a descendant of the branch base it came from. Option 2 as written drops exactly the commits it is supposed to keep.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inverted the test. A commit already reachable from the starting commit existed before the session began, so the session cannot have produced it. That is a tautology, which is what makes it safe, and it cannot misfire on a squash merge because a squash merge comes after the base rather than before it. Checked the discriminator against the SHA named in the issue report and against the three squash cases: the report SHA is an ancestor of its session's base, and none of the squash cases are.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-swept all 878 logs that carry a work log. Nine change, all downward, and reading the prose around each dropped SHA confirms every one is a citation rather than a session commit: another PR's merge commit, a different branch's tip, a git-blame result, and a version-pin reference. Zero false positives. Fails open on an unresolvable SHA, a missing starting commit, or no git, so the metric degrades to today's behavior rather than silently dropping real commits.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Six regression cases added, including one that pins the squash-merge behavior directly so the descendant form cannot be reintroduced without a red test, and one that asserts the event stream and the metric agree so the causal graph cannot carry a commit node the metric does not.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 7
+  },
+  "lessons": []
+}

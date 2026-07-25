@@ -14564,6 +14564,60 @@
         "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859525+00:00"
+    },
+    {
+      "id": "c30932e71ba5",
+      "type": "milestone",
+      "label": "milestone: Issue #3328 offers three options and calls option 2, verifying each prose SHA is a descendant of the starting commit, accurate. Implemented it first because it looked free: the extractor already shells out to git for staged-file counts, so it adds no dependency, and all 140 existing tests passed unchanged because their fixture SHAs are not git objects and fail open.",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T09:14:18.884248+00:00"
+    },
+    {
+      "id": "5ccfa4f23fcb",
+      "type": "milestone",
+      "label": "milestone: Passing tests were not enough evidence, so the rule was replayed against all 916 session logs in the repo. It changed 13 of them. Every case inspected was wrong. This repo squash-merges, and a squash commit discards the branch's parentage, so a session's own merge commit is not a descendant of the branch base it came from. Option 2 as written drops exactly the commits it is supposed to keep.",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T09:14:18.884308+00:00"
+    },
+    {
+      "id": "7359cc22ecfc",
+      "type": "milestone",
+      "label": "milestone: Inverted the test. A commit already reachable from the starting commit existed before the session began, so the session cannot have produced it. That is a tautology, which is what makes it safe, and it cannot misfire on a squash merge because a squash merge comes after the base rather than before it. Checked the discriminator against the SHA named in the issue report and against the three squash cases: the report SHA is an ancestor of its session's base, and none of the squash cases are.",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T09:14:18.884360+00:00"
+    },
+    {
+      "id": "7332a941d86a",
+      "type": "milestone",
+      "label": "milestone: Re-swept all 878 logs that carry a work log. Nine change, all downward, and reading the prose around each dropped SHA confirms every one is a citation rather than a session commit: another PR's merge commit, a different branch's tip, a git-blame result, and a version-pin reference. Zero false positives. Fails open on an unresolvable SHA, a missing starting commit, or no git, so the metric degrades to today's behavior rather than silently dropping real commits.",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T09:14:18.884410+00:00"
+    },
+    {
+      "id": "0c8d7d0cd852",
+      "type": "milestone",
+      "label": "milestone: Six regression cases added, including one that pins the squash-merge behavior directly so the descendant form cannot be reintroduced without a red test, and one that asserts the event stream and the metric agree so the causal graph cannot carry a commit node the metric does not.",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T09:14:18.884460+00:00"
+    },
+    {
+      "id": "df41def6d0d7",
+      "type": "outcome",
+      "label": "Outcome: success - Stop the episode extractor counting third-party SHAs in work-log prose as commits the session produced (issue #3328). Pick a discriminator that holds against this repo's squash-merge history rather than the one the issue proposed.",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T09:14:18.884510+00:00"
     }
   ],
   "patterns": [

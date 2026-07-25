@@ -570,12 +570,71 @@ def _prose_shas(text: str) -> list[str]:
     return [sha for sha in _SHA_RE.findall(text) if _HEX_LETTER_RE.search(sha)]
 
 
+def _prose_sha_predates_session(sha: str, starting: str) -> bool:
+    """Whether git can prove ``sha`` already existed when the session started.
+
+    Work-log prose cites SHAs the session did not author: an upstream merge it
+    reasoned about, a third-party commit it bisected, a PR whose base it read.
+    Counting those inflates ``metrics.commits`` and puts commit nodes the
+    session never produced into the causal graph (issue #3328).
+
+    The discriminator is a tautology, which is what makes it safe: a commit that
+    is already reachable from ``session.startingCommit`` existed before the
+    session began, so the session cannot have produced it. One
+    ``git merge-base --is-ancestor <sha> <startingCommit>`` answers it:
+
+    * exit 0, ``sha`` is reachable from the base. It predates the session.
+      Exclude it.
+    * exit 1, both refs resolve and ``sha`` is not reachable from the base.
+      Could be this session's work. Keep counting it.
+    * anything else (typically 128), at least one ref does not resolve in this
+      repo. Unknown, so keep counting it.
+
+    The opposite test, "is ``sha`` a descendant of the base", looks equivalent
+    and is not. This repo squash-merges, and a squash commit discards the
+    branch's parentage, so a session's own merge commit is not a descendant of
+    the branch base it came from. Measured against all 916 session logs, the
+    descendant form dropped 13 logs' counts and every case inspected was a
+    squash merge of the session's own work. The ancestor form leaves all 13
+    alone and still excludes the SHA from the #3328 report.
+
+    Fails open on unknown: an unresolvable SHA keeps the pre-#3328 behavior.
+    That preserves the abbreviated-SHA fixtures the #2170, #3123, and #3301
+    guards depend on, and it is the right default because this feeds a metrics
+    artifact, not a security gate. Over-counting one commit is cheaper than
+    silently dropping real ones whenever the extractor runs outside a checkout.
+
+    Resolves against the ambient working directory, which under the pre-commit
+    hook is the repo that owns the session log being extracted.
+    """
+    if not sha or not starting:
+        return False
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, starting],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     """Distinct commit SHAs from the structured commit fields and work-log
     evidence. Excludes the starting commit by default (it is the base, not a
     commit the session produced), including when work-log prose repeats it at a
     different abbreviation length than ``startingCommit`` is stored (issue
-    #3123)."""
+    #3123). Also excludes any prose SHA git proves already existed at the
+    starting commit (issue #3328)."""
     seen: list[str] = []
     starting = str(_as_dict(data.get("session")).get("startingCommit") or "").strip()
 
@@ -597,8 +656,11 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
         for sha in _prose_shas(_entry_text(entry)):
             if not include_starting and starting and _same_commit(sha, starting):
                 continue
-            if sha not in seen:
-                seen.append(sha)
+            if sha in seen:
+                continue
+            if _prose_sha_predates_session(sha, starting):
+                continue
+            seen.append(sha)
     return seen
 
 
