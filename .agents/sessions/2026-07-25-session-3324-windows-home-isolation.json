@@ -69,7 +69,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git diff --name-only lists one Python test file, one workflow YAML, and this JSON log. Zero markdown units, so the ADR-043 scoped set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
+        "Evidence": "git diff --name-only lists five files: one Python test, two workflow YAML files, this session log, and its generated episode record. Zero markdown units, so the ADR-043 scoped set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
       },
       "changesCommitted": {
         "level": "MUST",

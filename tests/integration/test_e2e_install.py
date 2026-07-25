@@ -645,7 +645,14 @@ class TestSubprocessDecoding:
             if not (isinstance(func.value, ast.Name) and func.value.id == "subprocess"):
                 continue
             kwargs = {kw.arg for kw in node.keywords}
-            if "capture_output" in kwargs or "text" in kwargs:
+            captures_output = kwargs & {"capture_output", "stdout", "stderr"}
+            enables_text = kwargs & {
+                "text",
+                "universal_newlines",
+                "encoding",
+                "errors",
+            }
+            if captures_output and enables_text:
                 calls.append(node)
         return calls
 
