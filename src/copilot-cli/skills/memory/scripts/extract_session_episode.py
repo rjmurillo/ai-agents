@@ -625,9 +625,12 @@ def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
       commits are ancestors of its own anchor and get dropped.
 
     The timestamp test needs no anchor and no assumption about merge strategy.
-    Over the full corpus it excludes five SHAs, each an explicit citation
+    Measured against the corpus as it stood when #3328 was investigated (917
+    logs, 2026-07-25), it excluded five SHAs, each an explicit citation
     ("Verified PR #2168 merge commit", "git-blamed exit-4 (added #2394 ...)"),
-    and drops no session-authored commit.
+    and dropped no session-authored commit. That is a point-in-time reading
+    taken to justify the rule, not a live invariant; expect the count to move
+    as logs land, and do not treat a different number as a regression.
 
     Fails open on unknown: an unresolvable SHA, a non-commit object, an
     ambiguous abbreviation, or an unparsable date all keep the pre-#3328

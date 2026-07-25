@@ -70,17 +70,17 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git diff --name-only lists two Python files, two plugin manifests, and this JSON log; zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
+        "Evidence": "The diff carries one markdown file, .agents/retrospective/INDEX.md. The scoped ADR-043 set still resolves to zero files because .markdownlint-cli2.yaml:118 excludes .agents/** wholesale; running markdownlint-cli2 against that path directly reports 'Linting: 0 files'. Byte-checked every hand-authored file in the diff for em and en dashes: zero found."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "One atomic commit on fix/3328-foreign-prose-sha carrying the canonical script, its vendored mirror, the tests, both plugin manifests, and this log."
+        "Evidence": "Committed on fix/3328-foreign-prose-sha across seven commits: the canonical extractor script, its vendored copilot-cli mirror, the extractor tests, both plugin manifests, this session log, its generated episode artifact, and the retrospective index. Enumerating categories rather than file names so the record does not drift as review commits land."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "146 tests green in the extractor test file, all 140 pre-existing cases unchanged. Negative control run: reverting the filter fails exactly the two cases that assert exclusion and leaves the four fail-open cases passing. ruff and mypy clean; build_all.py reproduces the vendored mirror byte-identically; manifest parity check reports 0.6.103 on both."
+        "Evidence": "153 tests green in tests/skills/memory/test_extract_session_episode.py. Negative control run: reverting the filter fails exactly the two cases that assert exclusion and leaves the four fail-open cases passing. ruff and mypy clean; build_all.py reproduces the vendored mirror byte-identically; manifest parity check reports 0.6.103 on both."
       },
       "tasksUpdated": {
         "level": "SHOULD",
