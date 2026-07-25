@@ -1561,6 +1561,108 @@ def test_branch_context_exempt_during_merge(tmp_path: Path) -> None:
     assert policy.check_branch_context(repo) == 0
 
 
+def _add_upstream_with(repo: Path, tracked: Path) -> None:
+    """Give ``repo`` an ``origin/HEAD`` whose default branch contains ``tracked``.
+
+    ``_is_merged_history`` asks whether a session log already exists upstream.
+    Test repos are standalone, so the merged-history exemption can never apply
+    to them unless a remote is built. This clones the current commit into a
+    bare remote after committing ``tracked``, then points origin/HEAD at it,
+    reproducing the shape a real clone has.
+    """
+    relative = tracked.relative_to(repo).as_posix()
+    _git(repo, "add", "--", relative)
+    _git(repo, "commit", "-qm", "test: land session log upstream")
+    remote = repo.parent / "remote.git"
+    _git(repo, "clone", "-q", "--bare", str(repo), str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    _git(repo, "fetch", "-q", "origin")
+    default = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    _git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", f"refs/remotes/origin/{default}")
+
+
+def test_branch_context_survives_a_committed_merge_import(tmp_path: Path) -> None:
+    """A committed merge of main must not wedge a branch that owns a log.
+
+    The MERGE_HEAD exemption expires the moment the merge commit is created,
+    but the imported session log stays in the tree and keeps winning the
+    newest-by-mtime comparison. Recognising it as upstream history is what
+    keeps the branch pushable (issue #3343).
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # Negative control: the imported log alone still blocks, because the
+    # exemption also requires the branch to own a log.
+    assert policy.check_branch_context(repo) == 1
+
+    _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_blocks_a_newer_log_that_is_not_upstream(tmp_path: Path) -> None:
+    """The issue #682 case must survive the #3343 fix.
+
+    Owning a log is not enough. A newer log for another branch that has NOT
+    merged is a live statement that the developer session-initialised
+    somewhere else, which is exactly the co-mingling signal #682 wants.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    settled = _write_session_log(repo, branch="feature/settled", name="session-settled")
+    _add_upstream_with(repo, settled)
+    _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
+    _write_session_log(repo, branch="feature/other", name="session-live", mtime=2_000_000_000.0)
+
+    assert policy.check_branch_context(repo) == 1
+
+
+def test_branch_context_merged_history_exemption_needs_an_upstream(tmp_path: Path) -> None:
+    """Without a resolvable origin/HEAD the exemption fails closed."""
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
+    _write_session_log(repo, branch="feature/other", name="session-new", mtime=2_000_000_000.0)
+
+    assert policy.check_branch_context(repo) == 1
+
+
+def test_branch_context_matches_a_legacy_shaped_owned_log(tmp_path: Path) -> None:
+    """Owned-log lookup reads both log shapes, like _session_branch."""
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(repo, branch="feature/merged", name="session-merged")
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+    _write_session_log(repo, branch="feature/x", name="session-own", legacy=True, mtime=1000.0)
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_owned_log_lookup_skips_malformed_logs(tmp_path: Path) -> None:
+    """An unparseable log must not hide a valid owned log behind it."""
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(repo, branch="feature/merged", name="session-zzz")
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+    _write_session_log(repo, branch=None, name="session-aaa", raw="{not json")
+    _write_session_log(repo, branch="feature/x", name="session-own", mtime=1000.0)
+
+    assert policy.check_branch_context(repo) == 0
+
+
 def test_branch_context_fails_open_without_today_log(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo, branch="feature/x")
@@ -2174,9 +2276,7 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
     # first, so filter to the validator invocation rather than counting every
     # subprocess call.
     validate_calls = [
-        call
-        for call in calls
-        if any("validate-skill.py" in str(arg) for arg in call)
+        call for call in calls if any("validate-skill.py" in str(arg) for arg in call)
     ]
     assert result == 0
     assert len(validate_calls) == 1
@@ -5929,9 +6029,7 @@ def test_pushed_workflow_paths_returns_none_when_base_unresolved(
     repo, _ = _workflow_repo_with_base(tmp_path)
 
     assert (
-        policy._pushed_workflow_paths(
-            [".github/workflows/imported.yml"], repo, "origin/main"
-        )
+        policy._pushed_workflow_paths([".github/workflows/imported.yml"], repo, "origin/main")
         is None
     )
 

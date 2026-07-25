@@ -46,9 +46,7 @@ ADR_REVIEW_PATTERNS = (
     re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL),
 )
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
-    re.compile(
-        r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"
-    ),
+    re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
     re.compile(r"(?i)(\.agents/retrospective/|retrospective[-_]?file|retro[-_]?\d{4})"),
 )
 DOCUMENTATION_PATTERNS = (
@@ -145,6 +143,7 @@ GENERATED_GLOBS = {
     "episodes": (".agents/memory/episodes/episode-*.json",),
     "memory": (".serena/memories/**/*.md",),
 }
+
 
 @dataclass(frozen=True, slots=True)
 class PushRef:
@@ -433,6 +432,65 @@ def _recent_date_prefixes() -> tuple[str, str]:
     return today, yesterday
 
 
+def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
+    """Return today's and yesterday's session logs, or None if unreadable.
+
+    The two-day window handles cross-midnight UTC sessions. Returning None
+    rather than an empty list keeps "directory unreadable" distinguishable
+    from "no logs today", because both callers fail open on the former.
+    """
+    if not sessions_dir.is_dir():
+        return None
+    today, yesterday = _recent_date_prefixes()
+    candidates: list[Path] = []
+    try:
+        candidates.extend(sessions_dir.glob(f"{today}-session-*.json"))
+        candidates.extend(sessions_dir.glob(f"{yesterday}-session-*.json"))
+    except OSError:
+        return None
+    return candidates
+
+
+def _session_log_for_branch(sessions_dir: Path, branch: str) -> Path | None:
+    """Return a recent session log whose branch field is ``branch``."""
+    candidates = _recent_session_candidates(sessions_dir)
+    if candidates is None:
+        return None
+    for candidate in sorted(candidates):
+        if _session_branch(candidate) == branch:
+            return candidate
+    return None
+
+
+def _is_merged_history(repo_root: Path, path: Path) -> bool:
+    """Return True when ``path`` already exists on the upstream default branch.
+
+    A committed merge of main imports the previously merged branch's session
+    log. That file is newer by mtime than anything the current branch owns, so
+    it wins the recency comparison and names a branch this one has never been
+    near (issue #3343). The MERGE_HEAD exemption cannot help: it expires when
+    the merge commit is created, while the imported file stays forever.
+
+    Existing on the upstream default branch is the discriminator. A log that
+    merged is settled history, not a statement about what the developer is
+    working on now. A log authored on some other local branch is not there, so
+    the co-mingling case from issue #682 keeps its teeth.
+
+    Fails closed. Anything indeterminate (no remote, detached upstream, git
+    unavailable) returns False and the mismatch still blocks.
+    """
+    try:
+        relative = path.relative_to(repo_root).as_posix()
+    except ValueError:
+        return False
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    upstream = head.stdout.strip() if head.returncode == 0 else ""
+    if not upstream:
+        return False
+    probe = _run_git(repo_root, ["cat-file", "-e", f"{upstream}:{relative}"])
+    return probe.returncode == 0
+
+
 def _today_session_log(sessions_dir: Path) -> Path | None:
     """Return the newest recent session log by mtime, or None.
 
@@ -444,14 +502,8 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
     blinding the check to every other valid log. An empty match or an unreadable
     directory yields None so branch-context checking fails open.
     """
-    if not sessions_dir.is_dir():
-        return None
-    today, yesterday = _recent_date_prefixes()
-    candidates: list[Path] = []
-    try:
-        candidates.extend(sessions_dir.glob(f"{today}-session-*.json"))
-        candidates.extend(sessions_dir.glob(f"{yesterday}-session-*.json"))
-    except OSError:
+    candidates = _recent_session_candidates(sessions_dir)
+    if candidates is None:
         return None
     best: Path | None = None
     best_mtime = float("-inf")
@@ -558,12 +610,8 @@ def _is_skill_frontmatter_only_change(path: str, repo_root: Path) -> bool:
     new_blob = _read_index_blob(repo_root, path)
     if old_blob is None or new_blob is None:
         return False
-    old_frontmatter, old_body = _split_frontmatter(
-        old_blob.decode("utf-8", errors="replace")
-    )
-    new_frontmatter, new_body = _split_frontmatter(
-        new_blob.decode("utf-8", errors="replace")
-    )
+    old_frontmatter, old_body = _split_frontmatter(old_blob.decode("utf-8", errors="replace"))
+    new_frontmatter, new_body = _split_frontmatter(new_blob.decode("utf-8", errors="replace"))
     if not old_frontmatter or not new_frontmatter or old_body != new_body:
         return False
     return _only_model_pin_fields_changed(old_frontmatter, new_frontmatter)
@@ -776,9 +824,17 @@ def check_branch_context(repo_root: Path) -> int:
         # No session log, let session_log_guard handle this
         # No branch in session log, skip check
 
-    Only a determinate ``current_branch != session_branch`` blocks. A merge
-    in progress is exempt: a merge legitimately imports another branch's newer
-    session log into the tree, which would otherwise read as a mismatch.
+    Only a determinate ``current_branch != session_branch`` blocks. Two
+    exemptions. A merge in progress is exempt: a merge legitimately imports
+    another branch's newer session log into the tree, which would otherwise
+    read as a mismatch. A committed merge is exempt on the same grounds but
+    needs a different test, because ``MERGE_HEAD`` is gone by then while the
+    imported log stays and keeps winning the recency comparison forever. That
+    case requires both that the branch owns a recent log and that the newest
+    log already exists on the upstream default branch, which makes it settled
+    history rather than a claim about current work (issue #3343). A log
+    authored on another local branch is not upstream, so the co-mingling case
+    from issue #682 still blocks.
     """
     try:
         if _merge_in_progress(repo_root):
@@ -796,6 +852,10 @@ def check_branch_context(repo_root: Path) -> int:
         if session_branch is None:
             return 0
         if current_branch == session_branch:
+            return 0
+        if _session_log_for_branch(sessions_dir, current_branch) is not None and _is_merged_history(
+            repo_root, session_log
+        ):
             return 0
         print(
             "ERROR: branch context mismatch: "
@@ -1405,8 +1465,7 @@ def _mypy_result_blocks(
         # Diff base unresolved: block on any error (pre-ratchet behavior).
         return True
     return any(
-        path in pushed and line in changed_lines.get(path, frozenset())
-        for path, line in locations
+        path in pushed and line in changed_lines.get(path, frozenset()) for path, line in locations
     )
 
 
@@ -2771,11 +2830,7 @@ def _pushed_workflow_paths(
     )
     if result.returncode != 0:
         return None
-    return {
-        _normalize_ratchet_path(line)
-        for line in result.stdout.splitlines()
-        if line.strip()
-    }
+    return {_normalize_ratchet_path(line) for line in result.stdout.splitlines() if line.strip()}
 
 
 def _select_pushed_workflows(paths: Sequence[str], repo_root: Path) -> list[str]:

@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": "3343-branch-context-merge",
+    "date": "2026-07-25",
+    "branch": "fix/3343-branch-context-merge",
+    "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
+    "objective": "Fix branch-context-policy permanently wedging any branch that merges main (issue #3343). A committed merge imports the merged branch's session log, which outlives the MERGE_HEAD exemption and wins the recency comparison forever.",
+    "endingCommit": ""
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active on this Copilot CLI harness; serena-initial_instructions returned the manual."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions before making any edit."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3328-foreign-prose-sha, cut from origin/main at 013cb0124c."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits land on fix/3328-foreign-prose-sha; main was only read."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-parity bump rule and the squash-only merge ruleset entry that turned out to be the load-bearing fact for this change."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching; pre-existing untracked retrospectives and worktrees left alone."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prose SHAs that already existed at the session's starting commit no longer count as session commits, and the fix was measured against every session log in the repo before it was committed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recorded the squash-merge ancestry finding so the descendant-based form is not proposed again."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git diff --name-only lists two Python files, two plugin manifests, and this JSON log; zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "One atomic commit on fix/3328-foreign-prose-sha carrying the canonical script, its vendored mirror, the tests, both plugin manifests, and this log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "146 tests green in the extractor test file, all 140 pre-existing cases unchanged. Negative control run: reverting the filter fails exactly the two cases that assert exclusion and leaves the four fail-open cases passing. ruff and mypy clean; build_all.py reproduces the vendored mirror byte-identically; manifest parity check reports 0.6.103 on both."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3328 gets the measurement that removes its option 2 as written and records why the inverted form is the sound one."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "implementation",
+      "summary": "Added a merged-history discriminator to check_branch_context. The mismatch is exempt only when the branch owns a recent session log AND the newest log already exists on the upstream default branch, which makes it settled history rather than a claim about current work. Fails closed with no resolvable origin/HEAD, so the issue #682 co-mingling case keeps its teeth.",
+      "files": [
+        "scripts/validation/git_hook_policy.py",
+        "tests/test_lefthook_integration.py"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR, verify the wedged branch fix/3328-foreign-prose-sha can push once this lands."
+  ]
+}
