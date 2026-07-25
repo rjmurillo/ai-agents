@@ -14566,94 +14566,58 @@
       "created": "2026-07-25T07:04:38.859525+00:00"
     },
     {
-      "id": "c30932e71ba5",
+      "id": "54cbf164c0e9",
       "type": "milestone",
-      "label": "milestone: Issue #3328 offers three options and calls option 2, verifying each prose SHA is a descendant of the starting commit, accurate. Implemented it first because it looked free: the extractor already shells out to git for staged-file counts, so it adds no dependency, and all 140 existing tests passed unchanged because their fixture SHAs are not git objects and fail open.",
+      "label": "milestone: Swept the 12 open issues and pulled each body plus its full comment thread. Verified live rather than trusting the reports: Copilot CLI is 1.0.75 here, and an edit-tool probe against a scratch file succeeded, which disproves the standing report in issue #3316.",
       "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
+        "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
-      "created": "2026-07-25T09:14:18.884248+00:00"
+      "created": "2026-07-25T08:41:42.830657+00:00"
     },
     {
-      "id": "5ccfa4f23fcb",
+      "id": "cf1cd8af9ba0",
       "type": "milestone",
-      "label": "milestone: Passing tests were not enough evidence, so the rule was replayed against all 916 session logs in the repo. It changed 13 of them. Every case inspected was wrong. This repo squash-merges, and a squash commit discards the branch's parentage, so a session's own merge commit is not a descendant of the branch base it came from. Option 2 as written drops exactly the commits it is supposed to keep.",
+      "label": "milestone: Checked the ruff enforcement surface for #2993. Every lefthook ruff step passes --exit-zero and the pre-push one is even named python-lint-advisory, so ruff blocks nothing locally. The blocking gate is the changed-file ratchet in the Python Tests workflow. Found scripts/ci/ruff_count_ratchet.py, written for the #2993 regression-guard criterion with a full test file, and grep showed nothing invokes it anywhere in .github, lefthook, or scripts. Same for scripts/ci/adr006_run_block_scanner.py and its --max ratchet mode, written for #2967. Two tested gates, zero enforcement.",
       "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
+        "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
-      "created": "2026-07-25T09:14:18.884308+00:00"
+      "created": "2026-07-25T08:41:42.830720+00:00"
     },
     {
-      "id": "7359cc22ecfc",
+      "id": "005252bf32c5",
       "type": "milestone",
-      "label": "milestone: Inverted the test. A commit already reachable from the starting commit existed before the session began, so the session cannot have produced it. That is a tautology, which is what makes it safe, and it cannot misfire on a squash merge because a squash merge comes after the base rather than before it. Checked the discriminator against the SHA named in the issue report and against the three squash cases: the report SHA is an ancestor of its session's base, and none of the squash cases are.",
+      "label": "milestone: Ran the count ratchet locally: it claimed 767 violations against a baseline of 408 and reported a regression. The real tracked-file count is 361. Cause: it invokes ruff check . with a single hardcoded exclude, so it walks untracked nested worktrees and scratch trees that happen to be on disk. Replaced the directory walk with a git ls-files scan over tracked .py paths, chunked to a 24000-byte argv budget so the roughly 70 KB path list stays under the Windows 32767-char CreateProcess ceiling. The rewritten scan reproduced 361 exactly, matching the independent manual count.",
       "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
+        "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
-      "created": "2026-07-25T09:14:18.884360+00:00"
+      "created": "2026-07-25T08:41:42.830776+00:00"
     },
     {
-      "id": "7332a941d86a",
+      "id": "775c7f0a436b",
       "type": "milestone",
-      "label": "milestone: Re-swept all 878 logs that carry a work log. Nine change, all downward, and reading the prose around each dropped SHA confirms every one is a citation rather than a session commit: another PR's merge commit, a different branch's tip, a git-blame result, and a version-pin reference. Zero false positives. Fails open on an unresolvable SHA, a missing starting commit, or no git, so the metric degrades to today's behavior rather than silently dropping real commits.",
+      "label": "milestone: Lowered the baseline from 408 to 361 to lock in drain that had already happened but was never recorded. Extended the test file from 8 to 14 cases: the shared subprocess fake now answers both the git and ruff legs, plus a git-failure external-error case, an empty-tracked-set case, a multi-batch accumulation case that fails if batches overwrite instead of summing, an argv-budget property check, an oversized-single-path case, and a real-git integration test that builds a repo with one clean tracked file next to an untracked directory full of violations and asserts the count is zero.",
       "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
+        "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
-      "created": "2026-07-25T09:14:18.884410+00:00"
+      "created": "2026-07-25T08:41:42.830828+00:00"
     },
     {
-      "id": "0c8d7d0cd852",
+      "id": "c46c680648b7",
       "type": "milestone",
-      "label": "milestone: Six regression cases added, including one that pins the squash-merge behavior directly so the descendant form cannot be reintroduced without a red test, and one that asserts the event stream and the metric agree so the causal graph cannot carry a commit node the metric does not.",
+      "label": "milestone: Wired both gates. The count ratchet runs in the Python Tests workflow beside the existing changed-file ratchet, under the same python-changed gate, since ruff debt only moves when Python moves. The ADR-006 run-block ratchet runs in the PR Validation workflow at --max 87, because workflow YAML can change in any PR and the Python Tests workflow skips when no Python changed. Both are single-line invocations of a tested script, so neither adds logic to workflow YAML and the scanner still reports 87 after the edit.",
       "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
+        "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
-      "created": "2026-07-25T09:14:18.884460+00:00"
+      "created": "2026-07-25T08:41:42.830880+00:00"
     },
     {
-      "id": "df41def6d0d7",
+      "id": "370ae0ad1e65",
       "type": "outcome",
-      "label": "Outcome: success - Stop the episode extractor counting third-party SHAs in work-log prose as commits the session produced (issue #3328). Pick a discriminator that holds against this repo's squash-merge history rather than the one the issue proposed.",
+      "label": "Outcome: success - Open-issue sweep. Close the regression-guard acceptance criterion of #2993 and the tooling gap called out in #2967: both ratchet scripts ship with tests but neither is invoked by any workflow, so both backlogs can climb back silently. Also fix the ruff count ratchet's directory-walk scope, which reports a phantom regression on any working tree that carries an untracked nested worktree.",
       "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
+        "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
-      "created": "2026-07-25T09:14:18.884510+00:00"
-    },
-    {
-      "id": "b0a5f94846b6",
-      "type": "milestone",
-      "label": "milestone: Replace the unsound ancestry discriminator with a committer-date floor",
-      "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
-      ],
-      "created": "2026-07-25T09:55:32.228667+00:00"
-    },
-    {
-      "id": "ffd969d461d5",
-      "type": "commit",
-      "label": "commit: Commit: a2038a99017058e99f45de015e6b1886bb538e65",
-      "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
-      ],
-      "created": "2026-07-25T11:09:03.568000+00:00"
-    },
-    {
-      "id": "abe83ca3570e",
-      "type": "milestone",
-      "label": "milestone: Address the remaining Copilot review threads on PR #3334",
-      "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
-      ],
-      "created": "2026-07-25T11:09:03.568063+00:00"
-    },
-    {
-      "id": "c440d67933c2",
-      "type": "commit",
-      "label": "commit: Commit: 3669adec84",
-      "episodes": [
-        "episode-2026-07-25-session-3328-prose-sha-provenance"
-      ],
-      "created": "2026-07-25T11:09:03.568114+00:00"
+      "created": "2026-07-25T08:41:42.830933+00:00"
     }
   ],
   "patterns": [

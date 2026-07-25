@@ -50,6 +50,9 @@ jobs:
           filters: |
             python:
               - '**/*.py'
+              - '**/*.pyi'
+              - '**/*.ipynb'
+              - 'scripts/ci/ruff_count_baseline.txt'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'tests/conftest.py'
@@ -132,6 +135,51 @@ jobs:
         env:
           RUFF_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/ruff_ratchet.py
+
+      # Issue #2993 acceptance criterion 2 (regression guard, option C). The
+      # diff-scoped ratchet above cannot see debt a PR adds to a file it does
+      # not otherwise touch, so the whole-tree total is frozen in
+      # scripts/ci/ruff_count_baseline.txt and may only go down. Lower it with
+      # `python scripts/ci/ruff_count_ratchet.py --update` after a cleanup.
+      # `uv run --frozen` pins ruff to the lockfile. The dev extra declares an
+      # open-ended `ruff>=`, so a `uv pip install` resolves whatever is newest
+      # and a future ruff rule change could fail this baseline on an unrelated
+      # PR.
+      #
+      # PR and non-PR legs select by step-level if: rather than shell branching,
+      # per ADR-006 (no decision logic in workflow YAML). Both compare against a
+      # ref, which is what makes the baseline one-directional: without
+      # --base-ref, raising the baseline in the same change that adds the
+      # violations passes as an improvement. A ref name is attacker-controlled
+      # text and gets three separate defenses. Keeping it in env means the
+      # `${{ }}` expression is never substituted into the script source, so a
+      # ref name cannot inject shell syntax. Quoting `"$BASE_REF"` at the one
+      # place the shell does expand it keeps it a single argument to git rather
+      # than a word-split command line. And the ratchet script is handed the
+      # fixed literal FETCH_HEAD, never the ref name, so nothing
+      # attacker-controlled reaches Python argv.
+      #
+      # The non-PR leg compares against the default branch, not
+      # github.event.before: event.before is the branch's own previous tip, so
+      # raising the baseline in one push and adding the violations in the next
+      # would slip through. The default branch is what the baseline is promised
+      # against. On a push to the default branch this compares it to itself,
+      # which is a harmless no-op.
+      - name: Run ruff count ratchet (whole tree, pull request)
+        if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
+
+      - name: Run ruff count ratchet (whole tree, non-PR)
+        if: steps.should-run.outputs.skip != 'true' && github.event_name != 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'

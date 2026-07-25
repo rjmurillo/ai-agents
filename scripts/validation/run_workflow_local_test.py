@@ -71,7 +71,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -488,6 +488,19 @@ def _select_act_event(wf_path: Path) -> str | None:
 # this exact prefix. See issue #2719.
 _GIT_REPO_MISSING_PATTERN = "fatal: not a git repository"
 
+# dorny/paths-filter resolves its comparison base from the event payload. On a
+# real push or pull_request run GitHub always populates
+# ``repository.default_branch``, so this branch is unreachable in CI. act builds
+# a synthetic payload that omits it, and the action aborts with this exact text.
+# Seen only when the act container CAN reach a .git (otherwise the action fails
+# earlier with _GIT_REPO_MISSING_PATTERN instead), which is why a linked
+# worktree hits the other pattern and a normal checkout hits this one. See
+# issue #3331.
+_ACT_PATHS_FILTER_BASE_PATTERN = re.compile(
+    r"requires 'base' input to be configured or 'repository\.default_branch' "
+    r"to be set in the event payload"
+)
+
 _ACT_PR_CONTEXT_MISSING_PATTERN = re.compile(
     r"Cannot read properties of undefined \(reading "
     r"'(?:number|head|base|title|body|labels|draft|merged|user|html_url|state|id"
@@ -515,32 +528,90 @@ _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
 # matches one of these rules can be a local environment gap, not a workflow
 # defect. The pull_request context rules are event-scoped in _act_limitation_hint;
 # every other nonzero exit still blocks.
+_ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...] = (
+    (
+        None,
+        lambda text: _GIT_REPO_MISSING_PATTERN in text,
+        "act container lacks .git; git-calling actions (e.g. dorny/paths-filter) "
+        "fail only in local act, not in CI.",
+    ),
+    (
+        None,
+        lambda text: bool(_ACT_PATHS_FILTER_BASE_PATTERN.search(text)),
+        "act's synthetic event payload omits repository.default_branch, so "
+        "dorny/paths-filter cannot resolve a comparison base. GitHub always "
+        "populates it, so this fails only in local act, not in CI.",
+    ),
+    (
+        "pull_request",
+        lambda text: bool(_ACT_PR_CONTEXT_MISSING_PATTERN.search(text)),
+        "act does not populate the pull_request event context on a local run, so "
+        "workflows reading github.event.pull_request properties fail only in local "
+        "act, not in CI.",
+    ),
+    (
+        "pull_request",
+        lambda text: bool(_ACT_PR_CONTEXT_EMPTY_ENV_PATTERN.search(text)),
+        "act leaves env vars mapped from github.event.pull_request (PR_NUMBER, "
+        "PR_TITLE) empty on a local run, so validation scripts fail only in local "
+        "act, not in CI.",
+    ),
+)
+
+# act forwards GitHub workflow commands verbatim, so an action that aborts with
+# ``core.setFailed`` surfaces as a ``::error::`` line. Those lines are the only
+# failure signal this module can attribute to a specific cause.
+_ACT_ERROR_ANNOTATION = "::error::"
+
+
+def _unexplained_error_annotations(combined: str, event: str | None) -> list[str]:
+    """``::error::`` lines that no known act limitation explains.
+
+    Without this the downgrade is output-wide: one limitation anywhere in a
+    workflow's act run would excuse every other failure in the same run. Scoping
+    the match to individual annotation lines means a genuine action failure
+    alongside a limitation still blocks.
+    """
+    unexplained = []
+    for line in combined.splitlines():
+        if _ACT_ERROR_ANNOTATION not in line:
+            continue
+        if any(
+            (scope is None or scope == event) and matches(line)
+            for scope, matches, _ in _ACT_LIMITATION_RULES
+        ):
+            continue
+        unexplained.append(line.strip())
+    return unexplained
+
+
 def _act_limitation_hint(combined: str, event: str | None = None) -> str | None:
     """Return the WARN hint when ``combined`` matches a known act limitation.
 
     Returns a hint for a known act-only limitation, or None when no known
-    limitation is present. The pull_request context errors are downgraded only
-    for pull_request runs. Under workflow_dispatch, the same error can be a real
-    workflow defect and must remain blocking.
+    limitation is present, or when the run also carries an ``::error::``
+    annotation that no limitation explains. The pull_request context errors are
+    downgraded only for pull_request runs. Under workflow_dispatch, the same
+    error can be a real workflow defect and must remain blocking.
+
+    Residual gap: a failure that exits nonzero without emitting an ``::error::``
+    annotation is invisible to the attribution check, so it can still ride along
+    with a limitation in the same workflow run.
     """
-    if _GIT_REPO_MISSING_PATTERN in combined:
-        return (
-            "act container lacks .git; git-calling actions (e.g. dorny/paths-filter) "
-            "fail only in local act, not in CI."
-        )
-    if event == "pull_request" and _ACT_PR_CONTEXT_MISSING_PATTERN.search(combined):
-        return (
-            "act does not populate the pull_request event context on a local run, so "
-            "workflows reading github.event.pull_request properties fail only in local "
-            "act, not in CI."
-        )
-    if event == "pull_request" and _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN.search(combined):
-        return (
-            "act leaves env vars mapped from github.event.pull_request (PR_NUMBER, "
-            "PR_TITLE) empty on a local run, so validation scripts fail only in local "
-            "act, not in CI."
-        )
-    return None
+    hint = next(
+        (
+            text
+            for scope, matches, text in _ACT_LIMITATION_RULES
+            if (scope is None or scope == event) and matches(combined)
+        ),
+        None,
+    )
+    if hint is None:
+        return None
+    unexplained = _unexplained_error_annotations(combined, event)
+    if unexplained:
+        return None
+    return hint
 
 
 def _run_act_stage(
