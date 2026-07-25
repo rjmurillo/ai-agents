@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -1622,3 +1623,34 @@ class TestPredatingProseShaExclusion:
         # commit node the metric does not (issue #3328 provenance consistency).
         assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
         assert all(cited not in json.dumps(e) for e in commit_events)
+
+    def test_offset_bearing_session_date_keeps_its_offset(self):
+        # The schema accepts a full ISO timestamp, so session.date can carry an
+        # offset. replace(tzinfo=UTC) would relabel +14:00 as UTC and move the
+        # floor 14 hours later, which is enough to drop a commit the session
+        # made. Conversion, not relabelling.
+        floor = extract_session_episode._session_floor("2026-05-11T00:00:00+14:00")
+        assert floor == datetime(2026, 5, 9, 10, 0, tzinfo=UTC)
+
+    def test_naive_session_date_is_read_as_utc(self):
+        floor = extract_session_episode._session_floor("2026-05-11")
+        assert floor == datetime(2026, 5, 10, 0, 0, tzinfo=UTC)
+
+    def test_unparseable_session_date_has_no_floor(self):
+        assert extract_session_episode._session_floor("not-a-date") is None
+        assert extract_session_episode._session_floor("") is None
+
+    def test_commit_inside_an_offset_shifted_window_is_counted(self, tmp_path, monkeypatch):
+        # A session labelled +14:00 legitimately reaches further back in UTC
+        # than the same calendar day read as UTC would. Relabelling the offset
+        # excludes this commit; converting it keeps it.
+        repo = tmp_path / "offset-repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        early = _commit(repo, "early.txt", "early", when="2026-05-09T23:57:45+00:00")
+        anchor = _commit(repo, "anchor.txt", "anchor", when="2026-05-10T12:00:00+00:00")
+        monkeypatch.chdir(repo)
+        data = self._log(anchor, f"landed in {early}", date="2026-05-11T00:00:00+14:00")
+        assert extract_session_episode.json_metrics(data)["commits"] == 2

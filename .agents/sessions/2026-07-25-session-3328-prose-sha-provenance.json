@@ -4,8 +4,9 @@
     "number": 3328,
     "date": "2026-07-25",
     "branch": "fix/3328-foreign-prose-sha",
-    "startingCommit": "013cb0124c31e4b2acbdbb0dc7bcd8ac4d63e5f7",
-    "objective": "Stop the episode extractor counting third-party SHAs in work-log prose as commits the session produced (issue #3328). Pick a discriminator that holds against this repo's squash-merge history rather than the one the issue proposed."
+    "startingCommit": "c0e6d4c1ad506fd0a629b7988c8d21085a2eab15",
+    "objective": "Stop the episode extractor counting third-party SHAs in work-log prose as commits the session produced (issue #3328). Pick a discriminator that holds against this repo's squash-merge history rather than the one the issue proposed.",
+    "endingCommit": "a2038a99017058e99f45de015e6b1886bb538e65"
   },
   "protocolCompliance": {
     "sessionStart": {

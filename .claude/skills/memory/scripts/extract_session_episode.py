@@ -573,16 +573,25 @@ def _prose_shas(text: str) -> list[str]:
 def _session_floor(session_date: str) -> datetime | None:
     """Earliest instant a session dated ``session_date`` could have committed.
 
-    ``session.date`` is a calendar day with no timezone, and a session's own
-    commits straddle midnight in both directions: the committer's local clock
-    can be up to 14 hours off UTC, and a session that starts in the evening
-    keeps committing past midnight. One full day of slack before the labelled
-    day covers both without needing a timezone the log does not record.
+    ``session.date`` is normally a calendar day with no timezone, and a
+    session's own commits straddle midnight in both directions: the committer's
+    local clock can be up to 14 hours off UTC, and a session that starts in the
+    evening keeps committing past midnight. One full day of slack before the
+    labelled day covers both without needing a timezone the log does not
+    record.
+
+    The schema also accepts a full ISO timestamp, which may carry an offset.
+    An offset-bearing value is converted, not relabelled: ``replace(tzinfo=UTC)``
+    on an aware datetime silently discards the real offset and can move the
+    floor by up to a day, which is enough to drop a commit the session made.
     """
     try:
-        return datetime.fromisoformat(session_date).replace(tzinfo=UTC) - timedelta(days=1)
+        parsed = datetime.fromisoformat(session_date)
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC) - timedelta(days=1)
 
 
 def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
