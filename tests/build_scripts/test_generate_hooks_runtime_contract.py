@@ -420,3 +420,37 @@ def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> Non
         "interpreter error must name the missing path, otherwise the "
         f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
     )
+
+
+@pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")
+def test_stale_plugin_root_powershell_failure_names_the_missing_path(
+    tmp_path: Path,
+) -> None:
+    """The PowerShell launcher also exposes the stale path when it fails."""
+    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
+    hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
+    stale_root = tmp_path / "moved-away"
+    env = _contract_env(copilot_root=str(stale_root), claude_root=str(stale_root))
+    command = hooks_doc["hooks"]["PreToolUse"][0]["powershell"]
+
+    # Linux CI has pwsh and python3, but not the Windows py launcher.
+    command = command.replace("py -3", "python3", 1)
+    proc = subprocess.run(
+        ["pwsh", "-NoProfile", "-Command", command],
+        env=env,
+        cwd=tmp_path,
+        input="{}",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+
+    expected_path = stale_root / "hooks" / "PreToolUse" / "_dispatch.py"
+    assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
+    assert str(expected_path) in proc.stderr, (
+        "PowerShell interpreter error must name the missing path, otherwise the "
+        f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
+    )
