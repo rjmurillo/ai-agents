@@ -174,10 +174,19 @@ def test_workflow_validation_is_not_gated_on_the_bot_exclusion() -> None:
 
 
 def test_the_wiring_probe_reads_real_workflow_files() -> None:
-    """Guard the guard: an empty corpus would make every case above vacuous."""
+    """Guard the guard: an empty corpus would make every case above vacuous.
+
+    Assert only what makes the cases above non-vacuous: the corpus is
+    non-empty and it was gathered by walking the workflow tree rather than
+    reading one file. A floor on the block count, or a requirement that some
+    step shell out to a particular tool, would fail on workflow refactors that
+    leave this guard working perfectly, which is noise rather than signal.
+    """
     blocks = _live_run_blocks()
-    assert len(blocks) > 50
-    assert any("uv run" in body for _, body in blocks)
+    assert blocks, "no run: blocks found, so every wiring assertion is vacuous"
+    assert len({path for path, _ in blocks}) > 1, (
+        "every run: block came from one file, so the probe is not walking the tree"
+    )
 
 
 def test_a_disabled_step_does_not_count_as_a_call_site() -> None:

@@ -145,8 +145,24 @@ class WorkflowValidator:
                         file_path, f"Job '{job_name}' step {step_idx + 1}", step["uses"]
                     )
 
-    def _check_pinned(self, file_path: Path, where: str, uses: str) -> None:
-        """Record an error unless ``uses`` is a local path or a 40-hex SHA."""
+    def _check_pinned(self, file_path: Path, where: str, uses: object) -> None:
+        """Record an error unless ``uses`` is a local path or a 40-hex SHA.
+
+        ``uses`` arrives straight from ``yaml.safe_load``, so its type is
+        whatever the author typed. ``uses: 1.2`` is a float and a bare
+        ``uses:`` is ``None``. Both used to raise ``AttributeError`` out of
+        this method and abort the run, which turned a one-line workflow typo
+        into a validator crash that reported nothing about the other files.
+        A non-string is now its own error, so the pass keeps going and names
+        every problem it found.
+        """
+        if not isinstance(uses, str):
+            self.errors.append(
+                f"{file_path}: {where}: 'uses' must be a string, "
+                f"found {type(uses).__name__} ({uses!r})"
+            )
+            return
+
         # Skip local actions (start with ./)
         if uses.startswith("./"):
             return

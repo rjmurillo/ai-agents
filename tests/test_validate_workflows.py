@@ -421,3 +421,34 @@ class TestReusableWorkflowPinning:
         validator.validate_action_pinning(tmp_path / "wf.yml", content)
         assert len(validator.errors) == 1
         assert "step 2" in validator.errors[0]
+
+    def test_a_non_string_uses_is_an_error_not_a_crash(self, tmp_path: Path):
+        """A workflow typo must not abort the pass over every other file.
+
+        ``uses`` comes straight from ``yaml.safe_load``, so a bare ``uses:``
+        is ``None`` and ``uses: 1.2`` is a float. Both used to raise
+        ``AttributeError`` out of ``_check_pinned``.
+        """
+        validator = WorkflowValidator(tmp_path)
+        content = {"jobs": {"a": {"uses": None}}}
+        validator.validate_action_pinning(tmp_path / "wf.yml", content)
+        assert len(validator.errors) == 1
+        assert "must be a string" in validator.errors[0]
+        assert "NoneType" in validator.errors[0]
+
+    def test_a_non_string_uses_does_not_stop_later_findings(self, tmp_path: Path):
+        """The whole point of not raising: keep reporting the rest."""
+        validator = WorkflowValidator(tmp_path)
+        content = {
+            "jobs": {
+                "a": {
+                    "runs-on": "ubuntu-latest",
+                    "steps": [{"uses": 42}, {"uses": "actions/checkout@v4"}],
+                }
+            }
+        }
+        validator.validate_action_pinning(tmp_path / "wf.yml", content)
+        assert len(validator.errors) == 2
+        assert "must be a string" in validator.errors[0]
+        assert "int" in validator.errors[0]
+        assert "SHA pinning" in validator.errors[1]
