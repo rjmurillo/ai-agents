@@ -428,3 +428,39 @@ jobs:
       - name: Run ADR-006 run-block ratchet
         if: steps.should-run.outputs.skip != 'true'
         run: python3 scripts/ci/adr006_run_block_scanner.py --max 87
+
+      # Issue #3330: workflow *schema* validation had no required CI gate. YAML
+      # Lint (yaml-lint.yml) does run on `**/*.yml` for PRs, but it runs yamllint,
+      # which checks syntax and style. It does not know what a workflow is: it
+      # accepts an unpinned action, a job with no `runs-on`, and a missing `on:`
+      # trigger. It is also not a required check, so it cannot block. That left
+      # lefthook as the only thing enforcing workflow structure, which misses every
+      # path that does not run local hooks: Renovate and Dependabot action-pin
+      # bumps, the web editor, the API, a clone where `lefthook install` was never
+      # run. A malformed workflow then surfaces when it next fires, which for a
+      # scheduled job is hours or days later. #3275 is a live example.
+      #
+      # This job is the right host because it is a required check that reports
+      # status on every PR regardless of touched paths.
+      #
+      # actionlint stays out on purpose. It is not in the runner image, so adding
+      # it means adding a download-and-trust step, which is a supply-chain
+      # decision worth making on its own rather than smuggling into this one.
+      # This script runs in under a second across all the workflows and covers
+      # YAML syntax, duplicate keys, structure, and action SHA pinning.
+      #
+      # The uv-setup and validate steps below are unconditional. The checkout
+      # step fires only when the bot-skip guard suppressed the earlier checkout
+      # (skip == 'true'), so validation still has source to read regardless of
+      # who opened the PR. Renovate and Dependabot are exactly the actors that
+      # open workflow-only PRs (action SHA bumps), so exempting them would defeat
+      # the purpose of this gate.
+      - name: Checkout repository for workflow validation
+        if: steps.should-run.outputs.skip == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup uv for workflow validation
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Validate workflow YAML
+        run: uv run --frozen python3 scripts/validate_workflows.py

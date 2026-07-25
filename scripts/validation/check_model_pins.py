@@ -89,6 +89,7 @@ class Unit:
     kind: str
     model: str | None
     rationale: str | None
+    nested_pins: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass
@@ -172,6 +173,64 @@ def alias_prices_below_default(
     return alias_price < default_price
 
 
+def _collect_nested_pins(
+    node: object, prefix: str, seen: set[int], out: list[tuple[str, str]]
+) -> None:
+    """Append every ``model`` value at or below ``node`` as (dotted path, value).
+
+    Walks the typed YAML rather than the flat frontmatter view, which drops
+    indented keys entirely (issue #2840). Collecting every occurrence rather
+    than the first matters: a unit can carry a compliant top-level alias and a
+    versioned id under ``metadata`` at the same time, and reporting only one of
+    them lets the other ship.
+
+    ``seen`` holds the id of every container already walked, so each container
+    is visited once no matter how many aliases reach it. That bounds the walk
+    at O(nodes): an earlier recursion-path guard stopped cycles but still let a
+    32-line alias DAG expand exponentially and hang the gate. Visiting once is
+    also the honest report, because two alias paths to one node are one anchor
+    in the source, so one line to delete. Two mappings that merely look alike
+    are distinct objects and are still reported separately.
+    """
+    if isinstance(node, (dict, list)):
+        if id(node) in seen:
+            return
+        seen.add(id(node))
+    if isinstance(node, dict):
+        for key, value in node.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if key == "model":
+                if isinstance(value, str) and value.strip():
+                    out.append((path, value.strip()))
+                    continue
+                elif isinstance(value, list):
+                    for index, item in enumerate(value):
+                        item_path = f"{path}[{index}]"
+                        if isinstance(item, str) and item.strip():
+                            out.append((item_path, item.strip()))
+                        else:
+                            _collect_nested_pins(item, item_path, seen, out)
+                    continue
+            _collect_nested_pins(value, path, seen, out)
+    elif isinstance(node, list):
+        for index, item in enumerate(node):
+            _collect_nested_pins(item, f"{prefix}[{index}]", seen, out)
+
+
+def _prefer_typed(typed: object, flat: object) -> object:
+    """Return the typed-view value when it is a non-blank string, else flat.
+
+    Both ``model`` and ``model-rationale`` are read this way. The typed view
+    normalises alternate YAML key spellings (quoted keys, explicit key
+    notation) that the flat view misses, so preferring it stops a valid
+    rationale from reading as missing. The flat fallback keeps files whose
+    YAML failed to parse scannable.
+    """
+    if isinstance(typed, str) and typed.strip():
+        return typed
+    return flat
+
+
 def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     """Read a unit's model state, or None when it has no frontmatter."""
     try:
@@ -180,8 +239,15 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
         return None
     parsed = parse_frontmatter(content)
     fm = parsed.frontmatter
-    model = fm.get("model")
-    rationale = fm.get("model-rationale")
+    # The typed view is authoritative: it is what a harness reading YAML sees.
+    # The flat view is a line scan that misses every alternate spelling of the
+    # same key ('model':, ? model, !!str model), each of which otherwise hides
+    # a pin from the gate while still shipping it. The flat view is the
+    # fallback whenever the typed view has no usable string for the key, which
+    # covers a file whose YAML failed to parse as well as one whose key holds a
+    # mapping or a blank; see _prefer_typed for the exact rule.
+    model = _prefer_typed(parsed.typed.get("model"), fm.get("model"))
+    rationale = _prefer_typed(parsed.typed.get("model-rationale"), fm.get("model-rationale"))
     try:
         rel = path.relative_to(repo_root).as_posix()
     except ValueError:
@@ -189,9 +255,31 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
     return Unit(
         path=rel,
         kind=kind,
-        model=model.strip() if isinstance(model, str) else None,
-        rationale=rationale.strip() if isinstance(rationale, str) else None,
+        model=model.strip() if isinstance(model, str) and model.strip() else None,
+        # Blank normalises to None for the same reason model does: a whitespace
+        # rationale is an absent rationale, and leaving "" in place would give
+        # Unit.rationale a third state that means nothing to any reader.
+        rationale=rationale.strip() if isinstance(rationale, str) and rationale.strip() else None,
+        nested_pins=_nested_pins(parsed.typed),
     )
+
+
+def _nested_pins(typed: dict[object, object]) -> tuple[tuple[str, str], ...]:
+    """Every model pin below the top level, sorted by its dotted path.
+
+    A pin written as ``metadata.model`` still ships to customers in the
+    generated mirrors and still rots when the id retires, so it carries the
+    same drift and retirement cost ADR-080 exists to remove.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[int] = set()
+    for key, value in typed.items():
+        # A scalar top-level model is the compliant shape and is judged by the
+        # alias rules instead. A structured one is not, so walk into it.
+        if key == "model" and isinstance(value, str):
+            continue
+        _collect_nested_pins(value, str(key), seen, out)
+    return tuple(sorted(out))
 
 
 def scan_units(repo_root: Path = _REPO_ROOT) -> list[Unit]:
@@ -209,7 +297,7 @@ def scan_units(repo_root: Path = _REPO_ROOT) -> list[Unit]:
                 continue
             seen.add(key)
             unit = _classify_and_read(path, kind, repo_root)
-            if unit is not None and unit.model:
+            if unit is not None and (unit.model or unit.nested_pins):
                 units.append(unit)
     return units
 
@@ -260,6 +348,27 @@ def _manifest_entry_valid(
     return None
 
 
+_MAX_DISPLAY_CHARS = 80
+
+
+def _display(value: str) -> str:
+    """Render a file-controlled value as one bounded, escaped token.
+
+    ``repr`` escapes newlines and control characters, so a pin value cannot
+    forge an extra status line in the gate's output (CWE-117), and the cap
+    stops a padded value from burying the rest of the report.
+
+    The cap is applied to the rendered form, not the raw value. Escaping
+    expands: eighty newlines render as a hundred and sixty characters, so
+    capping first measures a string nobody ever sees and lets the printed
+    token run to twice the stated bound.
+    """
+    rendered = repr(value)
+    if len(rendered) > _MAX_DISPLAY_CHARS:
+        return rendered[:_MAX_DISPLAY_CHARS] + "..."
+    return rendered
+
+
 def _unit_rule_failure(
     unit: Unit,
     manifest: dict[str, dict[str, object]],
@@ -270,6 +379,14 @@ def _unit_rule_failure(
 ) -> str | None:
     """Return why a unit violates ADR-080 rules 1-3, or None when it complies."""
     model = unit.model or ""
+    if unit.nested_pins:
+        listed = ", ".join(
+            f"{_display(value)} under {_display(key)}" for key, value in unit.nested_pins
+        )
+        return (
+            f"model pin(s) nested below the top level: {listed}; no harness "
+            f"reads them, so they are drift with no effect (ADR-080)"
+        )
     if model in ROLLING_ALIASES:
         if not unit.rationale:
             return f"bare alias '{model}' lacks a model-rationale field"
@@ -367,7 +484,9 @@ def run_check(
         if failure is None:
             continue
         model = unit.model or ""
-        if unit.path not in baseline:
+        if unit.nested_pins:
+            report.fail(unit.path, f"[nested pin] {failure}")
+        elif unit.path not in baseline:
             report.fail(unit.path, f"[new pin] {failure}")
         elif _normalize_id(baseline[unit.path]) != _normalize_id(model):
             report.fail(
@@ -388,7 +507,10 @@ def write_baseline(units: list[Unit], baseline_path: Path = _BASELINE_PATH) -> i
     """
     _, existing_frozen_count = load_baseline(baseline_path)
 
-    pins = {u.path: (u.model or "") for u in sorted(units, key=lambda u: u.path)}
+    # A nested-only unit has no top-level model to freeze, and a nested pin is a
+    # hard violation forever, so it must never enter the baseline as an empty
+    # string that a later comparison would read as a matching pin.
+    pins = {u.path: u.model for u in sorted(units, key=lambda u: u.path) if u.model}
 
     frozen_count = existing_frozen_count if existing_frozen_count > 0 else len(pins)
 

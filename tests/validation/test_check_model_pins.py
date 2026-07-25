@@ -15,6 +15,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+import yaml
 
 _MODULE_PATH = (
     Path(__file__).resolve().parents[2] / "scripts" / "validation" / "check_model_pins.py"
@@ -290,3 +291,396 @@ def test_alias_prices_below_default_helper(tmp_path: Path) -> None:
     assert cmp.alias_prices_below_default("haiku", tiers, "claude-sonnet-4-6") is True
     assert cmp.alias_prices_below_default("opus", tiers, "claude-sonnet-4-6") is False
     assert cmp.alias_prices_below_default("sonnet", tiers, "claude-sonnet-4-6") is False
+
+
+# ---------------------------------------------------------------------------
+# Nested pins (issue #2840): a pin below the top level is invisible to the flat
+# frontmatter view, ships to customers in the mirrors, and rots on retirement.
+# ---------------------------------------------------------------------------
+
+
+def test_nested_versioned_skill_pin_fails(tmp_path: Path) -> None:
+    _skill(
+        tmp_path,
+        "nested",
+        "name: nested\nmetadata:\n  version: 1.0.0\n  model: claude-opus-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 1
+    assert any("'claude-opus-4-6' under 'metadata.model'" in v for v in report.violations)
+
+
+def test_nested_bare_alias_fails_even_with_rationale(tmp_path: Path) -> None:
+    # A rationale cannot rescue a key no harness reads, so the cost exception
+    # in ADR-080 rule 3 does not apply below the top level.
+    _skill(
+        tmp_path,
+        "nested-alias",
+        "name: nested-alias\nmetadata:\n  model: haiku\n  model-rationale: cheap lookups only",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("'haiku' under 'metadata.model'" in v for v in report.violations)
+
+
+def test_nested_agent_pin_fails_despite_valid_manifest(tmp_path: Path) -> None:
+    # Evidence is keyed to the unit, but a nested key never reaches the harness,
+    # so a KEEP_PIN entry must not launder it into compliance.
+    unit = ".claude/agents/critic.md"
+    _agent(tmp_path, "critic", "name: critic\nmetadata:\n  model: claude-opus-4-6")
+    report = _run(
+        tmp_path,
+        baseline={},
+        manifest=[_keep_entry(tmp_path, unit, "claude-opus-4-6")],
+    )
+    assert any("'claude-opus-4-6' under 'metadata.model'" in v for v in report.violations)
+
+
+def test_compliant_top_level_alias_does_not_hide_a_nested_pin(tmp_path: Path) -> None:
+    # Otherwise the laundering path is one line: keep the versioned id below the
+    # top level and satisfy the gate with a compliant alias above it. The
+    # versioned id still ships in the mirrors and still rots on retirement.
+    _skill(
+        tmp_path,
+        "both",
+        "name: both\nmodel: haiku\nmodel-rationale: cheap lookups only\n"
+        "metadata:\n  model: claude-opus-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("'claude-opus-4-6' under 'metadata.model'" in v for v in report.violations)
+
+
+def test_every_nested_pin_is_reported_not_just_the_first(tmp_path: Path) -> None:
+    # Reporting one at a time turns a single fix into a game of whack-a-mole and
+    # lets the unreported id survive the commit that "fixed" the file.
+    _skill(
+        tmp_path,
+        "two",
+        "name: two\nalpha:\n  model: claude-opus-4-6\nbeta:\n  model: claude-sonnet-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    joined = " ".join(report.violations)
+    assert "'claude-opus-4-6' under 'alpha.model'" in joined
+    assert "'claude-sonnet-4-6' under 'beta.model'" in joined
+
+
+def test_nested_pin_is_found_outside_metadata(tmp_path: Path) -> None:
+    # The three real offenders all hid under metadata, so a detector that only
+    # searched that key would pass every test written from them and still miss
+    # the next one.
+    _skill(tmp_path, "elsewhere", "name: elsewhere\nconfig:\n  runtime:\n    model: haiku")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("'haiku' under 'config.runtime.model'" in v for v in report.violations)
+
+
+def test_nested_pin_inside_a_list_is_found(tmp_path: Path) -> None:
+    _skill(
+        tmp_path,
+        "listed",
+        "name: listed\nvariants:\n  - name: fast\n  - name: slow\n    model: claude-opus-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("'claude-opus-4-6' under 'variants[1].model'" in v for v in report.violations)
+
+
+def test_model_sequence_pins_are_found(tmp_path: Path) -> None:
+    _skill(
+        tmp_path,
+        "sequence",
+        "name: sequence\nmetadata:\n  model:\n    - claude-opus-4-6\n    - claude-sonnet-4-6",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    joined = " ".join(report.violations)
+    assert "'claude-opus-4-6' under 'metadata.model[0]'" in joined
+    assert "'claude-sonnet-4-6' under 'metadata.model[1]'" in joined
+
+
+def test_cyclic_yaml_alias_does_not_crash_the_gate(tmp_path: Path) -> None:
+    # A self-referential anchor is valid YAML. An unguarded walk raises
+    # RecursionError, which reads as a broken gate rather than a broken file.
+    _skill(tmp_path, "cyclic", "name: cyclic\nloop: &a\n  self: *a\n  model: haiku")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert any("'haiku' under 'loop.model'" in v for v in report.violations)
+
+
+def test_nested_non_model_keys_do_not_register_a_pin(tmp_path: Path) -> None:
+    _skill(tmp_path, "quiet", "name: quiet\nmetadata:\n  version: 1.0.0\n  tier: integration")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 0
+    assert report.violations == []
+
+
+def test_frontmatter_parser_exposes_nested_structure(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The flat view collapses a nested mapping to an empty string; the typed
+    # view is what makes the nested pin visible at all.
+    # syspath_prepend, not sys.path.insert: an unrestored insert leaks into
+    # every later test in the process and turns an import failure elsewhere
+    # into an order-dependent mystery.
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
+    from skill_frontmatter import parse_frontmatter
+
+    parsed = parse_frontmatter("---\nname: x\nmetadata:\n  model: claude-opus-4-6\n---\nbody\n")
+    assert parsed.frontmatter["metadata"] == ""
+    assert parsed.typed["metadata"] == {"model": "claude-opus-4-6"}
+
+
+def test_non_string_yaml_key_still_surfaces_its_nested_pin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # YAML allows non-string scalar keys, so 'true:' parses to the bool True.
+    # If the parser normalised keys to str or rejected the document, a pin
+    # hidden under such a key would ship unseen. That is the evasion the
+    # dict[object, object] annotation on FrontmatterResult.typed exists to keep
+    # honest, so the walk has to reach it.
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
+    from skill_frontmatter import parse_frontmatter
+
+    parsed = parse_frontmatter("---\nname: x\ntrue:\n  model: claude-opus-4-6\n---\nbody\n")
+    assert True in parsed.typed
+    assert cmp._nested_pins(parsed.typed) == (("True.model", "claude-opus-4-6"),)
+
+
+def test_nested_pin_not_grandfathered_by_baseline(tmp_path: Path) -> None:
+    # A nested pin must not be grandfathered even when its unit/model pair matches
+    # the baseline. The nested location was never checked before, so baseline
+    # should not apply - it must be a hard violation, not backlog.
+    unit = ".claude/skills/legacy/SKILL.md"
+    _skill(
+        tmp_path,
+        "legacy",
+        "name: legacy\nmetadata:\n  model: haiku",
+    )
+    report = _run(tmp_path, baseline={unit: "haiku"}, manifest=[])
+    assert any("[nested pin]" in v for v in report.violations)
+    assert report.backlog == []
+
+
+def test_nested_pin_under_top_level_model_mapping_is_found(tmp_path: Path) -> None:
+    # A top-level `model:` that is a mapping (not a scalar) must still have its
+    # subtree walked to find nested pins like `model.model`. The blanket skip
+    # was broader than needed and missed this case (issue #2840).
+    _skill(tmp_path, "nested-model", "name: nested-model\nmodel:\n  model: claude-opus-4-6")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 1
+    assert any("'claude-opus-4-6' under 'model.model'" in v for v in report.violations)
+
+
+def test_quoted_top_level_model_key_is_not_a_bypass(tmp_path: Path) -> None:
+    # The flat frontmatter view is a column-anchored line scan, so it misses
+    # every alternate YAML spelling of the same key. A harness reading YAML
+    # still sees the pin, so the gate must too (adversarial review of #2840).
+    _skill(tmp_path, "quoted", "name: quoted\n'model': claude-opus-4-6")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 1
+    assert any("claude-opus-4-6" in v for v in report.violations)
+
+
+def test_explicit_and_tagged_top_level_model_keys_are_not_bypasses(tmp_path: Path) -> None:
+    # `? model` (explicit key) and `!!str model` (tagged key) are the other two
+    # spellings PyYAML accepts and the line scan drops.
+    _skill(tmp_path, "explicit", "name: explicit\n? model\n: claude-opus-4-6")
+    _skill(tmp_path, "tagged", "name: tagged\n!!str model: claude-opus-4-6")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 2
+    assert len(report.violations) == 2
+
+
+def test_alias_dag_does_not_expand_exponentially(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A 32-line alias graph re-walked through every path took over five seconds
+    # under the earlier recursion-path guard. Visiting each container once
+    # bounds it at O(nodes). Depth 20 is 2**20 distinct paths.
+    #
+    # Count the visits rather than the seconds. A wall-clock assertion measures
+    # the runner as much as the algorithm, so it goes red on a loaded CI box
+    # and gets marked flaky and then skipped. The visit count is the property
+    # the fix actually established: bounded is ~65 calls, unbounded is 2**20,
+    # so any threshold in between separates them by four orders of magnitude
+    # and never depends on how busy the machine is.
+    lines = ["n0: &n0 {model: claude-opus-4-6}"]
+    lines += [f"n{i}: &n{i} {{left: *n{i - 1}, right: *n{i - 1}}}" for i in range(1, 21)]
+    lines.append("root: *n20")
+    typed = yaml.safe_load("\n".join(lines))
+
+    original = cmp._collect_nested_pins
+    calls = 0
+
+    def counting(node: object, prefix: str, seen: set[int], out: list[tuple[str, str]]) -> None:
+        nonlocal calls
+        calls += 1
+        # Recursion resolves _collect_nested_pins as a module global at call
+        # time, so patching the attribute counts the inner calls too.
+        original(node, prefix, seen, out)
+
+    monkeypatch.setattr(cmp, "_collect_nested_pins", counting)
+    pins = cmp._nested_pins(typed)
+    assert calls < 1000
+    assert len(pins) == 1
+
+
+def test_one_anchor_reached_twice_is_reported_once(tmp_path: Path) -> None:
+    # Two alias paths to the same node are one anchor in the source, so one
+    # line to delete. Reporting it twice would send the author looking for a
+    # second edit that does not exist.
+    typed = yaml.safe_load("shared: &s {model: claude-opus-4-6}\nleft: *s\nright: *s\n")
+    assert len(cmp._nested_pins(typed)) == 1
+
+
+def test_two_lookalike_mappings_are_reported_separately(tmp_path: Path) -> None:
+    # Distinct mappings that merely carry the same value are two edits, so the
+    # visited-once rule must not collapse them.
+    typed = yaml.safe_load("left:\n  model: claude-opus-4-6\nright:\n  model: claude-opus-4-6\n")
+    assert cmp._nested_pins(typed) == (
+        ("left.model", "claude-opus-4-6"),
+        ("right.model", "claude-opus-4-6"),
+    )
+
+
+def test_nested_pins_are_sorted_regardless_of_insertion_order(tmp_path: Path) -> None:
+    # Unsorted output makes the message order depend on YAML key order, which
+    # turns a re-run into a spurious diff in CI logs.
+    forward = cmp._nested_pins(yaml.safe_load("a:\n  model: x\nz:\n  model: y\n"))
+    reverse = cmp._nested_pins(yaml.safe_load("z:\n  model: y\na:\n  model: x\n"))
+    assert forward == reverse == (("a.model", "x"), ("z.model", "y"))
+
+
+def test_pin_value_cannot_forge_a_status_line(tmp_path: Path) -> None:
+    # A file-controlled value reaches human-readable CI output. Unescaped, a
+    # newline lets it fake a passing line (CWE-117).
+    unit = cmp.Unit(
+        ".claude/skills/demo/SKILL.md", "skill", None, None, (("metadata.model", "v\nOK: forged"),)
+    )
+    message = cmp._unit_rule_failure(unit, {}, {}, tmp_path, TODAY, "claude-sonnet-4-6")
+    assert message is not None
+    assert "\n" not in message
+    assert "\\n" in message
+
+
+def test_long_pin_value_is_truncated_in_the_message(tmp_path: Path) -> None:
+    # An overlong value would otherwise bury every other violation in the run.
+    unit = cmp.Unit(
+        ".claude/skills/demo/SKILL.md", "skill", None, None, (("metadata.model", "v" * 5000),)
+    )
+    message = cmp._unit_rule_failure(unit, {}, {}, tmp_path, TODAY, "claude-sonnet-4-6")
+    assert message is not None
+    assert len(message) < 300
+    assert "..." in message
+
+
+def test_write_baseline_round_trips_a_nested_only_tree(tmp_path: Path) -> None:
+    # A unit with no top-level model used to be written with an empty path.
+    # Reloading must yield the same pins and preserve the frozen count.
+    _skill(tmp_path, "nested-only", "name: nested-only\nmetadata:\n  model: claude-opus-4-6")
+    _skill(tmp_path, "pinned", "name: pinned\nmodel: claude-opus-4-6")
+    out = tmp_path / "baseline.json"
+    cmp.write_baseline(cmp.scan_units(tmp_path), out)
+    pins, frozen = cmp.load_baseline(out)
+    assert pins == {".claude/skills/pinned/SKILL.md": "claude-opus-4-6"}
+    assert frozen == len(pins)
+
+
+def test_quoted_model_rationale_key_is_read_from_typed_view(tmp_path: Path) -> None:
+    # The flat frontmatter view misses alternate YAML key spellings like quoted
+    # keys, but the typed view sees them. A valid cost rationale must not be
+    # flagged as missing when it uses a quoted key (bug fix: issue #2840).
+    _skill(
+        tmp_path,
+        "quoted-rationale",
+        "name: quoted-rationale\nmodel: haiku\n'model-rationale': cheap lookups only",
+    )
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.violations == []
+    assert report.backlog == []
+
+
+class TestPreferTyped:
+    """The typed-over-flat rule is shared by model and model-rationale.
+
+    It was duplicated once per field, and the two copies had already drifted:
+    model preferred the typed view while model-rationale read only the flat
+    one, so a rationale written with a quoted or explicit YAML key read as
+    missing. Testing the rule directly keeps a future third caller honest.
+    """
+
+    def test_typed_wins_when_it_is_a_non_blank_string(self) -> None:
+        assert cmp._prefer_typed("typed", "flat") == "typed"
+
+    def test_flat_wins_when_typed_is_absent(self) -> None:
+        assert cmp._prefer_typed(None, "flat") == "flat"
+
+    @pytest.mark.parametrize("blank", ["", "   ", "\n", "\t"])
+    def test_flat_wins_when_typed_is_blank(self, blank: str) -> None:
+        assert cmp._prefer_typed(blank, "flat") == "flat"
+
+    @pytest.mark.parametrize("wrong", [123, True, ["a"], {"k": "v"}, 1.5])
+    def test_flat_wins_when_typed_is_not_a_string(self, wrong: object) -> None:
+        assert cmp._prefer_typed(wrong, "flat") == "flat"
+
+    def test_returns_none_when_neither_view_has_the_key(self) -> None:
+        assert cmp._prefer_typed(None, None) is None
+
+    def test_does_not_strip_the_value_it_returns(self) -> None:
+        """Blankness gates selection; it must not mutate the payload."""
+        assert cmp._prefer_typed("  typed  ", "flat") == "  typed  "
+
+
+class TestBlankRationaleNormalisation:
+    """A whitespace-only rationale is an absent rationale.
+
+    ``model`` already normalised blank to None. ``rationale`` kept the empty
+    string, which gave the field a third state that no reader distinguishes
+    from None. The rule check treats both as falsy today, so the fix is about
+    the contract rather than the verdict: one less state to reason about the
+    next time someone adds a branch on ``unit.rationale``.
+    """
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "model-rationale:",
+            "model-rationale: ",
+            # A quoted key the flat line scan cannot match, so only the typed
+            # view sees it and the blank has to normalise on that path too.
+            "'model-rationale':",
+        ],
+    )
+    def test_blank_rationale_reads_as_absent(self, tmp_path: Path, line: str) -> None:
+        _skill(tmp_path, "s", f"name: s\nmodel: haiku\n{line}\n")
+        unit = cmp._classify_and_read(
+            tmp_path / ".claude" / "skills" / "s" / "SKILL.md", "skill", tmp_path
+        )
+        assert unit is not None
+        assert unit.rationale is None
+
+    def test_real_rationale_survives_stripping(self, tmp_path: Path) -> None:
+        _skill(tmp_path, "s", "name: s\nmodel: haiku\nmodel-rationale: '  cheap  '\n")
+        unit = cmp._classify_and_read(
+            tmp_path / ".claude" / "skills" / "s" / "SKILL.md", "skill", tmp_path
+        )
+        assert unit is not None
+        assert unit.rationale == "cheap"
+
+
+class TestDisplayBound:
+    """The cap has to measure the string that gets printed.
+
+    ``repr`` escapes, and escaping expands: one newline renders as two
+    characters. Capping the raw value first bounded a string nobody sees and
+    let the printed token run to roughly twice the stated limit, which is
+    exactly the report-burying the cap exists to prevent.
+    """
+
+    def test_escape_expansion_cannot_exceed_the_cap(self) -> None:
+        rendered = cmp._display("\n" * cmp._MAX_DISPLAY_CHARS)
+        assert len(rendered) <= cmp._MAX_DISPLAY_CHARS + len("...")
+
+    def test_padded_value_cannot_exceed_the_cap(self) -> None:
+        rendered = cmp._display("x" * (cmp._MAX_DISPLAY_CHARS * 10))
+        assert len(rendered) <= cmp._MAX_DISPLAY_CHARS + len("...")
+
+    def test_short_value_is_rendered_whole_and_unmarked(self) -> None:
+        assert cmp._display("haiku") == "'haiku'"
+
+    def test_control_characters_are_still_escaped(self) -> None:
+        # CWE-117: a raw newline in the report forges a status line. The cap
+        # change must not reintroduce one by slicing after the escape.
+        assert "\n" not in cmp._display("a\nb")
+        assert "\\n" in cmp._display("a\nb")
