@@ -21,7 +21,7 @@ and must not depend on the project's import graph.
 
 Exit codes (AGENTS.md contract):
     0 - ok (count <= baseline)
-    1 - regression (count > baseline)
+    1 - regression (count > baseline, or baseline raised vs --base-ref)
     2 - config error (baseline missing or malformed, bad args)
     3 - external error (ruff could not run)
 """
@@ -29,6 +29,7 @@ Exit codes (AGENTS.md contract):
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -46,12 +47,26 @@ _BASELINE_PATH = Path(__file__).with_name("ruff_count_baseline.txt")
 # under that ceiling on every platform rather than only on POSIX.
 _ARGV_BUDGET_BYTES = 24000
 
+# Every extension ruff lints. Kept in lockstep with the workflow paths filter.
+_SCAN_GLOBS = ("*.py", "*.pyi", "*.ipynb")
+
+# ruff reports file-access failures as an ordinary E902 diagnostic on exit 1.
+# Counting those as lint debt turns a deleted-but-tracked file or an unreadable
+# path into a phantom count change, so they are treated as an environment
+# failure instead.
+_IO_ERROR_CODE = "E902"
+
 
 def tracked_python_files(repo_root: Path) -> list[str] | None:
-    """Git-tracked ``.py`` paths, or None when git could not run."""
+    """Git-tracked ruff-lintable paths, or None when git could not run.
+
+    ``.pyi`` and ``.ipynb`` are in scope because ruff lints both. The repo
+    tracks none today, so they do not move the baseline, but a PR that adds a
+    faulty stub or notebook must not slip past a Python-only gate.
+    """
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo_root), "ls-files", "-z", "--", "*.py"],
+            ["git", "-C", str(repo_root), "ls-files", "-z", "--", *_SCAN_GLOBS],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -84,6 +99,31 @@ def _chunk(paths: Sequence[str], budget: int = _ARGV_BUDGET_BYTES) -> list[list[
     return batches
 
 
+def _count_diagnostics(stdout: str) -> int | None:
+    """Violations in one ruff ``json-lines`` batch, or None on an I/O error.
+
+    A malformed line is counted rather than dropped: the count is the metric
+    this gate defends, so an unparseable diagnostic must not silently lower it.
+    """
+    total = 0
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            total += 1
+            continue
+        if isinstance(record, dict) and record.get("code") == _IO_ERROR_CODE:
+            sys.stderr.write(
+                f"ruff could not read {record.get('filename')}: {record.get('message')}\n"
+            )
+            return None
+        total += 1
+    return total
+
+
 def current_count(repo_root: Path) -> int | None:
     """Total tracked-file ruff violations, or None when the scan could not run.
 
@@ -114,8 +154,45 @@ def current_count(repo_root: Path) -> int | None:
         if proc.returncode not in (0, 1):
             sys.stderr.write(proc.stderr)
             return None
-        total += sum(1 for line in proc.stdout.splitlines() if line.strip())
+        batch_count = _count_diagnostics(proc.stdout)
+        if batch_count is None:
+            return None
+        total += batch_count
     return total
+
+
+def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
+    """Baseline value recorded at ``ref``, or None when it cannot be read.
+
+    Without this the ratchet is one-sided: the gate only fails when the count
+    exceeds the baseline, so raising the baseline in the same PR that adds the
+    violations passes as an improvement. Comparing against the base branch is
+    what makes the baseline monotonic rather than merely advisory.
+    """
+    try:
+        rel = baseline.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        sys.stderr.write(f"baseline {baseline} is outside {repo_root}\n")
+        return None
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "show", f"{ref}:{rel}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        sys.stderr.write(f"git could not be launched: {exc}\n")
+        return None
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        return None
+    try:
+        return int(proc.stdout.strip())
+    except ValueError:
+        sys.stderr.write(f"baseline at {ref} is not an integer\n")
+        return None
 
 
 def read_baseline(path: Path) -> int | None:
@@ -147,6 +224,14 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="Lower the baseline to the current count when the count improved.",
     )
+    parser.add_argument(
+        "--base-ref",
+        help=(
+            "Git ref to compare the baseline against. Fails when the working "
+            "baseline is higher than the one at this ref, which is what keeps "
+            "the ratchet one-directional."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -157,6 +242,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     if baseline is None:
         print(f"error: baseline missing or malformed: {args.baseline}", file=sys.stderr)
         return EXIT_CONFIG
+
+    if args.base_ref:
+        base = baseline_at_ref(args.repo_root.resolve(), args.base_ref, args.baseline)
+        if base is None:
+            print(
+                f"error: could not read the baseline at {args.base_ref}",
+                file=sys.stderr,
+            )
+            return EXIT_EXTERNAL
+        if baseline > base:
+            print(
+                f"ruff count ratchet: BASELINE RAISED. {base} -> {baseline} "
+                f"(+{baseline - base}) against {args.base_ref}. The baseline may "
+                f"only fall. Fix the violations instead of widening the allowance "
+                f"(issue #2993).",
+                file=sys.stderr,
+            )
+            return EXIT_REGRESSION
 
     count = current_count(args.repo_root.resolve())
     if count is None:

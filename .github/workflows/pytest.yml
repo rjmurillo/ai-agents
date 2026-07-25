@@ -50,6 +50,9 @@ jobs:
           filters: |
             python:
               - '**/*.py'
+              - '**/*.pyi'
+              - '**/*.ipynb'
+              - 'scripts/ci/ruff_count_baseline.txt'
               - 'pyproject.toml'
               - 'uv.lock'
               - 'tests/conftest.py'
@@ -138,9 +141,22 @@ jobs:
       # not otherwise touch, so the whole-tree total is frozen in
       # scripts/ci/ruff_count_baseline.txt and may only go down. Lower it with
       # `python scripts/ci/ruff_count_ratchet.py --update` after a cleanup.
+      # `uv run --frozen` pins ruff to the lockfile. The dev extra declares an
+      # open-ended `ruff>=`, so a `uv pip install` resolves whatever is newest
+      # and a future ruff rule change could fail this baseline on an unrelated
+      # PR. --base-ref makes the ratchet one-directional: without it, raising
+      # the baseline in the same PR that adds the violations passes.
       - name: Run ruff count ratchet (whole tree, may only decrease)
         if: steps.should-run.outputs.skip != 'true'
-        run: python scripts/ci/ruff_count_ratchet.py
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --depth=1 origin "${BASE_REF#origin/}"
+            uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
+          else
+            uv run --frozen python scripts/ci/ruff_count_ratchet.py
+          fi
 
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'

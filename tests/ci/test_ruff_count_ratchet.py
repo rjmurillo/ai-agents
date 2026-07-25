@@ -17,19 +17,32 @@ def _fake_scan(
     *,
     tracked: tuple[str, ...] = ("pkg/mod.py",),
     git_returncode: int = 0,
+    base_baseline: str | None = None,
+    ruff_stdout: str | None = None,
 ):
-    """subprocess.run stand-in for both legs of the scan.
+    """subprocess.run stand-in for every leg of the scan.
 
-    ``git ls-files -z`` returns ``tracked`` NUL-joined; every ruff invocation
-    returns ``violation_lines`` json-lines rows. Violations are emitted once per
-    ruff call, so a multi-batch expectation must size ``tracked`` accordingly.
+    ``git ls-files -z`` returns ``tracked`` NUL-joined; ``git show`` returns
+    ``base_baseline``; every ruff invocation returns ``violation_lines``
+    json-lines rows unless ``ruff_stdout`` overrides them. Violations are
+    emitted once per ruff call, so a multi-batch expectation must size
+    ``tracked`` accordingly.
     """
 
     def _run(cmd, **kwargs):  # noqa: ANN001, ANN003
+        if cmd[0] == "git" and "show" in cmd:
+            rc = 0 if base_baseline is not None else 128
+            return subprocess.CompletedProcess(
+                cmd, rc, stdout=(base_baseline or ""), stderr=""
+            )
         if cmd[0] == "git":
             stdout = "\0".join(tracked) + ("\0" if tracked else "")
             return subprocess.CompletedProcess(cmd, git_returncode, stdout=stdout, stderr="")
-        stdout = "".join('{"code":"E501"}\n' for _ in range(violation_lines))
+        stdout = (
+            ruff_stdout
+            if ruff_stdout is not None
+            else "".join('{"code":"E501"}\n' for _ in range(violation_lines))
+        )
         return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
 
     return _run
@@ -173,3 +186,75 @@ def test_untracked_worktree_violations_are_not_counted(tmp_path):
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def test_scan_scope_includes_every_extension_ruff_lints(tmp_path, monkeypatch):
+    # A PR adding only a faulty stub or notebook must not slip past a
+    # Python-only gate. The repo tracks none of either today, so this pins the
+    # scope rather than the count.
+    seen: list[list[str]] = []
+
+    def _run(cmd, **kwargs):  # noqa: ANN001, ANN003
+        seen.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    ratchet.tracked_python_files(tmp_path)
+    assert seen[0][seen[0].index("--") + 1 :] == ["*.py", "*.pyi", "*.ipynb"]
+
+
+def test_ruff_io_error_is_not_counted_as_a_violation(tmp_path, monkeypatch):
+    # ruff reports a missing or unreadable path as an ordinary E902 diagnostic
+    # on exit 1. Counting it as lint debt turns a stale index or a sparse
+    # checkout into a phantom count change.
+    baseline = _write_baseline(tmp_path, "408")
+    io_error = '{"code":"E902","filename":"gone.py","message":"No such file"}\n'
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 0, ruff_stdout=io_error))
+    assert ratchet.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 3
+
+
+def test_unparseable_diagnostic_still_counts(tmp_path, monkeypatch):
+    # The count is the metric this gate defends, so a line ruff emitted that
+    # this script cannot parse must not silently lower it.
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 0, ruff_stdout="not json\n"))
+    assert ratchet.current_count(tmp_path) == 1
+
+
+def test_raising_the_baseline_is_a_regression(tmp_path, monkeypatch):
+    # Without this the ratchet is one-sided: raising the baseline in the same
+    # PR that adds the violations passes as an improvement.
+    baseline = _write_baseline(tmp_path, "500")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 500, base_baseline="408"))
+    code = ratchet.main(
+        ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--base-ref", "origin/main"]
+    )
+    assert code == 1
+
+
+def test_lowering_the_baseline_is_allowed(tmp_path, monkeypatch):
+    baseline = _write_baseline(tmp_path, "400")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400, base_baseline="408"))
+    code = ratchet.main(
+        ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--base-ref", "origin/main"]
+    )
+    assert code == 0
+
+
+def test_unreadable_base_ref_is_external_error(tmp_path, monkeypatch):
+    # A shallow clone that cannot reach the base ref must fail loudly rather
+    # than silently skip the one-directional check.
+    baseline = _write_baseline(tmp_path, "408")
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 408, base_baseline=None))
+    code = ratchet.main(
+        ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--base-ref", "origin/main"]
+    )
+    assert code == 3
+
+
+def test_baseline_outside_the_repo_root_is_rejected(tmp_path):
+    outside = tmp_path / "elsewhere" / "baseline.txt"
+    outside.parent.mkdir()
+    outside.write_text("1\n", encoding="utf-8")
+    root = tmp_path / "repo"
+    root.mkdir()
+    assert ratchet.baseline_at_ref(root, "origin/main", outside) is None
