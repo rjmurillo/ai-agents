@@ -9,6 +9,13 @@ run only when the count INCREASES. A decrease is allowed and can lower the
 baseline with ``--update``, so the pre-existing debt drains monotonically and can
 never climb back.
 
+Scope is git-TRACKED Python files, not a directory walk. ``ruff check .`` also
+walks untracked scratch, nested git worktrees, and vendored caches that a
+contributor happens to have on disk (``pr3097-worktree/``, ``.cache/worktrees/``),
+which inflated a local run to 767 against a real tracked count of 361 and made
+the gate report a phantom regression outside CI. Tracked files are the only
+thing a PR can change, so they are the only thing the baseline should freeze.
+
 Stdlib only: this runs by path in CI (``python scripts/ci/ruff_count_ratchet.py``)
 and must not depend on the project's import graph.
 
@@ -33,32 +40,82 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 _BASELINE_PATH = Path(__file__).with_name("ruff_count_baseline.txt")
-_EXCLUDE = ".wt"
+
+# Windows CreateProcess caps a command line at 32767 characters. The tracked
+# Python set is ~1476 paths / ~70 KB of argv, so the scan is chunked to stay
+# under that ceiling on every platform rather than only on POSIX.
+_ARGV_BUDGET_BYTES = 24000
 
 
-def current_count(repo_root: Path) -> int | None:
-    """Total whole-repo ruff violations, or None when ruff could not run.
-
-    Uses ``json-lines`` so the count is one violation per output line, robust
-    across ruff output-format changes. ruff exits 1 when violations exist and 0
-    when clean; both are valid. Any other exit code is an environment failure.
-    """
+def tracked_python_files(repo_root: Path) -> list[str] | None:
+    """Git-tracked ``.py`` paths, or None when git could not run."""
     try:
         proc = subprocess.run(
-            ["ruff", "check", ".", "--exclude", _EXCLUDE, "--output-format", "json-lines"],
-            cwd=repo_root,
+            ["git", "-C", str(repo_root), "ls-files", "-z", "--", "*.py"],
             capture_output=True,
             text=True,
             encoding="utf-8",
             check=False,
         )
     except (FileNotFoundError, OSError) as exc:
-        sys.stderr.write(f"ruff could not be launched: {exc}\n")
+        sys.stderr.write(f"git could not be launched: {exc}\n")
         return None
-    if proc.returncode not in (0, 1):
+    if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
         return None
-    return sum(1 for line in proc.stdout.splitlines() if line.strip())
+    return [path for path in proc.stdout.split("\0") if path]
+
+
+def _chunk(paths: Sequence[str], budget: int = _ARGV_BUDGET_BYTES) -> list[list[str]]:
+    """Split ``paths`` into batches whose joined length stays under ``budget``."""
+    batches: list[list[str]] = []
+    current: list[str] = []
+    size = 0
+    for path in paths:
+        cost = len(path) + 1
+        if current and size + cost > budget:
+            batches.append(current)
+            current = []
+            size = 0
+        current.append(path)
+        size += cost
+    if current:
+        batches.append(current)
+    return batches
+
+
+def current_count(repo_root: Path) -> int | None:
+    """Total tracked-file ruff violations, or None when the scan could not run.
+
+    Uses ``json-lines`` so the count is one violation per output line, robust
+    across ruff output-format changes. ruff exits 1 when violations exist and 0
+    when clean; both are valid. Any other exit code is an environment failure.
+    """
+    files = tracked_python_files(repo_root)
+    if files is None:
+        return None
+    if not files:
+        return 0
+
+    total = 0
+    for batch in _chunk(files):
+        try:
+            proc = subprocess.run(
+                ["ruff", "check", "--output-format", "json-lines", "--", *batch],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+        except (FileNotFoundError, OSError) as exc:
+            sys.stderr.write(f"ruff could not be launched: {exc}\n")
+            return None
+        if proc.returncode not in (0, 1):
+            sys.stderr.write(proc.stderr)
+            return None
+        total += sum(1 for line in proc.stdout.splitlines() if line.strip())
+    return total
 
 
 def read_baseline(path: Path) -> int | None:

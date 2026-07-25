@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2993,
+    "date": "2026-07-25",
+    "branch": "fix/2993-2967-wire-ratchets",
+    "startingCommit": "013cb0124c31e4b2acbdbb0dc7bcd8ac4d63e5f7",
+    "objective": "Open-issue sweep. Close the regression-guard acceptance criterion of #2993 and the tooling gap called out in #2967: both ratchet scripts ship with tests but neither is invoked by any workflow, so both backlogs can climb back silently. Also fix the ruff count ratchet's directory-walk scope, which reports a phantom regression on any working tree that carries an untracked nested worktree."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active on this Copilot CLI harness; serena-initial_instructions returned the 44.3 KB manual."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions before making any edit; the Serena Instructions Manual loaded."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); the file was never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/2993-2967-wire-ratchets, cut from origin/main at 013cb0124c."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits land on fix/2993-2967-wire-ratchets; main was only read."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-parity, ruff target-version, and suppressions-are-a-last-resort entries that constrain this change."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching. Pre-existing untracked retrospectives, graphify output, and the pr3097-worktree tree were left alone; the Serena-rewritten .serena/project.yml was restored rather than committed."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Both orphaned ratchets are now invoked by a workflow, the count ratchet measures the correct population, and both baselines are set to the verified current values."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recorded the orphaned-ratchet finding as a repository memory so a future sweep does not re-derive that a tested script can still be unwired."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git diff --name-only lists two workflow YAML files, two Python files, one text baseline, and this JSON log; zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Two atomic commits on fix/2993-2967-wire-ratchets: the ratchet scope fix with its tests, then the workflow wiring."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "14 tests green in tests/ci/test_ruff_count_ratchet.py, 94 green across tests/ci/, ruff and mypy clean on the changed Python files, both workflow files parse under yaml.safe_load, and the ADR-006 ratchet was verified to exit 0 at --max 87 and exit 1 at --max 86."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issues #2993 and #2967 stay open; this closes the regression-guard criterion of each but not the backlog burn-down itself."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Swept the 12 open issues and pulled each body plus its full comment thread. Verified live rather than trusting the reports: Copilot CLI is 1.0.75 here, and an edit-tool probe against a scratch file succeeded, which disproves the standing report in issue #3316."
+    },
+    {
+      "time": "T1",
+      "entry": "Checked the ruff enforcement surface for #2993. Every lefthook ruff step passes --exit-zero and the pre-push one is even named python-lint-advisory, so ruff blocks nothing locally. The blocking gate is the changed-file ratchet in the Python Tests workflow. Found scripts/ci/ruff_count_ratchet.py, written for the #2993 regression-guard criterion with a full test file, and grep showed nothing invokes it anywhere in .github, lefthook, or scripts. Same for scripts/ci/adr006_run_block_scanner.py and its --max ratchet mode, written for #2967. Two tested gates, zero enforcement."
+    },
+    {
+      "time": "T2",
+      "entry": "Ran the count ratchet locally: it claimed 767 violations against a baseline of 408 and reported a regression. The real tracked-file count is 361. Cause: it invokes ruff check . with a single hardcoded exclude, so it walks untracked nested worktrees and scratch trees that happen to be on disk. Replaced the directory walk with a git ls-files scan over tracked .py paths, chunked to a 24000-byte argv budget so the roughly 70 KB path list stays under the Windows 32767-char CreateProcess ceiling. The rewritten scan reproduced 361 exactly, matching the independent manual count."
+    },
+    {
+      "time": "T3",
+      "entry": "Lowered the baseline from 408 to 361 to lock in drain that had already happened but was never recorded. Extended the test file from 8 to 14 cases: the shared subprocess fake now answers both the git and ruff legs, plus a git-failure external-error case, an empty-tracked-set case, a multi-batch accumulation case that fails if batches overwrite instead of summing, an argv-budget property check, an oversized-single-path case, and a real-git integration test that builds a repo with one clean tracked file next to an untracked directory full of violations and asserts the count is zero."
+    },
+    {
+      "time": "T4",
+      "entry": "Wired both gates. The count ratchet runs in the Python Tests workflow beside the existing changed-file ratchet, under the same python-changed gate, since ruff debt only moves when Python moves. The ADR-006 run-block ratchet runs in the PR Validation workflow at --max 87, because workflow YAML can change in any PR and the Python Tests workflow skips when no Python changed. Both are single-line invocations of a tested script, so neither adds logic to workflow YAML and the scanner still reports 87 after the edit."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Drain the 361 ruff violations opportunistically and lower the baseline with --update after each cleanup.",
+    "Extract one large ADR-006 run block per PR and lower --max to match; the two biggest are in the ai-review composite action at 142 and 117 code lines.",
+    "Consider whether the pre-push python-lint-advisory step should become blocking now that whole-tree growth is gated, since the advisory step is the reason contributors do not see ruff debt until CI."
+  ]
+}
