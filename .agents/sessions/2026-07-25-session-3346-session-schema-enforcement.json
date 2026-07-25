@@ -118,7 +118,7 @@
       "summary": "The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it: load_session_file returns data or an error, never both and never neither, so branching on `data is None` narrows exactly where branching on `error` left the payload optional. Added CLI-level tests for the four exit paths; the negative control shows the unguarded form crashes with exit 2 on a load failure instead of exiting 1 cleanly. The file now carries zero suppressions."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "774ef14ea28a9d0151fb424e4cc5cad05d73e106",
   "nextSteps": [
     "Open the PR for issue #3346 and drive its review threads to zero.",
     "Continue the open-issue sweep: #3345 causal-graph conflicts, #3342 SKILL.md size, #3341 CI wiring guard scope."

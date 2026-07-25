@@ -473,7 +473,7 @@ def _describe(error: jsonschema.ValidationError) -> str:
     return f"Schema: {location}: {error.message}"
 
 
-def validate_against_schema(data: dict[str, Any], result: ValidationResult) -> None:
+def validate_against_schema(data: Any, result: ValidationResult) -> None:  # noqa: ANN401
     """Append every schema violation in ``data`` to ``result``.
 
     Reports all violations rather than the first, so one commit round fixes the
@@ -492,7 +492,7 @@ def validate_against_schema(data: dict[str, Any], result: ValidationResult) -> N
         result.errors.append(_describe(error))
 
 
-def validate_session_log(data: dict[str, Any]) -> ValidationResult:
+def validate_session_log(data: Any) -> ValidationResult:  # noqa: ANN401
     """Validate a session log against the committed schema and protocol rules.
 
     Args:
@@ -504,6 +504,12 @@ def validate_session_log(data: dict[str, Any]) -> ValidationResult:
     result = ValidationResult()
 
     validate_against_schema(data, result)
+
+    # A valid session log must be a JSON object at the root. If it's not (e.g.,
+    # an array or primitive), the schema validation above already reported the
+    # error; we cannot run protocol checks on a non-mapping value.
+    if not isinstance(data, dict):
+        return result
 
     # The schema already reported either section as missing. Restating it here
     # would print the same fact twice under two spellings; these branches exist
@@ -517,7 +523,7 @@ def validate_session_log(data: dict[str, Any]) -> ValidationResult:
     return result
 
 
-def load_session_file(session_path: Path) -> tuple[dict[str, Any] | None, str | None]:
+def load_session_file(session_path: Path) -> tuple[Any | None, str | None]:
     """Load and parse a session log file.
 
     Args:
@@ -525,6 +531,7 @@ def load_session_file(session_path: Path) -> tuple[dict[str, Any] | None, str | 
 
     Returns:
         Tuple of (parsed data, error message). Data is None if error occurred.
+        The data may be any valid JSON value (object, array, string, etc.).
     """
     if not session_path.exists():
         return None, f"Session file not found: {session_path}"
