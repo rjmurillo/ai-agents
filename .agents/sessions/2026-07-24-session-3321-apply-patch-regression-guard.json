@@ -1,0 +1,123 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3321,
+    "date": "2026-07-24",
+    "branch": "fix/3321-apply-patch-regression-guard",
+    "startingCommit": "bb69942d32d84f36059704af31ee9bf8aa16a403",
+    "objective": "Triage issue #3321 (P0): project-toolkit denies a valid Copilot CLI freeform apply_patch on CLI 1.0.74. Determine whether main still reproduces, find the real denial mechanism, and lock the behavior with a regression guard on the shipped dispatcher."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active on this Copilot CLI harness; serena-initial_instructions returned the manual and serena-list_memories returned the project memory index. Activated after the first triage reads rather than before them."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions; the Serena Instructions Manual loaded (44.2 KB)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); the file was never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3321-apply-patch-regression-guard, cut from main at bb69942d32."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits land on fix/3321-apply-patch-regression-guard; main was only read."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start; serena-list_memories queried for prior apply_patch, security-gate, #3203, and #3083 entries and returned none, so a new decision memory was written."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching; pre-existing untracked retrospectives and worktrees left alone. Staged the regression test, this session log, and the memory episode by hand; the update-causal-graph commit hook then wrote and staged the causal-graph entry."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Triage finished: main does not reproduce #3321, the real mechanism on plugin 0.6.66 through 0.6.97 is identified and reproduced, and three fixtures lock the behavior on the shipped dispatcher."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Wrote Serena memory decision-3321-freeform-apply-patch-gate recording the *** End of File denial mechanism, the 0.6.98 version boundary, and the reproduction commands."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The branch changes one Python test file, this JSON log, the memory episode JSON, and the hook-written causal-graph JSON; git diff --name-only lists zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Regression fixtures committed as 8385764d799b84a32c18d55a0bb3a8b1dd3162a5 on fix/3321-apply-patch-regression-guard; this session log commits alongside it."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "8 tests green in tests/build_scripts/test_dispatch_small_apply_patch_regression.py; ruff clean on the changed file; the full pre-push suite ran 13404 passed, 22 skipped, 45 xfailed, with build-all-check and pre-pr-validation green."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3321 stays open until the reporter confirms the installed plugin version; the PR carries that request."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: PR #3295 (version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101. The merge SHA is cited in PR #3326 and in the Serena memory rather than here, because the episode extractor reads work-log prose SHAs as commits this session produced."
+    },
+    {
+      "time": "T1",
+      "entry": "Replayed six realistic payload shapes through the shipped src/copilot-cli/hooks/PreToolUse/_dispatch.py on main: top-level apply_patch with a raw patch string, the recorded toolCalls host event, Edit and Write with a raw patch string, a JSON-object args string, and a headerless string. All exit 0. Local Copilot CLI is 1.0.74, the same build the reporter names."
+    },
+    {
+      "time": "T2",
+      "entry": "Ran a live probe with copilot 1.0.74 and --plugin-dir src/copilot-cli. This Linux build exposes no apply_patch tool (Unknown tool name in the tool allowlist), so the end-to-end reproduction the reporter describes is reachable only on their harness. Fell back to direct dispatcher replay, which is what the existing #3083 guard already uses."
+    },
+    {
+      "time": "T3",
+      "entry": "Extracted the pre-purge plugin tree with git archive against the parent of the PR #3295 merge commit and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths."
+    },
+    {
+      "time": "T4",
+      "entry": "Learnings captured in Serena memory decision-3321-freeform-apply-patch-gate. Added three fixtures to the existing #3083 guard rather than a new module: freeform-patch-string, freeform-patch-string-as-edit, and freeform-patch-end-of-file-marker, all replayed through the committed dispatcher with the file's existing non-plugin-root negative control supplying teeth. 8 tests green."
+    },
+    {
+      "time": "T5",
+      "entry": "Worked PR #3326 review threads. Corrected a stale shim list in the guard docstring, two undercounted changed-file claims in this log, and an episode that recorded PR #3295's merge SHA as a commit this session produced. Verified the root cause instead of hand-patching the metric: the pre-commit extractor re-derives metrics.commits from commit-typed events, so an earlier hand-edit was silently reverted. Fixed by citing #3295 by PR number in this log so a fresh extraction reproduces the committed episode exactly. Left the extractor's bare-SHA sweep unchanged; narrowing it breaks four tests that encode the #2170, #3123, and #3301 contract, which is a separate decision."
+    }
+  ],
+  "endingCommit": "8385764d799b84a32c18d55a0bb3a8b1dd3162a5",
+  "nextSteps": [
+    "Ask the reporter of #3321 for the installed project-toolkit version and a --log-dir hook stderr capture. Below 0.6.98 the upgrade closes it; at or above 0.6.98 a second mechanism exists that this session did not find.",
+    "If the reporter is below 0.6.98, close #3321 as fixed by #3295 and point at the regression fixtures added here.",
+    "Consider whether any future reinstatement of a patch-parsing gate must recognize the full V4A marker set (*** End of File, @@ hunk headers) instead of treating unknown column-0 *** lines as fatal."
+  ]
+}
