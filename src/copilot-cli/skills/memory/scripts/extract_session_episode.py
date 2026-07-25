@@ -26,7 +26,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -570,14 +570,118 @@ def _prose_shas(text: str) -> list[str]:
     return [sha for sha in _SHA_RE.findall(text) if _HEX_LETTER_RE.search(sha)]
 
 
+def _session_floor(session_date: str) -> datetime | None:
+    """Earliest instant a session dated ``session_date`` could have committed.
+
+    ``session.date`` is normally a calendar day with no timezone, and a
+    session's own commits straddle midnight in both directions: the committer's
+    local clock can be up to 14 hours off UTC, and a session that starts in the
+    evening keeps committing past midnight. One full day of slack before the
+    labelled day covers both without needing a timezone the log does not
+    record.
+
+    The schema pins ``session.date`` to a bare ``YYYY-MM-DD``, but this parser
+    is deliberately tolerant of a full ISO timestamp, which may carry an offset.
+    An offset-bearing value is converted, not relabelled: ``replace(tzinfo=UTC)``
+    on an aware datetime silently discards the real offset and can move the
+    floor by up to a day, which is enough to drop a commit the session made.
+    """
+    try:
+        parsed = datetime.fromisoformat(session_date)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC) - timedelta(days=1)
+
+
+def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
+    """Whether git can prove ``sha`` was committed before the session could run.
+
+    Work-log prose cites SHAs the session did not author: an upstream merge it
+    reasoned about, a third-party commit it bisected, a PR whose base it read.
+    Counting those inflates ``metrics.commits`` and puts commit nodes the
+    session never produced into the causal graph (issue #3328).
+
+    The discriminator is the commit's own committer timestamp against
+    ``_session_floor``. A commit that already existed a full day before the
+    session's calendar date cannot be a commit that session produced. Rebase,
+    cherry-pick, amend, and squash all refresh the committer date forward, so
+    the test survives history rewriting: a rewritten commit reads as newer, and
+    newer only ever means "keep counting it".
+
+    Both ancestry forms issue #3328 proposes are unsound here, in opposite ways:
+
+    * "is ``sha`` a *descendant* of ``startingCommit``" breaks under
+      squash-merge. A squash commit discards the topic branch's parentage, so a
+      session's own merge commit is not a descendant of its own base. Measured
+      over the full session-log corpus it dropped 13 logs, every inspected case
+      a squash merge of that session's own work.
+    * "is ``sha`` an *ancestor* of ``startingCommit``" breaks whenever the log's
+      ``startingCommit`` was captured late. Nothing in the schema or in
+      ``validate_session_json.py`` requires the anchor to precede the work, and
+      ``.agents/sessions/2026-05-11-session-1832.json`` records exactly that: it
+      opened its log after the green-phase commit, so its own spec and red-phase
+      commits are ancestors of its own anchor and get dropped.
+
+    The timestamp test needs no anchor and no assumption about merge strategy.
+    Measured against the corpus as it stood when #3328 was investigated (917
+    logs, 2026-07-25), it excluded five SHAs, each an explicit citation
+    ("Verified PR #2168 merge commit", "git-blamed exit-4 (added #2394 ...)"),
+    and dropped no session-authored commit. That is a point-in-time reading
+    taken to justify the rule, not a live invariant; expect the count to move
+    as logs land, and do not treat a different number as a regression.
+
+    Fails open on unknown: an unresolvable SHA, a non-commit object, an
+    ambiguous abbreviation, or an unparsable date all keep the pre-#3328
+    behavior. That preserves the abbreviated-SHA fixtures the #2170, #3123, and
+    #3301 guards depend on, and it is the right default because this feeds a
+    metrics artifact, not a security gate. Over-counting one commit is cheaper
+    than silently dropping real ones whenever the extractor runs outside a
+    checkout.
+
+    Resolves against the ambient working directory, which under the pre-commit
+    hook is the repo that owns the session log being extracted.
+    """
+    floor = _session_floor(session_date) if sha else None
+    if floor is None:
+        return False
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            ["git", "show", "-s", "--format=%cI", f"{sha}^{{commit}}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if result.returncode != 0:
+        return False
+    try:
+        committed = datetime.fromisoformat((result.stdout or "").strip())
+    except ValueError:
+        return False
+    return committed.astimezone(UTC) < floor
+
+
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     """Distinct commit SHAs from the structured commit fields and work-log
     evidence. Excludes the starting commit by default (it is the base, not a
     commit the session produced), including when work-log prose repeats it at a
     different abbreviation length than ``startingCommit`` is stored (issue
-    #3123)."""
+    #3123). Also excludes any prose SHA git proves was committed before the
+    session's date window (issue #3328)."""
     seen: list[str] = []
-    starting = str(_as_dict(data.get("session")).get("startingCommit") or "").strip()
+    session = _as_dict(data.get("session"))
+    starting = str(session.get("startingCommit") or "").strip()
+    session_date = str(session.get("date") or "").strip()
 
     # Process endingCommit first without filtering - it's authoritative, not prose
     ending_field = str(data.get("endingCommit") or "")
@@ -597,8 +701,11 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
         for sha in _prose_shas(_entry_text(entry)):
             if not include_starting and starting and _same_commit(sha, starting):
                 continue
-            if sha not in seen:
-                seen.append(sha)
+            if sha in seen:
+                continue
+            if _prose_sha_predates_session(sha, session_date):
+                continue
+            seen.append(sha)
     return seen
 
 
