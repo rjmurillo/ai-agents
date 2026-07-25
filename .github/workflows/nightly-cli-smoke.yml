@@ -168,6 +168,35 @@ jobs:
           --smoke-substr test_plugin_load_smoke
           --expected-count 3
 
+      # Issue #3324: the isolation fix this covers is Windows-specific
+      # (Path.home() reads USERPROFILE first), and the test skips without the
+      # binary on PATH. The PR-time Windows leg has no CLI, so it exercised
+      # every part of that test except the part that shells out. This job has a
+      # pinned CLI on a windows-latest matrix leg, which makes it the only place
+      # the real install path runs on the platform that leaked.
+      # No credentials: `plugin install <local-dir>` reads a path, not the API.
+      # Verified by running this test with no COPILOT_GITHUB_TOKEN and an
+      # isolated home that hides stored auth. Least privilege, and the
+      # non-CLI-steps credential policy test stays intact without an exemption.
+      - name: Run Copilot install isolation smoke
+        # always(): run even if an earlier smoke failed so all three report.
+        if: always()
+        shell: bash
+        run: >-
+          uv run pytest
+          tests/integration/test_e2e_install.py::TestCopilotBinaryInstall
+          --junitxml=install-isolation-report.xml
+
+      - name: Assert the install isolation smoke actually ran
+        # always(): pytest exits 0 on a skip, so the skip needs its own gate.
+        if: always()
+        shell: bash
+        run: >-
+          uv run python scripts/validation/assert_smoke_ran.py
+          install-isolation-report.xml
+          --smoke-substr TestCopilotBinaryInstall
+          --expected-count 1
+
   smoke-result:
     name: Smoke Result
     needs: [authorize, smoke]

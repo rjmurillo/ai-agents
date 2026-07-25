@@ -379,3 +379,14 @@ jobs:
         env:
           UV_PYTHON: '3.14'
         run: uv run pytest tests/test_check_ai_review_infra_gate.py -v
+
+      # Issue #3324: the _direct shadow cleanup compares paths with as_posix()
+      # and Path.parents, and the leak it guards was Windows-only. A POSIX-only
+      # leg is why a POSIX-only fix looked complete for nine days. The binary
+      # smoke test in this file skips without `copilot` on PATH; the cleanup
+      # coverage does not need it.
+      - name: Run install cleanup contract tests
+        shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
+        run: uv run pytest tests/integration/test_e2e_install.py -q
