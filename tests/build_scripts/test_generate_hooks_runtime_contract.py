@@ -204,6 +204,16 @@ def _bash_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
     return proc.stdout
 
 
+def _slash(text: str) -> str:
+    """Normalize path separators so Windows and POSIX compare the same.
+
+    PowerShell echoes a root back with the separator it was handed and pathlib
+    hands it native ones, so a raw string comparison fails on Windows for a
+    reason that has nothing to do with the contract under test.
+    """
+    return text.replace("\\", "/")
+
+
 def _pwsh_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
     """Expand a PowerShell path expression under ``env`` and ``cwd``."""
     proc = subprocess.run(
@@ -470,9 +480,10 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
     )
 
     assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
-    expected_path = _pwsh_resolve(_path_arg(command), env, tmp_path).replace("\\", "/")
-    normalized_stderr = proc.stderr.replace("\\\\", "\\").replace("\\", "/")
-    assert str(stale_root) in expected_path, expected_path
+    # Every operand here is slash-normalized; see _slash for why.
+    expected_path = _slash(_pwsh_resolve(_path_arg(command), env, tmp_path))
+    normalized_stderr = _slash(proc.stderr.replace("\\\\", "\\"))
+    assert _slash(str(stale_root)) in expected_path, expected_path
     assert expected_path in normalized_stderr, (
         "PowerShell interpreter error must name the missing path, otherwise the "
         f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
@@ -506,3 +517,27 @@ class TestSubprocessDecoding:
 
     def test_no_capture_relies_on_text_mode_alone(self) -> None:
         assert self._TEXT_MODE not in self._source()
+
+
+class TestSeparatorNormalization:
+    """The Windows separator fix, made falsifiable on any platform.
+
+    On POSIX a Windows-shaped path never appears, so running the stale-root
+    test on Linux cannot tell a working normalizer from a missing one. These
+    feed the shapes directly.
+    """
+
+    def test_a_windows_root_matches_a_normalized_resolved_path(self) -> None:
+        root = r"C:\Users\runneradmin\AppData\Local\Temp\moved-away"
+        resolved = "C:/Users/runneradmin/AppData/Local/Temp/moved-away/hooks/x.py"
+        assert _slash(root) in _slash(resolved)
+
+    def test_a_posix_root_is_left_alone(self) -> None:
+        root = "/tmp/pytest-0/moved-away"
+        assert _slash(root) == root
+
+    def test_a_mismatched_root_still_fails(self) -> None:
+        """Guard the guard: normalization must not make everything match."""
+        root = r"C:\Users\runneradmin\somewhere-else"
+        resolved = "C:/Users/runneradmin/AppData/Local/Temp/moved-away/hooks/x.py"
+        assert _slash(root) not in _slash(resolved)
