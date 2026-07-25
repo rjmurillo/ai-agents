@@ -19,6 +19,7 @@ Verification scope (per task M6-T5):
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -39,6 +40,36 @@ COPILOT_HOOKS_FILE = COPILOT_PLUGIN_SRC / "hooks" / "hooks.json"
 # restore it (see _remove_direct_shadow).
 COPILOT_HOME = Path.home() / ".copilot"
 PLUGIN_NAME = "project-toolkit"
+
+# Environment variables Copilot CLI reads to locate a package cache. Its
+# bootstrap scans these *before* COPILOT_HOME, so leaving them pointed at the
+# real user profile lets an isolated run load a cached package from outside the
+# sandbox, and lets it write there. HOME and USERPROFILE alone are not enough.
+_COPILOT_CACHE_VARS = ("LOCALAPPDATA", "XDG_CACHE_HOME", "COPILOT_CACHE_HOME")
+
+
+def isolated_copilot_env(home: Path) -> dict[str, str]:
+    """Environment that confines Copilot CLI to ``home``.
+
+    ``USERPROFILE`` is not optional. ``Path.home()`` consults it first on
+    Windows, so a HOME-only env leaked a ``_direct`` shadow into the
+    contributor's real ~/.copilot for nine days (#3324). The POSIX-only test
+    leg is why the POSIX-only fix looked complete.
+
+    Auto-update is disabled so a background version fetch cannot write outside
+    the sandbox or make the run depend on network state.
+    """
+    env = {
+        **os.environ,
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "COPILOT_HOME": str(home / ".copilot"),
+        "COPILOT_AUTO_UPDATE": "false",
+    }
+    for name in _COPILOT_CACHE_VARS:
+        env[name] = str(home / "cache" / name.lower())
+    return env
+
 
 # Copilot CLI hook event names. PascalCase event keys make Copilot CLI emit the
 # VS Code-compatible snake_case payload (tool_name, tool_input) the shims expect;
@@ -121,16 +152,12 @@ class TestInstalledManifest:
         data = json.loads(manifest.read_text(encoding="utf-8"))
         assert isinstance(data, dict)
 
-    def test_manifest_name_is_project_toolkit(
-        self, installed_plugin: Path
-    ) -> None:
+    def test_manifest_name_is_project_toolkit(self, installed_plugin: Path) -> None:
         manifest = installed_plugin / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
         assert data.get("name") == "project-toolkit"
 
-    def test_manifest_omits_runtime_rejected_discovery_keys(
-        self, installed_plugin: Path
-    ) -> None:
+    def test_manifest_omits_runtime_rejected_discovery_keys(self, installed_plugin: Path) -> None:
         """Claude marketplace manifests rely on auto-discovery, not explicit keys."""
         manifest = installed_plugin / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -149,39 +176,30 @@ class TestInstalledHooks:
 
     def test_hooks_has_version_1_wrapper(self, installed_plugin: Path) -> None:
         """REQ-003-007: top-level {"version": 1, "hooks": {...}}."""
-        data = json.loads(
-            (installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8")
-        )
+        data = json.loads((installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         assert data.get("version") == 1, (
             f"hooks.json must have version: 1 (got {data.get('version')!r})"
         )
 
     def test_hooks_event_keys_are_valid(self, installed_plugin: Path) -> None:
-        data = json.loads(
-            (installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8")
-        )
+        data = json.loads((installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         events = data.get("hooks", {})
         assert isinstance(events, dict), "hooks.hooks must be an object"
         unknown = set(events.keys()) - VALID_COPILOT_EVENTS
         assert not unknown, (
-            f"Unknown Copilot CLI hook events: {unknown}. "
-            f"Valid: {sorted(VALID_COPILOT_EVENTS)}"
+            f"Unknown Copilot CLI hook events: {unknown}. Valid: {sorted(VALID_COPILOT_EVENTS)}"
         )
 
     def test_hooks_event_entries_are_lists(self, installed_plugin: Path) -> None:
         """Each event maps to a list of hook entry objects."""
-        data = json.loads(
-            (installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8")
-        )
+        data = json.loads((installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         for event, entries in data.get("hooks", {}).items():
             assert isinstance(entries, list), (
                 f"hooks.{event} must be a list, got {type(entries).__name__}"
             )
             assert entries, f"hooks.{event} must not be empty"
 
-    def test_hook_command_paths_resolve_case_sensitively(
-        self, installed_plugin: Path
-    ) -> None:
+    def test_hook_command_paths_resolve_case_sensitively(self, installed_plugin: Path) -> None:
         """Every /hooks/<dir>/<script>.py path in hooks.json must resolve to a
         committed file matching by exact case (regression guard for #2290).
 
@@ -191,9 +209,7 @@ class TestInstalledHooks:
         fails. A case-insensitive Path.exists() would not catch this; this walks
         real directory entries so it fails on any host before reaching Linux CI.
         """
-        data = json.loads(
-            (installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8")
-        )
+        data = json.loads((installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))
         script_paths = _iter_hook_script_paths(data)
         assert script_paths, "expected at least one hook script command path"
         unresolved = [
@@ -249,9 +265,7 @@ def _strip_jsonc(text: str) -> str:
     automatically."). No string value in this file begins a line with ``//``,
     so a line-oriented strip is sufficient and avoids a JSONC dependency.
     """
-    return "\n".join(
-        line for line in text.splitlines() if not line.lstrip().startswith("//")
-    )
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("//"))
 
 
 def _remove_direct_shadow(source_dir: Path, copilot_home: Path | None = None) -> None:
@@ -323,8 +337,6 @@ def _remove_direct_shadow(source_dir: Path, copilot_home: Path | None = None) ->
         shutil.rmtree(cache_dir, ignore_errors=True)
 
 
-
-
 class TestCopilotBinaryInstall:
     """Smoke test: invoke `copilot` to install the plugin and list it.
 
@@ -361,12 +373,7 @@ class TestCopilotBinaryInstall:
         isolated_home = tmp_path / "copilot-home"
         isolated_home.mkdir()
         isolated_copilot = isolated_home / ".copilot"
-        env = {
-            **os.environ,
-            "HOME": str(isolated_home),
-            "USERPROFILE": str(isolated_home),
-            "COPILOT_HOME": str(isolated_copilot),
-        }
+        env = isolated_copilot_env(isolated_home)
         try:
             install_result = subprocess.run(
                 [copilot_binary, "plugin", "install", str(installed_plugin)],
@@ -401,8 +408,7 @@ class TestCopilotBinaryInstall:
             )
             assert list_result.returncode == 0
             assert "project-toolkit" in list_result.stdout, (
-                f"project-toolkit not registered after install:\n"
-                f"{list_result.stdout}"
+                f"project-toolkit not registered after install:\n{list_result.stdout}"
             )
         finally:
             # Sweep both homes. The isolated one is where the install belongs;
@@ -426,15 +432,12 @@ class TestDirectShadowCleanup:
         copilot_home.mkdir(parents=True, exist_ok=True)
         config_path = copilot_home / "config.json"
         config_path.write_text(
-            "// This file is managed automatically.\n"
-            + json.dumps({"installedPlugins": plugins}),
+            "// This file is managed automatically.\n" + json.dumps({"installedPlugins": plugins}),
             encoding="utf-8",
         )
         return config_path
 
-    def test_removes_only_the_created_shadow(
-        self, tmp_path: Path
-    ) -> None:
+    def test_removes_only_the_created_shadow(self, tmp_path: Path) -> None:
         copilot_home = tmp_path / ".copilot"
         source_dir = tmp_path / "src" / PLUGIN_NAME
         source_dir.mkdir(parents=True)
@@ -453,17 +456,14 @@ class TestDirectShadowCleanup:
 
         result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
         surviving = [
-            (entry["name"], entry.get("marketplace"))
-            for entry in result["installedPlugins"]
+            (entry["name"], entry.get("marketplace")) for entry in result["installedPlugins"]
         ]
         assert (PLUGIN_NAME, "") not in surviving
         assert (PLUGIN_NAME, "ai-agents") in surviving
         assert ("caveman", "caveman") in surviving
         assert not cache_dir.exists()
 
-    def test_preserves_config_without_a_shadow(
-        self, tmp_path: Path
-    ) -> None:
+    def test_preserves_config_without_a_shadow(self, tmp_path: Path) -> None:
         copilot_home = tmp_path / ".copilot"
         source_dir = tmp_path / "src" / PLUGIN_NAME
         real = {"name": PLUGIN_NAME, "marketplace": "ai-agents", "enabled": True}
@@ -473,9 +473,7 @@ class TestDirectShadowCleanup:
 
         assert config_path.read_text(encoding="utf-8") == before
 
-    def test_leaves_unrelated_direct_install_untouched(
-        self, tmp_path: Path
-    ) -> None:
+    def test_leaves_unrelated_direct_install_untouched(self, tmp_path: Path) -> None:
         copilot_home = tmp_path / ".copilot"
         source_dir = tmp_path / "src" / PLUGIN_NAME
         unrelated = {
@@ -490,17 +488,13 @@ class TestDirectShadowCleanup:
         result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
         assert result["installedPlugins"] == [unrelated]
 
-    def test_noop_when_config_absent(
-        self, tmp_path: Path
-    ) -> None:
+    def test_noop_when_config_absent(self, tmp_path: Path) -> None:
         copilot_home = tmp_path / ".copilot"
         _remove_direct_shadow(tmp_path / "src" / PLUGIN_NAME, copilot_home)  # must not raise
 
         assert not (copilot_home / "config.json").exists()
 
-    def test_survives_malformed_config(
-        self, tmp_path: Path
-    ) -> None:
+    def test_survives_malformed_config(self, tmp_path: Path) -> None:
         copilot_home = tmp_path / ".copilot"
         copilot_home.mkdir(parents=True)
         config_path = copilot_home / "config.json"
@@ -509,9 +503,7 @@ class TestDirectShadowCleanup:
 
         assert config_path.read_text(encoding="utf-8") == "{ not valid json"
 
-    def test_sweeps_the_home_it_is_given_not_the_module_global(
-        self, tmp_path: Path
-    ) -> None:
+    def test_sweeps_the_home_it_is_given_not_the_module_global(self, tmp_path: Path) -> None:
         # Teardown used to read the module global, which the smoke test
         # monkeypatched to the isolated dir. When isolation silently failed on
         # Windows, cleanup swept an empty directory and the real shadow
@@ -577,3 +569,97 @@ class TestDirectShadowCleanup:
         for config_path in configs:
             result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
             assert result["installedPlugins"] == []
+
+
+class TestIsolatedCopilotEnv:
+    """The env that confines the binary smoke test to a throwaway home.
+
+    These run everywhere, including the Windows CI leg, without needing the
+    `copilot` binary. That matters: the binary smoke test skips when the CLI is
+    absent, so before this class the Windows leg proved nothing about the #3324
+    fix. Deleting the USERPROFILE line left CI green.
+    """
+
+    def test_userprofile_points_at_the_isolated_home(self, tmp_path: Path) -> None:
+        """Path.home() reads USERPROFILE first on Windows. This is the #3324 fix."""
+        env = isolated_copilot_env(tmp_path)
+        assert env["USERPROFILE"] == str(tmp_path)
+
+    def test_home_points_at_the_isolated_home(self, tmp_path: Path) -> None:
+        """POSIX reads HOME. Both must move together or one platform leaks."""
+        env = isolated_copilot_env(tmp_path)
+        assert env["HOME"] == str(tmp_path)
+
+    def test_copilot_home_is_under_the_isolated_home(self, tmp_path: Path) -> None:
+        env = isolated_copilot_env(tmp_path)
+        assert Path(env["COPILOT_HOME"]) == tmp_path / ".copilot"
+
+    @pytest.mark.parametrize("name", _COPILOT_CACHE_VARS)
+    def test_package_cache_vars_are_redirected(self, tmp_path: Path, name: str) -> None:
+        """Copilot scans these before COPILOT_HOME, so an unset one escapes."""
+        env = isolated_copilot_env(tmp_path)
+        assert Path(env[name]).is_relative_to(tmp_path), (
+            f"{name} still points outside the sandbox, so a cached package "
+            f"from the real user profile can be read or written"
+        )
+
+    def test_auto_update_is_disabled(self, tmp_path: Path) -> None:
+        """A background update writes outside the sandbox and adds network flake."""
+        assert isolated_copilot_env(tmp_path)["COPILOT_AUTO_UPDATE"] == "false"
+
+    def test_no_isolated_var_leaks_the_real_home(self, tmp_path: Path) -> None:
+        """Guard the guard: catches a typo that silently reuses os.environ."""
+        env = isolated_copilot_env(tmp_path)
+        real_home = str(Path.home())
+        for name in ("HOME", "USERPROFILE", "COPILOT_HOME", *_COPILOT_CACHE_VARS):
+            assert real_home not in env[name], f"{name} still references the real home"
+
+    def test_unrelated_environment_is_preserved(self, tmp_path: Path) -> None:
+        """PATH must survive, or the binary under test is not findable."""
+        env = isolated_copilot_env(tmp_path)
+        assert env.get("PATH") == os.environ.get("PATH")
+
+
+class TestSubprocessDecoding:
+    """Every captured subprocess in this module must pin its decoding.
+
+    On Windows `subprocess.run(text=True, capture_output=True)` with no
+    encoding defaults to cp1252, whose reader thread raises UnicodeDecodeError
+    on the UTF-8 glyphs the CLI prints. The exception is swallowed and
+    `result.stdout` comes back None, so assertions fail with a NoneType
+    cascade that names nothing useful. Source inspection is the only way to
+    guard this without a Windows runner and a real binary.
+    """
+
+    @staticmethod
+    def _captured_runs() -> list[ast.Call]:
+        tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+        calls = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Attribute) and func.attr == "run"):
+                continue
+            if not (isinstance(func.value, ast.Name) and func.value.id == "subprocess"):
+                continue
+            kwargs = {kw.arg for kw in node.keywords}
+            if "capture_output" in kwargs or "text" in kwargs:
+                calls.append(node)
+        return calls
+
+    def test_the_probe_finds_the_calls_it_claims_to_check(self) -> None:
+        """Guard the guard: a rename would make the checks below vacuous."""
+        assert len(self._captured_runs()) >= 2
+
+    def test_every_captured_run_pins_encoding_and_errors(self) -> None:
+        for call in self._captured_runs():
+            kwargs = {kw.arg for kw in call.keywords}
+            assert "encoding" in kwargs, (
+                f"subprocess.run at line {call.lineno} captures output without "
+                f"encoding=; on Windows this decodes as cp1252 and returns None"
+            )
+            assert "errors" in kwargs, (
+                f"subprocess.run at line {call.lineno} sets encoding but not "
+                f"errors=; a stray byte then raises instead of degrading"
+            )
