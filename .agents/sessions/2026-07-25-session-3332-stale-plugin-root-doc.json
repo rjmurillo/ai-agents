@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3332,
+    "date": "2026-07-25",
+    "branch": "fix/3332-stale-plugin-root-doc",
+    "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
+    "objective": "Decide and document the stale-plugin-root failure mode (issue #3332)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live in this harness. Probed with serena-list_memories, which returned the project memory index (adr-reference-index, usage-mandatory, and the rest). The earlier 'not exposed' claim in this field was false and is withdrawn."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual for this project."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md at session start; treated as the read-only dashboard per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, .agents/sessions/2026-07-25-session-3332-stale-plugin-root-doc.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch created with git checkout -b fix/3332-stale-plugin-root-doc origin/main and confirmed by git branch --show-current."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working branch is fix/3332-stale-plugin-root-doc, not main."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status --porcelain inspected before branching; only unrelated untracked retrospective and cache files present."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "startingCommit recorded as 1ffee3834e910608ed6c03c374fb71ff7c39bdc3, the origin/main tip this branch was cut from."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end checklist walked: build_all.py regenerated the copilot-cli mirror, scoped markdownlint run on the changed SKILL.md files. No executable code changed; the diff is skill documentation, the generated mirror of it, both plugin manifests, and a runtime-contract test."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Serena memory decision-branch-context-merged-history written this session; the stale-plugin-root finding itself is recorded in agent-harness-reference/SKILL.md, which is the durable surface for harness runtime contracts."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint run on the two changed SKILL.md files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed on fix/3332-stale-plugin-root-doc."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build_all.py regenerated the copilot-cli mirror; skill frontmatter description is 470 of 1024 characters; 12 tests in tests/build_scripts/test_generate_hooks_runtime_contract.py pass."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings recorded in this log."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-25T13:00:00Z",
+      "action": "Weighed the launcher-guard proposal in issue #3332 against documenting the failure mode, and shipped the documentation.",
+      "result": "The issue proposed adding a file-existence guard to the generated bash and powershell launcher strings so a stale plugin root reports a restart remedy instead of a bare Errno 2. Rejected on measurement. The interpreter error already prints the full missing path, so the guard buys exactly one sentence: restart the session. Against that, it puts branching into the highest-blast-radius string in the repository, in a generated artifact, in two shell dialects, and it breaks the one-quoted-token invariant that tests/build_scripts/test_generate_hooks_runtime_contract.py relies on at five call sites. That is the argument ADR-006 makes against logic in workflow YAML, and the issue named it itself. The missing knowledge was never the path; it was that Copilot CLI holds the resolved plugin root for the process lifetime, so reinstalling without restarting does not help. That belongs in agent-harness-reference, whose stated scope already covers plugin roots, and it is now there with the stderr signature and two new description triggers so a search for the Errno 2 text lands on it."
+    }
+  ],
+  "learnings": [
+    "Before building a diagnostic, read the message the failure already prints. Here it already carried the path, so the whole delta was one sentence of missing runtime-contract knowledge, which is a documentation shape, not a code shape."
+  ],
+  "endingCommit": "f268d1f2df",
+  "nextSteps": [
+    "Close issue #3332 with this reasoning."
+  ]
+}

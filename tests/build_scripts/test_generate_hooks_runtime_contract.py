@@ -33,7 +33,7 @@ import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 import pytest
@@ -195,7 +195,34 @@ def _bash_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
         env=env,
         cwd=cwd,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=20,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
+
+
+def _slash(text: str) -> str:
+    """Normalize path separators so Windows and POSIX compare the same.
+
+    PowerShell echoes a root back with the separator it was handed and pathlib
+    hands it native ones, so a raw string comparison fails on Windows for a
+    reason that has nothing to do with the contract under test.
+    """
+    return text.replace("\\", "/")
+
+
+def _pwsh_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
+    """Expand a PowerShell path expression under ``env`` and ``cwd``."""
+    proc = subprocess.run(
+        ["pwsh", "-NoProfile", "-Command", f'[Console]::Out.Write("{path_expr}")'],
+        env=env,
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         check=False,
     )
@@ -242,7 +269,8 @@ def test_direct_rollback_runs_silently_with_side_effects(
         env=env,
         cwd=userland,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         input="",
         check=False,
@@ -264,7 +292,8 @@ def test_user_prompt_direct_failure_is_silent_and_nonzero(tmp_path: Path) -> Non
         env=env,
         cwd=userland,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         input="{bad json",
         check=False,
@@ -303,7 +332,8 @@ def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
         env=env,
         cwd=userland,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         input="",
         check=False,
@@ -366,9 +396,158 @@ def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
                 env=env,
                 cwd=userland,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
                 check=False,
             )
             assert proc.returncode == 0, proc.stderr
             assert "OK" in proc.stdout, f"unresolved powershell path: {ps_expr!r}"
+
+
+def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> None:
+    """A stale plugin root fails closed AND the error names the full path.
+
+    ``agent-harness-reference`` documents this failure mode and rejects an
+    existence check in the launcher command strings on the grounds that the
+    interpreter error already names the missing path (issues #3321, #3332).
+    That rejection is only sound while the claim holds. This test makes the
+    claim falsifiable: if a future interpreter or launcher shape stopped
+    naming the path, the guard argument would have to be revisited and this
+    goes red first.
+
+    Uses the committed hooks.json dispatcher command (the shipped artifact)
+    instead of the _generate() fixture, whose platform config does not enable
+    consolidated dispatcher routing. This aligns the test with what actually
+    ships (ADR-068).
+    """
+    # Read the committed hooks.json - the shipped artifact uses the dispatcher
+    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
+    hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
+
+    stale_root = tmp_path / "moved-away"
+    assert not stale_root.exists()
+    env = _contract_env(copilot_root=str(stale_root), claude_root=str(stale_root))
+    userland = tmp_path / "userland"
+    userland.mkdir(parents=True, exist_ok=True)
+
+    command = _first_bash_command(hooks_doc, "PreToolUse")
+    proc = subprocess.run(
+        ["bash", "-c", command],
+        env=env,
+        cwd=userland,
+        input="{}",
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+
+    assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
+    expected_path = _slash(_bash_resolve(_path_arg(command), env, userland))
+    normalized_stderr = _slash(proc.stderr)
+    assert stale_root.as_posix() in expected_path, expected_path
+    assert expected_path in normalized_stderr, (
+        "interpreter error must name the missing path, otherwise the "
+        f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")
+def test_stale_plugin_root_powershell_failure_names_the_missing_path(
+    tmp_path: Path,
+) -> None:
+    """The PowerShell launcher also exposes the stale path when it fails."""
+    hooks_root = REPO_ROOT / "src" / "copilot-cli" / "hooks"
+    hooks_doc = json.loads((hooks_root / "hooks.json").read_text(encoding="utf-8"))
+    stale_root = tmp_path / "moved-away"
+    env = _contract_env(copilot_root=str(stale_root), claude_root=str(stale_root))
+    command = hooks_doc["hooks"]["PreToolUse"][0]["powershell"]
+
+    # Linux CI has pwsh and python3, but not the Windows py launcher.
+    if sys.platform != "win32":
+        command = command.replace("py -3", "python3", 1)
+    proc = subprocess.run(
+        ["pwsh", "-NoProfile", "-Command", command],
+        env=env,
+        cwd=tmp_path,
+        input="{}",
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+
+    assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
+    # stale_root is a Path, so pathlib owns its normalization. The other two
+    # operands are strings from a subprocess, where str.replace is the only
+    # tool; _slash keeps that in one place and makes it testable off Windows.
+    expected_path = _slash(_pwsh_resolve(_path_arg(command), env, tmp_path))
+    normalized_stderr = _slash(proc.stderr.replace("\\\\", "\\"))
+    assert stale_root.as_posix() in expected_path, expected_path
+    assert expected_path in normalized_stderr, (
+        "PowerShell interpreter error must name the missing path, otherwise the "
+        f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
+    )
+
+
+class TestSubprocessDecoding:
+    """Captured launcher output must be decoded explicitly, not by locale.
+
+    This module drives real ``bash`` and ``pwsh`` and asserts on their stderr.
+    On Windows an unset encoding decodes as cp1252, the reader thread dies
+    mid-decode on a non-ASCII path, and ``proc.stderr`` comes back as None
+    instead of raising. The stale-root assertion then fails with a NoneType
+    error that says nothing about the contract it was guarding.
+    """
+
+    # Built from parts so the guard below does not match its own needle.
+    _CAPTURING = "capture_output" + "=True,"
+    _CODEC = 'encoding="' + 'utf-8",'
+    _ERRORS = 'errors="' + 'replace",'
+    _TEXT_MODE = "text" + "=True"
+
+    def _source(self) -> str:
+        return Path(__file__).read_text(encoding="utf-8")
+
+    def test_every_capture_pins_the_codec(self) -> None:
+        source = self._source()
+        assert source.count(self._CAPTURING) == source.count(self._CODEC)
+
+    def test_every_capture_tolerates_undecodable_bytes(self) -> None:
+        source = self._source()
+        assert source.count(self._CAPTURING) == source.count(self._ERRORS)
+
+    def test_no_capture_relies_on_text_mode_alone(self) -> None:
+        assert self._TEXT_MODE not in self._source()
+
+
+class TestSeparatorNormalization:
+    """The Windows separator fix, made falsifiable on any platform.
+
+    On POSIX a Windows-shaped path never appears, so running the stale-root
+    test on Linux cannot tell a working normalizer from a missing one. These
+    feed the shapes directly.
+    """
+
+    def test_a_windows_resolved_path_is_converted(self) -> None:
+        resolved = r"C:\Users\runneradmin\Temp\moved-away\hooks\PreToolUse\x.py"
+        assert _slash(resolved) == "C:/Users/runneradmin/Temp/moved-away/hooks/PreToolUse/x.py"
+
+    def test_a_posix_path_is_left_alone(self) -> None:
+        resolved = "/tmp/pytest-0/moved-away/hooks/PreToolUse/x.py"
+        assert _slash(resolved) == resolved
+
+    def test_a_windows_root_then_matches_the_resolved_path(self) -> None:
+        """The comparison the stale-root test makes, with Windows shapes."""
+        root = PurePosixPath(PureWindowsPath(r"C:\Users\runneradmin\moved-away").as_posix())
+        resolved = r"C:\Users\runneradmin\moved-away\hooks\PreToolUse\x.py"
+        assert str(root) in _slash(resolved)
+
+    def test_a_mismatched_root_still_fails(self) -> None:
+        """Guard the guard: normalization must not make everything match."""
+        root = PurePosixPath(PureWindowsPath(r"C:\Users\runneradmin\elsewhere").as_posix())
+        resolved = r"C:\Users\runneradmin\moved-away\hooks\PreToolUse\x.py"
+        assert str(root) not in _slash(resolved)

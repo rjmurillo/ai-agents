@@ -1,0 +1,41 @@
+{
+  "id": "episode-2026-07-25-session-3332-stale-plugin-root-doc",
+  "session": "2026-07-25-session-3332-stale-plugin-root-doc",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Decide and document the stale-plugin-root failure mode (issue #3332)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Weighed the launcher-guard proposal in issue #3332 against documenting the failure mode, and shipped the documentation.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f268d1f2df",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": [
+    "Before building a diagnostic, read the message the failure already prints. Here it already carried the path, so the whole delta was one sentence of missing runtime-contract knowledge, which is a documentation shape, not a code shape."
+  ]
+}
