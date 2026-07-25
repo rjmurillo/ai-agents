@@ -81,9 +81,21 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "test",
       "content": "Ran two negative controls with teeth      Blinding the gate to nested pins fails 3 of the 6 new tests; dropping the parser's typed field fails 4. Restoring both returns 27 passed.",
-      "caused_by": [],
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
         "e001"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 25affff50cae263f0d4300f1c2b51564b7cedfd9",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
       ]
     }
   ],
@@ -92,7 +104,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": [
