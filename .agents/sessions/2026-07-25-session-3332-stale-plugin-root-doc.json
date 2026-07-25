@@ -79,7 +79,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "build_all.py regenerated the copilot-cli mirror; skill frontmatter description is 470 of 1024 characters; 11 tests in tests/build_scripts/test_generate_hooks_runtime_contract.py pass."
+        "Evidence": "build_all.py regenerated the copilot-cli mirror; skill frontmatter description is 470 of 1024 characters; 12 tests in tests/build_scripts/test_generate_hooks_runtime_contract.py pass."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
