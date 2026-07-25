@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
-"""Validate session logs in JSON format against schema.
+"""Validate a session log against the committed JSON Schema and protocol rules.
 
-Simple, unambiguous validation using JSON schema instead of regex parsing.
+Two layers run, and they own different questions:
+
+* ``.agents/schemas/session-log.schema.json`` owns shape: which fields exist,
+  what type each holds, which values are in range. It is the single source of
+  truth for that, loaded and enforced here rather than restated in Python.
+* The protocol checks below own meaning: that a MUST checklist item is actually
+  complete, that its evidence is not an empty string, that a branch name and a
+  commit SHA look like one. A JSON Schema cannot express those.
+
+Scope: this validates the one file it is handed. Both call sites
+(``git_hook_policy.validate_branch_sessions`` and the ai-session-protocol
+workflow) pass only session logs changed on the branch, so enabling schema
+enforcement binds new and edited logs. Logs written before enforcement are not
+re-validated; editing one surfaces its violations, which is the intended signal.
 
 This is a Python port of Validate-SessionJson.ps1 following ADR-042 migration.
 
@@ -27,8 +40,12 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
+import jsonschema  # noqa: E402
+
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
+
+SCHEMA_PATH = _PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
 
 # Required session fields
 REQUIRED_SESSION_FIELDS = frozenset({"number", "date", "branch", "startingCommit", "objective"})
@@ -416,9 +433,7 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         is_complete = get_case_insensitive(check_data, "complete")
         level = get_case_insensitive(check_data, "level")
         if level == "MUST NOT" and is_complete:
-            result.errors.append(
-                "MUST NOT violated: HANDOFF.md was modified (read-only)"
-            )
+            result.errors.append("MUST NOT violated: HANDOFF.md was modified (read-only)")
 
 
 def validate_protocol_compliance(
@@ -442,8 +457,43 @@ def validate_protocol_compliance(
         result.errors.append("Missing: protocolCompliance.sessionEnd")
 
 
+def _load_schema() -> dict[str, Any]:
+    """Read the committed schema.
+
+    Not cached: this process validates one file and exits, so a cache would
+    only hide a read error behind a stale hit.
+    """
+    schema: dict[str, Any] = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return schema
+
+
+def _describe(error: jsonschema.ValidationError) -> str:
+    """Render a schema violation with the path a contributor can act on."""
+    location = ".".join(str(part) for part in error.absolute_path) or "(root)"
+    return f"Schema: {location}: {error.message}"
+
+
+def validate_against_schema(data: dict[str, Any], result: ValidationResult) -> None:
+    """Append every schema violation in ``data`` to ``result``.
+
+    Reports all violations rather than the first, so one commit round fixes the
+    log instead of one field per round. A missing or unreadable schema file is
+    an error, not a silent pass: a gate that cannot load its contract has not
+    checked anything and must say so.
+    """
+    try:
+        schema = _load_schema()
+    except (OSError, json.JSONDecodeError) as exc:
+        result.errors.append(f"Schema: cannot load {SCHEMA_PATH.name}, nothing was checked: {exc}")
+        return
+
+    validator = jsonschema.Draft202012Validator(schema)
+    for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
+        result.errors.append(_describe(error))
+
+
 def validate_session_log(data: dict[str, Any]) -> ValidationResult:
-    """Validate a session log against the expected schema.
+    """Validate a session log against the committed schema and protocol rules.
 
     Args:
         data: Parsed JSON data from session log.
@@ -453,15 +503,15 @@ def validate_session_log(data: dict[str, Any]) -> ValidationResult:
     """
     result = ValidationResult()
 
-    # Required top-level sections
-    if "session" not in data:
-        result.errors.append("Missing: session")
-    else:
+    validate_against_schema(data, result)
+
+    # The schema already reported either section as missing. Restating it here
+    # would print the same fact twice under two spellings; these branches exist
+    # only so the protocol checks below get a mapping to walk.
+    if isinstance(data.get("session"), dict):
         validate_session_section(data["session"], result)
 
-    if "protocolCompliance" not in data:
-        result.errors.append("Missing: protocolCompliance")
-    else:
+    if isinstance(data.get("protocolCompliance"), dict):
         validate_protocol_compliance(data["protocolCompliance"], result)
 
     return result
@@ -585,13 +635,16 @@ def main() -> int:
             return 1
 
         # Load session file using the validated path
+        # load_session_file returns data or an error, never both and never
+        # neither, so branching on the payload narrows it exactly. Branching on
+        # `error` instead left `data` optional and needed a suppression.
         data, error = load_session_file(validated_path)
-        if error:
+        if data is None:
             print(f"ERROR: {error}", file=sys.stderr)
             return 1
 
         # Validate session log
-        result = validate_session_log(data)  # type: ignore[arg-type]
+        result = validate_session_log(data)
 
         # Report results
         report_results(validated_path, result, args.pre_commit)

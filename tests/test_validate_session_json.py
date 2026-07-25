@@ -7,9 +7,11 @@ per ADR-042.
 
 from __future__ import annotations
 
+import inspect
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -61,7 +63,10 @@ def _make_complete_end_section(**overrides: dict) -> dict:
     section.update(overrides)
     return section
 
+
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from _pytest.capture import CaptureFixture
 
 
@@ -364,9 +369,7 @@ class TestChecklistSectionValidation:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert not result.is_valid
         assert any("usageMandatoryRead" in e for e in result.errors)
@@ -378,9 +381,7 @@ class TestChecklistSectionValidation:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert result.is_valid
 
@@ -391,9 +392,7 @@ class TestChecklistSectionValidation:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert result.is_valid
 
@@ -421,9 +420,7 @@ class TestChecklistSectionValidation:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert result.is_valid
 
@@ -456,9 +453,7 @@ class TestEvidenceContradiction:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert any("Evidence contradiction" in w for w in result.warnings)
 
@@ -473,9 +468,7 @@ class TestEvidenceContradiction:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert not any("Evidence contradiction" in w for w in result.warnings)
 
@@ -684,7 +677,9 @@ class TestValidateSessionLog:
         result = validate_session_log(data)
 
         assert not result.is_valid
-        assert "Missing: session" in result.errors
+        # The schema owns presence reporting since #3346; the
+        # hand-rolled "Missing: session" duplicate was removed.
+        assert any("'session' is a required property" in e for e in result.errors)
 
     def test_missing_protocol_section(self) -> None:
         """Missing protocolCompliance section causes error."""
@@ -701,7 +696,9 @@ class TestValidateSessionLog:
         result = validate_session_log(data)
 
         assert not result.is_valid
-        assert "Missing: protocolCompliance" in result.errors
+        # The schema owns presence reporting since #3346; the
+        # hand-rolled "Missing: protocolCompliance" duplicate was removed.
+        assert any("'protocolCompliance' is a required property" in e for e in result.errors)
 
 
 class TestLoadSessionFile:
@@ -961,3 +958,207 @@ class TestEdgeCases:
         result = validate_session_log(data)
 
         assert result.is_valid
+
+
+def _make_valid_log(**session_overrides: object) -> dict:
+    """Build a session log that satisfies both the schema and the protocol checks."""
+    session: dict[str, object] = {
+        "number": 3346,
+        "date": "2026-07-25",
+        "branch": "fix/3346-session-schema-enforcement",
+        "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
+        "objective": "Enforce the committed schema in the session log validator.",
+    }
+    session.update(session_overrides)
+    return {
+        "session": session,
+        "protocolCompliance": {
+            "sessionStart": _make_complete_start_section(),
+            "sessionEnd": _make_complete_end_section(),
+        },
+    }
+
+
+class TestSchemaIsActuallyEnforced:
+    """The docstring promises schema validation; these prove the schema runs.
+
+    Issue #3346: the validator advertised schema validation and never loaded the
+    schema, so a bot reviewer caught by hand a `session.number` the gate passed.
+    """
+
+    def test_valid_log_passes(self) -> None:
+        result = validate_session_log(_make_valid_log())
+        assert result.errors == []
+
+    def test_string_session_number_is_rejected(self) -> None:
+        """The exact shape a bot reviewer caught by hand on PR #3344."""
+        result = validate_session_log(_make_valid_log(number="3343-branch-context-merge"))
+        assert any("number" in e and e.startswith("Schema:") for e in result.errors)
+
+    def test_null_session_number_is_rejected(self) -> None:
+        """The shape sitting in 2026-01-09-session-389.json."""
+        result = validate_session_log(_make_valid_log(number=None))
+        assert any("number" in e and e.startswith("Schema:") for e in result.errors)
+
+    def test_session_number_below_minimum_is_rejected(self) -> None:
+        """`minimum: 1` is a schema-only rule; no hand-rolled check covers it."""
+        result = validate_session_log(_make_valid_log(number=0))
+        assert any("number" in e and e.startswith("Schema:") for e in result.errors)
+
+    def test_malformed_date_is_rejected(self) -> None:
+        result = validate_session_log(_make_valid_log(date="July 25, 2026"))
+        assert any("date" in e and e.startswith("Schema:") for e in result.errors)
+
+    def test_wrong_type_for_a_declared_object_is_rejected(self) -> None:
+        log = _make_valid_log()
+        log["protocolCompliance"] = ["sessionStart", "sessionEnd"]
+        result = validate_session_log(log)
+        assert any(e.startswith("Schema:") for e in result.errors)
+
+    def test_every_violation_is_reported_not_just_the_first(self) -> None:
+        """One commit round should fix the log, not one field per round."""
+        result = validate_session_log(_make_valid_log(number="x", date="nope"))
+        schema_errors = [e for e in result.errors if e.startswith("Schema:")]
+        assert len(schema_errors) >= 2
+
+    def test_violation_names_the_field_path(self) -> None:
+        result = validate_session_log(_make_valid_log(number="x"))
+        assert any("session.number" in e for e in result.errors)
+
+    def test_missing_section_is_reported_once_not_twice(self) -> None:
+        """The schema owns presence; the hand-rolled check must not restate it."""
+        log = _make_valid_log()
+        del log["session"]
+        result = validate_session_log(log)
+        assert sum("'session' is a required property" in e for e in result.errors) == 1
+        assert "Missing: session" not in result.errors
+
+    def test_unloadable_schema_is_an_error_not_a_silent_pass(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A gate that cannot load its contract has checked nothing; say so."""
+        import scripts.validate_session_json as vsj
+
+        monkeypatch.setattr(vsj, "SCHEMA_PATH", Path("/nonexistent/session-log.schema.json"))
+        result = ValidationResult()
+        vsj.validate_against_schema(_make_valid_log(), result)
+        assert any("nothing was checked" in e for e in result.errors)
+
+    def test_committed_schema_is_readable(self) -> None:
+        """Guards against a schema edit that leaves the file unparseable."""
+        import scripts.validate_session_json as vsj
+
+        assert vsj.SCHEMA_PATH.is_file()
+        assert isinstance(vsj._load_schema(), dict)
+
+
+class TestProtocolChecksSurviveSchemaEnforcement:
+    """The schema cannot express these; adding it must not displace them."""
+
+    def test_incomplete_must_item_still_fails(self) -> None:
+        log = _make_valid_log()
+        log["protocolCompliance"]["sessionStart"]["handoffRead"] = {
+            "complete": False,
+            "evidence": "",
+            "level": "MUST",
+        }
+        result = validate_session_log(log)
+        assert any("handoffRead" in e for e in result.errors)
+
+    def test_both_checklist_casings_still_accepted(self) -> None:
+        """`definitions.checklistItem` is an anyOf over Complete/complete.
+
+        Note the asymmetry: the anyOf varies the casing of Complete and
+        Evidence but declares `level` lowercase in both branches, and all
+        16675 checklist items in .agents/sessions/ agree. A log spelling it
+        `Level` passes the Python check (which is case-insensitive) and fails
+        the schema; that is the schema's call to make, so this test pins the
+        casing the corpus actually uses.
+        """
+        log = _make_valid_log()
+        log["protocolCompliance"]["sessionStart"] = {
+            name: {"Complete": True, "Evidence": "Evidence", "level": "MUST"}
+            for name in SESSION_START_REQUIRED_ITEMS
+        }
+        result = validate_session_log(log)
+        assert result.errors == []
+
+
+class TestHistoricalLogsAreExemptByConstruction:
+    """Issue #3346 accepted exemption-by-changed-files over backfilling 131 logs.
+
+    The exemption is not a flag anyone can forget to set: it holds because both
+    call sites hand the validator one changed path at a time. These tests fail
+    if a future change points the validator at the whole directory, which would
+    turn every historical log into a blocking failure.
+    """
+
+    def test_git_hook_policy_validates_only_the_paths_it_is_given(self) -> None:
+        from scripts.validation.git_hook_policy import validate_branch_sessions
+
+        source = inspect.getsource(validate_branch_sessions)
+        assert "for path in paths:" in source
+        assert "glob" not in source
+        assert "iterdir" not in source
+
+    def test_workflow_validates_one_file_per_invocation(self) -> None:
+        workflow = (
+            Path(__file__).resolve().parents[1] / ".github/workflows/ai-session-protocol.yml"
+        ).read_text(encoding="utf-8")
+        assert "validate_session_json.py $sessionFile" in workflow
+        assert "validate_session_json.py .agents/sessions/*" not in workflow
+
+
+class TestMainNarrowsOnThePayload:
+    """`main` branches on `data is None`, not on `error` (issue #3346).
+
+    The old form left `data` optional and carried a type suppression. These
+    pin the observable behavior so the narrowing cannot be reverted silently.
+
+    Fixtures live inside the repo on purpose: `validate_safe_path` rejects any
+    path outside the project root, so a `tmp_path` fixture would make every
+    case exit 1 for a path reason and prove nothing about the load or the
+    schema.
+    """
+
+    @pytest.fixture
+    def scratch(self) -> Iterator[Path]:
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=root) as name:
+            yield Path(name)
+
+    def _run(self, path: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "scripts/validate_session_json.py", str(path)],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+    def test_missing_file_exits_one_with_the_load_error(self, scratch: Path) -> None:
+        proc = self._run(scratch / "absent.json")
+        assert proc.returncode == 1
+        assert "not found" in (proc.stdout + proc.stderr)
+
+    def test_unparseable_file_exits_one(self, scratch: Path) -> None:
+        bad = scratch / "bad.json"
+        bad.write_text("{not json", encoding="utf-8")
+        proc = self._run(bad)
+        assert proc.returncode == 1
+        assert "Invalid JSON" in (proc.stdout + proc.stderr)
+
+    def test_schema_violation_exits_one(self, scratch: Path) -> None:
+        """The headline acceptance criterion, driven through the CLI."""
+        log = scratch / "log.json"
+        log.write_text(json.dumps(_make_valid_log(number="not-an-integer")), encoding="utf-8")
+        proc = self._run(log)
+        assert proc.returncode == 1
+        assert "Schema:" in (proc.stdout + proc.stderr)
+
+    def test_valid_file_exits_zero(self, scratch: Path) -> None:
+        log = scratch / "log.json"
+        log.write_text(json.dumps(_make_valid_log()), encoding="utf-8")
+        proc = self._run(log)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
