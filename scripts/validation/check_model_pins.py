@@ -199,9 +199,18 @@ def _collect_nested_pins(
     if isinstance(node, dict):
         for key, value in node.items():
             path = f"{prefix}.{key}" if prefix else str(key)
-            if key == "model" and isinstance(value, str) and value.strip():
-                out.append((path, value.strip()))
-                continue
+            if key == "model":
+                if isinstance(value, str) and value.strip():
+                    out.append((path, value.strip()))
+                    continue
+                elif isinstance(value, list):
+                    for index, item in enumerate(value):
+                        item_path = f"{path}[{index}]"
+                        if isinstance(item, str) and item.strip():
+                            out.append((item_path, item.strip()))
+                        else:
+                            _collect_nested_pins(item, item_path, seen, out)
+                    continue
             _collect_nested_pins(value, path, seen, out)
     elif isinstance(node, list):
         for index, item in enumerate(node):

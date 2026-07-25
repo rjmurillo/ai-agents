@@ -135,7 +135,11 @@
         "context": "check_model_pins.py had a correct ADR-080 rule for versioned skill pins and still passed three files that carried one.",
         "application": "Dump what the parser actually returns for the offending file. Here it returned metadata as an empty string, which located the hole in one step."
       },
-      "A cycle guard and a cost guard are different problems. The recursion-path form terminates on cycles and still permits exponential re-walking of a DAG, so 'it no longer crashes' is not evidence that the walk is bounded."
+{
+        "pattern": "A cycle guard and a cost guard are different problems. The recursion-path form terminates on cycles and still permits exponential re-walking of a DAG, so 'it no longer crashes' is not evidence that the walk is bounded.",
+        "context": "The nested-pin walker added cycle detection via a recursion-path set to handle YAML anchors without crashing, but that alone does not bound walk time on DAG-shaped aliases.",
+        "application": "When adding termination guards, verify both cycle termination and cost bounds; use a seen-set keyed by object id to bound total visits rather than just path-based cycle detection."
+      }
     ],
     "avoidances": [
       {
