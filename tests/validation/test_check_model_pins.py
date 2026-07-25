@@ -299,7 +299,11 @@ def test_alias_prices_below_default_helper(tmp_path: Path) -> None:
 
 
 def test_nested_versioned_skill_pin_fails(tmp_path: Path) -> None:
-    _skill(tmp_path, "nested", "name: nested\nmetadata:\n  version: 1.0.0\n  model: claude-opus-4-6")
+    _skill(
+        tmp_path,
+        "nested",
+        "name: nested\nmetadata:\n  version: 1.0.0\n  model: claude-opus-4-6",
+    )
     report = _run(tmp_path, baseline={}, manifest=[])
     assert report.scanned == 1
     assert any("nested under 'metadata'" in v for v in report.violations)
@@ -336,7 +340,8 @@ def test_top_level_pin_wins_over_nested(tmp_path: Path) -> None:
     _skill(
         tmp_path,
         "both",
-        "name: both\nmodel: haiku\nmodel-rationale: cheap lookups only\nmetadata:\n  model: claude-opus-4-6",
+        "name: both\nmodel: haiku\nmodel-rationale: cheap lookups only\n"
+        "metadata:\n  model: claude-opus-4-6",
     )
     report = _run(tmp_path, baseline={}, manifest=[])
     assert report.violations == []
