@@ -228,8 +228,8 @@ class TestValidateSessionSection:
         assert result.is_valid
         assert len(result.warnings) == 0
 
-    def test_missing_required_field(self) -> None:
-        """Missing required field causes error."""
+    def test_missing_required_field_defers_to_schema(self) -> None:
+        """Missing required fields are NOT reported here; schema owns shape."""
         session = {
             "number": 1,
             "date": "2026-01-18",
@@ -239,8 +239,9 @@ class TestValidateSessionSection:
 
         validate_session_section(session, result)
 
-        assert not result.is_valid
-        assert "Missing: session.branch" in result.errors
+        # No errors from validate_session_section; schema validation catches these
+        assert result.is_valid
+        assert not any("Missing: session." in e for e in result.errors)
 
     def test_invalid_branch_name_warning(self) -> None:
         """Invalid branch name causes warning."""

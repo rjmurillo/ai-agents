@@ -191,15 +191,13 @@ def has_case_insensitive(data: dict[str, Any], key: str) -> bool:
 def validate_session_section(session: dict[str, Any], result: ValidationResult) -> None:
     """Validate the session section of the log.
 
+    The schema owns shape: which fields exist and what types they hold. This
+    function owns meaning: protocol checks the schema cannot express.
+
     Args:
         session: The session section data.
         result: ValidationResult to update with errors/warnings.
     """
-    # Check required fields
-    for field_name in REQUIRED_SESSION_FIELDS:
-        if field_name not in session or not session.get(field_name):
-            result.errors.append(f"Missing: session.{field_name}")
-
     # Validate branch pattern
     branch = session.get("branch")
     if branch and not BRANCH_PATTERN.match(branch):
