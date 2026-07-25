@@ -115,11 +115,20 @@
     },
     {
       "phase": "correction",
-      "summary": "The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it: load_session_file returns data or an error, never both and never neither, so branching on `data is None` narrows exactly where branching on `error` left the payload optional. Added CLI-level tests for the four exit paths; the negative control shows the unguarded form crashes with exit 2 on a load failure instead of exiting 1 cleanly. The file now carries zero suppressions."
+      "summary": "The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it, and added CLI-level tests for the four exit paths. The narrowing this first pass used was itself wrong and the review round replaced it; see the review entry below. The file carries zero suppressions."
+    },
+    {
+      "phase": "review",
+      "summary": "Addressed five defects the PR #3347 review found. The validator was pinned to draft 2020-12 while the committed schema declares draft-07, so it now comes from validator_for. A top-level array reached data.get and exited 2 with an internal error, so the schema now reports the type and the protocol checks are skipped without a mapping. main branches on error rather than on the payload, because a file holding JSON null parses to None with no error and must reach the schema instead of printing ERROR: None. validate_protocol_compliance stopped restating sessionStart and sessionEnd as missing, which protocolCompliance.required already covers. The exemption test grepped a function's source for the word glob, which any docstring would break, and now drives validate_branch_sessions with a mocked runner. Four negative controls fired; a fifth draft of the draft-07 test passed under both validators and was rewritten to discriminate.",
+      "files": [
+        "scripts/validate_session_json.py",
+        "tests/test_validate_session_json.py"
+      ]
     }
   ],
   "endingCommit": "774ef14ea28a9d0151fb424e4cc5cad05d73e106",
   "nextSteps": [
+    "PR #3347 review round 1 addressed: draft-07 validator, non-object payloads, JSON null, duplicate section messages, brittle exemption test.",
     "Open the PR for issue #3346 and drive its review threads to zero.",
     "Continue the open-issue sweep: #3345 causal-graph conflicts, #3342 SKILL.md size, #3341 CI wiring guard scope."
   ]

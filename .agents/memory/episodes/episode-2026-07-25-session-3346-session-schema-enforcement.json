@@ -11,7 +11,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Confirmed the claim empirically. The module never referenced the schema file and never imported jsonschema; it hand-rolled presence checks and type-checked nothing. Measured the blast radius of turning the schema on: 131 of the 923 logs in .agents/sessions/ fail Draft202012Validator against the committed schema.",
-      "caused_by": [],
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -85,6 +87,16 @@
         "e006"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a59eb0886e",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -92,7 +104,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 6
   },
   "lessons": []
