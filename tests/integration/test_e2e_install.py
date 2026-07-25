@@ -631,9 +631,29 @@ class TestSubprocessDecoding:
     guard this without a Windows runner and a real binary.
     """
 
-    @staticmethod
-    def _captured_runs() -> list[ast.Call]:
-        tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    #: Kwargs that route child output back into the parent process.
+    _CAPTURING = frozenset({"capture_output", "stdout", "stderr"})
+    #: Kwargs that put the pipes into text mode, which is what forces a decode.
+    _TEXT_MODE = frozenset({"text", "universal_newlines", "encoding", "errors"})
+
+    @classmethod
+    def _captured_runs(cls, source: str | None = None) -> list[ast.Call]:
+        """Return the ``subprocess.run`` calls that actually decode child output.
+
+        Both halves of the predicate are load-bearing. A capture with no text
+        mode returns bytes, never decodes, and must not be asked for an
+        ``encoding``: adding one would silently flip it into text mode and
+        change the value the caller gets back. Text mode with nothing captured
+        writes straight to the terminal and decodes nothing in this process.
+        Only the intersection can hit the Windows cp1252 reader-thread failure,
+        so only the intersection is checked.
+
+        ``source`` defaults to this module so the guard polices itself; tests
+        pass a snippet to pin the predicate against shapes this file does not
+        contain.
+        """
+        text = source if source is not None else Path(__file__).read_text(encoding="utf-8")
+        tree = ast.parse(text)
         calls = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -644,13 +664,35 @@ class TestSubprocessDecoding:
             if not (isinstance(func.value, ast.Name) and func.value.id == "subprocess"):
                 continue
             kwargs = {kw.arg for kw in node.keywords}
-            if "capture_output" in kwargs or "text" in kwargs:
+            if kwargs & cls._CAPTURING and kwargs & cls._TEXT_MODE:
                 calls.append(node)
         return calls
 
     def test_the_probe_finds_the_calls_it_claims_to_check(self) -> None:
         """Guard the guard: a rename would make the checks below vacuous."""
         assert len(self._captured_runs()) >= 2
+
+    def test_byte_mode_capture_is_not_a_target(self) -> None:
+        """A capture with no text mode returns bytes and must not be flagged.
+
+        Demanding ``encoding=`` here would be worse than a false positive: the
+        only way to satisfy it is to add the kwarg, which flips the call into
+        text mode and changes what the caller receives.
+        """
+        assert self._captured_runs("subprocess.run(cmd, capture_output=True)") == []
+
+    def test_text_mode_without_capture_is_not_a_target(self) -> None:
+        """Nothing is piped back, so this process decodes nothing."""
+        assert self._captured_runs("subprocess.run(cmd, text=True)") == []
+
+    def test_captured_text_mode_is_a_target(self) -> None:
+        """The intersection is the cp1252 failure mode, so it must be caught."""
+        assert len(self._captured_runs("subprocess.run(cmd, capture_output=True, text=True)")) == 1
+
+    def test_redirected_pipe_counts_as_capture(self) -> None:
+        """stdout=PIPE decodes exactly like capture_output=True does."""
+        snippet = "subprocess.run(cmd, stdout=subprocess.PIPE, universal_newlines=True)"
+        assert len(self._captured_runs(snippet)) == 1
 
     def test_every_captured_run_pins_encoding_and_errors(self) -> None:
         for call in self._captured_runs():

@@ -11,7 +11,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "The leak had two independent causes on the same platform, which is why nothing caught it. Isolation set HOME, but Copilot CLI resolves its home from USERPROFILE on Windows, so the install landed in the real user config. Teardown then read a module global the test had monkeypatched to the isolated directory, found no config file there, and returned. A guard that only fires when the thing it guards already worked is not a guard.",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -73,6 +75,16 @@
         "e005"
       ],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 62c24183fc",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -80,7 +92,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []

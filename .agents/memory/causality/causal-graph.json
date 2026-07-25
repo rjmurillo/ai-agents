@@ -14618,6 +14618,78 @@
         "episode-2026-07-25-session-2993-wire-orphaned-ratchets"
       ],
       "created": "2026-07-25T08:41:42.830933+00:00"
+    },
+    {
+      "id": "4c6fef2f54c1",
+      "type": "milestone",
+      "label": "milestone: The leak had two independent causes on the same platform, which is why nothing caught it. Isolation set HOME, but Copilot CLI resolves its home from USERPROFILE on Windows, so the install landed in the real user config. Teardown then read a module global the test had monkeypatched to the isolated directory, found no config file there, and returned. A guard that only fires when the thing it guards already worked is not a guard.",
+      "episodes": [
+        "episode-2026-07-25-session-3324-windows-home-isolation"
+      ],
+      "created": "2026-07-25T14:55:14.791120+00:00"
+    },
+    {
+      "id": "60bca8e61c9e",
+      "type": "milestone",
+      "label": "milestone: Set USERPROFILE beside HOME so the isolation reaches the variable the binary actually reads.",
+      "episodes": [
+        "episode-2026-07-25-session-3324-windows-home-isolation"
+      ],
+      "created": "2026-07-25T14:55:14.791182+00:00"
+    },
+    {
+      "id": "e3aecc923157",
+      "type": "milestone",
+      "label": "milestone: Made the leak loud. The test now asserts the isolated config file exists after install. A silent leak becomes a red test rather than corrupted global state, which is the property the previous fix lacked: it shipped on 2026-07-07 and the leak was still being written on 2026-07-16.",
+      "episodes": [
+        "episode-2026-07-25-session-3324-windows-home-isolation"
+      ],
+      "created": "2026-07-25T14:55:14.791235+00:00"
+    },
+    {
+      "id": "7d418028fa00",
+      "type": "milestone",
+      "label": "milestone: Gave the cleanup an explicit home parameter instead of reading the monkeypatched global, and swept both the isolated home and the real one. Teardown is the last line of defense, so it must not depend on the isolation working. This also removed the monkeypatch from five unit tests, which were only patching a global to reach a value they could pass directly.",
+      "episodes": [
+        "episode-2026-07-25-session-3324-windows-home-isolation"
+      ],
+      "created": "2026-07-25T14:55:14.791288+00:00"
+    },
+    {
+      "id": "c2a18db29349",
+      "type": "milestone",
+      "label": "milestone: Added a Windows CI leg for this file. The cleanup compares paths with as_posix and Path.parents, and the bug it guards was Windows-only. A POSIX-only leg is the reason a POSIX-only fix looked complete. The binary smoke test skips there without copilot on PATH; the cleanup coverage does not need it.",
+      "episodes": [
+        "episode-2026-07-25-session-3324-windows-home-isolation"
+      ],
+      "created": "2026-07-25T14:55:14.791340+00:00"
+    },
+    {
+      "id": "7c17167bb078",
+      "type": "milestone",
+      "label": "milestone: Pinned both subprocess captures to utf-8 with errors=replace while touching them. On Windows a bare text=True capture defaults to cp1252 and the reader thread raises on UTF-8 tool output, leaving stdout as None, which would turn the new assertion into a confusing NoneType failure on the exact platform this change targets.",
+      "episodes": [
+        "episode-2026-07-25-session-3324-windows-home-isolation"
+      ],
+      "created": "2026-07-25T14:55:14.791394+00:00"
+    },
+    {
+      "id": "4898184f1537",
+      "type": "commit",
+      "label": "commit: Commit: 62c24183fc",
+      "episodes": [
+        "episode-2026-07-25-session-3324-windows-home-isolation"
+      ],
+      "created": "2026-07-25T14:55:14.791445+00:00"
+    },
+    {
+      "id": "45328f5269e8",
+      "type": "outcome",
+      "label": "Outcome: success - Stop the Copilot install smoke test leaking a _direct project-toolkit shadow into the contributor's real ~/.copilot on Windows, and make a future leak loud instead of silent (issue #3324).",
+      "episodes": [
+        "episode-2026-07-25-session-3324-windows-home-isolation"
+      ],
+      "created": "2026-07-25T14:55:14.791499+00:00"
     }
   ],
   "patterns": [
