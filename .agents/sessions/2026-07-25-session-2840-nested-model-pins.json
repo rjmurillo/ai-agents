@@ -135,7 +135,8 @@
         "pattern": "When a governance gate reports clean against a violation you can see, suspect the parser before the policy",
         "context": "check_model_pins.py had a correct ADR-080 rule for versioned skill pins and still passed three files that carried one.",
         "application": "Dump what the parser actually returns for the offending file. Here it returned metadata as an empty string, which located the hole in one step."
-      }
+      },
+      "A cycle guard and a cost guard are different problems. The recursion-path form terminates on cycles and still permits exponential re-walking of a DAG, so 'it no longer crashes' is not evidence that the walk is bounded."
     ],
     "avoidances": [
       {

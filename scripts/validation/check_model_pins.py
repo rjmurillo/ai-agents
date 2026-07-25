@@ -174,7 +174,7 @@ def alias_prices_below_default(
 
 
 def _collect_nested_pins(
-    node: object, prefix: str, stack: frozenset[int], out: list[tuple[str, str]]
+    node: object, prefix: str, seen: set[int], out: list[tuple[str, str]]
 ) -> None:
     """Append every ``model`` value at or below ``node`` as (dotted path, value).
 
@@ -184,25 +184,28 @@ def _collect_nested_pins(
     versioned id under ``metadata`` at the same time, and reporting only one of
     them lets the other ship.
 
-    ``stack`` holds the ids of the containers currently being walked, so a
-    cyclic YAML alias terminates instead of raising RecursionError. It is the
-    recursion path rather than a global visited set, so a node reachable twice
-    through different keys is still reported under both paths.
+    ``seen`` holds the id of every container already walked, so each container
+    is visited once no matter how many aliases reach it. That bounds the walk
+    at O(nodes): an earlier recursion-path guard stopped cycles but still let a
+    32-line alias DAG expand exponentially and hang the gate. Visiting once is
+    also the honest report, because two alias paths to one node are one anchor
+    in the source, so one line to delete. Two mappings that merely look alike
+    are distinct objects and are still reported separately.
     """
     if isinstance(node, (dict, list)):
-        if id(node) in stack:
+        if id(node) in seen:
             return
-        stack = stack | {id(node)}
+        seen.add(id(node))
     if isinstance(node, dict):
         for key, value in node.items():
             path = f"{prefix}.{key}" if prefix else str(key)
             if key == "model" and isinstance(value, str) and value.strip():
                 out.append((path, value.strip()))
                 continue
-            _collect_nested_pins(value, path, stack, out)
+            _collect_nested_pins(value, path, seen, out)
     elif isinstance(node, list):
         for index, item in enumerate(node):
-            _collect_nested_pins(item, f"{prefix}[{index}]", stack, out)
+            _collect_nested_pins(item, f"{prefix}[{index}]", seen, out)
 
 
 def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
@@ -213,7 +216,13 @@ def _classify_and_read(path: Path, kind: str, repo_root: Path) -> Unit | None:
         return None
     parsed = parse_frontmatter(content)
     fm = parsed.frontmatter
-    model = fm.get("model")
+    # The typed view is authoritative: it is what a harness reading YAML sees.
+    # The flat view is a line scan that misses every alternate spelling of the
+    # same key ('model':, ? model, !!str model), each of which otherwise hides
+    # a pin from the gate while still shipping it. Fall back to the flat view
+    # only when YAML parsing produced nothing, so a malformed file still scans.
+    typed_model = parsed.typed.get("model")
+    model = typed_model if isinstance(typed_model, str) and typed_model.strip() else fm.get("model")
     rationale = fm.get("model-rationale")
     try:
         rel = path.relative_to(repo_root).as_posix()
@@ -236,13 +245,13 @@ def _nested_pins(typed: dict[str, object]) -> tuple[tuple[str, str], ...]:
     same drift and retirement cost ADR-080 exists to remove.
     """
     out: list[tuple[str, str]] = []
+    seen: set[int] = set()
     for key, value in typed.items():
-        if key == "model":
-            # Skip scalar model values (the normal top-level pin case) but walk
-            # structured values to catch nested pins like model.model.
-            if isinstance(value, str):
-                continue
-        _collect_nested_pins(value, str(key), frozenset(), out)
+        # A scalar top-level model is the compliant shape and is judged by the
+        # alias rules instead. A structured one is not, so walk into it.
+        if key == "model" and isinstance(value, str):
+            continue
+        _collect_nested_pins(value, str(key), seen, out)
     return tuple(sorted(out))
 
 
@@ -312,6 +321,21 @@ def _manifest_entry_valid(
     return None
 
 
+_MAX_DISPLAY_CHARS = 80
+
+
+def _display(value: str) -> str:
+    """Render a file-controlled value as one bounded, escaped token.
+
+    ``repr`` escapes newlines and control characters, so a pin value cannot
+    forge an extra status line in the gate's output (CWE-117), and the cap
+    stops a padded value from burying the rest of the report.
+    """
+    if len(value) > _MAX_DISPLAY_CHARS:
+        value = value[:_MAX_DISPLAY_CHARS] + "..."
+    return repr(value)
+
+
 def _unit_rule_failure(
     unit: Unit,
     manifest: dict[str, dict[str, object]],
@@ -323,7 +347,9 @@ def _unit_rule_failure(
     """Return why a unit violates ADR-080 rules 1-3, or None when it complies."""
     model = unit.model or ""
     if unit.nested_pins:
-        listed = ", ".join(f"'{value}' under '{key}'" for key, value in unit.nested_pins)
+        listed = ", ".join(
+            f"{_display(value)} under {_display(key)}" for key, value in unit.nested_pins
+        )
         return (
             f"model pin(s) nested below the top level: {listed}; no harness "
             f"reads them, so they are drift with no effect (ADR-080)"

@@ -11,10 +11,12 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
 import pytest
+import yaml
 
 _MODULE_PATH = (
     Path(__file__).resolve().parents[2] / "scripts" / "validation" / "check_model_pins.py"
@@ -430,3 +432,100 @@ def test_nested_pin_under_top_level_model_mapping_is_found(tmp_path: Path) -> No
     report = _run(tmp_path, baseline={}, manifest=[])
     assert report.scanned == 1
     assert any("'claude-opus-4-6' under 'model.model'" in v for v in report.violations)
+
+
+def test_quoted_top_level_model_key_is_not_a_bypass(tmp_path: Path) -> None:
+    # The flat frontmatter view is a column-anchored line scan, so it misses
+    # every alternate YAML spelling of the same key. A harness reading YAML
+    # still sees the pin, so the gate must too (adversarial review of #2840).
+    _skill(tmp_path, "quoted", "name: quoted\n'model': claude-opus-4-6")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 1
+    assert any("claude-opus-4-6" in v for v in report.violations)
+
+
+def test_explicit_and_tagged_top_level_model_keys_are_not_bypasses(tmp_path: Path) -> None:
+    # `? model` (explicit key) and `!!str model` (tagged key) are the other two
+    # spellings PyYAML accepts and the line scan drops.
+    _skill(tmp_path, "explicit", "name: explicit\n? model\n: claude-opus-4-6")
+    _skill(tmp_path, "tagged", "name: tagged\n!!str model: claude-opus-4-6")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 2
+    assert len(report.violations) == 2
+
+
+def test_alias_dag_does_not_expand_exponentially(tmp_path: Path) -> None:
+    # A 32-line alias graph re-walked through every path took over five seconds
+    # under the earlier recursion-path guard. Visiting each container once
+    # bounds it at O(nodes). Depth 20 is 2**20 paths: a few seconds for the
+    # unbounded walk, instant for the bounded one. Deeper would prove the same
+    # thing by hanging, which burns a CI job instead of reporting a failure.
+    lines = ["n0: &n0 {model: claude-opus-4-6}"]
+    lines += [f"n{i}: &n{i} {{left: *n{i - 1}, right: *n{i - 1}}}" for i in range(1, 21)]
+    lines.append("root: *n20")
+    typed = yaml.safe_load("\n".join(lines))
+    start = time.perf_counter()
+    pins = cmp._nested_pins(typed)
+    assert time.perf_counter() - start < 1.0
+    assert len(pins) == 1
+
+
+def test_one_anchor_reached_twice_is_reported_once(tmp_path: Path) -> None:
+    # Two alias paths to the same node are one anchor in the source, so one
+    # line to delete. Reporting it twice would send the author looking for a
+    # second edit that does not exist.
+    typed = yaml.safe_load("shared: &s {model: claude-opus-4-6}\nleft: *s\nright: *s\n")
+    assert len(cmp._nested_pins(typed)) == 1
+
+
+def test_two_lookalike_mappings_are_reported_separately(tmp_path: Path) -> None:
+    # Distinct mappings that merely carry the same value are two edits, so the
+    # visited-once rule must not collapse them.
+    typed = yaml.safe_load("left:\n  model: claude-opus-4-6\nright:\n  model: claude-opus-4-6\n")
+    assert cmp._nested_pins(typed) == (
+        ("left.model", "claude-opus-4-6"),
+        ("right.model", "claude-opus-4-6"),
+    )
+
+
+def test_nested_pins_are_sorted_regardless_of_insertion_order(tmp_path: Path) -> None:
+    # Unsorted output makes the message order depend on YAML key order, which
+    # turns a re-run into a spurious diff in CI logs.
+    forward = cmp._nested_pins(yaml.safe_load("a:\n  model: x\nz:\n  model: y\n"))
+    reverse = cmp._nested_pins(yaml.safe_load("z:\n  model: y\na:\n  model: x\n"))
+    assert forward == reverse == (("a.model", "x"), ("z.model", "y"))
+
+
+def test_pin_value_cannot_forge_a_status_line(tmp_path: Path) -> None:
+    # A file-controlled value reaches human-readable CI output. Unescaped, a
+    # newline lets it fake a passing line (CWE-117).
+    unit = cmp.Unit(
+        ".claude/skills/demo/SKILL.md", "skill", None, None, (("metadata.model", "v\nOK: forged"),)
+    )
+    message = cmp._unit_rule_failure(unit, {}, {}, tmp_path, TODAY, "claude-sonnet-4-6")
+    assert message is not None
+    assert "\n" not in message
+    assert "\\n" in message
+
+
+def test_long_pin_value_is_truncated_in_the_message(tmp_path: Path) -> None:
+    # An overlong value would otherwise bury every other violation in the run.
+    unit = cmp.Unit(
+        ".claude/skills/demo/SKILL.md", "skill", None, None, (("metadata.model", "v" * 5000),)
+    )
+    message = cmp._unit_rule_failure(unit, {}, {}, tmp_path, TODAY, "claude-sonnet-4-6")
+    assert message is not None
+    assert len(message) < 300
+    assert "..." in message
+
+
+def test_write_baseline_round_trips_a_nested_only_tree(tmp_path: Path) -> None:
+    # A unit with no top-level model used to be written with an empty path.
+    # Reloading must yield the same pins and preserve the frozen count.
+    _skill(tmp_path, "nested-only", "name: nested-only\nmetadata:\n  model: claude-opus-4-6")
+    _skill(tmp_path, "pinned", "name: pinned\nmodel: claude-opus-4-6")
+    out = tmp_path / "baseline.json"
+    cmp.write_baseline(cmp.scan_units(tmp_path), out)
+    pins, frozen = cmp.load_baseline(out)
+    assert pins == {".claude/skills/pinned/SKILL.md": "claude-opus-4-6"}
+    assert frozen == len(pins)

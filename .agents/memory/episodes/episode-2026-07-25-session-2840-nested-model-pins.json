@@ -121,6 +121,7 @@
   },
   "lessons": [
     "When a governance gate reports clean against a violation you can see, suspect the parser before the policy. Dump what the parser actually returns for the offending file. Here it returned metadata as an empty string, which located the hole in one step.",
-    "Avoid: Hand-rolling a second frontmatter parse to reach data the shared parser already computed. Expose the typed structure the shared parser already builds for validation, and read it from the caller."
+    "Avoid: Hand-rolling a second frontmatter parse to reach data the shared parser already computed. Expose the typed structure the shared parser already builds for validation, and read it from the caller.",
+    "A cycle guard and a cost guard are different problems. The recursion-path form terminates on cycles and still permits exponential re-walking of a DAG, so 'it no longer crashes' is not evidence that the walk is bounded."
   ]
 }
