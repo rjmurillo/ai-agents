@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": 3354,
+    "number": 3342,
     "date": "2026-07-26",
     "branch": "fix/3342-harness-reference-size",
     "startingCommit": "c466315412",

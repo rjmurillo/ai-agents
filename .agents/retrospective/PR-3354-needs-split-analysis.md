@@ -8,6 +8,18 @@
 
 ---
 
+## Failure Mode Classification
+
+**Primary Failure Mode**: FM-9 (Confident-Incorrectness Recurrence)
+
+The Cursor autofix bot applied a monotonic counter (3344) as `session.number` when the project convention keys this value to the issue number embedded in the branch name (3342). The bot delivered this value with full confidence; the validator accepted it because the schema checks type (integer) but not the branch-name relationship. The mismatch required five corrective commits across two merge cycles to fix.
+
+**Secondary Pattern**: The validator's silent acceptance of 3344 is related to FM-10 (Silent Defaults and Guard-Clause Suppression) - the validation returned success when a semantic constraint was violated because that constraint was not encoded in the schema.
+
+**Reference**: `.agents/governance/FAILURE-MODES.md`
+
+---
+
 ## Phase 0: Data Gathering
 
 ### Execution Trace
