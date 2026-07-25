@@ -610,9 +610,10 @@ class TestIsolatedCopilotEnv:
     def test_no_isolated_var_leaks_the_real_home(self, tmp_path: Path) -> None:
         """Guard the guard: catches a typo that silently reuses os.environ."""
         env = isolated_copilot_env(tmp_path)
-        real_home = str(Path.home())
         for name in ("HOME", "USERPROFILE", "COPILOT_HOME", *_COPILOT_CACHE_VARS):
-            assert real_home not in env[name], f"{name} still references the real home"
+            assert Path(env[name]).is_relative_to(tmp_path), (
+                f"{name} still references the real home"
+            )
 
     def test_unrelated_environment_is_preserved(self, tmp_path: Path) -> None:
         """PATH must survive, or the binary under test is not findable."""
