@@ -42,9 +42,11 @@ EXIT_EXTERNAL = 3
 
 _BASELINE_PATH = Path(__file__).with_name("ruff_count_baseline.txt")
 
-# Windows CreateProcess caps a command line at 32767 characters. The tracked
-# Python set is ~1476 paths / ~70 KB of argv, so the scan is chunked to stay
-# under that ceiling on every platform rather than only on POSIX.
+# Windows CreateProcess caps a command line at 32767 characters; POSIX raises
+# E2BIG past a byte ceiling. The tracked Python set is ~1476 paths / ~70 KB of
+# argv, so the scan is chunked to stay under both. Batches are measured in
+# UTF-8 bytes, which is never smaller than the character count, so one budget
+# holds on every platform.
 _ARGV_BUDGET_BYTES = 24000
 
 # Every extension ruff lints. Kept in lockstep with the workflow paths filter.
@@ -82,12 +84,17 @@ def tracked_python_files(repo_root: Path) -> list[str] | None:
 
 
 def _chunk(paths: Sequence[str], budget: int = _ARGV_BUDGET_BYTES) -> list[list[str]]:
-    """Split ``paths`` into batches whose joined length stays under ``budget``."""
+    """Split ``paths`` into batches sized in UTF-8 bytes.
+
+    A batch holding more than one path stays under ``budget``. A single path
+    that exceeds the budget on its own gets a batch to itself and is still
+    scanned, because dropping it would silently shrink the count.
+    """
     batches: list[list[str]] = []
     current: list[str] = []
     size = 0
     for path in paths:
-        cost = len(path) + 1
+        cost = len(path.encode("utf-8")) + 1
         if current and size + cost > budget:
             batches.append(current)
             current = []

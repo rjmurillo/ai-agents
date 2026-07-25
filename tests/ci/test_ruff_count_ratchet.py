@@ -142,8 +142,23 @@ def test_chunk_respects_argv_budget():
     paths = [f"{'x' * 99}{index}.py" for index in range(500)]
     batches = ratchet._chunk(paths, budget=1000)
     assert sum(len(batch) for batch in batches) == len(paths)
-    assert all(sum(len(p) + 1 for p in batch) <= 1000 for batch in batches)
+    assert all(sum(len(p.encode("utf-8")) + 1 for p in batch) <= 1000 for batch in batches)
     assert all(batch for batch in batches)
+
+
+def test_chunk_measures_bytes_not_characters():
+    # A non-ASCII path costs more argv than it has characters. Measuring
+    # characters would pack batches over the ceiling the budget exists to
+    # respect. Each name here is 13 characters but 22 UTF-8 bytes.
+    stem = "\u00e9" * 9
+    paths = [f"{stem}{index}.py" for index in range(10)]
+    assert len(paths[0]) == 13
+    assert len(paths[0].encode("utf-8")) == 22
+    batches = ratchet._chunk(paths, budget=46)
+    assert sum(len(batch) for batch in batches) == len(paths)
+    assert all(sum(len(p.encode("utf-8")) + 1 for p in batch) <= 46 for batch in batches)
+    # Two per batch fits the byte budget; a character measure would pack three.
+    assert max(len(batch) for batch in batches) == 2
 
 
 def test_single_path_longer_than_budget_still_scanned():
@@ -184,10 +199,6 @@ def test_untracked_worktree_violations_are_not_counted(tmp_path):
     assert ratchet.current_count(repo) == 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(pytest.main([__file__, "-q"]))
-
-
 def test_scan_scope_includes_every_extension_ruff_lints(tmp_path, monkeypatch):
     # A PR adding only a faulty stub or notebook must not slip past a
     # Python-only gate. The repo tracks none of either today, so this pins the
@@ -210,7 +221,8 @@ def test_ruff_io_error_is_not_counted_as_a_violation(tmp_path, monkeypatch):
     baseline = _write_baseline(tmp_path, "408")
     io_error = '{"code":"E902","filename":"gone.py","message":"No such file"}\n'
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 0, ruff_stdout=io_error))
-    assert ratchet.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 3
+    argv = ["--repo-root", str(tmp_path), "--baseline", str(baseline)]
+    assert ratchet.main(argv) == ratchet.EXIT_EXTERNAL
 
 
 def test_unparseable_diagnostic_still_counts(tmp_path, monkeypatch):
@@ -258,3 +270,7 @@ def test_baseline_outside_the_repo_root_is_rejected(tmp_path):
     root = tmp_path / "repo"
     root.mkdir()
     assert ratchet.baseline_at_ref(root, "origin/main", outside) is None
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__, "-q"]))

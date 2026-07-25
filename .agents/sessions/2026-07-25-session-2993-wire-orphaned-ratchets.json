@@ -5,7 +5,8 @@
     "date": "2026-07-25",
     "branch": "fix/2993-2967-wire-ratchets",
     "startingCommit": "013cb0124c31e4b2acbdbb0dc7bcd8ac4d63e5f7",
-    "objective": "Open-issue sweep. Close the regression-guard acceptance criterion of #2993 and the tooling gap called out in #2967: both ratchet scripts ship with tests but neither is invoked by any workflow, so both backlogs can climb back silently. Also fix the ruff count ratchet's directory-walk scope, which reports a phantom regression on any working tree that carries an untracked nested worktree."
+    "objective": "Open-issue sweep. Close the regression-guard acceptance criterion of #2993 and the tooling gap called out in #2967: both ratchet scripts ship with tests but neither is invoked by any workflow, so both backlogs can climb back silently. Also fix the ruff count ratchet's directory-walk scope, which reports a phantom regression on any working tree that carries an untracked nested worktree.",
+    "endingCommit": "7f395790969ab4f8f2fe4cb1d542f825db40a0bf"
   },
   "protocolCompliance": {
     "sessionStart": {
