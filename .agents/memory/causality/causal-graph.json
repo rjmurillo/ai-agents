@@ -14620,103 +14620,31 @@
       "created": "2026-07-25T08:41:42.830933+00:00"
     },
     {
-      "id": "81608772ddff",
+      "id": "0270c846dc87",
       "type": "milestone",
-      "label": "milestone: Audited the live model-pin state against ADR-080 rule 1 for issue #2840",
+      "label": "milestone: Added a merged-history discriminator to check_branch_context. The mismatch is exempt only when the branch owns a recent session log AND the newest log already exists on the upstream default branch, which makes it settled history rather than a claim about current work. Fails closed with no resolvable origin/HEAD, so the issue #682 co-mingling case keeps its teeth.",
       "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
+        "episode-2026-07-25-session-3343-branch-context-merge"
       ],
-      "created": "2026-07-25T14:27:01.946369+00:00"
+      "created": "2026-07-25T13:35:39.032165+00:00"
     },
     {
-      "id": "f5c5ea305c47",
-      "type": "milestone",
-      "label": "milestone: Traced why scripts/validation/check_model_pins.py reported zero violations on those three files",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946431+00:00"
-    },
-    {
-      "id": "66d4bb19d5e1",
-      "type": "milestone",
-      "label": "milestone: Exposed the already-computed typed structure instead of adding a second parser",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946484+00:00"
-    },
-    {
-      "id": "e7fc07f85b60",
-      "type": "milestone",
-      "label": "milestone: Taught check_model_pins.py to see a pin nested below the top level and to reject it outright",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946535+00:00"
-    },
-    {
-      "id": "4f6ad92b4ff0",
-      "type": "milestone",
-      "label": "milestone: Removed the three nested versioned pins and regenerated the customer-facing mirrors",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946589+00:00"
-    },
-    {
-      "id": "ee10cfa556b7",
-      "type": "milestone",
-      "label": "milestone: Ran two negative controls with teeth",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946649+00:00"
-    },
-    {
-      "id": "8cd0439d2906",
-      "type": "test",
-      "label": "test: Ran two negative controls with teeth      Blinding the gate to nested pins fails 3 of the 6 new tests; dropping the parser's typed field fails 4. Restoring both returns 27 passed.",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946703+00:00"
-    },
-    {
-      "id": "550604a70034",
-      "type": "commit",
-      "label": "commit: Commit: 25affff50cae263f0d4300f1c2b51564b7cedfd9",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946754+00:00"
-    },
-    {
-      "id": "de35f5597d24",
-      "type": "milestone",
-      "label": "milestone: Close the three bypasses an adversarial review found in the nested-pin check",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946804+00:00"
-    },
-    {
-      "id": "8b713c68ee78",
-      "type": "commit",
-      "label": "commit: Commit: 7a760505f8",
-      "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
-      ],
-      "created": "2026-07-25T14:27:01.946855+00:00"
-    },
-    {
-      "id": "abdac8914488",
+      "id": "98610cb7c0b9",
       "type": "outcome",
-      "label": "Outcome: success - Close the nested-frontmatter hole in the ADR-080 model-pin gate and drop the three versioned skill pins it could not see, advancing issue 2840 criterion 4 with no eval spend.",
+      "label": "Outcome: success - Fix branch-context-policy permanently wedging any branch that merges main (issue #3343). A committed merge imports the merged branch's session log, which outlives the MERGE_HEAD exemption and wins the recency comparison forever.",
       "episodes": [
-        "episode-2026-07-25-session-2840-nested-model-pins"
+        "episode-2026-07-25-session-3343-branch-context-merge"
       ],
-      "created": "2026-07-25T14:27:01.946909+00:00"
+      "created": "2026-07-25T13:35:39.032230+00:00"
+    },
+    {
+      "id": "e6517a765378",
+      "type": "commit",
+      "label": "commit: Commit: 61b8255184",
+      "episodes": [
+        "episode-2026-07-25-session-3343-branch-context-merge"
+      ],
+      "created": "2026-07-25T14:05:27.596517+00:00"
     }
   ],
   "patterns": [
