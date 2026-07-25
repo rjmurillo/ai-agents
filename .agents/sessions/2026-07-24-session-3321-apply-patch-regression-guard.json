@@ -47,7 +47,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "git status inspected before branching; pre-existing untracked retrospectives and worktrees left alone, and only the two intended files were staged."
+        "Evidence": "git status inspected before branching; pre-existing untracked retrospectives and worktrees left alone. Staged the regression test and this session log by hand; the commit hook then wrote the memory episode and causal-graph entries alongside them."
       }
     },
     "sessionEnd": {
@@ -69,7 +69,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The branch changes one Python test file and this JSON log; git diff --name-only lists zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked both files for em and en dashes: zero found."
+        "Evidence": "The branch changes one Python test file, this JSON log, and the hook-written memory episode and causal-graph JSON; git diff --name-only lists zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
       },
       "changesCommitted": {
         "level": "MUST",
