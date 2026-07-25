@@ -174,12 +174,14 @@ jobs:
       # every part of that test except the part that shells out. This job has a
       # pinned CLI on a windows-latest matrix leg, which makes it the only place
       # the real install path runs on the platform that leaked.
+      # No credentials: `plugin install <local-dir>` reads a path, not the API.
+      # Verified by running this test with no COPILOT_GITHUB_TOKEN and an
+      # isolated home that hides stored auth. Least privilege, and the
+      # non-CLI-steps credential policy test stays intact without an exemption.
       - name: Run Copilot install isolation smoke
         # always(): run even if an earlier smoke failed so all three report.
         if: always()
         shell: bash
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: >-
           uv run pytest
           tests/integration/test_e2e_install.py::TestCopilotBinaryInstall
