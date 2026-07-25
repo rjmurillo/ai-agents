@@ -418,3 +418,13 @@ jobs:
           }
 
           Write-Host "✓ PR validation passed"
+
+      # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
+      # The burn-down count (93 at audit time, 87 today) had no gate, so it could
+      # climb back silently between extraction PRs. This freezes it: the scanner
+      # exits 1 when the count exceeds --max. Lower --max after each extraction.
+      # Runs on every PR because workflow YAML can change in any PR, and pytest.yml
+      # (which hosts the ruff ratchets) only runs when Python files change.
+      - name: Run ADR-006 run-block ratchet
+        if: steps.should-run.outputs.skip != 'true'
+        run: python3 scripts/ci/adr006_run_block_scanner.py --max 87
