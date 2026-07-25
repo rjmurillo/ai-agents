@@ -115,7 +115,7 @@
       "result": "149 tests pass. Two negative controls: disabling the filter fails 2 exclusion tests; reinstating the ancestor rule fails the session-1832 regression test."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "a2038a99017058e99f45de015e6b1886bb538e65",
   "nextSteps": [
     "Options 1 and 3 in the issue stay open. This change reduces over-counting but does not make the inference exact, because a prose SHA created during the session that the session did not author is still indistinguishable from one it did.",
     "Existing episode artifacts under .agents/memory/episodes are not backfilled; the extractor only runs on logs at commit time. Decide separately whether a one-time re-extraction is worth the churn."
