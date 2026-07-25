@@ -420,3 +420,13 @@ def test_nested_pin_not_grandfathered_by_baseline(tmp_path: Path) -> None:
     report = _run(tmp_path, baseline={unit: "haiku"}, manifest=[])
     assert any("[nested pin]" in v for v in report.violations)
     assert report.backlog == []
+
+
+def test_nested_pin_under_top_level_model_mapping_is_found(tmp_path: Path) -> None:
+    # A top-level `model:` that is a mapping (not a scalar) must still have its
+    # subtree walked to find nested pins like `model.model`. The blanket skip
+    # was broader than needed and missed this case (issue #2840).
+    _skill(tmp_path, "nested-model", "name: nested-model\nmodel:\n  model: claude-opus-4-6")
+    report = _run(tmp_path, baseline={}, manifest=[])
+    assert report.scanned == 1
+    assert any("'claude-opus-4-6' under 'model.model'" in v for v in report.violations)

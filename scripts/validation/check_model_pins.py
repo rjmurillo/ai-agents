@@ -238,7 +238,10 @@ def _nested_pins(typed: dict[str, object]) -> tuple[tuple[str, str], ...]:
     out: list[tuple[str, str]] = []
     for key, value in typed.items():
         if key == "model":
-            continue
+            # Skip scalar model values (the normal top-level pin case) but walk
+            # structured values to catch nested pins like model.model.
+            if isinstance(value, str):
+                continue
         _collect_nested_pins(value, str(key), frozenset(), out)
     return tuple(sorted(out))
 
