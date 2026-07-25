@@ -515,22 +515,23 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 
 
 def write_continue_response(reason: str) -> None:
-    """Emit a Stop-hook continuation so Claude fills the retro before stopping.
+    """Block Stop so the active harness fills the retro before stopping.
 
     Uses the Claude Stop-hook continuation contract:
 
-        response = json.dumps({"continue": True, "reason": reason})
+        response = json.dumps({"decision": "block", "reason": reason})
         print(response)
 
+    Claude Code and Copilot CLI both use this top-level Stop decision shape.
     The harness keeps the turn alive and surfaces ``reason`` to the model.
     The hook uses this shape so the same Stop event carries the retro-fill
     prompt.
     """
-    print(json.dumps({"continue": True, "reason": reason}))
+    print(json.dumps({"decision": "block", "reason": reason}))
 
 
 def _read_stop_payload() -> dict[str, Any]:
-    """Read and parse the Stop/SessionEnd JSON payload from stdin.
+    """Read and parse the Stop JSON payload from stdin.
 
     Draining stdin is mandatory even when we do not use the body. Leaving stdin
     unread can surface as EPIPE/SIGPIPE if the harness pipe buffer fills. Returns an
@@ -562,25 +563,18 @@ def _read_stop_payload() -> dict[str, Any]:
 
 
 def is_subagent_stop(payload: dict[str, Any]) -> bool:
-    """Return True when the Stop/SessionEnd payload came from a subagent.
+    """Return True when a Claude Code Stop payload came from a subagent.
 
     A subagent return must not create or index a parent-session retrospective
     (Issue #3140). The Claude marker is ``subagent_type``, the field Claude
     stamps on subagent payloads (for example ``hook_input.get("subagent_type")
     == "qa"``). Any non-empty ``subagent_type`` marks a subagent stop.
 
-    VERIFIED COPILOT BEHAVIOR (Issue #3140, follow-up Issue #3160): on Copilot
-    CLI, Claude's Stop maps to Copilot's SessionEnd (templates/platforms/
-    copilot-cli.yaml eventRemap ``Stop: SessionEnd``, with ``SubagentStop``
-    dropped). Captured empirically on Copilot CLI 1.0.72 (2026-07-18): a
-    synchronous ``task`` subagent's return does NOT fire a SessionEnd hook. The
-    subagent lifecycle emits internal ``subagent_completed`` telemetry only; the
-    SessionEnd hook fires exactly once, on parent ``session_shutdown``, with
-    payload ``{hook_event_name, session_id, timestamp, cwd, reason}`` and no
-    ``subagent_type``. Copilot subagents therefore never reach this hook, so the
-    ``subagent_type`` check is correct for Claude and a harmless no-op on
-    Copilot. Method: dumped stdin from a --plugin-dir SessionEnd hook while
-    ``explore`` and ``code-review`` synchronous subagents ran to completion.
+    Different than Copilot CLI 1.0.72-1: PascalCase ``Stop`` is Copilot's
+    per-turn ``agentStop`` alias, while PascalCase ``SubagentStop`` is a separate
+    event. ``templates/platforms/copilot-cli.yaml`` therefore maps each event to
+    itself. Copilot does not depend on this Claude-only ``subagent_type`` marker
+    to distinguish the two lifecycle events.
     """
     return bool(payload.get("subagent_type"))
 
@@ -719,7 +713,7 @@ def _create_retro_and_prompt(project_dir: Path, today: str) -> int:
 
 def main() -> int:
     """Generate retrospective on session stop."""
-    # Read the Stop/SessionEnd payload (Issue #3140). Draining stdin is
+    # Read the Stop payload (Issue #3140). Draining stdin is
     # mandatory even on the early-skip paths. An unread stdin can surface as
     # EPIPE/SIGPIPE if the harness pipe buffer fills. The payload was
     # previously discarded, so a subagent stop could not be told from a parent.

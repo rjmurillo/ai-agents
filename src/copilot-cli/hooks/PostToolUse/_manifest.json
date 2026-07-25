@@ -2,11 +2,9 @@
   "event": "PostToolUse",
   "mode": "observe",
   "shims": [
-    "invoke_markdown_auto_lint__Write_Edit_c39898.py",
-    "invoke_observation_sync__mcp_serena_write_memory_d88228.py"
+    "invoke_markdown_auto_lint__Write_Edit_c39898.py"
   ],
   "timeouts": {
-    "invoke_markdown_auto_lint__Write_Edit_c39898.py": 30,
-    "invoke_observation_sync__mcp_serena_write_memory_d88228.py": 30
+    "invoke_markdown_auto_lint__Write_Edit_c39898.py": 30
   }
 }

@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # ADR-071: Plugin Hook Runtime-Contract Verification
 
 ## Status
@@ -7,6 +11,9 @@ Block). The P0 dissent proposed a committed launcher-level fail-open follow-up;
 that was subsequently rejected in favor of prevention plus loud failure (issue
 #2230 closed addressed-by-prevention), and Decision item 5 records the
 fail-closed position. Debate log: `.agents/critique/ADR-071-debate-log.md`.
+The 2026-07-19 amendment review reached consensus with 3 Accept,
+3 Disagree-and-Commit, and 0 Block. Its durable record is the dated amendment
+section in the same debate log.
 
 ## Date
 
@@ -34,12 +41,14 @@ days across versions 0.3.0 through 0.5.6.
 
 Three properties of this incident make it ADR-worthy rather than a one-off fix:
 
-1. **The runtime contract was undocumented and assumed.** Copilot CLI's hook
-   working directory and its plugin-root environment variables are not in the
-   public hooks reference. The first fix (PR #2205, session 1872) assumed
+1. **The runtime contract was undocumented and assumed.** At incident time,
+   Copilot CLI's hook working directory and plugin-root variables were absent
+   from the public references. The first fix (PR #2205, session 1872) assumed
    `COPILOT_PLUGIN_ROOT` by analogy to `CLAUDE_PLUGIN_ROOT` and shipped it
    unverified. Empirical probing (session 1873) against GitHub Copilot CLI
-   1.0.57 and Claude Code 2.1.159 established the actual contract.
+   1.0.57 and Claude Code 2.1.159 established the behavior. The official
+   Copilot CLI changelog now documents the plugin-root variables, and the
+   current hook reference defines `cwd` as repository-relative or absolute.
 2. **No gate executed the artifact.** Every test validated structure (valid
    JSON, correct event shape, `command` present). The one CI gate that touches
    hooks, `validate-plugin-manifests` (2026-05-05), checks schema, not path
@@ -56,13 +65,17 @@ Measured empirically (session 1873; probe plugin installed into each CLI, hook
 dumped its environment and executed the generated command from a non-plugin
 cwd). Recorded in Serena memory `decision-copilot-cli-hook-plugin-root-contract`.
 
+The bullets immediately below are version-scoped to Copilot CLI 1.0.57 and
+Claude Code 2.1.159. For current Copilot behavior, read the
+[Copilot CLI 1.0.72-1 amendment](#2026-07-19-amendment-copilot-cli-1072-1)
+before applying them.
+
 - **GitHub Copilot CLI 1.0.57**: launches a plugin hook with `cwd` = the user's
   working directory. Exports `COPILOT_PLUGIN_ROOT` and a `CLAUDE_PLUGIN_ROOT`
   alias (and a bare `PLUGIN_ROOT`), all set to the plugin install directory
-  (the directory that contains `hooks/`). These variables are undocumented in
-  the public hooks reference but present. On the Linux cloud agent only the
-  `bash` field is honored; `powershell` is ignored. On Windows the `powershell`
-  field is used.
+  (the directory that contains `hooks/`). The official changelog now documents
+  these variables. On the Linux cloud agent only the `bash` field is honored;
+  `powershell` is ignored. On Windows the `powershell` field is used.
 - **Claude Code 2.1.159**: launches a plugin hook with `cwd` = the user's
   working directory and exports `CLAUDE_PLUGIN_ROOT` set to the plugin install
   directory.
@@ -80,16 +93,107 @@ PR-form anchored=[${...}/hooks/probe_target.txt] exists=YES
 bare ./hooks/probe_target.txt exists=NO
 ```
 
-**These variables are NOT a vendor contract.** They are undocumented behavior of
-the measured CLI builds. If a future CLI release renames or drops them, the bash
-form `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}` expands to `/hooks/...` (an
-absolute path off the filesystem root) and fails at the launcher exactly as the
-original bug did. Anchoring is therefore necessary but not durable on its own; it
-reduces the probability of this bug shape. The durable defense is prevention plus
-loud failure: the runtime-contract gate (Decision item 2) catches a broken
-launcher before release, and a launcher failure that still escapes must fail loud
-so it is detected and fixed, not silently swallowed. Decision item 4
-re-verifies on a material CLI version change.
+### 2026-07-19 amendment: Copilot CLI 1.0.72-1
+
+Isolated `--plugin-dir` probes corrected assumptions that were valid only for
+the 1.0.57 and 1.0.58 incident era. The curated EMPIRICAL probe summary for
+every probe claim below is
+[probe-evidence.md, section 4](../../.claude/skills/agent-harness-reference/references/probe-evidence.md#4-copilot-cli-1072-1-contract-correction).
+The official DOCS-SAY sources are pinned in
+[official-hook-contracts.md](../../.claude/skills/agent-harness-reference/references/official-hook-contracts.md),
+including the
+[GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)
+and a commit-pinned `github/copilot-cli` changelog.
+
+- **EMPIRICAL:** PascalCase PreToolUse matcher `Bash` fired only for Bash;
+  nonmatching Edit did not spawn it
+  ([curated probe summary](../../.claude/skills/agent-harness-reference/references/probe-evidence.md#4-copilot-cli-1072-1-contract-correction)).
+- **DOCS-SAY:** Current native and Claude-compatible hook registrations support
+  matchers. The official changelog records matcher fixes across multiple
+  releases. These are vendor statements, not probe results.
+- **EMPIRICAL:** PascalCase Stop and native `agentStop` each fired once per
+  continued prompt leg. SessionEnd fired separately with `reason=complete`
+  after each process leg. PascalCase SubagentStop fired after a child. Current
+  docs list these compatibility aliases, but the probe conflicts with the docs
+  statement that the built-in `general-purpose` agent emits no subagent events
+  ([curated probe summary](../../.claude/skills/agent-harness-reference/references/probe-evidence.md#4-copilot-cli-1072-1-contract-correction)).
+- **EMPIRICAL:** A Claude top-level
+  `{"decision":"approve","reason":"R"}` was ignored by PermissionRequest and
+  the tool was denied. Copilot
+  `{"behavior":"allow","message":"R","interrupt":false}` approved under native
+  and PascalCase registrations. No-output exit 0 denied in noninteractive
+  prompt mode. Empty output invokes normal host permission handling; the denial
+  is mode-dependent evidence, not an empty-output deny contract
+  ([curated probe summary](../../.claude/skills/agent-harness-reference/references/probe-evidence.md#4-copilot-cli-1072-1-contract-correction)).
+- **EMPIRICAL:** PreToolUse exit 2 denied and skipped the tool. A
+  `timeoutSec: 2` timeout failed open and the tool executed. The old
+  timeout-denial statement is HISTORICAL, not the current host contract
+  ([curated probe summary](../../.claude/skills/agent-harness-reference/references/probe-evidence.md#4-copilot-cli-1072-1-contract-correction)).
+- **DOCS-SAY:** PreCompact exists in the native event set.
+  **EMPIRICAL:** Its trigger probe was INCONCLUSIVE
+  ([curated probe summary](../../.claude/skills/agent-harness-reference/references/probe-evidence.md#4-copilot-cli-1072-1-contract-correction)).
+
+The original 1.0.57 cwd and plugin-root measurements, and the 1.0.58 payload
+casing measurements, remain valid evidence for those versions. This amendment
+does not weaken command anchoring, runtime artifact execution, or loud
+launcher failure. Those prevention controls still hold.
+
+Current official docs define hook `cwd` as repository-relative or absolute.
+The 1.0.72-1 probe did not independently measure the effect of generated
+`cwd: "."` for plugin hooks. Generated launchers do not use `cwd` to locate
+plugin scripts. They use the documented plugin-root variables.
+
+The consolidated PreToolUse dispatcher has a host-timeout residual. The host
+owns the aggregate timeout, and the measured 1.0.72-1 host fails open after a
+timeout. No in-process watchdog is implemented. After the 2026-07-22 hook
+purge, the active manifest contains one shim with a 90-second configured
+timeout. The generated host entry requests 95 seconds, including five seconds
+of dispatcher headroom. A hung dispatcher can therefore allow the tool without
+completing the only active guard. The probe tested only 2 seconds. No evidence
+shows whether the host grants, caps, or enforces 95 seconds.
+
+Copilot parses at most one final JSON document per command hook. The active
+observe dispatcher captures nonblank stdout from one successful PostToolUse
+shim and emits one `additionalContext` object when captured output exists. It
+separates shim output with one blank line, does not preserve per-shim
+attribution, and discards partial stdout from failed observers. The vendored
+plugin currently has no active SessionStart,
+UserPromptSubmit, PreCompact, PostToolUseFailure, Stop, or PermissionRequest
+registration. Generator support for those event contracts is dormant and does
+not define current runtime behavior. Stderr is not a documented model-context
+path. A future `modifiedResult` or pre-structured JSON producer must add an
+event-specific merger or remain a direct registration.
+
+This amendment relies on the isolated probe transcript above. It does not
+claim that the committed authenticated
+`tests/e2e/test_cli_hook_e2e.py` harness was run for these observations.
+
+The 2026-07-22 supply-chain amendment pins the nightly smoke to reviewed Claude
+Code and Copilot CLI npm versions. Repository credentials are available only to
+the two real-CLI execution steps, never checkout, setup, or npm lifecycle
+scripts. Renovate opens non-automerge updates for both pins. A new vendor
+release therefore becomes a reviewable top-level version-change event instead
+of receiving broad job-scoped credentials during installation. npm still
+resolves each package's transitive dependency tree, so the pins are not a full
+supply-chain lock.
+
+The current pins are Copilot CLI 1.0.73 and Claude Code 2.1.217, with the
+workflow as their authoritative source. Both committed real-CLI smoke files ran
+against those versions on 2026-07-22: three Copilot cases and two Claude cases
+passed. An uncontrolled Copilot version check auto-updated an exact
+`@github/copilot@1.0.73` install to binary 1.0.74-0. A fresh run with
+`--no-auto-update` stayed on 1.0.73. The shared smoke helper now inserts that
+flag on every Copilot invocation. The empirical transcript is summarized in
+`agent-harness-reference/references/probe-evidence.md`.
+
+The plugin-root variables are now an official changelog contract. A future CLI
+can still change that contract. If both fallback variables disappear, the bash
+form `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}` expands to `/hooks/...` and
+fails at the launcher. Anchoring remains necessary but not sufficient. Static
+validation and the no-auth runtime test catch artifact path defects under the
+simulated contract. Only an executed real-CLI smoke detects vendor launcher
+drift. An escaped launcher failure stays loud. Decision item 4 re-verifies on a
+material CLI version change.
 
 ## Decision
 
@@ -103,6 +207,9 @@ re-verifies on a material CLI version change.
    (`.github/workflows/validate-plugin-manifests.yml`, triggered on any
    `**/hooks/hooks.json` or manifest change), so a `--no-verify` push, a fork PR
    without local hooks, or a merge cannot ship an unanchored path past CI.
+
+   Generated `cwd: "."` is not a plugin-script locator. This decision does not
+   depend on its runtime interpretation.
 
 2. **Customer-facing generated artifacts MUST be runtime-verified before
    release.** Codified as `.claude/rules/generated-artifacts.md`: verify the
@@ -124,17 +231,27 @@ re-verifies on a material CLI version change.
    never be masked by a wrapper that exits 0 with only a warning. A silent exit 0
    disables the hook without anyone knowing, trading a loud, learnable bug for a
    silently lost protection (the silent-failure anti-pattern). The defense against
-   the environment-wedge is prevention: anchoring (item 1), the runtime-contract
-   gate (item 2), and the real-CLI smoke catch a broken launcher before release.
+   the environment-wedge is prevention: anchoring and the runtime-contract gate
+   catch artifact defects; an executed real-CLI smoke catches vendor launcher
+   drift. Release evidence must distinguish those two coverage levels.
    Launcher-level fail-open was proposed and rejected on this basis; issue #2230
    is closed addressed-by-prevention.
+
+6. **Authenticated smoke MUST install reviewed top-level CLI versions before
+   receiving credentials.** `.github/workflows/nightly-cli-smoke.yml` installs
+   exact npm versions with no smoke credentials in job or install-step scope.
+   Only the real-CLI execution steps receive `ANTHROPIC_API_KEY` and
+   `COPILOT_GITHUB_TOKEN`. Renovate tracks both pins but cannot auto-merge their
+   updates. Every Copilot smoke command also passes `--no-auto-update`; the npm
+   pin alone does not hold the runtime binary version. Each accepted bump is a
+   material host-version change under Decision item 4.
 
 ## Consequences
 
 ### Positive
 
-- A non-resolving hook is caught at three distinct layers, two of which run in
-  CI with no auth:
+- A non-resolving hook is covered by three distinct layers. Two run in CI with
+  no auth. The third supplies vendor-runtime evidence only when it executes:
   - `scripts/validation/validate_hook_anchoring.py`: validates the committed
     artifact against the generator's shape. Runs pre-push and in CI
     (`validate-plugin-manifests.yml`). No auth.
@@ -142,10 +259,11 @@ re-verifies on a material CLI version change.
     generated command via the shell under a non-plugin cwd with a negative
     control. Runs in pytest CI. No auth. Verifies path resolution, NOT the real
     CLI launcher semantics.
-  - `tests/e2e/test_cli_hook_e2e.py`: installs the plugin into the real Copilot
-    and Claude CLIs and runs a hook. Needs auth/credits, so it is forced in
-    pre-push on hook-path changes and skips loudly elsewhere; full cross-platform
-    (Windows PowerShell) coverage is tracked in #2231.
+  - `tests/e2e/test_cli_hook_e2e.py`: committed harness for installing the
+    plugin into real Copilot and Claude CLIs and running a hook. It needs
+    auth/credits. Pre-push selects it on hook-path changes, and it skips loudly
+    when prerequisites are absent. This ADR does not claim the harness was run
+    for the 1.0.72-1 amendment.
 - The runtime contract is documented, so the next maintainer does not re-derive
   it or assume it from analogy.
 - The verification requirement generalizes to other customer-facing generated
@@ -154,11 +272,23 @@ re-verifies on a material CLI version change.
 ### Negative / Costs
 
 - The real-CLI e2e needs the CLIs plus authentication and model credits, which
-  bare CI lacks. It runs locally (forced in pre-push) and skips loudly elsewhere.
-  Full cross-platform coverage (Windows PowerShell field) requires a separate
-  authenticated release/nightly smoke, which is deferred (needs secrets
-  governance).
-- The forced pre-push e2e adds latency and credit cost on hook-path changes.
+  bare CI lacks. Pre-push selects it, but absent prerequisites cause a loud
+  skip rather than evidence of execution. The trusted nightly workflow runs
+  authenticated cross-platform smoke and fails when the smoke skips, but a
+  branch run still needs explicit evidence before claiming vendor-runtime
+  verification.
+- When invoked with prerequisites, the selected pre-push e2e adds latency and
+  credit cost on hook-path changes.
+- A vendor release is not exercised until its pinned update is reviewed and
+  merged. This delay prevents a newly published npm package from receiving
+  repository credentials before review.
+- Top-level pins do not lock transitive npm dependencies. A compromised
+  transitive install could alter the CLI that later receives credentials. The
+  current control removes credentials from package installation and makes
+  top-level release changes reviewable; it is not an egress containment boundary.
+- The nightly is a lagging, pin-specific signal. It does not test a vendor
+  release before the pin update merges. Anchoring, static and simulated runtime
+  gates, and loud launcher failure remain the user protection during that gap.
 
 ### Residual risk (mitigated by prevention and loud failure)
 
@@ -166,17 +296,22 @@ Anchoring fixes the known path bug; a *different* future launcher failure (a
 renamed/dropped vendor env var, a script deleted by a partial update, an
 interpreter off PATH) could still occur. The defense is not a launcher fail-open
 (which would silently disable the hook); it is prevention plus detection: the
-runtime-contract gate (Decision item 2) and the real-CLI smoke catch a broken
-launcher before release, and any launcher failure that still escapes fails loud
-so it is detected and fixed rather than masked. Launcher-level fail-open was
-considered and rejected (issue #2230, closed addressed-by-prevention).
+runtime-contract gate (Decision item 2) catches the simulated contract, and an
+executed real-CLI smoke can catch launcher-specific drift. Any launcher failure
+that still escapes fails loud so it is detected and fixed rather than masked.
+Launcher-level fail-open was considered and rejected (issue #2230, closed
+addressed-by-prevention).
 
-### Tracked follow-ups (not silent deferrals)
+### Delivered follow-ups
 
-- **Windows PowerShell contract simulation in CI** (no auth needed), **glob-based
-  artifact discovery in the validator** (so a new hook-bearing platform fails
-  closed), and the **authenticated nightly cross-platform smoke** (needs secrets
-  governance): issue #2231.
+Issue #2231 is closed. The Windows PowerShell simulation runs in
+`.github/workflows/pytest.yml`; `validate_hook_anchoring.py` discovers platform
+hook artifacts from template configuration; and
+`.github/workflows/nightly-cli-smoke.yml` runs authenticated smoke from trusted
+contexts and fails if the smoke does not execute. It installs exact reviewed
+top-level CLI versions, scopes credentials to execution steps, and relies on
+non-automerge Renovate updates to surface new releases. This is version-specific
+evidence after a pin update merges, not an immediate latest-release tripwire.
 
 (Launcher-level fail-open was considered and rejected; issue #2230 is closed
 addressed-by-prevention. The defense is prevention plus loud failure, per Decision
@@ -194,19 +329,20 @@ item 5.)
 
 ## Reversibility and Vendor Lock-in
 
-- **Lock-in level: Medium.** The anchoring depends on undocumented host-CLI
-  behavior (Copilot CLI's `COPILOT_PLUGIN_ROOT`/`CLAUDE_PLUGIN_ROOT`, cwd
-  semantics; Claude Code's `CLAUDE_PLUGIN_ROOT`). There is no standards-based
-  alternative; the host owns the contract.
+- **Lock-in level: Medium.** The anchoring depends on vendor-owned host
+  contracts: Copilot CLI's documented plugin-root variables and cwd semantics,
+  plus Claude Code's `CLAUDE_PLUGIN_ROOT`. There is no host-neutral standard.
 - **Exit trigger:** a host CLI version that changes the cwd semantics or renames
-  or drops the plugin-root variables. Detection: the real-CLI e2e (#2231 for
-  cross-platform) and Decision item 4's re-verification on a material version
-  bump.
+  or drops the plugin-root variables. Detection: Decision item 4's
+  re-verification on a material version bump and the real-CLI e2e when it runs
+  (nightly cross-platform workflow).
 - **Mitigation:** the runtime-contract test and the recorded decision memory make
-  a contract change observable; a launcher failure fails loud (caught by the gate
-  before release, or surfaced at runtime) instead of being silently swallowed.
+  an artifact defect observable; a launcher failure fails loud. Vendor-runtime
+  drift is caught by an executed real-CLI smoke or surfaced at runtime instead
+  of being silently swallowed.
   The decision is reversible: if the vendor publishes a stable mechanism, swap the
-  anchor token in one generator function (`_build_copilot_entry`) and regenerate.
+  anchor token in
+  `build/scripts/generate_hooks_emit.py::_build_copilot_entry` and regenerate.
 
 ## References
 
@@ -216,10 +352,24 @@ item 5.)
 - `.agents/governance/FAILURE-MODES.md`. FM #11.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test.
-- `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke (forced in pre-push).
+- `tests/e2e/test_cli_hook_e2e.py`. Prerequisite-dependent real-CLI smoke
+  selected by pre-push.
 - Serena memory `decision-copilot-cli-hook-plugin-root-contract`. Verified contract.
 - `.github/workflows/validate-plugin-manifests.yml`. Server-side anchoring gate.
+- `.github/workflows/nightly-cli-smoke.yml`. Authenticated, version-pinned
+  cross-platform vendor-runtime smoke.
+- `tests/test_nightly_cli_smoke_security.py`. CLI pin and credential-scope
+  regression contract.
+- `tests/e2e/copilot_hook_probe.py`. Shared no-auto-update Copilot command
+  contract.
+- `renovate.json`. Non-automerge update path for the two CLI pins.
 - `.agents/critique/ADR-071-debate-log.md`. Six-agent review debate.
+- `.claude/skills/agent-harness-reference/references/probe-evidence.md`.
+  Curated probe summary for the 1.0.72-1 amendment.
+- [Pinned Copilot CLI changelog](https://raw.githubusercontent.com/github/copilot-cli/fd24cea5cb11da4e630485ff2d9269318b8c2a4e/changelog.md).
+  Official DOCS-SAY version transitions and plugin-root variables.
+- [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference).
+  Official DOCS-SAY event and behavior contract.
 - Issues #2205 (fix), #2223 (module-size/complexity debt), #2230 (launcher
-  fail-open, closed: rejected, addressed-by-prevention), #2231 (Windows
-  contract sim, glob artifact discovery, authenticated nightly smoke).
+  fail-open, closed: rejected, addressed-by-prevention), #2231 (closed:
+  Windows contract simulation, artifact discovery, authenticated smoke).

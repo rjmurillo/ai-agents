@@ -4,14 +4,51 @@
     "config:recommended"
   ],
   "dependencyDashboard": false,
-  "minor": {
-    "automerge": true
-  },
-  "patch": {
-    "automerge": true
-  },
-  "major": {
-    "addLabels": ["renovate-major"]
-  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github\\/workflows\\/nightly-cli-smoke\\.yml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s+[A-Z_]+_VERSION: '(?<currentValue>[^']+)'"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchPackageNames": [
+        "!@anthropic-ai/claude-code",
+        "!@github/copilot"
+      ],
+      "automerge": true,
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "addLabels": [
+        "renovate-major"
+      ]
+    },
+    {
+      "matchPackageNames": [
+        "@anthropic-ai/claude-code",
+        "@github/copilot"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch"
+      ],
+      "automerge": false,
+      "minimumReleaseAge": "7 days"
+    }
+  ],
   "platformAutomerge": true
 }

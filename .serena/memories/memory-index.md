@@ -19,7 +19,7 @@
 [Scripting and Testing]
 |powershell ps1 psm1 module pester test discovery isolation variable scope script: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
-|copilot hook generation matcher shim stale cleanup NO-REGEN windows transaction fail closed root: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (891)
+|copilot hook generation matcher shim stale cleanup NO-REGEN windows transaction fail closed root: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (1809)
 |test exit code pytest pester error failed passed block commit: [testing/testing-exit-code-interpretation](testing/testing-exit-code-interpretation.md) (628)
 |regex pattern match escape lookahead anchor quantifier: [utilities/utilities-regex](utilities/utilities-regex.md) (548)
 
@@ -78,7 +78,7 @@
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (935), [ci-infrastructure-observations](ci-infrastructure-observations.md) (890)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (349), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (391), [eval-multiprovider-transport](eval-multiprovider-transport.md) (391), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
+|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent mirror recipe generate_agents drift eval multiprovider transport EVAL_PROVIDER openai github-models LSP-first enforcement ADR-062 conditional fail-open: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (391), [eval-multiprovider-transport](eval-multiprovider-transport.md) (391), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)

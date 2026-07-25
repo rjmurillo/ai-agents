@@ -10,6 +10,18 @@ Test: $ARGUMENTS
 
 If $ARGUMENTS is empty, test the current branch diff against the base branch.
 
+## Cross-Harness Hook Routing
+
+If the diff touches Claude Code or GitHub Copilot CLI hooks, dispatchers,
+generated shims, event translation, or hook output:
+
+1. Invoke `Skill(skill="agent-harness-reference")` to load the pinned contract.
+2. Run the verification path in
+   `Skill(skill="ai-agents-portability-campaign")`.
+3. Require unit coverage for translation plus a real-harness smoke test for
+   each affected harness.
+4. Treat documentation silence as an unknown to probe, not permission to guess.
+
 ## Step 0: Classify PR Type
 
 Detect the base branch from `gh pr view --json baseRefName` or fall back to `main`. Run `git diff origin/<base-branch> --name-only` and classify changed files:

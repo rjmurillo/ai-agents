@@ -160,9 +160,9 @@ the task in front of it, instead of every persona prompt hardcoding its own
 ## Post-eval hook
 
 `.agents/hooks/post-eval.py` is the bridge from eval outcomes to skillbook
-evidence. It is not a harness lifecycle hook (it is not one of the
-`SessionStart` / `PreToolUse` / `PostToolUse` / `Stop` / `PreCompact` events
-in `hooks.yaml`). The eval pipeline invokes it after a run:
+evidence. It is not a harness lifecycle hook. Runtime registrations live in
+`.claude/settings.json` and the generated Copilot mirror. The eval pipeline
+invokes this script after a run:
 
 ```bash
 python3 .agents/hooks/post-eval.py \

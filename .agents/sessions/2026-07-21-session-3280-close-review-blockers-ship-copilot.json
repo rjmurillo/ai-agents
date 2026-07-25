@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3280,
+    "date": "2026-07-21",
+    "branch": "fix/copilot-hook-contract",
+    "startingCommit": "45d788ec45",
+    "objective": "Close review blockers and ship Copilot hook contract PR"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena get_symbols_overview succeeded against the fix/copilot-hook-contract worktree"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the current semantic-tool manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; confirmed it remains read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Available skill catalog and prior invoked-skill list reviewed; session-init invoked for this continuation"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read; GitHub work remains routed through the github and ship skills"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and matching path rules read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded copilot-hooks-observations, copilot-hook-generation-invariants, decision-claude-hook-group-dispatch, and dispatcher-payload-ceiling"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/copilot-hook-contract"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/copilot-hook-contract"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree was clean at 45d788ec457976f2b8c594653bc6fcf76845bfdd before this session log was created"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "45d788ec45"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items are complete. Push and PR creation remain external ship actions."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status --short and git diff --name-only show no .agents/HANDOFF.md change."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Verified the committed hook contract memories under .serena/memories. They already contain the current authoritative references, observed boundaries, and generation invariants."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx --yes markdownlint-cli2 on the changed Markdown path set exited 0. Repository configuration excluded the changed .agents and skill paths, so it selected zero files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All implementation and review-record changes are included through the closing metadata commit. Final substantive runtime tip: 02d20f014b4aad9dd0708f0796b8879e17fd654c."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py passes for this session record."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Implementation, correction, generation, validation, and review tasks are complete. Only push and PR creation remain."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked. Review findings and accepted WARN debt are recorded in the ADR debate log and this session work log."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-21T18:30:00Z",
+      "action": "Reconciled the hook contract branch with origin/main and preserved atomic commits.",
+      "result": "Branch contains 31 commits above origin/main with no merge conflict or remote branch."
+    },
+    {
+      "time": "2026-07-21T19:15:00Z",
+      "action": "Bound indexed Python syntax reads and aligned operational hook contract guidance.",
+      "result": "Added a 10-second git show timeout, regression coverage, current hook counts, launcher guidance, matcher guidance, and generated mirrors."
+    },
+    {
+      "time": "2026-07-21T20:20:00Z",
+      "action": "Reviewed the ADR-074 amendment through architect, critic, independent thinker, security, analyst, and high-level advisor roles.",
+      "result": "Review reached 3 Accept, 3 Disagree-and-Commit, and 0 Block. The ADR and debate log now state the supported security claim."
+    },
+    {
+      "time": "2026-07-21T21:45:00Z",
+      "action": "Ran final review across 15 axes and triaged every reported concern.",
+      "result": "One observability blocker remained. QA, code-quality assessment, golden-principles, and taste-lints retained advisory WARN findings."
+    },
+    {
+      "time": "2026-07-21T22:25:00Z",
+      "action": "Added content-free observer stderr telemetry to discard-policy Copilot hook events.",
+      "result": "SessionStart and PreCompact expose E_OBSERVER_STDERR status without leaking branch-controlled output. Fail-open behavior remains unchanged."
+    },
+    {
+      "time": "2026-07-21T23:35:00Z",
+      "action": "Regenerated artifacts and ran final validation.",
+      "result": "Full suite passed with 14,249 passed, 23 skipped, and 45 expected failures. Ruff, mypy, generation checks, plugin checks, security scan, dispatcher tests, focused contract tests, and installed-plugin E2E passed."
+    },
+    {
+      "time": "2026-07-21T23:50:00Z",
+      "action": "Closed the final review and session records.",
+      "result": "Final review verdict is WARN with no blockers. Remaining warnings record accepted dispatcher complexity and advisory scanner debt."
+    },
+    {
+      "time": "2026-07-21T09:30:46Z",
+      "action": "Resolved the pre-push mypy blocker in the Claude dispatcher launcher.",
+      "result": "Typed the dynamically imported return boundaries without casts or suppressions, preserved fail-closed behavior, bumped both project-toolkit manifests to 0.6.95, and passed mypy, Ruff, 98 dispatcher tests, syntax-floor validation, manifest checks, code review, and silent-failure review."
+    }
+  ],
+  "endingCommit": "02d20f014b4aad9dd0708f0796b8879e17fd654c",
+  "nextSteps": [
+    "Push fix/copilot-hook-contract.",
+    "Create the hook contract PR with issue references, evidence, and commit-limit-bypass label."
+  ]
+}

@@ -94,6 +94,8 @@ evidence (failing tests, widening diff), not on speculation.
 | Push, ship, "open a PR" | /ship (or /push-pr for push-only) |
 | "what do we know about X" | Skill: memory-search |
 | Research an unfamiliar topic | Skill: context-gather, then research-and-incorporate |
+| Ask about Claude Code or Copilot CLI hook contracts | Skill: agent-harness-reference |
+| Port, implement, or change cross-harness hooks | Skill: ai-agents-portability-campaign |
 | Code quality, health check | Skill: quality-grades (repo-wide) or review (pre-merge) |
 | "Did I touch security-critical files?" | Skill: security-detection |
 | Review a diff or snippet for vulnerabilities | Skill: security-review; injection scan via security-scan |

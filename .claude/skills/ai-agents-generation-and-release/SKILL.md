@@ -70,7 +70,11 @@ Facts that prevent confusion:
 
 - `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`. `.claude/` is input only.
 - Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md")` (build_all.py:722). `--check` only flags staleness inside those prefixes.
-- The hooks generator DROPS events Copilot CLI does not support. A clean run on 2026-07-03 reported `Written: 49  Dropped: 4` (example drop: SubagentStop). Dropped is normal, not an error.
+- The hooks generator maps Stop, SubagentStop, PermissionRequest, and
+  PreCompact to their PascalCase compatibility names. Stop and SubagentStop
+  remain direct host registrations because their structured decisions require
+  host-level merging. A reported drop needs an identified source registration;
+  never assume it is normal.
 - Every run overwrites the audit log at `build/audit/GENERATION-AUDIT.md` (gitignored via `/build/audit/`, .gitignore:66). Read it to see what each generator did.
 
 ### Phase 2: Regenerate After Editing a Canonical Surface
@@ -111,17 +115,45 @@ When a drift gate is red, the output shows the DIFFERENCE, not the DIRECTION. As
 
 An emergency bypass marker for the drift gate exists but requires a reason and approval; see `ai-agents-config-catalog`. Route the decision through `ai-agents-change-control`.
 
+Run the installed Copilot hook E2E in an isolated home. This executes the
+marketplace layout and generated hook scripts without changing live plugin state:
+
+```bash
+E2E_HOME="$(mktemp -d)"
+HOME="$E2E_HOME" COPILOT_HOME="$E2E_HOME/.copilot" \
+  copilot plugin marketplace add "$PWD"
+HOME="$E2E_HOME" COPILOT_HOME="$E2E_HOME/.copilot" \
+  copilot plugin install project-toolkit@ai-agents
+HOME="$E2E_HOME" COPILOT_HOME="$E2E_HOME/.copilot" \
+  RUN_INSTALLED_PLUGIN_HOOK_E2E=1 uv run pytest \
+  tests/e2e/test_installed_plugin_hook_e2e.py -q
+```
+
+Do not run this setup in the live Copilot home. Copilot CLI 1.0.72-1 was observed
+removing the marketplace registration for `copilot plugin uninstall
+project-toolkit` while leaving the `_direct/project-toolkit` cache. The active
+session then lost its hook scripts and denied matching tools until the
+marketplace plugin was reinstalled.
+
 ### Phase 4: Plugin Versioning Discipline
 
-Three plugin manifests exist (verify: `find . -name plugin.json -path "*claude-plugin*"`):
+Three plugin manifests exist (verify:
+`find . -name plugin.json -path "*claude-plugin*"`):
 
-| Tree | Manifest | Plugin name | Version (as of 2026-07-03) |
-|------|----------|-------------|----------------------------|
-| `.claude/` | `.claude/.claude-plugin/plugin.json` | project-toolkit (Claude) | 0.5.254 |
-| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | project-toolkit (Copilot) | 0.5.254 |
-| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | claude-agents | 0.3.29 |
+| Tree | Manifest | Plugin name | Version source |
+|------|----------|-------------|----------------|
+| `.claude/` | `.claude/.claude-plugin/plugin.json` | project-toolkit (Claude) | Read this manifest |
+| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | project-toolkit (Copilot) | Read this manifest |
+| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | claude-agents | Read this manifest |
 
-The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): when any CONTENT file under a packaged plugin's source dir changes, that tree's `plugin.json` version MUST be strictly greater than at the base ref. A metadata-only edit to plugin.json needs no other change; a bump with no content change is always allowed. Motivating failure: PR #1942 deleted a skill without bumping, installed caches kept serving the dead skill until PR #2114 caught it by hand.
+Current values are intentionally not copied into this skill. Read each manifest
+at execution time. The rule (docstring of
+`build/scripts/validate_plugin_version_bump.py`): when any CONTENT file under a
+packaged plugin's source dir changes, that tree's `plugin.json` version MUST be
+strictly greater than at the base ref. A metadata-only edit to plugin.json needs
+no other change; a bump with no content change is always allowed. Motivating
+failure: PR #1942 deleted a skill without bumping, installed caches kept serving
+the dead skill until PR #2114 caught it by hand.
 
 Practical consequences:
 
@@ -132,7 +164,10 @@ Practical consequences:
 
 ### Phase 5: npm Release Path
 
-The npm surface is `packages/ai-agents-cli` (package `@rjmurillo/ai-agents`, version 0.1.0 as of 2026-07-03). It vendors the Claude kit into consumer repos. Release procedure (source: `RELEASING.md`, repo root):
+The npm surface is `packages/ai-agents-cli` (package
+`@rjmurillo/ai-agents`; read `package.json` for the current version). It vendors
+the Claude kit into consumer repos. Release procedure (source: `RELEASING.md`,
+repo root):
 
 1. Bump `packages/ai-agents-cli/package.json` version. Tag/version mismatch is a listed failure mode.
 2. Local sanity: `cd packages/ai-agents-cli && bun run build` (runs `bun build src/cli.ts --outdir dist --target node`), `bun test`, `tsc --noEmit` via `bun run typecheck`.
@@ -152,8 +187,9 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 | Syncing lib with only one of the two steps | `sync_plugin_lib.py` feeds `.claude/lib/`; `build_all.py` feeds `src/copilot-cli/lib/`; missing either fails CI | Run both, in that order |
 | Bumping one project-toolkit manifest | Parity gate fails (#2222) | Bump `.claude` and `src/copilot-cli` manifests to the same value |
 | Skipping the plugin bump because "it is just a skill tweak" | Installed caches key off version; consumers keep stale content (PR #1942) | Strictly-greater bump on any content change |
-| Assuming `Dropped: N` in hooks generation is a failure | Drops are unsupported Copilot events, by design | Read `build/audit/GENERATION-AUDIT.md` for the drop list |
+| Treating `Dropped: N` as normal without checking the source | Current source registrations all map to Copilot events; an unexplained drop means contract drift | Read `build/audit/GENERATION-AUDIT.md`, identify the source registration, and require an explicit `eventDrop` decision |
 | Running `build_all.py` with bare `python3` in a fresh shell | PyYAML lives in the venv; import fails | `uv run python build/scripts/build_all.py` |
+| Running installed-plugin E2E against live `~/.copilot` | Version skew and ambiguous uninstall mutate active hooks; a missing hook root can deny every matching tool | Set both `HOME` and `COPILOT_HOME` to one isolated directory and register the worktree marketplace there |
 | Treating `src/claude/` as generated | It is the manual exception (ADR-036); no generator will save you | Hand-apply changes there and bump its manifest |
 
 ## Verification
@@ -180,7 +216,7 @@ Verified 2026-07-03 against the working tree. Volatile facts and how to re-check
 | build_all exit codes 0/1/2/3 | build/scripts/build_all.py:11-21 | `sed -n '11,21p' build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:12-17,395-422 | `python3 build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:26-30 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| Plugin versions 0.5.254 / 0.5.254 / 0.3.29 | the three plugin.json files | `find . -path "*claude-plugin/plugin.json" -exec grep -H version {} \;` |
+| Plugin manifest locations and current values | the three plugin.json files | `find . -path "*claude-plugin/plugin.json" -exec grep -H version {} \;` |
 | Strictly-greater bump rule, PR #1942 story | build/scripts/validate_plugin_version_bump.py:1-40 | `head -40 build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
 | Drift CI wiring | .github/workflows/validate-generated-agents.yml:123,132,151,164; agent-drift-detection.yml:143-168 | `grep -n "python3" .github/workflows/validate-generated-agents.yml` |

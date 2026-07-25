@@ -1,5 +1,9 @@
 # PreToolUse Advisory-Envelope Contract (#2468)
 
+Scope: Claude Code only. Copilot CLI uses top-level `permissionDecision`,
+`permissionDecisionReason`, `modifiedArgs`, and `additionalContext` fields.
+Never copy this Claude envelope into a Copilot hook response.
+
 ## Contract
 
 A PreToolUse hook that wants to surface advisory text to the model (not block/approve) MUST emit:

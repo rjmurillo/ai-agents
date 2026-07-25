@@ -1,17 +1,22 @@
 ---
-applyTo: build/scripts/**,templates/**,src/copilot-cli/**,.github/instructions/**,.claude/hooks/**,.claude/rules/**,tests/build_scripts/**,tests/e2e/**
+applyTo: .claude/agents/**,.claude/commands/**,build/scripts/**,templates/**,src/copilot-cli/**,.github/agents/**,.github/prompts/**,.github/skills/**,.github/instructions/**,.claude/hooks/**,.claude/rules/**,.claude/skills/**,tests/build_scripts/**,tests/e2e/**
 ---
 
 # Customer-Facing Generated Artifacts
 
 This rule exists because of a P0 incident. A generator produced the Copilot CLI
-plugin's `hooks.json` with a bare `./hooks/...` command path. Copilot CLI runs a
-plugin hook with `cwd` set to the user's working directory, not the plugin
-install dir, so every hook failed at launch with "No such file or directory".
-The failure happened at the launcher, before any in-script fail-open handler
-could run, so it wedged the customer's environment. The only recovery was to
-uninstall the plugin. The broken form shipped for 33 days across six releases
-(v0.3.0 to v0.5.6). See `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
+plugin's `hooks.json` with a bare `./hooks/...` command path and explicit
+`cwd: "."`. Copilot CLI 1.0.57 resolved that path from the user's working
+directory, not the plugin install directory, so every hook failed at launch
+with "No such file or directory". The failure happened before any in-script
+handler could run. The only recovery was to uninstall the plugin. The broken
+form shipped for 33 days across six releases (v0.3.0 to v0.5.6). See
+`.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
+
+Current official docs define hook `cwd` relative to the repository root or as
+an absolute path. The Copilot CLI changelog documents plugin-root variables.
+The historical incident still controls our design: generated launchers anchor
+plugin files explicitly and never depend on ambient cwd.
 
 The root cause was not the wrong path. It was that a customer-facing artifact
 shipped without ever being executed in its target runtime. Every test validated
@@ -23,14 +28,10 @@ environment: plugin manifests and `hooks.json`, copied hook scripts, agent and
 skill files a CLI loads, MCP configs, instruction mirrors. It does not bind
 artifacts consumed only inside this repo's own CI.
 
-The `applyTo` globs target the surfaces where these artifacts are authored,
-generated, and verified: the generator scripts, the templates they read, the
-Copilot CLI plugin tree, the instruction mirrors, the hook sources, and the
-runtime-contract tests. It is intentionally narrower than the full set of
-artifact classes named above. Already-generated agent, skill, and command
-outputs are governed at generation time by their own generators plus the
-canonical-source-mirror drift checks (see `.claude/rules/canonical-source-mirror.md`);
-this rule does not re-list every generated output tree in `applyTo`.
+The `paths` globs target every authoring, generated, and verification surface:
+agents, skills, commands, prompts, rules, hooks, templates, generators, plugin
+trees, and runtime-contract tests. This ensures future work loads the settled
+harness contract before changing any artifact class.
 
 ## The runtime contract is part of the artifact
 
@@ -41,15 +42,12 @@ as load-bearing as the artifact's bytes.
 
 ### MUST
 
-1. **Verify the contract empirically, not by analogy.** Before you depend on a
-   runtime behavior (an env var name, the cwd, an exit-code convention), run the
-   target tool and observe it. Do not infer a contract from another tool's
-   docs or from a similarly named variable. The incident's first fix assumed
-   `COPILOT_PLUGIN_ROOT` by analogy to `CLAUDE_PLUGIN_ROOT`; it happened to be
-   right, but the method could just as easily have shipped a wrong name that no
-   test would catch. Record the verified contract in a decision memory or ADR
-   with the tool version you measured against (example:
-   `decision-copilot-cli-hook-plugin-root-contract`).
+1. **Load the settled harness contract before researching or changing it.**
+   Read `agent-harness-reference` and its
+   `references/official-hook-contracts.md` sidecar first. Re-probe only a
+   docs-silent row, a version-sensitive row after a CLI change, or an observed
+   contradiction. Do not infer one harness from another. Record a new result
+   with its tool version, date, official source, and negative control.
 
 2. **Ship a runtime-contract test.** The artifact MUST have a test that executes
    it under the verified contract: set the cwd the host sets (for a plugin hook,
@@ -72,6 +70,33 @@ as load-bearing as the artifact's bytes.
    runs `tests/e2e/test_cli_hook_e2e.py` on hook-path changes) and document a
    release or nightly smoke for the platforms CI cannot cover. A skipped smoke
    MUST be loud, never silent.
+
+5. **Preserve one valid structured output per command hook.** Copilot CLI parses
+   at most one final JSON document from each command hook. Before consolidating
+   several source hooks, classify every stdout producer. If more than one source
+   emits `decision`, `additionalContext`, `modifiedResult`, or another documented
+   structured field, either merge those fields with event-specific semantics and
+   positive, negative, and edge tests, or keep the sources as direct host
+   registrations. Byte passthrough is not output merging. The current Copilot
+   adapter merges successful PostToolUse observer text into one
+   `additionalContext` object and discards partial text from failed observers.
+   It captures SessionStart and PreCompact Python stdout and stderr, direct
+   writes to file descriptors 1 and 2, and inherited child-process output on
+   both channels, then discards the content because current producers include
+   branch-controlled repository prose.
+   Their direct rollback commands suppress stdout and stderr while preserving
+   side effects. It also suppresses UserPromptSubmit stdout and stderr because
+   the official config-file contract documents no output field for that event
+   and does not document stderr as a model-context channel. Direct rollback
+   commands preserve that channel choice.
+   PostToolUseFailure and unclassified future events remain direct because their
+   host output semantics have no reviewed generic merger. Do not invent or erase
+   event semantics. Claude grouped gates may terminate only on a validated,
+   event-specific blocking shape. Generic JSON with no protocol keys is context
+   and later guards continue. Malformed object-shaped JSON, allow-shaped
+   decisions, unsupported decision fields, and invalid field types fail closed
+   in gate modes. Empty gate manifests also fail closed. Test every terminal
+   shape with a later blocking guard as the negative control.
 
 ### MUST NOT
 
@@ -117,12 +142,16 @@ gone and no one finds out. That is the silent-failure anti-pattern.
 
 ## Quick Self-Review
 
-Before you merge a change to a generator or a customer-facing generated artifact:
+Before you merge a change to a generator or customer-facing artifact:
 
-- Did you run the target tool to verify the runtime contract, and record it?
+- Did you read the settled contract before changing the artifact?
+- If you re-probed, did a refresh condition require it, and did you record the
+  version, official source, and negative control?
 - Is there a runtime-contract test that executes the artifact under that contract,
   with a negative control?
 - Is the committed artifact (not just the generator) gated?
+- If several source hooks share one host command, does it emit at most one
+  event-valid JSON document?
 - Did the artifact run end to end in the real runtime, or is the smoke documented
   and loud where CI cannot run it?
 - If this artifact is wrong, does the customer get a degraded feature or a wedged
@@ -136,6 +165,9 @@ never have to uninstall to recover from an artifact we generated.
 ## References
 
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
+- `.claude/skills/agent-harness-reference/SKILL.md`. Operational contract.
+- `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`. Official sources and refresh procedure.
+- `.claude/skills/ai-agents-portability-campaign/SKILL.md`. Contract change workflow.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.claude/rules/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.

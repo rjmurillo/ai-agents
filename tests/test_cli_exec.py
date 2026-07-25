@@ -157,40 +157,39 @@ def test_windows_mixed_case_env_keys_normalized(tmp_path: Path) -> None:
 
 
 def test_e2e_launchers_route_through_resolver() -> None:
-    """The CLI hook e2e must launch the CLIs through ``resolve_executable``.
+    """Real-CLI smokes must use platform-safe, version-pinned launchers.
 
     Regression guard for #2629. The Windows failure came from
     ``subprocess.run(["copilot", ...])`` with a bare name. The e2e cannot run
-    under ``act`` (Linux-only), so this source-level check bites in bare CI if a
-    future edit reverts any CLI launch to a bare-name list. Every ``copilot`` /
-    ``claude`` argv[0] in the e2e module must be a ``resolve_executable(...)``
-    call, never a bare string literal.
+    under ``act`` (Linux-only), so this source-level check bites in bare CI.
+    Copilot must also route through ``copilot_command`` so the reviewed package
+    pin cannot auto-update before the smoke runs.
     """
-    e2e_source = (
-        Path(__file__).resolve().parents[1] / "tests" / "e2e" / "test_cli_hook_e2e.py"
-    ).read_text(encoding="utf-8")
+    e2e_dir = Path(__file__).resolve().parents[1] / "tests" / "e2e"
+    hook_source = (e2e_dir / "test_cli_hook_e2e.py").read_text(encoding="utf-8")
+    load_source = (e2e_dir / "test_plugin_load_smoke.py").read_text(encoding="utf-8")
+    helper_source = (e2e_dir / "copilot_hook_probe.py").read_text(encoding="utf-8")
+
+    assert '[resolve_executable("copilot"), "--no-auto-update"' in helper_source
+    assert "_copilot_command = copilot_hook_probe.copilot_command" in hook_source
+    assert "_copilot_command(" in hook_source
+    assert "copilot_command(" in load_source
+    assert 'resolve_executable("copilot")' not in hook_source
+    assert 'resolve_executable("copilot")' not in load_source
+    assert '[resolve_executable("claude")' in hook_source
+    assert '[resolve_executable("claude")' in load_source
 
     # A bare-name launch is the bug shape: an argv list opening with the literal
-    # CLI name followed by arguments, e.g. ``["copilot", "plugin", ...]``. The
-    # fixed form opens with ``resolve_executable("copilot")``. A bare
-    # ``["copilot"]`` with no trailing args (used to build a CompletedProcess in
-    # a diagnostics test) is not a launch and is intentionally not matched.
-    for cli in ("copilot", "claude"):
-        assert f'[resolve_executable("{cli}")' in e2e_source, (
-            f"e2e must launch {cli!r} via resolve_executable, not a bare name"
-        )
-        # Regex catches bare-name launches regardless of quote style
-        # (single/double), whitespace/newlines, or list vs. tuple argv form.
-        # The trailing comma inside the brackets is the discriminator: it marks
-        # "at least one more argument" and distinguishes a real launch from the
-        # intentional single-element ``CompletedProcess(["copilot"], ...)``
-        # diagnostic stub that has no comma inside the list brackets.
-        # ``subprocess\.(?:run|Popen)`` is anchored so CompletedProcess
-        # constructions are never matched.
-        bare_launch = re.compile(
-            r"""subprocess\.(?:run|Popen)\s*\(\s*[\[(]\s*['"]""" + re.escape(cli) + r"""['"]\s*,""",
-            re.DOTALL,
-        )
-        assert not bare_launch.search(e2e_source), (
-            f"e2e has a bare-name {cli!r} launch; route it through resolve_executable (#2629)"
-        )
+    # CLI name followed by arguments. CompletedProcess diagnostic stubs are not
+    # matched because they call neither subprocess.run nor _run_cli.
+    for source in (hook_source, load_source):
+        for cli in ("copilot", "claude"):
+            bare_launch = re.compile(
+                r"""(?:subprocess\.(?:run|Popen)|_run_cli)\s*\(\s*[\[(]\s*['"]"""
+                + re.escape(cli)
+                + r"""['"]\s*,""",
+                re.DOTALL,
+            )
+            assert not bare_launch.search(source), (
+                f"e2e has a bare-name {cli!r} launch; use the shared launcher (#2629)"
+            )

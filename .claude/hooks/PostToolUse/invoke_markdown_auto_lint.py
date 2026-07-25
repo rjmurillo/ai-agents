@@ -119,9 +119,8 @@ def report_lint_failure(file_path: str, result: subprocess.CompletedProcess[str]
         file=sys.stderr,
     )
     print(
-        f"\n**Markdown Auto-Lint ERROR**: Failed to lint `{file_path}`. "
-        f"Exit code: {result.returncode}. "
-        f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
+        "\n**Markdown Auto-Lint ERROR**: Lint failed. "
+        "See the hook diagnostic for the affected file and exit code.\n"
     )
 
 
@@ -143,7 +142,7 @@ def run_markdownlint(file_path: str, project_dir: str) -> int:
         if result.returncode != 0:
             report_lint_failure(file_path, result)
             return 2
-        print(f"\n**Markdown Auto-Lint**: Fixed formatting in `{file_path}`\n")
+        print("\n**Markdown Auto-Lint**: Fixed markdown formatting.\n")
         return 0
     except subprocess.TimeoutExpired:
         print(
@@ -151,8 +150,8 @@ def run_markdownlint(file_path: str, project_dir: str) -> int:
             file=sys.stderr,
         )
         print(
-            f"\n**Markdown Auto-Lint ERROR**: Lint timed out for `{file_path}`. "
-            f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
+            "\n**Markdown Auto-Lint ERROR**: Lint timed out. "
+            "See the hook diagnostic for the affected file.\n"
         )
         return 2
     except FileNotFoundError:
@@ -164,8 +163,8 @@ def run_markdownlint(file_path: str, project_dir: str) -> int:
             file=sys.stderr,
         )
         print(
-            f"\n**Markdown Auto-Lint ERROR**: Cannot access file `{file_path}`. "
-            "Check permissions.\n"
+            "\n**Markdown Auto-Lint ERROR**: Cannot access the markdown file. "
+            "See the hook diagnostic and check permissions.\n"
         )
         return 2
 

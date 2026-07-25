@@ -59,17 +59,52 @@ artifacts:
     outputScripts: "plugin/hooks"
     eventRemap:
       SessionStart: SessionStart
+      PreCompact: PreCompact
+      UserPromptSubmit: UserPromptSubmit
       PreToolUse: PreToolUse
     eventDrop: []
     matcherPolicy: "inline-script-shim"
     versionField: 1
 """
 
-# Prints a marker and exits 0, so a successful launch is observable.
-_SCRIPT_BODY = "import sys\nprint('HOOK_RAN')\nsys.exit(0)\n"
+# Writes a marker and emits branch-controlled text on both channels. Direct
+# SessionStart rollback must preserve the side effect while suppressing the text.
+_SCRIPT_BODY = """\
+import os
+import sys
+from pathlib import Path
+
+marker = os.environ.get("HOOK_MARKER")
+if marker:
+    Path(marker).write_text("HOOK_RAN", encoding="utf-8")
+print("BRANCH_CONTROLLED_STDOUT")
+print("BRANCH_CONTROLLED_STDERR", file=sys.stderr)
+sys.exit(0)
+"""
+
+_USER_PROMPT_SCRIPT_BODY = """\
+import json
+import os
+import sys
+from pathlib import Path
+
+raw = sys.stdin.read()
+if raw:
+    try:
+        json.loads(raw)
+    except json.JSONDecodeError:
+        print("BRANCH_CONTROLLED_PARSE_ERROR", file=sys.stderr)
+        sys.exit(2)
+marker = os.environ.get("HOOK_MARKER")
+if marker:
+    Path(marker).write_text("HOOK_RAN", encoding="utf-8")
+sys.exit(0)
+"""
 
 _HOOK_SCRIPTS = [
     ("SessionStart", "init.py", None),
+    ("PreCompact", "compact.py", None),
+    ("UserPromptSubmit", "prompt.py", None),
     ("PreToolUse", "guard.py", "Bash"),  # matcher -> inline-script-shim
 ]
 
@@ -83,19 +118,16 @@ def _materialize(tmp_path: Path) -> Path:
     for event, fname, matcher in _HOOK_SCRIPTS:
         script = tmp_path / "hooks_src" / event / fname
         script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text(_SCRIPT_BODY, encoding="utf-8")
+        body = _USER_PROMPT_SCRIPT_BODY if event == "UserPromptSubmit" else _SCRIPT_BODY
+        script.write_text(body, encoding="utf-8")
         group: dict[str, object] = {
-            "hooks": [
-                {"type": "command", "command": f"python3 -u .claude/hooks/{event}/{fname}"}
-            ]
+            "hooks": [{"type": "command", "command": f"python3 -u .claude/hooks/{event}/{fname}"}]
         }
         if matcher is not None:
             group["matcher"] = matcher
         settings_hooks.setdefault(event, []).append(group)
 
-    (tmp_path / "settings.json").write_text(
-        json.dumps({"hooks": settings_hooks}), encoding="utf-8"
-    )
+    (tmp_path / "settings.json").write_text(json.dumps({"hooks": settings_hooks}), encoding="utf-8")
     (tmp_path / "userland").mkdir()  # a cwd that is NOT the plugin root
     return cfg
 
@@ -116,6 +148,22 @@ def _all_entries(doc: dict[str, Any]) -> list[dict[str, str]]:
         entries.extend(event_entries)
     assert entries, "fixture produced no hook entries"
     return entries
+
+
+def _first_bash_command(doc: dict[str, object], event: str) -> str:
+    hooks = doc.get("hooks")
+    if not isinstance(hooks, dict):
+        raise AssertionError("hooks must be a dict")
+    entries = hooks.get(event)
+    if not isinstance(entries, list) or not entries:
+        raise AssertionError(f"{event} must contain hook entries")
+    entry = entries[0]
+    if not isinstance(entry, dict):
+        raise AssertionError(f"{event} entry must be a dict")
+    command = entry.get("bash")
+    if not isinstance(command, str):
+        raise AssertionError(f"{event} entry must contain a bash command")
+    return command
 
 
 def _path_arg(command: str) -> str:
@@ -177,15 +225,20 @@ def test_bash_falls_back_to_claude_plugin_root(tmp_path: Path) -> None:
         assert Path(resolved).is_file(), f"fallback failed: {resolved!r}"
 
 
-def test_sessionstart_bash_command_launches_the_script(tmp_path: Path) -> None:
-    """A non-shim command actually executes the vendored script from a user cwd."""
+@pytest.mark.parametrize("event", ["SessionStart", "PreCompact", "UserPromptSubmit"])
+def test_direct_rollback_runs_silently_with_side_effects(
+    tmp_path: Path,
+    event: str,
+) -> None:
+    """A direct rollback command retains work without leaking repository prose."""
     doc = _generate(tmp_path)
     plugin_root = str(tmp_path / "plugin")
     userland = tmp_path / "userland"
     env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
-    entry = doc["hooks"]["SessionStart"][0]  # matcher-less: copied verbatim
+    marker = tmp_path / f"{event}-ran.txt"
+    env["HOOK_MARKER"] = str(marker)
     proc = subprocess.run(
-        ["bash", "-c", entry["bash"]],
+        ["bash", "-c", _first_bash_command(doc, event)],
         env=env,
         cwd=userland,
         capture_output=True,
@@ -195,7 +248,31 @@ def test_sessionstart_bash_command_launches_the_script(tmp_path: Path) -> None:
         check=False,
     )
     assert proc.returncode == 0, proc.stderr
-    assert "HOOK_RAN" in proc.stdout
+    assert marker.read_text(encoding="utf-8") == "HOOK_RAN"
+    assert proc.stdout == ""
+    assert proc.stderr == ""
+
+
+def test_user_prompt_direct_failure_is_silent_and_nonzero(tmp_path: Path) -> None:
+    doc = _generate(tmp_path)
+    plugin_root = str(tmp_path / "plugin")
+    userland = tmp_path / "userland"
+    env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
+
+    proc = subprocess.run(
+        ["bash", "-c", _first_bash_command(doc, "UserPromptSubmit")],
+        env=env,
+        cwd=userland,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        input="{bad json",
+        check=False,
+    )
+
+    assert proc.returncode == 2
+    assert proc.stdout == ""
+    assert proc.stderr == ""
 
 
 def test_committed_pretooluse_timeout_includes_dispatcher_headroom() -> None:
@@ -250,8 +327,8 @@ def test_anchor_is_load_bearing_when_no_plugin_root_var_set(tmp_path: Path) -> N
     doc = _generate(tmp_path)
     userland = tmp_path / "userland"
     env = _contract_env(copilot_root=None, claude_root=None)
-    entry = doc["hooks"]["SessionStart"][0]
-    resolved = _bash_resolve(_path_arg(entry["bash"]), env, userland)
+    command = _first_bash_command(doc, "SessionStart")
+    resolved = _bash_resolve(_path_arg(command), env, userland)
     # Assert the fallback EXPANSION VALUE directly rather than probing the host
     # root filesystem (a /hooks/... file on the runner would otherwise flake the
     # test). With no plugin-root var the prefix collapses to empty, so the path

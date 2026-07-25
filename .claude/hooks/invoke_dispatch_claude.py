@@ -18,8 +18,8 @@ context injection (observed live: duplicated ADR-007 and Serena guidance
 on each prompt). In that case the dispatcher exits 0 immediately: one
 cheap spawn instead of N duplicated hook bodies.
 
-Failure policy: an unreadable or malformed manifest is a packaging error
-and exits 2 (loud, fail-closed) regardless of mode, per
+Failure policy: an unreadable or malformed manifest, stdin read failure, or
+unexpected grouped-runtime exception exits 2 (loud, fail-closed) regardless of mode, per
 ``.claude/rules/generated-artifacts.md`` (never silently disable a hook
 surface).
 """
@@ -32,14 +32,27 @@ import os
 import sys
 from pathlib import Path
 
-_HOOKS_DIR = Path(__file__).resolve().parent
-_LIB_DIR = _HOOKS_DIR.parent / "lib"
-if str(_LIB_DIR) not in sys.path:
-    sys.path.insert(0, str(_LIB_DIR))
+try:
+    _HOOKS_DIR = Path(__file__).resolve().parent
+    _LIB_DIR = _HOOKS_DIR.parent / "lib"
+    if str(_LIB_DIR) not in sys.path:
+        sys.path.insert(0, str(_LIB_DIR))
 
-from claude_hook_dispatch import BLOCK_EXIT, run_group  # noqa: E402
+    from claude_hook_dispatch import BLOCK_EXIT, run_group, validate_group  # noqa: E402
+except (Exception, SystemExit) as exc:  # noqa: BLE001 - launcher must fail closed
+    if __name__ == "__main__":
+        print(
+            "claude-hook-dispatch: entrypoint initialization failed: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+    raise
 
 _MANIFEST_NAME = "dispatch_groups.json"
+_BLOCK_EXIT_CODE: int = BLOCK_EXIT
+_HOOK_STDIN_CEILING_MIB = 64
+_MAX_STDIN_BYTES = _HOOK_STDIN_CEILING_MIB * 1024 * 1024
 
 
 def _force_utf8_streams() -> None:
@@ -84,9 +97,41 @@ def _load_group(group_id: str) -> tuple[str, str, list[str]]:
     """Return ``(event, mode, shims)`` for ``group_id`` from the manifest."""
     manifest_path = _HOOKS_DIR / _MANIFEST_NAME
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    group = data["groups"][group_id]
-    shims = [entry["file"] for entry in group["shims"]]
-    return group["event"], group["mode"], shims
+    if not isinstance(data, dict):
+        raise TypeError("dispatch manifest must be a JSON object")
+    groups = data.get("groups")
+    if not isinstance(groups, dict):
+        raise TypeError("dispatch manifest field 'groups' must be an object")
+    group = groups[group_id]
+    if not isinstance(group, dict):
+        raise TypeError(f"dispatch group {group_id!r} must be an object")
+    entries = group.get("shims")
+    if not isinstance(entries, list):
+        raise TypeError(f"dispatch group {group_id!r} field 'shims' must be a list")
+
+    shims: list[object] = []
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise TypeError(f"dispatch group {group_id!r} shim {index} must be an object")
+        shims.append(entry.get("file"))
+    validated_group: tuple[str, str, list[str]] = validate_group(
+        group.get("event"), group.get("mode"), shims
+    )
+    return validated_group
+
+
+def _read_payload(mode: str) -> tuple[bytes, int | None]:
+    """Read one bounded hook payload and return an oversized-input verdict."""
+    raw_stdin = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
+    if len(raw_stdin) <= _MAX_STDIN_BYTES:
+        return raw_stdin, None
+    blocks = mode in {"gate", "gate_all"}
+    verdict = "denying" if blocks else "allowing without observer dispatch"
+    print(
+        f"claude-hook-dispatch: stdin exceeds {_MAX_STDIN_BYTES} bytes; {verdict}",
+        file=sys.stderr,
+    )
+    return raw_stdin, _BLOCK_EXIT_CODE if blocks else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,23 +140,40 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--group", required=True, help="Group id in dispatch_groups.json")
     args = parser.parse_args(argv)
 
-    if _project_self_hosts_plugin():
-        return 0
+    try:
+        if _project_self_hosts_plugin():
+            return 0
+    except Exception as exc:  # noqa: BLE001 - hook preflight must fail closed
+        print(
+            f"claude-hook-dispatch: self-host check failed for group "
+            f"{args.group!r}: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return _BLOCK_EXIT_CODE
 
     try:
         event, mode, shims = _load_group(args.group)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except Exception as exc:  # noqa: BLE001 - hook manifest boundary must fail closed
         print(
             f"claude-hook-dispatch: cannot load group {args.group!r} from "
             f"{_HOOKS_DIR / _MANIFEST_NAME}: {type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
-        block_exit: int = BLOCK_EXIT
-        return block_exit
+        return _BLOCK_EXIT_CODE
 
-    raw_stdin = sys.stdin.buffer.read()
-    exit_code: int = run_group(_HOOKS_DIR, event, mode, shims, raw_stdin)
-    return exit_code
+    try:
+        raw_stdin, oversized_exit = _read_payload(mode)
+        if oversized_exit is not None:
+            return oversized_exit
+        exit_code: int = run_group(_HOOKS_DIR, event, mode, shims, raw_stdin)
+        return exit_code
+    except Exception as exc:  # noqa: BLE001 - hook boundary must fail closed
+        print(
+            f"claude-hook-dispatch: group {args.group!r} failed during execution: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return _BLOCK_EXIT_CODE
 
 
 if __name__ == "__main__":

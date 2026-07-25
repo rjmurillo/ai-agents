@@ -8,11 +8,13 @@
 
 **Key facts**:
 - `.claude/lib/claude_hook_dispatch.py` + `.claude/hooks/invoke_dispatch_claude.py` + `dispatch_groups.json`: one spawn per (event, matcher) group; modes gate/gate_all/observe; stdout captured and merged into ONE protocol document (the concatenation hazard that killed the earlier attempt).
+- Group contracts fail closed before execution: nonempty shims, reviewed event/mode pairs, unique relative `.py` paths, and hooks-directory containment. Unknown JSON is context and cannot terminate a gate before later shims run. Only event-valid blocking shapes are terminal; malformed, allow-shaped, unsupported, and invalid typed decision objects fail closed.
 - Plugin double-fire fix: all plugin hooks.json entries route through the dispatcher; it exits 0 when the project publishes the same plugin (name match). Coverage invariant test: plugin shims minus repo shims == documented prune allowlist.
-- Copilot CLI 1.0.71 HONORS per-entry `matcher` (empirically verified via isolated COPILOT_HOME probe; non-matching entries never spawn; PascalCase events use Claude matcher semantics; `Bash(git commit*)` command-glob NEVER fires on Copilot, matched against tool name only). ADR-068's "no matcher support" premise is stale. Generator now emits a tool-name union matcher on the PreToolUse dispatcher entry (generate_dispatcher.event_matcher_union); exotic matchers fail open.
+- Current Copilot docs and 1.0.72-1 probes show matcher support. PascalCase tool matchers filter Claude tool names. Argument-sensitive patterns still need script-side filtering.
+- Copilot Stop and SubagentStop cannot use a plain observe dispatcher. Multiple structured decision objects concatenate into invalid JSON. Generated Copilot Stop hooks remain separate host registrations.
 - `AI_AGENTS_PROJECT_REPO=1` in settings env kills the per-hook `git remote get-url origin` child spawn.
-- Spawns: Bash 5->2, Write/Edit 5->2, prompt 4->1, Stop 3->1, push 11->2. Linux probe 202ms->81ms per Bash pre-gate.
+- Historical spawns: Bash 5->2, Write/Edit 5->2, prompt 4->1, Stop 3->1, push 11->2. Linux probe 202ms->81ms per Bash pre-gate. Current Copilot Stop uses direct registrations to preserve decisions.
 - The false-completion gate matches completion words ANYWHERE in a Bash command (heredocs included) - split file-edit commands from `git commit` commands (issue #3089). LSP pre-delegation guard needs literal "LSP CONTEXT" or "defined at path:line" phrasing (issue #3091).
 - Scope-explosion pre-commit gate counts files vs origin/main, so stacked branches false-positive at 50; documented escape SKIP_SCOPE_CHECK=1 requires user authorization under the auto-mode classifier.
 
-**Related**: `mem:copilot-disable-all-hooks-windows`, ADR-068, ADR-082, `.agents/analysis/2026-07-16-adr-082-architect-review.md`.
+**Related**: `agent-harness-reference`, `mem:copilot-disable-all-hooks-windows`, ADR-068, ADR-082, `.agents/analysis/2026-07-16-adr-082-architect-review.md`.

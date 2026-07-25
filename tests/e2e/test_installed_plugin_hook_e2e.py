@@ -15,9 +15,19 @@ Why opt-in: the marketplace plugin is not installed in bare CI. The harness runs
 where the plugin is installed and ``RUN_INSTALLED_PLUGIN_HOOK_E2E=1`` is set, and
 SKIPS loudly otherwise so a skipped run never reads as a pass.
 
-Run locally:
-    RUN_INSTALLED_PLUGIN_HOOK_E2E=1 uv run pytest \
+Run from the repository root in an isolated Copilot home:
+    E2E_HOME="$(mktemp -d)"
+    HOME="$E2E_HOME" COPILOT_HOME="$E2E_HOME/.copilot" \
+        copilot plugin marketplace add "$PWD"
+    HOME="$E2E_HOME" COPILOT_HOME="$E2E_HOME/.copilot" \
+        copilot plugin install project-toolkit@ai-agents
+    HOME="$E2E_HOME" COPILOT_HOME="$E2E_HOME/.copilot" \
+        RUN_INSTALLED_PLUGIN_HOOK_E2E=1 uv run pytest \
         tests/e2e/test_installed_plugin_hook_e2e.py -v
+
+Do not use the live Copilot home. Direct and marketplace installs can share a
+plugin name, and an unqualified uninstall can remove the marketplace entry while
+leaving a stale direct cache.
 """
 
 from __future__ import annotations
@@ -36,6 +46,7 @@ _PLUGIN = "project-toolkit@ai-agents"
 _INSTALL_BASE = Path.home() / ".copilot" / "installed-plugins"
 _SCOPED_ROOT = _INSTALL_BASE / "ai-agents" / "project-toolkit"
 _DIRECT_ROOT = _INSTALL_BASE / "_direct" / "project-toolkit"
+_PRE_TOOL_EVENT = "PreToolUse"
 
 # The plugin-relative script path inside a generated command. Works for both
 # the bash form (``...}}/hooks/preToolUse/foo.py``) and the powershell form
@@ -54,6 +65,16 @@ requires_install = pytest.mark.skipif(
 
 def _load_hooks(root: Path) -> dict:
     return json.loads((root / "hooks" / "hooks.json").read_text())["hooks"]
+
+
+def _dispatcher_shims(root: Path, event: str) -> list[str]:
+    manifest = json.loads(
+        (root / "hooks" / event / "_manifest.json").read_text(encoding="utf-8")
+    )
+    shims = manifest.get("shims")
+    assert isinstance(shims, list)
+    assert all(isinstance(name, str) for name in shims)
+    return shims
 
 
 def _rel_script(command: str) -> str | None:
@@ -112,6 +133,22 @@ class TestInstalledPluginHooks:
             f"{_PLUGIN} hooks.json not found under {_SCOPED_ROOT}"
         )
 
+    def test_installed_version_matches_worktree(self):
+        worktree_manifest = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "copilot-cli"
+            / ".claude-plugin"
+            / "plugin.json"
+        )
+        installed_manifest = _SCOPED_ROOT / ".claude-plugin" / "plugin.json"
+        expected = json.loads(worktree_manifest.read_text(encoding="utf-8"))["version"]
+        actual = json.loads(installed_manifest.read_text(encoding="utf-8"))["version"]
+        assert actual == expected, (
+            f"installed {_PLUGIN} is {actual}, worktree is {expected}; reinstall "
+            "the worktree plugin before running this E2E"
+        )
+
     def test_no_stale_direct_install_shadows(self):
         # Req 3: a stale unscoped direct install can shadow the marketplace one.
         assert not _DIRECT_ROOT.is_dir(), (
@@ -139,54 +176,55 @@ class TestInstalledPluginHooks:
 
     def test_matcher_shim_skips_non_match(self, user_repo):
         # Req 5: a non-matching tool exits 0 without firing.
-        hooks = _load_hooks(_SCOPED_ROOT)
         checked = 0
-        for i, entry in enumerate(hooks.get("preToolUse", [])):
-            rel = _rel_script(entry.get("bash", ""))
-            script = _SCOPED_ROOT / rel if rel else None
-            if not script or not _is_shim(script):
+        event_dir = _SCOPED_ROOT / "hooks" / _PRE_TOOL_EVENT
+        for i, shim in enumerate(_dispatcher_shims(_SCOPED_ROOT, _PRE_TOOL_EVENT)):
+            script = event_dir / shim
+            if not _is_shim(script):
                 continue
             proc = _run_shim(script, {"tool_name": "____NoSuchTool____"}, user_repo)
             fired = _fired(proc)
             assert fired is False, (
-                f"preToolUse[{i}] {rel}: expected fired=False for non-match, "
+                f"{_PRE_TOOL_EVENT}[{i}] {shim}: expected fired=False for non-match, "
                 f"got fired={fired} rc={proc.returncode}\n{proc.stderr.decode()[:400]}"
             )
             assert proc.returncode == 0, (
-                f"preToolUse[{i}] {rel}: non-match must exit 0, got {proc.returncode}"
+                f"{_PRE_TOOL_EVENT}[{i}] {shim}: non-match must exit 0, "
+                f"got {proc.returncode}"
             )
             checked += 1
-        assert checked > 0, "no preToolUse matcher shims found to check"
+        assert checked > 0, "no PreToolUse matcher shims found to check"
 
     def test_matcher_shim_fires_on_snake_case_match(self, user_repo):
         # Req 6: snake_case payload whose tool_name matches the shim fires.
-        hooks = _load_hooks(_SCOPED_ROOT)
         fired_any = 0
-        for i, entry in enumerate(hooks.get("preToolUse", [])):
-            rel = _rel_script(entry.get("bash", ""))
-            script = _SCOPED_ROOT / rel if rel else None
-            if not script or not _is_shim(script):
+        event_dir = _SCOPED_ROOT / "hooks" / _PRE_TOOL_EVENT
+        for i, shim in enumerate(_dispatcher_shims(_SCOPED_ROOT, _PRE_TOOL_EVENT)):
+            script = event_dir / shim
+            if not _is_shim(script):
                 continue
             matcher = _shim_matcher(script)
-            tool = _bare_tool(matcher)
+            tool = _matching_tool(matcher)
             if tool is None:
-                continue  # regex/tool-glob matchers handled by the dispatcher test
+                continue  # command matchers are exercised by dispatcher tests
             proc = _run_shim(script, _payload_for(tool), user_repo)
             fired = _fired(proc)
             assert fired is True, (
-                f"preToolUse[{i}] {rel} matcher={matcher!r}: expected fired=True "
+                f"{_PRE_TOOL_EVENT}[{i}] {shim} matcher={matcher!r}: expected fired=True "
                 f"for tool {tool!r}, got fired={fired}\n{proc.stderr.decode()[:400]}"
             )
             fired_any += 1
-        assert fired_any > 0, "no bare-matcher preToolUse shims fired"
+        assert fired_any > 0, "no bare-matcher PreToolUse shims fired"
 
     def test_lifecycle_hooks_launch_without_error(self, user_repo):
         # Req 8: non-matcher lifecycle hooks execute a representative payload
         # without a launcher error or timeout (exit code is hook-defined; we
         # only fail on launch failure / crash, not on a hook's own decision).
         hooks = _load_hooks(_SCOPED_ROOT)
-        for event in ("sessionStart", "sessionEnd", "userPromptSubmitted"):
-            for i, entry in enumerate(hooks.get(event, [])):
+        for event in ("SessionStart", "Stop", "UserPromptSubmit"):
+            entries = hooks.get(event)
+            assert entries, f"{event}: no installed hook entries"
+            for i, entry in enumerate(entries):
                 rel = _rel_script(entry.get("bash", ""))
                 script = _SCOPED_ROOT / rel if rel else None
                 if not script:
@@ -202,16 +240,6 @@ class TestInstalledPluginHooks:
                 )
 
 
-def _manifest_from_hooks(root: Path, event: str) -> list[str]:
-    """Registered shim basenames for an event, in hooks.json order."""
-    names = []
-    for entry in _load_hooks(root).get(event, []):
-        rel = _rel_script(entry.get("bash", ""))
-        if rel:
-            names.append(Path(rel).name)
-    return names
-
-
 @requires_install
 class TestDispatcherAgainstInstalledShims:
     """ADR-068 / #2295: run the in-process dispatcher over the REAL installed
@@ -222,17 +250,18 @@ class TestDispatcherAgainstInstalledShims:
     def _dispatch(self):
         import importlib.util
 
-        lib = Path(__file__).resolve().parents[2] / ".claude" / "lib" / "hook_dispatch.py"
+        lib = _SCOPED_ROOT / "lib" / "hook_dispatch.py"
         spec = importlib.util.spec_from_file_location("hook_dispatch", lib)
+        assert spec is not None and spec.loader is not None
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         return mod.run_dispatch
 
     def test_dispatcher_allows_non_matching_tool_over_real_shims(self, monkeypatch):
         run_dispatch = self._dispatch()
-        event_dir = _SCOPED_ROOT / "hooks" / "preToolUse"
-        manifest = _manifest_from_hooks(_SCOPED_ROOT, "preToolUse")
-        assert len(manifest) >= 20, f"expected the full preToolUse set, got {len(manifest)}"
+        event_dir = _SCOPED_ROOT / "hooks" / _PRE_TOOL_EVENT
+        manifest = _dispatcher_shims(_SCOPED_ROOT, _PRE_TOOL_EVENT)
+        assert manifest, "expected the installed PreToolUse dispatcher manifest"
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(_SCOPED_ROOT))
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(_SCOPED_ROOT))
         payload = b'{"tool_name":"____NoSuchTool____","tool_input":{}}'
@@ -246,8 +275,8 @@ class TestDispatcherAgainstInstalledShims:
         # With COPILOT_HOOK_DEBUG each shim prints a fired= line; assert one per
         # registered shim, proving the dispatcher ran the whole manifest.
         run_dispatch = self._dispatch()
-        event_dir = _SCOPED_ROOT / "hooks" / "preToolUse"
-        manifest = _manifest_from_hooks(_SCOPED_ROOT, "preToolUse")
+        event_dir = _SCOPED_ROOT / "hooks" / _PRE_TOOL_EVENT
+        manifest = _dispatcher_shims(_SCOPED_ROOT, _PRE_TOOL_EVENT)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(_SCOPED_ROOT))
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(_SCOPED_ROOT))
         monkeypatch.setenv("COPILOT_HOOK_DEBUG", "1")
@@ -264,13 +293,18 @@ def _shim_matcher(script: Path) -> str | None:
     return m.group(1) if m else None
 
 
-def _bare_tool(matcher: str | None) -> str | None:
-    """Return the tool name for a bare matcher, else None (regex/tool-glob)."""
+def _matching_tool(matcher: str | None) -> str | None:
+    """Return one tool accepted by a tool-only matcher, else None."""
     if not matcher:
         return None
-    if matcher.startswith("^") or "(" in matcher:
-        return None
-    return matcher
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", matcher):
+        return matcher
+
+    alternatives = re.fullmatch(
+        r"\^\((?:\?:)?([A-Za-z][A-Za-z0-9_]*(?:\|[A-Za-z][A-Za-z0-9_]*)+)\)\$",
+        matcher,
+    )
+    return alternatives.group(1).split("|", 1)[0] if alternatives else None
 
 
 def _payload_for(tool: str) -> dict:

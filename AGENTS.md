@@ -28,7 +28,7 @@
 
 ## Context
 
-Knowledge -> passive context (@imports, every turn, outside training, <8KB). Actions -> skills (tools, workflows, mutation).
+Knowledge -> context (<8KB). Actions -> skills.
 
 ## Skill-First
 
@@ -37,6 +37,7 @@ Knowledge -> passive context (@imports, every turn, outside training, <8KB). Act
 |CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
 |ADR-078: no skill -> autoplan; multi-step/cross-cutting -> orchestrator; no return loop
 |New capability: buy-vs-build Quick BEFORE /spec+baseline; >13wk no baseline = prune. Skip: bug/doc/refactor/approved-capability-extension
+|Harness work: read agent-harness-reference; mutate via ai-agents-portability-campaign
 
 ### ADR Review
 

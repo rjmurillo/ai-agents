@@ -2,9 +2,13 @@
 
 ## Critical Rule
 
-This repo has a PreToolUse hook (`invoke_skill_first_guard.py`) that blocks raw `gh <op> <action>` commands in Bash when a validated skill script exists for that operation. You MUST use the Python skill scripts for covered operations. Direct `gh` commands are still valid where no skill script exists.
+You MUST use the Python skill scripts for covered GitHub operations. This rule
+is canonical in `AGENTS.md`. PR #3293 retired the former PreToolUse enforcement
+hook, so current sessions do not get a runtime block or redirect. Direct `gh`
+commands remain valid where no skill script exists.
 
-If you run `gh pr list ...` directly, the hook will reject it with: "Blocked: Raw gh command detected."
+Do not treat the missing runtime block as permission to bypass an available
+skill script.
 
 ## Script Location
 
@@ -53,10 +57,13 @@ The scripts listed in this reference are primarily PR-related, so most are under
 
 There is currently NO dedicated approve script in this skill set.
 
-Do NOT work around the PreToolUse guard by invoking `gh pr review --approve` through Python subprocess or other wrappers. That would bypass the repo's skills-first workflow and should not be documented as a supported approach.
+Do NOT work around the skill-first workflow by invoking
+`gh pr review --approve` through Python subprocess or other wrappers.
 
 If PR approval is needed, implement it as a proper skill script under `.claude/skills/github/scripts/pr/` and use that script instead.
 
 ## Discovery Date
 
-2026-04-10. Hook blocked `gh pr list` on first attempt. Approval support was identified as a missing skill that should be added properly rather than bypassing the guard.
+2026-04-10. The former hook blocked `gh pr list` on first attempt. PR #3293
+retired that hook on 2026-07-21. Approval support remains a missing skill that
+should be added properly rather than bypassing the workflow.

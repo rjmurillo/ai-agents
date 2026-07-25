@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """End-to-end regression net for plugin hook path anchoring (issue #2205).
 
-These tests launch the REAL CLIs, vendor-install a probe plugin, and verify a
+These tests launch the REAL CLIs and verify a
 hook resolves and executes from the install tree when the CLI's working
 directory is NOT the plugin root. They codify the manual proofs that confirmed
 the fix:
 
-  - Copilot: ``copilot plugin install`` then ``copilot -p`` from a foreign cwd;
+  - Copilot: isolated ``copilot plugin install`` then plain ``copilot -p`` from
+    a foreign cwd;
     the hook uses the EXACT command shape the generator emits
     (``generate_hooks._build_copilot_entry``), so the e2e tracks the contract.
   - Claude:  ``claude -p --plugin-dir`` from a foreign cwd; the hook uses the
@@ -66,6 +67,7 @@ from scripts.cli_exec import resolve_executable  # noqa: E402
 _COPILOT_EVENT = copilot_hook_probe.PROBE_EVENT
 _PROMPT = copilot_hook_probe.PROBE_PROMPT
 _clean_env = copilot_hook_probe.clean_env
+_copilot_command = copilot_hook_probe.copilot_command
 _manifest = copilot_hook_probe.manifest
 _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
@@ -74,12 +76,6 @@ _copilot_auth_absent_headline = copilot_hook_probe.copilot_auth_absent_headline
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
-# The Copilot vendor install tree lives under this path segment. Verified
-# empirically (decision-copilot-cli-hook-plugin-root-contract):
-# ~/.copilot/installed-plugins/.../<plugin>/hooks/... is where the anchored
-# script resolves, so a script that ran from the install tree records it.
-_COPILOT_INSTALL_SEGMENT = "installed-plugins"
-_DIAGNOSTIC_MAX_INSTALL_HOOKS = 80
 _DIAGNOSTIC_MAX_FILE_CHARS = 4000
 
 requires_copilot = pytest.mark.skipif(
@@ -90,21 +86,6 @@ requires_claude = pytest.mark.skipif(
     not (_RUN and shutil.which("claude")),
     reason="needs RUN_CLI_E2E=1 and the claude CLI on PATH (real auth + credits)",
 )
-
-
-def _copilot_install_roots() -> list[Path]:
-    """Candidate Copilot vendor-install roots to dump on failure.
-
-    Copilot installs plugins under ~/.copilot/installed-plugins (and honors
-    COPILOT_HOME when set). Both are listed so a marker-miss failure shows the
-    on-disk install tree, even when the test does not know the exact path.
-    """
-    roots: list[Path] = []
-    copilot_home = os.environ.get("COPILOT_HOME")
-    if copilot_home:
-        roots.append(Path(copilot_home) / "installed-plugins")
-    roots.append(Path.home() / ".copilot" / "installed-plugins")
-    return roots
 
 
 def _append_text_file_diagnostic(lines: list[str], label: str, path: Path) -> None:
@@ -121,6 +102,7 @@ def _copilot_failure_diagnostics(
     plugin: Path,
     userland: Path,
     run: subprocess.CompletedProcess[str],
+    install_root: Path | None = None,
 ) -> str:
     """Build a self-diagnosing message for a Copilot hook marker miss (#2378).
 
@@ -143,40 +125,43 @@ def _copilot_failure_diagnostics(
     else:
         if authored_is_file:
             _append_text_file_diagnostic(lines, "authored_hooks_json_content", authored)
-    for root in _copilot_install_roots():
+    if install_root is not None:
+        lines.append(f"install_root={install_root}")
         try:
-            root_is_dir = root.is_dir()
+            installed_hooks = list(install_root.rglob("hooks.json"))
         except OSError as exc:
-            lines.append(f"install_root_error={root}: {exc}")
-            continue
-        if not root_is_dir:
-            lines.append(f"install_root_absent={root}")
-            continue
-        lines.append(f"install_root={root}")
-        try:
-            for index, path in enumerate(root.rglob("hooks.json")):
-                if index >= _DIAGNOSTIC_MAX_INSTALL_HOOKS:
-                    lines.append(f"  install_root_truncated_after={_DIAGNOSTIC_MAX_INSTALL_HOOKS}")
-                    break
-                lines.append(f"  {path}")
-                try:
-                    path_is_file = path.is_file()
-                except OSError as exc:
-                    lines.append(f"    file_error={exc}")
-                    continue
-                if path_is_file:
-                    _append_text_file_diagnostic(lines, "    content", path)
-        except OSError as exc:
-            lines.append(f"  rglob_error={exc}")
+            lines.append(f"install_root_error={exc}")
+        else:
+            for path in installed_hooks[:20]:
+                lines.append(f"installed_hooks_json={path}")
+                _append_text_file_diagnostic(lines, "installed_hooks_content", path)
     lines.append(f"stdout={run.stdout[-600:]!r}")
     lines.append(f"stderr={run.stderr[-600:]!r}")
     return "\n".join(lines)
 
 
+def _preserve_gh_auth_config(env: dict[str, str]) -> None:
+    """Keep gh authentication available while isolating Copilot plugin state."""
+    if env.get("GH_CONFIG_DIR"):
+        return
+    if os.name == "nt":
+        config_root = env.get("APPDATA")
+        candidate = Path(config_root) / "GitHub CLI" if config_root else None
+    else:
+        config_root = env.get("XDG_CONFIG_HOME")
+        if config_root:
+            candidate = Path(config_root) / "gh"
+        else:
+            home = env.get("HOME")
+            candidate = Path(home) / ".config" / "gh" if home else None
+    if candidate is not None and candidate.is_dir():
+        env["GH_CONFIG_DIR"] = str(candidate)
+
+
 @pytest.mark.smoke
 @requires_copilot
 def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
-    """copilot plugin install -> hook resolves from install tree, not cwd.
+    """A vendor-installed hook resolves from the copied install tree, not cwd.
 
     Binds the probe to UserPromptSubmit (not SessionStart): copilot -p does not
     dispatch SessionStart, so a SessionStart marker would never appear under -p
@@ -186,7 +171,9 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
     plugin = tmp_path / "plugin"
     userland = tmp_path / "userland"
     marker = tmp_path / "copilot_marker.txt"
+    isolated_home = tmp_path / "copilot-home"
     userland.mkdir()
+    isolated_home.mkdir()
     _write_probe_script(plugin / "hooks" / _COPILOT_EVENT / "probe.py", marker)
     (plugin / "plugin.json").write_text(_manifest(probe_name), encoding="utf-8")
     # Use the exact command shape the generator emits, for this event.
@@ -195,67 +182,61 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         json.dumps({"hooks": {_COPILOT_EVENT: [entry]}, "version": 1}), encoding="utf-8"
     )
 
+    env = _clean_env()
+    _preserve_gh_auth_config(env)
+    env["HOME"] = str(isolated_home)
+    env["USERPROFILE"] = str(isolated_home)
+    env["COPILOT_HOME"] = str(isolated_home / ".copilot")
+    install_root = isolated_home / ".copilot" / "installed-plugins"
     try:
-        # A CLI timeout is infrastructure latency (copilot install/marketplace
-        # ops are unpredictable), NOT a resolution failure. Skip so a slow CLI
-        # never blocks a push; a real broken hook still trips the asserts below.
-        try:
-            install = subprocess.run(
-                [resolve_executable("copilot"), "plugin", "install", str(plugin)],
-                capture_output=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=240,
-                check=False,
-                env=_clean_env(),
-            )
-        except subprocess.TimeoutExpired:
-            pytest.skip("copilot plugin install exceeded 240s (CLI/infra latency)")
-        if _copilot_auth_absent(install):
-            pytest.fail(_copilot_auth_absent_headline(install))
-        assert install.returncode == 0, install.stderr or install.stdout
-        try:
-            run = subprocess.run(
-                [
-                    resolve_executable("copilot"),
-                    "-p",
-                    _PROMPT,
-                    "--allow-all-tools",
-                    "--allow-all-paths",
-                ],
-                cwd=userland,
-                capture_output=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=240,
-                check=False,
-                env=_clean_env(),
-            )
-        except subprocess.TimeoutExpired:
-            pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
-        if _copilot_auth_absent(run):
-            pytest.fail(_copilot_auth_absent_headline(run))
-        assert marker.is_file(), _copilot_failure_diagnostics(probe_name, plugin, userland, run)
-        text = marker.read_text(encoding="utf-8")
-        assert "MARKER" in text
-        # Resolved from the install tree (anchored), not from the foreign cwd.
-        assert _COPILOT_INSTALL_SEGMENT in text, (
-            f"hook ran but not from the vendor install tree. marker={text!r}"
+        install = subprocess.run(
+            _copilot_command("plugin", "install", str(plugin)),
+            cwd=userland,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=240,
+            check=False,
+            env=env,
         )
-        assert str(userland) not in text.split("script=", 1)[1].splitlines()[0]
-    finally:
-        # Best-effort cleanup: a slow uninstall must not fail the test, which
-        # has already asserted the behavior under test.
-        try:
-            subprocess.run(
-                [resolve_executable("copilot"), "plugin", "uninstall", probe_name],
-                capture_output=True,
-                text=True,
-                timeout=180,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            pass
+    except subprocess.TimeoutExpired:
+        pytest.skip("copilot plugin install exceeded 240s (CLI/infra latency)")
+    if _copilot_auth_absent(install):
+        pytest.fail(_copilot_auth_absent_headline(install))
+    assert install.returncode == 0, install.stderr or install.stdout
+
+    try:
+        run = subprocess.run(
+            _copilot_command(
+                "-p",
+                _PROMPT,
+                "--allow-all-tools",
+                "--allow-all-paths",
+            ),
+            cwd=userland,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=240,
+            check=False,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
+    if _copilot_auth_absent(run):
+        pytest.fail(_copilot_auth_absent_headline(run))
+
+    assert marker.is_file(), _copilot_failure_diagnostics(
+        probe_name, plugin, userland, run, install_root
+    )
+    text = marker.read_text(encoding="utf-8")
+    assert "MARKER" in text
+    script_value = text.split("script=", 1)[1].splitlines()[0]
+    script_path = Path(script_value)
+    assert "installed-plugins" in script_path.parts
+    assert isolated_home in script_path.parents
+    assert plugin not in script_path.parents
+    assert userland not in script_path.parents
 
 
 @pytest.mark.smoke
@@ -332,78 +313,18 @@ def test_copilot_probe_event_fires_in_print_mode() -> None:
 
 
 def test_copilot_failure_diagnostics_stays_best_effort(
-    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """Diagnostic failures report partial context instead of masking the marker miss."""
-
-    class BrokenRoot:
-        def __str__(self) -> str:
-            return "broken-root"
-
-        def is_dir(self) -> bool:
-            return True
-
-        def rglob(self, pattern: str):
-            assert pattern == "hooks.json"
-            raise OSError("boom")
-
-    class UnreadableHook:
-        name = "hooks.json"
-
-        def __str__(self) -> str:
-            return "unreadable/hooks.json"
-
-        def is_file(self) -> bool:
-            return True
-
-        def read_text(self, encoding: str) -> str:
-            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
-
-    class HookPath:
-        name = "hooks.json"
-
-        def __init__(self, index: int) -> None:
-            self.index = index
-
-        def __str__(self) -> str:
-            return f"hook-{self.index}/hooks.json"
-
-        def is_file(self) -> bool:
-            return True
-
-        def read_text(self, encoding: str) -> str:
-            return f"content-{self.index}"
-
-    class ManyHooksRoot:
-        def __str__(self) -> str:
-            return "many-hooks-root"
-
-        def is_dir(self) -> bool:
-            return True
-
-        def rglob(self, pattern: str):
-            assert pattern == "hooks.json"
-            return iter(
-                [UnreadableHook()]
-                + [HookPath(index) for index in range(_DIAGNOSTIC_MAX_INSTALL_HOOKS + 2)]
-            )
-
-    monkeypatch.setattr(
-        sys.modules[__name__],
-        "_copilot_install_roots",
-        lambda: [BrokenRoot(), ManyHooksRoot()],
-    )
     run = subprocess.CompletedProcess(["copilot"], 1, stdout="out", stderr="err")
 
     diagnostics = _copilot_failure_diagnostics(
         "probe", tmp_path / "plugin", tmp_path / "userland", run
     )
 
-    assert "rglob_error=boom" in diagnostics
-    assert "content_error=" in diagnostics
-    assert f"install_root_truncated_after={_DIAGNOSTIC_MAX_INSTALL_HOOKS}" in diagnostics
-    assert f"hook-{_DIAGNOSTIC_MAX_INSTALL_HOOKS}/hooks.json" not in diagnostics
+    assert "authored_hooks_json=" in diagnostics
+    assert "stdout='out'" in diagnostics
+    assert "stderr='err'" in diagnostics
 
 
 def test_copilot_entry_anchors_script_to_plugin_root() -> None:

@@ -72,23 +72,21 @@ def test_dispatcher_entry_carries_matcher_when_given():
     assert "matcher" not in dispatcher_entry("PreToolUse", 60, None)
 
 
-def test_committed_pretooluse_entry_has_matcher_and_others_do_not():
+def test_committed_matcher_capable_entries_have_matchers():
     hooks = json.loads(
         (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(
             encoding="utf-8"
         )
     )["hooks"]
-    pre = hooks["PreToolUse"][0]
-    tokens = set(pre["matcher"].split("|"))
-    # ADR-084 leaves only the customer-value push gate on this event.
-    assert {"Bash"} == tokens
-    for event, entries in hooks.items():
-        if event == "PreToolUse":
-            continue
-        for entry in entries:
-            assert "matcher" not in entry, (
-                f"{event}: matcher union must fail open for non-reducible events"
-            )
+    expected = {
+        "PreToolUse": {"Bash"},
+        "PostToolUse": {"Write", "Edit"},
+    }
+
+    assert set(hooks) == set(expected)
+    for event, tokens in expected.items():
+        entry = hooks[event][0]
+        assert set(entry["matcher"].split("|")) == tokens
 
 
 def test_internal_claude_matcher_key_never_reaches_committed_artifact():

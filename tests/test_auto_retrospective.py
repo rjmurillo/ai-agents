@@ -129,8 +129,8 @@ class TestAutoRetrospective(unittest.TestCase):
         """The create path emits a Stop continuation prompting the model to fill.
 
         Block-and-fill: writing the skeleton is not enough on its own; the hook
-        prompts the in-session model to populate it. Mirrors the
-        Stop-hook {"continue": true, "reason": ...} contract.
+        prompts the in-session model to populate it through the Stop-hook
+        ``{"decision": "block", "reason": ...}`` contract.
         """
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -149,7 +149,7 @@ class TestAutoRetrospective(unittest.TestCase):
                 result = invoke_auto_retrospective.main()
             self.assertEqual(result, 0)
             payload = json.loads(captured.getvalue().strip())
-            self.assertIs(payload["continue"], True)
+            self.assertEqual(payload["decision"], "block")
             self.assertIn("fill", payload["reason"].lower())
             self.assertIn(today, payload["reason"])
             # Instructs the model to use the retrospective skill (user request)

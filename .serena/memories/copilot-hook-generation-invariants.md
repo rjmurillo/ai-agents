@@ -17,6 +17,22 @@ also propagate scan, read, and unlink failures; silently accepting a partial
 cleanup can ship stale hook behavior. Protected stale shims remain in place and
 the generator emits a notice naming the protection reason.
 
+## Orphan event cleanup
+
+When an event leaves the active target set, cleanup remains generator-owned.
+An orphan directory is eligible only when a matching valid `_manifest.json`,
+signature-verified `_dispatch.py` and `_bootstrap.py`, and every
+manifest-listed `is_shimmed` Python file prove generated ownership.
+Matcher-free copies require a same-name canonical source with an equal Python
+program after comments and docstrings are excluded. The scan is one level
+below the resolved hooks root. It preserves symlinks, path escapes,
+malformed manifests, unknown files, and NO-REGEN files with NOTICE output.
+
+Verified file deletions use the same `HookGenerationTransaction` as
+publication, so rollback restores them after a later failure. After commit,
+cleanup uses nonrecursive `rmdir` only on empty bytecode-cache and event
+directories. What-if reports candidates without deleting them.
+
 When dispatcher artifacts are staged off-tree, stale candidates must be
 discovered in the published event directory rather than the empty staging
 directory. Their deletion belongs to the same `HookGenerationTransaction` as
@@ -66,6 +82,64 @@ Session-start context output is a UTF-8 protocol. The canonical context loader
 reconfigures text streams to UTF-8 and explicitly encodes the binary fallback.
 Edit `.claude/hooks/SessionStart/invoke_context_loader.py`, then regenerate its
 Copilot CLI mirror rather than editing the generated file.
+
+## Host contract boundaries
+
+Canonical generation inputs are `.claude/settings.json`,
+`.claude/hooks/hooks.json`, `.claude/hooks/dispatch_groups.json`, and
+`templates/platforms/copilot-cli.yaml`. A vendored registration must exist in
+both `hooks.json` and the referenced `plugin-*` dispatch group. Generated outputs are
+`src/copilot-cli/hooks/hooks.json` and `src/copilot-cli/hooks/<event>/`.
+
+- Current mappings include PreCompact.
+- Stop and SubagentStop remain direct if registered. Consolidating structured
+  decisions can concatenate JSON objects and make Copilot ignore the result.
+- PermissionRequest `ask` has no Copilot response equivalent. Emit no behavior
+  so normal permission handling continues.
+- The PermissionRequest adapter accepts one complete JSON document independent
+  of whitespace or pretty printing and rejects trailing content. Translated
+  `approve` and `deny` decisions require a string `reason`. Malformed exit-0
+  output is diagnosed on stderr, suppressed, and left to the host default.
+- No PermissionRequest policy hook is registered in either harness. The
+  test-runner auto-approval producer was removed because runner names do not
+  constrain repository-controlled code or destructive runner options. Keep the
+  generic adapter and tests, but require security review for any new producer.
+- PostToolUse observer stdout uses an event-specific merger: only successful
+  shims contribute, registration order is preserved, and one blank line
+  separates flat text inside one `additionalContext` object. Failed-shim partial
+  output is discarded.
+- SessionStart and PreCompact capture covers Python stdout and stderr, direct
+  writes to file descriptors 1 and 2, and inherited child-process output on
+  both channels. The captured content is discarded. Current producers load
+  branch-controlled session state, which is not trusted model context.
+- Claude grouped dispatch treats unknown JSON as context and continues later
+  gates. Only `continue: false`, Stop or SubagentStop `decision: block` with a
+  string reason, and nested PreToolUse `permissionDecision: deny` with a string
+  reason are terminal. Malformed object-shaped JSON, allow-shaped decisions,
+  unsupported fields, and invalid field types fail closed in gate modes. It
+  validates nonempty shim lists, reviewed event/mode pairs, unique relative
+  `.py` paths, and hooks-directory containment before execution.
+- Direct SessionStart and PreCompact rollback commands suppress stdout and
+  stderr at the shell boundary while preserving producer side effects.
+- PostToolUseFailure remains direct because exit-2 stdout becomes recovery
+  context and generic observe mode discards nonzero-shim output.
+- UserPromptSubmit has no documented config-file output field. The generated
+  dispatcher and direct rollback commands send its successful stdout to stderr
+  and emit no host JSON. Whether stderr enters model context remains docs
+  silent.
+- Only explicitly classified events receive dispatcher modes. Unclassified
+  future events remain direct until output and failure semantics are reviewed.
+- A PostToolUse `modifiedResult` or pre-structured output producer changes the
+  dispatcher boundary. Add a field-specific merger with positive, negative, and
+  edge tests, or keep that producer direct.
+- A PostToolUseFailure producer that emits repository-controlled or other
+  untrusted content requires security review. Its direct exit-2 stdout becomes
+  model recovery context.
+- GitHub documents PascalCase aliases for Claude-compatible hook events and
+  lower-camel native event names. Do not infer event support from casing alone.
+- The current contract, pinned official sources, and versioned probes live in
+  `agent-harness-reference`. This memory records generator invariants, not the
+  complete host contract.
 
 ## Evidence
 

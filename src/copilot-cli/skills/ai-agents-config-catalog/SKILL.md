@@ -97,13 +97,15 @@ Mixed sessions do not qualify; split the commit. Claiming investigation-only wit
 
 Not a flag, but the config obligation most often tripped over. Any content change under a packaged plugin source dir requires a strictly-greater SemVer bump of that tree's `.claude-plugin/plugin.json` (installed caches key off the version; PR #1942 shipped a deleted skill until PR #2114 caught it by hand; incident home: `ai-agents-failure-archaeology`).
 
-| Tree | plugin.json | Version as of 2026-07-03 |
+| Tree | plugin.json | Version source |
 |---|---|---|
-| `.claude/` | `.claude/.claude-plugin/plugin.json` | 0.5.254 |
-| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | 0.3.29 |
-| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | 0.5.254 |
+| `.claude/` | `.claude/.claude-plugin/plugin.json` | Read this manifest |
+| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | Read this manifest |
+| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | Read this manifest |
 
-Enforced locally by the `pre-pr-validation` job in `lefthook.yml`, which runs
+Current values are intentionally not copied into this skill. Read each manifest
+at execution time. Enforced locally by the `pre-pr-validation` job in
+`lefthook.yml`, which runs
 `scripts/validation/pre_pr.py`; that runner invokes
 `build/scripts/validate_plugin_version_bump.py`. CI also enforces it through
 `.github/workflows/validate-plugin-version-bump.yml`. A `plugin.json`-only edit
@@ -111,14 +113,20 @@ needs no bump; any other file in the tree does.
 
 ## Hook Registration Surfaces
 
-Two registration files, kept in sync BY HAND (a known-weak point, see `ai-agents-architecture-contract`):
+Two independent registration sources serve different consumers. Do not force
+parity between them:
 
-| Surface | Consumer | Shape as of 2026-07-03 |
+| Surface | Consumer | Shape re-verified 2026-07-22 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct | 23 matcher groups across 8 events (PreToolUse 11, SessionStart 2, UserPromptSubmit 1, PostToolUse 5, Stop 1, SubagentStop 1, PreCompact 1, PermissionRequest 1) |
-| `.claude/hooks/hooks.json` | Plugin packaging twin | Hand-ported and ALREADY DIVERGENT as of 2026-07-03: 21 groups across 7 events; PreCompact and one SessionStart group are absent vs settings.json (known-weak point, `ai-agents-architecture-contract` Phase 7) |
+| `.claude/settings.json` | Claude Code direct in this repository | 4 events, 5 groups |
+| `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 2 groups |
 
-If you register a hook in one file only, one harness silently lacks it. Check both in any hook PR.
+The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A
+one-file registration is valid only when its consumer scope is deliberate.
+Check both sources in any hook PR and document repository-only versus vendored
+intent.
+No `PermissionRequest` policy hook is registered. Test runners execute
+repository-controlled code, so command-name matching is not a safe approval boundary.
 
 ## How to Add a New Flag
 

@@ -146,12 +146,12 @@ artifacts:
     eventRemap:
       PreToolUse: PreToolUse
       PostToolUse: PostToolUse
-      Stop: SessionEnd
+      Stop: Stop
+      SubagentStop: SubagentStop
+      PermissionRequest: PermissionRequest
       SessionStart: SessionStart
       UserPromptSubmit: UserPromptSubmit
     eventDrop:
-      - SubagentStop
-      - PermissionRequest
       - Notification
       - PreCompact
     matcherPolicy: "inline-script-shim"
@@ -1095,7 +1095,7 @@ def _setup_full_fixture(tmp_path: Path) -> tuple[Path, Path]:
     hooks_src = tmp_path / "hooks_src"
     _write_script(hooks_src, "PreToolUse", "alpha.py")
     _write_script(hooks_src, "PostToolUse", "beta.py")
-    _write_script(hooks_src, "SubagentStop", "subagent.py")  # event-dropped
+    _write_script(hooks_src, "SubagentStop", "subagent.py")
     _write_script(hooks_src, "SessionStart", "init.py")
     settings = tmp_path / "settings.json"
     _write_settings(
@@ -1213,10 +1213,10 @@ def test_generator_copies_skill_loader_without_dispatching_it(
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
 
     assert rc == 0
-    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
+    companion = tmp_path / "out" / "Stop" / "companion_module.py"
     assert companion.read_text(encoding="utf-8") == "TOKEN = 'portable-import'\n"
     generated = json.loads((tmp_path / "out" / "hooks.json").read_text())
-    entries = generated["hooks"]["SessionEnd"]
+    entries = generated["hooks"]["Stop"]
     assert len(entries) == 1
     assert "companion_module.py" not in json.dumps(entries)
 
@@ -1227,7 +1227,7 @@ def test_generated_skill_owner_imports_companion_portably(
 ) -> None:
     cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
+    owner = tmp_path / "out" / "Stop" / "invoke_owner.py"
 
     process = subprocess.run(
         [sys.executable, str(owner)],
@@ -1259,7 +1259,7 @@ def test_generator_fails_when_declared_skill_loader_is_absent(
     # #9: validation must run BEFORE the owner is copied, so a missing
     # companion never leaves a half-written owner script with no matching
     # hooks.json.
-    assert not (tmp_path / "out" / "SessionEnd" / "invoke_owner.py").exists()
+    assert not (tmp_path / "out" / "Stop" / "invoke_owner.py").exists()
 
 
 def test_generator_no_regen_owner_skip_validates_but_skips_companion_copy(
@@ -1270,8 +1270,8 @@ def test_generator_no_regen_owner_skip_validates_but_skips_companion_copy(
     cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
-    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
+    owner = tmp_path / "out" / "Stop" / "invoke_owner.py"
+    companion = tmp_path / "out" / "Stop" / "companion_module.py"
 
     # Customer protects the owner and hand-edits the companion.
     owner.write_text("# NO-REGEN\nprint('customer fix')\n", encoding="utf-8")
@@ -1293,7 +1293,7 @@ def test_generator_no_regen_owner_requires_existing_output_companion(
 ) -> None:
     """A protected owner cannot emit an entry without its runtime companion."""
     cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
+    owner = tmp_path / "out" / "Stop" / "invoke_owner.py"
     owner.parent.mkdir(parents=True)
     owner.write_text("# NO-REGEN\nprint('customer fix')\n", encoding="utf-8")
 
@@ -1340,8 +1340,8 @@ def test_generator_companion_only_no_regen_preserves_runtime_group(
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
     early_target = tmp_path / "out" / "PostToolUse" / "early_owner.py"
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
-    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
+    owner = tmp_path / "out" / "Stop" / "invoke_owner.py"
+    companion = tmp_path / "out" / "Stop" / "companion_module.py"
     hooks_json = tmp_path / "out" / "hooks.json"
     original_early = early_target.read_bytes()
     original_owner = owner.read_bytes()
@@ -1400,8 +1400,8 @@ def test_generator_companion_copy_failure_restores_earlier_events(
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
     early_target = tmp_path / "out" / "PostToolUse" / "early_owner.py"
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
-    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
+    owner = tmp_path / "out" / "Stop" / "invoke_owner.py"
+    companion = tmp_path / "out" / "Stop" / "companion_module.py"
     hooks_json = tmp_path / "out" / "hooks.json"
     original_early = early_target.read_bytes()
     original_owner = owner.read_bytes()
@@ -1451,6 +1451,226 @@ def test_generator_companion_copy_failure_restores_earlier_events(
     assert companion.read_bytes() == original_companion
     assert hooks_json.read_bytes() == original_hooks
     assert not list(tmp_path.rglob(".hook-stage-*.tmp"))
+
+
+def _setup_orphan_event_fixture(tmp_path: Path) -> tuple[Path, Path]:
+    cfg = _setup_dispatcher_matcher_fixture(tmp_path, "Bash")
+    text = cfg.read_text(encoding="utf-8")
+    cfg.write_text(
+        text.replace("PreToolUse: PreToolUse", "PreToolUse: PostToolUse"),
+        encoding="utf-8",
+    )
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    legacy_dir = tmp_path / "out" / "PostToolUse"
+    assert legacy_dir.is_dir()
+    cfg.write_text(text, encoding="utf-8")
+    return cfg, legacy_dir
+
+
+def test_generator_removes_owned_orphan_event_directory(tmp_path: Path) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    cache_dir = legacy_dir / "__pycache__"
+    cache_dir.mkdir()
+    (cache_dir / "_bootstrap.cpython-314.pyc").write_bytes(b"bytecode")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert not legacy_dir.exists()
+
+
+def test_generator_preserves_unknown_orphan_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    unknown = legacy_dir / "customer.txt"
+    unknown.write_text("keep\n", encoding="utf-8")
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert unknown.read_text(encoding="utf-8") == "keep\n"
+    assert "preserved unknown orphan artifact" in output
+    assert not (legacy_dir / "_manifest.json").exists()
+
+
+def test_generator_preserves_protected_orphan_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    manifest = legacy_dir / "_manifest.json"
+    manifest.with_suffix(".json.noregen").write_text("keep\n", encoding="utf-8")
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert manifest.is_file()
+    assert "NO-REGEN" in output
+
+
+def test_generator_preserves_orphan_with_malformed_manifest(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    manifest = legacy_dir / "_manifest.json"
+    manifest.write_text("{not json", encoding="utf-8")
+    before = sorted(path.name for path in legacy_dir.iterdir())
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert sorted(path.name for path in legacy_dir.iterdir()) == before
+    assert "ownership manifest invalid" in output
+
+
+def test_generator_preserves_symlinked_orphan_event(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    external = tmp_path / "external-legacy"
+    legacy_dir.rename(external)
+    legacy_dir.symlink_to(external, target_is_directory=True)
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 0
+    assert legacy_dir.is_symlink()
+    assert (external / "_manifest.json").is_file()
+
+
+def test_generator_preserves_orphan_manifest_path_escape(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    manifest_path = legacy_dir / "_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["shims"] = ["../outside.py"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    outside = legacy_dir.parent / "outside.py"
+    outside.write_text("customer owned\n", encoding="utf-8")
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert outside.read_text(encoding="utf-8") == "customer owned\n"
+    assert legacy_dir.is_dir()
+    assert "manifest-listed shim ownership failed" in output
+
+
+def test_generator_orphan_cleanup_rolls_back_on_later_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    before = {
+        path.name: path.read_bytes()
+        for path in legacy_dir.iterdir()
+        if path.is_file()
+    }
+    real_publish_many = (
+        generate_hooks_transaction.HookGenerationTransaction.publish_many
+    )
+
+    def fail_config_publish(
+        transaction: generate_hooks_transaction.HookGenerationTransaction,
+        pairs: Any,
+    ) -> None:
+        publish_pairs = list(pairs)
+        if any(target.name == "hooks.json" for _staged, target in publish_pairs):
+            raise OSError("simulated config publish failure")
+        real_publish_many(transaction, publish_pairs)
+
+    monkeypatch.setattr(
+        generate_hooks_transaction.HookGenerationTransaction,
+        "publish_many",
+        fail_config_publish,
+    )
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 1
+    assert {
+        path.name: path.read_bytes()
+        for path in legacy_dir.iterdir()
+        if path.is_file()
+    } == before
+
+
+def test_generator_orphan_cleanup_is_idempotent(tmp_path: Path) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+
+    first_rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    second_rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert first_rc == second_rc == 0
+    assert not legacy_dir.exists()
+
+
+def test_generator_orphan_cleanup_what_if_does_not_delete(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path, what_if=True)
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert legacy_dir.is_dir()
+    assert "Would remove generated orphan" in output
+
+
+def test_generator_orphan_discovery_failure_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
+    before = {
+        path.relative_to(tmp_path / "out"): path.read_bytes()
+        for path in (tmp_path / "out").rglob("*")
+        if path.is_file()
+    }
+
+    def fail_orphan_discovery(*args: Any, **kwargs: Any) -> None:
+        raise OSError("simulated orphan discovery failure")
+
+    monkeypatch.setattr(
+        generate_dispatcher,
+        "find_owned_orphan_artifacts",
+        fail_orphan_discovery,
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    after = {
+        path.relative_to(tmp_path / "out"): path.read_bytes()
+        for path in (tmp_path / "out").rglob("*")
+        if path.is_file()
+    }
+    assert rc == 1
+    assert legacy_dir.is_dir()
+    assert after == before
+
+
+def test_orphan_directory_cleanup_ignores_already_removed_directory(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    generate_hooks_events._remove_empty_orphan_directories([tmp_path / "missing"])
+
+    assert capsys.readouterr().out == ""
 
 
 @pytest.mark.parametrize(
@@ -1624,7 +1844,7 @@ def test_generator_dispatcher_removes_stale_event_artifacts(tmp_path: Path) -> N
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
 
     assert rc == 0
-    assert not any(path.is_file() for path in stale_event.iterdir())
+    assert not stale_event.exists()
 
 
 def test_generator_dispatcher_preserves_protected_stale_event(
@@ -2189,8 +2409,8 @@ def test_generator_failed_rollback_retains_recovery_backup(
     cfg = _setup_skill_companion_fixture(tmp_path, monkeypatch)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
-    owner = tmp_path / "out" / "SessionEnd" / "invoke_owner.py"
-    companion = tmp_path / "out" / "SessionEnd" / "companion_module.py"
+    owner = tmp_path / "out" / "Stop" / "invoke_owner.py"
+    companion = tmp_path / "out" / "Stop" / "companion_module.py"
     hooks_json = tmp_path / "out" / "hooks.json"
     original_companion = companion.read_bytes()
     original_hooks = hooks_json.read_bytes()
@@ -2239,7 +2459,7 @@ def test_generator_failed_rollback_retains_recovery_backup(
     assert "recovery backup retained at" in captured.err
     assert hooks_json.read_bytes() == original_hooks
     recovery_files = list(
-        (tmp_path / "out" / "SessionEnd").glob(".hook-stage-*.tmp")
+        (tmp_path / "out" / "Stop").glob(".hook-stage-*.tmp")
     )
     assert len(recovery_files) == 1
     assert recovery_files[0].read_bytes() == original_companion
@@ -2254,7 +2474,7 @@ def test_generator_does_not_copy_unowned_skill_loader(
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
 
     assert rc == 0
-    assert not (tmp_path / "out" / "SessionEnd" / "companion_module.py").exists()
+    assert not (tmp_path / "out" / "Stop" / "companion_module.py").exists()
 
 
 def test_generator_two_owner_missing_companion_leaves_no_partial_output(
@@ -2443,6 +2663,23 @@ def test_generator_fails_2_on_invalid_version_field(
     assert rc == 2
 
 
+@pytest.mark.parametrize("dispatcher_value", ['"false"', '"true"', "0", "1", "null"])
+def test_generator_fails_2_on_non_boolean_dispatcher(
+    tmp_path: Path,
+    dispatcher_value: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg, _ = _setup_full_fixture(tmp_path)
+    with cfg.open("a", encoding="utf-8") as handle:
+        handle.write(f"    dispatcher: {dispatcher_value}\n")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "artifacts.hooks.dispatcher must be a boolean" in captured.err
+
+
 def test_generator_remaps_event_names(tmp_path: Path) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
@@ -2451,20 +2688,102 @@ def test_generator_remaps_event_names(tmp_path: Path) -> None:
     assert "PreToolUse" in out["hooks"]
     assert "PostToolUse" in out["hooks"]
     assert "SessionStart" in out["hooks"]
-    # SubagentStop dropped.
-    assert "SubagentStop" not in out["hooks"]
-    assert "subagentStop" not in out["hooks"]
+    assert "Stop" not in out["hooks"]
+    assert "SessionEnd" not in out["hooks"]
+    assert "SubagentStop" in out["hooks"]
 
 
-def test_generator_drops_subagent_stop_with_warn(tmp_path: Path, capfd) -> None:
-    cfg, _ = _setup_full_fixture(tmp_path)
-    rc, result = generate_hooks.generate_hooks(cfg, tmp_path)
-    captured = capfd.readouterr()
+def test_generator_maps_stop_to_stop_not_session_end(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = _write_config(
+        tmp_path,
+        hooks_stanza_overrides={"dispatcher": True},
+    )
+    _write_script(tmp_path / "hooks_src", "Stop", "stop.py")
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "Stop": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/Stop/stop.py",
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 0
-    assert result.dropped >= 1
-    assert "SubagentStop" in captured.err
-    # The dropped script is still copied to disk for reference; only the
-    # hooks.json entry is omitted.
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    output = capsys.readouterr().out
+    out = json.loads((tmp_path / "out" / "hooks.json").read_text())
+
+    assert rc == 0
+    assert set(out["hooks"]) == {"Stop"}
+    assert "ownership manifest invalid" not in output
+
+
+def test_generator_multiple_permission_producers_returns_config_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = _write_config(
+        tmp_path,
+        hooks_stanza_overrides={"dispatcher": True},
+    )
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "PermissionRequest", "first.py")
+    _write_script(hooks_src, "PermissionRequest", "second.py")
+    _write_settings(
+        tmp_path / "settings.json",
+        {
+            "PermissionRequest": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u "
+                                ".claude/hooks/PermissionRequest/first.py"
+                            ),
+                        },
+                        {
+                            "type": "command",
+                            "command": (
+                                "python3 -u "
+                                ".claude/hooks/PermissionRequest/second.py"
+                            ),
+                        },
+                    ]
+                }
+            ]
+        },
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "requires exactly one decision producer" in captured.err
+    assert not (tmp_path / "out" / "hooks.json").exists()
+    assert not (tmp_path / "out" / "PermissionRequest" / "first.py").exists()
+    assert not (tmp_path / "out" / "PermissionRequest" / "second.py").exists()
+
+
+def test_generator_emits_subagent_stop_when_source_exists(tmp_path: Path) -> None:
+    cfg, _ = _setup_full_fixture(tmp_path)
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    out = json.loads((tmp_path / "out" / "hooks.json").read_text())
+
+    assert rc == 0
+    assert "SubagentStop" in out["hooks"]
+    assert (tmp_path / "out" / "SubagentStop" / "subagent.py").is_file()
 
 
 def test_generator_emits_python3_and_py3_invocation(tmp_path: Path) -> None:
@@ -2529,6 +2848,39 @@ def test_generator_no_regen_sentinel_skips_overwrite(tmp_path: Path) -> None:
     # Re-run; file must be untouched.
     generate_hooks.generate_hooks(cfg, tmp_path)
     assert target.read_text().startswith("# NO-REGEN\n")
+
+
+def test_generator_protected_hooks_config_freezes_artifact_set(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = _setup_dispatcher_matcher_fixture(tmp_path, "Bash(git status*)")
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    assert rc == 0
+    output_root = tmp_path / "out"
+    hooks_json = output_root / "hooks.json"
+    hooks_json.with_suffix(".json.noregen").write_text(
+        "preserve generated hook artifact set\n",
+        encoding="utf-8",
+    )
+    before = {
+        path.relative_to(output_root): path.read_bytes()
+        for path in output_root.rglob("*")
+        if path.is_file() and path != hooks_json.with_suffix(".json.noregen")
+    }
+    _set_dispatcher_matcher(tmp_path, "Bash(git commit*)")
+    capsys.readouterr()
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+    output = capsys.readouterr().out
+    after = {
+        path.relative_to(output_root): path.read_bytes()
+        for path in output_root.rglob("*")
+        if path.is_file() and path != hooks_json.with_suffix(".json.noregen")
+    }
+
+    assert rc == 0
+    assert after == before
+    assert "preserved generated hook artifact set" in output
 
 
 def test_generator_distinct_shim_per_matcher(tmp_path: Path) -> None:

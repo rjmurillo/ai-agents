@@ -66,6 +66,11 @@ def clean_env() -> dict[str, str]:
     return env
 
 
+def copilot_command(*args: str) -> list[str]:
+    """Build a Copilot command that cannot auto-update past the tested pin."""
+    return [resolve_executable("copilot"), "--no-auto-update", *args]
+
+
 def probe_name() -> str:
     """A unique plugin name so parallel or repeated runs do not collide."""
     return f"hook-e2e-probe-{uuid.uuid4().hex[:12]}"
@@ -175,15 +180,14 @@ def run_copilot_plugin_dir(
     CLI/infra latency so the caller can skip loud rather than false-fail.
     """
     return subprocess.run(
-        [
-            resolve_executable("copilot"),
+        copilot_command(
             "--plugin-dir",
             str(plugin_dir),
             "-p",
             PROBE_PROMPT,
             "--allow-all-tools",
             "--allow-all-paths",
-        ],
+        ),
         cwd=cwd,
         capture_output=True,
         encoding="utf-8",

@@ -14,13 +14,18 @@ ships:
                                         to ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}``
                                         (bash) and the PowerShell equivalent.
 
-For Copilot the expected command shape is taken from the generator
-(``generate_hooks._build_copilot_entry``), so the gate cannot diverge from the
-source of truth (canonical-source-mirror rule). For Claude the file is
-hand-authored, so the gate asserts the anchoring invariant against the Claude
-Code platform variable ``${CLAUDE_PLUGIN_ROOT}``. The runtime contract (both
-CLIs export their plugin-root variable to the hook process, pointing at the
-install dir) was verified empirically; see the Serena memory
+For Copilot the expected command shape is taken from the two canonical builders:
+``build/scripts/generate_hooks_emit.py::_build_copilot_entry(target_event:
+str, script_name: str, *, timeout_sec: int = _DEFAULT_TIMEOUT_SEC)`` for direct
+registrations and ``build/scripts/generate_dispatcher.py::dispatcher_entry(
+event: str, timeout_sec: int, matcher: str | None = None)`` for consolidated
+dispatchers. Dispatcher commands intentionally omit the direct-entry shell
+redirects because ADR-068 assigns event-specific output control to the
+dispatcher process. For Claude the file is hand-authored, so the gate asserts
+the anchoring invariant against the Claude Code platform variable
+``${CLAUDE_PLUGIN_ROOT}``. The runtime contract (both CLIs export their
+plugin-root variable to the hook process, pointing at the install dir) was
+verified empirically; see the Serena memory
 ``decision-copilot-cli-hook-plugin-root-contract``.
 
 Exit codes (ADR-035): 0 ok, 1 anchoring violation(s), 2 config error.
@@ -114,13 +119,14 @@ def _load_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
 # --- Copilot (generated): compare each entry against the generator -----------
 
 
-def _load_generator(repo_root: Path) -> ModuleType:
+def _load_generators(repo_root: Path) -> tuple[ModuleType, ModuleType]:
     scripts_dir = repo_root / "build" / "scripts"
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
+    import generate_dispatcher  # noqa: PLC0415
     import generate_hooks  # noqa: PLC0415
 
-    return cast(ModuleType, generate_hooks)
+    return cast(ModuleType, generate_hooks), cast(ModuleType, generate_dispatcher)
 
 
 def _script_name(command: str) -> str | None:
@@ -131,7 +137,11 @@ def _script_name(command: str) -> str | None:
 
 
 def _check_copilot_entry(
-    generate_hooks: ModuleType, event: str, index: int, entry: dict[str, Any]
+    generate_hooks: ModuleType,
+    generate_dispatcher: ModuleType,
+    event: str,
+    index: int,
+    entry: dict[str, Any],
 ) -> list[str]:
     bash = entry.get("bash", "")
     if not isinstance(bash, str):
@@ -141,7 +151,10 @@ def _check_copilot_entry(
         return [f"copilot {event}[{index}]: cannot parse script path from bash: {bash!r}"]
 
     timeout = entry.get("timeoutSec", generate_hooks._DEFAULT_TIMEOUT_SEC)
-    expected = generate_hooks._build_copilot_entry(event, script_name, timeout_sec=timeout)
+    if script_name == "_dispatch.py":
+        expected = generate_dispatcher.dispatcher_entry(event, timeout)
+    else:
+        expected = generate_hooks._build_copilot_entry(event, script_name, timeout_sec=timeout)
     violations: list[str] = []
     for field in _COPILOT_FIELDS:
         if entry.get(field) != expected[field]:
@@ -170,9 +183,9 @@ def _check_copilot(
     if not isinstance(events, dict) or not events:
         return 0, [f"no hook events in {artifact_rel}"], 2
     try:
-        generate_hooks = _load_generator(repo_root)
+        generate_hooks, generate_dispatcher = _load_generators(repo_root)
     except ImportError as exc:
-        return 0, [f"cannot import generate_hooks: {exc}"], 2
+        return 0, [f"cannot import hook generators: {exc}"], 2
 
     violations: list[str] = []
     checked = 0
@@ -182,7 +195,15 @@ def _check_copilot(
         for index, entry in enumerate(entries):
             if isinstance(entry, dict):
                 checked += 1
-                violations.extend(_check_copilot_entry(generate_hooks, event, index, entry))
+                violations.extend(
+                    _check_copilot_entry(
+                        generate_hooks,
+                        generate_dispatcher,
+                        event,
+                        index,
+                        entry,
+                    )
+                )
     return checked, violations, 0
 
 

@@ -1,0 +1,147 @@
+{
+  "id": "episode-2026-07-20-session-3253-update-cross-harness-claude-code-github",
+  "session": "2026-07-20-session-3253-update-cross-harness-claude-code-github",
+  "timestamp": "2026-07-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Update the cross-harness Claude Code and GitHub Copilot CLI contract across canonical configuration, skills, agents, hooks, commands, prompts, ADRs, and generated mirrors using official vendor sources",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pinned the Claude Code and GitHub Copilot CLI hook contracts",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected cross-harness hook generation and runtime adaptation",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated durable routing and architecture records",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the final hook knowledge coverage audit",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed review findings",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the installed-plugin matcher E2E",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Captured safe installed-plugin test procedure",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Normalized the unpushed commit series",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the complete change",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "test",
+      "content": "`uv run pytest -q tests/` reported 14245 passed, 23 skipped, and 45 xfailed after the final rebase; focused hook tests reported 265 passed; real-harness and installed-plugin E2E tests, scoped lint, types, CWE-78 scan, generation, and parity checks passed.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 33294d1f6890b1c88d9602d78adea4d8c3bc132b",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 2,
+    "commits": 26,
+    "files_changed": 114
+  },
+  "lessons": []
+}

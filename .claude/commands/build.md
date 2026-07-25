@@ -10,6 +10,19 @@ Build: $ARGUMENTS
 
 If $ARGUMENTS is empty, check for recent /plan output in the conversation. If none found, ask the user what to build.
 
+## Cross-Harness Hook Routing
+
+If the task touches Claude Code or GitHub Copilot CLI hook configuration,
+payloads, decisions, matchers, exit codes, timeouts, generated shims, or event
+translation:
+
+1. Invoke `Skill(skill="agent-harness-reference")` before design or code.
+2. Execute the change through
+   `Skill(skill="ai-agents-portability-campaign")`.
+3. Use `Skill(skill="ai-agents-generation-and-release")` for generated mirrors.
+4. Do not repeat vendor research unless the pinned source ledger is stale or
+   the task explicitly requires a contract refresh.
+
 ## Complexity Assessment
 
 Before implementation, Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the task description. Classify as Tier 1-5. Return: tier, rationale, and recommended oversight level. Use this to calibrate implementation approach:

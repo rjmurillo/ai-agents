@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3253,
+    "date": "2026-07-20",
+    "branch": "fix/copilot-hook-contract",
+    "startingCommit": "504bd965d0",
+    "objective": "Update the cross-harness Claude Code and GitHub Copilot CLI contract across canonical configuration, skills, agents, hooks, commands, prompts, ADRs, and generated mirrors using official vendor sources"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools were available and instructions loaded. The MCP server remained bound to the original ai-agents4 worktree, so memory mutations were made directly in this hook-contract worktree instead of through the mismatched server."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions and received the Serena operating manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md as a read-only dashboard per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/*/scripts/*.py with the repository glob tool; 98 Python skill scripts were found."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena memory usage-mandatory and followed the skill-first routing requirement."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and the loaded repository rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded Serena memories usage-mandatory, decision-copilot-cli-hook-plugin-root-contract, copilot-hooks-observations, and adr-reference-index."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/copilot-hook-contract"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/copilot-hook-contract"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Rebased the hook-contract worktree onto origin/main at 504bd965d0 before finalization; all listed changes belong to this task and HANDOFF.md remains unchanged."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "504bd965d0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session checklist completed for the closing record after 25 substantive commits."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git diff confirms .agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated the hook contract Serena memories and index in the correct worktree; Serena MCP was not used for writes because it remained bound to ai-agents4."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 ran on all changed Markdown paths selected by repository configuration: 0 issues."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation and governance changes are committed through 33294d1f6890; this closing record is staged with four memory artifacts as the 26th atomic commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Rebased tree reported 14245 passed, 23 skipped, 45 xfailed; focused hook tests passed 265 cases."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Updated contract tests, lifecycle routing, GitHub agent entry instructions, generated mirrors, ADRs, debate logs, and durable memory records in the same change."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked; ADR debate logs and this session record capture the decision and review trail."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Pinned the Claude Code and GitHub Copilot CLI hook contracts",
+      "outcome": "Added an official-source ledger, versioned probe evidence, exact event and decision tables, cloud behavior, docs-silent boundaries, and refresh instructions."
+    },
+    {
+      "action": "Corrected cross-harness hook generation and runtime adaptation",
+      "outcome": "Added PermissionRequest and PreCompact generation, mapped Stop correctly, removed SessionEnd substitution, made stale cleanup transactional, and added event-specific output policies."
+    },
+    {
+      "action": "Updated durable routing and architecture records",
+      "outcome": "Updated rules, skills, lifecycle commands, autoplan, agent authoring guidance, GitHub repository instructions, ADR-068/071/074, debate logs, generated mirrors, and Serena memory files."
+    },
+    {
+      "action": "Closed the final hook knowledge coverage audit",
+      "outcome": "Removed copied plugin versions and volatile pre-push line pins, documented the absent .github/skills surface, refreshed Serena routing, and added guards that derive hook counts from current JSON."
+    },
+    {
+      "action": "Closed review findings",
+      "outcome": "Discarded failed observer output, merged supported observer context, corrected Stop JSON, preserved Copilot install authentication, and accepted pretty-printed PermissionRequest JSON while rejecting trailing decisions."
+    },
+    {
+      "action": "Corrected the installed-plugin matcher E2E",
+      "outcome": "Updated the positive case to derive a tool from anchored tool-only matchers, then passed all 9 tests against an isolated marketplace install from a foreign working directory."
+    },
+    {
+      "action": "Captured safe installed-plugin test procedure",
+      "outcome": "Updated the canonical generation skill, generated Copilot mirror, E2E harness, and Serena hook memory to require an isolated HOME and COPILOT_HOME and record the ambiguous uninstall failure."
+    },
+    {
+      "action": "Normalized the unpushed commit series",
+      "outcome": "Packaged 114 paths into 26 conventional commits through normal hooks; every commit touches five logical files or fewer."
+    },
+    {
+      "action": "Validated the complete change",
+      "outcome": "`uv run pytest -q tests/` reported 14245 passed after the final rebase; real-harness tests reported 6 passed; installed-plugin E2E reported 9 passed; the final hook knowledge and skill-generation selection reported 50 passed; scoped lint, types, CWE-78 scan, generation, and parity checks passed."
+    },
+    {
+      "action": "Closed the rebased commit series",
+      "outcome": "Committed the implementation and governance tree through 33294d1f6890 on base 504bd965d0; this record closes the five remaining session and memory artifacts."
+    }
+  ],
+  "endingCommit": "33294d1f6890b1c88d9602d78adea4d8c3bc132b",
+  "nextSteps": []
+}

@@ -1,8 +1,20 @@
+---
+id: ADR-082
+status: accepted
+date: 2026-07-16
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-082: Claude-Side Consolidated Hook Group Dispatch
 
 ## Status
 
-Proposed
+Accepted on 2026-07-20 after the mandatory six-role review reached six Accept
+votes. Review history lives in `.agents/critique/ADR-082-debate-log.md`.
 
 ## Date
 
@@ -55,18 +67,37 @@ neutral in this ADR; only the publishing repo takes prunes.
    group. Membership lives in `.claude/hooks/dispatch_groups.json`.
    `.claude/lib/claude_hook_dispatch.py` runs each member in-process via
    `runpy`, reusing ADR-068's `hook_dispatch.py` helpers (stdin replay,
-   exit-code normalization) and citing it as canonical.
+   exit-code normalization, process-level stdout capture) and citing it as
+   canonical. The entry point validates the manifest before running a shim:
+   the event and mode must be a reviewed pair, the shim list must be nonempty,
+   and each case-insensitively unique `.py` path must remain relative to the
+   hooks directory and resolve to a unique target. Malformed groups,
+   path-resolution failures, path escapes, and unexpected entry-point execution
+   errors exit 2.
 2. **Merge rules meet the safe-multiplexer bar.** Per-shim stdout is
-   captured and merged into exactly one protocol document: a structured
-   decision document (`decision`, `continue`, `permissionDecision`) passes
-   through verbatim and alone; context payloads merge into one
+   captured across Python streams, direct writes to file descriptor 1, and
+   inherited child processes, then merged into exactly one protocol document.
+   Only an event-valid blocking document may terminate a group: top-level
+   `continue: false`; top-level `decision: block` with a string reason for
+   Stop or SubagentStop; or nested PreToolUse
+   `hookSpecificOutput.permissionDecision: deny` with a string reason.
+   Optional common fields must also have valid types. A validated blocker
+   passes through verbatim and alone. Malformed object-shaped JSON,
+   allow-shaped decisions, unsupported decision fields, and invalid field
+   types fail closed in gate modes. Observe mode suppresses those invalid
+   objects. Context payloads merge into one
    `hookSpecificOutput.additionalContext` for PreToolUse/PostToolUse and
    into joined plain text for UserPromptSubmit, SessionStart, Stop,
    SubagentStop, and PreCompact (where the host injects plain stdout).
+   A JSON object with no recognized protocol keys is context, not a terminal
+   decision. The dispatcher warns and continues so an advisory or debug object
+   cannot skip a later gate.
 3. **Event-correct blocking.** Three modes: `gate` (PreToolUse,
-   short-circuit on first non-zero exit or decision document, fail-closed
-   on missing shim or exception), `gate_all` (UserPromptSubmit, Stop,
-   SubagentStop: every shim runs, first blocking code propagates),
+   short-circuit on exit 2 or a validated blocking document, continue after
+   other nonzero hook errors, fail-closed on missing shim, invalid structured
+   output, or exception), `gate_all` (UserPromptSubmit, Stop, SubagentStop:
+   every shim runs; exit 2 or invalid structured output blocks, while a
+   validated blocking document is emitted at exit 0),
    `observe` (PostToolUse, SessionStart, PreCompact: every shim runs, exit
    is always 0).
 4. **No invented timeouts.** Per-shim timeouts are recorded in the manifest
@@ -77,7 +108,8 @@ neutral in this ADR; only the publishing repo takes prunes.
    (`_expand_dispatch_groups`), so Claude-side consolidation does not alter
    the Copilot tree. The dispatcher never regenerates anything. Parity
    tests pin settings, plugin manifest, dispatch manifest, and disk to each
-   other.
+   other. Generated Copilot entrypoints require case-insensitively unique
+   `.py` basenames and reject drive-relative or separator-bearing paths.
 6. **Plugin double-fire elimination.** Every plugin hook registration
    routes through the dispatcher; when `CLAUDE_PLUGIN_ROOT`'s plugin name
    equals the project's own published plugin name, the dispatcher exits 0
@@ -127,20 +159,32 @@ Negative, accepted:
   budget (git-push 300 s) and blocks siblings. The old model isolated each
   hook. Accepted as inherent to consolidation; the host still kills the
   group at its budget.
-- Sibling shims share `sys.modules`, `sys.path`, and `os.environ`
-  mutations within a group (same trade ADR-068 took for Copilot). Shims
-  are trusted first-party code.
+- Sibling shims share `sys.modules`, `os.environ`, and other process-global
+  mutations within a group. The runner restores `sys.argv` and `sys.path`
+  around every shim, but it cannot undo imported-module or environment state.
+  Shims are trusted first-party code.
 - Gate mode reports the first block only; the host previously ran hooks
   concurrently and surfaced every denial. Matches ADR-068 gate mode.
+- An exit-2 gate shim keeps its pre-grouping compatibility contract: raw stdout
+  is forwarded verbatim and the block ends the group. Other nonzero exits are
+  Claude hook errors, so later gates still run. The first such error propagates
+  only when no later exit-2 or validated blocking document supersedes it.
+- When that nonblocking error survives, Claude ignores the group's merged
+  stdout. Context from successful later siblings is therefore not delivered,
+  unlike direct registrations. The error still reaches stderr and remains
+  visible as a hook failure.
 - A standalone `{"systemMessage": ...}` document (the LSP guards' warn
   path) merges as context and never terminates a gate group; a
   `suppressOutput` flag riding on a context-only document is dropped
   during merge. A `gate_all` shim that blocks and also emits a decision
   document has the document logged to stderr, not merged. JSON with no
-  recognized protocol keys passes through verbatim with a stderr warning.
-- The self-host bail keys on plugin-name equality. A fork keeping the name
-  `project-toolkit` with divergent settings would silently lose plugin
-  hooks; the coverage-invariant test protects this repo, not forks.
+  recognized protocol keys becomes context with a stderr warning, and later
+  gates still run.
+- The self-host bail keys on plugin-name equality. Any project can copy that
+  identity and suppress the installed plugin dispatcher. This is a performance
+  dedupe, not a security boundary: project hook configuration is trusted code
+  that can already execute arbitrary commands. The coverage-invariant test
+  protects this publishing repo, not consumers or forks.
 - Consumers still receive `invoke_session_start_memory_first.py` through
   the plugin (membership frozen here); pruning it for consumers is a
   follow-up plugin change.
@@ -149,6 +193,31 @@ Negative, accepted:
 - Copilot matcher emission assumes matcher-aware CLI versions ignore or
   honor the field; pre-matcher versions that ignored unknown fields fall
   back to the previous fire-always behavior with in-process filtering.
+
+## Reversibility and Rollback
+
+This decision owns no persistent data. Rollback restores direct Claude hook
+registrations from the event, matcher, timeout, status message, and member
+records already stored in `.claude/hooks/dispatch_groups.json`. Replace each
+dispatcher command in `.claude/settings.json` and `.claude/hooks/hooks.json`
+with those member commands, then run the parity, hook runtime, and generator
+tests. Keep the source hooks and manifest until the direct registrations pass.
+
+Rollback restores per-hook process and timeout isolation, repeated Python
+startup, and host-owned concurrent execution. It also removes the self-host
+dedupe, so the publishing repo must avoid installing its own plugin or accept
+duplicate hook execution. The Copilot generator already expands the same group
+records to direct generated entries, which proves the manifest retains enough
+information for this reversal.
+
+## Re-evaluation Triggers
+
+Reopen this decision when Claude changes hook stdout, exit-code, matcher, or
+timeout behavior; a grouped shim adds a new structured output shape; a group
+adds an untrusted producer; a process-state mutation affects a sibling; or
+measured grouped latency no longer beats direct registration on Windows and
+Linux. Any new terminal output shape requires positive, negative, edge, and
+later-gate bypass tests before use.
 
 ## Rejected alternatives
 
@@ -163,9 +232,24 @@ Negative, accepted:
 
 - `.agents/analysis/2026-07-16-adr-082-architect-review.md` (architect
   gate verdict: APPROVE-WITH-CHANGES; conditions resolved in-change).
-- 26 dispatcher tests (`tests/hooks/test_claude_hook_dispatch.py`) with
-  negative controls, including real-payload runtime contract runs where a
-  raw `gh pr view` still exits 2 through the dispatcher.
+- Dispatcher tests (`tests/hooks/test_claude_hook_dispatch.py`) with negative
+  controls for unknown JSON, malformed or allow-shaped decisions, empty or
+  malformed groups, event/mode mismatch, duplicate and unsafe paths,
+  path-resolution failure, process-state isolation, and a real-payload runtime
+  run where a branch-mismatched forced push exits 2 through the dispatcher.
+- Hook and generator contract command:
+  `uv run pytest -q tests/hooks/test_claude_hook_dispatch.py
+  tests/hooks/test_dispatch_groups_parity.py tests/test_hook_dispatch.py
+  tests/build_scripts/test_generate_dispatcher.py
+  tests/build_scripts/test_generate_hooks.py
+  tests/build_scripts/test_generate_hooks_injection.py
+  tests/build_scripts/test_generate_hooks_runtime_contract.py
+  tests/build_scripts/test_copilot_dispatcher_artifact.py
+  tests/build_scripts/test_dispatch_expansion.py
+  tests/build_scripts/test_dispatcher_matcher_union.py
+  tests/build_scripts/test_hook_contract_knowledge.py`.
+  Result on 2026-07-20 after Round 6 remediation: 771 passed,
+  1 skipped.
 - 34 parity tests (`tests/hooks/test_dispatch_groups_parity.py`) including
   the self-host coverage invariant.
 - Generator expansion tests (`tests/build_scripts/test_dispatch_expansion.py`)

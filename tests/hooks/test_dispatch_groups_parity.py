@@ -25,6 +25,8 @@ SETTINGS = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encodi
 PLUGIN_HOOKS = json.loads((HOOKS_DIR / "hooks.json").read_text(encoding="utf-8"))
 
 _GROUP_RE = re.compile(r"dispatch_claude\.py\"?\s+--group\s+([A-Za-z0-9_-]+)")
+_DEFAULT_SHIM_TIMEOUT = 30
+_DISPATCHER_HEADROOM = 5
 
 
 def _dispatch_registrations(hooks_map: dict) -> list[tuple[str, str | None, str]]:
@@ -62,6 +64,26 @@ def test_settings_registrations_match_manifest(event, matcher, group_id):
     assert spec.get("surface") != "plugin", (
         f"settings.json must not register plugin-surface group {group_id}"
     )
+
+
+def test_settings_dispatcher_timeouts_cover_serial_members_and_headroom():
+    timeout_by_group = {
+        match.group(1): hook["timeout"]
+        for groups in SETTINGS["hooks"].values()
+        for group in groups
+        for hook in group.get("hooks", [])
+        if (match := _GROUP_RE.search(hook.get("command", "") or ""))
+    }
+    for group_id, timeout in timeout_by_group.items():
+        shims = MANIFEST["groups"][group_id]["shims"]
+        required = (
+            sum(shim.get("timeout", _DEFAULT_SHIM_TIMEOUT) for shim in shims)
+            + _DISPATCHER_HEADROOM
+        )
+        assert timeout >= required, (
+            f"{group_id}: dispatcher timeout {timeout}s is below the "
+            f"{required}s serial budget"
+        )
 
 
 @pytest.mark.parametrize(("event", "matcher", "group_id"), PLUGIN_REGS)

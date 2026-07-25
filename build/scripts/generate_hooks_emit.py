@@ -58,6 +58,18 @@ class GenerateHooksError(Exception):
 # component is a path-traversal vector (#3213, CWE-22) or a shell
 # command-injection vector (#3212, CWE-78).
 _EVENT_NAME_RE = _re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+_SILENT_DIRECT_EVENTS = frozenset(
+    {
+        "PreCompact",
+        "SessionStart",
+        "UserPromptSubmit",
+        "UserPromptSubmitted",
+        "preCompact",
+        "sessionStart",
+        "userPromptSubmit",
+        "userPromptSubmitted",
+    }
+)
 
 # Hook script names are Python module filenames, optionally carrying the
 # deterministic ``__<matcher>_<sha>`` disambiguation suffix. Allow only
@@ -74,8 +86,7 @@ def _validate_event_name(name: str) -> str:
     """
     if not _EVENT_NAME_RE.fullmatch(name):
         raise GenerateHooksError(
-            "unsafe hook event name "
-            f"(must match {_EVENT_NAME_RE.pattern!r}): {name!r}"
+            f"unsafe hook event name (must match {_EVENT_NAME_RE.pattern!r}): {name!r}"
         )
     return name
 
@@ -100,8 +111,7 @@ def _validate_script_name(name: str) -> str:
     """
     if not _SCRIPT_NAME_RE.fullmatch(name):
         raise GenerateHooksError(
-            "unsafe hook script name "
-            f"(must match {_SCRIPT_NAME_RE.pattern!r}): {name!r}"
+            f"unsafe hook script name (must match {_SCRIPT_NAME_RE.pattern!r}): {name!r}"
         )
     return name
 
@@ -125,8 +135,7 @@ def _validate_matcher(matcher: str) -> str:
     found = _MATCHER_CONTROL_RE.search(matcher)
     if found is not None:
         raise GenerateHooksError(
-            "unsafe hook matcher "
-            f"(contains control character {found.group()!r}): {matcher!r}"
+            f"unsafe hook matcher (contains control character {found.group()!r}): {matcher!r}"
         )
     return matcher
 
@@ -166,14 +175,10 @@ def _read_stanza(config_path: Path) -> dict[str, Any]:
     cfg = load_platform_config(config_path)
     artifacts = cfg.get("artifacts")
     if not isinstance(artifacts, dict):
-        raise GenerateHooksError(
-            f"{config_path}: missing `artifacts` mapping"
-        )
+        raise GenerateHooksError(f"{config_path}: missing `artifacts` mapping")
     stanza = artifacts.get("hooks")
     if not isinstance(stanza, dict):
-        raise GenerateHooksError(
-            f"{config_path}: missing `artifacts.hooks` stanza"
-        )
+        raise GenerateHooksError(f"{config_path}: missing `artifacts.hooks` stanza")
     # Required fields.
     for key in (
         "settingsSource",
@@ -183,18 +188,12 @@ def _read_stanza(config_path: Path) -> dict[str, Any]:
         "eventRemap",
     ):
         if key not in stanza:
-            raise GenerateHooksError(
-                f"{config_path}: artifacts.hooks missing required key `{key}`"
-            )
+            raise GenerateHooksError(f"{config_path}: artifacts.hooks missing required key `{key}`")
     if not isinstance(stanza["eventRemap"], dict):
-        raise GenerateHooksError(
-            f"{config_path}: artifacts.hooks.eventRemap must be a mapping"
-        )
+        raise GenerateHooksError(f"{config_path}: artifacts.hooks.eventRemap must be a mapping")
     drops = stanza.get("eventDrop") or []
     if not isinstance(drops, list):
-        raise GenerateHooksError(
-            f"{config_path}: artifacts.hooks.eventDrop must be a list"
-        )
+        raise GenerateHooksError(f"{config_path}: artifacts.hooks.eventDrop must be a list")
     return stanza
 
 
@@ -215,11 +214,11 @@ def _resolve_paths(repo_root: Path, stanza: dict[str, Any]) -> dict[str, Path]:
     return resolved
 
 
-# --- Settings.json reader -------------------------------------------------
+# --- Hook-source reader ---------------------------------------------------
 
 
-def _load_claude_settings(path: Path) -> dict[str, Any]:
-    """Parse ``.claude/settings.json`` and return its ``hooks`` map."""
+def _load_hook_source(path: Path) -> dict[str, Any]:
+    """Parse the configured ``settingsSource`` and return its ``hooks`` map."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
@@ -229,23 +228,17 @@ def _load_claude_settings(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise GenerateHooksError(
-            f"{path}: malformed JSON: {exc}"
-        ) from exc
+        raise GenerateHooksError(f"{path}: malformed JSON: {exc}") from exc
     hooks = data.get("hooks") if isinstance(data, dict) else None
     if not isinstance(hooks, dict):
-        raise GenerateHooksError(
-            f"{path}: top-level `.hooks` must be an object"
-        )
+        raise GenerateHooksError(f"{path}: top-level `.hooks` must be an object")
     return hooks
 
 
 # --- Script discovery and copy -------------------------------------------
 
 
-def _resolve_script_path(
-    script_source: Path, command: str, claude_event: str
-) -> Path | None:
+def _resolve_script_path(script_source: Path, command: str, claude_event: str) -> Path | None:
     """Map a Claude command string to its source script path.
 
     The Claude command shape is::
@@ -287,9 +280,7 @@ def _resolve_script_candidate(script_source: Path, rel: str) -> Path | None:
     try:
         candidate.relative_to(resolved_base)
     except ValueError as exc:
-        raise GenerateHooksError(
-            f"hook command path escapes scriptSource: {rel}"
-        ) from exc
+        raise GenerateHooksError(f"hook command path escapes scriptSource: {rel}") from exc
     if candidate.is_file():
         return candidate
     return None
@@ -355,9 +346,7 @@ def _require_within(target_root: Path, target: Path) -> Path:
     try:
         target.resolve().relative_to(resolved_base)
     except ValueError as exc:
-        raise GenerateHooksError(
-            f"hook target path escapes outputScripts: {target}"
-        ) from exc
+        raise GenerateHooksError(f"hook target path escapes outputScripts: {target}") from exc
     return target
 
 
@@ -400,9 +389,7 @@ def _ensure_exact_case_dir(directory: Path) -> None:
     for entry in parent.iterdir():
         if entry.name == target_name:
             if not entry.is_dir():
-                raise NotADirectoryError(
-                    f"Target exists but is not a directory: {directory}"
-                )
+                raise NotADirectoryError(f"Target exists but is not a directory: {directory}")
             return
         if entry.is_dir() and entry.name.lower() == target_name.lower():
             temp = parent / f"__case_fix_{target_name}"
@@ -414,9 +401,7 @@ def _ensure_exact_case_dir(directory: Path) -> None:
             temp.rename(directory)
             return
         if entry.name.lower() == target_name.lower():
-            raise NotADirectoryError(
-                f"Case-conflicting path is not a directory: {entry}"
-            )
+            raise NotADirectoryError(f"Case-conflicting path is not a directory: {entry}")
     directory.mkdir(exist_ok=True)
 
 
@@ -491,17 +476,29 @@ def _build_copilot_entry(
     ``${VAR:-default}`` form, so an ``if``/``else`` subexpression (valid
     in Windows PowerShell 5.1 and PowerShell 7+) provides the same
     fallback.
+
+    Direct SessionStart and PreCompact registrations suppress stdout and
+    stderr at the shell boundary. Their current producers still run and retain
+    side effects, but branch-controlled prose cannot reach either host channel
+    if dispatcher consolidation is disabled. UserPromptSubmit uses the same
+    suppression because the host documents no output field for that event and
+    does not document stderr as a model-context channel. Dispatcher mode replaces
+    these entries with its event-specific capture policy.
     """
     rel = f"hooks/{_validate_event_name(target_event)}/{_validate_script_name(script_name)}"
     bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
     powershell_root = (
-        "$(if ($env:COPILOT_PLUGIN_ROOT) "
-        "{$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})"
+        "$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})"
     )
+    bash_command = f'python3 -u "{bash_root}/{rel}"'
+    powershell_command = f'py -3 -u "{powershell_root}/{rel}"'
+    if target_event in _SILENT_DIRECT_EVENTS:
+        bash_command += " >/dev/null 2>&1"
+        powershell_command += " *> $null"
     return {
         "type": "command",
-        "bash": f'python3 -u "{bash_root}/{rel}"',
-        "powershell": f'py -3 -u "{powershell_root}/{rel}"',
+        "bash": bash_command,
+        "powershell": powershell_command,
         "cwd": ".",
         "timeoutSec": timeout_sec,
     }

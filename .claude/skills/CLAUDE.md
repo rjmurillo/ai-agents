@@ -3,6 +3,11 @@
 > **Scope**: Skills directory only. Auto-loaded when working in `.claude/skills/`.
 > **Primary Reference**: Root CLAUDE.md and AGENTS.md take precedence.
 
+For any skill that configures, generates, tests, or documents Claude Code or
+Copilot CLI artifacts, read `agent-harness-reference` first. Route cross-harness
+mutations through `ai-agents-portability-campaign`. The official source sidecar
+is the contract; Serena memories are retrieval aids.
+
 ## Skill Structure
 
 ```text

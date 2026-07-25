@@ -70,6 +70,32 @@ def test_copilot_asymmetric_powershell_fails(tmp_path: Path) -> None:
     assert any(".powershell" in v for v in violations)
 
 
+def test_copilot_direct_session_start_requires_shell_suppression(tmp_path: Path) -> None:
+    def mutate(doc: dict) -> None:
+        doc["hooks"]["SessionStart"] = [
+            {
+                "type": "command",
+                "bash": (
+                    'python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}'
+                    '/hooks/SessionStart/direct.py"'
+                ),
+                "powershell": (
+                    'py -3 -u "$(if ($env:COPILOT_PLUGIN_ROOT) '
+                    "{$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})"
+                    '/hooks/SessionStart/direct.py"'
+                ),
+                "cwd": ".",
+                "timeoutSec": 10,
+            }
+        ]
+
+    _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
+
+    assert config == 0
+    assert any("SessionStart[0].bash" in violation for violation in violations)
+    assert any("SessionStart[0].powershell" in violation for violation in violations)
+
+
 # --- Claude (invariant against ${CLAUDE_PLUGIN_ROOT}) -----------------------
 
 

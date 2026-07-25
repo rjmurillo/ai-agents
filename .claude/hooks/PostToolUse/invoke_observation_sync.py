@@ -8,7 +8,8 @@ semantic search availability.
 Hook Type: PostToolUse
 Matcher: mcp__serena__write_memory
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-    0 = Always (non-blocking hook, all errors are warnings)
+    0 = Success or non-observation input
+    Non-zero = Importer or hook failure (PostToolUse remains non-blocking)
 """
 
 from __future__ import annotations
@@ -202,7 +203,7 @@ def _find_observation_file(repo_root: str, memory_name: str) -> Path | None:
     return None
 
 
-def _run_import(repo_root: str, observation_file: Path) -> None:
+def _run_import(repo_root: str, observation_file: Path) -> int:
     """Run the import script for a single observation file.
 
     Caller MUST pass a ``repo_root`` returned by :func:`_get_repo_root`,
@@ -217,45 +218,56 @@ def _run_import(repo_root: str, observation_file: Path) -> None:
         Path(repo_root) / ".serena" / "scripts" / "import_observations_to_forgetful.py"
     )
     if not import_script.is_file():
-        print(
-            f"WARNING: Import script not found: {import_script}",
-            file=sys.stderr,
-        )
-        return
+        payload = {
+            "guard": "observation-sync",
+            "code": "E_IMPORT_SCRIPT_MISSING",
+            "outcome": "import_script_missing",
+            "exit_code": 1,
+        }
+        print(f"EVENT={json.dumps(payload, separators=(',', ':'))}", file=sys.stderr)
+        return 1
 
     # Tainted CLAUDE_PROJECT_DIR input must exactly corroborate the cwd Git
     # root in _get_repo_root(); script path is validated by .is_file();
     # observation_file is validated by _find_observation_file. List form
     # blocks shell metacharacter injection. Defense-in-depth complete.
-    result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
-        [
-            sys.executable,
-            str(import_script),
-            "--observation-file",
-            str(observation_file),
-            "--confidence-levels",
-            "HIGH",
-            "MED",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=30,
-        cwd=repo_root,
-    )
-    if result.returncode == 0:
-        print(f"Observation sync complete: {observation_file.name}")
-        if result.stdout.strip():
-            # Show summary line only
-            for line in result.stdout.strip().splitlines():
-                if line.startswith("Imported:") or line.startswith("Total learnings:"):
-                    print(f"  {line.strip()}")
-    else:
-        print(
-            f"WARNING: Observation sync failed for {observation_file.name}: "
-            f"{result.stderr.strip()[:200]}",
-            file=sys.stderr,
+    try:
+        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
+            [
+                sys.executable,
+                str(import_script),
+                "--observation-file",
+                str(observation_file),
+                "--confidence-levels",
+                "HIGH",
+                "MED",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            cwd=repo_root,
         )
+    except (OSError, subprocess.SubprocessError):
+        payload = {
+            "guard": "observation-sync",
+            "code": "E_IMPORT_EXEC_FAILED",
+            "outcome": "import_execution_failed",
+            "exit_code": 1,
+        }
+        print(f"EVENT={json.dumps(payload, separators=(',', ':'))}", file=sys.stderr)
+        return 1
+    if result.returncode == 0:
+        print("Observation sync complete.")
+    else:
+        payload = {
+            "guard": "observation-sync",
+            "code": "E_IMPORT_FAILED",
+            "outcome": "import_failed",
+            "exit_code": result.returncode,
+        }
+        print(f"EVENT={json.dumps(payload, separators=(',', ':'))}", file=sys.stderr)
+    return result.returncode
 
 
 def main() -> int:
@@ -293,16 +305,20 @@ def main() -> int:
             )
             return 0
 
-        _run_import(repo_root, observation_file)
+        return _run_import(repo_root, observation_file)
 
     except Exception as exc:
         input_size = len(raw) if raw else 0
-        print(
-            f"Observation sync hook error (input_size={input_size}): {exc}",
-            file=sys.stderr,
-        )
-
-    return 0
+        payload = {
+            "guard": "observation-sync",
+            "code": "E_HOOK_FAILED",
+            "outcome": "hook_failed",
+            "error_type": type(exc).__name__,
+            "input_size": input_size,
+            "exit_code": 1,
+        }
+        print(f"EVENT={json.dumps(payload, separators=(',', ':'))}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

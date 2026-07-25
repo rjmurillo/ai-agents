@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
-"""Generate Copilot CLI hook config from ``.claude/settings.json`` (REQ-003-007).
+"""Generate Copilot CLI hook config from the configured hook source (REQ-003-007).
 
 Reads ``artifacts.hooks`` from a platform YAML, parses Claude's
-``settings.json`` ``hooks`` object, copies each registered Python script
-under ``.claude/hooks/`` into the Copilot output tree, and emits a
-``hooks.json`` with the Copilot wire shape (``version: 1`` wrapper,
-PascalCase event names (which make Copilot CLI emit the VS Code-compatible
-snake_case payload the shims expect; see issue #2290), no ``matcher`` field,
-and script invocations
-anchored to the plugin root via ``${COPILOT_PLUGIN_ROOT}`` with a
-``${CLAUDE_PLUGIN_ROOT}`` fallback).
+``settingsSource`` ``hooks`` object, and copies each registered Python script
+under ``.claude/hooks/`` into the Copilot output tree. Matcher registrations
+retain one generated shim wrapper each. Every wrapper buffers stdin,
+self-filters with the matcher grammar below, and either runs its canonical
+body or exits 0 when it does not match. Matcher-free scripts remain direct
+copies.
 
-Each Claude hook with a ``matcher`` is wrapped in a tiny Python shim
-that buffers stdin once, classifies the matcher, and either dispatches
-to the original script or exits 0 silently when the matcher does not
-fire. Scripts without a matcher are copied verbatim.
+When ``artifacts.hooks.dispatcher`` is true,
+``build/scripts/generate_dispatcher.py`` replaces the per-shim host
+registrations with one entry per event while retaining those wrappers for
+in-process self-filtering. ADR-068 defines its three modes: ``gate`` returns
+the first nonzero shim exit, ``observe`` runs every shim and returns 0, and
+``advise`` translates exactly one PermissionRequest decision producer.
+Per-shim timeout metadata is validated in-process, but the host owns the
+aggregate event timeout.
+
+``generate_hooks_events.py`` stages dispatcher artifacts, stale matcher-shim
+deletions, and ownership-proven orphan-event file deletions through
+``HookGenerationTransaction``. It removes only empty orphan directories after
+commit. This keeps regeneration rollback-safe while preserving unknown,
+unsafe, and NO-REGEN artifacts. See ADR-068 and
+``build/scripts/generate_dispatcher.py`` for the runtime and ownership
+contracts.
 
 MATCHER GRAMMAR
 ---------------
@@ -89,6 +99,9 @@ that ``import generate_hooks`` keep working:
   ``GenerateHooksResult`` / ``HookAuditEntry`` value objects.
 - :mod:`generate_hooks_events`: per-event handlers and the
   ``generate_hooks`` orchestrator.
+- :mod:`generate_dispatcher`: per-event host entries, manifests, matcher
+  unions, and ownership checks.
+- :mod:`generate_hooks_transaction`: rollback-safe publication and deletion.
 """
 
 from __future__ import annotations
@@ -129,7 +142,7 @@ from generate_hooks_emit import (  # noqa: E402, F401
     _build_copilot_entry,
     _copy_script,
     _ensure_exact_case_dir,
-    _load_claude_settings,
+    _load_hook_source,
     _matcher_suffix,
     _read_stanza,
     _relative_script_target,

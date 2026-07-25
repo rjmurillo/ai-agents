@@ -76,11 +76,11 @@ def support_floor() -> tuple[int, int]:
 
 
 def _tracked_python_files(repo_root: Path) -> list[Path]:
-    """Return tracked ``*.py`` files via ``git ls-files``; walk on failure.
+    """Return tracked ``*.py`` files via ``git ls-files``.
 
-    ``git ls-files`` lists committed and staged files, which is exactly the set
-    a PR ships. CI checks out the branch (PR files are tracked) and local
-    pre-PR runs see staged work, so the gate covers what is about to merge.
+    ``git ls-files`` also lists tracked files deleted in an unstaged worktree.
+    ``find_syntax_errors`` reads those paths from the index, so an indexed file
+    cannot bypass validation when its worktree copy is missing.
     """
     try:
         completed = subprocess.run(
@@ -88,11 +88,28 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=10,
         )
         rels = [line for line in completed.stdout.splitlines() if line.strip()]
         return [repo_root / rel for rel in rels]
-    except (OSError, subprocess.SubprocessError):
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("git ls-files timed out after 10 seconds") from exc
+    except (OSError, subprocess.CalledProcessError):
         return _walk_python_files(repo_root)
+
+
+def _read_python_source(repo_root: Path, path: Path) -> str:
+    """Read worktree content, or indexed content when the worktree file is absent."""
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+    relative = path.relative_to(repo_root).as_posix()
+    completed = subprocess.run(
+        ["git", "-C", str(repo_root), "show", f":{relative}"],
+        capture_output=True,
+        check=True,
+        timeout=10,
+    )
+    return completed.stdout.decode("utf-8")
 
 
 def _walk_python_files(repo_root: Path) -> list[Path]:
@@ -114,8 +131,8 @@ def find_syntax_errors(
     failures: list[tuple[Path, str]] = []
     for path in _tracked_python_files(repo_root):
         try:
-            source = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError) as exc:
+            source = _read_python_source(repo_root, path)
+        except (OSError, UnicodeError, subprocess.SubprocessError) as exc:
             failures.append((path, f"read error: {exc}"))
             continue
         try:

@@ -23,7 +23,7 @@
         }
       ]
     },
-    "plugin-pretooluse-8-retrospective_gate": {
+    "plugin-pretooluse-8-markdownlint_guard": {
       "event": "PreToolUse",
       "mode": "gate",
       "matcher": "Bash(git push*)",
@@ -45,31 +45,6 @@
         {
           "file": "PostToolUse/invoke_markdown_auto_lint.py",
           "statusMessage": "Auto-linting markdown files"
-        }
-      ]
-    },
-    "plugin-posttooluse-observation_sync": {
-      "event": "PostToolUse",
-      "mode": "observe",
-      "matcher": "mcp__serena__write_memory",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PostToolUse/invoke_observation_sync.py",
-          "timeout": 30,
-          "statusMessage": "Syncing observation memories to Forgetful"
-        }
-      ]
-    },
-    "plugin-permissionrequest-test_auto_approval": {
-      "event": "PermissionRequest",
-      "mode": "gate",
-      "matcher": "Bash(pwsh*Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python*pytest*|dotnet test*|mvn test*|gradle test*|go test*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PermissionRequest/invoke_test_auto_approval.py",
-          "statusMessage": "Auto-approving test execution"
         }
       ]
     }

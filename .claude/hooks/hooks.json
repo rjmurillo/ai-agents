@@ -7,9 +7,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-8-retrospective_gate",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-pretooluse-8-markdownlint_guard",
             "timeout": 300,
-            "statusMessage": "Running plugin-pretooluse-8-retrospective_gate hooks (grouped, #3075)"
+            "statusMessage": "Running plugin-pretooluse-8-markdownlint_guard hooks (grouped, #3075)"
           }
         ]
       }
@@ -23,30 +23,6 @@
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-1-markdown_auto_lint",
             "timeout": 60,
             "statusMessage": "Running plugin-posttooluse-1-markdown_auto_lint hooks (grouped, #3075)"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__serena__write_memory",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-posttooluse-observation_sync",
-            "timeout": 60,
-            "statusMessage": "Running plugin-posttooluse-observation_sync hooks (grouped, #3075)"
-          }
-        ]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "matcher": "Bash(pwsh*Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python*pytest*|dotnet test*|mvn test*|gradle test*|go test*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group plugin-permissionrequest-test_auto_approval",
-            "timeout": 60,
-            "statusMessage": "Running plugin-permissionrequest-test_auto_approval hooks (grouped, #3075)"
           }
         ]
       }

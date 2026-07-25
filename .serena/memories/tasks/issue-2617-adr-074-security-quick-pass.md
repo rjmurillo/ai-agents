@@ -1,5 +1,20 @@
 # Issue 2617: ADR-074 bounded security-review quick-pass mode
 
+## Superseded prior-art note (2026-07-19)
+
+The proposal-era claims below about reusing ADR-068 are stale and preserved
+only as history. ADR-068 Decision item 4 states:
+
+```markdown
+There is no `COPILOT_HOOK_DISPATCH_BUDGET_MS`, 1500 ms default,
+`SIGALRM`, watchdog thread, or structured `budget_exceeded` result.
+```
+
+Do not reuse ADR-068 as SIGALRM, watchdog, or `budget_exceeded` prior art.
+ADR-074 now requires a caller or isolated worker process to own deadline
+enforcement. The current decision is
+`.agents/architecture/ADR-074-security-review-quick-pass-mode.md`.
+
 ## What was delivered (2026-06-17, session 2587)
 
 Authored Proposed ADR-074 (`.agents/architecture/ADR-074-security-review-quick-pass-mode.md`)
