@@ -1,24 +1,23 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": "3343-branch-context-merge",
+    "number": 3343,
     "date": "2026-07-25",
     "branch": "fix/3343-branch-context-merge",
     "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
-    "objective": "Fix branch-context-policy permanently wedging any branch that merges main (issue #3343). A committed merge imports the merged branch's session log, which outlives the MERGE_HEAD exemption and wins the recency comparison forever.",
-    "endingCommit": ""
+    "objective": "Fix branch-context-policy permanently wedging any branch that merges main (issue #3343). A committed merge imports the merged branch's session log, which outlives the MERGE_HEAD exemption and wins the recency comparison forever."
   },
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena MCP active on this Copilot CLI harness; serena-initial_instructions returned the manual."
+        "Evidence": "Serena MCP is live on this Copilot CLI harness; serena-initial_instructions returned the manual and serena-write_memory recorded the finding."
       },
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Called serena-initial_instructions before making any edit."
+        "Evidence": "serena-initial_instructions read; Serena symbolic tools used for lookup in this repo."
       },
       "handoffRead": {
         "level": "MUST",
@@ -33,17 +32,17 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git branch --show-current returned fix/3328-foreign-prose-sha, cut from origin/main at 013cb0124c."
+        "Evidence": "git branch --show-current returned fix/3343-branch-context-merge, cut from origin/main at 1ffee3834e."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All commits land on fix/3328-foreign-prose-sha; main was only read."
+        "Evidence": "All commits land on fix/3343-branch-context-merge; main was only read, and the one accidental checkout of main was reverted with git reset --hard before any commit."
       },
       "memoriesLoaded": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-parity bump rule and the squash-only merge ruleset entry that turned out to be the load-bearing fact for this change."
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-parity bump rule and the branch-protection ruleset entry."
       },
       "gitStatusVerified": {
         "level": "SHOULD",
@@ -55,7 +54,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Prose SHAs that already existed at the session's starting commit no longer count as session commits, and the fix was measured against every session log in the repo before it was committed."
+        "Evidence": "The merge exemption in check_branch_context now keys on upstream presence rather than on MERGE_HEAD, and the change was measured against the real wedged branch before it was committed."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -65,27 +64,27 @@
       "serenaMemoryUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Recorded the squash-merge ancestry finding so the descendant-based form is not proposed again."
+        "Evidence": "Wrote serena memory decision-branch-context-merged-history recording why the branch-ownership-only fix was wrong and why upstream presence is the sound discriminator."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git diff --name-only lists two Python files, two plugin manifests, and this JSON log; zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
+        "Evidence": "git diff --name-only lists one Python module, one Python test file, and this JSON log; zero markdown units, so the ADR-043 scoped markdownlint set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "One atomic commit on fix/3328-foreign-prose-sha carrying the canonical script, its vendored mirror, the tests, both plugin manifests, and this log."
+        "Evidence": "One atomic commit on fix/3343-branch-context-merge carrying the policy module, the integration tests, and this log."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "146 tests green in the extractor test file, all 140 pre-existing cases unchanged. Negative control run: reverting the filter fails exactly the two cases that assert exclusion and leaves the four fail-open cases passing. ruff and mypy clean; build_all.py reproduces the vendored mirror byte-identically; manifest parity check reports 0.6.103 on both."
+        "Evidence": "17 branch_context tests green, including the three pre-existing recency tests left unchanged. Negative controls: dropping the merged-history requirement fails 5, dropping the owned-log requirement fails 1, and failing open with no upstream fails 4. Empirical check on the real wedged branch with the imported log forced newest: the old policy exits 1, the new policy exits 0. ruff and mypy clean."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Issue #3328 gets the measurement that removes its option 2 as written and records why the inverted form is the sound one."
+        "Evidence": "Issue #3343 filed with the inverted-window analysis, plus a follow-up comment recording that the old behavior was nondeterministic under checkout mtime rewrites."
       }
     }
   },
@@ -99,8 +98,9 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "61b8255184",
   "nextSteps": [
-    "Open PR, verify the wedged branch fix/3328-foreign-prose-sha can push once this lands."
+    "Open PR, verify a branch that has committed a merge of main can push once this lands.",
+    "Out of scope: the ADR-review evidence check in git_hook_policy.py uses the same newest-by-mtime selection and may share the defect."
   ]
 }
