@@ -642,11 +642,12 @@ def main() -> int:
             return 1
 
         # Load session file using the validated path
-        # load_session_file returns data or an error, never both and never
-        # neither, so branching on the payload narrows it exactly. Branching on
-        # `error` instead left `data` optional and needed a suppression.
+        # load_session_file returns (data, error) where error is non-None only
+        # for I/O or parse failures. A JSON `null` root is valid JSON that
+        # parses to Python None with no error; that case must reach schema
+        # validation, which will reject the non-object root with a clear message.
         data, error = load_session_file(validated_path)
-        if data is None:
+        if error is not None:
             print(f"ERROR: {error}", file=sys.stderr)
             return 1
 
