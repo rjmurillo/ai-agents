@@ -465,9 +465,10 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
     )
 
     assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
-    expected_path = _pwsh_resolve(_path_arg(command), env, tmp_path)
+    expected_path = _pwsh_resolve(_path_arg(command), env, tmp_path).replace("\\", "/")
+    normalized_stderr = proc.stderr.replace("\\\\", "\\").replace("\\", "/")
     assert str(stale_root) in expected_path, expected_path
-    assert expected_path in proc.stderr, (
+    assert expected_path in normalized_stderr, (
         "PowerShell interpreter error must name the missing path, otherwise the "
         f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
     )
