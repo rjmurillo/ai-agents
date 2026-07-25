@@ -254,7 +254,7 @@ def _strip_jsonc(text: str) -> str:
     )
 
 
-def _remove_direct_shadow(source_dir: Path) -> None:
+def _remove_direct_shadow(source_dir: Path, copilot_home: Path | None = None) -> None:
     """Undo the global side effect of ``copilot plugin install <source_dir>``.
 
     ``copilot plugin install <local-dir>`` registers a marketplace-less
@@ -269,8 +269,14 @@ def _remove_direct_shadow(source_dir: Path) -> None:
     is scoped to a ``project-toolkit`` entry with no marketplace whose
     ``source.path`` resolves to ``source_dir`` (or under its tmp parent), so an
     unrelated real install is never touched.
+
+    ``copilot_home`` is explicit rather than read from the module global so a
+    caller can sweep more than one home. Teardown used to read the global, which
+    the smoke test monkeypatched to the isolated dir; when isolation failed the
+    cleanup looked in an empty directory and the real shadow survived (#3324).
     """
-    config_path = COPILOT_HOME / "config.json"
+    home = COPILOT_HOME if copilot_home is None else copilot_home
+    config_path = home / "config.json"
     if not config_path.is_file():
         return
     try:
@@ -312,7 +318,7 @@ def _remove_direct_shadow(source_dir: Path) -> None:
     config["installedPlugins"] = remaining
     config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
-    cache_dir = COPILOT_HOME / "installed-plugins" / "_direct" / PLUGIN_NAME
+    cache_dir = home / "installed-plugins" / "_direct" / PLUGIN_NAME
     if cache_dir.is_dir():
         shutil.rmtree(cache_dir, ignore_errors=True)
 
@@ -338,31 +344,36 @@ class TestCopilotBinaryInstall:
         copilot_binary: str,
         installed_plugin: Path,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """`copilot plugin install <local-dir>` exits 0 and registers the plugin.
 
-        Runs against an isolated ``HOME`` so the install writes to a throwaway
-        ``$HOME/.copilot/config.json`` under ``tmp_path`` instead of the real
-        user config. This removes the high-impact side effect of mutating the
-        contributor's global Copilot state: even if the process is killed before
-        the finally block, only the tmp config is affected. ``COPILOT_HOME`` is
-        redirected to the same isolated root so the cleanup targets it. Verified
-        the binary honors an isolated ``HOME`` for a local-dir install.
+        Runs against an isolated home so the install writes to a throwaway
+        config under ``tmp_path`` instead of the real user config. Copilot CLI
+        resolves its home from ``USERPROFILE`` on Windows and ``HOME`` on POSIX,
+        so both are set: a HOME-only env leaked a ``_direct`` shadow into the
+        contributor's real ~/.copilot on Windows for nine days (#3324).
+
+        Isolation is asserted rather than assumed. A silent leak used to be
+        invisible because teardown swept the isolated dir it was told to trust;
+        now a leak is a red test, and teardown sweeps the real home too so it
+        does not depend on the isolation it is meant to backstop.
         """
         isolated_home = tmp_path / "copilot-home"
         isolated_home.mkdir()
-        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", isolated_home / ".copilot")
+        isolated_copilot = isolated_home / ".copilot"
         env = {
             **os.environ,
             "HOME": str(isolated_home),
-            "COPILOT_HOME": str(isolated_home / ".copilot"),
+            "USERPROFILE": str(isolated_home),
+            "COPILOT_HOME": str(isolated_copilot),
         }
         try:
             install_result = subprocess.run(
                 [copilot_binary, "plugin", "install", str(installed_plugin)],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=60,
                 env=env,
             )
@@ -372,10 +383,19 @@ class TestCopilotBinaryInstall:
                 f"stderr: {install_result.stderr}"
             )
 
+            assert (isolated_copilot / "config.json").is_file(), (
+                f"copilot did not write to the isolated home {isolated_copilot}. "
+                f"The install went somewhere else, most likely the real "
+                f"{Path.home() / '.copilot'}, which is the #3324 leak. Do not "
+                f"weaken this assertion; find which env var the binary honors."
+            )
+
             list_result = subprocess.run(
                 [copilot_binary, "plugin", "list"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
                 env=env,
             )
@@ -385,7 +405,11 @@ class TestCopilotBinaryInstall:
                 f"{list_result.stdout}"
             )
         finally:
-            _remove_direct_shadow(installed_plugin)
+            # Sweep both homes. The isolated one is where the install belongs;
+            # the real one is the backstop for the case this test exists to
+            # catch, where isolation silently did not take.
+            for home in {isolated_copilot, COPILOT_HOME}:
+                _remove_direct_shadow(installed_plugin, home)
 
 
 @pytest.mark.integration
@@ -409,7 +433,7 @@ class TestDirectShadowCleanup:
         return config_path
 
     def test_removes_only_the_created_shadow(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         copilot_home = tmp_path / ".copilot"
         source_dir = tmp_path / "src" / PLUGIN_NAME
@@ -425,9 +449,7 @@ class TestDirectShadowCleanup:
         config_path = self._write_config(copilot_home, [real, shadow, other])
         cache_dir = copilot_home / "installed-plugins" / "_direct" / PLUGIN_NAME
         cache_dir.mkdir(parents=True)
-        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
-
-        _remove_direct_shadow(source_dir)
+        _remove_direct_shadow(source_dir, copilot_home)
 
         result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
         surviving = [
@@ -440,21 +462,19 @@ class TestDirectShadowCleanup:
         assert not cache_dir.exists()
 
     def test_preserves_config_without_a_shadow(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         copilot_home = tmp_path / ".copilot"
         source_dir = tmp_path / "src" / PLUGIN_NAME
         real = {"name": PLUGIN_NAME, "marketplace": "ai-agents", "enabled": True}
         config_path = self._write_config(copilot_home, [real])
         before = config_path.read_text(encoding="utf-8")
-        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
-
-        _remove_direct_shadow(source_dir)
+        _remove_direct_shadow(source_dir, copilot_home)
 
         assert config_path.read_text(encoding="utf-8") == before
 
     def test_leaves_unrelated_direct_install_untouched(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         copilot_home = tmp_path / ".copilot"
         source_dir = tmp_path / "src" / PLUGIN_NAME
@@ -465,32 +485,95 @@ class TestDirectShadowCleanup:
             "source": {"source": "local", "path": "/some/other/checkout"},
         }
         config_path = self._write_config(copilot_home, [unrelated])
-        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
-
-        _remove_direct_shadow(source_dir)
+        _remove_direct_shadow(source_dir, copilot_home)
 
         result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
         assert result["installedPlugins"] == [unrelated]
 
     def test_noop_when_config_absent(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         copilot_home = tmp_path / ".copilot"
-        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
-
-        _remove_direct_shadow(tmp_path / "src" / PLUGIN_NAME)  # must not raise
+        _remove_direct_shadow(tmp_path / "src" / PLUGIN_NAME, copilot_home)  # must not raise
 
         assert not (copilot_home / "config.json").exists()
 
     def test_survives_malformed_config(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         copilot_home = tmp_path / ".copilot"
         copilot_home.mkdir(parents=True)
         config_path = copilot_home / "config.json"
         config_path.write_text("{ not valid json", encoding="utf-8")
-        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
-
-        _remove_direct_shadow(tmp_path / "src" / PLUGIN_NAME)  # must not raise
+        _remove_direct_shadow(tmp_path / "src" / PLUGIN_NAME, copilot_home)  # must not raise
 
         assert config_path.read_text(encoding="utf-8") == "{ not valid json"
+
+    def test_sweeps_the_home_it_is_given_not_the_module_global(
+        self, tmp_path: Path
+    ) -> None:
+        # Teardown used to read the module global, which the smoke test
+        # monkeypatched to the isolated dir. When isolation silently failed on
+        # Windows, cleanup swept an empty directory and the real shadow
+        # survived for nine days (#3324). The home is now explicit so the smoke
+        # test can sweep the real one as a backstop.
+        leaked_home = tmp_path / "real" / ".copilot"
+        source_dir = tmp_path / "src" / PLUGIN_NAME
+        source_dir.mkdir(parents=True)
+        shadow = {
+            "name": PLUGIN_NAME,
+            "marketplace": "",
+            "enabled": True,
+            "source": {"source": "local", "path": str(source_dir)},
+        }
+        config_path = self._write_config(leaked_home, [shadow])
+
+        _remove_direct_shadow(source_dir, leaked_home)
+
+        result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
+        assert result["installedPlugins"] == []
+
+    def test_defaults_to_the_module_global_when_no_home_is_given(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The parameter is optional so existing callers keep working. Pin that
+        # the default still resolves through COPILOT_HOME.
+        copilot_home = tmp_path / ".copilot"
+        source_dir = tmp_path / "src" / PLUGIN_NAME
+        source_dir.mkdir(parents=True)
+        shadow = {
+            "name": PLUGIN_NAME,
+            "marketplace": "",
+            "enabled": True,
+            "source": {"source": "local", "path": str(source_dir)},
+        }
+        config_path = self._write_config(copilot_home, [shadow])
+        monkeypatch.setattr(f"{__name__}.COPILOT_HOME", copilot_home)
+
+        _remove_direct_shadow(source_dir)
+
+        result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
+        assert result["installedPlugins"] == []
+
+    def test_sweeping_two_homes_removes_both_shadows(self, tmp_path: Path) -> None:
+        # The smoke test sweeps the isolated home and the real one. A leak
+        # lands in exactly one of them and the caller does not know which, so
+        # both must be swept unconditionally without the sweep of an untouched
+        # home raising.
+        source_dir = tmp_path / "src" / PLUGIN_NAME
+        source_dir.mkdir(parents=True)
+        shadow = {
+            "name": PLUGIN_NAME,
+            "marketplace": "",
+            "enabled": True,
+            "source": {"source": "local", "path": str(source_dir)},
+        }
+        homes = [tmp_path / "isolated" / ".copilot", tmp_path / "real" / ".copilot"]
+        configs = [self._write_config(home, [shadow]) for home in homes]
+
+        for home in homes:
+            _remove_direct_shadow(source_dir, home)
+
+        for config_path in configs:
+            result = json.loads(_strip_jsonc(config_path.read_text(encoding="utf-8")))
+            assert result["installedPlugins"] == []

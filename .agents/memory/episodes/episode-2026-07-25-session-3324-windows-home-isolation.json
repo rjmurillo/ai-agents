@@ -1,0 +1,87 @@
+{
+  "id": "episode-2026-07-25-session-3324-windows-home-isolation",
+  "session": "2026-07-25-session-3324-windows-home-isolation",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Stop the Copilot install smoke test leaking a _direct project-toolkit shadow into the contributor's real ~/.copilot on Windows, and make a future leak loud instead of silent (issue #3324).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The leak had two independent causes on the same platform, which is why nothing caught it. Isolation set HOME, but Copilot CLI resolves its home from USERPROFILE on Windows, so the install landed in the real user config. Teardown then read a module global the test had monkeypatched to the isolated directory, found no config file there, and returned. A guard that only fires when the thing it guards already worked is not a guard.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Set USERPROFILE beside HOME so the isolation reaches the variable the binary actually reads.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made the leak loud. The test now asserts the isolated config file exists after install. A silent leak becomes a red test rather than corrupted global state, which is the property the previous fix lacked: it shipped on 2026-07-07 and the leak was still being written on 2026-07-16.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Gave the cleanup an explicit home parameter instead of reading the monkeypatched global, and swept both the isolated home and the real one. Teardown is the last line of defense, so it must not depend on the isolation working. This also removed the monkeypatch from five unit tests, which were only patching a global to reach a value they could pass directly.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a Windows CI leg for this file. The cleanup compares paths with as_posix and Path.parents, and the bug it guards was Windows-only. A POSIX-only leg is the reason a POSIX-only fix looked complete. The binary smoke test skips there without copilot on PATH; the cleanup coverage does not need it.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pinned both subprocess captures to utf-8 with errors=replace while touching them. On Windows a bare text=True capture defaults to cp1252 and the reader thread raises on UTF-8 tool output, leaving stdout as None, which would turn the new assertion into a confusing NoneType failure on the exact platform this change targets.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}

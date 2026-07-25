@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3324,
+    "date": "2026-07-25",
+    "branch": "fix/3324-windows-home-isolation",
+    "startingCommit": "c0e6d4c1ad506fd0a629b7988c8d21085a2eab15",
+    "objective": "Stop the Copilot install smoke test leaking a _direct project-toolkit shadow into the contributor's real ~/.copilot on Windows, and make a future leak loud instead of silent (issue #3324)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active on this Copilot CLI harness for the whole session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions called before any edit."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; never modified it (ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3324-windows-home-isolation, cut from origin/main at c0e6d4c1ad."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All work lands on fix/3324-windows-home-isolation."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded, including the Windows subprocess encoding entry that turned out to apply to the two subprocess.run calls this change already touches."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching; pre-existing untracked artifacts left alone."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolation now covers the env var Copilot actually reads on Windows, a leak fails the test instead of corrupting global state, teardown no longer depends on the isolation it backstops, and the whole file gets a Windows CI leg."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recorded that Copilot CLI resolves its home from USERPROFILE on Windows, so HOME-only isolation is a no-op there."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git diff --name-only lists one Python test file, one workflow YAML, and this JSON log. Zero markdown units, so the ADR-043 scoped set is empty. Byte-checked the hand-authored files for em and en dashes: zero found."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "One atomic commit on fix/3324-windows-home-isolation."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "22 of 22 tests pass in tests/integration/test_e2e_install.py. The binary smoke test executed here, because copilot is on PATH, and it satisfied the new isolation assertion. Reverting the explicit-home parameter turns three cases red, so the coverage has teeth. ruff reports no findings. Both pytest.yml edits parse as YAML and clear actionlint."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "All four suggestions in issue #3324 are addressed in this change."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "T0",
+      "entry": "The leak had two independent causes on the same platform, which is why nothing caught it. Isolation set HOME, but Copilot CLI resolves its home from USERPROFILE on Windows, so the install landed in the real user config. Teardown then read a module global the test had monkeypatched to the isolated directory, found no config file there, and returned. A guard that only fires when the thing it guards already worked is not a guard."
+    },
+    {
+      "time": "T1",
+      "entry": "Set USERPROFILE beside HOME so the isolation reaches the variable the binary actually reads."
+    },
+    {
+      "time": "T2",
+      "entry": "Made the leak loud. The test now asserts the isolated config file exists after install. A silent leak becomes a red test rather than corrupted global state, which is the property the previous fix lacked: it shipped on 2026-07-07 and the leak was still being written on 2026-07-16."
+    },
+    {
+      "time": "T3",
+      "entry": "Gave the cleanup an explicit home parameter instead of reading the monkeypatched global, and swept both the isolated home and the real one. Teardown is the last line of defense, so it must not depend on the isolation working. This also removed the monkeypatch from five unit tests, which were only patching a global to reach a value they could pass directly."
+    },
+    {
+      "time": "T4",
+      "entry": "Added a Windows CI leg for this file. The cleanup compares paths with as_posix and Path.parents, and the bug it guards was Windows-only. A POSIX-only leg is the reason a POSIX-only fix looked complete. The binary smoke test skips there without copilot on PATH; the cleanup coverage does not need it."
+    },
+    {
+      "time": "T5",
+      "entry": "Pinned both subprocess captures to utf-8 with errors=replace while touching them. On Windows a bare text=True capture defaults to cp1252 and the reader thread raises on UTF-8 tool output, leaving stdout as None, which would turn the new assertion into a confusing NoneType failure on the exact platform this change targets."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "The binary smoke test still skips wherever copilot is absent, including the new Windows leg, so the USERPROFILE path is not yet proven by CI. Proving it needs the CLI installed on a Windows runner.",
+    "Contributors who already have the stale shadow must clear it by hand; this change stops new ones, it does not clean existing machines."
+  ]
+}
