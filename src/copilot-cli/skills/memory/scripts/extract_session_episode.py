@@ -580,7 +580,8 @@ def _session_floor(session_date: str) -> datetime | None:
     labelled day covers both without needing a timezone the log does not
     record.
 
-    The schema also accepts a full ISO timestamp, which may carry an offset.
+    The schema pins ``session.date`` to a bare ``YYYY-MM-DD``, but this parser
+    is deliberately tolerant of a full ISO timestamp, which may carry an offset.
     An offset-bearing value is converted, not relabelled: ``replace(tzinfo=UTC)``
     on an aware datetime silently discards the real offset and can move the
     floor by up to a day, which is enough to drop a commit the session made.

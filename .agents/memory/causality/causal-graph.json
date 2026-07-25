@@ -14627,6 +14627,33 @@
         "episode-2026-07-25-session-3328-prose-sha-provenance"
       ],
       "created": "2026-07-25T09:55:32.228667+00:00"
+    },
+    {
+      "id": "ffd969d461d5",
+      "type": "commit",
+      "label": "commit: Commit: a2038a99017058e99f45de015e6b1886bb538e65",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T11:09:03.568000+00:00"
+    },
+    {
+      "id": "abe83ca3570e",
+      "type": "milestone",
+      "label": "milestone: Address the remaining Copilot review threads on PR #3334",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T11:09:03.568063+00:00"
+    },
+    {
+      "id": "c440d67933c2",
+      "type": "commit",
+      "label": "commit: Commit: 3669adec84",
+      "episodes": [
+        "episode-2026-07-25-session-3328-prose-sha-provenance"
+      ],
+      "created": "2026-07-25T11:09:03.568114+00:00"
     }
   ],
   "patterns": [

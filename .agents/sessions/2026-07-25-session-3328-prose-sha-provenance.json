@@ -114,6 +114,16 @@
       "task": "Replace the unsound ancestry discriminator with a committer-date floor",
       "outcome": "Adversarial review (gpt-5.6-sol) disproved the ancestor form against the real corpus. .agents/sessions/2026-05-11-session-1832.json opened its log after the green-phase commit, so its own spec and red-phase commits are ancestors of its own startingCommit and were dropped. Nothing in the schema or validate_session_json.py requires the anchor to precede the work, so the 'tautology' framing was wrong. Switched the discriminator to the commit's own committer timestamp against a floor of one day before session.date, which needs no anchor and no assumption about merge strategy. Re-swept all 917 session logs: 5 SHAs excluded across 5 logs, every one an explicit citation (Verified PR #2168 merge commit, git-blamed exit-4 added #2394, Recovered ADR-075 from orphan commit), and no session-authored commit lost.",
       "result": "149 tests pass. Two negative controls: disabling the filter fails 2 exclusion tests; reinstating the ancestor rule fails the session-1832 regression test."
+    },
+    {
+      "task": "Address the remaining Copilot review threads on PR #3334",
+      "outcome": "Three merited. (1) The _session_floor docstring claimed 'The schema also accepts a full ISO timestamp'; the schema pins session.date to an anchored ^[0-9]{4}-[0-9]{2}-[0-9]{2}$, so the sentence was false and pointed a reader at a schema branch that does not exist. Reworded in both mirrors to say the parser is deliberately tolerant of input the schema rejects. (2) The derived episode carried metrics.commits 0 while the log claimed changesCommitted complete; that was stale output from before 3669adec84 populated endingCommit. Re-ran the extractor with --preserve: metrics.commits is now 1 with one commit event, so the causal graph matches the log. (3) The E303 blank-line finding and the empty-endingCommit finding were already fixed by earlier commits on this branch; ruff reports clean and endingCommit reads a2038a99017058e99f45de015e6b1886bb538e65. The PR description still described the rejected startingCommit reachability rule and was rewritten to describe the committer-date floor that actually shipped.",
+      "filesChanged": [
+        ".claude/skills/memory/scripts/extract_session_episode.py",
+        "src/copilot-cli/skills/memory/scripts/extract_session_episode.py",
+        ".agents/memory/episodes/episode-2026-07-25-session-3328-prose-sha-provenance.json",
+        ".agents/retrospective/INDEX.md"
+      ]
     }
   ],
   "endingCommit": "a2038a99017058e99f45de015e6b1886bb538e65",

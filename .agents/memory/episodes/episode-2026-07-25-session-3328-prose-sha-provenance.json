@@ -11,7 +11,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Issue #3328 offers three options and calls option 2, verifying each prose SHA is a descendant of the starting commit, accurate. Implemented it first because it looked free: the extractor already shells out to git for staged-file counts, so it adds no dependency, and all 140 existing tests passed unchanged because their fixture SHAs are not git objects and fail open.",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -72,7 +74,41 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a2038a99017058e99f45de015e6b1886bb538e65",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Address the remaining Copilot review threads on PR #3334",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3669adec84",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -80,7 +116,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 2,
     "files_changed": 7
   },
   "lessons": []
