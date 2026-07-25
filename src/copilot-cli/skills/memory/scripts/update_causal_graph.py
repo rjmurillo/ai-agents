@@ -59,8 +59,9 @@ def load_causal_graph(graph_path: Path) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         msg = f"causal graph file contains invalid JSON: {graph_path}"
         raise ValueError(msg) from exc
-    except OSError:
-        return _empty_graph()
+    except OSError as exc:
+        msg = f"causal graph file exists but could not be read: {graph_path}"
+        raise ValueError(msg) from exc
     if not isinstance(data, dict):
         msg = f"causal graph file is valid JSON but not an object: {graph_path}"
         raise ValueError(msg)
