@@ -1,0 +1,99 @@
+{
+  "id": "episode-2026-07-24-session-3321-apply-patch-regression-guard",
+  "session": "2026-07-24-session-3321-apply-patch-regression-guard",
+  "timestamp": "2026-07-24T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Triage issue #3321 (P0): project-toolkit denies a valid Copilot CLI freeform apply_patch on CLI 1.0.74. Determine whether main still reproduces, find the real denial mechanism, and lock the behavior with a regression guard on the shipped dispatcher.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #3321 with its prior report #3203 and prior fix #3204. Established the current surface: PR #3295 (version 0.6.98) retired invoke_security_gate__Write_Edit_c39898.py from the Copilot PreToolUse manifest and narrowed the host matcher in hooks.json from Bash|Write|Edit to Bash. Main is 0.6.101. The merge SHA is cited in PR #3326 and in the Serena memory rather than here, because the episode extractor reads work-log prose SHAs as commits this session produced.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replayed six realistic payload shapes through the shipped src/copilot-cli/hooks/PreToolUse/_dispatch.py on main: top-level apply_patch with a raw patch string, the recorded toolCalls host event, Edit and Write with a raw patch string, a JSON-object args string, and a headerless string. All exit 0. Local Copilot CLI is 1.0.74, the same build the reporter names.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a live probe with copilot 1.0.74 and --plugin-dir src/copilot-cli. This Linux build exposes no apply_patch tool (Unknown tool name in the tool allowlist), so the end-to-end reproduction the reporter describes is reachable only on their harness. Fell back to direct dispatcher replay, which is what the existing #3083 guard already uses.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extracted the pre-purge plugin tree with git archive against the parent of the PR #3295 merge commit and replayed the same shapes. Found the real mechanism: #3204's malformed_structural_lines fails closed on every column-0 *** line it cannot attribute to a path, and _PATCH_BEGIN_END recognizes only Begin Patch and End Patch. The standard V4A marker *** End of File therefore denies the whole patch (exit 2, tool_input carries malformed patch header(s)). The absolute Windows path in the report is not the trigger; _PATCH_FILE_HEADER parses drive-letter paths.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Learnings captured in Serena memory decision-3321-freeform-apply-patch-gate. Added three fixtures to the existing #3083 guard rather than a new module: freeform-patch-string, freeform-patch-string-as-edit, and freeform-patch-end-of-file-marker, all replayed through the committed dispatcher with the file's existing non-plugin-root negative control supplying teeth. 8 tests green.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-24T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8385764d799b84a32c18d55a0bb3a8b1dd3162a5",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Worked PR #3326 review threads. Corrected a stale shim list in the guard docstring, two undercounted changed-file claims in this log, and an episode that recorded PR #3295's merge SHA as a commit this session produced. Verified the root cause instead of hand-patching the metric: the pre-commit extractor re-derives metrics.commits from commit-typed events, so an earlier hand-edit was silently reverted. Fixed by citing #3295 by PR number in this log so a fresh extraction reproduces the committed episode exactly. Left the extractor's bare-SHA sweep unchanged; narrowing it breaks four tests that encode the #2170, #3123, and #3301 contract, which is a separate decision.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
