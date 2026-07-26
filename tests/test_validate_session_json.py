@@ -2081,3 +2081,156 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         source = inspect.getsource(vsj.main)
         assert "args.scope_from_git and not existing_log" in source
+
+
+def _log_with_evidence(**items: str) -> dict:
+    """A valid log whose named checklist items carry the given evidence.
+
+    Args:
+        items: Checklist item name to evidence text. Items are placed in
+            sessionStart for convenience, even when the protocol locates them
+            in sessionEnd (e.g. changesCommitted). The cross-field check reads
+            both sections, so placement does not affect test outcomes.
+
+    Returns:
+        A log that passes schema and protocol checks apart from whatever the
+        supplied evidence contradicts.
+    """
+    log = _make_valid_log()
+    start = log["protocolCompliance"]["sessionStart"]
+    for name, evidence in items.items():
+        start[name] = {"complete": True, "evidence": evidence, "level": "MUST"}
+    return log
+
+
+class TestEvidenceAgreesWithSession:
+    """Evidence that describes a different session than the record does.
+
+    Issue #3383. Logs are seeded by copying a recent log, so the previous
+    session's evidence survives whenever the edit was incomplete. Every field
+    is present and correctly typed, so the schema sees nothing; the document is
+    simply not true.
+    """
+
+    @pytest.mark.parametrize("item", ["branchVerified", "notOnMain", "verifyBranch"])
+    def test_branch_not_matching_declared_is_an_error(self, item: str) -> None:
+        log = _log_with_evidence(**{item: "Verified feat/999-some-other-thing"})
+        errors = validate_session_log(log).errors
+        assert any("names a different branch" in e for e in errors), errors
+        named = next(e for e in errors if "names a different branch" in e)
+        assert "feat/999-some-other-thing" in named
+        assert "fix/3346-session-schema-enforcement" in named
+
+    def test_the_declared_branch_in_its_own_evidence_is_not_an_error(self) -> None:
+        log = _log_with_evidence(
+            branchVerified="git branch --show-current returned fix/3346-session-schema-enforcement"
+        )
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            "On a feature branch, not main",
+            "Compared against origin/main",
+            "merge-base with main resolved",
+            "",
+        ],
+        ids=["no-branch-named", "origin-main", "bare-main", "empty"],
+    )
+    def test_evidence_naming_no_feature_branch_is_not_an_error(self, evidence: str) -> None:
+        """main and origin/main appear legitimately; the error fires only when evidence
+        names a feature branch and none of them is the declared branch."""
+        log = _log_with_evidence(branchVerified=evidence)
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    def test_a_different_starting_commit_in_evidence_is_an_error(self) -> None:
+        log = _log_with_evidence(startingCommitNoted="Starting commit: 50b05eb9")
+        errors = validate_session_log(log).errors
+        assert any("names a different starting commit" in e for e in errors), errors
+
+    def test_an_abbreviation_of_the_declared_commit_is_not_an_error(self) -> None:
+        """git abbreviates to whatever is unambiguous, so a prefix is the same commit."""
+        log = _log_with_evidence(startingCommitNoted="Starting commit: 1ffee38")
+        assert not any(
+            "names a different starting commit" in e for e in validate_session_log(log).errors
+        )
+
+    def test_evidence_citing_several_commits_passes_when_one_is_the_declared_one(self) -> None:
+        log = _log_with_evidence(
+            startingCommitNoted="base 1ffee3834e910608ed6c03c374fb71ff7c39bdc3, head deadbeef1"
+        )
+        assert not any(
+            "names a different starting commit" in e for e in validate_session_log(log).errors
+        )
+
+    def test_evidence_citing_no_commit_is_not_an_error(self) -> None:
+        log = _log_with_evidence(startingCommitNoted="Recorded at session start")
+        assert not any(
+            "names a different starting commit" in e for e in validate_session_log(log).errors
+        )
+
+    def test_a_committed_claim_without_an_ending_commit_warns(self) -> None:
+        log = _make_valid_log()
+        log["endingCommit"] = ""
+        assert any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
+
+    def test_a_committed_claim_with_an_ending_commit_does_not_warn(self) -> None:
+        log = _make_valid_log()
+        log["endingCommit"] = "1ffee3834e910608ed6c03c374fb71ff7c39bdc3"
+        assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
+
+    def test_an_existing_log_is_not_blocked_by_a_contradiction_it_cannot_repair(self) -> None:
+        """Four committed logs contradict themselves and git cannot adjudicate which
+        side is true. On the record side they would be a permanent block that no
+        honest edit could clear, so the check sits on the claim side. Issue #3385.
+        """
+        log = _log_with_evidence(branchVerified="Verified feat/999-some-other-thing")
+        assert not any(
+            "names a different branch" in e
+            for e in validate_session_log(log, existing_log=True).errors
+        )
+
+    def test_a_malformed_log_does_not_crash_the_cross_field_checks(self) -> None:
+        for broken in (
+            {"session": "not a mapping", "protocolCompliance": {}},
+            {"session": {"branch": 7}, "protocolCompliance": "not a mapping"},
+            {"session": {"startingCommit": None}, "protocolCompliance": {"sessionStart": None}},
+            {"session": {}, "protocolCompliance": {"sessionStart": {"branchVerified": "flat"}}},
+        ):
+            validate_session_log(broken)
+
+
+class TestBranchEvidenceMayDescribeARelationship:
+    """Honest evidence names a second branch whenever it explains a relationship.
+
+    Measured on all 946 committed logs: flagging any second feature branch
+    caught seven, and six were a rename, a stack, or a branched-from note. The
+    rule that survives is narrower. Contamination describes the *other* session
+    and never mentions this branch at all. Issue #3383.
+    """
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            "fix/3346-session-schema-enforcement, stacked on fix/3385-historical-logs",
+            "fix/3346-session-schema-enforcement (renamed from the initial chore/adr006 branch)",
+            "Branched fix/3346-session-schema-enforcement from feat/1769-autonomous",
+            "On branch chore/old-thing, then created fix/3346-session-schema-enforcement",
+        ],
+        ids=["stacked-on", "renamed-from", "branched-from", "switched-to"],
+    )
+    def test_evidence_naming_its_own_branch_and_another_is_not_an_error(
+        self, evidence: str
+    ) -> None:
+        log = _log_with_evidence(branchVerified=evidence)
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    def test_evidence_naming_only_another_branch_is_still_an_error(self) -> None:
+        """The narrowing must not swallow the case it exists to catch."""
+        log = _log_with_evidence(branchVerified="Verified feat/merge-velocity-analysis")
+        assert any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    def test_a_prefix_of_the_declared_branch_counts_as_naming_it(self) -> None:
+        """Logs abbreviate their own branch; that is not a second session."""
+        log = _log_with_evidence(notOnMain="On fix/3346-session-schema, not main")
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)
