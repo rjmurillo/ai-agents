@@ -368,8 +368,16 @@ Exit codes:
 run in `build-validation.yml`, and that workflow no longer exists, so nothing
 runs the validator on a template change today. Wiring it is tracked in #3366.
 It exits 0 against the current tree, so run it by hand before changing a
-platform config, and treat it as authoritative when it rejects one: fix the
-YAML, do not relax the validator without an ADR amendment.
+platform config:
+
+```bash
+uv run python build/scripts/validate_templates_schema.py
+```
+
+`uv run` rather than bare `python3`: the validator reaches PyYAML through
+`build/scripts/yaml_loader.py`, and only the project venv is guaranteed to
+provide it. Treat the validator as authoritative when it rejects a config:
+fix the YAML, do not relax the validator without an ADR amendment.
 
 ### Constraints (ADR-006 Amendment Conditions 3 + 7)
 

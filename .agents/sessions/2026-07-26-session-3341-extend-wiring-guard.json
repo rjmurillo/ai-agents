@@ -69,7 +69,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown file changed on this branch, so the scoped markdownlint run has an empty file set."
+        "Evidence": "markdownlint-cli2 templates/README.md: 0 issues in 0 files. The earlier claim that no markdown changed on this branch was wrong; templates/README.md is in the diff and the scoped run above is the real evidence."
       },
       "changesCommitted": {
         "level": "MUST",
@@ -173,6 +173,10 @@
       "task": "Make the allowlist expire when a script gains a caller",
       "outcome": "The guard asserted one direction only: every unreachable script must be in _NO_CALLER. Nothing asserted the converse, and the parametrized case skips every listed name, so an entry that gained a caller would keep reporting a skip forever. That is the #3329 defect the allowlist exists to bound, reproduced inside the bound: a script whose own tests stay green while nothing re-examines whether it still needs the exemption. Added the converse assertion, so the two together pin _NO_CALLER to exactly the unreachable set and wiring any listed script forces its entry to be deleted. The failure message names the paths and says to delete their entries, because that is the only correct response.",
       "evidence": "All seven current entries measure unreachable, so the assertion holds on arrival: check_dual_priority_labels.py, check_skill_portability.py, consistency.py, hook_contracts.py, traceability.py, validate_seed_parity.py, validate_templates_schema.py. Negative control swapped one entry for agent_registry.py, which is reachable: the new test failed with \"['scripts/validation/agent_registry.py'] have callers now but are still in _NO_CALLER\". Restored, 113 pass and 7 skip. ruff check and ruff format both clean; the assertion is written as a guard-clause loop rather than a comprehension so the formatter does not join its condition into one long line."
+    },
+    {
+      "phase": "validation",
+      "summary": "Corrected a false compliance statement in this log. markdownLintRun recorded an empty file set, but templates/README.md changed on this branch, so the claim was false when written rather than merely stale. Replaced with the actual scoped run. Also cached _python_sources and pointed the new template-validator guidance at uv run, since bare python3 is only guaranteed to resolve PyYAML when the machine happens to carry it outside the project venv."
     }
   ],
   "learnings": {

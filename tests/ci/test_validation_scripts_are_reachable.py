@@ -155,7 +155,14 @@ def _guarded_scripts() -> list[Path]:
     return scripts
 
 
-def _python_sources() -> list[Path]:
+@functools.lru_cache(maxsize=1)
+def _python_sources() -> tuple[Path, ...]:
+    """Every Python file a call site could live in.
+
+    Cached and immutable: three cached builders below walk this, and an
+    uncached list would mean three full rglob scans of the tree per session
+    and a shared mutable result between them.
+    """
     skip = ("__pycache__", ".venv", ".cache", "worktrees", "node_modules")
     sources: list[Path] = []
     for root in _CALLER_ROOTS:
@@ -163,7 +170,7 @@ def _python_sources() -> list[Path]:
         if not base.is_dir():
             continue
         sources.extend(p for p in base.rglob("*.py") if not any(s in p.parts for s in skip))
-    return sources
+    return tuple(sources)
 
 
 def _imported_names(source: str) -> set[str]:
