@@ -129,7 +129,7 @@ jobs:
 
       - name: Install validator dependencies
         if: steps.should-run.outputs.skip != 'true'
-        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==9.0.3'
+        run: python3 -m pip install 'PyYAML==6.0.3' 'pytest==8.3.3'
 
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'
