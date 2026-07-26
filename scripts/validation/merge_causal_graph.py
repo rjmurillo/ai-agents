@@ -42,7 +42,7 @@ from typing import Any, TypeAlias
 # A value as it comes out of json.load. Naming it beats `Any`: these helpers
 # genuinely accept whatever the generated graph holds, and the alias says so
 # without disabling the ban on untyped signatures.
-JsonValue: TypeAlias = "str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]"
+JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 # Which record collections we merge, and the field that identifies a record
 # within each. Node and pattern ids are content hashes; an edge is identified by
@@ -58,17 +58,24 @@ _COUNTERS = frozenset({"evidence_count", "occurrences", "frequency"})
 _SET_VALUED = frozenset({"episodes"})
 _EARLIEST = frozenset({"created"})
 _LATEST = frozenset({"last_used", "updated"})
+# Metadata the generator is known to drop on a fresh write (issue #3351).
+# _prefer_diverged would read that omission as a deletion and propagate the
+# loss into the merge even when the other side still has the value.
+_PREFER_PRESENT = frozenset({"version"})
 
 
 class GraphMergeError(Exception):
     """An input could not be read or was not a causal graph."""
 
 
-def _load(path: Path, label: str) -> dict[str, Any]:
+def _load(path: Path, label: str, *, may_be_empty: bool = False) -> dict[str, Any]:
     """Read one side of the merge.
 
-    A missing ancestor is normal: git passes an empty file for an add/add
-    conflict. A malformed one is not, and must not be treated as empty.
+    An empty ancestor is normal: git passes an empty file for an add/add
+    conflict, where the two sides have no common history for this path. An empty
+    ours or theirs is not. Reading it as an empty graph would let a truncated
+    file merge cleanly and delete everything the other side has, which is the
+    silent data loss this driver exists to prevent.
     """
     try:
         text = path.read_text(encoding="utf-8")
@@ -76,7 +83,9 @@ def _load(path: Path, label: str) -> dict[str, Any]:
         raise GraphMergeError(f"cannot read {label} ({path}): {exc}") from exc
 
     if not text.strip():
-        return {}
+        if may_be_empty:
+            return {}
+        raise GraphMergeError(f"{label} ({path}) is empty, expected a graph")
 
     try:
         data = json.loads(text)
@@ -117,8 +126,16 @@ def _merge_counter(base: JsonValue, ours: JsonValue, theirs: JsonValue) -> JsonV
     Summing ours and theirs would count everything they inherited twice. Three
     way keeps a counter that neither side touched unchanged.
     """
-    numbers = [value for value in (base, ours, theirs) if isinstance(value, (int, float))]
-    if len(numbers) < 2:
+    ours_number = isinstance(ours, (int, float))
+    theirs_number = isinstance(theirs, (int, float))
+    if not ours_number or not theirs_number:
+        # Only one side holds a number, so there are no two deltas to reconcile.
+        # Keep whichever side has one: dropping it because the other side is
+        # malformed would lose the count the good side actually recorded.
+        if ours_number:
+            return ours
+        if theirs_number:
+            return theirs
         return ours if ours is not None else theirs
     start = base if isinstance(base, (int, float)) else 0
     ours_value = ours if isinstance(ours, (int, float)) else start
@@ -164,6 +181,41 @@ def _prefer_diverged(base: JsonValue, ours: JsonValue, theirs: JsonValue) -> Jso
     return ours
 
 
+def _ordered_keys(ours: dict[str, Any], theirs: dict[str, Any]) -> list[str]:
+    """Ours first, then anything only theirs has, so diffs stay readable."""
+    return list(ours) + [field for field in theirs if field not in ours]
+
+
+def _merge_fields(
+    base: dict[str, Any],
+    ours: dict[str, Any],
+    theirs: dict[str, Any],
+    keys: list[str],
+) -> dict[str, Any]:
+    """Apply the field-merge policy table to one level of the document.
+
+    Records and the top-level document merge their fields the same way, so this
+    is shared rather than restated. Restating it is how the top level came to
+    handle version and updated as one-off special cases.
+    """
+    merged: dict[str, Any] = {}
+    for field in keys:
+        base_value, ours_value, theirs_value = base.get(field), ours.get(field), theirs.get(field)
+        if field in _COUNTERS:
+            merged[field] = _merge_counter(base_value, ours_value, theirs_value)
+        elif field in _SET_VALUED:
+            merged[field] = _merge_set(ours_value, theirs_value)
+        elif field in _EARLIEST:
+            merged[field] = _extreme(ours_value, theirs_value, latest=False)
+        elif field in _LATEST:
+            merged[field] = _extreme(ours_value, theirs_value, latest=True)
+        elif field in _PREFER_PRESENT:
+            merged[field] = ours_value if ours_value is not None else theirs_value
+        else:
+            merged[field] = _prefer_diverged(base_value, ours_value, theirs_value)
+    return merged
+
+
 def _merge_record(
     base: dict[str, Any] | None,
     ours: dict[str, Any] | None,
@@ -175,25 +227,7 @@ def _merge_record(
     if theirs is None:
         return dict(ours)
 
-    base = base or {}
-    merged: dict[str, Any] = {}
-    for field in list(ours) + [f for f in theirs if f not in ours]:
-        base_value, ours_value, theirs_value = (
-            base.get(field),
-            ours.get(field),
-            theirs.get(field),
-        )
-        if field in _COUNTERS:
-            merged[field] = _merge_counter(base_value, ours_value, theirs_value)
-        elif field in _SET_VALUED:
-            merged[field] = _merge_set(ours_value, theirs_value)
-        elif field in _EARLIEST:
-            merged[field] = _extreme(ours_value, theirs_value, latest=False)
-        elif field in _LATEST:
-            merged[field] = _extreme(ours_value, theirs_value, latest=True)
-        else:
-            merged[field] = _prefer_diverged(base_value, ours_value, theirs_value)
-    return merged
+    return _merge_fields(base or {}, ours, theirs, _ordered_keys(ours, theirs))
 
 
 def _merge_collection(
@@ -219,27 +253,13 @@ def merge_graphs(
     base: dict[str, Any], ours: dict[str, Any], theirs: dict[str, Any]
 ) -> dict[str, Any]:
     """Merge two causal graphs against their common ancestor."""
-    merged: dict[str, Any] = {}
-
-    for field in ("version",):
-        result = _prefer_diverged(base.get(field), ours.get(field), theirs.get(field))
-        if result is None:
-            result = base.get(field)
-        merged[field] = result
-
-    updated_result = _extreme(ours.get("updated"), theirs.get("updated"), latest=True)
-    if updated_result is None:
-        updated_result = base.get("updated")
-    merged["updated"] = updated_result
+    # Every top-level key either side carries, including ones the schema grows
+    # later. Collections have their own union rule and are merged below.
+    scalars = [key for key in _ordered_keys(ours, theirs) if key not in _COLLECTIONS]
+    merged = _merge_fields(base, ours, theirs, scalars)
 
     for collection, fields in _COLLECTIONS.items():
         merged[collection] = _merge_collection(base, ours, theirs, collection, fields)
-
-    # Carry any top-level key the schema grows later rather than dropping it.
-    for side in (ours, theirs):
-        for field, value in side.items():
-            if field not in merged:
-                merged[field] = value
 
     return {field: value for field, value in merged.items() if value is not None}
 
@@ -257,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         merged = merge_graphs(
-            _load(args.base, "ancestor"),
+            _load(args.base, "ancestor", may_be_empty=True),
             _load(args.ours, "ours"),
             _load(args.theirs, "theirs"),
         )

@@ -51,6 +51,17 @@ def _graph(**overrides: Any) -> dict[str, Any]:
     return graph
 
 
+# Git invokes merge drivers through sh even on Windows, so a native interpreter
+# path like D:\\hostedtoolcache\\python.exe loses its backslashes to shell
+# escaping. Render it POSIX-style and quote it, matching how this repository
+# feeds interpreter paths to lefthook run strings.
+_PYTHON_POSIX = Path(sys.executable).as_posix()
+_DRIVER_SCRIPT = (
+    Path(__file__).resolve().parents[2] / "scripts" / "validation" / "merge_causal_graph.py"
+).as_posix()
+_DRIVER_COMMAND = f'"{_PYTHON_POSIX}" "{_DRIVER_SCRIPT}" "%O" "%A" "%B"'
+
+
 class TestUnionSemantics:
     """Both sides survive. Taking one side is what caused the drift."""
 
@@ -174,10 +185,22 @@ class TestMalformedInputIsToleratedNotFatal:
 
 
 class TestLoadRefusesWhatItCannotTrust:
-    def test_empty_file_is_an_empty_graph(self, tmp_path: Path) -> None:
+    def test_an_empty_ancestor_is_an_empty_graph(self, tmp_path: Path) -> None:
+        """Git passes an empty ancestor for an add/add conflict. That is normal."""
         path = tmp_path / "base.json"
         path.write_text("", encoding="utf-8")
-        assert _load(path, "ancestor") == {}
+        assert _load(path, "ancestor", may_be_empty=True) == {}
+
+    def test_an_empty_side_is_refused(self, tmp_path: Path) -> None:
+        """A truncated ours or theirs must not merge cleanly as an empty graph.
+
+        Reading it as {} would delete everything the other side has, which is
+        the silent data loss the driver exists to prevent.
+        """
+        path = tmp_path / "ours.json"
+        path.write_text("   \n", encoding="utf-8")
+        with pytest.raises(GraphMergeError, match="empty"):
+            _load(path, "ours")
 
     def test_unparseable_file_raises(self, tmp_path: Path) -> None:
         path = tmp_path / "ours.json"
@@ -301,7 +324,7 @@ class TestGitActuallyUsesTheDriver:
             repo,
             "config",
             "merge.causal-graph.driver",
-            f"{sys.executable} scripts/validation/merge_causal_graph.py %O %A %B",
+            _DRIVER_COMMAND,
         )
         result = self._git(repo, "merge", "feature")
         assert result.returncode == 0, result.stdout + result.stderr
@@ -325,7 +348,7 @@ class TestGitActuallyUsesTheDriver:
             repo,
             "config",
             "merge.causal-graph.driver",
-            f"{sys.executable} scripts/validation/merge_causal_graph.py %O %A %B",
+            _DRIVER_COMMAND,
         )
         result = self._git(repo, "merge", "feature")
         assert result.returncode != 0
@@ -348,7 +371,7 @@ class TestRegistrationIsWiredAndIdempotent:
         from scripts.maintenance.install_merge_drivers import _DRIVERS
 
         assert _DRIVER in _DRIVERS["causal-graph"]["driver"]
-        assert _DRIVERS["causal-graph"]["driver"].endswith("%O %A %B")
+        assert _DRIVERS["causal-graph"]["driver"].endswith('"%O" "%A" "%B"')
 
     def test_installing_twice_writes_once(self, capsys: pytest.CaptureFixture[str]) -> None:
         from scripts.maintenance import install_merge_drivers
@@ -357,3 +380,65 @@ class TestRegistrationIsWiredAndIdempotent:
         capsys.readouterr()
         assert install_merge_drivers.install() == 0
         assert capsys.readouterr().out == ""
+
+
+class TestTopLevelFieldsGoThroughTheSamePolicyTable:
+    """PR #3348 review: version and updated were one-off special cases.
+
+    Handling them separately from every other field is how a key only one side
+    carried came to be dropped. They now run through the shared field pass.
+    """
+
+    def test_a_key_only_theirs_carries_survives(self) -> None:
+        merged = merge_graphs({}, {"nodes": []}, {"nodes": [], "schema_note": "added upstream"})
+        assert merged["schema_note"] == "added upstream"
+
+    def test_version_survives_when_one_side_omits_it(self) -> None:
+        """Issue #3351: the generator drops version on a fresh write.
+
+        That omission is a generator defect, not a deletion, so it must not
+        propagate into the merge when the other side still has the value.
+        """
+        base = {"version": "1.0", "nodes": []}
+        merged = merge_graphs(base, {"version": "1.0", "nodes": []}, {"nodes": []})
+        assert merged["version"] == "1.0"
+
+    def test_version_survives_when_the_other_side_omits_it(self) -> None:
+        base = {"version": "1.0", "nodes": []}
+        merged = merge_graphs(base, {"nodes": []}, {"version": "1.0", "nodes": []})
+        assert merged["version"] == "1.0"
+
+    def test_updated_takes_the_later_timestamp(self) -> None:
+        merged = merge_graphs(
+            {"updated": "2026-01-01T00:00:00Z", "nodes": []},
+            {"updated": "2026-02-01T00:00:00Z", "nodes": []},
+            {"updated": "2026-03-01T00:00:00Z", "nodes": []},
+        )
+        assert merged["updated"] == "2026-03-01T00:00:00Z"
+
+    def test_a_field_both_sides_removed_stays_removed(self) -> None:
+        """Not every absence is a generator defect. An agreed deletion is a deletion."""
+        merged = merge_graphs({"retired": "old", "nodes": []}, {"nodes": []}, {"nodes": []})
+        assert "retired" not in merged
+
+
+class TestCounterKeepsTheSideThatHasANumber:
+    """PR #3348 review: a malformed counter on one side discarded a good one."""
+
+    @staticmethod
+    def _counted(base: object, ours: object, theirs: object) -> object:
+        merged = merge_graphs(
+            {"nodes": [{"id": "n1", "frequency": base}]} if base is not None else {"nodes": []},
+            {"nodes": [{"id": "n1", "frequency": ours}]},
+            {"nodes": [{"id": "n1", "frequency": theirs}]},
+        )
+        return merged["nodes"][0]["frequency"]
+
+    def test_a_string_on_ours_does_not_discard_a_number_on_theirs(self) -> None:
+        assert self._counted(2, "corrupt", 7) == 7
+
+    def test_a_string_on_theirs_does_not_discard_a_number_on_ours(self) -> None:
+        assert self._counted(2, 7, "corrupt") == 7
+
+    def test_two_malformed_sides_keep_ours(self) -> None:
+        assert self._counted(2, "a", "b") == "a"

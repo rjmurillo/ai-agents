@@ -24,7 +24,16 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DRIVERS: dict[str, dict[str, str]] = {
     "causal-graph": {
         "name": "Union merge for the generated causal graph",
-        "driver": ("uv run --frozen python scripts/validation/merge_causal_graph.py %O %A %B"),
+        # Git runs a merge driver from the top of the working tree even when
+        # `git merge` was invoked in a subdirectory, so the relative script path
+        # resolves. Verified by probe; see PR #3348.
+        #
+        # %O %A %B are quoted as a matter of shell hygiene. Git substitutes them
+        # into this string before sh parses it, and today it substitutes bare
+        # temp names like .merge_file_yvRBP2 that cannot contain a space.
+        "driver": (
+            'uv run --frozen python scripts/validation/merge_causal_graph.py "%O" "%A" "%B"'
+        ),
     },
 }
 
