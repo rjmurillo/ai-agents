@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -591,14 +593,12 @@ class TestGraphMetadataSurvivesAFreshWrite:
         assert graph["version"] == update_causal_graph.GRAPH_VERSION
         assert graph["updated"]
 
-    def test_a_graph_loaded_from_corruption_carries_version_and_updated(self, tmp_path):
+    def test_a_graph_loaded_from_corruption_fails_closed(self, tmp_path):
         corrupt = tmp_path / "corrupt.json"
         corrupt.write_text("{ not json", encoding="utf-8")
 
-        graph = update_causal_graph.load_causal_graph(corrupt)
-
-        assert graph["version"] == update_causal_graph.GRAPH_VERSION
-        assert graph["updated"]
+        with pytest.raises(ValueError, match="invalid JSON"):
+            update_causal_graph.load_causal_graph(corrupt)
 
     def test_a_fresh_write_lands_version_and_updated_on_disk(self, tmp_path):
         path = tmp_path / "g.json"

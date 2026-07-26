@@ -61,16 +61,17 @@ class TestLoadCausalGraph:
         graph = load_causal_graph(graph_file)
         assert len(graph["nodes"]) == 1
 
-    def test_invalid_json(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "content",
+        ["not json", "{", '{"nodes": ['],
+        ids=["plain-text", "bare-brace", "truncated-object"],
+    )
+    def test_invalid_json_raises(self, tmp_path: Path, content: str) -> None:
         graph_file = tmp_path / "graph.json"
-        graph_file.write_text("not json", encoding="utf-8")
+        graph_file.write_text(content, encoding="utf-8")
 
-        graph = load_causal_graph(graph_file)
-        assert graph["version"] == GRAPH_VERSION
-        assert graph["updated"]
-        assert graph["nodes"] == []
-        assert graph["edges"] == []
-        assert graph["patterns"] == []
+        with pytest.raises(ValueError, match="invalid JSON"):
+            load_causal_graph(graph_file)
 
     @pytest.mark.parametrize(
         "content",
