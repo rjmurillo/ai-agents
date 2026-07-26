@@ -801,11 +801,13 @@ def report_results(
 
 
 def _repo_relative(path: Path) -> str:
-    """Return ``path`` as a repo-relative POSIX path for ``git cat-file``.
+    """Return ``path`` as a repo-relative POSIX path for scope detection.
 
-    Git addresses blobs by their path inside the tree, so an absolute path
-    never resolves. A path outside the repository is returned unchanged; the
-    probe then reports "not in the merge base", which is the strict answer.
+    ``session_scope`` compares paths against ``git diff --name-status`` and
+    ``git ls-files`` output, both of which report repo-relative POSIX paths.
+    An absolute path would never match. A path outside the repository is
+    returned unchanged; the scope probe then treats it as new, which is the
+    strict answer.
     """
     resolved = path.resolve()
     try:
