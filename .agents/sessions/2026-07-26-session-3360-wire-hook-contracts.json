@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3360,
+    "date": "2026-07-26",
+    "branch": "fix/3360-wire-hook-contracts",
+    "startingCommit": "263ce89d05cd7ab15a196e97c24c4a0e9b095970",
+    "objective": "Issue #3360, hook_contracts.py arm: wire the hook contract validator after resolving what it reports."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; serena-list_memories returned the project memory index"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read at session initialization"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; treated as read-only per ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "code-review-and-quality and github skill catalogs loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded plugin-versioning, testing-practices, and hooks memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3360-wire-hook-contracts"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3360-wire-hook-contracts, branched off main 263ce89d05"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branch creation and before each commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "263ce89d05cd7ab15a196e97c24c4a0e9b095970"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged; git status shows no modification"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored the testpaths blackout finding and the per-tree collection workaround"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files in the diff; the change set is Python and JSON only, verified with git diff --name-only"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "15 commits on the branch after rebasing onto main: e1bb1a4e11, 3d8149cab5, 329df70fe2, 90b172cadf, 7edb0deac8, fa1e5c5e50, dac853c937, 413f1c5e6a, 1ce8dd8d78, 8be978845b, 440e987227, d10ccb0f8e, f143fc70a4, e405069a59, e75904528b"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "98 passed in tests/hooks/test_hook_contracts.py after merging the bot autofix commits; five negative controls each turned the matching tests red before restore; ruff check, ruff format and mypy clean; actionlint clean on the workflow"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3384 filed for the ungated copilot-cli hook surface"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; this session is one issue in a multi-issue autopilot run whose retrospective covers the whole run"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Investigate",
+      "summary": "Re-measured all three validators #3360 names. hook_contracts.py now exits 0, so the issue's premise that it fails is stale, but it passes for the wrong reason.",
+      "evidence": "hook_contracts --ci exit 0 reporting 3 entries; traceability --ci exit 1; consistency --all --ci exit 1. The 3 entries are settings.json registrations, while dispatch_groups.json lists 3 shims and the plugin hooks.json adds 2 more registrations, none of them validated."
+    },
+    {
+      "phase": "Root cause",
+      "summary": "Two independent coverage holes. Group dispatch (#3153) put a group name where a script path used to be, so the validator checked the dispatcher repeatedly and no hook at all. The plugin surface was dropped silently because the path regex required whitespace after .py and the plugin quotes its command.",
+      "evidence": "extract_script_path returned None for python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py\" --group g, and None is the same signal as 'not a Python hook', so the entry vanished with no violation raised."
+    },
+    {
+      "phase": "Implement",
+      "summary": "Expanded each registration through dispatch_groups.json, read the plugin hooks.json as a second surface, and taught the path regex about quoting and the plugin-root variable.",
+      "evidence": "Coverage went from 3 settings entries to all 5 shims across both surfaces, still exit 0. Undefined group, empty group, and a shim entry with no file are each violations."
+    },
+    {
+      "phase": "Wire",
+      "summary": "Added .github/workflows/hook-contract-check.yml and removed the _NO_CALLER entry so the reachability guard holds the wiring.",
+      "evidence": "actionlint clean. Path-filtered on the hook surfaces with a skip job, matching agent-skill-discriminator-check.yml. The docstring-count pin in the reachability guard fired on the allowlist edit and was updated from five to four."
+    },
+    {
+      "phase": "Test",
+      "summary": "Added 15 tests covering dispatcher expansion and the plugin surface.",
+      "evidence": "197 passed across the hook-contract and reachability modules, plus 567 workflow tests. Negative controls: disabling group expansion turned 6 red, skipping the plugin surface turned 3 red, reverting the path regex turned 6 red."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Review found the exit-code contract still had a hole: main() caught JSONDecodeError, TypeError, and AttributeError, but not OSError or UnicodeDecodeError, so an unreadable settings file or one holding invalid UTF-8 escaped as a traceback instead of the ADR-035 configuration code. Those are the two failure modes most likely on a real machine. Widened the tuple and made the message name the path actually read, since --settings can point at a file that is not settings.json. Added 4 tests; narrowing the tuple again turns 2 of them red. Bumped both manifests because the rebase pulled a change to .claude/hooks/invoke_dispatch_claude.py into the diff. The number moved with every later rebase (0.6.118, then 0.6.119, then 0.6.120) because the gate compares against the merge base and main advanced under this branch; the shipped value is 0.6.120."
+    },
+    {
+      "phase": "review",
+      "summary": "Answered four review threads. One was a real gap: _load_dispatch_groups read a missing or non-object 'groups' field as an empty map and reported nothing, while invoke_dispatch_claude._load_group raises TypeError on that shape and the dispatcher fails closed, blocking every dispatched tool call. A manifest that stopped the runtime it describes passed the contract check. It now emits invalid_dispatch_groups naming the field and the type found. Six tests, including one that reads the dispatcher source so the rule and the runtime cannot drift; the negative control turned four red. Also made the docstring fixture model a real blocking hook (0=allow, 2=block), renamed a test whose name said directory while the setup used a permission bit, and wrapped four lines the ruff ratchet rejected after a local ruff check reported the files clean.",
+      "files": [
+        "scripts/validation/hook_contracts.py",
+        "tests/hooks/test_hook_contracts.py"
+      ]
+    },
+    {
+      "phase": "Review",
+      "summary": "Stopped an unusable dispatch manifest from reporting once per registration on top of its own root cause.",
+      "evidence": "Expansion ran against the empty map _load_dispatch_groups returns alongside invalid_dispatch_groups, so every dispatcher registration also reported unknown_dispatch_group. Expansion is now skipped on that failure while the registrations stay in the entry list, so script existence and exit-code docs are still checked. Four tests added including a negative control that a well-formed manifest still expands; forcing expansion back on fails the new test.",
+      "files": [
+        "scripts/validation/hook_contracts.py",
+        "tests/hooks/test_hook_contracts.py"
+      ]
+    }
+  ],
+  "endingCommit": "e75904528b",
+  "nextSteps": [
+    "Wire the other two arms of #3360: traceability.py (orphaned designs) and consistency.py (4 of 7 features).",
+    "Extend hook_contracts.py to the copilot-cli surface per #3384.",
+    "Re-poll the open PRs for new review threads."
+  ]
+}
