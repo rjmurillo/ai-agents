@@ -150,15 +150,6 @@ def _section_after(text: str, marker: str, path: Path) -> str:
     return remainder.split("\n##", 1)[0]
 
 
-def test_reference_lists_exact_copilot_event_set() -> None:
-    events = _text_code_block_after(
-        _reference_text(),
-        "The exact 14 native events are:",
-    )
-
-    assert events == COPILOT_NATIVE_EVENTS
-
-
 def test_official_sidecar_lists_both_exact_event_sets() -> None:
     text = OFFICIAL_SOURCES.read_text(encoding="utf-8")
     copilot_events = _text_code_block_after(
@@ -175,14 +166,24 @@ def test_official_sidecar_lists_both_exact_event_sets() -> None:
 
 
 def test_reference_separates_stop_from_session_end() -> None:
+    """Stop is per-turn, SessionEnd is process lifecycle, and they never alias.
+
+    The event-policy rows are a repository decision, so they stay in SKILL.md.
+    The Stop wire semantics are a vendor fact, so they live in the sidecar that
+    the skill's own Authority Order names as the owner of vendor contracts.
+    """
     text = _reference_text()
+    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
 
     assert "| Stop | None | Direct entries if added, one JSON decision per command |" in text
     assert "| SessionEnd | SessionEnd | Direct lifecycle event, never a Stop alias |" in text
-    assert "host merges structured decisions" not in text
-    assert "Stop: SessionEnd" not in text
-    assert "Omitting `decision` permits completion." in text
-    assert "`allow` permits completion" not in text
+    normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
+    assert "Omitting `decision` permits completion." in normalized_sidecar
+    assert "`block` forces another turn." in normalized_sidecar
+    for document in (text, sidecar):
+        assert "host merges structured decisions" not in document
+        assert "Stop: SessionEnd" not in document
+        assert "`allow` permits completion" not in document
 
 
 def test_hook_requirement_tracks_dispatcher_and_matcher_contract() -> None:
@@ -228,12 +229,22 @@ def test_runtime_adr_tracks_observer_output_merge() -> None:
 
 
 def test_reference_versions_matcher_and_timeout_evidence() -> None:
-    text = _reference_text()
+    """Timeouts fail open on every event. That is the exception to exit 2.
 
-    assert "Matchers are supported." in text
-    assert "Copilot CLI 1.0.57 and 1.0.58 had matcher bugs." in text
-    assert "| PreToolUse exit 2 | Denies |" in text
-    assert "| Any command-hook timeout | Fails open, including policy PreToolUse |" in text
+    The exit and timeout table is a vendor fact and lives in the sidecar. What
+    stays in SKILL.md is the repository's response to it: keep script-side
+    self-filtering because two shipped releases had matcher bugs.
+    """
+    text = _reference_text()
+    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
+
+    assert "1.0.57" in text
+    assert "1.0.58" in text
+    assert "Keep script-side self-filtering as defense in depth." in text
+    assert "Timeouts fail open on every event" in _normalized_text(REFERENCE)
+    assert "| exit 2 | deny |" in sidecar
+    assert "| Timeout | Fail open for every event, including policy PreToolUse |" in sidecar
+    assert "compiled as" in sidecar
     assert "PreCompact | None | Supported observe/discard policy" in text
     probe = (SKILL_ROOT / "references" / "probe-evidence.md").read_text(encoding="utf-8")
     assert "Manual `/compact` is therefore a negative control" in probe
@@ -241,10 +252,17 @@ def test_reference_versions_matcher_and_timeout_evidence() -> None:
 
 
 def test_reference_labels_unstable_fields_and_cloud_limits() -> None:
-    text = _reference_text()
+    """suppressOutput is SDK-only and cloud agent reads one path.
 
-    assert "implementation-only SDK types" in text
-    assert "Cloud agent loads `.github/hooks/*.json` only" in text
+    Both are vendor facts. The cross-harness delta table stays in SKILL.md
+    because it is the routing surface for a porting decision.
+    """
+    text = _reference_text()
+    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
+
+    normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
+    assert "implementation-only SDK types" in normalized_sidecar
+    assert "loads only `.github/hooks/*.json`" in normalized_sidecar
     assert "Claude Code is a separate contract" in text
 
 
@@ -268,14 +286,19 @@ def test_serena_memory_routes_to_current_contract_sources() -> None:
 
 
 def test_reference_preserves_cross_harness_decision_shapes() -> None:
+    """The three wire shapes are vendor facts; not confusing them is policy."""
     text = _reference_text()
+    sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
 
-    assert '"permissionDecision": "allow"' in text
-    assert "Do not emit Claude's nested `hookSpecificOutput` envelope" in text
-    assert '"behavior": "allow"' in text
-    assert "`behavior` accepts only `allow` or `deny`." in text
-    assert "The adapter must emit no stdout" in text
-    assert '"decision": "block"' in text
+    assert '"permissionDecision": "allow"' in sidecar
+    assert '"behavior": "allow"' in sidecar
+    assert '"decision": "block"' in sidecar
+    assert "`behavior` accepts only `allow` or `deny`." in sidecar
+
+    normalized = _normalized_text(REFERENCE)
+    assert "never Claude's nested `hookSpecificOutput` envelope" in normalized
+    assert "never a top-level `decision`" in normalized
+    assert "A translated `ask` emits nothing" in normalized
 
 
 def test_stop_policy_is_local_only_after_vendored_hook_purge() -> None:
@@ -316,11 +339,17 @@ def test_reference_preserves_single_structured_output_boundary() -> None:
     sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
     rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
 
-    assert "at most one final JSON document from each command hook" in text
-    assert '`{"additionalContext":"..."}` object' in text
-    assert "Failed-observer partial output is discarded." in text
-    assert "when all observers are silent." in text
-    assert "no config-file output field for PreCompact" in text
+    normalized_sidecar = _normalized_text(OFFICIAL_SOURCES)
+    assert "performs one `JSON.parse`" in normalized_sidecar
+    assert (
+        "Two final JSON objects concatenate into invalid JSON and are ignored."
+        in normalized_sidecar
+    )
+    normalized = _normalized_text(REFERENCE)
+    assert '`{"additionalContext":"..."}` object' in normalized
+    assert "Failed-observer partial output is discarded." in normalized
+    assert "It emits nothing when every observer is silent." in normalized
+    assert "| PreCompact | DOCS SILENT:" in sidecar
     assert "| PreCompact | DOCS SILENT:" in sidecar
     assert "| UserPromptSubmitted / UserPromptSubmit | DOCS SILENT:" in sidecar
     assert "Preserve one valid structured output per command hook" in rule
@@ -362,10 +391,10 @@ def test_generated_copilot_skill_mirrors_settled_contract() -> None:
     assert COPILOT_OFFICIAL_SOURCES.read_text(encoding="utf-8") == (
         OFFICIAL_SOURCES.read_text(encoding="utf-8")
     )
-    assert "The exact 14 native events are:" in reference
-    assert "The adapter must emit no stdout" in reference
+    assert reference == REFERENCE.read_text(encoding="utf-8")
     assert "| PreCompact | None | Supported observe/discard policy" in reference
     assert "| Stop | None | Direct entries if added" in reference
+    assert "A translated `ask` emits nothing" in _normalized_text(COPILOT_REFERENCE)
 
 
 def test_generated_instruction_mirrors_route_to_contract() -> None:
