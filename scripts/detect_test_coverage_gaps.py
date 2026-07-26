@@ -19,7 +19,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.github_core.repo import get_repo_root as _shared_get_repo_root
+# Add project root to path for imports. Running this file as a script puts
+# scripts/ on sys.path, not the repository root, so the import below fails in
+# any checkout without an editable install: a linked worktree with its own
+# venv, or a plain python3. new_pr.py swallowed the crash and still printed
+# "All pre-creation validations passed". Issue #3391.
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.github_core.repo import get_repo_root as _shared_get_repo_root  # noqa: E402
 
 DEFAULT_IGNORE_PATTERNS = [
     r"\.Tests\.ps1$",

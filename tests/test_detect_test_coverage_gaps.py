@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 from scripts.detect_test_coverage_gaps import (
     find_test_file,
@@ -54,3 +59,90 @@ class TestFindTestFile:
     def test_returns_false_when_no_test(self, tmp_path: Path) -> None:
         (tmp_path / "Foo.ps1").write_text("", encoding="utf-8")
         assert find_test_file("Foo.ps1", tmp_path) is False
+
+
+class TestTheDetectorRunsWithoutAnEditableInstall:
+    """It is launched as a subprocess by new_pr.py, not imported.
+
+    Running ``python <repo>/scripts/detect_test_coverage_gaps.py`` puts
+    ``<repo>/scripts`` on ``sys.path``, not ``<repo>``, so the
+    ``scripts.github_core.repo`` import resolves only where the project is
+    installed. A linked worktree with its own venv, or a plain ``python3``,
+    has neither, and the crash was swallowed by the caller (issue #3391).
+    """
+
+    _SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "detect_test_coverage_gaps.py"
+
+    @staticmethod
+    def _clean_env() -> dict[str, str]:
+        """Environment with nothing that could supply the import path."""
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        env["PYTHONNOUSERSITE"] = "1"
+        return env
+
+    @staticmethod
+    def _argv(script: Path) -> list[str]:
+        """Launch with site processing off, which is what makes this a guard.
+
+        The test venv installs this project editable, so a plain subprocess
+        imports ``scripts`` through a .pth file no matter what the script
+        does, and the guard would pass with the fix reverted. ``-S`` skips
+        site processing so the .pth is not read, and ``-I`` drops the
+        environment and the user site directory. The script's own path insert
+        is then the only thing that can satisfy the import, which is the
+        condition the reported worktree was in.
+        """
+        return [sys.executable, "-S", "-I", str(script), "--staged-only"]
+
+    def _run(self, cwd: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            self._argv(self._SCRIPT),
+            cwd=str(cwd),
+            env=self._clean_env(),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def test_it_imports_without_the_editable_install(self) -> None:
+        result = self._run(self._SCRIPT.parents[1])
+        assert "ModuleNotFoundError" not in result.stderr, result.stderr
+        assert result.returncode == 0, result.stderr
+
+    def test_it_imports_from_a_linked_worktree(self, tmp_path: Path) -> None:
+        """The reported repro: a linked worktree has no editable install."""
+        repo = self._SCRIPT.parents[1]
+        worktree = tmp_path / "wt"
+        add = subprocess.run(
+            ["git", "worktree", "add", "--detach", str(worktree), "HEAD"],
+            cwd=str(repo),
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if add.returncode != 0:
+            pytest.skip(f"git worktree add unavailable: {add.stderr}")
+        try:
+            script = worktree / "scripts" / "detect_test_coverage_gaps.py"
+            # The worktree is checked out at HEAD, so it carries the committed
+            # detector. Copy in the working-tree one so the guard tests the
+            # code under review rather than the last commit.
+            script.write_text(self._SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+            result = subprocess.run(
+                self._argv(script),
+                cwd=str(worktree),
+                env=self._clean_env(),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            assert "ModuleNotFoundError" not in result.stderr, result.stderr
+            assert result.returncode == 0, result.stderr
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
