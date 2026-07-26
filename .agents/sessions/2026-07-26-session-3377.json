@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3377,
+    "date": "2026-07-26",
+    "branch": "fix/3377-ci-pin-drift",
+    "startingCommit": "f0cfbce5bc",
+    "objective": "Assert every hand-written CI dependency pin agrees with pyproject.toml"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; memory tools returned project data"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read before editing"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validation listed while locating the sibling pin checker"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded usage-mandatory and the ruff-configuration floor-lockstep memory"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3377-ci-pin-drift"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3377-ci-pin-drift"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before each commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recorded in session.startingCommit"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Recorded that packaging canonicalize_name collapses separator runs rather than deleting them, so pyyaml and py_yaml are different names"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed in this session"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits da847ab207 and d6862a6d9a"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "799 tests in tests/validation/ and 140 in tests/ci/ passed; the new gate found the real drift on its first run against the unchanged tree and its real-tree test went red when the stale pin was restored; ruff check and ruff format clean; ruff ratchet passed for 5 changed Python files"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3377 fixed"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; the 2026-07-26 auto-retrospective covers this continuous run"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "investigation",
+      "summary": "Confirmed the report against main: .github/workflows/validate-generated-agents.yml pins pytest==9.0.3 and .github/actions/validate-plugin-manifests/action.yml pins pytest==8.3.3, while pyproject declares pytest>=9.0.3 in both the base and dev groups. The action installs a major below the declared floor."
+    },
+    {
+      "phase": "design",
+      "summary": "The issue offered two shapes. Preference 1 was to stop hand-pinning and install the locked dev environment, but neither surface uses that pattern today and both are deliberately light single-purpose installs, so switching them would trade a narrow drift for a much heavier CI step. Took preference 2: a gate that reads the constraint from pyproject and fails any contradicting literal. That is the converse-assertion shape of #3341 and #3371, where something asserts a pin exists and nothing asserts it agrees with the source of truth."
+    },
+    {
+      "phase": "implementation",
+      "summary": "check_ci_dependency_pins.py merges the base dependency list with every optional-dependency extra and intersects the specifiers per package, because CI installs one version that has to work wherever the step needs it. It scans .yml and .yaml under .github for quoted pkg==version literals and reports file, line, pin, and the constraint violated. Packages pyproject does not declare are skipped: pip itself is installed by CI and carries no constraint to disagree with. Prerelease pins are judged with prereleases=True so an 8.x release candidate cannot read as satisfying a >=9 floor by silent exclusion.",
+      "files": [
+        "scripts/validation/check_ci_dependency_pins.py"
+      ]
+    },
+    {
+      "phase": "validation",
+      "summary": "Run against the tree unchanged the gate found the real drift on its first invocation and exited 1. Corrected the action to pytest==9.0.3 with a comment recording why the number is what it is, so the next reader does not re-derive the wrong answer from two literals.",
+      "files": [
+        ".github/actions/validate-plugin-manifests/action.yml"
+      ]
+    },
+    {
+      "phase": "testing",
+      "summary": "28 tests. Two of them failed on first run and both premises were mine, not the code's: canonicalize_name collapses runs of separators to a single hyphen rather than deleting them, so py_yaml is genuinely not pyyaml, and the intersected specifier renders both bounds. Corrected the tests. Coverage includes an unquoted equality that must not read as a pin, a non-YAML file that must not be scanned, an undeclared package that must not be checked, an unparseable version that must be a violation rather than a pass, a prerelease, and a control asserting the repository actually pins something the gate covers so the real-tree test cannot pass vacuously.",
+      "files": [
+        "tests/validation/test_check_ci_dependency_pins.py"
+      ]
+    },
+    {
+      "phase": "validation",
+      "summary": "Negative control: restoring pytest==8.3.3 in the action turned the real-tree test red, and restoring the fix turned it green. Wired the gate at two call sites because #3329 showed a guard with none protects nothing: the real-tree test runs under the required Run Python Tests check, and checks_tooling.validate_ci_dependency_pins puts it in the pre-PR sequence for the author's terminal.",
+      "files": [
+        "scripts/validation/checks_tooling.py",
+        "scripts/validation/pre_pr.py",
+        "scripts/validation/pre_pr_sequence.py"
+      ]
+    }
+  ],
+  "endingCommit": "d6862a6d9a",
+  "nextSteps": [
+    "Correct ADR-008's implementation status for three deleted hooks (#3373)",
+    "State in ADR-082 that dispatch group ids are opaque (#3374)"
+  ]
+}
