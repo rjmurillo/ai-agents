@@ -205,7 +205,9 @@ jobs:
           # Use appropriate validator based on file type
           if ($extension -eq '.json') {
             # JSON format - simple schema validation
-            $result = & python3 ./scripts/validate_session_json.py $sessionFile 2>&1
+            # --json-output leaves stdout human-readable and writes a
+            # machine-readable summary the MUST counter below can trust.
+            $result = & python3 ./scripts/validate_session_json.py $sessionFile --json-output validation-summary.json 2>&1
             $exitCode = $LASTEXITCODE
             $format = 'JSON'
           } else {
@@ -222,13 +224,19 @@ jobs:
             $format = 'Markdown (unsupported)'
           }
           
-          # Build markdown output
           $fileName = Split-Path $sessionFile -Leaf
           $status = if ($exitCode -eq 0) { 'PASS' } else { 'FAIL' }
-          $mdResult = "# Session Validation: $fileName`n`nFormat: $format`nResult: $status`n`n" + '```' + "`n$($result -join "`n")`n" + '```'
-          $mdResult | Out-File -FilePath "validation-result.md" -Encoding UTF8
 
-          # Save markdown output for artifact
+          # Echo the findings into the job log. This is a blocking gate, so a
+          # contributor opening a red check has to be able to read why it failed
+          # without downloading an artifact (issue #3364).
+          if ($exitCode -ne 0) {
+            Write-Host "::group::Session validation findings for $fileName"
+            $result | ForEach-Object { Write-Host $_ }
+            Write-Host "::endgroup::"
+          }
+
+          # Save output for the artifact
           $result | Out-File -FilePath "validation-result.md" -Encoding UTF8
           
           # Create simplified results directory
@@ -250,11 +258,21 @@ jobs:
           # Save markdown output
           $result | Out-File -FilePath "validation-results/${fileName}-findings.txt" -Encoding UTF8
           
-          # Count MUST failures (look for FAIL in MUST level checks)
-          # Pattern matches markdown table rows: | CheckName | MUST | FAIL |
+          # Read the MUST failure count from the validator's own summary.
+          # The previous regex looked for a markdown table this validator has
+          # never emitted, so the count was structurally pinned at 0 and the
+          # "Enforce MUST Requirements" step below was decorative (issue #3365).
           $mustFailCount = 0
-          if ($result -match '(?m)^\|\s*\w+\s*\|\s*MUST\s*\|\s*FAIL\s*\|') {
-            $mustFailCount = ([regex]::Matches($result, '(?m)^\|\s*\w+\s*\|\s*MUST\s*\|\s*FAIL\s*\|')).Count
+          if (Test-Path "validation-summary.json") {
+            $summary = Get-Content "validation-summary.json" -Raw | ConvertFrom-Json
+            $mustFailCount = [int]$summary.must_failures
+          } elseif ($exitCode -ne 0) {
+            # No summary means the validator died before writing one (unsupported
+            # format, crash). Fail closed with 1 rather than report a confident 0:
+            # the "Enforce MUST Requirements" step tests `-gt 0`, so any sentinel
+            # at or below zero would read as "nothing to enforce".
+            Write-Host "::warning::No validation summary produced; assuming a MUST failure"
+            $mustFailCount = 1
           }
           $mustFailCount | Out-File -FilePath "validation-results/${fileName}-must-failures.txt" -Encoding UTF8
           

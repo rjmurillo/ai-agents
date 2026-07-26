@@ -18,13 +18,18 @@ from unittest import mock
 import pytest
 
 from scripts.validate_session_json import (
+    _INCOMPLETE_MUST_PREFIX,
     _LEGACY_HANDOFF_FIELD,
+    _MISSING_REQUIRED_PREFIX,
+    _MUST_NOT_VIOLATED_PREFIX,
     BRANCH_PATTERN,
     COMMIT_SHA_PATTERN,
     CONTRADICTION_PATTERNS,
     SESSION_END_REQUIRED_ITEMS,
     SESSION_START_REQUIRED_ITEMS,
     ValidationResult,
+    build_summary,
+    count_must_failures,
     get_case_insensitive,
     has_case_insensitive,
     load_session_file,
@@ -1474,3 +1479,93 @@ class TestSectionAbsenceIsReportedOnce:
         assert any(
             "sessionStart" in error and error.startswith("Schema:") for error in result.errors
         )
+
+
+class TestCountMustFailures:
+    """Issue #3365: the CI MUST counter must be able to reach a nonzero value.
+
+    The workflow previously counted MUST failures with a regex for markdown
+    table rows this validator has never emitted, so the count was pinned at 0
+    and the "Enforce MUST Requirements" step could not fire on its own terms.
+    """
+
+    def test_no_errors_counts_zero(self) -> None:
+        assert count_must_failures(ValidationResult()) == 0
+
+    @pytest.mark.parametrize(
+        "prefix",
+        [_INCOMPLETE_MUST_PREFIX, _MISSING_REQUIRED_PREFIX, _MUST_NOT_VIOLATED_PREFIX],
+        ids=["incomplete-must", "missing-required", "must-not-violated"],
+    )
+    def test_every_must_prefix_is_counted(self, prefix: str) -> None:
+        """Each MUST-level error shape the validator emits must be countable."""
+        result = ValidationResult(errors=[f"{prefix}sessionStart.handoffRead"])
+        assert count_must_failures(result) == 1
+
+    def test_non_must_errors_are_not_counted(self) -> None:
+        """Schema and format errors are real failures but not MUST-level."""
+        result = ValidationResult(
+            errors=[
+                "Invalid commit SHA format: zzz",
+                "Schema: cannot load session-log.schema.json, schema layer skipped: boom",
+            ]
+        )
+        assert count_must_failures(result) == 0
+
+    def test_must_and_non_must_errors_are_separated(self) -> None:
+        result = ValidationResult(
+            errors=[
+                f"{_INCOMPLETE_MUST_PREFIX}sessionStart.handoffRead",
+                f"{_INCOMPLETE_MUST_PREFIX}sessionStart.serenaActivated",
+                "Invalid commit SHA format: zzz",
+            ]
+        )
+        assert count_must_failures(result) == 2
+        assert len(result.errors) == 3
+
+    def test_an_incomplete_must_item_reaches_the_counter_end_to_end(self) -> None:
+        """The prefix constants must match what the validators actually emit.
+
+        A test that only feeds hand-written strings to the counter would stay
+        green if the emit sites drifted. This one runs a real validation.
+        """
+        start = _make_complete_start_section()
+        start["handoffRead"]["complete"] = False
+        result = ValidationResult()
+        validate_session_start(start, result)
+        assert count_must_failures(result) >= 1
+
+
+class TestBuildSummary:
+    """The --json-output summary is the workflow's machine-readable contract."""
+
+    def test_a_clean_result_reports_compliant(self, tmp_path: Path) -> None:
+        summary = build_summary(tmp_path / "s.json", ValidationResult())
+        assert summary["verdict"] == "COMPLIANT"
+        assert summary["exit_code"] == 0
+        assert summary["must_failures"] == 0
+        assert summary["error_count"] == 0
+
+    def test_a_failing_result_reports_non_compliant(self, tmp_path: Path) -> None:
+        result = ValidationResult(
+            errors=[f"{_INCOMPLETE_MUST_PREFIX}sessionStart.handoffRead"],
+            warnings=["Missing evidence: sessionEnd.changesCommitted"],
+        )
+        summary = build_summary(tmp_path / "s.json", result)
+        assert summary["verdict"] == "NON_COMPLIANT"
+        assert summary["exit_code"] == 1
+        assert summary["must_failures"] == 1
+        assert summary["error_count"] == 1
+        assert summary["warnings"] == ["Missing evidence: sessionEnd.changesCommitted"]
+
+    def test_non_must_errors_leave_must_failures_at_zero(self, tmp_path: Path) -> None:
+        """A NON_COMPLIANT verdict with 0 MUST failures is legitimate."""
+        result = ValidationResult(errors=["Invalid commit SHA format: zzz"])
+        summary = build_summary(tmp_path / "s.json", result)
+        assert summary["verdict"] == "NON_COMPLIANT"
+        assert summary["must_failures"] == 0
+        assert summary["error_count"] == 1
+
+    def test_the_summary_is_json_serialisable(self, tmp_path: Path) -> None:
+        summary = build_summary(tmp_path / "s.json", ValidationResult(errors=["boom"]))
+        assert json.loads(json.dumps(summary)) == summary

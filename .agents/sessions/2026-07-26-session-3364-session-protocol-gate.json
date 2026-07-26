@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3364,
+    "date": "2026-07-26",
+    "branch": "fix/3364-3365-session-protocol-gate",
+    "startingCommit": "23054169f8",
+    "objective": "Fix two defects in the session-protocol CI gate: a MUST-failure counter that could never reach a nonzero value (#3365), and validator findings that were computed then discarded instead of echoed to the job log (#3364)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; serena-list_memories returned the project memory index."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the project manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md before starting."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed .claude/skills/ for an owning skill; none covers CI gate repair."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded .serena/memories/*.md including adr-reference-index."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current -> fix/3364-3365-session-protocol-gate"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch is fix/3364-3365-session-protocol-gate, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short clean apart from the intended edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "23054169f8 (merge-base with main)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end items reviewed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Recorded the phantom-regex failure shape for future gate audits."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed in this branch."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "54548416a0 fix(ci): make the session-protocol gate report what it found"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "181 passed across tests/test_validate_session_json.py, tests/test_ai_session_protocol_workflow.py, tests/test_aggregate_session_verdicts.py, tests/test_generate_session_report.py. Three negative controls each turn the matching tests red."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issues #3364 and #3365 closed by this PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Findings folded into the commit body and PR description."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Investigate",
+      "summary": "Confirmed both defects against the shipped workflow. The MUST regex targets markdown table rows; grep -c '\"|\"' scripts/validate_session_json.py returns 0, so the pattern can never match. Found a third defect while reading: validation-result.md is written twice in a row, so the markdown-wrapped first write is dead."
+    },
+    {
+      "phase": "Implement",
+      "summary": "Added --json-output to validate_session_json.py emitting verdict, must_failures, error_count, errors and warnings. Routed the three MUST error shapes through module constants shared by the emit sites and count_must_failures so the count cannot drift from the messages. Rewired the workflow counter to read the summary, echoed findings into a collapsible group on the failure path, and dropped the dead write."
+    },
+    {
+      "phase": "Verify",
+      "summary": "181 passed. Four pwsh tests execute the counter block sliced out of the shipped workflow, including the four-failure case the old regex could never reach. Negative controls: restoring the phantom regex turns 4 tests red, dropping the echo turns 1 red, restoring the double write turns 1 red. Confirmed --pre-commit and the no-flag callers are unaffected."
+    }
+  ],
+  "endingCommit": "54548416a0",
+  "nextSteps": [
+    "Watch the first CI run that fails session validation and confirm the findings appear in the job log.",
+    "Issue #3363 (episode extractor counts any SHA as a session commit) is the next item in this cluster."
+  ]
+}

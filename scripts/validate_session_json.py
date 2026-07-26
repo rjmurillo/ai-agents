@@ -223,6 +223,34 @@ def has_case_insensitive(data: dict[str, Any], key: str) -> bool:
     return False
 
 
+# Error prefixes that mark a MUST-level protocol failure. Used at both the
+# emit sites below and by count_must_failures, so the counter cannot drift from
+# the messages. Issue #3365: the CI workflow previously counted these with a
+# regex for a markdown table this validator has never emitted, so the count was
+# structurally pinned at zero.
+_INCOMPLETE_MUST_PREFIX = "Incomplete MUST: "
+_MISSING_REQUIRED_PREFIX = "Missing required item: "
+_MUST_NOT_VIOLATED_PREFIX = "MUST NOT violated: "
+_MUST_FAILURE_PREFIXES: tuple[str, ...] = (
+    _INCOMPLETE_MUST_PREFIX,
+    _MISSING_REQUIRED_PREFIX,
+    _MUST_NOT_VIOLATED_PREFIX,
+)
+
+
+def count_must_failures(result: ValidationResult) -> int:
+    """Count MUST-level failures among a result's errors.
+
+    Args:
+        result: A completed validation result.
+
+    Returns:
+        The number of errors that represent a MUST or MUST NOT violation.
+        Schema and format errors are real failures but are not MUST-level.
+    """
+    return sum(1 for error in result.errors if error.startswith(_MUST_FAILURE_PREFIXES))
+
+
 def validate_session_section(session: dict[str, Any], result: ValidationResult) -> None:
     """Validate the session section of the log.
 
@@ -391,7 +419,7 @@ def validate_must_item(
     level = get_case_insensitive(check_data, "level")
 
     if level == "MUST" and not is_complete:
-        result.errors.append(f"Incomplete MUST: {section_name}.{item_name}")
+        result.errors.append(f"{_INCOMPLETE_MUST_PREFIX}{section_name}.{item_name}")
 
     if level == "MUST" and is_complete and not evidence:
         result.warnings.append(f"Missing evidence: {section_name}.{item_name}")
@@ -433,7 +461,7 @@ def validate_checklist_section(
         if item_name in section_data:
             validate_must_item(section_data[item_name], item_name, section_name, result)
         else:
-            result.errors.append(f"Missing required item: {section_name}.{item_name}")
+            result.errors.append(f"{_MISSING_REQUIRED_PREFIX}{section_name}.{item_name}")
 
 
 def validate_session_start(session_start: dict[str, Any], result: ValidationResult) -> None:
@@ -467,7 +495,7 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         is_complete = get_case_insensitive(check_data, "complete")
         level = get_case_insensitive(check_data, "level")
         if level == "MUST NOT" and is_complete:
-            result.errors.append("MUST NOT violated: HANDOFF.md was modified (read-only)")
+            result.errors.append(f"{_MUST_NOT_VIOLATED_PREFIX}HANDOFF.md was modified (read-only)")
 
 
 def validate_protocol_compliance(
@@ -694,7 +722,40 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Suppress verbose output when called from pre-commit hook",
     )
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "Also write a machine-readable summary to PATH. Human-readable "
+            "output on stdout is unchanged, so this is safe to add to any "
+            "existing caller."
+        ),
+    )
     return parser.parse_args()
+
+
+def build_summary(session_path: Path, result: ValidationResult) -> dict[str, Any]:
+    """Build the machine-readable summary emitted by --json-output.
+
+    Args:
+        session_path: Path to the validated session log.
+        result: The completed validation result.
+
+    Returns:
+        A JSON-serialisable summary. `must_failures` counts only MUST-level
+        violations; `errors` holds every error including schema failures, so
+        `must_failures` can legitimately be 0 on a NON_COMPLIANT verdict.
+    """
+    return {
+        "file": str(session_path),
+        "verdict": "COMPLIANT" if result.is_valid else "NON_COMPLIANT",
+        "exit_code": 0 if result.is_valid else 1,
+        "must_failures": count_must_failures(result),
+        "error_count": len(result.errors),
+        "errors": list(result.errors),
+        "warnings": list(result.warnings),
+    }
 
 
 def main() -> int:
@@ -728,6 +789,10 @@ def main() -> int:
 
         # Report results
         report_results(validated_path, result, args.pre_commit)
+
+        if args.json_output is not None:
+            summary = build_summary(validated_path, result)
+            args.json_output.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
         return 0 if result.is_valid else 1
 
