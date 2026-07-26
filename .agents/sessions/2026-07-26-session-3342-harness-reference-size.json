@@ -75,7 +75,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Four code commits on fix/3342-harness-reference-size: the content move (b09c57cfe1), the test repointing plus manifest bumps (da5401a16f), the exit-2 semantics and contract pins (618d8e1a7), and the final sidecar wording correction (006a88767)."
+        "Evidence": "Seven code commits on fix/3342-harness-reference-size: the content move (b09c57cfe1), the test repointing plus manifest bumps (da5401a16f), the exit-2 semantics and contract pins (618d8e1a7), the sidecar wording correction (006a88767), the test normalization for PR review (827a4c699), the manifest bump (f673788d4), and the Stop contract citations (199a5c04c)."
       },
       "validationPassed": {
         "level": "MUST",
@@ -151,7 +151,7 @@
       "evidence": "Review flagged the contradiction between entry 7 and the later correction. Replaced the eight-log sample with the full measurement over .agents/sessions (1150 of 1153 agree on filename to session.number) and named the three exceptions."
     }
   ],
-  "endingCommit": "006a88767",
+  "endingCommit": "199a5c04c",
   "nextSteps": [
     "Open the PR for #3342 and drive checks green.",
     "Merge PR #3347 (#3346) and PR #3348 (#3345); both have zero unresolved threads.",
