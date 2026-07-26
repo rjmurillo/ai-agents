@@ -16,7 +16,9 @@ import pytest
 
 from scripts.validation.agent_registry import (
     AgentDefinition,
+    MalformedAgentFileError,
     ValidationResult,
+    main,
     parse_agent_file,
     parse_agent_files,
     validate,
@@ -82,7 +84,8 @@ class TestParseAgentFile:
             Just body content.
             """,
         )
-        assert parse_agent_file(path) is None
+        with pytest.raises(MalformedAgentFileError, match="no YAML frontmatter"):
+            parse_agent_file(path)
 
     def test_missing_name(self, tmp_agent_dir: Path) -> None:
         path = _write_agent(
@@ -96,7 +99,8 @@ class TestParseAgentFile:
             # Nameless
             """,
         )
-        assert parse_agent_file(path) is None
+        with pytest.raises(MalformedAgentFileError, match="frontmatter has no name"):
+            parse_agent_file(path)
 
     def test_optional_argument_hint(self, tmp_agent_dir: Path) -> None:
         path = _write_agent(
@@ -258,3 +262,71 @@ class TestIntegration:
         assert isinstance(result, ValidationResult)
         assert isinstance(result.errors, list)
         assert isinstance(result.warnings, list)
+
+
+class TestAMalformedFileFailsInsteadOfDisappearing:
+    """PR #3361 review: this validator is wired into CI as a guard.
+
+    A file that lost its frontmatter used to be dropped from the registry,
+    which left validate() with nothing to complain about and the CI step
+    exiting 0. The guard was blind to the one failure it exists to catch.
+    """
+
+    def test_a_file_without_frontmatter_is_reported_not_skipped(self, tmp_agent_dir: Path) -> None:
+        _write_agent(tmp_agent_dir, "broken.md", "# Lost its frontmatter\n")
+        agents, errors = parse_agent_files(tmp_agent_dir)
+        assert agents == []
+        assert any("broken.md" in e and "no YAML frontmatter" in e for e in errors)
+
+    def test_a_file_without_a_name_is_reported_not_skipped(self, tmp_agent_dir: Path) -> None:
+        _write_agent(
+            tmp_agent_dir,
+            "nameless.md",
+            """\
+            ---
+            description: Has everything but a name
+            model: sonnet
+            ---
+            """,
+        )
+        agents, errors = parse_agent_files(tmp_agent_dir)
+        assert agents == []
+        assert any("nameless.md" in e and "no name" in e for e in errors)
+
+    def test_the_cli_exits_nonzero_on_a_malformed_file(self, tmp_agent_dir: Path) -> None:
+        """The behavior CI depends on: a broken agent turns the step red."""
+        _write_agent(
+            tmp_agent_dir,
+            "good.md",
+            """\
+            ---
+            name: good
+            description: A well formed agent
+            model: sonnet
+            ---
+            """,
+        )
+        _write_agent(tmp_agent_dir, "broken.md", "# Lost its frontmatter\n")
+        assert main(["--agent-dir", str(tmp_agent_dir)]) != 0
+
+    def test_the_cli_exits_zero_when_every_file_is_well_formed(self, tmp_agent_dir: Path) -> None:
+        """The negative control: the nonzero above is about the broken file."""
+        _write_agent(
+            tmp_agent_dir,
+            "good.md",
+            """\
+            ---
+            name: good
+            description: A well formed agent
+            model: sonnet
+            ---
+            """,
+        )
+        assert main(["--agent-dir", str(tmp_agent_dir)]) == 0
+
+    def test_excluded_files_are_still_skipped_without_an_error(self, tmp_agent_dir: Path) -> None:
+        """AGENTS.md has no frontmatter by design and must stay quiet."""
+        _write_agent(tmp_agent_dir, "AGENTS.md", "# Directory notes, not an agent\n")
+        agents, errors = parse_agent_files(tmp_agent_dir)
+        assert agents == []
+        assert errors == []

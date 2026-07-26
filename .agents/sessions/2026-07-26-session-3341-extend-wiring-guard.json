@@ -42,7 +42,7 @@
       "gitStatusVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git status inspected before staging; three files changed on this branch, none of them under .claude or src/copilot-cli, so no plugin manifest bump applies."
+        "Evidence": "git status inspected before staging. No file changed on this branch lives under .claude/ or src/copilot-cli/, so no plugin manifest bump applies."
       },
       "startingCommitNoted": {
         "level": "MUST",
@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes on fix/3341-extend-wiring-guard are committed and pushed; see the branch history."
+        "Evidence": "Every change on this branch is committed and pushed; endingCommit 0fc3df9a7f is the last commit recorded at the time this log was written, and any commit after it is a review-response commit on the same branch."
       },
       "validationPassed": {
         "level": "MUST",
@@ -141,6 +141,6 @@
       }
     ]
   },
-  "endingCommit": "77732a243f48f5dc303f75b842d8f81288d91854",
+  "endingCommit": "0fc3df9a7f460a3390722c8238b9028d9c5c7030",
   "nextSteps": []
 }
