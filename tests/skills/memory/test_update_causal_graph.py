@@ -5,6 +5,7 @@ import json
 import re
 import shlex
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -861,7 +862,42 @@ class TestTheCommittedGraphCarriesNoTestFixtures:
 
         assert wrong_shape == []
 
-    def test_every_pattern_id_has_the_shape_the_generator_produces(self):
+    def test_every_node_carries_an_id_derived_from_its_own_content(self):
+        """The sibling of the pattern check below, missing until issue #3367.
+
+        Shape alone is not identity. Thirteen nodes had a well-formed 12-char
+        id that ``generate_node_id`` did not reproduce from their type and
+        label, so the generator could not reach them: the next episode naming
+        the same thing hashed to a different id and appended a second node,
+        splitting the evidence across two records no query joins.
+
+        Repair with ``scripts/maintenance/repair_causal_graph_ids.py``.
+        """
+        mismatched = [
+            n["id"]
+            for n in self._graph()["nodes"]
+            if n["id"] != update_causal_graph.generate_node_id(n["type"], n["label"])
+        ]
+
+        assert mismatched == []
+
+    def test_no_two_nodes_share_an_id(self):
+        """Content-derived ids make a duplicate a merge that never happened."""
+        ids = [n["id"] for n in self._graph()["nodes"]]
+
+        assert [i for i, c in Counter(ids).items() if c > 1] == []
+
+    def test_every_edge_endpoint_resolves_to_a_node(self):
+        """Renaming an id without moving its edges would strand them."""
+        graph = self._graph()
+        ids = {n["id"] for n in graph["nodes"]}
+        dangling = [
+            (e["source"], e["target"])
+            for e in graph["edges"]
+            if e["source"] not in ids or e["target"] not in ids
+        ]
+
+        assert dangling == []
         wrong_shape = [
             p.get("id")
             for p in self._graph()["patterns"]
