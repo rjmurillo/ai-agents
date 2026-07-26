@@ -8,11 +8,14 @@ a `.gitattributes` entry from becoming a no-op.
 
 from __future__ import annotations
 
+import errno
 import json
+import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import pytest
 
@@ -357,6 +360,16 @@ class TestDriverExitContract:
         written = json.loads(ours.read_text(encoding="utf-8"))
         assert {n["id"] for n in written["nodes"]} == {"a", "b"}
 
+    @pytest.mark.skipif(os.name == "nt", reason="Windows does not expose POSIX mode bits")
+    def test_successful_merge_preserves_destination_mode(self, tmp_path: Path) -> None:
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        ours.chmod(0o640)
+
+        assert main([str(base), str(ours), str(theirs)]) == 0
+        assert stat.S_IMODE(ours.stat().st_mode) == 0o640
+
     def test_corrupt_side_exits_one_and_leaves_ours_untouched(self, tmp_path: Path) -> None:
         """The behavior that stops a silent side-take from deleting graph state."""
         base = self._write(tmp_path, "base.json", _graph())
@@ -377,32 +390,143 @@ class TestDriverExitContract:
         theirs = self._write(tmp_path, "theirs.json", _graph())
         assert main([str(tmp_path / "absent.json"), str(ours), str(theirs)]) == 1
 
-    def test_an_unwritable_destination_exits_three(
+    def test_an_unwritable_destination_exits_three_without_truncating_ours(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """PR #3348 review: ADR-035 separates logic (1) from external (3).
-
-        Git reads every nonzero the same way, so this distinction only pays off
-        when a human runs the driver by hand to resolve a conflict, which is
-        exactly when "your JSON is malformed" and "the disk refused the write"
-        need to be told apart. Fails the write itself rather than staging an
-        unwritable path: ``ours`` is also an input, so a directory or a stripped
-        mode bit fails during load and never reaches the branch under test, and
-        root and Windows both ignore mode bits anyway.
-        """
+        """A failed final replace leaves Git's merge-result input untouched."""
         base = self._write(tmp_path, "base.json", _graph())
-        ours = self._write(tmp_path, "ours.json", _graph())
-        theirs = self._write(tmp_path, "theirs.json", _graph())
-        original = Path.write_text
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        before = ours.read_text(encoding="utf-8")
 
-        def refuse(self: Path, *args: Any, **kwargs: Any) -> int:
-            if self == ours:
-                raise OSError(28, "No space left on device")
-            return original(self, *args, **kwargs)
+        def refuse(_source: object, _target: object) -> None:
+            raise OSError(28, "No space left on device")
 
-        monkeypatch.setattr(Path, "write_text", refuse)
+        monkeypatch.setattr(merge_causal_graph.os, "replace", refuse)
 
         assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_text(encoding="utf-8") == before
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_a_partial_temporary_write_leaves_ours_untouched(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        before = ours.read_text(encoding="utf-8")
+        original_fdopen = merge_causal_graph.os.fdopen
+
+        class PartialWriter:
+            def __init__(self, fd: int) -> None:
+                self._handle: TextIO = original_fdopen(fd, "w", encoding="utf-8")
+
+            def write(self, text: str) -> None:
+                self._handle.write(text[:1])
+                self._handle.flush()
+                raise OSError(28, "No space left on device")
+
+            def close(self) -> None:
+                self._handle.close()
+
+        def fail_after_partial_write(fd: int, _mode: str, *, encoding: str) -> PartialWriter:
+            assert encoding == "utf-8"
+            return PartialWriter(fd)
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", fail_after_partial_write)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_text(encoding="utf-8") == before
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_fdopen_failure_closes_descriptor_and_leaves_ours_untouched(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        before = ours.read_text(encoding="utf-8")
+        captured_fd: list[int] = []
+
+        def refuse_fdopen(fd: int, _mode: str, *, encoding: str) -> TextIO:
+            assert encoding == "utf-8"
+            captured_fd.append(fd)
+            raise OSError(24, "Too many open files")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", refuse_fdopen)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert len(captured_fd) == 1
+        with pytest.raises(OSError) as closed:
+            os.fstat(captured_fd[0])
+        assert closed.value.errno == errno.EBADF
+        assert ours.read_text(encoding="utf-8") == before
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_close_failure_does_not_mask_a_partial_write_failure(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        before = ours.read_text(encoding="utf-8")
+        original_fdopen = merge_causal_graph.os.fdopen
+
+        class WriteAndCloseFailure:
+            def __init__(self, fd: int) -> None:
+                self._handle: TextIO = original_fdopen(fd, "w", encoding="utf-8")
+
+            def write(self, text: str) -> None:
+                self._handle.write(text[:1])
+                self._handle.flush()
+                raise OSError(28, "No space left on device")
+
+            def close(self) -> None:
+                self._handle.close()
+                raise OSError(5, "Input/output error")
+
+        def fail_write_and_close(fd: int, _mode: str, *, encoding: str) -> WriteAndCloseFailure:
+            assert encoding == "utf-8"
+            return WriteAndCloseFailure(fd)
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", fail_write_and_close)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        error = capsys.readouterr().err
+        assert "No space left on device" in error
+        assert "failed to close temporary file" in error
+        assert "Input/output error" in error
+        assert ours.read_text(encoding="utf-8") == before
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_cleanup_failure_reports_primary_and_cleanup_errors(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+
+        def refuse_replace(_source: object, _target: object) -> None:
+            raise OSError(28, "No space left on device")
+
+        def refuse_cleanup(_path: Path, missing_ok: bool = False) -> None:
+            assert missing_ok
+            raise OSError(13, "Permission denied")
+
+        monkeypatch.setattr(merge_causal_graph.os, "replace", refuse_replace)
+        monkeypatch.setattr(Path, "unlink", refuse_cleanup)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        error = capsys.readouterr().err
+        assert "No space left on device" in error
+        assert "failed to remove temporary file" in error
+        assert "Permission denied" in error
 
 
 class TestGitActuallyUsesTheDriver:

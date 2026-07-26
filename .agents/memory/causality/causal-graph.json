@@ -15518,6 +15518,87 @@
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
       "created": "2026-07-26T05:45:39.681549+00:00"
+    },
+    {
+      "id": "2e95507629ad",
+      "type": "milestone",
+      "label": "milestone: Created and claimed issue #3357 after confirming no existing PR.",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T03:54:38.685227+00:00"
+    },
+    {
+      "id": "54bff604b702",
+      "type": "milestone",
+      "label": "milestone: Added sibling temporary writes, destination mode preservation, atomic replacement, and primary-plus-secondary error reporting.",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T03:54:38.685295+00:00"
+    },
+    {
+      "id": "74edafa55d32",
+      "type": "milestone",
+      "label": "milestone: 67 targeted tests pass; Ruff, formatting, and mypy pass for both changed files.",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T03:54:38.685352+00:00"
+    },
+    {
+      "id": "f00f85ef66f1",
+      "type": "milestone",
+      "label": "milestone: Filled the 2026-07-26 auto-retrospective and persisted three reusable memories.",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T03:54:38.685407+00:00"
+    },
+    {
+      "id": "a7e66cd22291",
+      "type": "commit",
+      "label": "commit: Commit: 4033554b78",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T03:54:38.685461+00:00"
+    },
+    {
+      "id": "2a4e05fded44",
+      "type": "outcome",
+      "label": "Outcome: success - Fix atomic causal graph merge writes for issue 3357",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T03:54:38.685517+00:00"
+    },
+    {
+      "id": "b8dbaa12a4a0",
+      "type": "milestone",
+      "label": "milestone: 68 targeted tests pass; Ruff, formatting, and mypy pass for both changed files.",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T04:13:25.358473+00:00"
+    },
+    {
+      "id": "1e45190c0837",
+      "type": "milestone",
+      "label": "milestone: Fixed PR #3359 review finding by closing the raw mkstemp descriptor when os.fdopen fails.",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T04:13:25.358537+00:00"
+    },
+    {
+      "id": "0013cdc2ffb2",
+      "type": "commit",
+      "label": "commit: Commit: c195050067",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T04:13:25.358593+00:00"
     }
   ],
   "patterns": [
