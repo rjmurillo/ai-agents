@@ -9,6 +9,7 @@ repo so the result is independent of how clean the repo happens to be.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import sys
 from pathlib import Path
@@ -544,3 +545,45 @@ def test_pycache_files_are_skipped(fake_repo: Path) -> None:
     offenders = cvp.collect_offenders(fake_repo)
 
     assert offenders == []
+
+
+def test_helper_function_set_matches_paths_module() -> None:
+    """`_HELPER_FUNCTIONS` lists every public resolver `paths.py` exposes.
+
+    The set is how the checker decides a file routes through the portability
+    helper. When `paths.py` grew `artifact_dir` and a skill switched to it,
+    the checker stopped recognizing the file and reported a pre-existing line
+    as a new offender. Drift here produces a false positive that pressures the
+    next author into baselining code that is already portable.
+    """
+    paths_source = (Path(__file__).resolve().parents[2] / ".claude" / "lib" / "paths.py").read_text(
+        encoding="utf-8"
+    )
+    tree = ast.parse(paths_source)
+    exposed = {
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")
+    }
+
+    assert exposed == set(cvp._HELPER_FUNCTIONS), (
+        "check_vendor_portability._HELPER_FUNCTIONS has drifted from the public "
+        f"functions in .claude/lib/paths.py: only in paths.py "
+        f"{sorted(exposed - set(cvp._HELPER_FUNCTIONS))}, only in the checker "
+        f"{sorted(set(cvp._HELPER_FUNCTIONS) - exposed)}"
+    )
+
+
+def test_a_file_using_only_artifact_dir_is_not_an_offender(fake_repo: Path) -> None:
+    """A skill that resolves without creating still counts as portable."""
+    _write(
+        fake_repo,
+        ".claude/skills/demo/scripts/reader.py",
+        "from paths import artifact_dir\n\n\n"
+        "def where(sub):\n"
+        '    return artifact_dir(sub) or ".agents/fallback"\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert not [o for o in offenders if o.relpath.endswith("reader.py")]
