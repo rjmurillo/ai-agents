@@ -305,11 +305,11 @@ PR #3354's 15 commits break down as 2 core + 2 review fixes + 7 session + 4 merg
 |------|----------|------------|
 | .claude/skills/agent-harness-reference/SKILL.md | core | -181 lines (duplicate section removed) |
 | src/copilot-cli/skills/agent-harness-reference/SKILL.md | core (mirror) | -181 lines |
-| .claude/skills/agent-harness-reference/references/official-hook-contracts.md | core | +4 lines (orphaned vendor fact moved here) |
-| src/copilot-cli/skills/agent-harness-reference/references/official-hook-contracts.md | core (mirror) | +4 lines |
+| .claude/skills/agent-harness-reference/references/official-hook-contracts.md | core | +5 lines (orphaned vendor fact moved here, plus the dual Stop citation) |
+| src/copilot-cli/skills/agent-harness-reference/references/official-hook-contracts.md | core (mirror) | +5 lines |
 | tests/build_scripts/test_hook_contract_knowledge.py | tests | repointed assertions to owning files |
-| .claude/.claude-plugin/plugin.json | manifest | version bump 0.6.106 to 0.6.111 |
-| src/copilot-cli/.claude-plugin/plugin.json | manifest (mirror) | version bump 0.6.106 to 0.6.111 |
+| .claude/.claude-plugin/plugin.json | manifest | version bump 0.6.106 to 0.6.112 |
+| src/copilot-cli/.claude-plugin/plugin.json | manifest (mirror) | version bump 0.6.106 to 0.6.112 |
 | .agents/memory/causality/causal-graph.json | bookkeeping | merge conflict resolution |
 
 GitHub reported 10 changed files before this autofix. The final review adds this

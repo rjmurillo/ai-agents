@@ -121,7 +121,7 @@
     },
     {
       "task": "Address all five unresolved review threads",
-      "outcome": "All sidecar fact pins use normalized text, the pointer describes prose facts instead of rows, both manifests read 0.6.111, the PR body matches that version, and the final episode records four authored commits.",
+      "outcome": "All sidecar fact pins use normalized text, the pointer describes prose facts instead of rows, both manifests read 0.6.111 at the close of that round and 0.6.112 after the later Stop-citation commit, the PR body matches the shipped version, and the final episode records four authored commits.",
       "evidence": "Remote commits 827a4c699c and f673788d4b carry the source, mirror, test, and manifest fixes. Commit 58bd9ce0dd carries the combined session, episode, causal graph, and needs-split evidence."
     },
     {
