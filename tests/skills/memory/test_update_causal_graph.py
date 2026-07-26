@@ -1211,3 +1211,121 @@ class TestTheRepairCommandNamesThePathsInPlay:
         graph = tmp_path / "graph.json"
         assert update_causal_graph.main(argv[2:]) == 0
         assert json.loads(graph.read_text(encoding="utf-8"))["nodes"]
+
+
+class TestAnEdgeNeverOutlivesItsEndpoints:
+    """Issue #3350: reconciling every episode left three edges pointing nowhere.
+
+    Edge retraction finds an edge through the episode named in its ``episodes``
+    provenance. Pre-#3034 edges have none (their evidence is anonymous, carried
+    under the legacy prefix), so no episode's retraction reaches them, and they
+    outlived the nodes label retraction removed. Provenance is the wrong tool:
+    an edge to a node that is not in the graph says nothing, whatever evidence
+    stands behind it, so the sweep is structural.
+    """
+
+    def _graph(self, nodes, edges):
+        return {"version": "3", "nodes": nodes, "edges": edges, "patterns": []}
+
+    def test_an_edge_whose_source_is_gone_is_dropped(self):
+        graph = self._graph(
+            [{"id": "b", "episodes": ["e1"]}], [{"source": "a", "target": "b"}]
+        )
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 1
+        assert graph["edges"] == []
+
+    def test_an_edge_whose_target_is_gone_is_dropped(self):
+        graph = self._graph(
+            [{"id": "a", "episodes": ["e1"]}], [{"source": "a", "target": "b"}]
+        )
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 1
+        assert graph["edges"] == []
+
+    def test_an_edge_with_both_endpoints_present_survives(self):
+        edge = {"source": "a", "target": "b"}
+        graph = self._graph([{"id": "a"}, {"id": "b"}], [edge])
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 0
+        assert graph["edges"] == [edge]
+
+    def test_a_legacy_edge_with_no_episode_provenance_is_still_swept(self):
+        """The exact shape that survived: anonymous evidence, no episodes key."""
+        graph = self._graph(
+            [{"id": "a"}],
+            [{"source": "a", "target": "gone", "contributions": {"\x00legacy:0": 1.0}}],
+        )
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 1
+        assert graph["edges"] == []
+
+    def test_the_sweep_is_idempotent(self):
+        graph = self._graph([{"id": "a"}, {"id": "b"}], [{"source": "a", "target": "b"}])
+        update_causal_graph._drop_orphaned_edges(graph)
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 0
+
+    def test_a_graph_with_no_edges_is_handled(self):
+        graph = self._graph([{"id": "a"}], [])
+
+        assert update_causal_graph._drop_orphaned_edges(graph) == 0
+
+    def test_retraction_reports_the_edges_the_sweep_removed(self):
+        """The count has to reach the caller, or a silent drop looks like a no-op."""
+        graph = self._graph(
+            [{"id": "stale", "episodes": ["e1"]}, {"id": "b"}],
+            [{"source": "stale", "target": "b"}],
+        )
+        removed = update_causal_graph._retract_stale(
+            graph,
+            "e1",
+            {"nodes": {"stale"}, "edges": set(), "patterns": set()},
+            {"nodes": set(), "edges": set(), "patterns": set()},
+        )
+
+        assert removed["nodes"] == 1
+        assert removed["edges"] == 1
+        assert graph["edges"] == []
+
+
+class TestEveryCommittedEpisodeReachesTheGraph:
+    """Issue #3350: 41 of 255 episodes had no node, and nothing noticed.
+
+    The pre-commit hook updates the graph from *staged* episodes only. Every
+    episode that landed while the hook was skipped, or through a path that did
+    not stage it, was simply never processed, and no check compared the two
+    directories. The drift accumulated for months.
+
+    Repair is a full pass, which is idempotent:
+
+        uv run --frozen python \\
+            .claude/skills/memory/scripts/update_causal_graph.py
+    """
+
+    ROOT = Path(__file__).resolve().parents[3]
+    EPISODES = ROOT / ".agents" / "memory" / "episodes"
+    GRAPH = ROOT / ".agents" / "memory" / "causality" / "causal-graph.json"
+
+    def _episode_ids(self) -> set[str]:
+        ids = set()
+        for path in sorted(self.EPISODES.glob("episode-*.json")):
+            content = json.loads(path.read_text(encoding="utf-8"))
+            ids.add(content.get("episode_id") or path.stem)
+        return ids
+
+    def _referenced(self) -> set[str]:
+        graph = json.loads(self.GRAPH.read_text(encoding="utf-8"))
+        referenced = set()
+        for collection in ("nodes", "edges", "patterns"):
+            for item in graph.get(collection, []):
+                referenced |= set(item.get("episodes") or [])
+        return referenced
+
+    def test_no_episode_on_disk_is_missing_from_the_graph(self):
+        assert sorted(self._episode_ids() - self._referenced()) == []
+
+    def test_the_episode_directory_is_where_this_thinks_it_is(self):
+        """A typo in the path would make the check above vacuously pass."""
+        assert self.EPISODES.is_dir()
+        assert len(self._episode_ids()) > 100

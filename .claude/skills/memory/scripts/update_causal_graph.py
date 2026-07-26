@@ -481,7 +481,30 @@ def _retract_stale(
             kept.append(pattern)
         graph["patterns"] = kept
 
+    removed["edges"] += _drop_orphaned_edges(graph)
     return removed
+
+
+def _drop_orphaned_edges(graph: dict[str, Any]) -> int:
+    """Drop every edge whose endpoint no longer exists. Returns how many.
+
+    Edge retraction is episode scoped: it finds an edge through the episode
+    listed in its ``episodes`` provenance. Pre-#3034 edges have no such
+    provenance (their evidence is anonymous, carried under ``_LEGACY_PREFIX``),
+    so no episode's retraction can reach them, and they outlived the nodes they
+    connected. Reconciling all 255 episodes left three edges pointing at nodes
+    that retraction had removed.
+
+    Provenance is the wrong tool for this. An edge to a node that is not in the
+    graph says nothing whatever the evidence behind it, so the sweep is
+    structural: run it after every retraction and let it apply to any edge,
+    with provenance or without.
+    """
+    ids = {node["id"] for node in graph.get("nodes", [])}
+    edges = graph.get("edges", [])
+    kept = [edge for edge in edges if edge["source"] in ids and edge["target"] in ids]
+    graph["edges"] = kept
+    return len(edges) - len(kept)
 
 
 def get_episode_files(
