@@ -1,9 +1,9 @@
-# Skill: Atomic Write Cleanup Must Cover Interrupts, and the Rename Needs an fsync
+# Skill: Atomic Write Cleanup Must Cover Interrupts and Flush Before Rename
 
 ## Statement
 
-A temporary-file-plus-`os.replace` write is only half-safe until cleanup catches
-`BaseException` and the temporary is fsynced before the rename.
+A temporary-file-plus-`os.replace` write must clean up after interrupts and
+flush the temporary before the rename.
 
 ## Trigger
 
@@ -12,11 +12,13 @@ Any `tempfile.mkstemp` plus `os.replace` write, and any review of one.
 ## Action
 
 1. Attach the temporary cleanup to `except BaseException`, not `except OSError`.
-2. `handle.flush()` then `os.fsync(handle.fileno())` before `os.chmod`/`os.replace`.
+2. `handle.flush()` then `os.fsync(handle.fileno())` before `os.replace`. This
+   flushes the payload but does not make the directory entry crash-durable.
 3. Pass `prefix=f".{path.name}."` to `mkstemp` so a leaked temporary names the
    file it failed to replace.
-4. Return cleanup failures rather than raising them, so cleanup never replaces
-   the primary error.
+4. Close before unlinking, because Windows cannot unlink an open file.
+5. Preserve cleanup failures beside the primary error. For interrupts, report
+   cleanup failures before re-raising the interrupt.
 
 ## Evidence
 

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3378,
+    "date": "2026-07-26",
+    "branch": "fix/3378-atomic-cleanup-failures",
+    "startingCommit": "f339de7aa3",
+    "objective": "Report atomic causal graph cleanup failures without hiding the primary error"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activation was not exposed by this harness. The project-bound Serena server returned its instructions, and repository memory files were used as the documented fallback."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the live Serena toolbox contract."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used the github, pr-autofix, review, merge-resolver, and session-init skill scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The Serena usage-mandatory memory was unavailable, so .agents/governance/PROJECT-CONSTRAINTS.md Skill Usage Constraints supplied the canonical fallback."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read before the follow-up change."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/validation/atomic-write-cleanup-covers-interrupts.md and updated its cleanup and fsync guidance."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3378-atomic-cleanup-failures"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3378-atomic-cleanup-failures"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected after branch creation and before validation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f339de7aa3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields contain evidence from this follow-up branch."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remains unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated validation/atomic-write-cleanup-covers-interrupts with close-before-unlink, cleanup reporting, and the bounded fsync contract."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 was scoped to the changed Serena memory. The repository configuration excluded .serena/**, reporting 0 files and 0 issues."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code and tests committed as f339de7aa3; the session record and memory update are committed with this protocol change."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "80 tests pass in tests/validation/test_merge_causal_graph.py. Ruff check, Ruff format, and mypy pass."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Created and claimed issue #3378 after confirming no existing PR covered the post-merge review findings."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked for this focused follow-up. The required 2026-07-26 session retrospective already records the broader autofix run."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Verify the merged PR still contained the review findings",
+      "outcome": "Compared the merged PR #3369 head with the reviewed local branch. The raw descriptor close, interrupt cleanup, combined close-and-unlink, and chmod fixes were absent from main.",
+      "evidence": "git diff origin/pr3369-final..fix/3368-atomic-write-hardening isolated the code and four focused regressions."
+    },
+    {
+      "task": "Create a non-duplicating follow-up",
+      "outcome": "Created and claimed issue #3378, confirmed it had no existing PR, then created fix/3378-atomic-cleanup-failures from current origin/main.",
+      "evidence": "check_existing_pr_for_issue.py reported zero PRs; claim_issue.py assigned #3378 to rjmurillo."
+    },
+    {
+      "task": "Apply and verify the cleanup fix",
+      "outcome": "Moved only the reviewed code and tests onto current main. The merged #3369 session record remains immutable. Updated the durable Serena guidance to match the tested contract.",
+      "evidence": "80 focused tests pass. Ruff check, Ruff format, and mypy pass."
+    }
+  ],
+  "endingCommit": "f339de7aa3",
+  "nextSteps": [
+    "Create a PR that fixes #3378.",
+    "Merge only after review threads, CI, and the completion gate pass."
+  ]
+}

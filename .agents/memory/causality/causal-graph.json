@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T10:23:28.039843+00:00",
+  "updated": "2026-07-26T11:26:02.980884+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -14656,105 +14656,6 @@
       "created": "2026-07-25T14:05:27.596517+00:00"
     },
     {
-      "id": "5c02899361f5",
-      "type": "milestone",
-      "label": "milestone: Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-25T16:57:41.485799+00:00"
-    },
-    {
-      "id": "6c6cfb1a5fcc",
-      "type": "milestone",
-      "label": "milestone: Added a content-union merge driver for the causal graph and registered it. Records key on stable identities, counters reconcile three-way against the ancestor instead of summing, episode lists union, created takes the earliest and last_used the latest. A side that will not parse exits nonzero so git leaves the conflict for a human rather than silently taking one side. Registration runs from pre-commit because merge=<name> in .gitattributes is a no-op without per-clone git config.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-25T16:57:41.485863+00:00"
-    },
-    {
-      "id": "75d6d20c974a",
-      "type": "milestone",
-      "label": "milestone: 32 tests covering union semantics, counter reconciliation, field policies, malformed-record tolerance, load-time refusal, the driver exit contract, and two end-to-end git merges in a scratch repo. The end-to-end set includes a control that omits git config and asserts the merge still conflicts, proving the .gitattributes entry alone does nothing. Three negative controls fired: taking ours instead of the union turned 7 tests red, summing counters instead of three-way reconciliation turned 3 red, and swallowing parse errors turned 4 red.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-25T16:57:41.485917+00:00"
-    },
-    {
-      "id": "e92d08491d2e",
-      "type": "outcome",
-      "label": "Outcome: success - Stop .agents/memory/causality/causal-graph.json conflicting on every merge (issue #3345) without the data loss the issue's own workaround causes. Resolve by content union through a git merge driver instead of by line.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-25T16:57:41.485970+00:00"
-    },
-    {
-      "id": "b1c4497668ca",
-      "type": "milestone",
-      "label": "milestone: Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T00:55:19.531741+00:00"
-    },
-    {
-      "id": "c3ab73ec0e5f",
-      "type": "commit",
-      "label": "commit: Commit: 03044f4b1cd402c0088c6d429b1515d3d5421952",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T00:55:19.531803+00:00"
-    },
-    {
-      "id": "c8abaa28b8e8",
-      "type": "milestone",
-      "label": "milestone: Addressed the second PR #3348 review round. One finding remained from the first pass, and one new finding arrived: merge_graphs still drops a top-level key that survives only in the ancestor when both sides have stopped emitting it, which is accepted as intentional (an agreed deletion should stay deleted; the only known case where an omission is a defect rather than a deletion is `version`, already fixed via issue #3351's prefer-present rule) and closed with a rebuttal rather than a further code change. The genuinely new finding was real: _COLLECTIONS was ordered nodes, edges, patterns, so a no-op merge reordered the top-level JSON relative to the generator's nodes, patterns, edges schema and produced a noisy diff. Reordered _COLLECTIONS to match; one negative control (reverting the order) turned the new ordering test red.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T01:11:32.565825+00:00"
-    },
-    {
-      "id": "b332bb47aeab",
-      "type": "commit",
-      "label": "commit: Commit: d96e557bdea82d455e0b7f9102abf59d82d5ec31",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T01:11:32.565886+00:00"
-    },
-    {
-      "id": "d73e9bf018a5",
-      "type": "milestone",
-      "label": "milestone: Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T02:05:18.496316+00:00"
-    },
-    {
-      "id": "2334291fd648",
-      "type": "milestone",
-      "label": "milestone: Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T02:05:18.496383+00:00"
-    },
-    {
-      "id": "e560e4474465",
-      "type": "commit",
-      "label": "commit: Commit: 9ba22151f30121b311e1fc8cb3fdedd8c401856d",
-      "episodes": [
-        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
-      ],
-      "created": "2026-07-26T02:05:18.496436+00:00"
-    },
-    {
       "id": "041a4ffad23c",
       "type": "milestone",
       "label": "milestone: Confirmed the claim empirically. The module never referenced the schema file and never imported jsonschema; it hand-rolled presence checks and type-checked nothing. Measured the blast radius of turning the schema on: 131 of the 923 logs in .agents/sessions/ fail Draft202012Validator against the committed schema.",
@@ -15358,76 +15259,103 @@
       "created": "2026-07-26T02:02:26.671569+00:00"
     },
     {
-      "id": "178270b025da",
+      "id": "5c02899361f5",
+      "type": "milestone",
+      "label": "milestone: Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-25T16:57:41.485799+00:00"
+    },
+    {
+      "id": "6c6cfb1a5fcc",
+      "type": "milestone",
+      "label": "milestone: Added a content-union merge driver for the causal graph and registered it. Records key on stable identities, counters reconcile three-way against the ancestor instead of summing, episode lists union, created takes the earliest and last_used the latest. A side that will not parse exits nonzero so git leaves the conflict for a human rather than silently taking one side. Registration runs from pre-commit because merge=<name> in .gitattributes is a no-op without per-clone git config.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-25T16:57:41.485863+00:00"
+    },
+    {
+      "id": "75d6d20c974a",
+      "type": "milestone",
+      "label": "milestone: 32 tests covering union semantics, counter reconciliation, field policies, malformed-record tolerance, load-time refusal, the driver exit contract, and two end-to-end git merges in a scratch repo. The end-to-end set includes a control that omits git config and asserts the merge still conflicts, proving the .gitattributes entry alone does nothing. Three negative controls fired: taking ours instead of the union turned 7 tests red, summing counters instead of three-way reconciliation turned 3 red, and swallowing parse errors turned 4 red.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-25T16:57:41.485917+00:00"
+    },
+    {
+      "id": "e92d08491d2e",
       "type": "outcome",
-      "label": "Outcome: success - Extend the CI wiring guard past scripts/ci using reachability rather than literal reference (#3341)",
+      "label": "Outcome: success - Stop .agents/memory/causality/causal-graph.json conflicting on every merge (issue #3345) without the data loss the issue's own workaround causes. Resolve by content union through a git merge driver instead of by line.",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T04:09:44.622397+00:00"
+      "created": "2026-07-25T16:57:41.485970+00:00"
     },
     {
-      "id": "ff084ea7e672",
+      "id": "b1c4497668ca",
       "type": "milestone",
-      "label": "milestone: Measured the issue's headline claim before writing anything",
+      "label": "milestone: Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T04:31:11.266369+00:00"
+      "created": "2026-07-26T00:55:19.531741+00:00"
     },
     {
-      "id": "62c8440980e4",
-      "type": "milestone",
-      "label": "milestone: Classified all six remaining scripts individually",
+      "id": "c3ab73ec0e5f",
+      "type": "commit",
+      "label": "commit: Commit: 03044f4b1cd402c0088c6d429b1515d3d5421952",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T04:31:11.266432+00:00"
+      "created": "2026-07-26T00:55:19.531803+00:00"
     },
     {
-      "id": "4591d880ca62",
+      "id": "c8abaa28b8e8",
       "type": "milestone",
-      "label": "milestone: Wired the one candidate that passes clean",
+      "label": "milestone: Addressed the second PR #3348 review round. One finding remained from the first pass, and one new finding arrived: merge_graphs still drops a top-level key that survives only in the ancestor when both sides have stopped emitting it, which is accepted as intentional (an agreed deletion should stay deleted; the only known case where an omission is a defect rather than a deletion is `version`, already fixed via issue #3351's prefer-present rule) and closed with a rebuttal rather than a further code change. The genuinely new finding was real: _COLLECTIONS was ordered nodes, edges, patterns, so a no-op merge reordered the top-level JSON relative to the generator's nodes, patterns, edges schema and produced a noisy diff. Reordered _COLLECTIONS to match; one negative control (reverting the order) turned the new ordering test red.",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T04:31:11.266487+00:00"
+      "created": "2026-07-26T01:11:32.565825+00:00"
     },
     {
-      "id": "810e29f1030d",
-      "type": "milestone",
-      "label": "milestone: Wrote tests/ci/test_validation_scripts_are_reachable.py and it caught a defect in itself on first run",
+      "id": "b332bb47aeab",
+      "type": "commit",
+      "label": "commit: Commit: d96e557bdea82d455e0b7f9102abf59d82d5ec31",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T04:31:11.266541+00:00"
+      "created": "2026-07-26T01:11:32.565886+00:00"
     },
     {
-      "id": "ee05c63f3aef",
+      "id": "d73e9bf018a5",
       "type": "milestone",
-      "label": "milestone: Ran five negative controls",
+      "label": "milestone: Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T04:31:11.266595+00:00"
+      "created": "2026-07-26T02:05:18.496316+00:00"
     },
     {
-      "id": "b354d7c7a08f",
+      "id": "2334291fd648",
       "type": "milestone",
-      "label": "milestone: Fixed a pre-existing push blocker exposed by touching the workflow",
+      "label": "milestone: Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T04:31:11.266656+00:00"
+      "created": "2026-07-26T02:05:18.496383+00:00"
     },
     {
-      "id": "a79b600eff73",
-      "type": "milestone",
-      "label": "milestone: Filed #3360 for the three validators that fail against the current tree",
+      "id": "e560e4474465",
+      "type": "commit",
+      "label": "commit: Commit: 9ba22151f30121b311e1fc8cb3fdedd8c401856d",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T04:31:11.266715+00:00"
+      "created": "2026-07-26T02:05:18.496436+00:00"
     },
     {
       "id": "2e95507629ad",
@@ -15511,103 +15439,76 @@
       "created": "2026-07-26T04:13:25.358593+00:00"
     },
     {
-      "id": "489a044ced83",
+      "id": "4f0a19284fad",
+      "type": "milestone",
+      "label": "milestone: Verify that #3362 was superseded before reworking it",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219464+00:00"
+    },
+    {
+      "id": "0d66572d61c9",
+      "type": "milestone",
+      "label": "milestone: Measure the temporary-file leak before fixing it",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219528+00:00"
+    },
+    {
+      "id": "e7bac2969db0",
+      "type": "milestone",
+      "label": "milestone: Harden the atomic write",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219584+00:00"
+    },
+    {
+      "id": "b01c5bf32f1a",
+      "type": "test",
+      "label": "test: 73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, each reverting one change: dropping the BaseException handler turns 2 red, dropping the fsync turns 2 red, dropping the mkstemp prefix turns 1 red; restoring returns 73 passed. ruff check and ruff format clean on both files.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219639+00:00"
+    },
+    {
+      "id": "ea94677bc372",
       "type": "commit",
-      "label": "commit: Commit: 0fc3df9a7f460a3390722c8238b9028d9c5c7030",
+      "label": "commit: Commit: 2796f956e5",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
       ],
-      "created": "2026-07-26T04:54:43.861272+00:00"
+      "created": "2026-07-26T07:12:55.219700+00:00"
     },
     {
-      "id": "81f4f3950d86",
-      "type": "milestone",
-      "label": "milestone: Ran the PR live-state gate and created an isolated worktree",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T08:43:49.213022+00:00"
-    },
-    {
-      "id": "49ed1c9c7d96",
-      "type": "milestone",
-      "label": "milestone: Integrated concurrent branch updates and current main without force push",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T08:43:49.213088+00:00"
-    },
-    {
-      "id": "65ba050cf391",
-      "type": "milestone",
-      "label": "milestone: Regenerated and verified session 3341 memory evidence",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T08:43:49.213144+00:00"
-    },
-    {
-      "id": "69feac9c9a26",
-      "type": "milestone",
-      "label": "milestone: Hardened the reachability and agent registry guards",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T08:43:49.213199+00:00"
-    },
-    {
-      "id": "0f4f8e1fc61a",
-      "type": "milestone",
-      "label": "milestone: Ran QA, security, code review, targeted tests, workflow validation, and local workflow dry runs",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T08:43:49.213253+00:00"
-    },
-    {
-      "id": "c72822b3783b",
+      "id": "d5f97ca01ecb",
       "type": "outcome",
-      "label": "Outcome: success - Fully autofix PR 3361 review threads, CI, generated artifacts, and merge",
+      "label": "Outcome: success - Close the two gaps left in _atomic_write_text after #3359: the temporary leaks on any non-OSError exit, and nothing flushes it to disk before the rename.",
       "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
       ],
-      "created": "2026-07-26T08:43:49.213416+00:00"
+      "created": "2026-07-26T07:12:55.219757+00:00"
     },
     {
-      "id": "86c3fe9b0a90",
+      "id": "f5fd153a5d6e",
       "type": "milestone",
-      "label": "milestone: Hardened reachability against prose and basename false edges",
+      "label": "milestone: Review found the BaseException cleanup unlinking the temporary without closing it. Correct: the two interrupt tests already written both unwind with the handle closed, so neither reached the case. On POSIX the unlink succeeds and leaks only a descriptor; on Windows an open file cannot be unlinked at all, so the cleanup added to stop the leak would itself leak. Added _release, which closes before discarding and returns a description of whichever step failed, and collapsed the five nested try blocks and three duplicated message builders in _atomic_write_text down to two try blocks and one. Dropped the untested 'failed to close temporary file descriptor' branch and replaced it with a suppressed os.close, since that path is only reachable while already unwinding. New test interrupts inside handle.write and asserts close ran, which is what makes it fail on Linux rather than only on Windows. Negative control removing the close from _release: 2 red, including the pre-existing close-failure test. Restored: 74 pass, up from 73.",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
       ],
-      "created": "2026-07-26T08:47:31.304279+00:00"
+      "created": "2026-07-26T07:46:03.997902+00:00"
     },
     {
-      "id": "e4158e5dbf0e",
+      "id": "73d004958dc4",
       "type": "milestone",
-      "label": "milestone: Wired the two passing validators exposed by the stricter graph",
+      "label": "milestone: Review found markdownLintRun claiming no markdown changed while the branch adds a .serena memory. True as stated and wrong. Ran the scoped lint: 0 files, because .markdownlint-cli2.yaml excludes .serena/**. Rewrote the evidence to say that, since an exclusion and a pass are not the same result.",
       "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
       ],
-      "created": "2026-07-26T08:47:31.304345+00:00"
-    },
-    {
-      "id": "07005017ae17",
-      "type": "milestone",
-      "label": "milestone: Made agent_registry.py fail on malformed definitions",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T08:47:31.304400+00:00"
-    },
-    {
-      "id": "c03f28a6c7e8",
-      "type": "milestone",
-      "label": "milestone: Processed the final review batch before push",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T09:01:35.420805+00:00"
+      "created": "2026-07-26T07:46:03.997966+00:00"
     },
     {
       "id": "7bb14fff4ca0",
@@ -15970,141 +15871,6 @@
       "created": "2026-07-26T08:05:06.730367+00:00"
     },
     {
-      "id": "ed3e465b8fc0",
-      "type": "milestone",
-      "label": "milestone: Fixed the pre-push graph fixture regression",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T09:14:36.469582+00:00"
-    },
-    {
-      "id": "224f424d68f4",
-      "type": "milestone",
-      "label": "milestone: Fixed the final pre-push gate failures",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T09:54:18.617788+00:00"
-    },
-    {
-      "id": "5ad2dc05281a",
-      "type": "milestone",
-      "label": "milestone: Stopped the reachability scan from reading comments and docstrings. It matched '<stem>.py' anywhere in the raw file, so prose manufactured reachability, which is the defect _strip_commented_lines already prevents on the workflow side. The scan now reads only non-docstring string literals, which is where a subprocess invocation actually names a script.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:40:40.985616+00:00"
-    },
-    {
-      "id": "030e37237fcc",
-      "type": "milestone",
-      "label": "milestone: The stricter scan exposed two genuinely unwired scripts: validate_templates_schema.py, held up only by a yaml_loader.py docstring whose edge pointed from the library to its own consumer, and check_skill_portability.py, named only in two companion docstrings. Both exit 0, so both are wireable; filed #3366 and allowlisted them against it. Also corrected templates/README.md, which claimed the first runs in build-validation.yml, a workflow that no longer exists.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:40:40.985692+00:00"
-    },
-    {
-      "id": "a447c3eb9ebd",
-      "type": "milestone",
-      "label": "milestone: parse_agent_file crashed with a traceback on a non-UTF-8 file instead of reporting it. Same shape as the silent skip fixed earlier: the run ends without a usable validation result. UnicodeDecodeError and OSError now become MalformedAgentFileError, so the directory walk reports the file and keeps going.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:40:40.985748+00:00"
-    },
-    {
-      "id": "d74900a3db4a",
-      "type": "milestone",
-      "label": "milestone: Re-extracted the episode after the work-log additions. The extractor appends rather than rebuilds, so a corrected log does not correct an episode already on disk; the file has to be deleted first. Result: 11 events, no inherited content. Filed as #3363 separately, since the derived file should not need hand-holding.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:45:45.775196+00:00"
-    },
-    {
-      "id": "f5878db40ab8",
-      "type": "milestone",
-      "label": "milestone: Review caught two caps that had drifted apart: the spelled-out number table stopped at eight while the allowlist size test permitted twelve, so a ninth entry would have crashed the docstring check with a KeyError instead of reporting the stale docstring it exists to report. Both now read one constant, and a test pins the table to span it.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T05:54:20.572514+00:00"
-    },
-    {
-      "id": "8765f71323b7",
-      "type": "milestone",
-      "label": "milestone: Review found the same prose-manufactures-reachability defect one layer up: _entry_points read lefthook.yml, .githooks/*, and skill scripts raw, so a comment there seeds an entry point, which is worse than a false edge because an entry point seeds the whole closure.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.419948+00:00"
-    },
-    {
-      "id": "69503f649f61",
-      "type": "milestone",
-      "label": "milestone: _text_of now takes a cleaner and runs it per file. Per file matters: _scannable_text cannot parse a concatenation of unrelated modules and falls back to returning it unchanged, so cleaning the joined result is a silent no-op. A test pins the call order.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.420013+00:00"
-    },
-    {
-      "id": "21d094721829",
-      "type": "milestone",
-      "label": "milestone: Left SKILL.md deliberately raw. A workflow comment naming a script does not run it, but a skill instructing its agent to run one is the invocation, and there is no other spelling; '#' also opens a heading in markdown, so the line cleaner would delete real instructions.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.420069+00:00"
-    },
-    {
-      "id": "e304508c724f",
-      "type": "milestone",
-      "label": "milestone: Measured: 492 entry points raw against 479 cleaned. All 13 of the difference are also reached by a real import, so the allowlist did not move. That means no existing test notices the cleaners being removed, so added a canary asserting cleaned is a strict subset of raw.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.420123+00:00"
-    },
-    {
-      "id": "6dae821622b7",
-      "type": "milestone",
-      "label": "milestone: First version of that canary was worthless: it called a private copy of the entry-point logic, so deleting the cleaners from the real path left it green. Collapsed the two implementations into one function with the switch as a keyword argument. Control now works: removing the cleaners turns it red.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:19:30.420178+00:00"
-    },
-    {
-      "id": "9aee97c153c9",
-      "type": "milestone",
-      "label": "milestone: Collapse the duplicate unreadable-file error path in parse_agent_files",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:38:54.427008+00:00"
-    },
-    {
-      "id": "03d74a697a44",
-      "type": "test",
-      "label": "test: 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:38:54.427075+00:00"
-    },
-    {
-      "id": "ac601ad87978",
-      "type": "error",
-      "label": "error: Collapse the duplicate unreadable-file error path in parse_agent_files     Removed the except OSError branch from parse_agent_files. parse_agent_file already converts OSError from read_text into MalformedAgentFileError, so the sibling handler could never fire and existed only to supply a competing message format ('Cannot read file X: e' against 'X: unreadable (e)'). Tightened the directory-in-place-of-a-file test from a substring match to a single-error assertion on the surviving format, and added an AST guard that pins parse_agent_files to exactly one handler. Also corrected the TestAMalformedFileFailsInsteadOfDisappearing docstring, which cited the PR number instead of the issue the work closes. 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
-      "episodes": [
-        "episode-2026-07-26-session-3341-extend-wiring-guard"
-      ],
-      "created": "2026-07-26T06:38:54.427133+00:00"
-    },
-    {
       "id": "3d2ca1906efc",
       "type": "milestone",
       "label": "milestone: Audit the duplication before cutting anything",
@@ -16429,6 +16195,357 @@
       "created": "2026-07-26T09:39:53.684404+00:00"
     },
     {
+      "id": "7ef22e640644",
+      "type": "milestone",
+      "label": "milestone: Verify the merged PR still contained the review findings",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977039+00:00"
+    },
+    {
+      "id": "151872c1a1f1",
+      "type": "milestone",
+      "label": "milestone: Create a non-duplicating follow-up",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977110+00:00"
+    },
+    {
+      "id": "2524d88331b2",
+      "type": "milestone",
+      "label": "milestone: Apply and verify the cleanup fix",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977170+00:00"
+    },
+    {
+      "id": "e9becf02c454",
+      "type": "commit",
+      "label": "commit: Commit: f339de7aa3",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977227+00:00"
+    },
+    {
+      "id": "75d2ccd2fad6",
+      "type": "outcome",
+      "label": "Outcome: success - Report atomic causal graph cleanup failures without hiding the primary error",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977286+00:00"
+    },
+    {
+      "id": "178270b025da",
+      "type": "outcome",
+      "label": "Outcome: success - Extend the CI wiring guard past scripts/ci using reachability rather than literal reference (#3341)",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:09:44.622397+00:00"
+    },
+    {
+      "id": "ff084ea7e672",
+      "type": "milestone",
+      "label": "milestone: Measured the issue's headline claim before writing anything",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266369+00:00"
+    },
+    {
+      "id": "62c8440980e4",
+      "type": "milestone",
+      "label": "milestone: Classified all six remaining scripts individually",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266432+00:00"
+    },
+    {
+      "id": "4591d880ca62",
+      "type": "milestone",
+      "label": "milestone: Wired the one candidate that passes clean",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266487+00:00"
+    },
+    {
+      "id": "810e29f1030d",
+      "type": "milestone",
+      "label": "milestone: Wrote tests/ci/test_validation_scripts_are_reachable.py and it caught a defect in itself on first run",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266541+00:00"
+    },
+    {
+      "id": "ee05c63f3aef",
+      "type": "milestone",
+      "label": "milestone: Ran five negative controls",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266595+00:00"
+    },
+    {
+      "id": "b354d7c7a08f",
+      "type": "milestone",
+      "label": "milestone: Fixed a pre-existing push blocker exposed by touching the workflow",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266656+00:00"
+    },
+    {
+      "id": "a79b600eff73",
+      "type": "milestone",
+      "label": "milestone: Filed #3360 for the three validators that fail against the current tree",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266715+00:00"
+    },
+    {
+      "id": "489a044ced83",
+      "type": "commit",
+      "label": "commit: Commit: 0fc3df9a7f460a3390722c8238b9028d9c5c7030",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:54:43.861272+00:00"
+    },
+    {
+      "id": "81f4f3950d86",
+      "type": "milestone",
+      "label": "milestone: Ran the PR live-state gate and created an isolated worktree",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213022+00:00"
+    },
+    {
+      "id": "49ed1c9c7d96",
+      "type": "milestone",
+      "label": "milestone: Integrated concurrent branch updates and current main without force push",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213088+00:00"
+    },
+    {
+      "id": "65ba050cf391",
+      "type": "milestone",
+      "label": "milestone: Regenerated and verified session 3341 memory evidence",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213144+00:00"
+    },
+    {
+      "id": "69feac9c9a26",
+      "type": "milestone",
+      "label": "milestone: Hardened the reachability and agent registry guards",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213199+00:00"
+    },
+    {
+      "id": "0f4f8e1fc61a",
+      "type": "milestone",
+      "label": "milestone: Ran QA, security, code review, targeted tests, workflow validation, and local workflow dry runs",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213253+00:00"
+    },
+    {
+      "id": "c72822b3783b",
+      "type": "outcome",
+      "label": "Outcome: success - Fully autofix PR 3361 review threads, CI, generated artifacts, and merge",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213416+00:00"
+    },
+    {
+      "id": "86c3fe9b0a90",
+      "type": "milestone",
+      "label": "milestone: Hardened reachability against prose and basename false edges",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304279+00:00"
+    },
+    {
+      "id": "e4158e5dbf0e",
+      "type": "milestone",
+      "label": "milestone: Wired the two passing validators exposed by the stricter graph",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304345+00:00"
+    },
+    {
+      "id": "07005017ae17",
+      "type": "milestone",
+      "label": "milestone: Made agent_registry.py fail on malformed definitions",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304400+00:00"
+    },
+    {
+      "id": "c03f28a6c7e8",
+      "type": "milestone",
+      "label": "milestone: Processed the final review batch before push",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:01:35.420805+00:00"
+    },
+    {
+      "id": "ed3e465b8fc0",
+      "type": "milestone",
+      "label": "milestone: Fixed the pre-push graph fixture regression",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:14:36.469582+00:00"
+    },
+    {
+      "id": "224f424d68f4",
+      "type": "milestone",
+      "label": "milestone: Fixed the final pre-push gate failures",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:54:18.617788+00:00"
+    },
+    {
+      "id": "5ad2dc05281a",
+      "type": "milestone",
+      "label": "milestone: Stopped the reachability scan from reading comments and docstrings. It matched '<stem>.py' anywhere in the raw file, so prose manufactured reachability, which is the defect _strip_commented_lines already prevents on the workflow side. The scan now reads only non-docstring string literals, which is where a subprocess invocation actually names a script.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:40:40.985616+00:00"
+    },
+    {
+      "id": "030e37237fcc",
+      "type": "milestone",
+      "label": "milestone: The stricter scan exposed two genuinely unwired scripts: validate_templates_schema.py, held up only by a yaml_loader.py docstring whose edge pointed from the library to its own consumer, and check_skill_portability.py, named only in two companion docstrings. Both exit 0, so both are wireable; filed #3366 and allowlisted them against it. Also corrected templates/README.md, which claimed the first runs in build-validation.yml, a workflow that no longer exists.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:40:40.985692+00:00"
+    },
+    {
+      "id": "a447c3eb9ebd",
+      "type": "milestone",
+      "label": "milestone: parse_agent_file crashed with a traceback on a non-UTF-8 file instead of reporting it. Same shape as the silent skip fixed earlier: the run ends without a usable validation result. UnicodeDecodeError and OSError now become MalformedAgentFileError, so the directory walk reports the file and keeps going.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:40:40.985748+00:00"
+    },
+    {
+      "id": "d74900a3db4a",
+      "type": "milestone",
+      "label": "milestone: Re-extracted the episode after the work-log additions. The extractor appends rather than rebuilds, so a corrected log does not correct an episode already on disk; the file has to be deleted first. Result: 11 events, no inherited content. Filed as #3363 separately, since the derived file should not need hand-holding.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:45:45.775196+00:00"
+    },
+    {
+      "id": "f5878db40ab8",
+      "type": "milestone",
+      "label": "milestone: Review caught two caps that had drifted apart: the spelled-out number table stopped at eight while the allowlist size test permitted twelve, so a ninth entry would have crashed the docstring check with a KeyError instead of reporting the stale docstring it exists to report. Both now read one constant, and a test pins the table to span it.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:54:20.572514+00:00"
+    },
+    {
+      "id": "8765f71323b7",
+      "type": "milestone",
+      "label": "milestone: Review found the same prose-manufactures-reachability defect one layer up: _entry_points read lefthook.yml, .githooks/*, and skill scripts raw, so a comment there seeds an entry point, which is worse than a false edge because an entry point seeds the whole closure.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.419948+00:00"
+    },
+    {
+      "id": "69503f649f61",
+      "type": "milestone",
+      "label": "milestone: _text_of now takes a cleaner and runs it per file. Per file matters: _scannable_text cannot parse a concatenation of unrelated modules and falls back to returning it unchanged, so cleaning the joined result is a silent no-op. A test pins the call order.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420013+00:00"
+    },
+    {
+      "id": "21d094721829",
+      "type": "milestone",
+      "label": "milestone: Left SKILL.md deliberately raw. A workflow comment naming a script does not run it, but a skill instructing its agent to run one is the invocation, and there is no other spelling; '#' also opens a heading in markdown, so the line cleaner would delete real instructions.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420069+00:00"
+    },
+    {
+      "id": "e304508c724f",
+      "type": "milestone",
+      "label": "milestone: Measured: 492 entry points raw against 479 cleaned. All 13 of the difference are also reached by a real import, so the allowlist did not move. That means no existing test notices the cleaners being removed, so added a canary asserting cleaned is a strict subset of raw.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420123+00:00"
+    },
+    {
+      "id": "6dae821622b7",
+      "type": "milestone",
+      "label": "milestone: First version of that canary was worthless: it called a private copy of the entry-point logic, so deleting the cleaners from the real path left it green. Collapsed the two implementations into one function with the switch as a keyword argument. Control now works: removing the cleaners turns it red.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420178+00:00"
+    },
+    {
+      "id": "9aee97c153c9",
+      "type": "milestone",
+      "label": "milestone: Collapse the duplicate unreadable-file error path in parse_agent_files",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:38:54.427008+00:00"
+    },
+    {
+      "id": "03d74a697a44",
+      "type": "test",
+      "label": "test: 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:38:54.427075+00:00"
+    },
+    {
+      "id": "ac601ad87978",
+      "type": "error",
+      "label": "error: Collapse the duplicate unreadable-file error path in parse_agent_files     Removed the except OSError branch from parse_agent_files. parse_agent_file already converts OSError from read_text into MalformedAgentFileError, so the sibling handler could never fire and existed only to supply a competing message format ('Cannot read file X: e' against 'X: unreadable (e)'). Tightened the directory-in-place-of-a-file test from a substring match to a single-error assertion on the surviving format, and added an AST guard that pins parse_agent_files to exactly one handler. Also corrected the TestAMalformedFileFailsInsteadOfDisappearing docstring, which cited the PR number instead of the issue the work closes. 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:38:54.427133+00:00"
+    },
+    {
       "id": "77a1dd4b7d58",
       "type": "milestone",
       "label": "milestone: Closed the last malformed-input review edges",
@@ -16445,78 +16562,6 @@
         "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
       ],
       "created": "2026-07-26T10:23:28.036133+00:00"
-    },
-    {
-      "id": "4f0a19284fad",
-      "type": "milestone",
-      "label": "milestone: Verify that #3362 was superseded before reworking it",
-      "episodes": [
-        "episode-2026-07-26-session-3368-atomic-write-hardening"
-      ],
-      "created": "2026-07-26T07:12:55.219464+00:00"
-    },
-    {
-      "id": "0d66572d61c9",
-      "type": "milestone",
-      "label": "milestone: Measure the temporary-file leak before fixing it",
-      "episodes": [
-        "episode-2026-07-26-session-3368-atomic-write-hardening"
-      ],
-      "created": "2026-07-26T07:12:55.219528+00:00"
-    },
-    {
-      "id": "e7bac2969db0",
-      "type": "milestone",
-      "label": "milestone: Harden the atomic write",
-      "episodes": [
-        "episode-2026-07-26-session-3368-atomic-write-hardening"
-      ],
-      "created": "2026-07-26T07:12:55.219584+00:00"
-    },
-    {
-      "id": "b01c5bf32f1a",
-      "type": "test",
-      "label": "test: 73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, each reverting one change: dropping the BaseException handler turns 2 red, dropping the fsync turns 2 red, dropping the mkstemp prefix turns 1 red; restoring returns 73 passed. ruff check and ruff format clean on both files.",
-      "episodes": [
-        "episode-2026-07-26-session-3368-atomic-write-hardening"
-      ],
-      "created": "2026-07-26T07:12:55.219639+00:00"
-    },
-    {
-      "id": "ea94677bc372",
-      "type": "commit",
-      "label": "commit: Commit: 2796f956e5",
-      "episodes": [
-        "episode-2026-07-26-session-3368-atomic-write-hardening"
-      ],
-      "created": "2026-07-26T07:12:55.219700+00:00"
-    },
-    {
-      "id": "d5f97ca01ecb",
-      "type": "outcome",
-      "label": "Outcome: success - Close the two gaps left in _atomic_write_text after #3359: the temporary leaks on any non-OSError exit, and nothing flushes it to disk before the rename.",
-      "episodes": [
-        "episode-2026-07-26-session-3368-atomic-write-hardening"
-      ],
-      "created": "2026-07-26T07:12:55.219757+00:00"
-    },
-    {
-      "id": "f5fd153a5d6e",
-      "type": "milestone",
-      "label": "milestone: Review found the BaseException cleanup unlinking the temporary without closing it. Correct: the two interrupt tests already written both unwind with the handle closed, so neither reached the case. On POSIX the unlink succeeds and leaks only a descriptor; on Windows an open file cannot be unlinked at all, so the cleanup added to stop the leak would itself leak. Added _release, which closes before discarding and returns a description of whichever step failed, and collapsed the five nested try blocks and three duplicated message builders in _atomic_write_text down to two try blocks and one. Dropped the untested 'failed to close temporary file descriptor' branch and replaced it with a suppressed os.close, since that path is only reachable while already unwinding. New test interrupts inside handle.write and asserts close ran, which is what makes it fail on Linux rather than only on Windows. Negative control removing the close from _release: 2 red, including the pre-existing close-failure test. Restored: 74 pass, up from 73.",
-      "episodes": [
-        "episode-2026-07-26-session-3368-atomic-write-hardening"
-      ],
-      "created": "2026-07-26T07:46:03.997902+00:00"
-    },
-    {
-      "id": "73d004958dc4",
-      "type": "milestone",
-      "label": "milestone: Review found markdownLintRun claiming no markdown changed while the branch adds a .serena memory. True as stated and wrong. Ran the scoped lint: 0 files, because .markdownlint-cli2.yaml excludes .serena/**. Rewrote the evidence to say that, since an exclusion and a pass are not the same result.",
-      "episodes": [
-        "episode-2026-07-26-session-3368-atomic-write-hardening"
-      ],
-      "created": "2026-07-26T07:46:03.997966+00:00"
     }
   ],
   "patterns": [
