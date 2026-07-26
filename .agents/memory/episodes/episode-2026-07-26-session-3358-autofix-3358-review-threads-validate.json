@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Ran the live-state gate and created an isolated worktree at remote head 9f1e0b949a.",
       "caused_by": [
-        "e009"
+        "e013"
       ],
       "leads_to": [
         "e002"
@@ -62,7 +62,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e010"
+      ]
     },
     {
       "id": "e006",
@@ -107,6 +109,52 @@
         "e008"
       ],
       "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stopped a second push when the remote SHA changed to 2781ce15e3.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the duplicate nested ending commit and completed review round 3.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 48d32a4e47a668fed0dec221cd439d620c532745",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2781ce15e3",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -116,7 +164,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 6,
     "files_changed": 3
   },
   "lessons": []
