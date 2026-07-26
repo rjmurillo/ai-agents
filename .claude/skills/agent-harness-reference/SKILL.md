@@ -81,16 +81,16 @@ tests, generated mirrors, and Serena memory in the same change.
 
 ## GitHub Copilot CLI Contract
 
-Every vendor fact for this harness lives in `references/official-hook-contracts.md`,
+The full vendor inventory for this harness lives in `references/official-hook-contracts.md`,
 with the official source cited per row: the configuration schema, the 14 native
 events and their PascalCase aliases, matcher targets and compiled semantics, the
 PreToolUse, PermissionRequest and Stop output shapes, the exit-code and timeout
 table, the per-event output fields, the `DOCS SILENT` rows, and the cloud agent
-restrictions. Read that file for the contract. This section records only what
-this repository decided on top of it.
+restrictions. Read that file for the contract. This section records what this
+repository decided on top of it, plus the two rows below that are repeated here
+because they are the ones most often guessed wrong.
 
-Two rows are worth repeating here because they are the ones most often guessed
-wrong. PreToolUse output is a top-level `permissionDecision`, never Claude's
+PreToolUse output is a top-level `permissionDecision`, never Claude's
 nested `hookSpecificOutput` envelope and never a top-level `decision`. Exit 2
 does not deny everywhere: it warns and continues by default, and denies only for
 PreToolUse and PermissionRequest. Where exit 2 does deny, a timeout still does

@@ -229,7 +229,7 @@ def test_runtime_adr_tracks_observer_output_merge() -> None:
 
 
 def test_reference_versions_matcher_and_timeout_evidence() -> None:
-    """Timeouts fail open on every event. That is the exception to exit 2.
+    """Timeouts fail open on every event, including the ones where exit 2 denies.
 
     The exit and timeout table is a vendor fact and lives in the sidecar. What
     stays in SKILL.md is the repository's response to it: keep script-side
