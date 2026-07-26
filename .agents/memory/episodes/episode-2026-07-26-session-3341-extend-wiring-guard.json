@@ -50,7 +50,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e005",
@@ -73,6 +75,88 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the issue's headline claim before writing anything",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classified all six remaining scripts individually",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wired the one candidate that passes clean",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote tests/ci/test_validation_scripts_are_reachable.py and it caught a defect in itself on first run",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran five negative controls",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed a pre-existing push blocker exposed by touching the workflow",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed #3360 for the three validators that fail against the current tree",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -85,6 +169,8 @@
   },
   "lessons": [
     "Right-size the adr-review panel to the change surface and record omitted lenses. Convene only the lenses with real surface (architect, critic), run them for real, and document in the debate log why the others were not convened, instead of producing empty six-agent verdicts.",
-    "Avoid: Claiming a six-agent debate ran when it did not, to satisfy the gate. Run the reviews that genuinely apply, verify their claims independently, and state the panel scope honestly in the artifact."
+    "Avoid: Claiming a six-agent debate ran when it did not, to satisfy the gate. Run the reviews that genuinely apply, verify their claims independently, and state the panel scope honestly in the artifact.",
+    "Measure the claim in an issue before implementing its remedy. The count was an artifact of asking about literal reference rather than reachability. Changing the question dropped it to six and made the allowlist small enough to be honest. Implementing the requested remedy directly would have reproduced the defect the issue was filed against.",
+    "Avoid: Trusting a new guard's first green or red run without probing the guard itself. Verify each reported violation by hand before accepting it, and keep a test class whose job is to guard the guard."
   ]
 }

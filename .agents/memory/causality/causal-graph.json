@@ -15396,6 +15396,69 @@
         "episode-2026-07-26-session-3341-extend-wiring-guard"
       ],
       "created": "2026-07-26T04:09:44.622397+00:00"
+    },
+    {
+      "id": "ff084ea7e672",
+      "type": "milestone",
+      "label": "milestone: Measured the issue's headline claim before writing anything",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266369+00:00"
+    },
+    {
+      "id": "62c8440980e4",
+      "type": "milestone",
+      "label": "milestone: Classified all six remaining scripts individually",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266432+00:00"
+    },
+    {
+      "id": "4591d880ca62",
+      "type": "milestone",
+      "label": "milestone: Wired the one candidate that passes clean",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266487+00:00"
+    },
+    {
+      "id": "810e29f1030d",
+      "type": "milestone",
+      "label": "milestone: Wrote tests/ci/test_validation_scripts_are_reachable.py and it caught a defect in itself on first run",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266541+00:00"
+    },
+    {
+      "id": "ee05c63f3aef",
+      "type": "milestone",
+      "label": "milestone: Ran five negative controls",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266595+00:00"
+    },
+    {
+      "id": "b354d7c7a08f",
+      "type": "milestone",
+      "label": "milestone: Fixed a pre-existing push blocker exposed by touching the workflow",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266656+00:00"
+    },
+    {
+      "id": "a79b600eff73",
+      "type": "milestone",
+      "label": "milestone: Filed #3360 for the three validators that fail against the current tree",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266715+00:00"
     }
   ],
   "patterns": [

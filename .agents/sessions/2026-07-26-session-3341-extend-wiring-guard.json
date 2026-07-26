@@ -13,17 +13,17 @@
       "serenaActivated": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Serena MCP activation tools are not exposed in this Copilot CLI session toolset (only lsp is present)."
+        "Evidence": "No serena tool is exposed in this Copilot CLI session toolset; proceeded without Serena and recorded the gap here."
       },
       "serenaInstructions": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Serena initial_instructions tool is not exposed in this Copilot CLI session toolset."
+        "Evidence": "Serena initial_instructions is not exposed in this session toolset."
       },
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .agents/HANDOFF.md during the PR 3315 babysitting phase of this session."
+        "Evidence": "Read .agents/HANDOFF.md at session start and left it unmodified."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -33,66 +33,114 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git branch --show-current returned fix/3341-extend-wiring-guard."
+        "Evidence": "git branch --show-current returned fix/3341-extend-wiring-guard before staging."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Working on feature branch fix/3341-extend-wiring-guard, not main."
+        "Evidence": "Work happened on feature branch fix/3341-extend-wiring-guard, never on main."
       },
       "gitStatusVerified": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Pending verification of git status for session 3341."
+        "Complete": true,
+        "Evidence": "git status inspected before staging; three files changed on this branch, none of them under .claude or src/copilot-cli, so no plugin manifest bump applies."
       },
       "startingCommitNoted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "startingCommit aaaf9081f568db83665f79ba89261a5cd746fb01 recorded from git rev-parse HEAD."
+        "Evidence": "startingCommit recorded from git rev-parse HEAD before the first commit on this branch."
       }
     },
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Pending completion of session 3341 checklist items."
+        "Complete": true,
+        "Evidence": "Every session-start and session-end MUST item is satisfied with evidence from this branch; the Serena SHOULD items are marked incomplete because those tools are absent."
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md was read only and left unmodified this session."
+        "Evidence": ".agents/HANDOFF.md was read only and left unmodified."
       },
       "serenaMemoryUpdated": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Serena memory write tools are not exposed in this Copilot CLI session toolset; durable diagnosis facts were recorded via the Copilot memory surface during the babysitting phase."
+        "Evidence": "No Serena memory write tool is exposed in this session toolset."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 scoped run on the three changed markdown files reported 0 issues; files under .agents are config-excluded from the lint glob."
+        "Evidence": "No markdown file changed on this branch, so the scoped markdownlint run has an empty file set."
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Pending commits for session 3341 on branch fix/3341-extend-wiring-guard."
+        "Complete": true,
+        "Evidence": "All changes on fix/3341-extend-wiring-guard are committed and pushed; see the branch history."
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Pending validation for session 3341."
+        "Complete": true,
+        "Evidence": "tests/ci passes 222 green, ruff is clean on the new file, scripts/validate_workflows.py passes, and the newly wired validator exits 0 standalone."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Pending retrospective for session 3341."
+        "Evidence": "No separate retrospective artifact for this branch; the learnings below carry what it would have recorded."
       }
     }
   },
-  "workLog": [],
+  "workLog": [
+    {
+      "time": "2026-07-26T03:10:00Z",
+      "action": "Measured the issue's headline claim before writing anything",
+      "result": "Literal workflow reference reports 60 of 89 scripts unwired. A transitive closure over imports and script mentions from workflows and hooks reports 13; swapping regex import detection for AST reports 8; counting skills as an entry surface reports 6."
+    },
+    {
+      "time": "2026-07-26T03:25:00Z",
+      "action": "Classified all six remaining scripts individually",
+      "result": "None are dead code. Each has a governance doc or spec behind it and five of six carry tests. Four were wire candidates; three exit 1 in CI mode against the current tree, which is why they were never wired."
+    },
+    {
+      "time": "2026-07-26T03:40:00Z",
+      "action": "Wired the one candidate that passes clean",
+      "result": "agent_registry.py added to the Copilot agent frontmatter step of validate-generated-agents.yml. Standalone run exits 0."
+    },
+    {
+      "time": "2026-07-26T03:55:00Z",
+      "action": "Wrote tests/ci/test_validation_scripts_are_reachable.py and it caught a defect in itself on first run",
+      "result": "It reported passive_context_budget.py unreachable because the workflow invokes it as a dotted module, and that took token_budget.py down as its only importer. Added dotted-module detection and two regression tests in a guard-the-guard class."
+    },
+    {
+      "time": "2026-07-26T04:05:00Z",
+      "action": "Ran five negative controls",
+      "result": "All five fire. Removing transitivity from the closure turns 38 scripts red, which measures what the literal model was getting wrong."
+    },
+    {
+      "time": "2026-07-26T04:15:00Z",
+      "action": "Fixed a pre-existing push blocker exposed by touching the workflow",
+      "result": "Semgrep parses a run: body as bash, cannot parse an inline GitHub expression, and reports a scan error that fails the pre-push hook. Bound both expressions through env:, which is also the documented fix for the script-injection shape. Both scan errors cleared."
+    },
+    {
+      "time": "2026-07-26T04:30:00Z",
+      "action": "Filed #3360 for the three validators that fail against the current tree",
+      "result": "Allowlisted with the issue reference rather than wired, because wiring them requires first fixing what they report."
+    }
+  ],
   "learnings": {
-    "patterns": [],
-    "avoidances": []
+    "patterns": [
+      {
+        "pattern": "Measure the claim in an issue before implementing its remedy",
+        "context": "#3341 asked for an allowlist sized to a 59-entry unwired count.",
+        "application": "The count was an artifact of asking about literal reference rather than reachability. Changing the question dropped it to six and made the allowlist small enough to be honest. Implementing the requested remedy directly would have reproduced the defect the issue was filed against."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Trusting a new guard's first green or red run without probing the guard itself",
+        "consequence": "The reachability probe's first run reported two false positives from a dotted-module invocation it could not see.",
+        "correction": "Verify each reported violation by hand before accepting it, and keep a test class whose job is to guard the guard."
+      }
+    ]
   },
   "endingCommit": "",
   "nextSteps": []
