@@ -55,6 +55,7 @@ jobs:
               - 'src/copilot-cli/**'
               - 'src/claude/**'
               - 'build/generate_agents.py'
+              - 'build/generate_agents_common.py'
               - 'build/generate_agent_catalog.py'
               - 'build/scripts/**'
               - 'scripts/validation/**'
@@ -135,6 +136,10 @@ jobs:
         run: |
           echo "Running build_all.py --check..."
           python3 build/scripts/build_all.py --check
+
+      - name: Validate platform template schema (REQ-003-002)
+        if: steps.should-run.outputs.skip != 'true'
+        run: python3 build/scripts/validate_templates_schema.py
 
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'

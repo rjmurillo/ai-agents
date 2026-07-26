@@ -15,18 +15,17 @@ trusts.
 
 This asks the question the failure mode actually poses. #3329 was two guards
 that shipped with green tests and no caller anywhere. So: is this script
-reachable from anything that runs? Reachability follows imports and script-path
-mentions transitively from three entry surfaces, which between them are every
-way a script in this repository gets executed:
+reachable from anything that runs? Reachability follows imports and executable
+script-path literals, ignoring comments and docstrings, transitively from three
+entry surfaces:
 
 - a live ``run:`` body in a workflow or composite action
 - a git hook, via ``lefthook.yml`` or ``.githooks/``
-- a skill, via its ``SKILL.md`` or the text of a script under its ``scripts/``
+- a skill, via helper scripts named by its ``SKILL.md``
 
-A script is an entry point when the text of one of those surfaces names it. A
-script under a skill's ``scripts/`` is read as text that can name something, not
-seeded as a root: it becomes reachable only when a ``SKILL.md`` or another
-surface names it.
+Workflow, hook, and skill documentation can name an entry point. Once a
+``SKILL.md`` names a helper script, the graph follows that helper's imports and
+executable string literals.
 
 Under that model the same 89 scripts yield five unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
@@ -41,6 +40,7 @@ from __future__ import annotations
 
 import ast
 import functools
+import re
 from pathlib import Path
 
 import pytest
@@ -61,6 +61,10 @@ _NUMBER_WORDS = {
     6: "six",
     7: "seven",
     8: "eight",
+    9: "nine",
+    10: "ten",
+    11: "eleven",
+    12: "twelve",
 }
 
 # Directories searched when following a reference from one script to another.
@@ -76,34 +80,34 @@ _CALLER_ROOTS = (
 # Scripts with no caller on any entry surface. Each needs a non-empty reason,
 # so adding one is a decision rather than a way to silence this test.
 _NO_CALLER: dict[str, str] = {
-    "validate_seed_parity.py": (
+    "scripts/validation/validate_seed_parity.py": (
         "Forensic tool, and its own module docstring says so: 'This is a "
         "FORENSIC TOOL, not a regression gate. Do NOT add it to CI.' It answers "
         "a one-time historical question about how the review axes under "
         "REQ-008 were seeded. Wiring it would make it a gate it was explicitly "
         "written not to be."
     ),
-    "check_dual_priority_labels.py": (
+    "scripts/validation/check_dual_priority_labels.py": (
         "Queries the GitHub issue and PR label sets, so it needs a token and "
         "network and gates nothing in a diff. It is a triage report for #2623, "
         "not a code gate: a PR cannot introduce a duplicate priority label on "
         "an issue. Belongs on a schedule, which does not exist yet."
     ),
-    "consistency.py": (
+    "scripts/validation/consistency.py": (
         "Fails against the current tree: `--all --ci` exits 1 with 4 of 7 "
         "feature checks failing. Wiring it as-is would red main. The protocol "
         "it implements (.agents/governance/consistency-protocol.md) is live and "
         "there are 23 requirement and 19 design artifacts to check, so the fix "
         "is to resolve the findings and then wire it. Tracked in #3360."
     ),
-    "traceability.py": (
+    "scripts/validation/traceability.py": (
         "Fails against the current tree: `--ci` exits 1, reporting TASK-011 "
         "complete while its DESIGN reference is not. Same shape as "
         "consistency.py: the schema it implements "
         "(.agents/governance/traceability-schema.md) is live, so the fix is to "
         "resolve the findings and then wire it. Tracked in #3360."
     ),
-    "hook_contracts.py": (
+    "scripts/validation/hook_contracts.py": (
         "Fails against the current tree: `--ci` exits 1 on hook docstrings that "
         "do not document their exit-code semantics. This one is worth wiring "
         "once the docstrings are fixed, because it guards the hook contract "
@@ -121,7 +125,8 @@ def _guarded_scripts() -> list[Path]:
     return scripts
 
 
-def _python_sources() -> list[Path]:
+@functools.lru_cache(maxsize=1)
+def _python_sources() -> tuple[Path, ...]:
     skip = ("__pycache__", ".venv", ".cache", "worktrees", "node_modules")
     sources: list[Path] = []
     for root in _CALLER_ROOTS:
@@ -129,33 +134,192 @@ def _python_sources() -> list[Path]:
         if not base.is_dir():
             continue
         sources.extend(p for p in base.rglob("*.py") if not any(s in p.parts for s in skip))
-    return sources
+    return tuple(sources)
 
 
-def _imported_names(source: str) -> set[str]:
-    """Every module and symbol name an import statement in this source binds."""
-    names: set[str] = set()
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:  # validate_python_syntax.py owns reporting this
-        return names
+def _module_name(rel: str) -> str:
+    module = rel[: -len(".py")].replace("/", ".")
+    return module.removesuffix(".__init__")
+
+
+def _imported_modules(tree: ast.AST, caller: str) -> set[str]:
+    """Resolve import statements to in-repo module names."""
+    modules: set[str] = set()
+    caller_module = _module_name(caller)
+    package = caller_module if caller.endswith("/__init__.py") else caller_module.rpartition(".")[0]
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            names |= {alias.name.split(".")[-1] for alias in node.names}
+            modules.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                names.add(node.module.split(".")[-1])
-            names |= {alias.name for alias in node.names}
-    return names
+            if node.level:
+                parts = package.split(".") if package else []
+                keep = max(0, len(parts) - node.level + 1)
+                prefix = ".".join(parts[:keep])
+                base = ".".join(part for part in (prefix, node.module or "") if part)
+            else:
+                base = node.module or ""
+            if base:
+                modules.add(base)
+            for alias in node.names:
+                if alias.name != "*":
+                    modules.add(".".join(part for part in (base, alias.name) if part))
+    return modules
+
+
+_EXECUTION_CALLS = frozenset(
+    {
+        "call",
+        "check_call",
+        "check_output",
+        "exec",
+        "execv",
+        "execve",
+        "execute",
+        "invoke",
+        "launch",
+        "popen",
+        "run",
+        "run_command",
+        "run_path",
+        "spawnv",
+    }
+)
+
+
+def _call_name(node: ast.expr) -> str:
+    if isinstance(node, ast.Name):
+        return node.id.lower()
+    if isinstance(node, ast.Attribute):
+        return node.attr.lower()
+    return ""
+
+
+def _is_execution_call(name: str) -> bool:
+    return name.strip("_") in _EXECUTION_CALLS or any(
+        marker in name for marker in ("subprocess", "execute", "invoke", "launch", "popen", "spawn")
+    )
+
+
+def _string_literals(node: ast.AST) -> set[str]:
+    return {
+        child.value
+        for child in ast.walk(node)
+        if isinstance(child, ast.Constant) and isinstance(child.value, str)
+    }
+
+
+def _execution_string_literals(tree: ast.AST) -> set[str]:
+    """Return strings passed positionally to execution-like calls."""
+    bindings: dict[str, set[str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+        else:
+            continue
+        strings = _string_literals(node.value)
+        for target in targets:
+            if isinstance(target, ast.Name):
+                bindings.setdefault(target.id, set()).update(strings)
+
+    literals: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not _is_execution_call(_call_name(node.func)):
+            continue
+        for argument in node.args:
+            literals.update(_string_literals(argument))
+            literals.update(
+                literal
+                for child in ast.walk(argument)
+                if isinstance(child, ast.Name)
+                for literal in bindings.get(child.id, ())
+            )
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Dict):
+            continue
+        for key, value in zip(node.keys, node.values, strict=True):
+            if (
+                isinstance(key, ast.Constant)
+                and isinstance(key.value, str)
+                and key.value.lower() in {"command", "driver", "executable", "script"}
+            ):
+                literals.update(_string_literals(value))
+    return literals
+
+
+@functools.lru_cache(maxsize=1)
+def _source_paths() -> tuple[str, ...]:
+    return tuple(path.relative_to(_REPO_ROOT).as_posix() for path in _python_sources())
 
 
 @functools.lru_cache(maxsize=1)
 def _source_index() -> dict[str, tuple[str, ...]]:
-    """Every in-repo Python source under `_CALLER_ROOTS`, keyed by module stem."""
+    """Every in-repo Python source under `_CALLER_ROOTS`, keyed by module name."""
     index: dict[str, list[str]] = {}
-    for path in _python_sources():
-        index.setdefault(path.stem, []).append(path.relative_to(_REPO_ROOT).as_posix())
-    return {stem: tuple(paths) for stem, paths in index.items()}
+    for rel in _source_paths():
+        index.setdefault(_module_name(rel), []).append(rel)
+    return {module: tuple(paths) for module, paths in index.items()}
+
+
+@functools.lru_cache(maxsize=1)
+def _source_paths_by_name() -> dict[str, tuple[str, ...]]:
+    by_name: dict[str, list[str]] = {}
+    for rel in _source_paths():
+        by_name.setdefault(Path(rel).name, []).append(rel)
+    return {name: tuple(paths) for name, paths in by_name.items()}
+
+
+def _mentions_token(text: str, token: str) -> bool:
+    return re.search(rf"(?<![\w.-]){re.escape(token)}(?![\w.-])", text) is not None
+
+
+_SCRIPT_TOKEN_RE = re.compile(r"(?<![\w.-])(?:[\w.-]+/)*[\w.-]+\.py(?![\w.-])")
+_MODULE_TOKEN_RE = re.compile(r"(?<![\w.-])[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){2,}(?![\w.-])")
+
+
+def _invoked_scripts(tree: ast.AST, caller: str) -> set[str]:
+    """Resolve script paths passed to execution-like calls without basename collisions."""
+    caller_dir = Path(caller).parent
+    invoked: set[str] = set()
+    source_paths = frozenset(_source_paths())
+    for literal in _execution_string_literals(tree):
+        normalized = literal.replace("\\", "/")
+        for token in _SCRIPT_TOKEN_RE.findall(normalized):
+            rel_token = token.lstrip("/")
+            if rel_token in source_paths:
+                invoked.add(rel_token)
+                continue
+            name = Path(token).name
+            matches = _source_paths_by_name().get(name, ())
+            sibling = (caller_dir / name).as_posix()
+            if sibling in matches:
+                invoked.add(sibling)
+            elif len(matches) == 1:
+                invoked.add(matches[0])
+    return invoked
+
+
+def _resolve_import(
+    index: dict[str, tuple[str, ...]],
+    module: str,
+    caller: str,
+) -> tuple[str, ...]:
+    """Resolve an import exactly, relative to its caller, or by unique bare name."""
+    if module in index:
+        return index[module]
+
+    package = _module_name(caller).rpartition(".")[0]
+    sibling = ".".join(part for part in (package, module) if part)
+    if sibling in index:
+        return index[sibling]
+
+    if "." in module:
+        return ()
+    matches = [
+        paths for name, paths in index.items() if name == module or name.endswith(f".{module}")
+    ]
+    return matches[0] if len(matches) == 1 else ()
 
 
 @functools.lru_cache(maxsize=1)
@@ -174,14 +338,16 @@ def _reference_graph() -> dict[str, frozenset[str]]:
     for path in _python_sources():
         rel = path.relative_to(_REPO_ROOT).as_posix()
         try:
-            source = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        names = _imported_names(source)
-        reached: set[str] = set()
-        for stem, targets in index.items():
-            if stem in names or f"{stem}.py" in source:
-                reached.update(targets)
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise RuntimeError(f"Cannot inspect Python source {rel}: {exc}") from exc
+        try:
+            tree = ast.parse(source)
+        except SyntaxError as exc:
+            raise RuntimeError(f"Cannot parse Python source {rel}: {exc}") from exc
+        reached = _invoked_scripts(tree, rel)
+        for module in _imported_modules(tree, rel):
+            reached.update(_resolve_import(index, module, rel))
         graph[rel] = frozenset(reached - {rel})
     return graph
 
@@ -196,7 +362,11 @@ def _text_of(patterns: tuple[str, ...]) -> str:
     for pattern in patterns:
         for path in _REPO_ROOT.glob(pattern):
             if path.is_file():
-                chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+                try:
+                    chunks.append(path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeError) as exc:
+                    rel = path.relative_to(_REPO_ROOT).as_posix()
+                    raise RuntimeError(f"Cannot inspect entry surface {rel}: {exc}") from exc
     return "\n".join(chunks)
 
 
@@ -216,20 +386,28 @@ def _entry_points() -> frozenset[str]:
     hook_text = _text_of(
         ("lefthook.yml", ".config/lefthook.yml", ".githooks/*"),
     )
-    skill_text = _text_of(
-        (
-            ".claude/skills/*/SKILL.md",
-            "src/copilot-cli/skills/*/SKILL.md",
-            ".claude/skills/*/scripts/**/*.py",
-            "src/copilot-cli/skills/*/scripts/**/*.py",
-        ),
+    skill_patterns = (
+        ".claude/skills/*/SKILL.md",
+        "src/copilot-cli/skills/*/SKILL.md",
     )
+    skill_text = _text_of(skill_patterns)
     corpus = "\n".join((workflow_text, hook_text, skill_text))
-    named: set[str] = set()
-    for path in _python_sources():
-        rel = path.relative_to(_REPO_ROOT).as_posix()
-        if rel in corpus or path.name in corpus or _module_path(rel) in corpus:
-            named.add(rel)
+    script_tokens = {token.removeprefix("./") for token in _SCRIPT_TOKEN_RE.findall(corpus)}
+    module_tokens = set(_MODULE_TOKEN_RE.findall(corpus))
+    named = {
+        rel for rel in _source_paths() if rel in script_tokens or _module_path(rel) in module_tokens
+    }
+    for pattern in skill_patterns:
+        for skill_md in _REPO_ROOT.glob(pattern):
+            text = skill_md.read_text(encoding="utf-8")
+            skill_dir = skill_md.parent
+            local_tokens = set(_SCRIPT_TOKEN_RE.findall(text))
+            local_names = {Path(token).name for token in local_tokens}
+            for helper in skill_dir.glob("scripts/**/*.py"):
+                helper_rel = helper.relative_to(_REPO_ROOT).as_posix()
+                local_rel = helper.relative_to(skill_dir).as_posix()
+                if local_rel in local_tokens or helper.name in local_names:
+                    named.add(helper_rel)
     return frozenset(named)
 
 
@@ -249,9 +427,9 @@ def _reachable() -> frozenset[str]:
 
 @pytest.mark.parametrize("script", _guarded_scripts(), ids=lambda p: p.name)
 def test_validation_script_is_reachable_from_something_that_runs(script: Path) -> None:
-    if script.name in _NO_CALLER:
-        pytest.skip(_NO_CALLER[script.name])
     rel = script.relative_to(_REPO_ROOT).as_posix()
+    if rel in _NO_CALLER:
+        pytest.skip(_NO_CALLER[rel])
     assert rel in _reachable(), (
         f"{rel} is not reachable from any workflow step, git hook, or skill, "
         f"directly or through anything they call. A script nothing runs is not "
@@ -269,7 +447,7 @@ def test_every_no_caller_entry_carries_a_reason() -> None:
 
 def test_every_no_caller_entry_still_exists() -> None:
     """A stale entry silently exempts nothing and hides a deleted script."""
-    present = {p.name for p in _guarded_scripts()}
+    present = {p.relative_to(_REPO_ROOT).as_posix() for p in _guarded_scripts()}
     stale = sorted(set(_NO_CALLER) - present)
     assert not stale, (
         f"_NO_CALLER names scripts that no longer exist: {stale}. Remove them, "
@@ -314,16 +492,20 @@ class TestTheReachabilityProbeWorks:
                     stack.append(target)
         assert seen == {"a.py", "b.py", "c.py"}
 
-    def test_an_import_is_detected(self) -> None:
-        assert "pre_pr" in _imported_names("from scripts.validation import pre_pr")
-        assert "checks_dash" in _imported_names("import checks_dash")
-        assert "run_all" in _imported_names("from pre_pr import run_all")
+    def test_an_import_is_resolved(self) -> None:
+        tree = ast.parse("from scripts.validation import pre_pr")
+        assert "scripts.validation.pre_pr" in _imported_modules(tree, "entry.py")
+
+    def test_a_relative_import_is_resolved_from_the_caller(self) -> None:
+        tree = ast.parse("from . import models")
+        assert "scripts.memory.models" in _imported_modules(
+            tree,
+            "scripts/memory/loader.py",
+        )
 
     def test_a_mention_in_a_comment_is_not_an_import(self) -> None:
-        assert _imported_names("# import ghost_module\nx = 1") == set()
-
-    def test_a_syntax_error_does_not_crash_the_probe(self) -> None:
-        assert _imported_names("def (:") == set()
+        tree = ast.parse("# import ghost_module\nx = 1")
+        assert _imported_modules(tree, "entry.py") == set()
 
     def test_a_known_aggregated_script_is_reachable(self) -> None:
         """pre_pr.py fans out to most of scripts/validation and runs from a hook.
@@ -393,6 +575,26 @@ class TestTheReachabilityProbeWorks:
         )
 
 
+class TestExecutionStringLiterals:
+    def test_executable_string_is_detected(self) -> None:
+        tree = ast.parse('subprocess.run(["python", "scripts/validation/pre_pr.py"])')
+        assert "scripts/validation/pre_pr.py" in _execution_string_literals(tree)
+
+    def test_help_and_log_strings_are_ignored(self) -> None:
+        tree = ast.parse(
+            'parser.add_argument("--x", help="Used by pre_pr.py")\n'
+            'logger.info("Run pre_pr.py manually")\n'
+        )
+        assert _execution_string_literals(tree) == set()
+
+    def test_bare_name_collision_does_not_seed_every_copy(self) -> None:
+        assert "scripts/validation/validate_review_marker.py" not in _entry_points()
+
+    def test_filename_substrings_do_not_count_as_mentions(self) -> None:
+        assert not _mentions_token("validate_pr_description.py", "pr_description.py")
+        assert not _mentions_token("manifest_counts.py", "counts.py")
+
+
 class TestTheDocstringMatchesTheAllowlist:
     """A hardcoded count in prose drifts the moment the list changes."""
 
@@ -403,3 +605,37 @@ class TestTheDocstringMatchesTheAllowlist:
             f"module docstring should say {stated!r}; it drifts every time "
             f"_NO_CALLER changes unless something checks it"
         )
+
+
+class TestInvokedScripts:
+    @pytest.mark.parametrize(
+        ("literal", "expected"),
+        [
+            ("scripts/validation/foo.py", {"scripts/validation/foo.py"}),
+            ("foo.py", {"scripts/other/foo.py"}),
+        ],
+        ids=["exact-path", "bare-sibling"],
+    )
+    def test_exact_paths_precede_bare_name_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        literal: str,
+        expected: set[str],
+    ) -> None:
+        fake_paths = (
+            "scripts/validation/foo.py",
+            "scripts/other/foo.py",
+        )
+        fake_by_name = {
+            "foo.py": ("scripts/validation/foo.py", "scripts/other/foo.py"),
+        }
+        monkeypatch.setattr(
+            "tests.ci.test_validation_scripts_are_reachable._source_paths",
+            lambda: fake_paths,
+        )
+        monkeypatch.setattr(
+            "tests.ci.test_validation_scripts_are_reachable._source_paths_by_name",
+            lambda: fake_by_name,
+        )
+        tree = ast.parse(f"subprocess.run(['python', {literal!r}])")
+        assert _invoked_scripts(tree, "scripts/other/caller.py") == expected
