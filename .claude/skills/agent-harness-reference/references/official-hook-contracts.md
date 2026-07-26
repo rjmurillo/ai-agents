@@ -225,7 +225,12 @@ agentStop and subagentStop use:
 }
 ```
 
-Source: hook reference, agentStop / subagentStop decision control.
+`block` forces another turn. Omitting `decision` permits completion. Current
+Claude Code uses the same top-level `decision` and `reason` shape, so a shared
+Stop producer needs no harness-specific adapter.
+
+Sources: GitHub Copilot hook reference, agentStop / subagentStop decision
+control; Claude Code hooks reference, Stop decision control.
 
 The command-hook parser removes progress lines, concatenates all remaining
 stdout, and performs one `JSON.parse`. Two final JSON objects concatenate into
