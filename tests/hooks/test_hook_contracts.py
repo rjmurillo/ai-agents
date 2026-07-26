@@ -1019,6 +1019,52 @@ class TestDispatcherExpansion:
         )
         assert "empty string" in message
 
+    def test_an_absent_event_is_malformed(self, tmp_path):
+        """validate_group takes spec.get("event"), so absent arrives as None.
+
+        The dispatcher raises TypeError and exits 2 on it, exactly as it does
+        for a wrong type. Reported separately from null because the fix differs:
+        one adds a key, the other fills one in.
+        """
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"shims": [{"file": "A/a.py"}]}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        message = next(
+            v.message for v in report.violations if v.category == "malformed_dispatch_group"
+        )
+        assert "missing" in message
+
+    def test_a_null_event_says_null_not_missing(self, tmp_path):
+        """A key present and null is a different edit than a key absent."""
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": None, "shims": [{"file": "A/a.py"}]}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        message = next(
+            v.message for v in report.violations if v.category == "malformed_dispatch_group"
+        )
+        assert "null" in message and "missing" not in message
+
+    def test_the_group_event_overrides_the_registration_hook_type(self, tmp_path):
+        """The guard makes event a non-empty string, so no fallback remains.
+
+        Keeping ``event or entry.hook_type`` after the guard would be dead code
+        that reads as though an empty event were still reachable.
+        """
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PostToolUse", "shims": [{"file": "A/a.py"}]}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        shim_types = {e.hook_type for e in report.entries if e.script_path.endswith("a.py")}
+        assert shim_types == {"PostToolUse"}, "the registration is PreToolUse; the group wins"
+
     def test_the_event_message_names_the_type_found(self, tmp_path):
         _tree(
             tmp_path,

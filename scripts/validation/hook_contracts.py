@@ -199,8 +199,7 @@ def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
                 script=str(DISPATCH_GROUPS_PATH),
                 category="invalid_dispatch_groups",
                 message=(
-                    f"{DISPATCH_GROUPS_PATH} 'groups' property must be an object, "
-                    f"got {found}"
+                    f"{DISPATCH_GROUPS_PATH} 'groups' property must be an object, got {found}"
                 ),
             )
         ]
@@ -321,7 +320,7 @@ def _expand_dispatch_group(
             continue
         expanded.append(
             HookEntry(
-                hook_type=event or entry.hook_type,
+                hook_type=event,
                 script_path=str(Path(".claude") / "hooks" / shim["file"]),
                 command=entry.command,
                 matcher=matcher,
@@ -573,8 +572,7 @@ def validate_all(
     # checked for script existence and exit-code docs. The shims cannot be
     # checked because the file that names them is the thing that failed.
     manifest_unusable = any(
-        violation.category == "invalid_dispatch_groups"
-        for violation in group_violations
+        violation.category == "invalid_dispatch_groups" for violation in group_violations
     )
     if not manifest_unusable:
         expanded: list[HookEntry] = []
