@@ -113,9 +113,18 @@
       "files": [
         "tests/validation/test_merge_causal_graph.py"
       ]
+    },
+    {
+      "phase": "review",
+      "summary": "Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
+      "files": [
+        "scripts/validation/merge_causal_graph.py",
+        "scripts/maintenance/install_merge_drivers.py",
+        "tests/validation/test_merge_causal_graph.py"
+      ]
     }
   ],
-  "endingCommit": "e2c860e1c",
+  "endingCommit": "03044f4b1cd402c0088c6d429b1515d3d5421952",
   "nextSteps": [
     "File the causal-graph drift finding: 41 of 242 episodes have no node in the committed graph and no hook path backfills them.",
     "File that the generator drops the version and updated keys when it writes a graph from scratch.",

@@ -11,7 +11,9 @@
       "timestamp": "2026-07-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
-      "caused_by": [],
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [
         "e002"
       ]
@@ -36,7 +38,29 @@
       "caused_by": [
         "e002"
       ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 03044f4b1cd402c0088c6d429b1515d3d5421952",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
     }
   ],
   "metrics": {
@@ -44,7 +68,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []

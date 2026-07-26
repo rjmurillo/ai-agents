@@ -14699,6 +14699,24 @@
         "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
       "created": "2026-07-25T16:57:41.485970+00:00"
+    },
+    {
+      "id": "b1c4497668ca",
+      "type": "milestone",
+      "label": "milestone: Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T00:55:19.531741+00:00"
+    },
+    {
+      "id": "c3ab73ec0e5f",
+      "type": "commit",
+      "label": "commit: Commit: 03044f4b1cd402c0088c6d429b1515d3d5421952",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T00:55:19.531803+00:00"
     }
   ],
   "patterns": [
