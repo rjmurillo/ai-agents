@@ -1724,7 +1724,11 @@ class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
                 continue
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                # The validator treats an unreadable log as a failure, so
+                # skipping one here would let a corrupt log land while this
+                # guard stayed green on the strength of its sibling count.
+                violations.append(f"{path.name}: cannot be read as JSON: {exc}")
                 continue
             result = ValidationResult()
             validate_filename_number(path, data, result)
@@ -1732,8 +1736,8 @@ class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
                 checked += 1
             violations.extend(result.errors)
 
-        assert checked > 900, f"expected the whole corpus, only reached {checked}"
         assert violations == [], "\n".join(violations)
+        assert checked > 900, f"expected the whole corpus, only reached {checked}"
 
     def test_the_exemption_list_stays_honest(self) -> None:
         """An exemption that no longer violates anything must be deleted.
@@ -1752,3 +1756,55 @@ class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
                 f"{name} no longer violates the invariant; remove it from "
                 "_UNFIXABLE_LEGACY_LOGS so the guard covers it again"
             )
+
+
+class TestTheCorpusGuardDoesNotSkipUnreadableLogs:
+    """The guard above walks every committed log. It used to `continue` past any
+    log that failed to decode or parse, which meant a corrupt log could land
+    while the test stayed green on the strength of its sibling count. The
+    validator itself treats an unreadable log as a failure, so this one has to
+    as well, and it has to name the file.
+    """
+
+    @staticmethod
+    def _walk(sessions: Path) -> list[str]:
+        """The loop under test, lifted so a temporary corpus can drive it."""
+        violations: list[str] = []
+        for path in sorted(sessions.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                violations.append(f"{path.name}: cannot be read as JSON: {exc}")
+                continue
+            result = ValidationResult()
+            validate_filename_number(path, data, result)
+            violations.extend(result.errors)
+        return violations
+
+    def test_a_log_that_is_not_json_is_reported_not_skipped(self, tmp_path):
+        (tmp_path / "2026-07-26-session-1-x.json").write_text("{ not json", encoding="utf-8")
+        violations = self._walk(tmp_path)
+        assert len(violations) == 1
+        assert "2026-07-26-session-1-x.json" in violations[0]
+
+    def test_a_log_that_is_not_utf8_is_reported_not_skipped(self, tmp_path):
+        (tmp_path / "2026-07-26-session-2-x.json").write_bytes(b'{"a": "\xff\xfe"}')
+        violations = self._walk(tmp_path)
+        assert len(violations) == 1
+        assert "2026-07-26-session-2-x.json" in violations[0]
+
+    def test_a_readable_log_produces_no_read_violation(self, tmp_path):
+        """Negative control: the new branch must not fire on a healthy log."""
+        (tmp_path / "2026-07-26-session-7-x.json").write_text(
+            json.dumps({"session": {"number": 7}}), encoding="utf-8"
+        )
+        assert self._walk(tmp_path) == []
+
+    def test_the_shipped_guard_shares_this_loop(self):
+        """Ties the lifted copy to the real one: if the guard stops reporting
+        read failures, this catches the divergence.
+        """
+        source = Path(__file__).read_text(encoding="utf-8")
+        marker = "class TestEveryCommittedLogSatisfiesTheFilenameInvariant"
+        body = source.split(marker, 1)[1].split("\n    def test_the_exemption", 1)[0]
+        assert "cannot be read as JSON" in body

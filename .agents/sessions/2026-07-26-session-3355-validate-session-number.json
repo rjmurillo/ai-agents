@@ -151,9 +151,13 @@
       "action": "Verified the CLI path end to end.",
       "result": "A log named session-9999 carrying number 3371 exits 1 with the mismatch message. The same log under its correct name exits 0.",
       "files": []
+    },
+    {
+      "phase": "implementation",
+      "summary": "Review caught the corpus guard silently skipping any log that failed to decode as UTF-8 or parse as JSON. The validator treats an unreadable log as a failure, so the skip meant a corrupt log could land while this test stayed green on the strength of its 900-sibling count. It now records the read failure as a violation naming the path, and the violation assertion runs before the count assertion so the specific message surfaces first."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "c62d8f33f1",
   "nextSteps": [
     "Comment on issue 3355 explaining why guard 1 (branch to number) was rejected, with the branch-vs-number measurement.",
     "Remaining unwired validators from issue 3360: traceability.py and consistency.py.",
