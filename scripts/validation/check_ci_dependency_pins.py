@@ -130,9 +130,15 @@ def declared_constraints(pyproject: Path) -> dict[str, SpecifierSet]:
     """
     data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     project = data.get("project", {})
-    groups: list[list[str]] = [list(project.get("dependencies", []))]
-    for extra in project.get("optional-dependencies", {}).values():
-        groups.append(list(extra))
+    deps = project.get("dependencies", [])
+    groups: list[list[str]] = []
+    if isinstance(deps, list):
+        groups.append([item for item in deps if isinstance(item, str)])
+    optional_deps = project.get("optional-dependencies", {})
+    if isinstance(optional_deps, dict):
+        for extra in optional_deps.values():
+            if isinstance(extra, list):
+                groups.append([item for item in extra if isinstance(item, str)])
     for group in data.get("dependency-groups", {}).values():
         if isinstance(group, list):
             groups.append([item for item in group if isinstance(item, str)])

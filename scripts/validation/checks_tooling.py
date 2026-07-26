@@ -353,13 +353,13 @@ def validate_ci_dependency_pins(repo_root: Path) -> bool:
     packages pyproject declares. The .github tree is absent in downstream
     installs, so SKIP rather than FAIL when it is not present.
     """
-    from check_ci_dependency_pins import EXIT_OK as PIN_OK
-    from check_ci_dependency_pins import check as check_pins
-
     workflows = repo_root / ".github"
     pyproject = repo_root / "pyproject.toml"
     if not workflows.is_dir() or not pyproject.is_file():
         raise MissingScriptSkip(
             ".github/ or pyproject.toml not present (downstream install); no pins to check"
         )
+    from check_ci_dependency_pins import EXIT_OK as PIN_OK
+    from check_ci_dependency_pins import check as check_pins
+
     return bool(check_pins(workflows, pyproject) == PIN_OK)
