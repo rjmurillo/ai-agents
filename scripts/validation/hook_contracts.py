@@ -233,32 +233,43 @@ def _expand_dispatch_group(
     if not match:
         return [entry], []
     name = match.group(1)
-    spec = groups.get(name)
+
+    def _fail(category: str, message: str) -> tuple[list[HookEntry], list[Violation]]:
+        return [entry], [
+            Violation(
+                hook_type=entry.hook_type,
+                script=entry.script_path,
+                category=category,
+                message=f"Hook dispatches to group '{name}', which {message}",
+            )
+        ]
+
+    # The categories below mirror the four outcomes the Claude runtime already
+    # distinguishes in invoke_dispatch_claude._load_group: KeyError for an
+    # absent group, TypeError for a non-object group, TypeError for a non-list
+    # 'shims', and no error at all for an empty list. Reporting a wrong type as
+    # "does not define" sends the reader to add a group that is already there.
+    if name not in groups:
+        return _fail("unknown_dispatch_group", f"{DISPATCH_GROUPS_PATH} does not define")
+    spec = groups[name]
     if not isinstance(spec, dict):
-        return [entry], [
-            Violation(
-                hook_type=entry.hook_type,
-                script=entry.script_path,
-                category="unknown_dispatch_group",
-                message=(
-                    f"Hook dispatches to group '{name}', which "
-                    f"{DISPATCH_GROUPS_PATH} does not define"
-                ),
-            )
-        ]
+        return _fail(
+            "malformed_dispatch_group",
+            f"{DISPATCH_GROUPS_PATH} defines as {type(spec).__name__}, not an object; "
+            "the dispatcher fails closed on it",
+        )
     shims = spec.get("shims")
-    if not isinstance(shims, list) or not shims:
-        return [entry], [
-            Violation(
-                hook_type=entry.hook_type,
-                script=entry.script_path,
-                category="empty_dispatch_group",
-                message=(
-                    f"Hook dispatches to group '{name}', which lists no shims, "
-                    "so the registration runs nothing"
-                ),
-            )
-        ]
+    if not isinstance(shims, list):
+        return _fail(
+            "malformed_dispatch_group",
+            f"declares 'shims' as {type(shims).__name__}, not a list; "
+            "the dispatcher fails closed on it",
+        )
+    if not shims:
+        return _fail(
+            "empty_dispatch_group",
+            "lists no shims, so the registration runs nothing",
+        )
     expanded: list[HookEntry] = [entry]
     violations: list[Violation] = []
     for shim in shims:

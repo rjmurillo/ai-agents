@@ -921,6 +921,65 @@ class TestDispatcherExpansion:
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "empty_dispatch_group" for v in report.violations)
 
+    def test_a_group_defined_as_a_non_object_is_not_reported_as_undefined(self, tmp_path):
+        """The name is present, so "does not define" sends the reader nowhere.
+
+        invoke_dispatch_claude._load_group raises KeyError for an absent group
+        and TypeError for a non-object one. Collapsing both to
+        unknown_dispatch_group told the reader to add a group that is already
+        there, while the dispatcher was failing closed on its shape.
+        """
+        _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {"g1": ["A/a.py"]}})
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        categories = {v.category for v in report.violations}
+        assert "malformed_dispatch_group" in categories
+        assert "unknown_dispatch_group" not in categories
+
+    def test_a_group_defined_as_null_is_malformed_not_undefined(self, tmp_path):
+        """JSON null is the shape that made get() and 'in' disagree."""
+        _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {"g1": None}})
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        categories = {v.category for v in report.violations}
+        assert "malformed_dispatch_group" in categories
+        assert "unknown_dispatch_group" not in categories
+
+    def test_a_non_list_shims_is_not_reported_as_empty(self, tmp_path):
+        """A wrong type is a manifest bug; an empty list is a deliberate no-op.
+
+        The dispatcher raises TypeError on the first and runs zero shims on the
+        second, so the two need different fixes and cannot share a category.
+        """
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PreToolUse", "shims": "A/a.py"}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        categories = {v.category for v in report.violations}
+        assert "malformed_dispatch_group" in categories
+        assert "empty_dispatch_group" not in categories
+
+    def test_the_message_names_the_type_that_was_found(self, tmp_path):
+        """A shape violation the reader cannot see is a shape violation twice."""
+        _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {"g1": ["A/a.py"]}})
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        message = next(
+            v.message for v in report.violations if v.category == "malformed_dispatch_group"
+        )
+        assert "list" in message and "g1" in message
+
+    def test_an_empty_list_is_still_empty_not_malformed(self, tmp_path):
+        """Negative control: the split must not swallow the original category."""
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PreToolUse", "shims": []}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        categories = {v.category for v in report.violations}
+        assert "empty_dispatch_group" in categories
+        assert "malformed_dispatch_group" not in categories
+
     def test_a_shim_entry_without_a_file_is_a_violation(self, tmp_path):
         _tree(
             tmp_path,
@@ -1113,13 +1172,33 @@ class TestTheShippedTreeSatisfiesTheContract:
         assert report.is_valid, [v.message for v in report.violations]
         groups_path = PROJECT_ROOT / ".claude" / "hooks" / "dispatch_groups.json"
         groups = json.loads(groups_path.read_text(encoding="utf-8"))["groups"]
-        expected_shims = {
-            f".claude/hooks/{s['file']}"
-            for spec in groups.values()
-            for s in spec.get("shims", [])
-        }
+
+        # Built defensively rather than with s["file"]. A malformed shim entry
+        # is exactly what this validator exists to catch, and reading the key
+        # directly would turn that case into a KeyError traceback pointing at
+        # the test instead of an assertion naming the offending group. The
+        # is_valid assert above catches it first for any group a registration
+        # dispatches to, but this loop walks every group in the manifest,
+        # including one no registration reaches.
+        expected_shims = set()
+        malformed = []
+        for group_name, spec in groups.items():
+            shims = spec.get("shims", []) if isinstance(spec, dict) else []
+            for index, shim in enumerate(shims if isinstance(shims, list) else []):
+                file = shim.get("file") if isinstance(shim, dict) else None
+                if isinstance(file, str):
+                    expected_shims.add(f".claude/hooks/{file}")
+                else:
+                    malformed.append(f"{group_name}[{index}]={shim!r}")
+        assert not malformed, (
+            f"dispatch_groups.json has shim entries with no file path: {malformed}"
+        )
+
         validated_paths = {e.script_path for e in report.entries}
-        assert expected_shims <= validated_paths
+        assert expected_shims <= validated_paths, (
+            "shims defined in dispatch_groups.json that no registration reaches: "
+            f"{sorted(expected_shims - validated_paths)}"
+        )
 
         # Also verify direct (non-dispatch) registrations are validated.
         # Build the expected set from both settings.json and hooks.json.
