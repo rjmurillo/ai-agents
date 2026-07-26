@@ -109,13 +109,13 @@ def check_file(path: Path) -> list[Violation]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:  # pragma: no cover - surfaced to caller
-        raise SystemExit(f"error: cannot read {path}: {exc}") from exc
+        print(f"error: cannot read {path}: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
     violations: list[Violation] = []
 
     for name, start, end in _function_blocks(lines):
         body = lines[start:end]
-        anchored = any(ANCHORED.search(line) for line in body)
 
         first_out_of_repo: int | None = None
         for offset, line in enumerate(body):
@@ -141,7 +141,7 @@ def check_file(path: Path) -> list[Violation]:
             violations.append(
                 Violation(
                     path=path,
-                    line=start + first_in_repo + 1,
+                    line=start + first_out_of_repo + 1,
                     function=name,
                     kind="out-of-repo candidate ordered before in-repo copy",
                     detail=(
@@ -161,21 +161,20 @@ def check_file(path: Path) -> list[Violation]:
             if not is_bare:
                 continue
 
-            if not anchored:
-                violations.append(
-                    Violation(
-                        path=path,
-                        line=start + offset + 1,
-                        function=name,
-                        kind="unanchored repo-relative candidate root",
-                        detail=(
-                            'bare ".claude" resolves only when cwd is the repo '
-                            "root; from a subdirectory this rung is skipped and "
-                            "a stale out-of-repo copy wins. Anchor it on "
-                            '"$(git rev-parse --show-toplevel)/.claude".'
-                        ),
-                    )
+            violations.append(
+                Violation(
+                    path=path,
+                    line=start + offset + 1,
+                    function=name,
+                    kind="unanchored repo-relative candidate root",
+                    detail=(
+                        'bare ".claude" resolves only when cwd is the repo '
+                        "root; from a subdirectory this rung is skipped and "
+                        "a stale out-of-repo copy wins. Anchor it on "
+                        '"$(git rev-parse --show-toplevel)/.claude".'
+                    ),
                 )
+            )
 
     return violations
 

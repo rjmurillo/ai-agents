@@ -21,14 +21,18 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.validation import (  # noqa: E402
-    check_skill_contract_tests as contract_guard,
-)
-from scripts.validation import (  # noqa: E402
-    check_skill_resolver_anchoring as resolver_guard,
-)
+_orig_path = sys.path[:]
+sys.path.insert(0, str(REPO_ROOT))
+try:
+    from scripts.validation import (  # noqa: E402
+        check_skill_contract_tests as contract_guard,
+    )
+    from scripts.validation import (  # noqa: E402
+        check_skill_resolver_anchoring as resolver_guard,
+    )
+finally:
+    sys.path[:] = _orig_path
 
 UNANCHORED_RESOLVER = """# Skill
 

@@ -64,7 +64,8 @@ def documented_contracts(path: Path) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:  # pragma: no cover - surfaced to caller
-        raise SystemExit(f"error: cannot read {path}: {exc}") from exc
+        print(f"error: cannot read {path}: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
     if not SCRIPT_CALL.search(text):
         return []
@@ -142,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         skill_name = skill_file.parent.name
         if skill_name in baseline:
             continue
-        if re.search(r"\b" + re.escape(skill_name) + r"\b", corpus):
+        if re.search(r"(?<![a-zA-Z0-9_-])" + re.escape(skill_name) + r"(?![a-zA-Z0-9_-])", corpus):
             continue
         unbound.append(Unbound(skill=skill_name, path=skill_file, exit_codes=codes))
 
