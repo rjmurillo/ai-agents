@@ -134,7 +134,7 @@ its row and gains a retirement note rather than disappearing.
 | **PostToolUse: Plan State Sync** | `PostToolUse/invoke_plan_state_sync.py` | PostToolUse | Retired by #3184 |
 | **Stop: Auto-Retrospective** | `Stop/invoke_auto_retrospective.py` | Stop | Retired by #3349 |
 
-### Amendment 2026-07-21 (Issue #3373)
+### Amendment 2026-07-26 (Issue #3373)
 
 Three of the five hooks this ADR introduced have been retired, across two
 purges. Until this amendment all five were still marked implemented, so the
