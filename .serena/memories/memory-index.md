@@ -69,7 +69,7 @@
 |gemini code assist config styleguide ignore path enterprise: [skills-gemini-index](skills-gemini-index.md) (200)
 |coderabbit noise config path-filter false-positive: [skills-coderabbit-index](skills-coderabbit-index.md) (229)
 |labeler yaml glob negation matcher any-glob all-glob: [skills-labeler-index](skills-labeler-index.md) (263)
-|analysis gap root-cause trade-off git blame investigation: [skills-analysis-index](skills-analysis-index.md) (223)
+|analysis gap root-cause trade-off git blame investigation: [skills-analysis-index](skills-analysis-index.md) (306)
 
 [Governance]
 |governance agent consolidation design principle overlap: [governance/governance-001-8question-agent-interview-94](governance/governance-001-8question-agent-interview-94.md) (172), [governance/governance-002-five-consolidation-triggers-90](governance/governance-002-five-consolidation-triggers-90.md) (156)

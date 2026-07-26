@@ -13,13 +13,22 @@ Files written into `~/repos/ai-agents` were real on disk, correct in content, an
 ## The check (run before the first write)
 
 ```bash
-[ "$(git rev-parse --show-toplevel)" = "$(pwd -P)" ] || echo MISMATCH
-git config --local core.worktree      # must be empty or equal to pwd
+repo_root=$(git rev-parse --show-toplevel)
+case "$(pwd -P)" in
+  "$repo_root"|"$repo_root"/*) ;;
+  *) echo MISMATCH ;;
+esac
+
+git_dir=$(git rev-parse --absolute-git-dir)
+common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
+if [ "$git_dir" = "$common_dir" ]; then
+  git config --local --get core.worktree
+fi
 ```
 
-Full four-condition gate: `~/.hermes/skills/software-development/negative-probe-positive-control/scripts/preflight-worktree.sh`
+Full four-condition gate:
 
-1. toplevel equals `pwd -P`
+1. `pwd -P` is the toplevel or a directory below it
 2. the worktree's **own local** `core.worktree` does not redirect. Read `--local` only when `git rev-parse --git-dir` equals `--git-common-dir`; plain `git config` reports inherited values and false-positives on legitimate linked worktrees
 3. a throwaway probe file actually appears in `git status --untracked-files=all`
 4. every file you intend to edit already exists (absence means wrong branch, not greenfield)

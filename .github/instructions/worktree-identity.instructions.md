@@ -13,11 +13,22 @@ This rule exists because `~/repos/ai-agents/.git/config` carried `core.worktree`
 Run before the first write, from the directory you intend to edit:
 
 ```bash
-[ "$(git rev-parse --show-toplevel)" = "$(pwd -P)" ] || echo "MISMATCH"
-git config --local core.worktree     # must be empty, or equal to pwd
+repo_root=$(git rev-parse --show-toplevel)
+case "$(pwd -P)" in
+  "$repo_root"|"$repo_root"/*) ;;
+  *) echo "MISMATCH" ;;
+esac
+
+git_dir=$(git rev-parse --absolute-git-dir)
+common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
+if [ "$git_dir" = "$common_dir" ]; then
+  git config --local --get core.worktree
+fi
 ```
 
-A mismatch means every write from here is invisible to version control. `cd` to the reported toplevel and write there.
+The first check accepts the repository root and any directory below it. A mismatch means git is tracking a different tree. `cd` into the reported top-level path before writing.
+
+Only inspect local `core.worktree` when the Git directory and common directory are the same. Linked worktrees inherit shared configuration, so reading it there can report a false mismatch. In a non-linked checkout, a nonempty value must resolve to `repo_root`; otherwise stop.
 
 ## Why `git status` cannot be the confirmation
 
@@ -26,7 +37,11 @@ A clean `git status` is consistent with two states: nothing changed, or git is n
 The positive control is a throwaway file:
 
 ```bash
-: > .probe-$$ && git status --porcelain --untracked-files=all -- .probe-$$ ; rm -f .probe-$$
+probe=".probe-$$"
+: > "$probe"
+git status --porcelain --untracked-files=all -- "$probe"
+mkdir -p "${TMPDIR:-/tmp}/ai-agents-probes"
+mv "$probe" "${TMPDIR:-/tmp}/ai-agents-probes/"
 ```
 
 Empty output means git does not see writes in this directory.
