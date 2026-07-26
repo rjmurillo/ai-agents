@@ -82,10 +82,11 @@ Set the mode:
          REVIEW_MARKER_SCRIPT="$CLAUDE_SKILL_DIR/../review/scripts/validate_review_marker.py"
        else
          resolve_review_scripts_dir() {
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
            for root in \
              "${COPILOT_PLUGIN_ROOT:-}" \
              "${CLAUDE_PLUGIN_ROOT:-}" \
-             ".claude" \
+             "$repo_root/.claude" \
              "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
              "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
              "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
