@@ -964,6 +964,25 @@ class TestDispatcherExpansion:
         )
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
 
+    def test_dispatch_groups_with_invalid_utf8_is_reported(self, tmp_path):
+        """Invalid UTF-8 bytes must be caught, not raise UnicodeDecodeError."""
+        _tree(tmp_path, settings=_dispatch("g1"))
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_bytes(b"\xff\xfe")
+        report = hook_contracts.validate_all(
+            tmp_path / ".claude" / "settings.json", tmp_path
+        )
+        assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
+
+    def test_dispatch_groups_with_non_object_root_is_reported(self, tmp_path):
+        """A JSON array or primitive root must be reported, not raise AttributeError."""
+        _tree(tmp_path, settings=_dispatch("g1"))
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("[]")
+        report = hook_contracts.validate_all(
+            tmp_path / ".claude" / "settings.json", tmp_path
+        )
+        assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
+        assert any("must be a JSON object" in v.message for v in report.violations)
+
     def test_an_absent_dispatch_groups_file_is_not_a_violation(self, tmp_path):
         """A checkout with no grouped hooks is legitimate."""
         _tree(
@@ -1054,9 +1073,44 @@ class TestTheShippedTreeSatisfiesTheContract:
         groups = json.loads(
             (PROJECT_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text()
         )["groups"]
-        expected = {
+        expected_shims = {
             f".claude/hooks/{s['file']}"
             for spec in groups.values()
             for s in spec.get("shims", [])
         }
-        assert expected <= {e.script_path for e in report.entries}
+        validated_paths = {e.script_path for e in report.entries}
+        assert expected_shims <= validated_paths
+
+        # Also verify direct (non-dispatch) registrations are validated.
+        # Build the expected set from both settings.json and hooks.json.
+        settings = json.loads(
+            (PROJECT_ROOT / ".claude" / "settings.json").read_text()
+        )
+        plugin_path = PROJECT_ROOT / ".claude" / "hooks" / "hooks.json"
+        plugin = json.loads(plugin_path.read_text()) if plugin_path.is_file() else {}
+
+        def _direct_paths(hooks_config: dict) -> set:
+            """Extract script paths from non-dispatch registrations."""
+            paths = set()
+            for hook_groups in hooks_config.get("hooks", {}).values():
+                if not isinstance(hook_groups, list):
+                    continue
+                for group in hook_groups:
+                    if not isinstance(group, dict):
+                        continue
+                    for hook in group.get("hooks", []):
+                        if not isinstance(hook, dict) or hook.get("type") != "command":
+                            continue
+                        command = hook.get("command", "")
+                        # Skip dispatch commands; their shims are already in expected_shims
+                        if "--group" in command:
+                            continue
+                        script = hook_contracts.extract_script_path(command)
+                        if script:
+                            paths.add(script)
+            return paths
+
+        expected_direct = _direct_paths(settings) | _direct_paths(plugin)
+        assert expected_direct <= validated_paths, (
+            f"Direct hooks not validated: {expected_direct - validated_paths}"
+        )

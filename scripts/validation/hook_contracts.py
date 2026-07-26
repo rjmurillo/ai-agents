@@ -138,13 +138,22 @@ def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
         return {}, []
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         return {}, [
             Violation(
                 hook_type="dispatcher",
                 script=str(DISPATCH_GROUPS_PATH),
                 category="invalid_dispatch_groups",
                 message=f"Cannot read {DISPATCH_GROUPS_PATH}: {exc}",
+            )
+        ]
+    if not isinstance(data, dict):
+        return {}, [
+            Violation(
+                hook_type="dispatcher",
+                script=str(DISPATCH_GROUPS_PATH),
+                category="invalid_dispatch_groups",
+                message=f"{DISPATCH_GROUPS_PATH} must be a JSON object, got {type(data).__name__}",
             )
         ]
     groups = data.get("groups")

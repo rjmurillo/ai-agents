@@ -52,12 +52,12 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/3371-collect-mirror-suites"
+        "Evidence": "fix/3360-wire-hook-contracts"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On fix/3371-collect-mirror-suites, branched off main 663bbac488"
+        "Evidence": "On fix/3360-wire-hook-contracts, branched off main 263ce89d05"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "663bbac488"
+        "Evidence": "263ce89d05cd7ab15a196e97c24c4a0e9b095970"
       }
     },
     "sessionEnd": {
@@ -140,7 +140,7 @@
       "evidence": "197 passed across the hook-contract and reachability modules, plus 567 workflow tests. Negative controls: disabling group expansion turned 6 red, skipping the plugin surface turned 3 red, reverting the path regex turned 6 red."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "d655c5237b",
   "nextSteps": [
     "Push fix/3371-collect-mirror-suites and open a PR that fixes #3371.",
     "Comment on #3371 with the corrected scope: 82 directories, not 2.",
