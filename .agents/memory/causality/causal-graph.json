@@ -14744,6 +14744,204 @@
         "episode-2026-07-25-session-3346-session-schema-enforcement"
       ],
       "created": "2026-07-25T17:09:46.731047+00:00"
+    },
+    {
+      "id": "e3af47193f44",
+      "type": "milestone",
+      "label": "milestone: Ran check_pr_live_state.py gate for PR #3347; Data.action=ACT (not SKIP), proceeded.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376582+00:00"
+    },
+    {
+      "id": "1415236c895d",
+      "type": "milestone",
+      "label": "milestone: Verified head SHA d5937f2a6c matched the live snapshot; the shared primary checkout was mutated by concurrent work mid-session, so created an isolated git worktree at /home/richard/src/GitHub/rjmurillo/ai-agents-pr3347 for this task.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376656+00:00"
+    },
+    {
+      "id": "31628f402344",
+      "type": "milestone",
+      "label": "milestone: Fetched PR metadata and all 13 review threads via get_pr_review_threads.py: 10 resolved, 3 unresolved (all authored by copilot-pull-request-reviewer, all on scripts/validate_session_json.py).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376711+00:00"
+    },
+    {
+      "id": "16eb8d62fbc6",
+      "type": "milestone",
+      "label": "milestone: Triaged the 3 unresolved threads: (1) REQUIRED_SESSION_FIELDS duplicate/over-rejection finding was already fixed by the branch's last commit (d5937f2a6c) before this session started, verified by diffing validate_session_section across commits; (2) 'nothing was checked' schema-load-failure message is misleading because validate_session_log still runs protocol checks afterward, a real wording bug; (3) validate_against_schema does not catch jsonschema.exceptions.SchemaError and sorts by raw list(e.absolute_path), which raises TypeError when errors' paths share a prefix but diverge between str and int elements, a real crash-class bug reproduced locally before fixing.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376765+00:00"
+    },
+    {
+      "id": "61388cdcae06",
+      "type": "milestone",
+      "label": "milestone: Implemented fixes in scripts/validate_session_json.py: reworded the schema-load-failure message to 'schema layer skipped' (scoped, not absolute); wrapped validator construction and iter_errors in try/except SchemaError with a readable message; changed the sort key to tuple(str(part) for part in e.absolute_path).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376818+00:00"
+    },
+    {
+      "id": "ee682301091e",
+      "type": "milestone",
+      "label": "milestone: Added 3 regression tests in tests/test_validate_session_json.py: message no longer claims total silence while protocol checks still surface errors; SchemaError from a monkeypatched validator_for is caught and reported, not raised; a fake validator returning ValidationErrors with mixed int/str path elements at the same depth sorts without raising TypeError.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376870+00:00"
+    },
+    {
+      "id": "1198288f3882",
+      "type": "milestone",
+      "label": "milestone: Ran ruff check --fix (import sort only), manually wrapped two long lines to satisfy E501, re-ran ruff (clean) and mypy (clean).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376925+00:00"
+    },
+    {
+      "id": "a1cf9448f4bc",
+      "type": "milestone",
+      "label": "milestone: Ran full tests/test_validate_session_json.py (132 passed) and the broader session-related suite (tests/ -k session: 678 passed, 1 skipped, 6 xfailed).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376977+00:00"
+    },
+    {
+      "id": "7ea51b38e4ff",
+      "type": "test",
+      "label": "test: Ran full tests/test_validate_session_json.py (132 passed) and the broader session-related suite (tests/ -k session: 678 passed, 1 skipped, 6 xfailed).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377029+00:00"
+    },
+    {
+      "id": "57b946db47b4",
+      "type": "milestone",
+      "label": "milestone: Re-verified local HEAD matched origin/fix/3346-session-schema-enforcement (no concurrent push) before committing and again before pushing.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377081+00:00"
+    },
+    {
+      "id": "36d384887afd",
+      "type": "milestone",
+      "label": "milestone: Committed 'fix(validation): stop overclaiming schema silence and crashing on bad schemas' as ebb6cf9365, with Refs #3346 and the branch's established Co-Authored-By: Copilot / Copilot-Session trailers (session ID from COPILOT_AGENT_SESSION_ID).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377134+00:00"
+    },
+    {
+      "id": "92fee529a60a",
+      "type": "milestone",
+      "label": "milestone: Pushed as a fast-forward (no force).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377186+00:00"
+    },
+    {
+      "id": "5223b0f5e8a0",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved all 3 unresolved threads via add_pr_review_thread_reply.py --resolve, each citing commit ebb6cf9365 and the specific fix (or, for the already-fixed finding, the prior commit).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377239+00:00"
+    },
+    {
+      "id": "93d5297d6007",
+      "type": "milestone",
+      "label": "milestone: Confirmed 0 unresolved threads via get_pr_review_threads.py.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377291+00:00"
+    },
+    {
+      "id": "9cd472f64896",
+      "type": "milestone",
+      "label": "milestone: Waited for and confirmed all CI checks green via get_pr_checks.py --wait (83 passed, 0 failed, including all required checks: Validate PR, Run Python Tests, CodeQL, Security/Analyst/Architect/QA Review, etc.).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377343+00:00"
+    },
+    {
+      "id": "d7ddc364e140",
+      "type": "test",
+      "label": "test: Waited for and confirmed all CI checks green via get_pr_checks.py --wait (83 passed, 0 failed, including all required checks: Validate PR, Run Python Tests, CodeQL, Security/Analyst/Architect/QA Review, etc.).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377398+00:00"
+    },
+    {
+      "id": "06ae6ae9f099",
+      "type": "milestone",
+      "label": "milestone: Checked live merge state: mergeStateStatus=BLOCKED, mergeable=MERGEABLE, reviewDecision=null, blocked by required review approval (branch protection), not by threads or CI; did not request or perform approval, and did not merge or enable auto-merge, per instructions.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377450+00:00"
+    },
+    {
+      "id": "0d5dc2d05da6",
+      "type": "milestone",
+      "label": "milestone: Ran scripts/validation/pre_pr.py --quick: all validations passed (advisory-only warnings for unrelated bundle coverage and review-marker notes).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377502+00:00"
+    },
+    {
+      "id": "e573accbc729",
+      "type": "milestone",
+      "label": "milestone: Updated .serena/memories/pr-review/pr-comment-responder-skills with cumulative reviewer stats and a new PR #3347 breakdown.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377554+00:00"
+    },
+    {
+      "id": "6f992d4ad6e6",
+      "type": "commit",
+      "label": "commit: Commit: ebb6cf9365decd450d7b26c6aedd49ef3264b326",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377607+00:00"
+    },
+    {
+      "id": "ade96f71098e",
+      "type": "commit",
+      "label": "commit: Commit: ebb6cf9365",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377667+00:00"
+    },
+    {
+      "id": "89ab2791bee4",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve remaining PR #3347 review threads: fix misleading schema-load-failure message, catch SchemaError, and fix TypeError-prone sort key in validate_against_schema.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377721+00:00"
     }
   ],
   "patterns": [
