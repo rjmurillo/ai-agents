@@ -124,9 +124,17 @@
         "scripts/validate_session_json.py",
         "tests/test_validate_session_json.py"
       ]
+    },
+    {
+      "action": "Replaced the SchemaError handler with check_schema, restored the raw error sort key, deleted the dead REQUIRED_SESSION_FIELDS constant, and replaced two mocked tests with real malformed-schema tests",
+      "outcome": "138 tests pass; two negative controls fired (3 red on the handler, 1 red on the stringified key); ruff, ruff format, and mypy clean",
+      "files": [
+        "scripts/validate_session_json.py",
+        "tests/test_validate_session_json.py"
+      ]
     }
   ],
-  "endingCommit": "774ef14ea28a9d0151fb424e4cc5cad05d73e106",
+  "endingCommit": "22917af15aaaafe7fb52b5d6eef7b55ee05ad9e0",
   "nextSteps": [
     "PR #3347 review round 1 addressed: draft-07 validator, non-object payloads, JSON null, duplicate section messages, brittle exemption test.",
     "Open the PR for issue #3346 and drive its review threads to zero.",

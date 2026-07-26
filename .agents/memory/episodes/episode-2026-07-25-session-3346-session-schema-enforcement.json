@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Confirmed the claim empirically. The module never referenced the schema file and never imported jsonschema; it hand-rolled presence checks and type-checked nothing. Measured the blast radius of turning the schema on: 131 of the 923 logs in .agents/sessions/ fail Draft202012Validator against the committed schema.",
       "caused_by": [
-        "e008"
+        "e012"
       ],
       "leads_to": [
         "e002"
@@ -86,7 +86,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e009"
+      ]
     },
     {
       "id": "e008",
@@ -94,6 +96,52 @@
       "type": "commit",
       "content": "Commit: a59eb0886e",
       "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it, and added CLI-level tests for the four exit paths. The narrowing this first pass used was itself wrong and the review round replaced it; see the review entry below. The file carries zero suppressions.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed five defects the PR #3347 review found. The validator was pinned to draft 2020-12 while the committed schema declares draft-07, so it now comes from validator_for. A top-level array reached data.get and exited 2 with an internal error, so the schema now reports the type and the protocol checks are skipped without a mapping. main branches on error rather than on the payload, because a file holding JSON null parses to None with no error and must reach the schema instead of printing ERROR: None. validate_protocol_compliance stopped restating sessionStart and sessionEnd as missing, which protocolCompliance.required already covers. The exemption test grepped a function's source for the word glob, which any docstring would break, and now drives validate_branch_sessions with a mocked runner. Four negative controls fired; a fifth draft of the draft-07 test passed under both validators and was rewritten to discriminate.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the SchemaError handler with check_schema, restored the raw error sort key, deleted the dead REQUIRED_SESSION_FIELDS constant, and replaced two mocked tests with real malformed-schema tests",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 22917af15aaaafe7fb52b5d6eef7b55ee05ad9e0",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
         "e001"
       ]
@@ -104,7 +152,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 6
   },
   "lessons": []
