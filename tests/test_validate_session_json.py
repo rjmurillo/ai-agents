@@ -2195,3 +2195,39 @@ class TestEvidenceAgreesWithSession:
             {"session": {}, "protocolCompliance": {"sessionStart": {"branchVerified": "flat"}}},
         ):
             validate_session_log(broken)
+
+
+class TestBranchEvidenceMayDescribeARelationship:
+    """Honest evidence names a second branch whenever it explains a relationship.
+
+    Measured on all 946 committed logs: flagging any second feature branch
+    caught seven, and six were a rename, a stack, or a branched-from note. The
+    rule that survives is narrower. Contamination describes the *other* session
+    and never mentions this branch at all. Issue #3383.
+    """
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            "fix/3346-session-schema-enforcement, stacked on fix/3385-historical-logs",
+            "fix/3346-session-schema-enforcement (renamed from the initial chore/adr006 branch)",
+            "Branched fix/3346-session-schema-enforcement from feat/1769-autonomous",
+            "On branch chore/old-thing, then created fix/3346-session-schema-enforcement",
+        ],
+        ids=["stacked-on", "renamed-from", "branched-from", "switched-to"],
+    )
+    def test_evidence_naming_its_own_branch_and_another_is_not_an_error(
+        self, evidence: str
+    ) -> None:
+        log = _log_with_evidence(branchVerified=evidence)
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    def test_evidence_naming_only_another_branch_is_still_an_error(self) -> None:
+        """The narrowing must not swallow the case it exists to catch."""
+        log = _log_with_evidence(branchVerified="Verified feat/merge-velocity-analysis")
+        assert any("names a different branch" in e for e in validate_session_log(log).errors)
+
+    def test_a_prefix_of_the_declared_branch_counts_as_naming_it(self) -> None:
+        """Logs abbreviate their own branch; that is not a second session."""
+        log = _log_with_evidence(notOnMain="On fix/3346-session-schema, not main")
+        assert not any("names a different branch" in e for e in validate_session_log(log).errors)

@@ -485,24 +485,34 @@ def _flatten_checklist(compliance: object) -> dict[str, Any]:
 
 
 def _contradicted_branches(evidence: str, branch: str) -> list[str]:
-    """Return the feature branches named in evidence that are not ``branch``.
+    """Return branches named in evidence that never names ``branch`` itself.
 
-    Only conventional ``type/slug`` names count. That is deliberate: evidence
-    routinely mentions ``main`` and ``origin/main`` for legitimate reasons
-    (a merge-base, a comparison), and treating those as contradictions would
-    flag most of the corpus. A second *feature* branch is different: the
-    session ran on exactly one.
+    Two narrowings, both measured against all 946 committed logs rather than
+    reasoned about, because the obvious rule is wrong here.
+
+    Only conventional ``type/slug`` names count. Evidence routinely mentions
+    ``main`` and ``origin/main`` for legitimate reasons (a merge-base, a
+    comparison), and counting those would flag most of the corpus.
+
+    A second feature branch alone is *not* a contradiction either. Honest
+    evidence names one whenever it describes a relationship: "renamed from
+    feat/1774", "stacked on chore/lefthook-migration", "branched from
+    feat/1769". Flagging on a second name caught seven logs, and six of the
+    seven were exactly those. Contamination looks different: the evidence
+    describes the other session and never mentions this branch at all.
 
     Args:
         evidence: The evidence text to read.
         branch: The branch the session section declares.
 
     Returns:
-        The conflicting names, empty when the evidence names no feature branch
-        or names only this one.
+        The names found, empty when the evidence names no feature branch or
+        names this one anywhere in the string.
     """
     named = _FEATURE_BRANCH_RE.findall(evidence)
-    return [n for n in named if n != branch and n not in branch and branch not in n]
+    if any(name == branch or name in branch or branch in name for name in named):
+        return []
+    return named
 
 
 def validate_evidence_agrees_with_session(data: dict[str, Any], result: ValidationResult) -> None:
