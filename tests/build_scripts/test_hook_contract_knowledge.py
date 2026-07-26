@@ -30,8 +30,28 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _normalize(document: str) -> str:
+    return re.sub(r"\s+", " ", document)
+
+
 def _normalized_text(path: Path) -> str:
-    return re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
+    return _normalize(path.read_text(encoding="utf-8"))
+
+
+def _refute(document: str, *phrases: str, source: Path | None = None) -> None:
+    """Assert none of ``phrases`` appear, whatever the source wrapping is.
+
+    A negative substring check against raw markdown is defeated by a line
+    break inside the banned phrase, and prose is exactly what gets reflowed,
+    so the raw form goes quietly green on the reintroduction it exists to
+    catch. Measured: appending "The host merges structured\\ndecisions from
+    every observer." to the reference left the raw assertion passing and this
+    one failing. Every negative in this module goes through here so the
+    guarantee is one function rather than a convention at each call site.
+    """
+    normalized = _normalize(document)
+    for phrase in phrases:
+        assert phrase not in normalized, f"{source}: {phrase}" if source else phrase
 
 
 COPILOT_NATIVE_EVENTS = {
@@ -175,14 +195,18 @@ def test_reference_separates_stop_from_session_end() -> None:
     text = _reference_text()
     sidecar = _normalized_text(OFFICIAL_SOURCES)
 
+    # The table rows stay on raw text because their formatting is the assertion.
     assert "| Stop | None | Direct entries if added, one JSON decision per command |" in text
     assert "| SessionEnd | SessionEnd | Direct lifecycle event, never a Stop alias |" in text
     assert "Omitting `decision` permits completion." in sidecar
     assert "`block` forces another turn." in sidecar
     for document in (text, sidecar):
-        assert "host merges structured decisions" not in document
-        assert "Stop: SessionEnd" not in document
-        assert "`allow` permits completion" not in document
+        _refute(
+            document,
+            "host merges structured decisions",
+            "Stop: SessionEnd",
+            "`allow` permits completion",
+        )
 
 
 def test_hook_requirement_tracks_dispatcher_and_matcher_contract() -> None:
@@ -199,8 +223,11 @@ def test_hook_requirement_tracks_dispatcher_and_matcher_contract() -> None:
     assert "`MAX_MATCHER_TOOL_CALLS`" in section
     assert "cap manifest-controlled diagnostic values at 512 characters" in section
     assert "immediately after required future imports" in section
-    assert "sentinel comment `# AUTO-GENERATED MATCHER SHIM (REQ-003-007)` at line 1" not in section
-    assert "shall NOT emit the matcher" not in section
+    _refute(
+        section,
+        "sentinel comment `# AUTO-GENERATED MATCHER SHIM (REQ-003-007)` at line 1",
+        "shall NOT emit the matcher",
+    )
     assert "manual `/compact` does not emit it" in section
 
 
@@ -224,7 +251,7 @@ def test_runtime_adr_tracks_observer_output_merge() -> None:
     assert "separates shim output with one blank line" in text
     assert "does not preserve per-shim attribution" in text
     assert "Stderr is not a documented model-context path" in text
-    assert "observe dispatcher passes stdout through" not in text
+    _refute(text, "observe dispatcher passes stdout through")
 
 
 def test_reference_versions_matcher_and_timeout_evidence() -> None:
@@ -422,7 +449,7 @@ def test_requirement_and_historical_audit_do_not_reassert_old_contract() -> None
 
     assert "14 native events:" in requirement
     assert "SubagentStop, PermissionRequest, and PreCompact are supported" in requirement
-    assert "Does not exist" not in requirement
+    _refute(requirement, "Does not exist")
     assert "Historical implementation snapshot" in audit
     assert "not the current Copilot CLI contract" in audit
 
@@ -442,9 +469,7 @@ def test_operational_sources_exclude_superseded_claims() -> None:
     )
 
     for path in paths:
-        text = path.read_text(encoding="utf-8")
-        for stale_claim in stale_claims:
-            assert stale_claim not in text, (path, stale_claim)
+        _refute(path.read_text(encoding="utf-8"), *stale_claims, source=path)
 
 
 def test_operational_skills_read_plugin_versions_from_manifests() -> None:
@@ -495,9 +520,12 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     assert plugin_summary in architecture
     assert plugin_summary in catalog
     assert copilot_summary in architecture
-    assert "registers 7 events" not in architecture
-    assert "expected 7 and 14" not in architecture
-    assert "8 events / 23 matcher groups" not in architecture
+    _refute(
+        architecture,
+        "registers 7 events",
+        "expected 7 and 14",
+        "8 events / 23 matcher groups",
+    )
 
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:
@@ -569,9 +597,9 @@ def test_current_memories_record_skill_first_guard_retirement() -> None:
         REPO_ROOT / ".serena" / "memories" / "decision-adr-085-permission-surface-asymmetry.md"
     ).read_text(encoding="utf-8")
 
-    assert "The skill-first hook blocks gh pr create" not in pr_rules
-    assert "Raw `gh` may be blocked by `invoke_skill_first_guard.py`" not in observations
-    assert "This repo has a PreToolUse hook" not in script_reference
+    _refute(pr_rules, "The skill-first hook blocks gh pr create")
+    _refute(observations, "Raw `gh` may be blocked by `invoke_skill_first_guard.py`")
+    _refute(script_reference, "This repo has a PreToolUse hook")
     assert "PR #3293 implemented Retirement" in decision_memory
 
 
@@ -581,4 +609,4 @@ def test_generation_skill_requires_an_explicit_reason_for_hook_drops() -> None:
     ).read_text(encoding="utf-8")
 
     assert "an unexplained drop means contract drift" in generation
-    assert "Drops are unsupported Copilot events, by design" not in generation
+    _refute(generation, "Drops are unsupported Copilot events, by design")
