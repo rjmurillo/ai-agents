@@ -817,7 +817,9 @@ class TestMain:
 # Dispatcher and plugin surface coverage (issue #3360)
 # ---------------------------------------------------------------------------
 
-_DOC = '"""H.\n\nExit Codes:\n    0 = ok\n"""\n'
+# Models a real blocking hook: the contract these tests exercise is 0=allow,
+# 2=block, so a stub documenting only 0 would not be representative.
+_DOC = '"""H.\n\nExit Codes:\n    0 = allow\n    2 = block\n"""\n'
 
 
 def _tree(root, *, settings, groups=None, plugin=None, shims=(), dispatcher=_DOC):
@@ -1369,3 +1371,55 @@ class TestUnreadableSettingsExitsTwoNotATraceback:
 
         assert rc == 0
         assert "Cannot read hook registrations" not in capsys.readouterr().err
+
+
+class TestAMalformedGroupsFieldIsAViolationNotAnEmptyMap:
+    """``invoke_dispatch_claude._load_group`` raises TypeError when ``groups``
+    is missing or is not an object, and the dispatcher fails closed on that,
+    so every dispatched tool call is blocked. Reading the field as an empty map
+    let a file with that shape pass the contract check while the runtime it
+    describes refused to run.
+    """
+
+    @staticmethod
+    def _report(tmp_path, payload):
+        _tree(tmp_path, settings=_dispatch("g1"))
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
+            payload, encoding="utf-8"
+        )
+        return hook_contracts.validate_all(
+            tmp_path / ".claude" / "settings.json", tmp_path
+        )
+
+    def test_an_absent_groups_field_is_reported(self, tmp_path):
+        report = self._report(tmp_path, json.dumps({"version": 1}))
+        assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
+
+    def test_a_list_valued_groups_field_is_reported(self, tmp_path):
+        report = self._report(tmp_path, json.dumps({"groups": []}))
+        assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
+
+    def test_a_null_groups_field_is_reported(self, tmp_path):
+        report = self._report(tmp_path, json.dumps({"groups": None}))
+        assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
+
+    def test_the_message_names_the_field_and_the_type_found(self, tmp_path):
+        report = self._report(tmp_path, json.dumps({"groups": []}))
+        messages = [v.message for v in report.violations]
+        assert any(
+            "'groups' property must be an object" in m and "list" in m for m in messages
+        )
+
+    def test_an_empty_groups_object_is_still_legitimate(self, tmp_path):
+        """A checkout that declares the field but groups nothing is valid."""
+        report = self._report(tmp_path, json.dumps({"groups": {}}))
+        assert not any(
+            v.category == "invalid_dispatch_groups" for v in report.violations
+        )
+
+    def test_the_runtime_it_describes_raises_on_the_same_shape(self):
+        """Tie the rule to the dispatcher, so the two cannot drift apart."""
+        source = (
+            PROJECT_ROOT / ".claude" / "hooks" / "invoke_dispatch_claude.py"
+        ).read_text(encoding="utf-8")
+        assert "field 'groups' must be an object" in source

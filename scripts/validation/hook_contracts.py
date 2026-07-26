@@ -161,7 +161,8 @@ def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
     """Read the group membership map the dispatcher fans out to.
 
     A missing file is not a violation: a checkout with no grouped hooks is
-    legitimate. Malformed JSON is, because the dispatcher would fail at runtime.
+    legitimate. A malformed one is, because the dispatcher would fail at
+    runtime, and it fails closed: every dispatched tool call is blocked.
     """
     path = base_path / DISPATCH_GROUPS_PATH
     if not path.is_file():
@@ -188,6 +189,10 @@ def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
         ]
     groups = data.get("groups")
     if not isinstance(groups, dict):
+        # invoke_dispatch_claude._load_group raises TypeError here and the
+        # dispatcher fails closed, so accepting it would let a file that blocks
+        # every tool call at runtime pass the contract check.
+        found = "missing" if "groups" not in data else type(groups).__name__
         return {}, [
             Violation(
                 hook_type="dispatcher",
@@ -195,7 +200,7 @@ def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
                 category="invalid_dispatch_groups",
                 message=(
                     f"{DISPATCH_GROUPS_PATH} 'groups' property must be an object, "
-                    f"got {type(groups).__name__ if groups is not None else 'missing'}"
+                    f"got {found}"
                 ),
             )
         ]
