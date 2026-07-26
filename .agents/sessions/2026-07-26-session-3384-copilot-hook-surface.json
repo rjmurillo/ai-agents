@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3384,
+    "date": "2026-07-26",
+    "branch": "fix/3384-copilot-hook-surface",
+    "startingCommit": "ee6b8bbf3c9be3f717153d737c94bd5893a2621e",
+    "objective": "Extend hook_contracts.py to the Copilot CLI surface, which shipped ungated."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current returned fix/3384-copilot-hook-surface, cut from origin/main."
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and .agents/governance/TESTING-RIGOR.md before adding the checks."
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git merge-base with origin/main = ee6b8bbf3c9be3f717153d737c94bd5893a2621e; head at write time = 05f7c63842e0fbb2c09c185b77c1c620d279aa2a."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md; did not edit it (ADR-014)."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Working branch is fix/3384-copilot-hook-surface, not main."
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena MCP is live in this harness; serena-write_memory and serena-list_memories both returned this session."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Called serena-initial_instructions earlier in this session and read the returned manual."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file, .agents/sessions/2026-07-26-session-3384-copilot-hook-surface.json."
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Worked directly in scripts/validation/hook_contracts.py and build/scripts/; no skill script fronts the hook contract validator."
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .serena/memories/usage-mandatory.md from disk."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Every item in this file carries evidence written for this session; none inherited from a prior log."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; git status shows no modification to it."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Wrote decision-hook-contract-surface-seam via serena-write_memory, recording why the reader is the only surface-specific part."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No markdown changed on this branch; scoped lint has nothing to run."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Four commits: generators, regenerated shims, validator plus tests, workflow filter plus manifest bump. Head is 05f7c63842e0fbb2c09c185b77c1c620d279aa2a."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "2617 tests pass across tests/hooks, tests/build_scripts and tests/validation. ruff and mypy clean on all four changed Python files. The validator now reports 12 entries on the live tree, up from 8, and finds no violations."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3384 is the tracked item; all five of its acceptance criteria are addressed, one by a different means than proposed and recorded as such."
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "The reusable finding is that a gate extended to a second surface will find real violations in that surface immediately, and the fix belongs in whatever generated the artifact rather than in the artifact."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Reproduce the issue's evidence before writing code",
+      "outcome": "Copied the tree to /tmp, added a SessionStart registration in src/copilot-cli/hooks/hooks.json pointing at a script that does not exist, and reran the validator. Output was unchanged: 'All hook contracts valid, Validated 8 hook entries'. The surface is entirely unread, not partially checked."
+    },
+    {
+      "task": "Reject the issue's proposed design on measurement",
+      "outcome": "The issue proposed threading a surface descriptor, root prefix plus dispatcher name, through four functions. The two surfaces differ in three ways, not one: Copilot entries sit directly under the event rather than in a nested list, carry the command under 'bash', spell the timeout 'timeoutSec', and fan out through a per-event _manifest.json instead of one dispatch_groups.json. A root-only descriptor yields a validator that parses zero Copilot entries and reports success."
+    },
+    {
+      "task": "Find the seam that keeps the rest of the file surface-agnostic",
+      "outcome": "Every per-entry validator already operates on HookEntry with a repo-relative script path, so none of them needed to change. The surface-specific part is only the reader. The change adds one reader, one manifest expander, and a root argument on the plugin-root substitution. validate_script_exists, validate_exit_code_docs, validate_timeout, validate_hook_type_known and validate_duplicate_entries are untouched."
+    },
+    {
+      "task": "Decide against a surface field on Violation",
+      "outcome": "Every violation already carries a repo-relative script path, and the two surfaces publish from different roots, so the path is the attribution. A surface field would have to be threaded through every validator to reach the message. A test pins the attribution so the decision is checkable."
+    },
+    {
+      "task": "Fix the two real violations the gate found the moment it could see them",
+      "outcome": "The Copilot PreToolUse dispatcher and its shim documented no exit-code contract. The generators explain the contract in their own docstrings and emit files that do not. Fixed in the generators and regenerated, not patched in the artifacts. Comments rather than docstrings, because generate_dispatcher.py strips docstrings on purpose to keep comment-only canonical edits as ownership proof."
+    },
+    {
+      "task": "Prove each part of the fix is load-bearing",
+      "outcome": "Five negative controls. Never reading the Copilot file turns 12 red. Skipping manifest expansion turns 6 red. Resolving the Copilot root to .claude turns 13 red. Making a missing manifest a quiet skip turns 1 red. Reverting the generated exit-code comment turns the shipped-tree test red."
+    },
+    {
+      "task": "Correct a test that could pass vacuously",
+      "outcome": "test_violations_name_the_surface_they_came_from asserted all() over a filtered list with no non-empty check, so it would have passed if the filter matched nothing. Added the non-empty assertion."
+    },
+    {
+      "task": "Widen the workflow path filter and bump the plugin manifests",
+      "outcome": "src/copilot-cli/hooks/** is back in the filter and the comment recording why it was excluded is gone. Both plugin.json manifests go to 0.6.123 together, as the parity gate requires."
+    }
+  ],
+  "endingCommit": "05f7c63842e0fbb2c09c185b77c1c620d279aa2a",
+  "nextSteps": [
+    "Work the causal graph cluster: #3350, #3356, #3367, #3375.",
+    "#3402, #3399, and the two unstarted arms of #3360."
+  ]
+}
