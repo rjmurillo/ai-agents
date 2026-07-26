@@ -134,7 +134,15 @@
     },
     {
       "task": "Widen the workflow path filter and bump the plugin manifests",
-      "outcome": "src/copilot-cli/hooks/** is back in the filter and the comment recording why it was excluded is gone. Both plugin.json manifests go to 0.6.123 together, as the parity gate requires."
+      "outcome": "src/copilot-cli/hooks/** is back in the filter and the comment recording why it was excluded is gone. Both plugin.json manifests go to 0.6.125 together, as the parity gate requires."
+    },
+    {
+      "task": "Answer the review on parse_copilot_hooks",
+      "outcome": "A Copilot registration file with no top-level hooks key, a non-list event value, or a non-object registration was silently skipped, so a malformed surface read exactly like an empty one. That is the #3384 failure mode restated. All three now report invalid_plugin_hooks; three negative controls bit."
+    },
+    {
+      "task": "Correct the dispatcher exit-code comments",
+      "outcome": "Gate mode returns the first denying shim's own code, not 2. The generator header, both generated Copilot dispatchers, and the Claude entrypoint docstring said only 2 blocks."
     }
   ],
   "endingCommit": "05f7c63842e0fbb2c09c185b77c1c620d279aa2a",
