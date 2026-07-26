@@ -119,14 +119,15 @@ Two skills, different jobs. `reflect` captures corrections and praise
 mid-conversation while context is hot. `retrospective` produces the full
 artifact (timeline, Five Whys, learning matrix) in `.agents/retrospective/`.
 
-The Stop hook `.claude/hooks/Stop/invoke_auto_retrospective.py` writes a
-skeleton at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->`
-(Issue #2079). Skeletons are placeholders, not records: fill them with
-`/retro fill YYYY-MM-DD`.
+Retrospectives are written on demand: `/retro` here, plus the Post-PR
+Retrospective workflow in CI. Until #3349 a Stop hook also wrote a skeleton
+at session end stamped `<!-- RETRO-STATE: skeleton-pending-fill -->` (Issue
+#2079); that hook is deleted, but skeletons it already wrote are still
+placeholders rather than records, so fill them with `/retro fill YYYY-MM-DD`.
 
-`INDEX.md` is auto-appended by that hook (Issue #1703) and is incomplete: 5
-rows against 95 retro files as of 2026-07-03. Never treat INDEX.md as the
-catalog; list the directory. Also note retro-cited short SHAs do not resolve
+`INDEX.md` was auto-appended by that hook (Issue #1703) and is incomplete: 5
+rows against 95 retro files as of 2026-07-03. Nothing appends to it now.
+Never treat INDEX.md as the catalog; list the directory. Also note retro-cited short SHAs do not resolve
 locally even with full history present (~1471 commits as of 2026-07-03), so
 retros and memories, not git archaeology, are the durable history (depth in
 `ai-agents-failure-archaeology`).

@@ -8,11 +8,15 @@ user-invocable: true
 
 # Retro Command
 
-Fill an unfilled auto-retrospective skeleton. The Stop hook
-(`.claude/hooks/Stop/invoke_auto_retrospective.py`) writes a skeleton on
-session end and stamps it with the marker `<!-- RETRO-STATE: skeleton-pending-fill -->`.
-The SessionStart context loader counts those skeletons and points you here.
-See Issue #2079.
+Fill an unfilled auto-retrospective skeleton, or write a retrospective from
+scratch. Skeletons carry the marker `<!-- RETRO-STATE: skeleton-pending-fill -->`
+and the SessionStart context loader counts them and points you here.
+
+The Stop hook that used to write those skeletons was deleted in #3349: it
+dirtied the working tree at session end and blocked the turn to demand the
+skeleton be filled. Retrospectives are now written on demand, here, and by
+the Post-PR Retrospective workflow. Existing unfilled skeletons still fill
+the same way. See Issue #2079.
 
 ## Triggers
 
