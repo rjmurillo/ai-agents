@@ -140,10 +140,21 @@
     },
     {
       "phase": "verification",
-      "summary": "The pre-push suite caught a real defect in the first draft: the repair message hard-coded .claude/skills/memory/scripts/update_causal_graph.py, a path that does not exist in the Copilot CLI mirror, which tripped the vendor-portability ratchet (issue 2050). Replaced it with _repair_invocation(), which derives the script's own location from __file__ and returns it relative to the caller's cwd when possible. Also gave git_hook_policy.py a single _CAUSAL_UPDATER constant so the subprocess invocation and the repair advice cannot drift apart. Added 4 tests and ran a sixth negative control: restoring the literal turned both the ratchet and a test red."
+      "summary": "The pre-push suite caught a real defect in the first draft: the repair message hard-coded .claude/skills/memory/scripts/update_causal_graph.py, a path that does not exist in the Copilot CLI mirror, which tripped the vendor-portability ratchet (issue 2050). Replaced it with _repair_invocation(), which derives the script's own location from __file__ and returns it relative to the caller's cwd when possible. Also gave git_hook_policy.py a single _CAUSAL_UPDATER constant so the subprocess invocation and the repair advice cannot drift apart. A later review pass found the primary invocation still carried the literal while only the prune path read the constant, so both now read it. Added 4 tests and ran a sixth negative control: restoring the literal turned both the ratchet and a test red."
+    },
+    {
+      "phase": "review",
+      "summary": "Answered eight review threads. Four were the same real defect: the printed repair command left both paths to the updater's defaults, which derive from the script's own location. In the Copilot CLI mirror that default resolves to src/.agents/memory/episodes, a directory that does not exist, so a pasted --reset-graph would have found no episodes and written an empty graph over a recoverable one. It also ignored any --graph-path the caller passed, pointing the repair at a file other than the corrupt one. Both the script and the hook wrapper now spell out --episode-path and --graph-path and shell-quote every argument, so a path with spaces survives a copy-paste. A self-review found the wrapper's primary subprocess call still carried the hard-coded literal while only the prune path read _CAUSAL_UPDATER; both read the constant now. Replaced a naive whitespace split in the tests with shlex.split, renamed a test whose name promised more than it asserted, and corrected this log's branch and starting-commit evidence, which had been copied from an unrelated session (issue 3383). 78 tests pass; three negative controls fired.",
+      "files": [
+        ".claude/skills/memory/scripts/update_causal_graph.py",
+        "src/copilot-cli/skills/memory/scripts/update_causal_graph.py",
+        "scripts/validation/git_hook_policy.py",
+        "tests/skills/memory/test_update_causal_graph.py",
+        ".agents/sessions/2026-07-26-session-3370-causal-graph-repair.json"
+      ]
     }
   ],
-  "endingCommit": "d655c5237b",
+  "endingCommit": "d29d6efa13",
   "nextSteps": [
     "Open a PR referencing issue 3370 and reply on the issue with the stale-asymmetry finding.",
     "Re-poll the three open PRs for new review threads and CI status.",
