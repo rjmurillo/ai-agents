@@ -357,19 +357,18 @@ def _module_path(rel: str) -> str:
     return rel[: -len(".py")].replace("/", ".")
 
 
-def _read_surface(path: Path) -> str:
+def _read_text(path: Path, surface: str) -> str:
     """Read one entry surface, naming the file when it cannot be read.
 
-    Both callers below scan the same SKILL.md corpus. Without the path in the
-    message an unreadable file surfaces as a bare OSError from somewhere inside
-    a reachability computation, which tells the next reader nothing about which
-    surface to go look at.
+    Without the path in the message an unreadable file surfaces as a bare
+    OSError from somewhere inside a reachability computation, which tells the
+    next reader nothing about which surface to go look at.
     """
     try:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         rel = path.relative_to(_REPO_ROOT).as_posix()
-        raise RuntimeError(f"Cannot inspect entry surface {rel}: {exc}") from exc
+        raise RuntimeError(f"Cannot inspect {surface} {rel}: {exc}") from exc
 
 
 def _text_of(patterns: tuple[str, ...]) -> str:
@@ -377,7 +376,7 @@ def _text_of(patterns: tuple[str, ...]) -> str:
     for pattern in patterns:
         for path in _REPO_ROOT.glob(pattern):
             if path.is_file():
-                chunks.append(_read_surface(path))
+                chunks.append(_read_text(path, "entry surface"))
     return "\n".join(chunks)
 
 
@@ -405,24 +404,27 @@ def _entry_points() -> frozenset[str]:
         ".claude/skills/*/SKILL.md",
         "src/copilot-cli/skills/*/SKILL.md",
     )
-    skill_text = _text_of(skill_patterns)
+    skill_documents = [
+        (skill_md, _read_text(skill_md, "skill entry surface"))
+        for pattern in skill_patterns
+        for skill_md in _REPO_ROOT.glob(pattern)
+    ]
+    skill_text = "\n".join(text for _, text in skill_documents)
     corpus = "\n".join((workflow_text, hook_text, skill_text))
     script_tokens = {token.removeprefix("./") for token in _SCRIPT_TOKEN_RE.findall(corpus)}
     module_tokens = set(_MODULE_TOKEN_RE.findall(corpus))
     named = {
         rel for rel in _source_paths() if rel in script_tokens or _module_path(rel) in module_tokens
     }
-    for pattern in skill_patterns:
-        for skill_md in _REPO_ROOT.glob(pattern):
-            text = _read_surface(skill_md)
-            skill_dir = skill_md.parent
-            local_tokens = set(_SCRIPT_TOKEN_RE.findall(text))
-            local_names = {Path(token).name for token in local_tokens}
-            for helper in skill_dir.glob("scripts/**/*.py"):
-                helper_rel = helper.relative_to(_REPO_ROOT).as_posix()
-                local_rel = helper.relative_to(skill_dir).as_posix()
-                if local_rel in local_tokens or helper.name in local_names:
-                    named.add(helper_rel)
+    for skill_md, text in skill_documents:
+        skill_dir = skill_md.parent
+        local_tokens = set(_SCRIPT_TOKEN_RE.findall(text))
+        local_names = {Path(token).name for token in local_tokens}
+        for helper in skill_dir.glob("scripts/**/*.py"):
+            helper_rel = helper.relative_to(_REPO_ROOT).as_posix()
+            local_rel = helper.relative_to(skill_dir).as_posix()
+            if local_rel in local_tokens or helper.name in local_names:
+                named.add(helper_rel)
     return frozenset(named)
 
 
@@ -726,31 +728,64 @@ class TestCommentedHookLinesDoNotSeedReachability:
 
 
 class TestUnreadableEntrySurfacesNameTheFile:
-    """An unreadable SKILL.md reports its path, not a bare decode error.
+    """An unreadable entry surface reports its path, not a bare decode error.
 
-    `_text_of` already wrapped its reads. The per-skill SKILL.md scan in
-    `_entry_points` read the same corpus with a raw `read_text`. In practice
-    `_text_of` runs first over the same glob, so an unreadable SKILL.md already
-    failed with its path named; the raw read could only lose that context in
-    the TOCTOU window between the two passes. Routing both through
-    `_read_surface` closes that window and removes the near-duplicate handler.
-    A behavioral test cannot distinguish the two orderings for exactly the
-    reason above, so these tests cover `_read_surface` directly.
+    `_text_of` wrapped its reads from the start. The per-skill SKILL.md scan in
+    `_entry_points` used a raw `read_text`, so a file with a bad encoding failed
+    there with no indication of which surface broke. Both now go through
+    `_read_text`, which also collapsed the two passes over the SKILL.md corpus
+    into one.
     """
 
-    def test_read_surface_names_the_path_on_a_decode_error(self, tmp_path) -> None:
+    def test_a_decode_error_names_the_path(self) -> None:
         bad = _REPO_ROOT / "tests" / "ci" / "__unreadable_probe__.md"
         bad.write_bytes(b"\xff\xfe\x00 not utf-8 \xc3\x28")
         try:
             with pytest.raises(RuntimeError, match=r"__unreadable_probe__\.md"):
-                _read_surface(bad)
+                _read_text(bad, "entry surface")
         finally:
             bad.unlink()
 
-    def test_read_surface_returns_text_for_a_readable_file(self, tmp_path) -> None:
+    def test_the_message_carries_the_surface_label(self) -> None:
+        """The label distinguishes a workflow surface from a skill surface."""
+        bad = _REPO_ROOT / "tests" / "ci" / "__labelled_probe__.md"
+        bad.write_bytes(b"\xff\xfe\x00 \xc3\x28")
+        try:
+            with pytest.raises(RuntimeError, match=r"skill entry surface"):
+                _read_text(bad, "skill entry surface")
+        finally:
+            bad.unlink()
+
+    def test_a_readable_file_returns_its_text(self) -> None:
         good = _REPO_ROOT / "tests" / "ci" / "__readable_probe__.md"
         good.write_text("# heading\n", encoding="utf-8")
         try:
-            assert _read_surface(good) == "# heading\n"
+            assert _read_text(good, "entry surface") == "# heading\n"
         finally:
             good.unlink()
+
+    def test_each_skill_md_is_read_once(self, monkeypatch) -> None:
+        """`_entry_points` reads the SKILL.md corpus in a single pass.
+
+        The earlier shape called `_text_of(skill_patterns)` and then re-globbed
+        the same files in the per-skill loop, reading every SKILL.md twice.
+        Counting the reads is what proves the second pass is gone.
+        """
+        counts: dict[str, int] = {}
+        real = _read_text
+
+        def counting(path: Path, surface: str) -> str:
+            if path.name == "SKILL.md":
+                counts[path.as_posix()] = counts.get(path.as_posix(), 0) + 1
+            return real(path, surface)
+
+        monkeypatch.setattr("tests.ci.test_validation_scripts_are_reachable._read_text", counting)
+        _entry_points.cache_clear()
+        try:
+            _entry_points()
+        finally:
+            _entry_points.cache_clear()
+
+        assert counts, "no SKILL.md was read; the scan patterns matched nothing"
+        repeated = {rel: n for rel, n in counts.items() if n != 1}
+        assert not repeated, f"SKILL.md files read more than once: {repeated}"

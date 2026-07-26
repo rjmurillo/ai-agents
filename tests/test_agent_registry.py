@@ -111,19 +111,18 @@ class TestParseAgentFile:
                 "name: first\nname: second\ndescription: duplicate\nmodel: sonnet",
                 "duplicate frontmatter key 'name'",
             ),
-            # A YAML complex key (sequence or mapping used as a key) makes
-            # key_node.value a list, which the duplicate-key set in
-            # _parse_frontmatter cannot hash. It never gets that far: safe_load
-            # runs first and raises ConstructorError, a YAMLError. These two
-            # cases lock that ordering. Move the safe_load call below the
-            # duplicate-key loop and they turn into an unhandled TypeError.
+            # A YAML complex key (a sequence or mapping used as a key) makes
+            # key_node.value a list, which the duplicate-key set cannot hash.
+            # _parse_frontmatter rejects non-scalar key nodes before it builds
+            # that set. Both shapes are covered: a reader who sees only the
+            # sequence case would not know the mapping case is handled too.
             (
                 "? [a, b]\n: value\nname: seqkey\n",
-                "invalid YAML frontmatter",
+                "frontmatter keys must be scalar values",
             ),
             (
                 "? {a: 1}\n: value\nname: mapkey\n",
-                "invalid YAML frontmatter",
+                "frontmatter keys must be scalar values",
             ),
         ],
         ids=["invalid-yaml", "duplicate-key", "sequence-key", "mapping-key"],

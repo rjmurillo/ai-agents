@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
-from yaml.nodes import MappingNode
+from yaml.nodes import MappingNode, ScalarNode
 
 logger = logging.getLogger(__name__)
 
@@ -68,20 +68,26 @@ def _parse_frontmatter(file_path: Path, text: str) -> dict[str, object]:
     """Parse one frontmatter mapping and reject duplicate top-level keys."""
     try:
         node = yaml.compose(text, Loader=yaml.SafeLoader)
+        if not isinstance(node, MappingNode):
+            raise MalformedAgentFileError(f"{file_path.name}: frontmatter is not a YAML mapping")
+
+        keys: set[tuple[str, str]] = set()
+        for key_node, _ in node.value:
+            if not isinstance(key_node, ScalarNode):
+                raise MalformedAgentFileError(
+                    f"{file_path.name}: frontmatter keys must be scalar values"
+                )
+            key = (key_node.tag, key_node.value)
+            if key in keys:
+                raise MalformedAgentFileError(
+                    f"{file_path.name}: duplicate frontmatter key '{key_node.value}'"
+                )
+            keys.add(key)
         parsed = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise MalformedAgentFileError(f"{file_path.name}: invalid YAML frontmatter: {exc}") from exc
-    if not isinstance(node, MappingNode) or not isinstance(parsed, dict):
+    if not isinstance(parsed, dict):
         raise MalformedAgentFileError(f"{file_path.name}: frontmatter is not a YAML mapping")
-
-    keys: set[tuple[str, str]] = set()
-    for key_node, _ in node.value:
-        key = (key_node.tag, key_node.value)
-        if key in keys:
-            raise MalformedAgentFileError(
-                f"{file_path.name}: duplicate frontmatter key '{key_node.value}'"
-            )
-        keys.add(key)
     return parsed
 
 
