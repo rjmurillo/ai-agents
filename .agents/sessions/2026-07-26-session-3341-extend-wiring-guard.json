@@ -123,6 +123,21 @@
       "time": "2026-07-26T04:30:00Z",
       "action": "Filed #3360 for the three validators that fail against the current tree",
       "result": "Allowlisted with the issue reference rather than wired, because wiring them requires first fixing what they report."
+    },
+    {
+      "time": "2026-07-26T14:20:00Z",
+      "action": "Hardened reachability against prose and basename false edges",
+      "result": "The graph resolves exact imports and execution-call script paths, follows ordinary modules transitively, reads UTF-8 strictly, and ignores comments, docstrings, help text, manifests, and ambiguous basename collisions."
+    },
+    {
+      "time": "2026-07-26T14:45:00Z",
+      "action": "Wired the two passing validators exposed by the stricter graph",
+      "result": "validate_templates_schema.py now runs in validate-generated-agents.yml. check_skill_portability.py now runs in validate-vendor-portability.yml with a tightened 166-reference baseline. Pytest runs when any caller surface changes."
+    },
+    {
+      "time": "2026-07-26T15:05:00Z",
+      "action": "Made agent_registry.py fail on malformed definitions",
+      "result": "Missing or blank names, invalid YAML, duplicate keys, invalid UTF-8, non-string required fields, and an empty registry now produce deterministic validation errors."
     }
   ],
   "learnings": {

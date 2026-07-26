@@ -15599,6 +15599,33 @@
         "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
       ],
       "created": "2026-07-26T08:43:49.213416+00:00"
+    },
+    {
+      "id": "86c3fe9b0a90",
+      "type": "milestone",
+      "label": "milestone: Hardened reachability against prose and basename false edges",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304279+00:00"
+    },
+    {
+      "id": "e4158e5dbf0e",
+      "type": "milestone",
+      "label": "milestone: Wired the two passing validators exposed by the stricter graph",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304345+00:00"
+    },
+    {
+      "id": "07005017ae17",
+      "type": "milestone",
+      "label": "milestone: Made agent_registry.py fail on malformed definitions",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304400+00:00"
     }
   ],
   "patterns": [

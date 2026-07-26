@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Measured the issue's headline claim before writing anything",
       "caused_by": [
-        "e008"
+        "e011"
       ],
       "leads_to": [
         "e002"
@@ -86,10 +86,46 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hardened reachability against prose and basename false edges",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wired the two passing validators exposed by the stricter graph",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made agent_registry.py fail on malformed definitions",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 0fc3df9a7f460a3390722c8238b9028d9c5c7030",
