@@ -14737,22 +14737,31 @@
       "created": "2026-07-26T01:11:32.565886+00:00"
     },
     {
-      "id": "594ed9921409",
+      "id": "d73e9bf018a5",
       "type": "milestone",
-      "label": "milestone: Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired.",
+      "label": "milestone: Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
       "episodes": [
         "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T01:31:52.189486+00:00"
+      "created": "2026-07-26T02:05:18.496316+00:00"
     },
     {
-      "id": "0b90b99668bf",
-      "type": "commit",
-      "label": "commit: Commit: 0d3d41d58c6a8968fcc90108cfd6b408c07a7775",
+      "id": "2334291fd648",
+      "type": "milestone",
+      "label": "milestone: Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
       "episodes": [
         "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
-      "created": "2026-07-26T01:31:52.189550+00:00"
+      "created": "2026-07-26T02:05:18.496383+00:00"
+    },
+    {
+      "id": "e560e4474465",
+      "type": "commit",
+      "label": "commit: Commit: 9ba22151f30121b311e1fc8cb3fdedd8c401856d",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T02:05:18.496436+00:00"
     }
   ],
   "patterns": [

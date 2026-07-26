@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
       "caused_by": [
-        "e007"
+        "e010"
       ],
       "leads_to": [
         "e002"
@@ -72,7 +72,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -81,6 +83,40 @@
       "content": "Commit: d96e557bdea82d455e0b7f9102abf59d82d5ec31",
       "caused_by": [
         "e005"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9ba22151f30121b311e1fc8cb3fdedd8c401856d",
+      "caused_by": [
+        "e007"
       ],
       "leads_to": [
         "e001"
@@ -92,7 +128,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 4
   },
   "lessons": []

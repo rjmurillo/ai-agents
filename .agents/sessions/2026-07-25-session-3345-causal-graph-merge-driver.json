@@ -138,9 +138,17 @@
         "scripts/validation/merge_causal_graph.py",
         "tests/validation/test_merge_causal_graph.py"
       ]
+    },
+    {
+      "action": "Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
+      "outcome": "50 tests pass; two negative controls fired; probe: uv-routed driver with uv off PATH produced CONFLICT, interpreter-routed driver merged 3 nodes cleanly",
+      "files": [
+        "scripts/maintenance/install_merge_drivers.py",
+        "tests/validation/test_merge_causal_graph.py"
+      ]
     }
   ],
-  "endingCommit": "0ab20c06c900d3e1eb177bfebb31bfd5b1a543d4",
+  "endingCommit": "9ba22151f30121b311e1fc8cb3fdedd8c401856d",
   "nextSteps": [
     "File the causal-graph drift finding: 41 of 242 episodes have no node in the committed graph and no hook path backfills them.",
     "File that the generator drops the version and updated keys when it writes a graph from scratch.",
