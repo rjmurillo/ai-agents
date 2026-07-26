@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Three commits: ccc84280fe, bec3366729, d655c5237b"
+        "Evidence": "Six commits on the branch, tips 630d38325c and de1edd59c0; three interleaved autofix commits from the review bot were rebased under them"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "94 passed in tests/hooks/test_hook_contracts.py; five negative controls each turned the matching tests red before restore; ruff check, ruff format and mypy clean; actionlint clean on the workflow"
+        "Evidence": "98 passed in tests/hooks/test_hook_contracts.py after merging the bot autofix commits; five negative controls each turned the matching tests red before restore; ruff check, ruff format and mypy clean; actionlint clean on the workflow"
       },
       "tasksUpdated": {
         "level": "SHOULD",
