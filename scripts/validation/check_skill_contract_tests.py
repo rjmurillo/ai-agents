@@ -142,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         skill_name = skill_file.parent.name
         if skill_name in baseline:
             continue
-        if skill_name in corpus:
+        if re.search(r"\b" + re.escape(skill_name) + r"\b", corpus):
             continue
         unbound.append(Unbound(skill=skill_name, path=skill_file, exit_codes=codes))
 
