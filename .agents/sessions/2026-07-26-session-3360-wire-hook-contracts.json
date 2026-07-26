@@ -141,7 +141,7 @@
     },
     {
       "phase": "implementation",
-      "summary": "Review found the exit-code contract still had a hole: main() caught JSONDecodeError, TypeError, and AttributeError, but not OSError or UnicodeDecodeError, so an unreadable settings file or one holding invalid UTF-8 escaped as a traceback instead of the ADR-035 configuration code. Those are the two failure modes most likely on a real machine. Widened the tuple and made the message name the path actually read, since --settings can point at a file that is not settings.json. Added 4 tests; narrowing the tuple again turns 2 of them red. Bumped both manifests to 0.6.118 because the rebase pulled a change to .claude/hooks/invoke_dispatch_claude.py into the diff."
+      "summary": "Review found the exit-code contract still had a hole: main() caught JSONDecodeError, TypeError, and AttributeError, but not OSError or UnicodeDecodeError, so an unreadable settings file or one holding invalid UTF-8 escaped as a traceback instead of the ADR-035 configuration code. Those are the two failure modes most likely on a real machine. Widened the tuple and made the message name the path actually read, since --settings can point at a file that is not settings.json. Added 4 tests; narrowing the tuple again turns 2 of them red. Bumped both manifests because the rebase pulled a change to .claude/hooks/invoke_dispatch_claude.py into the diff. The number moved with every later rebase (0.6.118, then 0.6.119, then 0.6.120) because the gate compares against the merge base and main advanced under this branch; the shipped value is 0.6.120."
     },
     {
       "phase": "review",
