@@ -119,16 +119,20 @@ def _records(graph: dict[str, Any], collection: str) -> list[dict[str, Any]]:
 def _key(record: dict[str, Any], fields: tuple[str, ...]) -> tuple[str, ...]:
     """Identify a record for matching across the three sides.
 
-    A record that carries none of its identity fields has no identity, and
-    keying it on the absent fields would collapse every such record onto one
-    empty key and keep exactly one. Measured on the committed graph: 6 of 10
-    patterns carry no ``id``, so union merging dropped 5 of them. Those records
-    fall back to their content, which matches an untouched record across sides
-    and, at worst, carries an edited one through twice. A duplicate is
-    recoverable; a dropped record is not.
+    A record missing any identity field has no usable identity, and keying it on
+    the absent ones collapses every such record onto the same key, keeping
+    exactly one. Measured on the committed graph: 6 of 10 patterns carry no
+    ``id``, so union merging dropped 5 of them. Partial identities collapse the
+    same way and were the second half of the bug: three malformed edges carrying
+    only ``source`` all key to ``("a", "")``, so two are dropped.
+
+    Requiring every field, rather than any, is what makes the fallback fire in
+    both cases. Those records fall back to their content, which matches an
+    untouched record across sides and, at worst, carries an edited one through
+    twice. A duplicate is recoverable; a dropped record is not.
     """
-    if any(field in record for field in fields):
-        return tuple(str(record.get(field, "")) for field in fields)
+    if all(field in record for field in fields):
+        return tuple(str(record[field]) for field in fields)
     return ("", json.dumps(record, sort_keys=True, default=str))
 
 
@@ -349,7 +353,12 @@ def main(argv: list[str] | None = None) -> int:
             f"ERROR: causal graph merge driver could not write {args.ours}: {exc}",
             file=sys.stderr,
         )
-        return 1
+        # ADR-035: filesystem failure is external (3), not a logic error (1).
+        # Git reads any nonzero the same way, as "leave the conflict in place",
+        # so this only distinguishes the two when a human runs the driver by
+        # hand to resolve a conflict, which is exactly when it is worth knowing
+        # whether the input was malformed or the disk refused the write.
+        return 3
     return 0
 
 

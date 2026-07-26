@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from scripts.maintenance import install_merge_drivers
 from scripts.validation import merge_causal_graph
 from scripts.validation.merge_causal_graph import (
     GraphMergeError,
@@ -105,6 +106,33 @@ class TestRecordsWithoutIdentityFieldsAreNotCollapsed:
 
         assert len(merged["edges"]) == 1
         assert merged["edges"][0]["evidence_count"] == 6
+
+    def test_malformed_edges_sharing_one_identity_field_all_survive(self) -> None:
+        """PR #3348 review: a partial identity keyed on a half-empty tuple.
+
+        Three edges carrying only ``source`` all keyed to ``("a", "")`` under
+        the old any-field rule, so the union kept one and dropped two. That is
+        the same collapse the id-less patterns hit, in the one shape the driver
+        promises to tolerate: malformed records must not cost good ones.
+        """
+        malformed = [
+            {"source": "a", "evidence_count": 1},
+            {"source": "a", "evidence_count": 2},
+            {"source": "a", "evidence_count": 3},
+        ]
+
+        merged = merge_graphs(_graph(), _graph(edges=malformed), _graph())
+
+        assert sorted(e["evidence_count"] for e in merged["edges"]) == [1, 2, 3]
+
+    def test_a_partial_identity_does_not_match_a_complete_one(self) -> None:
+        """An edge missing ``target`` is a different record, not the same one."""
+        complete = {"source": "a", "target": "b", "evidence_count": 1}
+        partial = {"source": "a", "evidence_count": 9}
+
+        merged = merge_graphs(_graph(), _graph(edges=[complete]), _graph(edges=[partial]))
+
+        assert len(merged["edges"]) == 2
 
     def test_patterns_key_on_name_and_merge_counters(self) -> None:
         """Patterns are keyed by name, not id, aligning with the generator."""
@@ -349,6 +377,33 @@ class TestDriverExitContract:
         theirs = self._write(tmp_path, "theirs.json", _graph())
         assert main([str(tmp_path / "absent.json"), str(ours), str(theirs)]) == 1
 
+    def test_an_unwritable_destination_exits_three(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PR #3348 review: ADR-035 separates logic (1) from external (3).
+
+        Git reads every nonzero the same way, so this distinction only pays off
+        when a human runs the driver by hand to resolve a conflict, which is
+        exactly when "your JSON is malformed" and "the disk refused the write"
+        need to be told apart. Fails the write itself rather than staging an
+        unwritable path: ``ours`` is also an input, so a directory or a stripped
+        mode bit fails during load and never reaches the branch under test, and
+        root and Windows both ignore mode bits anyway.
+        """
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph())
+        theirs = self._write(tmp_path, "theirs.json", _graph())
+        original = Path.write_text
+
+        def refuse(self: Path, *args: Any, **kwargs: Any) -> int:
+            if self == ours:
+                raise OSError(28, "No space left on device")
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", refuse)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+
 
 class TestGitActuallyUsesTheDriver:
     """An end-to-end merge, because the unit tests cannot prove git invokes it."""
@@ -418,6 +473,40 @@ class TestGitActuallyUsesTheDriver:
             _DRIVER_COMMAND,
         )
         result = self._git(repo, "merge", "feature")
+        assert result.returncode == 0, result.stdout + result.stderr
+        graph = json.loads(
+            (repo / ".agents/memory/causality/causal-graph.json").read_text(encoding="utf-8")
+        )
+        assert {n["id"] for n in graph["nodes"]} == {"shared", "feature", "trunk"}
+
+    def test_the_command_git_is_actually_given_resolves_from_a_subdirectory(
+        self, repo: Path
+    ) -> None:
+        """PR #3348 review: every other e2e test registered an absolute path.
+
+        The command the installer really writes carries a repo-relative script
+        path, so those tests passed while proving nothing about the assumption
+        the relative form rests on: that git runs a merge driver from the top of
+        the working tree even when the merge was invoked from a subdirectory.
+        A fresh clone would have been the first place that assumption was tried.
+
+        Registers the exact strings from ``_DRIVERS`` and merges from
+        ``.agents/memory/causality`` so a regression to a cwd-relative lookup
+        shows up here instead of on somebody's machine.
+        """
+        driver = install_merge_drivers._DRIVERS["causal-graph"]
+        assert "scripts/validation/merge_causal_graph.py" in driver["driver"]
+        assert str(_ROOT) not in driver["driver"].split('" ', 1)[-1], (
+            "the script path must stay repo-relative for a fresh clone to work"
+        )
+
+        self._diverge(repo)
+        for setting, value in driver.items():
+            self._git(repo, "config", f"merge.causal-graph.{setting}", value)
+
+        subdirectory = repo / ".agents" / "memory" / "causality"
+        result = self._git(subdirectory, "merge", "feature")
+
         assert result.returncode == 0, result.stdout + result.stderr
         graph = json.loads(
             (repo / ".agents/memory/causality/causal-graph.json").read_text(encoding="utf-8")
@@ -563,6 +652,27 @@ class TestRegistrationIsWiredAndIdempotent:
         monkeypatch.setattr(sys, "executable", "")
 
         assert install_merge_drivers._interpreter() == "python3"
+
+    def test_a_rejected_config_write_exits_two(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """PR #3348 review: ADR-035 makes 2 the configuration-failure code.
+
+        A rejected `git config` write is a configuration failure, not a logic
+        error. This runs from a lefthook hook, where the exit code is the only
+        signal a maintainer gets about which half broke.
+        """
+        from scripts.maintenance import install_merge_drivers
+
+        def reject(args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[:2] == ["config", "--local"] and "--get" not in args:
+                return subprocess.CompletedProcess(args, 1, "", "permission denied")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        monkeypatch.setattr(install_merge_drivers, "_git", reject)
+
+        assert install_merge_drivers.install() == 2
+        assert "could not set" in capsys.readouterr().err
 
     def test_installing_twice_writes_once(self, capsys: pytest.CaptureFixture[str]) -> None:
         from scripts.maintenance import install_merge_drivers

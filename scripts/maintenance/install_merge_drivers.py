@@ -98,7 +98,9 @@ def install() -> int:
                     f"ERROR: could not set {key}: {result.stderr.strip()}",
                     file=sys.stderr,
                 )
-                return 1
+                # ADR-035: a failed `git config` write is a configuration
+                # failure (2), not a logic error (1).
+                return 2
             print(f"Registered merge driver setting {key}")
     return 0
 
