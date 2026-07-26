@@ -4,7 +4,18 @@
   "timestamp": "2026-07-26T00:00:00+00:00",
   "outcome": "success",
   "task": "Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "recovery",
+      "context": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "chosen": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -110,7 +121,9 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e013"
+      ]
     },
     {
       "id": "e010",
@@ -145,6 +158,28 @@
       "leads_to": [
         "e005"
       ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The bot's test landed only in .claude/skills/memory/tests and the src/copilot-cli mirror. pyproject sets testpaths = ['tests'], so CI collects neither: the guard shipped untested. Ported it to tests/skills/memory/test_update_causal_graph.py, the one copy a default run reaches, widened to six payloads including a populated array. The two skill-bundle suites also cannot run in one pytest invocation because both conftest.py files register as module 'memory.conftest'. Negative control with the raise removed: 6 red. Restored: 54 pass.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

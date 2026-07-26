@@ -124,6 +124,14 @@
     {
       "time": "2026-07-26T16:00:00Z",
       "action": "Measured node id integrity while writing the guard and found 13 of 1731 nodes whose id generate_node_id does not reproduce from their stored type and label, plus 5 pairs of nodes holding identical content under different ids. Content addressing is the deduplication mechanism, so those 5 are split evidence today. Not truncation and not a prefix change; filed #3367 rather than widening this PR."
+    },
+    {
+      "time": "2026-07-26T20:45:00Z",
+      "action": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it."
+    },
+    {
+      "time": "2026-07-26T20:50:00Z",
+      "action": "The bot's test landed only in .claude/skills/memory/tests and the src/copilot-cli mirror. pyproject sets testpaths = ['tests'], so CI collects neither: the guard shipped untested. Ported it to tests/skills/memory/test_update_causal_graph.py, the one copy a default run reaches, widened to six payloads including a populated array. The two skill-bundle suites also cannot run in one pytest invocation because both conftest.py files register as module 'memory.conftest'. Negative control with the raise removed: 6 red. Restored: 54 pass."
     }
   ],
   "learnings": {

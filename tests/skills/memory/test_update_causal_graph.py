@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -599,6 +601,28 @@ class TestGraphMetadataSurvivesAFreshWrite:
 
         assert graph["version"] == update_causal_graph.GRAPH_VERSION
         assert graph["updated"]
+
+    @pytest.mark.parametrize(
+        "content",
+        ["[]", '[{"id": "abc"}]', '"text"', "42", "null", "true"],
+        ids=["array", "populated_array", "string", "number", "null", "boolean"],
+    )
+    def test_well_formed_json_that_is_not_an_object_raises(self, tmp_path, content):
+        """Parsing cleanly is not the same as being a graph.
+
+        Every one of these used to survive the loader and crash later at the
+        first ``graph["nodes"]`` with a TypeError naming a list or a NoneType
+        and nothing about the graph. Raising here is deliberate rather than
+        falling back to an empty graph: git_hook_policy.update_causal_graph
+        snapshots the file, and only a non-zero exit makes it restore that
+        snapshot. Returning an empty graph would let the hook stage the empty
+        one over whatever the file held.
+        """
+        graph_file = tmp_path / "graph.json"
+        graph_file.write_text(content, encoding="utf-8")
+
+        with pytest.raises(ValueError, match="not an object"):
+            update_causal_graph.load_causal_graph(graph_file)
 
     def test_a_fresh_write_lands_version_and_updated_on_disk(self, tmp_path):
         path = tmp_path / "g.json"

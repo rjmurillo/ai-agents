@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T06:44:58.633218+00:00",
+  "updated": "2026-07-26T07:37:03.671789+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15680,6 +15680,69 @@
         "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
       ],
       "created": "2026-07-26T06:44:58.629762+00:00"
+    },
+    {
+      "id": "ff78e9fe6fbe",
+      "type": "decision",
+      "label": "recovery: Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.667105+00:00"
+    },
+    {
+      "id": "10d04bea30d2",
+      "type": "milestone",
+      "label": "milestone: Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.667814+00:00"
+    },
+    {
+      "id": "c1b8c38add85",
+      "type": "milestone",
+      "label": "milestone: The bot's test landed only in .claude/skills/memory/tests and the src/copilot-cli mirror. pyproject sets testpaths = ['tests'], so CI collects neither: the guard shipped untested. Ported it to tests/skills/memory/test_update_causal_graph.py, the one copy a default run reaches, widened to six payloads including a populated array. The two skill-bundle suites also cannot run in one pytest invocation because both conftest.py files register as module 'memory.conftest'. Negative control with the raise removed: 6 red. Restored: 54 pass.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.667871+00:00"
+    },
+    {
+      "id": "84e377e80d0f",
+      "type": "decision",
+      "label": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.668110+00:00"
+    },
+    {
+      "id": "dffbb539a3bc",
+      "type": "milestone",
+      "label": "Review round 3. Corrected the backfill script's provenance note: it said the retired seed rows carried id fields the generator never writes, which this PR made false, since add_pattern now writes and backfills pattern ids. The properties that still separate a seeded row from a derived one are the last_used field, which the generator writes nowhere, and the sequential id shape against a 12-character sha256 prefix.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.668165+00:00"
+    },
+    {
+      "id": "53283f8b601c",
+      "type": "milestone",
+      "label": "Dropped the per-PR review metrics entry the autofix bot added. It is unrelated to the generator fixes, and it was also wrong: it recorded seven comments all resolved while the review was still running, and four more threads landed afterwards. Reverted the file to main rather than correcting a number that will move again.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.668285+00:00"
+    },
+    {
+      "id": "ff30ceee6974",
+      "type": "milestone",
+      "label": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:37:03.668400+00:00"
     }
   ],
   "patterns": [
@@ -15734,8 +15797,31 @@
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "action": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
       "success_rate": 1.0,
-      "occurrences": 17,
-      "created": "2026-07-04T06:31:50.952133+00:00"
+      "occurrences": 18,
+      "created": "2026-07-04T06:31:50.952133+00:00",
+      "contributions": {
+        "\u0000legacy:0": 1.0,
+        "\u0000legacy:1": 1.0,
+        "\u0000legacy:2": 1.0,
+        "\u0000legacy:3": 1.0,
+        "\u0000legacy:4": 1.0,
+        "\u0000legacy:5": 1.0,
+        "\u0000legacy:6": 1.0,
+        "\u0000legacy:7": 1.0,
+        "\u0000legacy:8": 1.0,
+        "\u0000legacy:9": 1.0,
+        "\u0000legacy:10": 1.0,
+        "\u0000legacy:11": 1.0,
+        "\u0000legacy:12": 1.0,
+        "\u0000legacy:13": 1.0,
+        "\u0000legacy:14": 1.0,
+        "\u0000legacy:15": 1.0,
+        "\u0000legacy:16": 1.0,
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 1.0
+      },
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ]
     },
     {
       "id": "e86a9c97156b",
@@ -16184,6 +16270,48 @@
         "episode-2026-07-15-session-3042"
       ],
       "created": "2026-07-15T19:13:40.609373+00:00"
+    },
+    {
+      "source": "84e377e80d0f",
+      "target": "dffbb539a3bc",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "contributions": {
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
+      },
+      "created": "2026-07-26T07:37:03.668174+00:00"
+    },
+    {
+      "source": "84e377e80d0f",
+      "target": "53283f8b601c",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "contributions": {
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
+      },
+      "created": "2026-07-26T07:37:03.668290+00:00"
+    },
+    {
+      "source": "84e377e80d0f",
+      "target": "ff30ceee6974",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "contributions": {
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
+      },
+      "created": "2026-07-26T07:37:03.668405+00:00"
     }
   ]
 }
