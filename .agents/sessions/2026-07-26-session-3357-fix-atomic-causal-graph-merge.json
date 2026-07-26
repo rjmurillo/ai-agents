@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3357,
+    "date": "2026-07-26",
+    "branch": "fix/3357-atomic-causal-graph-write",
+    "startingCommit": "aaaf9081f5",
+    "objective": "Fix atomic causal graph merge writes for issue 3357"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; initial_instructions returned successfully"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read after session initialization"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; confirmed read-only status"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "session-init and github skill script catalogs loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded PR branch-state and delegated-work scope audit memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3357-atomic-causal-graph-write"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3357-atomic-causal-graph-write"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branch creation and commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "aaaf9081f5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated branch-state memory and added atomic replacement memory"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 checked 5 retrospective and memory files with 0 issues"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic-write fixes committed as 4033554b78 and c195050067"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "68 focused tests pass; Ruff, format check, and mypy pass"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3357 created and claimed"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-26-auto-retro.md filled"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "issue",
+      "summary": "Created and claimed issue #3357 after confirming no existing PR."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Added sibling temporary writes, destination mode preservation, atomic replacement, and primary-plus-secondary error reporting."
+    },
+    {
+      "phase": "validation",
+      "summary": "68 targeted tests pass; Ruff, formatting, and mypy pass for both changed files."
+    },
+    {
+      "phase": "retrospective",
+      "summary": "Filled the 2026-07-26 auto-retrospective and persisted three reusable memories."
+    },
+    {
+      "phase": "review",
+      "summary": "Fixed PR #3359 review finding by closing the raw mkstemp descriptor when os.fdopen fails."
+    }
+  ],
+  "endingCommit": "c195050067",
+  "nextSteps": [
+    "Push fix/3357-atomic-causal-graph-write and open a PR that fixes #3357.",
+    "Merge only after required CI and review-thread gates pass."
+  ]
+}
