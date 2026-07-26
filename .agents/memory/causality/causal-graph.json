@@ -14762,6 +14762,609 @@
         "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
       "created": "2026-07-26T02:05:18.496436+00:00"
+    },
+    {
+      "id": "041a4ffad23c",
+      "type": "milestone",
+      "label": "milestone: Confirmed the claim empirically. The module never referenced the schema file and never imported jsonschema; it hand-rolled presence checks and type-checked nothing. Measured the blast radius of turning the schema on: 131 of the 923 logs in .agents/sessions/ fail Draft202012Validator against the committed schema.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T16:35:34.198408+00:00"
+    },
+    {
+      "id": "92dee6c98a34",
+      "type": "milestone",
+      "label": "milestone: Issue #3346 named two calls the fix had to make. First, jsonschema was a transitive-only package; declared it a direct dependency in pyproject.toml and relocked, since a blocking commit hook should not import a package nothing declares. Second, took the exemption path the issue offered over backfilling 131 historical logs: both call sites hand the validator one changed path at a time, so enforcement binds new and edited logs by construction. Rewriting settled history to satisfy a new gate would fabricate the record.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T16:35:34.198471+00:00"
+    },
+    {
+      "id": "b162eb419d34",
+      "type": "milestone",
+      "label": "milestone: Added validate_against_schema, which reports every violation rather than the first so one commit round fixes a log instead of one field per round, and names the field path in each message. A schema file that cannot be read is an error, not a silent pass: a gate that cannot load its contract has checked nothing. Removed the hand-rolled 'Missing: session' and 'Missing: protocolCompliance' errors, which now restated what the schema already reports; the surviving branches exist only to hand the protocol checks a mapping to walk. Rewrote the docstring to describe the two layers and their scope.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T16:35:34.198525+00:00"
+    },
+    {
+      "id": "07c0a3da1ee4",
+      "type": "milestone",
+      "label": "milestone: Added tests covering the acceptance criteria: non-integer, null, and below-minimum session.number; malformed date; wrong type for a declared object; all violations reported, not just the first; the field path named. Added regression tests that the protocol checks still fire and both checklist casings still pass, and a guard class that fails if either call site starts walking the whole sessions directory, which is what makes the historical exemption structural rather than a flag someone can forget.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T16:35:34.198577+00:00"
+    },
+    {
+      "id": "ffa125625af2",
+      "type": "milestone",
+      "label": "milestone: Two negative controls fired. Removing the validate_against_schema call turned 10 tests red; making validate_branch_sessions glob the sessions directory turned the exemption guard red. Full run: 799 tests pass across tests/test_validate_session_json.py and tests/validation/. ruff check, ruff format, and mypy are clean on both changed files, with no new type: ignore.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T16:35:34.198629+00:00"
+    },
+    {
+      "id": "3733c2f0ea18",
+      "type": "milestone",
+      "label": "milestone: A test asserted the schema accepted 'Level' as a checklist key. It does not: the checklistItem anyOf varies the casing of Complete and Evidence but declares level lowercase in both branches, and all 16675 checklist items in .agents/sessions/ agree. Fixed the test literal rather than loosening the schema, and recorded the asymmetry in the test docstring.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T16:35:34.198686+00:00"
+    },
+    {
+      "id": "509016ec6a5c",
+      "type": "outcome",
+      "label": "Outcome: success - Make scripts/validate_session_json.py do what its docstring claims: load .agents/schemas/session-log.schema.json and enforce it, keeping the protocol-compliance checks a JSON Schema cannot express (issue #3346).",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T16:35:34.198738+00:00"
+    },
+    {
+      "id": "c7ff064d232b",
+      "type": "milestone",
+      "label": "milestone: The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it: load_session_file returns data or an error, never both and never neither, so branching on `data is None` narrows exactly where branching on `error` left the payload optional. Added CLI-level tests for the four exit paths; the negative control shows the unguarded form crashes with exit 2 on a load failure instead of exiting 1 cleanly. The file now carries zero suppressions.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T16:38:40.739246+00:00"
+    },
+    {
+      "id": "4025f77a075a",
+      "type": "commit",
+      "label": "commit: Commit: a59eb0886e",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-25T17:09:46.731047+00:00"
+    },
+    {
+      "id": "e3af47193f44",
+      "type": "milestone",
+      "label": "milestone: Ran check_pr_live_state.py gate for PR #3347; Data.action=ACT (not SKIP), proceeded.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376582+00:00"
+    },
+    {
+      "id": "1415236c895d",
+      "type": "milestone",
+      "label": "milestone: Verified head SHA d5937f2a6c matched the live snapshot; the shared primary checkout was mutated by concurrent work mid-session, so created an isolated git worktree at /home/richard/src/GitHub/rjmurillo/ai-agents-pr3347 for this task.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376656+00:00"
+    },
+    {
+      "id": "31628f402344",
+      "type": "milestone",
+      "label": "milestone: Fetched PR metadata and all 13 review threads via get_pr_review_threads.py: 10 resolved, 3 unresolved (all authored by copilot-pull-request-reviewer, all on scripts/validate_session_json.py).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376711+00:00"
+    },
+    {
+      "id": "16eb8d62fbc6",
+      "type": "milestone",
+      "label": "milestone: Triaged the 3 unresolved threads: (1) REQUIRED_SESSION_FIELDS duplicate/over-rejection finding was already fixed by the branch's last commit (d5937f2a6c) before this session started, verified by diffing validate_session_section across commits; (2) 'nothing was checked' schema-load-failure message is misleading because validate_session_log still runs protocol checks afterward, a real wording bug; (3) validate_against_schema does not catch jsonschema.exceptions.SchemaError and sorts by raw list(e.absolute_path), which raises TypeError when errors' paths share a prefix but diverge between str and int elements, a real crash-class bug reproduced locally before fixing.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376765+00:00"
+    },
+    {
+      "id": "61388cdcae06",
+      "type": "milestone",
+      "label": "milestone: Implemented fixes in scripts/validate_session_json.py: reworded the schema-load-failure message to 'schema layer skipped' (scoped, not absolute); wrapped validator construction and iter_errors in try/except SchemaError with a readable message; changed the sort key to tuple(str(part) for part in e.absolute_path).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376818+00:00"
+    },
+    {
+      "id": "ee682301091e",
+      "type": "milestone",
+      "label": "milestone: Added 3 regression tests in tests/test_validate_session_json.py: message no longer claims total silence while protocol checks still surface errors; SchemaError from a monkeypatched validator_for is caught and reported, not raised; a fake validator returning ValidationErrors with mixed int/str path elements at the same depth sorts without raising TypeError.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376870+00:00"
+    },
+    {
+      "id": "1198288f3882",
+      "type": "milestone",
+      "label": "milestone: Ran ruff check --fix (import sort only), manually wrapped two long lines to satisfy E501, re-ran ruff (clean) and mypy (clean).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376925+00:00"
+    },
+    {
+      "id": "a1cf9448f4bc",
+      "type": "milestone",
+      "label": "milestone: Ran full tests/test_validate_session_json.py (132 passed) and the broader session-related suite (tests/ -k session: 678 passed, 1 skipped, 6 xfailed).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.376977+00:00"
+    },
+    {
+      "id": "7ea51b38e4ff",
+      "type": "test",
+      "label": "test: Ran full tests/test_validate_session_json.py (132 passed) and the broader session-related suite (tests/ -k session: 678 passed, 1 skipped, 6 xfailed).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377029+00:00"
+    },
+    {
+      "id": "57b946db47b4",
+      "type": "milestone",
+      "label": "milestone: Re-verified local HEAD matched origin/fix/3346-session-schema-enforcement (no concurrent push) before committing and again before pushing.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377081+00:00"
+    },
+    {
+      "id": "36d384887afd",
+      "type": "milestone",
+      "label": "milestone: Committed 'fix(validation): stop overclaiming schema silence and crashing on bad schemas' as ebb6cf9365, with Refs #3346 and the branch's established Co-Authored-By: Copilot / Copilot-Session trailers (session ID from COPILOT_AGENT_SESSION_ID).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377134+00:00"
+    },
+    {
+      "id": "92fee529a60a",
+      "type": "milestone",
+      "label": "milestone: Pushed as a fast-forward (no force).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377186+00:00"
+    },
+    {
+      "id": "5223b0f5e8a0",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved all 3 unresolved threads via add_pr_review_thread_reply.py --resolve, each citing commit ebb6cf9365 and the specific fix (or, for the already-fixed finding, the prior commit).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377239+00:00"
+    },
+    {
+      "id": "93d5297d6007",
+      "type": "milestone",
+      "label": "milestone: Confirmed 0 unresolved threads via get_pr_review_threads.py.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377291+00:00"
+    },
+    {
+      "id": "9cd472f64896",
+      "type": "milestone",
+      "label": "milestone: Waited for and confirmed all CI checks green via get_pr_checks.py --wait (83 passed, 0 failed, including all required checks: Validate PR, Run Python Tests, CodeQL, Security/Analyst/Architect/QA Review, etc.).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377343+00:00"
+    },
+    {
+      "id": "d7ddc364e140",
+      "type": "test",
+      "label": "test: Waited for and confirmed all CI checks green via get_pr_checks.py --wait (83 passed, 0 failed, including all required checks: Validate PR, Run Python Tests, CodeQL, Security/Analyst/Architect/QA Review, etc.).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377398+00:00"
+    },
+    {
+      "id": "06ae6ae9f099",
+      "type": "milestone",
+      "label": "milestone: Checked live merge state: mergeStateStatus=BLOCKED, mergeable=MERGEABLE, reviewDecision=null, blocked by required review approval (branch protection), not by threads or CI; did not request or perform approval, and did not merge or enable auto-merge, per instructions.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377450+00:00"
+    },
+    {
+      "id": "0d5dc2d05da6",
+      "type": "milestone",
+      "label": "milestone: Ran scripts/validation/pre_pr.py --quick: all validations passed (advisory-only warnings for unrelated bundle coverage and review-marker notes).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377502+00:00"
+    },
+    {
+      "id": "e573accbc729",
+      "type": "milestone",
+      "label": "milestone: Updated .serena/memories/pr-review/pr-comment-responder-skills with cumulative reviewer stats and a new PR #3347 breakdown.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377554+00:00"
+    },
+    {
+      "id": "6f992d4ad6e6",
+      "type": "commit",
+      "label": "commit: Commit: ebb6cf9365decd450d7b26c6aedd49ef3264b326",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377607+00:00"
+    },
+    {
+      "id": "ade96f71098e",
+      "type": "commit",
+      "label": "commit: Commit: ebb6cf9365",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377667+00:00"
+    },
+    {
+      "id": "89ab2791bee4",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve remaining PR #3347 review threads: fix misleading schema-load-failure message, catch SchemaError, and fix TypeError-prone sort key in validate_against_schema.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T01:19:15.377721+00:00"
+    },
+    {
+      "id": "f66bd99939b6",
+      "type": "milestone",
+      "label": "milestone: The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it, and added CLI-level tests for the four exit paths. The narrowing this first pass used was itself wrong and the review round replaced it; see the review entry below. The file carries zero suppressions.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-26T01:54:26.373027+00:00"
+    },
+    {
+      "id": "f5569078b2a7",
+      "type": "milestone",
+      "label": "milestone: Addressed five defects the PR #3347 review found. The validator was pinned to draft 2020-12 while the committed schema declares draft-07, so it now comes from validator_for. A top-level array reached data.get and exited 2 with an internal error, so the schema now reports the type and the protocol checks are skipped without a mapping. main branches on error rather than on the payload, because a file holding JSON null parses to None with no error and must reach the schema instead of printing ERROR: None. validate_protocol_compliance stopped restating sessionStart and sessionEnd as missing, which protocolCompliance.required already covers. The exemption test grepped a function's source for the word glob, which any docstring would break, and now drives validate_branch_sessions with a mocked runner. Four negative controls fired; a fifth draft of the draft-07 test passed under both validators and was rewritten to discriminate.",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-26T01:54:26.373090+00:00"
+    },
+    {
+      "id": "0e8992522c02",
+      "type": "milestone",
+      "label": "milestone: Replaced the SchemaError handler with check_schema, restored the raw error sort key, deleted the dead REQUIRED_SESSION_FIELDS constant, and replaced two mocked tests with real malformed-schema tests",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-26T01:54:26.373144+00:00"
+    },
+    {
+      "id": "917d1f329a0d",
+      "type": "commit",
+      "label": "commit: Commit: 22917af15aaaafe7fb52b5d6eef7b55ee05ad9e0",
+      "episodes": [
+        "episode-2026-07-25-session-3346-session-schema-enforcement"
+      ],
+      "created": "2026-07-26T01:54:26.373196+00:00"
+    },
+    {
+      "id": "7ae7fddba628",
+      "type": "milestone",
+      "label": "milestone: After pushing ebb6cf9365 and a28649c5e1, re-queried review threads and found a 4th unresolved thread (PRRT_kwDOQoWRls6TzlCz, copilot-pull-request-reviewer): validate_against_schema() built its validator without a format_checker, so the schema's format: \"date-time\" on developmentPhase.history[].timestamp was never enforced (jsonschema treats format as annotation-only by default). Confirmed real: the base jsonschema.FormatChecker lacks a date-time checker without the rfc3339-validator package, which is not a project dependency.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.669899+00:00"
+    },
+    {
+      "id": "b55b14f12fbd",
+      "type": "milestone",
+      "label": "milestone: Registered a stdlib-only date-time format checker using datetime.fromisoformat (Python >=3.14 required by this project) instead of adding a new dependency, and passed it to the validator via validator_for(schema)(schema, format_checker=_FORMAT_CHECKER). Verified via a scripted scan of .agents/sessions/*.json that no committed session log uses developmentPhase.history, so enforcing the format introduces zero regressions on historical logs. Added test_malformed_history_timestamp_is_rejected and test_valid_history_timestamp_passes to tests/test_validate_session_json.py.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.669965+00:00"
+    },
+    {
+      "id": "d8d689c23a88",
+      "type": "milestone",
+      "label": "milestone: uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 680 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670019+00:00"
+    },
+    {
+      "id": "2fd5a6ede1bd",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 680 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670071+00:00"
+    },
+    {
+      "id": "eceed6453786",
+      "type": "milestone",
+      "label": "milestone: Re-verified local HEAD matched origin (a28649c5e1) before committing; staged scripts/validate_session_json.py and tests/test_validate_session_json.py; committed as fix(validation): enforce date-time format on schema-declared timestamps with Refs #3346 and Copilot trailers -> 15d6ae2bc44968de01efaa0a0493ad8a89e3d222. Re-verified no concurrent push, then pushed (pre-push hook: 13798 tests passed).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670124+00:00"
+    },
+    {
+      "id": "edb9463ba12d",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved PRRT_kwDOQoWRls6TzlCz citing the fixing commit. Made a transcription error in the first reply (fabricated a full SHA instead of using the real one from git rev-parse); caught it immediately and posted a correction comment with the verified SHA before proceeding. Thread remained resolved throughout.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670180+00:00"
+    },
+    {
+      "id": "d81e1ecc7860",
+      "type": "milestone",
+      "label": "milestone: Re-checked threads after the push and found a 5th unresolved thread (PRRT_kwDOQoWRls6TzpOY, copilot-pull-request-reviewer) on tests/test_validate_session_json.py: the TestMainNarrowsOnThePayload class docstring claimed main() branches on data is None, not on error, which is backwards from the actual implementation (main() branches on error is not None, letting a JSON null root reach schema validation). Confirmed by reading main().",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670235+00:00"
+    },
+    {
+      "id": "b11750a5afc0",
+      "type": "milestone",
+      "label": "milestone: Fixed the docstring to state the correct condition (error is not None, not data is None). Single-line, single-file documentation fix; no behavior change.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670287+00:00"
+    },
+    {
+      "id": "96a1cb6b7432",
+      "type": "milestone",
+      "label": "milestone: uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check clean.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670340+00:00"
+    },
+    {
+      "id": "f100face4f6e",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check clean.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670394+00:00"
+    },
+    {
+      "id": "1867cd0aa0e0",
+      "type": "milestone",
+      "label": "milestone: Re-verified HEAD matched origin (15d6ae2bc4) before committing; committed as docs(tests): fix stale branching claim in TestMainNarrowsOnThePayload with Refs #3346 and Copilot trailers -> 31e3058e907671d75306e9d2efbd891fb450328c. Re-verified no concurrent push, then pushed.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670447+00:00"
+    },
+    {
+      "id": "9049150e1961",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved PRRT_kwDOQoWRls6TzpOY citing the verified commit SHA (read from a file written by git rev-parse, not retyped by hand, after the earlier transcription error).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670500+00:00"
+    },
+    {
+      "id": "4de73ac95e78",
+      "type": "milestone",
+      "label": "milestone: Re-checked threads after the push and found a 6th unresolved thread (PRRT_kwDOQoWRls6Tzr_g, copilot-pull-request-reviewer) on the new _check_date_time function: datetime.fromisoformat accepts a timestamp with no UTC offset, but RFC 3339 section 5.6 (what format: \"date-time\" means) requires one. Confirmed the project's requires-python (>=3.14) already made the Z-suffix concern moot, but the offset-optional acceptance was a real gap.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670553+00:00"
+    },
+    {
+      "id": "3a97e4781378",
+      "type": "milestone",
+      "label": "milestone: Tightened _check_date_time to reject a parse that comes back timezone-naive (parsed.tzinfo is not None). Added test_offset_naive_history_timestamp_is_rejected; the existing valid-timestamp test already used a Z-suffixed value so it needed no change.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670605+00:00"
+    },
+    {
+      "id": "b34cb2e2322c",
+      "type": "milestone",
+      "label": "milestone: uv run pytest tests/test_validate_session_json.py: 135 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 681 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670664+00:00"
+    },
+    {
+      "id": "e74e44cbc830",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_validate_session_json.py: 135 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 681 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670717+00:00"
+    },
+    {
+      "id": "83bf002761e6",
+      "type": "milestone",
+      "label": "milestone: Re-verified HEAD matched origin (31e3058e90) before committing; committed as fix(validation): reject offset-naive timestamps in date-time format check with Refs #3346 and Copilot trailers -> ecebb1d5acb2d25a0b44fa1e2048837d0e1092c8. Re-verified no concurrent push, then pushed (pre-push hook: full suite green).",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670770+00:00"
+    },
+    {
+      "id": "9fe29284a88d",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved PRRT_kwDOQoWRls6Tzr_g citing the verified commit SHA.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670823+00:00"
+    },
+    {
+      "id": "ba281ee16410",
+      "type": "milestone",
+      "label": "milestone: Waited and re-queried unresolved threads twice more after the final push: 0 unresolved both times. Ran get_pr_checks.py --wait: OverallState SUCCESS, 85 passed, 0 failed, 0 pending, AllPassing true. Ran check_pr_live_state.py: action=ACT, state=OPEN, not merged/closed/superseded. Final gh pr view: headRefOid=ecebb1d5ac (matches final push), mergeStateStatus=BLOCKED, mergeable=MERGEABLE, reviewDecision empty -- same pre-existing branch-protection gap (missing approving review), unchanged from before this session's work and explicitly out of scope.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670876+00:00"
+    },
+    {
+      "id": "fc92e2427ec0",
+      "type": "test",
+      "label": "test: Waited and re-queried unresolved threads twice more after the final push: 0 unresolved both times. Ran get_pr_checks.py --wait: OverallState SUCCESS, 85 passed, 0 failed, 0 pending, AllPassing true. Ran check_pr_live_state.py: action=ACT, state=OPEN, not merged/closed/superseded. Final gh pr view: headRefOid=ecebb1d5ac (matches final push), mergeStateStatus=BLOCKED, mergeable=MERGEABLE, reviewDecision empty -- same pre-existing branch-protection gap (missing approving review), unchanged from before this session's work and explicitly out of scope.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670930+00:00"
+    },
+    {
+      "id": "4520bf0d4652",
+      "type": "milestone",
+      "label": "milestone: Before committing this update, git fetch on fix/3346-session-schema-enforcement found the remote had moved to 109453ecab (2 commits ahead of my last push ecebb1d5ac), pushed by a second, concurrent agent session (Copilot-Session 0cd84ba3, the branch's original session ID) working the same PR in parallel. That session's commit 22917af15a substantively revised the same function I had touched: (1) replaced the SchemaError-around-iter_errors handler with validator_cls.check_schema(schema) up front, because most malformed schemas raise UnknownType or AttributeError rather than SchemaError, so my handler alone still let the gate crash on two of three malformed-schema shapes; (2) reverted the error sort key from a stringified path back to the raw list(e.absolute_path), arguing the mixed str/int comparison my fix guarded against is unreachable (paths only compare past a shared prefix, whose child keys are then uniformly str or uniformly int), and that stringifying broke numeric ordering for indices >= 10; (3) deleted REQUIRED_SESSION_FIELDS as dead code; (4) replaced two monkeypatched-validator tests with tests driven by real malformed schemas. My format_checker/date-time work (4th and 6th threads) was left as written and cited as already covering 925 committed logs with zero rejections. Verified compatibility: git merge --ff-only origin/fix/3346-session-schema-enforcement fast-forwarded cleanly (no conflicts, since it only builds on top of my last commit); re-ran the full test file (138 passed, up from 135: the other session's tests plus mine both present), ruff, mypy, and the broader session-tagged suite (684 passed) -- all green with both sessions' changes combined. Did not re-litigate the sort-key disagreement: the other session's reasoning is sound (a shared path prefix cannot mix child key types) and its replacement tests exercise real schemas instead of a synthetic monkeypatch, which is the stronger test design; deferred to it rather than reverting or force-pushing over it.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.670985+00:00"
+    },
+    {
+      "id": "d3ca621882da",
+      "type": "test",
+      "label": "test: Before committing this update, git fetch on fix/3346-session-schema-enforcement found the remote had moved to 109453ecab (2 commits ahead of my last push ecebb1d5ac), pushed by a second, concurrent agent session (Copilot-Session 0cd84ba3, the branch's original session ID) working the same PR in parallel. That session's commit 22917af15a substantively revised the same function I had touched: (1) replaced the SchemaError-around-iter_errors handler with validator_cls.check_schema(schema) up front, because most malformed schemas raise UnknownType or AttributeError rather than SchemaError, so my handler alone still let the gate crash on two of three malformed-schema shapes; (2) reverted the error sort key from a stringified path back to the raw list(e.absolute_path), arguing the mixed str/int comparison my fix guarded against is unreachable (paths only compare past a shared prefix, whose child keys are then uniformly str or uniformly int), and that stringifying broke numeric ordering for indices >= 10; (3) deleted REQUIRED_SESSION_FIELDS as dead code; (4) replaced two monkeypatched-validator tests with tests driven by real malformed schemas. My format_checker/date-time work (4th and 6th threads) was left as written and cited as already covering 925 committed logs with zero rejections. Verified compatibility: git merge --ff-only origin/fix/3346-session-schema-enforcement fast-forwarded cleanly (no conflicts, since it only builds on top of my last commit); re-ran the full test file (138 passed, up from 135: the other session's tests plus mine both present), ruff, mypy, and the broader session-tagged suite (684 passed) -- all green with both sessions' changes combined. Did not re-litigate the sort-key disagreement: the other session's reasoning is sound (a shared path prefix cannot mix child key types) and its replacement tests exercise real schemas instead of a synthetic monkeypatch, which is the stronger test design; deferred to it rather than reverting or force-pushing over it.",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671040+00:00"
+    },
+    {
+      "id": "afe6157d5137",
+      "type": "commit",
+      "label": "commit: Commit: ecebb1d5acb2d25a0b44fa1e2048837d0e1092c8",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671093+00:00"
+    },
+    {
+      "id": "59f363564842",
+      "type": "commit",
+      "label": "commit: Commit: a28649c5e1",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671146+00:00"
+    },
+    {
+      "id": "025189f8e883",
+      "type": "commit",
+      "label": "commit: Commit: 15d6ae2bc44968de01efaa0a0493ad8a89e3d222",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671198+00:00"
+    },
+    {
+      "id": "bb469684a17d",
+      "type": "commit",
+      "label": "commit: Commit: 15d6ae2bc4",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671251+00:00"
+    },
+    {
+      "id": "29f077a01ff4",
+      "type": "commit",
+      "label": "commit: Commit: 31e3058e907671d75306e9d2efbd891fb450328c",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671304+00:00"
+    },
+    {
+      "id": "d1496db4378d",
+      "type": "commit",
+      "label": "commit: Commit: 31e3058e90",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671357+00:00"
+    },
+    {
+      "id": "0399c91df71a",
+      "type": "commit",
+      "label": "commit: Commit: ecebb1d5ac",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671410+00:00"
+    },
+    {
+      "id": "fff99be86650",
+      "type": "commit",
+      "label": "commit: Commit: 109453ecab",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671462+00:00"
+    },
+    {
+      "id": "7b96664cf176",
+      "type": "commit",
+      "label": "commit: Commit: 0cd84ba3",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671516+00:00"
+    },
+    {
+      "id": "645d437d7b8e",
+      "type": "commit",
+      "label": "commit: Commit: 22917af15a",
+      "episodes": [
+        "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
+      ],
+      "created": "2026-07-26T02:02:26.671569+00:00"
     }
   ],
   "patterns": [

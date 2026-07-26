@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3346,
+    "date": "2026-07-25",
+    "branch": "fix/3346-session-schema-enforcement",
+    "startingCommit": "c798e0df7df28ae194ea966f7f1801b3a5c219a1",
+    "objective": "Make scripts/validate_session_json.py do what its docstring claims: load .agents/schemas/session-log.schema.json and enforce it, keeping the protocol-compliance checks a JSON Schema cannot express (issue #3346)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live on this Copilot CLI harness; serena-initial_instructions returned the manual and serena-write_memory recorded the finding."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions read; Serena symbolic tools used for lookup in this repo."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3346-session-schema-enforcement, cut from origin/main at c798e0df7d."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits land on fix/3346-session-schema-enforcement; main was only read."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-parity bump rule and the branch-protection ruleset entry."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching; pre-existing untracked retrospectives and worktrees left alone."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py now loads and enforces the committed schema; the docstring describes the two layers and the changed-files scope that exempts historical logs."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified on this branch."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recorded the checklistItem casing asymmetry: the anyOf varies Complete/Evidence casing but level is lowercase in both branches."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed on this branch; scoped lint had nothing to run."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Dependency declaration, validator, and tests committed on fix/3346-session-schema-enforcement."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "115 tests green in tests/test_validate_session_json.py and 799 across it plus tests/validation/. Three negative controls fired: removing the validate_against_schema call turned 10 tests red, making validate_branch_sessions glob the sessions directory turned the exemption guard red, and disabling the load-failure branch turned the CLI narrowing tests red. ruff check, ruff format --check, and mypy clean with zero suppressions."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3346 addressed end to end: every acceptance criterion has a test, and the 'passes or is explicitly exempted' criterion is met by the changed-files scope both call sites already enforce, now pinned by a guard test."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "investigation",
+      "summary": "Confirmed the claim empirically. The module never referenced the schema file and never imported jsonschema; it hand-rolled presence checks and type-checked nothing. Measured the blast radius of turning the schema on: 131 of the 923 logs in .agents/sessions/ fail Draft202012Validator against the committed schema."
+    },
+    {
+      "phase": "decision",
+      "summary": "Issue #3346 named two calls the fix had to make. First, jsonschema was a transitive-only package; declared it a direct dependency in pyproject.toml and relocked, since a blocking commit hook should not import a package nothing declares. Second, took the exemption path the issue offered over backfilling 131 historical logs: both call sites hand the validator one changed path at a time, so enforcement binds new and edited logs by construction. Rewriting settled history to satisfy a new gate would fabricate the record."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Added validate_against_schema, which reports every violation rather than the first so one commit round fixes a log instead of one field per round, and names the field path in each message. A schema file that cannot be read is an error, not a silent pass: a gate that cannot load its contract has checked nothing. Removed the hand-rolled 'Missing: session' and 'Missing: protocolCompliance' errors, which now restated what the schema already reports; the surviving branches exist only to hand the protocol checks a mapping to walk. Rewrote the docstring to describe the two layers and their scope."
+    },
+    {
+      "phase": "testing",
+      "summary": "Added tests covering the acceptance criteria: non-integer, null, and below-minimum session.number; malformed date; wrong type for a declared object; all violations reported, not just the first; the field path named. Added regression tests that the protocol checks still fire and both checklist casings still pass, and a guard class that fails if either call site starts walking the whole sessions directory, which is what makes the historical exemption structural rather than a flag someone can forget."
+    },
+    {
+      "phase": "verification",
+      "summary": "Two negative controls fired. Removing the validate_against_schema call turned 10 tests red; making validate_branch_sessions glob the sessions directory turned the exemption guard red. Full run: 799 tests pass across tests/test_validate_session_json.py and tests/validation/. ruff check, ruff format, and mypy are clean on both changed files, with no new type: ignore."
+    },
+    {
+      "phase": "correction",
+      "summary": "A test asserted the schema accepted 'Level' as a checklist key. It does not: the checklistItem anyOf varies the casing of Complete and Evidence but declares level lowercase in both branches, and all 16675 checklist items in .agents/sessions/ agree. Fixed the test literal rather than loosening the schema, and recorded the asymmetry in the test docstring."
+    },
+    {
+      "phase": "correction",
+      "summary": "The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it, and added CLI-level tests for the four exit paths. The narrowing this first pass used was itself wrong and the review round replaced it; see the review entry below. The file carries zero suppressions."
+    },
+    {
+      "phase": "review",
+      "summary": "Addressed five defects the PR #3347 review found. The validator was pinned to draft 2020-12 while the committed schema declares draft-07, so it now comes from validator_for. A top-level array reached data.get and exited 2 with an internal error, so the schema now reports the type and the protocol checks are skipped without a mapping. main branches on error rather than on the payload, because a file holding JSON null parses to None with no error and must reach the schema instead of printing ERROR: None. validate_protocol_compliance stopped restating sessionStart and sessionEnd as missing, which protocolCompliance.required already covers. The exemption test grepped a function's source for the word glob, which any docstring would break, and now drives validate_branch_sessions with a mocked runner. Four negative controls fired; a fifth draft of the draft-07 test passed under both validators and was rewritten to discriminate.",
+      "files": [
+        "scripts/validate_session_json.py",
+        "tests/test_validate_session_json.py"
+      ]
+    },
+    {
+      "action": "Replaced the SchemaError handler with check_schema, restored the raw error sort key, deleted the dead REQUIRED_SESSION_FIELDS constant, and replaced two mocked tests with real malformed-schema tests",
+      "outcome": "138 tests pass; two negative controls fired (3 red on the handler, 1 red on the stringified key); ruff, ruff format, and mypy clean",
+      "files": [
+        "scripts/validate_session_json.py",
+        "tests/test_validate_session_json.py"
+      ]
+    }
+  ],
+  "endingCommit": "22917af15aaaafe7fb52b5d6eef7b55ee05ad9e0",
+  "nextSteps": [
+    "PR #3347 review round 1 addressed: draft-07 validator, non-object payloads, JSON null, duplicate section messages, brittle exemption test.",
+    "Open the PR for issue #3346 and drive its review threads to zero.",
+    "Continue the open-issue sweep: #3345 causal-graph conflicts, #3342 SKILL.md size, #3341 CI wiring guard scope."
+  ]
+}

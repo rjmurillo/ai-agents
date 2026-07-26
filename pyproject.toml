@@ -8,6 +8,7 @@ license = {text = "MIT"}
 
 dependencies = [
     "anthropic==0.120.0",
+    "jsonschema>=4.25.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
     "PyYAML==6.0.3",
