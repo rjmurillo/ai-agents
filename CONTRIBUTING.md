@@ -570,8 +570,6 @@ and push enforcement runs through Lefthook, `pre_pr.py`, and CI under ADR-084.
 | SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
 | PostToolUse | `invoke_observation_sync.py` | Syncs Serena observations to Forgetful | none (fail-open) |
 | PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
-| Stop | `invoke_auto_retrospective.py` | Auto-generates session retrospective on stop | `SKIP_AUTO_RETRO=true` |
-| PermissionRequest | `invoke_test_auto_approval.py` | Auto-approves recognized test commands | none |
 
 **Diagnosability:** Hook errors print to stderr (visible in the harness output)
 tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. The

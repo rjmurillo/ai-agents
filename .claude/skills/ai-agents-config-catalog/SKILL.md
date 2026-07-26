@@ -118,7 +118,7 @@ parity between them:
 
 | Surface | Consumer | Shape re-verified 2026-07-22 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct in this repository | 4 events, 5 groups |
+| `.claude/settings.json` | Claude Code direct in this repository | 3 events, 4 groups |
 | `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 2 events, 2 groups |
 
 The Copilot generator reads `.claude/hooks/hooks.json`, not local settings. A
