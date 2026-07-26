@@ -62,6 +62,50 @@ _DRIVER_SCRIPT = (
 _DRIVER_COMMAND = f'"{_PYTHON_POSIX}" "{_DRIVER_SCRIPT}" "%O" "%A" "%B"'
 
 
+class TestRecordsWithoutIdentityFieldsAreNotCollapsed:
+    """Six of the ten patterns in the committed graph carry no ``id``.
+
+    Keying those on the absent field gave every one of them the same empty key,
+    so a union merge kept one and silently dropped five. Caught on real data
+    while merging this branch, not in a fixture.
+    """
+
+    @staticmethod
+    def _pattern(name: str) -> dict[str, object]:
+        return {"name": name, "description": f"Pattern from {name}", "occurrences": 1}
+
+    def test_distinct_id_less_records_all_survive(self) -> None:
+        shared = self._pattern("shared")
+        base = _graph(patterns=[shared])
+        ours = _graph(patterns=[shared, self._pattern("ours-a"), self._pattern("ours-b")])
+        theirs = _graph(patterns=[shared, self._pattern("theirs-a")])
+
+        merged = merge_graphs(base, ours, theirs)
+
+        names = sorted(p["name"] for p in merged["patterns"])
+        assert names == ["ours-a", "ours-b", "shared", "theirs-a"]
+
+    def test_an_identical_id_less_record_is_not_duplicated(self) -> None:
+        """Content keying still matches an untouched record across both sides."""
+        shared = self._pattern("shared")
+        merged = merge_graphs(
+            _graph(patterns=[shared]), _graph(patterns=[shared]), _graph(patterns=[shared])
+        )
+
+        assert len(merged["patterns"]) == 1
+
+    def test_a_partially_keyed_record_still_uses_its_identity_fields(self) -> None:
+        """An edge missing only ``type`` keeps matching on source and target."""
+        base = _graph(edges=[{"source": "a", "target": "b", "evidence_count": 1}])
+        ours = _graph(edges=[{"source": "a", "target": "b", "evidence_count": 3}])
+        theirs = _graph(edges=[{"source": "a", "target": "b", "evidence_count": 4}])
+
+        merged = merge_graphs(base, ours, theirs)
+
+        assert len(merged["edges"]) == 1
+        assert merged["edges"][0]["evidence_count"] == 6
+
+
 class TestUnionSemantics:
     """Both sides survive. Taking one side is what caused the drift."""
 
