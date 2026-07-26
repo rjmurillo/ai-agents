@@ -127,11 +127,12 @@
       ]
     },
     {
-      "action": "Corrected the two committed logs that violated the invariant, using neighbouring session numbers to decide which side was wrong.",
-      "result": "Both took a session.number correction (9, 1711). Another candidate uses the legacy snake_case shape with no session object and is skipped by design.",
+      "action": "Corrected the three committed logs that violated the invariant, using neighbouring session numbers to decide which side was wrong.",
+      "result": "Two took a session.number correction (9, 1711). A third, 2026-02-11-session-1-pr-review-1146-security-fixes.json, carries a truncated filename number and could not be corrected: renaming or editing it makes the session-protocol workflow validate it against today's required-items set, which it fails. It is exempted by name through _UNFIXABLE_LEGACY_LOGS in the test suite, and the underlying obstacle is filed as issue 3385. A fourth candidate uses the legacy snake_case shape with no session object and is skipped by design.",
       "files": [
         ".agents/sessions/2026-01-18-session-09-add-memory-naming-convention-section.json",
-        ".agents/sessions/2026-04-20-session-1711-pr-description-backticks.json"
+        ".agents/sessions/2026-04-20-session-1711-pr-description-backticks.json",
+        "tests/test_validate_session_json.py"
       ]
     },
     {
@@ -154,9 +155,17 @@
     {
       "phase": "implementation",
       "summary": "Review caught the corpus guard silently skipping any log that failed to decode as UTF-8 or parse as JSON. The validator treats an unreadable log as a failure, so the skip meant a corrupt log could land while this test stayed green on the strength of its 900-sibling count. It now records the read failure as a violation naming the path, and the violation assertion runs before the count assertion so the specific message surfaces first."
+    },
+    {
+      "phase": "review",
+      "summary": "Answered four review threads. Two were accurate audit-trail findings: this log described a rename to session-1198 that never shipped and listed a retrospective file the branch does not touch. Both corrected to describe the exemption that actually shipped. The other two asked for the type annotations the rest of the file carries; the four new tests now take tmp_path: Path and return None. 175 tests pass.",
+      "files": [
+        "tests/test_validate_session_json.py",
+        ".agents/sessions/2026-07-26-session-3355-validate-session-number.json"
+      ]
     }
   ],
-  "endingCommit": "c62d8f33f1",
+  "endingCommit": "f6df9d1217",
   "nextSteps": [
     "Comment on issue 3355 explaining why guard 1 (branch to number) was rejected, with the branch-vs-number measurement.",
     "Remaining unwired validators from issue 3360: traceability.py and consistency.py.",
