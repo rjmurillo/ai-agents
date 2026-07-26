@@ -15,6 +15,10 @@ pre-commit:
       timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
+    - name: install-merge-drivers
+      timeout: 1m
+      run: uv run --frozen python scripts/maintenance/install_merge_drivers.py
+
     - name: branch-policy
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch

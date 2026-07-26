@@ -1,0 +1,135 @@
+{
+  "id": "episode-2026-07-25-session-3345-causal-graph-merge-driver",
+  "session": "2026-07-25-session-3345-causal-graph-merge-driver",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Stop .agents/memory/causality/causal-graph.json conflicting on every merge (issue #3345) without the data loss the issue's own workaround causes. Resolve by content union through a git merge driver instead of by line.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added a content-union merge driver for the causal graph and registered it. Records key on stable identities, counters reconcile three-way against the ancestor instead of summing, episode lists union, created takes the earliest and last_used the latest. A side that will not parse exits nonzero so git leaves the conflict for a human rather than silently taking one side. Registration runs from pre-commit because merge=<name> in .gitattributes is a no-op without per-clone git config.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "32 tests covering union semantics, counter reconciliation, field policies, malformed-record tolerance, load-time refusal, the driver exit contract, and two end-to-end git merges in a scratch repo. The end-to-end set includes a control that omits git config and asserts the merge still conflicts, proving the .gitattributes entry alone does nothing. Three negative controls fired: taking ours instead of the union turned 7 tests red, summing counters instead of three-way reconciliation turned 3 red, and swallowing parse errors turned 4 red.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 03044f4b1cd402c0088c6d429b1515d3d5421952",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed the second PR #3348 review round. One finding remained from the first pass, and one new finding arrived: merge_graphs still drops a top-level key that survives only in the ancestor when both sides have stopped emitting it, which is accepted as intentional (an agreed deletion should stay deleted; the only known case where an omission is a defect rather than a deletion is `version`, already fixed via issue #3351's prefer-present rule) and closed with a rebuttal rather than a further code change. The genuinely new finding was real: _COLLECTIONS was ordered nodes, edges, patterns, so a no-op merge reordered the top-level JSON relative to the generator's nodes, patterns, edges schema and produced a noisy diff. Reordered _COLLECTIONS to match; one negative control (reverting the order) turned the new ordering test red.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d96e557bdea82d455e0b7f9102abf59d82d5ec31",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9ba22151f30121b311e1fc8cb3fdedd8c401856d",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 4
+  },
+  "lessons": []
+}
