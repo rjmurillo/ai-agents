@@ -1,0 +1,147 @@
+{
+  "id": "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation",
+  "session": "2026-07-26-session-3400-autofix-3400-review-threads-validation",
+  "timestamp": "2026-07-26T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Autofix PR 3400 review threads, validation failures, and merge readiness",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3402 for the verified worktree identity and stale helper resolution defects.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed all six review findings in canonical rule sources and committed memory.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped paired project-toolkit manifests to 0.6.123 and regenerated both Copilot mirror trees.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the PR description with issue linkage.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed a review-discovered subdirectory false positive in the worktree identity gate.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and preserved plugin version 0.6.123 above base version 0.6.122.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e402789739",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6951ee0e99",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6ad12caea1",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a2f1e5bb37",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f98784e747",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 2
+  },
+  "lessons": []
+}

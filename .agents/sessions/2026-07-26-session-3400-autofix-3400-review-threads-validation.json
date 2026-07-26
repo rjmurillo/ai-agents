@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3400,
+    "date": "2026-07-26",
+    "branch": "docs/agent-rules-worktree-and-skill-contracts",
+    "startingCommit": "79668268c5",
+    "objective": "Autofix PR 3400 review threads, validation failures, and merge readiness"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project activated for /home/richard/src/GitHub/rjmurillo/ai-agents4"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded before PR autofix work"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as the read-only project dashboard"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub PR script inventory listed 60 canonical and generated Python paths"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena usage-mandatory memory loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and .agents/SESSION-PROTOCOL.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded memory-index, skills-pr-review-index, and validation/validation-pr-gates"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/agent-rules-worktree-and-skill-contracts"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/agent-rules-worktree-and-skill-contracts"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short and git log --oneline -5 recorded before commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "79668268c5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-end fields contain concrete evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit a2f1e5bb37 updated worktree identity memory and its index"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint and staged markdown hooks reported zero issues"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 6951ee0e99, 6ad12caea1, a2f1e5bb37, f98784e747, and e402789739"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "43 rule generator tests passed; build drift, plugin, description, and all 34 pre-PR gates passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Filed issue #3402 and linked PR #3400 with Fixes #3402"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-26-auto-retro.md was completed earlier in this session"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Traceability",
+      "summary": "Filed issue #3402 for the verified worktree identity and stale helper resolution defects.",
+      "evidence": "Issue creation script returned https://github.com/rjmurillo/ai-agents/issues/3402."
+    },
+    {
+      "phase": "Review feedback",
+      "summary": "Fixed all six review findings in canonical rule sources and committed memory.",
+      "evidence": "Removed prohibited dashes, converted paths frontmatter to YAML lists, corrected the Bash fence, and removed the machine-specific helper reference."
+    },
+    {
+      "phase": "Generation",
+      "summary": "Bumped paired project-toolkit manifests to 0.6.123 and regenerated both Copilot mirror trees.",
+      "evidence": "Rule drift, manifest parity, manifest schema, and plugin version gates passed."
+    },
+    {
+      "phase": "Description",
+      "summary": "Rewrote the PR description with issue linkage.",
+      "evidence": "PR description validation reported zero file mismatches and Fixes #3402 links the issue."
+    },
+    {
+      "phase": "Independent review",
+      "summary": "Fixed a review-discovered subdirectory false positive in the worktree identity gate.",
+      "evidence": "The gate passed from the repository root, src, and src/copilot-cli while retaining linked-worktree handling."
+    },
+    {
+      "phase": "Base update",
+      "summary": "Merged current main and preserved plugin version 0.6.123 above base version 0.6.122.",
+      "evidence": "Merge commit e402789739 resolved both manifest conflicts and final plugin validation passed."
+    }
+  ],
+  "endingCommit": "e402789739",
+  "nextSteps": [
+    "Push the branch, resolve all six review threads, and merge after required checks pass."
+  ]
+}

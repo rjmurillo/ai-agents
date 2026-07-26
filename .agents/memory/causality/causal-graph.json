@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T15:54:29.827462+00:00",
+  "updated": "2026-07-26T21:05:31.714203+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -16634,6 +16634,114 @@
         "episode-2026-07-26-session-3388"
       ],
       "created": "2026-07-26T15:54:29.823811+00:00"
+    },
+    {
+      "id": "788e771f29b6",
+      "type": "milestone",
+      "label": "milestone: Filed issue #3402 for the verified worktree identity and stale helper resolution defects.",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.709801+00:00"
+    },
+    {
+      "id": "bc888fd9c85f",
+      "type": "milestone",
+      "label": "milestone: Fixed all six review findings in canonical rule sources and committed memory.",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.709871+00:00"
+    },
+    {
+      "id": "b784f5f254a8",
+      "type": "milestone",
+      "label": "milestone: Bumped paired project-toolkit manifests to 0.6.123 and regenerated both Copilot mirror trees.",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.709932+00:00"
+    },
+    {
+      "id": "f57ad6f9fb28",
+      "type": "milestone",
+      "label": "milestone: Rewrote the PR description with issue linkage.",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.709992+00:00"
+    },
+    {
+      "id": "ffc2972dcf12",
+      "type": "milestone",
+      "label": "milestone: Fixed a review-discovered subdirectory false positive in the worktree identity gate.",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.710051+00:00"
+    },
+    {
+      "id": "636152cd6dc9",
+      "type": "milestone",
+      "label": "milestone: Merged current main and preserved plugin version 0.6.123 above base version 0.6.122.",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.710110+00:00"
+    },
+    {
+      "id": "9fee1f83150f",
+      "type": "commit",
+      "label": "commit: Commit: e402789739",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.710169+00:00"
+    },
+    {
+      "id": "a7f1649794e6",
+      "type": "commit",
+      "label": "commit: Commit: 6951ee0e99",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.710228+00:00"
+    },
+    {
+      "id": "fb5c1aeaa303",
+      "type": "commit",
+      "label": "commit: Commit: 6ad12caea1",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.710287+00:00"
+    },
+    {
+      "id": "3e0798be54fb",
+      "type": "commit",
+      "label": "commit: Commit: a2f1e5bb37",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.710346+00:00"
+    },
+    {
+      "id": "a5d9dbdfe9af",
+      "type": "commit",
+      "label": "commit: Commit: f98784e747",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.710405+00:00"
+    },
+    {
+      "id": "58f5ceb86ea4",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix PR 3400 review threads, validation failures, and merge readiness",
+      "episodes": [
+        "episode-2026-07-26-session-3400-autofix-3400-review-threads-validation"
+      ],
+      "created": "2026-07-26T21:05:31.710467+00:00"
     }
   ],
   "patterns": [
