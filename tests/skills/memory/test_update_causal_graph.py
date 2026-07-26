@@ -682,12 +682,18 @@ class TestTheCommittedGraphCarriesNoTestFixtures:
         return json.loads(self.GRAPH.read_text(encoding="utf-8"))
 
     def test_no_node_carries_a_sequential_fixture_id(self):
-        stragglers = [n["id"] for n in self._graph()["nodes"] if n["id"].startswith("n")]
+        stragglers = [
+            n["id"] for n in self._graph()["nodes"]
+            if n["id"].startswith("n") and n["id"][1:].isdigit()
+        ]
 
         assert stragglers == []
 
     def test_no_pattern_carries_a_sequential_fixture_id(self):
-        stragglers = [p["id"] for p in self._graph()["patterns"] if p.get("id", "").startswith("p")]
+        stragglers = [
+            p["id"] for p in self._graph()["patterns"]
+            if p.get("id", "").startswith("p") and p["id"][1:].isdigit()
+        ]
 
         assert stragglers == []
 
