@@ -38,7 +38,9 @@
       "caused_by": [
         "e002"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e004",
@@ -61,6 +63,28 @@
       "leads_to": [
         "e004"
       ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review found the BaseException cleanup unlinking the temporary without closing it. Correct: the two interrupt tests already written both unwind with the handle closed, so neither reached the case. On POSIX the unlink succeeds and leaks only a descriptor; on Windows an open file cannot be unlinked at all, so the cleanup added to stop the leak would itself leak. Added _release, which closes before discarding and returns a description of whichever step failed, and collapsed the five nested try blocks and three duplicated message builders in _atomic_write_text down to two try blocks and one. Dropped the untested 'failed to close temporary file descriptor' branch and replaced it with a suppressed os.close, since that path is only reachable while already unwinding. New test interrupts inside handle.write and asserts close ran, which is what makes it fail on Linux rather than only on Windows. Negative control removing the close from _release: 2 red, including the pre-existing close-failure test. Restored: 74 pass, up from 73.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review found markdownLintRun claiming no markdown changed while the branch adds a .serena memory. True as stated and wrong. Ran the scoped lint: 0 files, because .markdownlint-cli2.yaml excludes .serena/**. Rewrote the evidence to say that, since an exclusion and a pass are not the same result.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -69,7 +93,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 2
+    "files_changed": 4
   },
   "lessons": []
 }

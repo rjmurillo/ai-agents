@@ -990,6 +990,49 @@ class TestTheTemporaryNeverOutlivesTheWrite:
         assert self._siblings(path) == []
         assert path.read_text(encoding="utf-8") == '{"nodes": []}\n'
 
+    def test_an_interrupt_with_the_temporary_open_closes_it_before_removing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The other interrupt tests all unwind with the handle already closed.
+
+        Interrupting the write itself leaves it open, and cleanup that unlinks
+        without closing leaks the descriptor on POSIX and fails outright on
+        Windows, where an open file cannot be unlinked at all. Asserting on the
+        close rather than on the leftover file is what makes this fail on Linux
+        too.
+        """
+        path = self._destination(tmp_path)
+        real_fdopen = os.fdopen
+        closed: list[str] = []
+
+        class InterruptingHandle:
+            def __init__(self, fd: int) -> None:
+                self._handle: TextIO = real_fdopen(fd, "w", encoding="utf-8")
+
+            def write(self, _text: str) -> int:
+                raise _Interrupt()
+
+            def flush(self) -> None:
+                self._handle.flush()
+
+            def fileno(self) -> int:
+                return self._handle.fileno()
+
+            def close(self) -> None:
+                closed.append("closed")
+                self._handle.close()
+
+        def interrupting_fdopen(fd: int, *_args: Any, **_kwargs: Any) -> Any:
+            return InterruptingHandle(fd)
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", interrupting_fdopen)
+        with pytest.raises(_Interrupt):
+            _atomic_write_text(path, "replacement")
+
+        assert closed == ["closed"], "cleanup removed the temporary without closing it"
+        assert self._siblings(path) == []
+        assert path.read_text(encoding="utf-8") == '{"nodes": []}\n'
+
     def test_a_leaked_temporary_would_name_the_file_it_failed_to_replace(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

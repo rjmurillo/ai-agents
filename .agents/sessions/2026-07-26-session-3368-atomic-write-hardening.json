@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown changed in this branch; the change is one script and one test module."
+        "Evidence": "One markdown file changed: .serena/memories/validation/atomic-write-cleanup-covers-interrupts.md. Ran markdownlint-cli2 scoped to it; it linted 0 files because .markdownlint-cli2.yaml excludes .serena/** (alongside .agents/** and .claude/skills/**). Reported as 'Summary: 0 issues in 0 files', which is an exclusion, not a pass. The remaining changed files are two Python modules and two generated JSON documents."
       },
       "changesCommitted": {
         "level": "MUST",
@@ -128,6 +128,14 @@
       "task": "Harden the atomic write",
       "outcome": "Added an except BaseException handler that discards the temporary and re-raises, so an interrupt cleans up. Added handle.flush() and os.fsync(handle.fileno()) before the chmod and rename, because os.replace is atomic against other processes but not against a crash: without the sync a power loss after the rename can leave the destination naming data that never reached disk, which is the partial-file outcome #3359 set out to prevent, relocated from the write to the rename. Gave mkstemp a prefix derived from the destination name so any leak is greppable. Extracted _discard() so both handlers share one unlink and neither replaces the primary error with a cleanup error.",
       "evidence": "73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, each reverting one change: dropping the BaseException handler turns 2 red, dropping the fsync turns 2 red, dropping the mkstemp prefix turns 1 red; restoring returns 73 passed. ruff check and ruff format clean on both files."
+    },
+    {
+      "time": "2026-07-26T21:10:00Z",
+      "action": "Review found the BaseException cleanup unlinking the temporary without closing it. Correct: the two interrupt tests already written both unwind with the handle closed, so neither reached the case. On POSIX the unlink succeeds and leaks only a descriptor; on Windows an open file cannot be unlinked at all, so the cleanup added to stop the leak would itself leak. Added _release, which closes before discarding and returns a description of whichever step failed, and collapsed the five nested try blocks and three duplicated message builders in _atomic_write_text down to two try blocks and one. Dropped the untested 'failed to close temporary file descriptor' branch and replaced it with a suppressed os.close, since that path is only reachable while already unwinding. New test interrupts inside handle.write and asserts close ran, which is what makes it fail on Linux rather than only on Windows. Negative control removing the close from _release: 2 red, including the pre-existing close-failure test. Restored: 74 pass, up from 73."
+    },
+    {
+      "time": "2026-07-26T21:15:00Z",
+      "action": "Review found markdownLintRun claiming no markdown changed while the branch adds a .serena memory. True as stated and wrong. Ran the scoped lint: 0 files, because .markdownlint-cli2.yaml excludes .serena/**. Rewrote the evidence to say that, since an exclusion and a pass are not the same result."
     }
   ],
   "endingCommit": "2796f956e5",

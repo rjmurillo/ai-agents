@@ -35,13 +35,14 @@ which is why registration is automatic.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import stat
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any, TextIO, TypeAlias
 
 # A value as it comes out of json.load. Naming it beats `Any`: these helpers
 # genuinely accept whatever the generated graph holds, and the alias says so
@@ -90,53 +91,61 @@ def _discard(temporary: str) -> OSError | None:
     return None
 
 
+def _release(handle: TextIO | None, temporary: str) -> str | None:
+    """Close the temporary and remove it, describing the first failure.
+
+    Closing comes first because Windows refuses to unlink an open file: a
+    temporary that was still open when the write unwound would survive the
+    cleanup that exists to remove it. On POSIX the unlink succeeds either way
+    and the damage is a leaked descriptor instead, which is quieter and just as
+    real inside a long-lived `git merge`.
+    """
+    if handle is not None:
+        try:
+            handle.close()
+        except OSError as close_error:
+            _discard(temporary)
+            return f"failed to close temporary file {temporary}: {close_error}"
+    cleanup = _discard(temporary)
+    if cleanup is not None:
+        return f"failed to remove temporary file {temporary}: {cleanup}"
+    return None
+
+
 def _atomic_write_text(path: Path, text: str) -> None:
     """Replace ``path`` only after its full content reaches a sibling file."""
     fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        try:
-            handle = os.fdopen(fd, "w", encoding="utf-8")
-        except OSError as fdopen_error:
-            try:
-                os.close(fd)
-            except OSError as close_error:
-                message = (
-                    f"{fdopen_error.strerror or fdopen_error}; failed to close "
-                    f"temporary file descriptor {fd}: {close_error}"
-                )
-                raise OSError(fdopen_error.errno, message) from fdopen_error
-            raise
-        try:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        except OSError as write_error:
-            try:
-                handle.close()
-            except OSError as close_error:
-                message = (
-                    f"{write_error.strerror or write_error}; failed to close temporary "
-                    f"file {temporary}: {close_error}"
-                )
-                raise OSError(write_error.errno, message) from write_error
-            raise
+        handle = os.fdopen(fd, "w", encoding="utf-8")
+    except BaseException:
+        # fdopen never took ownership, so the raw descriptor is still ours.
+        # Suppressed because we are already unwinding: a close failure here
+        # would replace the error that actually explains the write.
+        with contextlib.suppress(OSError):
+            os.close(fd)
+        _discard(temporary)
+        raise
+
+    open_handle: TextIO | None = handle
+    try:
+        handle.write(text)
+        handle.flush()
+        # os.replace is atomic against another process, not against a crash.
+        # Without the fsync the rename can land while the content is still in
+        # the page cache, leaving a name that points at nothing.
+        os.fsync(handle.fileno())
         handle.close()
+        open_handle = None
         os.chmod(temporary, stat.S_IMODE(path.stat().st_mode))
         os.replace(temporary, path)
-    except OSError as primary:
-        cleanup = _discard(temporary)
-        if cleanup is not None:
-            message = (
-                f"{primary.strerror or primary}; failed to remove temporary file "
-                f"{temporary}: {cleanup}"
-            )
-            raise OSError(primary.errno, message) from primary
-        raise
-    except BaseException:
-        # KeyboardInterrupt is not an OSError, and a merge driver runs during an
-        # interactive `git merge`, which is exactly where Ctrl-C lands. Without
-        # this the temporary survives beside the graph it failed to replace.
-        _discard(temporary)
+    except BaseException as primary:
+        # BaseException rather than OSError: a merge driver runs inside an
+        # interactive `git merge`, so the realistic failure is Ctrl-C, and
+        # KeyboardInterrupt would otherwise leave the temporary beside the
+        # graph it failed to replace.
+        detail = _release(open_handle, temporary)
+        if detail is not None and isinstance(primary, OSError):
+            raise OSError(primary.errno, f"{primary.strerror or primary}; {detail}") from primary
         raise
 
 

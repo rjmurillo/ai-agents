@@ -15500,6 +15500,24 @@
         "episode-2026-07-26-session-3368-atomic-write-hardening"
       ],
       "created": "2026-07-26T07:12:55.219757+00:00"
+    },
+    {
+      "id": "f5fd153a5d6e",
+      "type": "milestone",
+      "label": "milestone: Review found the BaseException cleanup unlinking the temporary without closing it. Correct: the two interrupt tests already written both unwind with the handle closed, so neither reached the case. On POSIX the unlink succeeds and leaks only a descriptor; on Windows an open file cannot be unlinked at all, so the cleanup added to stop the leak would itself leak. Added _release, which closes before discarding and returns a description of whichever step failed, and collapsed the five nested try blocks and three duplicated message builders in _atomic_write_text down to two try blocks and one. Dropped the untested 'failed to close temporary file descriptor' branch and replaced it with a suppressed os.close, since that path is only reachable while already unwinding. New test interrupts inside handle.write and asserts close ran, which is what makes it fail on Linux rather than only on Windows. Negative control removing the close from _release: 2 red, including the pre-existing close-failure test. Restored: 74 pass, up from 73.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:46:03.997902+00:00"
+    },
+    {
+      "id": "73d004958dc4",
+      "type": "milestone",
+      "label": "milestone: Review found markdownLintRun claiming no markdown changed while the branch adds a .serena memory. True as stated and wrong. Ran the scoped lint: 0 files, because .markdownlint-cli2.yaml excludes .serena/**. Rewrote the evidence to say that, since an exclusion and a pass are not the same result.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:46:03.997966+00:00"
     }
   ],
   "patterns": [
