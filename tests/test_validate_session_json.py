@@ -1854,7 +1854,7 @@ class TestAMalformedChecklistItemIsReportedNotFatal:
 
     @staticmethod
     def _log(item: object) -> dict:
-        start = {
+        start: dict[str, object] = {
             name: {"complete": True, "level": "MUST", "evidence": "done"}
             for name in SESSION_START_REQUIRED_ITEMS
         }
