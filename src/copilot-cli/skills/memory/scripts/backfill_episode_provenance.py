@@ -18,12 +18,13 @@ surviving episode reproduces have no recoverable provenance and remain the
 genuinely unattributable case the #3039 path treats as permanent. The test seed
 rows that used to be the standing example of this (node ``n001`` and patterns
 ``p001`` through ``p004``) were removed from the committed graph under #3352;
-nothing regenerates them, because no episode reproduces them. Two things still
-mark them as hand-seeded rather than derived: all five ids are sequential, where
-every generated id is a 12-character sha256 prefix, and the four patterns carry
-a ``last_used`` field, which the generator writes nowhere. The generator does
-now write pattern ids (#3353), so the presence of an ``id`` no longer separates
-them; its shape does.
+nothing regenerates them, because no episode reproduces them. Two marks
+identified them as hand-seeded rather than derived, and both still apply to any
+graph predating #3352: all five ids were sequential, where every generated id is
+a 12-character sha256 prefix, and the four patterns carried a ``last_used``
+field, which the generator writes nowhere. The generator does now write pattern
+ids (#3353), so the presence of an ``id`` does not separate them; its shape
+does.
 
 Scope. Only the episodes[] field is written, and only when re-derivation adds an
 id that was not already recorded. weight, evidence_count, success_rate,

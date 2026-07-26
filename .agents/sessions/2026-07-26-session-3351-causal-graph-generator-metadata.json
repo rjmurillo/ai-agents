@@ -136,6 +136,16 @@
     {
       "time": "2026-07-26T21:25:00Z",
       "action": "Review caught .serena/memories/decision-branch-context-merged-history.md riding along in this branch. Checked the cited rule and it is verbatim: .claude/rules/claude-agents.md MUST NOT 2, 'MUST NOT bundle skill code changes with memory changes in the same PR'. This PR changes .claude/skills/memory and src/copilot-cli/skills/memory, so the bundle is exactly the prohibited one. The memory also has nothing to do with this PR: it records the branch-context exemption decision from PR #3344 (issue #3343). Removed here; relanding it on its own branch rather than deleting, because it is a first-principles contradiction entry (recency was the wrong discriminator, upstream presence is the right one) that the knowledge-persistence rule wants kept."
+    },
+    {
+      "task": "Close the UnicodeDecodeError hole on both sides of the causal graph file",
+      "outcome": "UnicodeDecodeError is a ValueError subclass, not an OSError one, so it slipped past every handler in this module. In load_causal_graph the outcome was already correct, since git_hook_policy restores its snapshot on any non-zero exit, but the operator got a raw traceback about a byte position where every other corruption produces a sentence naming the file; it now raises the same shaped ValueError. In save_causal_graph the outcome was wrong: the short-circuit read that decides whether the rendered content already matches disk guarded only OSError, so undecodable bytes aborted the save instead of replacing them, and a graph that cannot be read is exactly the graph that most needs replacing. The asymmetry between the two is deliberate and now documented in the save docstring: the load asks what the current state is, the save only asks whether its own output is already there.",
+      "evidence": "Four tests in tests/skills/memory/test_update_causal_graph.py, the only copy pyproject collects. Negative control A stripped both new guards: 2 red. Negative control B dropped OSError from the save tuple: 8 red, because the missing-file case is a FileNotFoundError. Restored, 57 pass in the file, 312 across tests/skills/memory, 326 in each of the two skill mirror suites run separately. ruff clean on all five touched files; the only ruff format drift in update_causal_graph.py sits at lines 176 through 396, which predates this branch."
+    },
+    {
+      "task": "Retire the present tense on the removed seed rows",
+      "outcome": "backfill_episode_provenance.py said 'Two things still mark them as hand-seeded rather than derived' about node n001 and patterns p001 through p004, which #3352 removed from the committed graph two sentences earlier. The marks are still worth recording, because anyone reading a graph that predates #3352 needs them, so the sentence now scopes them to that case instead of implying the rows are present.",
+      "evidence": "Both mirrors patched from one script and verified byte-identical with diff -q."
     }
   ],
   "learnings": {
