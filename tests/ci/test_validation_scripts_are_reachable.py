@@ -383,8 +383,8 @@ def _entry_points() -> frozenset[str]:
     ``token_budget.py`` down with it because it is only imported from there.
     """
     workflow_text = "\n".join(_strip_commented_lines(body) for _, body in _live_run_blocks())
-    hook_text = _text_of(
-        ("lefthook.yml", ".config/lefthook.yml", ".githooks/*"),
+    hook_text = _strip_commented_lines(
+        _text_of(("lefthook.yml", ".config/lefthook.yml", ".githooks/*"))
     )
     skill_patterns = (
         ".claude/skills/*/SKILL.md",
