@@ -380,10 +380,7 @@ def test_reference_preserves_single_structured_output_boundary() -> None:
     rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
 
     assert "performs one `JSON.parse`" in sidecar
-    assert (
-        "Two final JSON objects concatenate into invalid JSON and are ignored."
-        in sidecar
-    )
+    assert "Two final JSON objects concatenate into invalid JSON and are ignored." in sidecar
     normalized = _normalized_text(REFERENCE)
     assert '`{"additionalContext":"..."}` object' in normalized
     assert "Failed-observer partial output is discarded." in normalized
@@ -403,8 +400,7 @@ def test_official_sidecar_pins_sources_and_refresh_procedure() -> None:
     assert "https://code.claude.com/docs/en/hooks" in text
     assert (
         "Sources: GitHub Copilot hook reference, agentStop / subagentStop "
-        "decision control; Claude Code hooks reference, Stop decision control."
-        in text
+        "decision control; Claude Code hooks reference, Stop decision control." in text
     )
     assert "## Refresh procedure" in text
     assert "DOCS SILENT" in text
@@ -535,6 +531,26 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
         "expected 7 and 14",
         "8 events / 23 matcher groups",
     )
+
+    # The weak-point table restates the same counts in prose ("N events and M
+    # groups") rather than the comma form asserted above. That phrasing went
+    # unchecked, so hooks.json drifted to "2 events and 3 groups" and
+    # contradicted the re-verify table in the same document. Pin both trees.
+    settings_prose = f"{len(settings)} events and {sum(map(len, settings.values()))} groups"
+    plugin_prose = f"{len(plugin)} events and {sum(map(len, plugin.values()))} groups"
+    for surface in (
+        architecture,
+        (
+            REPO_ROOT
+            / "src"
+            / "copilot-cli"
+            / "skills"
+            / "ai-agents-architecture-contract"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8"),
+    ):
+        assert settings_prose in surface
+        assert plugin_prose in surface
 
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:
