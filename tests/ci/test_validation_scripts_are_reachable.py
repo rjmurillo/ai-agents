@@ -28,11 +28,11 @@ script under a skill's ``scripts/`` is read as text that can name something, not
 seeded as a root: it becomes reachable only when a ``SKILL.md`` or another
 surface names it.
 
-Under that model the same 89 scripts yield six unreachable, each of which is a
+Under that model the same 89 scripts yield five unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
-pass if run. Three of the six entries below are unreachable precisely because
+pass if run. Three of the entries below are unreachable precisely because
 they fail against the current tree, which is tracked separately. Reachability
 is the floor, not the ceiling.
 """
@@ -49,6 +49,19 @@ from tests.ci.test_ci_scripts_are_wired import _live_run_blocks, _strip_commente
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _GUARDED_DIRS = ("scripts/validation", "build/scripts")
+
+# Spelled-out counts, so the module docstring can be checked against reality.
+_NUMBER_WORDS = {
+    0: "no",
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+}
 
 # Directories searched when following a reference from one script to another.
 _CALLER_ROOTS = (
@@ -104,9 +117,7 @@ def _guarded_scripts() -> list[Path]:
     for directory in _GUARDED_DIRS:
         base = _REPO_ROOT / directory
         if base.is_dir():
-            scripts.extend(
-                p for p in sorted(base.glob("*.py")) if p.name != "__init__.py"
-            )
+            scripts.extend(p for p in sorted(base.glob("*.py")) if p.name != "__init__.py")
     return scripts
 
 
@@ -117,9 +128,7 @@ def _python_sources() -> list[Path]:
         base = _REPO_ROOT / root
         if not base.is_dir():
             continue
-        sources.extend(
-            p for p in base.rglob("*.py") if not any(s in p.parts for s in skip)
-        )
+        sources.extend(p for p in base.rglob("*.py") if not any(s in p.parts for s in skip))
     return sources
 
 
@@ -141,9 +150,26 @@ def _imported_names(source: str) -> set[str]:
 
 
 @functools.lru_cache(maxsize=1)
+def _source_index() -> dict[str, tuple[str, ...]]:
+    """Every in-repo Python source under `_CALLER_ROOTS`, keyed by module stem."""
+    index: dict[str, list[str]] = {}
+    for path in _python_sources():
+        index.setdefault(path.stem, []).append(path.relative_to(_REPO_ROOT).as_posix())
+    return {stem: tuple(paths) for stem, paths in index.items()}
+
+
+@functools.lru_cache(maxsize=1)
 def _reference_graph() -> dict[str, frozenset[str]]:
-    """Map every Python source to the guarded scripts it imports or names."""
-    guarded = {p.stem: p.relative_to(_REPO_ROOT).as_posix() for p in _guarded_scripts()}
+    """Map every Python source to every in-repo source it imports or names.
+
+    Edges point at any file under `_CALLER_ROOTS`, not only at guarded
+    scripts. Restricting the targets to guarded scripts would break the
+    closure the moment a chain ran through two ordinary modules: a workflow
+    that calls `a.py`, which imports `b.py`, which imports the guarded
+    `c.py`, would leave `c.py` looking unreachable because no edge ever
+    reaches `b.py` to be followed.
+    """
+    index = _source_index()
     graph: dict[str, frozenset[str]] = {}
     for path in _python_sources():
         rel = path.relative_to(_REPO_ROOT).as_posix()
@@ -152,10 +178,10 @@ def _reference_graph() -> dict[str, frozenset[str]]:
         except OSError:
             continue
         names = _imported_names(source)
-        reached = {target for stem, target in guarded.items() if stem in names}
-        reached |= {
-            target for stem, target in guarded.items() if f"{stem}.py" in source
-        }
+        reached: set[str] = set()
+        for stem, targets in index.items():
+            if stem in names or f"{stem}.py" in source:
+                reached.update(targets)
         graph[rel] = frozenset(reached - {rel})
     return graph
 
@@ -186,9 +212,7 @@ def _entry_points() -> frozenset[str]:
     ``python3 -m scripts.validation.passive_context_budget --ci``, and took
     ``token_budget.py`` down with it because it is only imported from there.
     """
-    workflow_text = "\n".join(
-        _strip_commented_lines(body) for _, body in _live_run_blocks()
-    )
+    workflow_text = "\n".join(_strip_commented_lines(body) for _, body in _live_run_blocks())
     hook_text = _text_of(
         ("lefthook.yml", ".config/lefthook.yml", ".githooks/*"),
     )
@@ -257,7 +281,7 @@ def test_the_allowlist_stays_small_enough_to_read() -> None:
     """The failure this guards is a list nobody reads.
 
     59 entries would be the literal-reference model's answer. The bound is
-    generous against the six real entries so that ordinary churn does not trip
+    generous against the five real entries so that ordinary churn does not trip
     it, and tight enough that a bulk exemption has to argue for itself.
     """
     assert len(_NO_CALLER) <= 12, (
@@ -328,3 +352,54 @@ class TestTheReachabilityProbeWorks:
     ) -> None:
         """token_budget.py has exactly one importer, and it is that module."""
         assert "scripts/validation/token_budget.py" in _reachable()
+
+    def test_the_graph_reaches_files_that_are_not_guarded_scripts(self) -> None:
+        """Edges must cover ordinary modules, or the closure stops at one hop.
+
+        An earlier version of `_reference_graph` pointed edges only at
+        guarded scripts. That still resolved a workflow-to-guarded chain,
+        but silently broke on `entry.py -> ordinary.py -> guarded.py`:
+        nothing ever put `ordinary.py` on the stack, so `guarded.py` looked
+        unreachable. Reaching at least one non-guarded file is the
+        observable difference between the two models.
+        """
+        guarded = {p.relative_to(_REPO_ROOT).as_posix() for p in _guarded_scripts()}
+        reached = {t for targets in _reference_graph().values() for t in targets}
+        assert reached - guarded, (
+            "every graph edge lands on a guarded script, so the closure cannot "
+            "cross an ordinary module and multi-hop chains read as unreachable"
+        )
+
+    def test_a_multi_hop_chain_through_ordinary_modules_resolves(self) -> None:
+        """The graph must contain chains deeper than one hop.
+
+        This checks the precondition the closure walk depends on, not the
+        walk itself: if every source sat one edge from an entry point, a
+        non-transitive `_reachable` would look correct and the guard would
+        pass for the wrong reason.
+        """
+        graph = _reference_graph()
+        depth = {rel: 0 for rel in _entry_points()}
+        stack = list(depth)
+        while stack:
+            current = stack.pop()
+            for target in graph.get(current, ()):
+                if target not in depth:
+                    depth[target] = depth[current] + 1
+                    stack.append(target)
+        assert max(depth.values(), default=0) >= 2, (
+            "no source is more than one hop from an entry point, which means "
+            "the closure is not actually transitive"
+        )
+
+
+class TestTheDocstringMatchesTheAllowlist:
+    """A hardcoded count in prose drifts the moment the list changes."""
+
+    def test_the_stated_unreachable_count_is_the_real_one(self) -> None:
+        stated = f"yield {_NUMBER_WORDS[len(_NO_CALLER)]} unreachable"
+        assert __doc__ is not None
+        assert stated in __doc__, (
+            f"module docstring should say {stated!r}; it drifts every time "
+            f"_NO_CALLER changes unless something checks it"
+        )

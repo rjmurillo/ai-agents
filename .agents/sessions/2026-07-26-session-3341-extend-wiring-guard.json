@@ -42,7 +42,7 @@
       "gitStatusVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git status inspected before staging; three files changed on this branch, none of them under .claude or src/copilot-cli, so no plugin manifest bump applies."
+        "Evidence": "git status inspected before staging. No file changed on this branch lives under .claude/ or src/copilot-cli/, so no plugin manifest bump applies."
       },
       "startingCommitNoted": {
         "level": "MUST",
