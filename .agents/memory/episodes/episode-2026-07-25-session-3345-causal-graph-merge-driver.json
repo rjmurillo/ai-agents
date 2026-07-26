@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
       "caused_by": [
-        "e005"
+        "e007"
       ],
       "leads_to": [
         "e002"
@@ -50,7 +50,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e005",
@@ -58,6 +60,28 @@
       "type": "commit",
       "content": "Commit: 03044f4b1cd402c0088c6d429b1515d3d5421952",
       "caused_by": [],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed the second PR #3348 review round. One finding remained from the first pass, and one new finding arrived: merge_graphs still drops a top-level key that survives only in the ancestor when both sides have stopped emitting it, which is accepted as intentional (an agreed deletion should stay deleted; the only known case where an omission is a defect rather than a deletion is `version`, already fixed via issue #3351's prefer-present rule) and closed with a rebuttal rather than a further code change. The genuinely new finding was real: _COLLECTIONS was ordered nodes, edges, patterns, so a no-op merge reordered the top-level JSON relative to the generator's nodes, patterns, edges schema and produced a noisy diff. Reordered _COLLECTIONS to match; one negative control (reverting the order) turned the new ordering test red.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d96e557bdea82d455e0b7f9102abf59d82d5ec31",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [
         "e001"
       ]
@@ -68,7 +92,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 4
   },
   "lessons": []

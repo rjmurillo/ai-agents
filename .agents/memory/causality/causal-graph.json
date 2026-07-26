@@ -14717,6 +14717,24 @@
         "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
       "created": "2026-07-26T00:55:19.531803+00:00"
+    },
+    {
+      "id": "c8abaa28b8e8",
+      "type": "milestone",
+      "label": "milestone: Addressed the second PR #3348 review round. One finding remained from the first pass, and one new finding arrived: merge_graphs still drops a top-level key that survives only in the ancestor when both sides have stopped emitting it, which is accepted as intentional (an agreed deletion should stay deleted; the only known case where an omission is a defect rather than a deletion is `version`, already fixed via issue #3351's prefer-present rule) and closed with a rebuttal rather than a further code change. The genuinely new finding was real: _COLLECTIONS was ordered nodes, edges, patterns, so a no-op merge reordered the top-level JSON relative to the generator's nodes, patterns, edges schema and produced a noisy diff. Reordered _COLLECTIONS to match; one negative control (reverting the order) turned the new ordering test red.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T01:11:32.565825+00:00"
+    },
+    {
+      "id": "b332bb47aeab",
+      "type": "commit",
+      "label": "commit: Commit: d96e557bdea82d455e0b7f9102abf59d82d5ec31",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T01:11:32.565886+00:00"
     }
   ],
   "patterns": [
