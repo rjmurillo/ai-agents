@@ -53,6 +53,21 @@ class TestLoadCausalGraph:
         assert graph["edges"] == []
         assert graph["patterns"] == []
 
+    def test_missing_file_does_not_use_a_stat_preflight(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def fail_is_file(*_args: object, **_kwargs: object) -> bool:
+            raise AssertionError("load_causal_graph must read directly")
+
+        monkeypatch.setattr(Path, "is_file", fail_is_file)
+
+        graph = load_causal_graph(tmp_path / "missing.json")
+
+        assert graph["version"] == GRAPH_VERSION
+        assert graph["nodes"] == []
+
     def test_valid_file(self, tmp_path: Path) -> None:
         graph_file = tmp_path / "graph.json"
         data = {"nodes": [{"id": "abc"}], "edges": [], "patterns": []}
@@ -92,6 +107,22 @@ class TestLoadCausalGraph:
         with pytest.raises(ValueError, match="not an object"):
             load_causal_graph(graph_file)
 
+    def test_existing_unreadable_file_raises(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        graph_file = tmp_path / "graph.json"
+        graph_file.write_text("{}", encoding="utf-8")
+
+        def fail_read_text(*_args: object, **_kwargs: object) -> str:
+            raise OSError("read failed")
+
+        monkeypatch.setattr(Path, "read_text", fail_read_text)
+
+        with pytest.raises(ValueError, match="could not be read"):
+            load_causal_graph(graph_file)
+
 
 class TestSaveCausalGraph:
     """Tests for saving causal graph."""
@@ -108,7 +139,6 @@ class TestSaveCausalGraph:
 
         loaded = json.loads(graph_file.read_text(encoding="utf-8"))
         assert loaded["nodes"][0]["id"] == "test"
-
 
 class TestAddCausalNode:
     """Tests for adding nodes."""
