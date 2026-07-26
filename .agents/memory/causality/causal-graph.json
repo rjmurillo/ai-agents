@@ -16238,6 +16238,330 @@
         "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
       ],
       "created": "2026-07-26T11:26:02.977286+00:00"
+    },
+    {
+      "id": "178270b025da",
+      "type": "outcome",
+      "label": "Outcome: success - Extend the CI wiring guard past scripts/ci using reachability rather than literal reference (#3341)",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:09:44.622397+00:00"
+    },
+    {
+      "id": "ff084ea7e672",
+      "type": "milestone",
+      "label": "milestone: Measured the issue's headline claim before writing anything",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266369+00:00"
+    },
+    {
+      "id": "62c8440980e4",
+      "type": "milestone",
+      "label": "milestone: Classified all six remaining scripts individually",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266432+00:00"
+    },
+    {
+      "id": "4591d880ca62",
+      "type": "milestone",
+      "label": "milestone: Wired the one candidate that passes clean",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266487+00:00"
+    },
+    {
+      "id": "810e29f1030d",
+      "type": "milestone",
+      "label": "milestone: Wrote tests/ci/test_validation_scripts_are_reachable.py and it caught a defect in itself on first run",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266541+00:00"
+    },
+    {
+      "id": "ee05c63f3aef",
+      "type": "milestone",
+      "label": "milestone: Ran five negative controls",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266595+00:00"
+    },
+    {
+      "id": "b354d7c7a08f",
+      "type": "milestone",
+      "label": "milestone: Fixed a pre-existing push blocker exposed by touching the workflow",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266656+00:00"
+    },
+    {
+      "id": "a79b600eff73",
+      "type": "milestone",
+      "label": "milestone: Filed #3360 for the three validators that fail against the current tree",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:31:11.266715+00:00"
+    },
+    {
+      "id": "489a044ced83",
+      "type": "commit",
+      "label": "commit: Commit: 0fc3df9a7f460a3390722c8238b9028d9c5c7030",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T04:54:43.861272+00:00"
+    },
+    {
+      "id": "81f4f3950d86",
+      "type": "milestone",
+      "label": "milestone: Ran the PR live-state gate and created an isolated worktree",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213022+00:00"
+    },
+    {
+      "id": "49ed1c9c7d96",
+      "type": "milestone",
+      "label": "milestone: Integrated concurrent branch updates and current main without force push",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213088+00:00"
+    },
+    {
+      "id": "65ba050cf391",
+      "type": "milestone",
+      "label": "milestone: Regenerated and verified session 3341 memory evidence",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213144+00:00"
+    },
+    {
+      "id": "69feac9c9a26",
+      "type": "milestone",
+      "label": "milestone: Hardened the reachability and agent registry guards",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213199+00:00"
+    },
+    {
+      "id": "0f4f8e1fc61a",
+      "type": "milestone",
+      "label": "milestone: Ran QA, security, code review, targeted tests, workflow validation, and local workflow dry runs",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213253+00:00"
+    },
+    {
+      "id": "c72822b3783b",
+      "type": "outcome",
+      "label": "Outcome: success - Fully autofix PR 3361 review threads, CI, generated artifacts, and merge",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T08:43:49.213416+00:00"
+    },
+    {
+      "id": "86c3fe9b0a90",
+      "type": "milestone",
+      "label": "milestone: Hardened reachability against prose and basename false edges",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304279+00:00"
+    },
+    {
+      "id": "e4158e5dbf0e",
+      "type": "milestone",
+      "label": "milestone: Wired the two passing validators exposed by the stricter graph",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304345+00:00"
+    },
+    {
+      "id": "07005017ae17",
+      "type": "milestone",
+      "label": "milestone: Made agent_registry.py fail on malformed definitions",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T08:47:31.304400+00:00"
+    },
+    {
+      "id": "c03f28a6c7e8",
+      "type": "milestone",
+      "label": "milestone: Processed the final review batch before push",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:01:35.420805+00:00"
+    },
+    {
+      "id": "ed3e465b8fc0",
+      "type": "milestone",
+      "label": "milestone: Fixed the pre-push graph fixture regression",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:14:36.469582+00:00"
+    },
+    {
+      "id": "224f424d68f4",
+      "type": "milestone",
+      "label": "milestone: Fixed the final pre-push gate failures",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:54:18.617788+00:00"
+    },
+    {
+      "id": "5ad2dc05281a",
+      "type": "milestone",
+      "label": "milestone: Stopped the reachability scan from reading comments and docstrings. It matched '<stem>.py' anywhere in the raw file, so prose manufactured reachability, which is the defect _strip_commented_lines already prevents on the workflow side. The scan now reads only non-docstring string literals, which is where a subprocess invocation actually names a script.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:40:40.985616+00:00"
+    },
+    {
+      "id": "030e37237fcc",
+      "type": "milestone",
+      "label": "milestone: The stricter scan exposed two genuinely unwired scripts: validate_templates_schema.py, held up only by a yaml_loader.py docstring whose edge pointed from the library to its own consumer, and check_skill_portability.py, named only in two companion docstrings. Both exit 0, so both are wireable; filed #3366 and allowlisted them against it. Also corrected templates/README.md, which claimed the first runs in build-validation.yml, a workflow that no longer exists.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:40:40.985692+00:00"
+    },
+    {
+      "id": "a447c3eb9ebd",
+      "type": "milestone",
+      "label": "milestone: parse_agent_file crashed with a traceback on a non-UTF-8 file instead of reporting it. Same shape as the silent skip fixed earlier: the run ends without a usable validation result. UnicodeDecodeError and OSError now become MalformedAgentFileError, so the directory walk reports the file and keeps going.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:40:40.985748+00:00"
+    },
+    {
+      "id": "d74900a3db4a",
+      "type": "milestone",
+      "label": "milestone: Re-extracted the episode after the work-log additions. The extractor appends rather than rebuilds, so a corrected log does not correct an episode already on disk; the file has to be deleted first. Result: 11 events, no inherited content. Filed as #3363 separately, since the derived file should not need hand-holding.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:45:45.775196+00:00"
+    },
+    {
+      "id": "f5878db40ab8",
+      "type": "milestone",
+      "label": "milestone: Review caught two caps that had drifted apart: the spelled-out number table stopped at eight while the allowlist size test permitted twelve, so a ninth entry would have crashed the docstring check with a KeyError instead of reporting the stale docstring it exists to report. Both now read one constant, and a test pins the table to span it.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:54:20.572514+00:00"
+    },
+    {
+      "id": "8765f71323b7",
+      "type": "milestone",
+      "label": "milestone: Review found the same prose-manufactures-reachability defect one layer up: _entry_points read lefthook.yml, .githooks/*, and skill scripts raw, so a comment there seeds an entry point, which is worse than a false edge because an entry point seeds the whole closure.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.419948+00:00"
+    },
+    {
+      "id": "69503f649f61",
+      "type": "milestone",
+      "label": "milestone: _text_of now takes a cleaner and runs it per file. Per file matters: _scannable_text cannot parse a concatenation of unrelated modules and falls back to returning it unchanged, so cleaning the joined result is a silent no-op. A test pins the call order.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420013+00:00"
+    },
+    {
+      "id": "21d094721829",
+      "type": "milestone",
+      "label": "milestone: Left SKILL.md deliberately raw. A workflow comment naming a script does not run it, but a skill instructing its agent to run one is the invocation, and there is no other spelling; '#' also opens a heading in markdown, so the line cleaner would delete real instructions.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420069+00:00"
+    },
+    {
+      "id": "e304508c724f",
+      "type": "milestone",
+      "label": "milestone: Measured: 492 entry points raw against 479 cleaned. All 13 of the difference are also reached by a real import, so the allowlist did not move. That means no existing test notices the cleaners being removed, so added a canary asserting cleaned is a strict subset of raw.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420123+00:00"
+    },
+    {
+      "id": "6dae821622b7",
+      "type": "milestone",
+      "label": "milestone: First version of that canary was worthless: it called a private copy of the entry-point logic, so deleting the cleaners from the real path left it green. Collapsed the two implementations into one function with the switch as a keyword argument. Control now works: removing the cleaners turns it red.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420178+00:00"
+    },
+    {
+      "id": "9aee97c153c9",
+      "type": "milestone",
+      "label": "milestone: Collapse the duplicate unreadable-file error path in parse_agent_files",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:38:54.427008+00:00"
+    },
+    {
+      "id": "03d74a697a44",
+      "type": "test",
+      "label": "test: 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:38:54.427075+00:00"
+    },
+    {
+      "id": "ac601ad87978",
+      "type": "error",
+      "label": "error: Collapse the duplicate unreadable-file error path in parse_agent_files     Removed the except OSError branch from parse_agent_files. parse_agent_file already converts OSError from read_text into MalformedAgentFileError, so the sibling handler could never fire and existed only to supply a competing message format ('Cannot read file X: e' against 'X: unreadable (e)'). Tightened the directory-in-place-of-a-file test from a substring match to a single-error assertion on the surviving format, and added an AST guard that pins parse_agent_files to exactly one handler. Also corrected the TestAMalformedFileFailsInsteadOfDisappearing docstring, which cited the PR number instead of the issue the work closes. 23 tests pass in tests/test_agent_registry.py. Negative control: reinstating the except OSError branch turns test_the_walk_carries_no_second_handler_for_the_same_condition red (1 failed, 22 passed), and removing it again returns 23 passed. ruff check and ruff format --check clean on both files.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:38:54.427133+00:00"
+    },
+    {
+      "id": "77a1dd4b7d58",
+      "type": "milestone",
+      "label": "milestone: Closed the last malformed-input review edges",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T10:23:28.036063+00:00"
+    },
+    {
+      "id": "457ee951cff0",
+      "type": "commit",
+      "label": "commit: Commit: c2f267acd1b983dbe44d515875752d147da06a05",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T10:23:28.036133+00:00"
     }
   ],
   "patterns": [

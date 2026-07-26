@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3341,
+    "date": "2026-07-26",
+    "branch": "fix/3341-extend-wiring-guard",
+    "startingCommit": "aaaf9081f568db83665f79ba89261a5cd746fb01",
+    "objective": "Extend the CI wiring guard past scripts/ci using reachability rather than literal reference (#3341)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No serena tool is exposed in this Copilot CLI session toolset; proceeded without Serena and recorded the gap here."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena initial_instructions is not exposed in this session toolset."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md at session start and left it unmodified."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created for branch fix/3341-extend-wiring-guard."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3341-extend-wiring-guard before staging."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work happened on feature branch fix/3341-extend-wiring-guard, never on main."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status inspected before staging. No file changed on this branch lives under .claude/ or src/copilot-cli/, so no plugin manifest bump applies."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "startingCommit recorded from git rev-parse HEAD before the first commit on this branch."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every session-start and session-end MUST item is satisfied with evidence from this branch; the Serena SHOULD items are marked incomplete because those tools are absent."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only and left unmodified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No Serena memory write tool is exposed in this session toolset."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 templates/README.md exited 0 after the CI-gating guidance update."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every change on this branch is committed and pushed."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "tests/ci passes 222 green, ruff is clean on the new file, scripts/validate_workflows.py passes, and the newly wired validator exits 0 standalone."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No separate retrospective artifact for this branch; the learnings below carry what it would have recorded."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-26T03:10:00Z",
+      "action": "Measured the issue's headline claim before writing anything",
+      "result": "Literal workflow reference reports 60 of 89 scripts unwired. A transitive closure over imports and script mentions from workflows and hooks reports 13; swapping regex import detection for AST reports 8; counting skills as an entry surface reports 6."
+    },
+    {
+      "time": "2026-07-26T03:25:00Z",
+      "action": "Classified all six remaining scripts individually",
+      "result": "None are dead code. Each has a governance doc or spec behind it and five of six carry tests. Four were wire candidates; three exit 1 in CI mode against the current tree, which is why they were never wired."
+    },
+    {
+      "time": "2026-07-26T03:40:00Z",
+      "action": "Wired the one candidate that passes clean",
+      "result": "agent_registry.py added to the Copilot agent frontmatter step of validate-generated-agents.yml. Standalone run exits 0."
+    },
+    {
+      "time": "2026-07-26T03:55:00Z",
+      "action": "Wrote tests/ci/test_validation_scripts_are_reachable.py and it caught a defect in itself on first run",
+      "result": "It reported passive_context_budget.py unreachable because the workflow invokes it as a dotted module, and that took token_budget.py down as its only importer. Added dotted-module detection and two regression tests in a guard-the-guard class."
+    },
+    {
+      "time": "2026-07-26T04:05:00Z",
+      "action": "Ran five negative controls",
+      "result": "All five fire. Removing transitivity from the closure turns 38 scripts red, which measures what the literal model was getting wrong."
+    },
+    {
+      "time": "2026-07-26T04:15:00Z",
+      "action": "Fixed a pre-existing push blocker exposed by touching the workflow",
+      "result": "Semgrep parses a run: body as bash, cannot parse an inline GitHub expression, and reports a scan error that fails the pre-push hook. Bound both expressions through env:, which is also the documented fix for the script-injection shape. Both scan errors cleared."
+    },
+    {
+      "time": "2026-07-26T04:30:00Z",
+      "action": "Filed #3360 for the three validators that fail against the current tree",
+      "result": "Allowlisted with the issue reference rather than wired, because wiring them requires first fixing what they report."
+    },
+    {
+      "time": "2026-07-26T14:20:00Z",
+      "action": "Hardened reachability against prose and basename false edges",
+      "result": "The graph resolves exact imports and execution-call script paths, follows ordinary modules transitively, reads UTF-8 strictly, and ignores comments, docstrings, help text, manifests, and ambiguous basename collisions."
+    },
+    {
+      "time": "2026-07-26T14:45:00Z",
+      "action": "Wired the two passing validators exposed by the stricter graph",
+      "result": "validate_templates_schema.py now runs in validate-generated-agents.yml. check_skill_portability.py now runs in validate-vendor-portability.yml with a tightened 166-reference baseline. Pytest runs when any caller surface changes."
+    },
+    {
+      "time": "2026-07-26T15:05:00Z",
+      "action": "Made agent_registry.py fail on malformed definitions",
+      "result": "Missing or blank names, invalid YAML, duplicate keys, invalid UTF-8, non-string required fields, and an empty registry now produce deterministic validation errors."
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Measure the claim in an issue before implementing its remedy",
+        "context": "#3341 asked for an allowlist sized to a 59-entry unwired count.",
+        "application": "The count was an artifact of asking about literal reference rather than reachability. Changing the question dropped it to six and made the allowlist small enough to be honest. Implementing the requested remedy directly would have reproduced the defect the issue was filed against."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Trusting a new guard's first green or red run without probing the guard itself",
+        "consequence": "The reachability probe's first run reported two false positives from a dotted-module invocation it could not see.",
+        "correction": "Verify each reported violation by hand before accepting it, and keep a test class whose job is to guard the guard."
+      }
+    ]
+  },
+  "endingCommit": "cd79a6dc308cdb8237560d9e4df81550110867d6",
+  "nextSteps": []
+}
