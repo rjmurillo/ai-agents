@@ -15473,6 +15473,15 @@
         "episode-2026-07-26-session-3341-extend-wiring-guard"
       ],
       "created": "2026-07-26T05:40:40.985748+00:00"
+    },
+    {
+      "id": "d74900a3db4a",
+      "type": "milestone",
+      "label": "milestone: Re-extracted the episode after the work-log additions. The extractor appends rather than rebuilds, so a corrected log does not correct an episode already on disk; the file has to be deleted first. Result: 11 events, no inherited content. Filed as #3363 separately, since the derived file should not need hand-holding.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T05:45:45.775196+00:00"
     }
   ],
   "patterns": [

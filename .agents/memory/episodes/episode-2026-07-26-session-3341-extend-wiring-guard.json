@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Measured the issue's headline claim before writing anything",
       "caused_by": [
-        "e008"
+        "e011"
       ],
       "leads_to": [
         "e002"
@@ -87,26 +87,28 @@
         "e006"
       ],
       "leads_to": [
-        "e009"
+        "e008"
       ]
     },
     {
       "id": "e008",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 0fc3df9a7f460a3390722c8238b9028d9c5c7030",
-      "caused_by": [],
+      "type": "milestone",
+      "content": "Stopped the reachability scan from reading comments and docstrings. It matched '<stem>.py' anywhere in the raw file, so prose manufactured reachability, which is the defect _strip_commented_lines already prevents on the workflow side. The scan now reads only non-docstring string literals, which is where a subprocess invocation actually names a script.",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [
-        "e001"
+        "e009"
       ]
     },
     {
       "id": "e009",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Stopped the reachability scan from reading comments and docstrings. It matched '<stem>.py' anywhere in the raw file, so prose manufactured reachability, which is the defect _strip_commented_lines already prevents on the workflow side. The scan now reads only non-docstring string literals, which is where a subprocess invocation actually names a script.",
+      "content": "The stricter scan exposed two genuinely unwired scripts: validate_templates_schema.py, held up only by a yaml_loader.py docstring whose edge pointed from the library to its own consumer, and check_skill_portability.py, named only in two companion docstrings. Both exit 0, so both are wireable; filed #3366 and allowlisted them against it. Also corrected templates/README.md, which claimed the first runs in build-validation.yml, a workflow that no longer exists.",
       "caused_by": [
-        "e007"
+        "e008"
       ],
       "leads_to": [
         "e010"
@@ -116,19 +118,29 @@
       "id": "e010",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "The stricter scan exposed two genuinely unwired scripts: validate_templates_schema.py, held up only by a yaml_loader.py docstring whose edge pointed from the library to its own consumer, and check_skill_portability.py, named only in two companion docstrings. Both exit 0, so both are wireable; filed #3366 and allowlisted them against it. Also corrected templates/README.md, which claimed the first runs in build-validation.yml, a workflow that no longer exists.",
+      "content": "parse_agent_file crashed with a traceback on a non-UTF-8 file instead of reporting it. Same shape as the silent skip fixed earlier: the run ends without a usable validation result. UnicodeDecodeError and OSError now become MalformedAgentFileError, so the directory walk reports the file and keeps going.",
       "caused_by": [
         "e009"
       ],
       "leads_to": [
-        "e011"
+        "e012"
       ]
     },
     {
       "id": "e011",
       "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0fc3df9a7f460a3390722c8238b9028d9c5c7030",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "parse_agent_file crashed with a traceback on a non-UTF-8 file instead of reporting it. Same shape as the silent skip fixed earlier: the run ends without a usable validation result. UnicodeDecodeError and OSError now become MalformedAgentFileError, so the directory walk reports the file and keeps going.",
+      "content": "Re-extracted the episode after the work-log additions. The extractor appends rather than rebuilds, so a corrected log does not correct an episode already on disk; the file has to be deleted first. Result: 11 events, no inherited content. Filed as #3363 separately, since the derived file should not need hand-holding.",
       "caused_by": [
         "e010"
       ],

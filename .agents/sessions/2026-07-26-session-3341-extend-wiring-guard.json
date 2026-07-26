@@ -135,6 +135,10 @@
     {
       "time": "2026-07-26T15:05:00Z",
       "action": "parse_agent_file crashed with a traceback on a non-UTF-8 file instead of reporting it. Same shape as the silent skip fixed earlier: the run ends without a usable validation result. UnicodeDecodeError and OSError now become MalformedAgentFileError, so the directory walk reports the file and keeps going."
+    },
+    {
+      "time": "2026-07-26T15:20:00Z",
+      "action": "Re-extracted the episode after the work-log additions. The extractor appends rather than rebuilds, so a corrected log does not correct an episode already on disk; the file has to be deleted first. Result: 11 events, no inherited content. Filed as #3363 separately, since the derived file should not need hand-holding."
     }
   ],
   "learnings": {
