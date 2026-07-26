@@ -970,6 +970,52 @@ class TestDispatcherExpansion:
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
         assert any("must be a JSON object" in v.message for v in report.violations)
 
+    def test_dispatch_groups_with_non_dict_groups_is_reported(self, tmp_path):
+        """A groups property that is not a dict must be reported as invalid."""
+        _tree(
+            tmp_path,
+            settings={
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "",
+                            "hooks": [
+                                {"type": "command", "command": "python3 .claude/hooks/A/a.py"}
+                            ],
+                        }
+                    ]
+                }
+            },
+            shims=["A/a.py"],
+        )
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text('{"groups": null}')
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
+        assert any("'groups' property must be an object" in v.message for v in report.violations)
+
+    def test_dispatch_groups_with_missing_groups_is_reported(self, tmp_path):
+        """A dispatch_groups.json without a groups property must be reported."""
+        _tree(
+            tmp_path,
+            settings={
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "",
+                            "hooks": [
+                                {"type": "command", "command": "python3 .claude/hooks/A/a.py"}
+                            ],
+                        }
+                    ]
+                }
+            },
+            shims=["A/a.py"],
+        )
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text('{"version": 1}')
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
+        assert any("missing" in v.message for v in report.violations)
+
     def test_an_absent_dispatch_groups_file_is_not_a_violation(self, tmp_path):
         """A checkout with no grouped hooks is legitimate."""
         _tree(

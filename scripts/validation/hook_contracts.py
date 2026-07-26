@@ -187,7 +187,19 @@ def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
             )
         ]
     groups = data.get("groups")
-    return (groups if isinstance(groups, dict) else {}), []
+    if not isinstance(groups, dict):
+        return {}, [
+            Violation(
+                hook_type="dispatcher",
+                script=str(DISPATCH_GROUPS_PATH),
+                category="invalid_dispatch_groups",
+                message=(
+                    f"{DISPATCH_GROUPS_PATH} 'groups' property must be an object, "
+                    f"got {type(groups).__name__ if groups is not None else 'missing'}"
+                ),
+            )
+        ]
+    return groups, []
 
 
 def _expand_dispatch_group(
