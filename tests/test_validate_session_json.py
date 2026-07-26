@@ -1244,7 +1244,7 @@ class TestHistoricalLogsAreExemptByConstruction:
 
 
 class TestMainNarrowsOnThePayload:
-    """`main` branches on `data is None`, not on `error` (issue #3346).
+    """`main` branches on `error is not None`, not on `data is None` (issue #3346).
 
     The old form left `data` optional and carried a type suppression. These
     pin the observable behavior so the narrowing cannot be reverted silently.
