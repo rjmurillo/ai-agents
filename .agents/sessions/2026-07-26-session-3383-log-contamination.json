@@ -74,7 +74,7 @@
       "serenaMemoryUpdated": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Wrote decision-session-log-guard-tiers via serena-write_memory, recording why agreement checks are claim tier and why guard 3 is unshippable."
+        "evidence": "Wrote decision-calibrate-guards-on-the-whole-corpus via serena-write_memory, recording that a guard calibrated on a sample of its own hits shipped an 86 percent false-positive rate."
       },
       "markdownLintRun": {
         "complete": true,
