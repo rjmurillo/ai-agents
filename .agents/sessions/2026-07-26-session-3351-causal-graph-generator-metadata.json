@@ -1,0 +1,169 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3351,
+    "date": "2026-07-26",
+    "branch": "fix/3351-causal-graph-generator-metadata",
+    "startingCommit": "aaaf9081f568db83665f79ba89261a5cd746fb01",
+    "objective": "Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP activation tools are not exposed in this Copilot CLI session toolset (only lsp is present)."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena initial_instructions tool is not exposed in this Copilot CLI session toolset."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md during the PR 3315 babysitting phase of this session."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created for branch fix/3351-causal-graph-generator-metadata."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3351-causal-graph-generator-metadata."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working on feature branch fix/3351-causal-graph-generator-metadata, not main."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Inspected git status and the task diff before commits 29f35db5f4 and ae4a112ebc on branch fix/3351-causal-graph-generator-metadata."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "startingCommit aaaf9081f568db83665f79ba89261a5cd746fb01 recorded from git rev-parse HEAD."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end MUST items satisfied with honest evidence; Serena SHOULD items marked incomplete because those tools are not exposed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read only and left unmodified this session."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena memory write tools were not exposed in this Copilot CLI session; the diagnosis is recorded in this log and its generated episode."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed in this session, so the scoped Markdown lint set was empty."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Task fixes committed as 29f35db5f4 and ae4a112ebc; review evidence correction committed as 9f1e0b949a on branch fix/3351-causal-graph-generator-metadata."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "48 tests passed in test_update_causal_graph.py and 370 passed across the causal-graph surface; ruff and mypy passed on touched Python files."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No retrospective was written for this targeted causal-graph fix."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-26T03:10:00Z",
+      "action": "Diagnosed missing fresh-write metadata, unstable sequential pattern ids, and unreproducible seed rows",
+      "result": "Confirmed the empty graph omitted version and updated, pattern records omitted id, and node n001 plus patterns p001 through p004 had no supporting episode."
+    },
+    {
+      "time": "2026-07-26T03:25:00Z",
+      "action": "Restored graph metadata and added stable pattern ids in the canonical generator",
+      "result": "Fresh graphs now carry version and updated, unchanged saves remain byte-identical, and pattern ids derive from names. Added 16 regression tests and regenerated the Copilot CLI mirror. Commit 29f35db5f4 changed 6 files."
+    },
+    {
+      "time": "2026-07-26T03:40:00Z",
+      "action": "Removed production graph seed rows and aligned provenance documentation",
+      "result": "Removed n001 and p001 through p004, verified no edge or episode referenced them, updated canonical and generated backfill documentation, and bumped paired plugin manifests. Commit ae4a112ebc changed 4 files."
+    },
+    {
+      "time": "2026-07-26T04:00:00Z",
+      "action": "Ran targeted and causal-graph validation",
+      "result": "48 tests passed in the touched test file and 370 passed across the causal-graph surface. Ruff and mypy passed on every touched Python file."
+    },
+    {
+      "time": "2026-07-26T16:00:00Z",
+      "action": "Review round 3. Corrected the backfill script's provenance note: it said the retired seed rows carried id fields the generator never writes, which this PR made false, since add_pattern now writes and backfills pattern ids. The properties that still separate a seeded row from a derived one are the last_used field, which the generator writes nowhere, and the sequential id shape against a 12-character sha256 prefix."
+    },
+    {
+      "time": "2026-07-26T16:00:00Z",
+      "action": "Replaced the fixture guard's startswith checks with the shape the generator actually produces. 'Does not start with n' is both too broad and too narrow as a test for 'is not n001'; [0-9a-f]{12} is the real contract and rejects every hand-seeded shape. Control: reinserting n001 and p001 turns 3 red."
+    },
+    {
+      "time": "2026-07-26T16:00:00Z",
+      "action": "Dropped the per-PR review metrics entry the autofix bot added. It is unrelated to the generator fixes, and it was also wrong: it recorded seven comments all resolved while the review was still running, and four more threads landed afterwards. Reverted the file to main rather than correcting a number that will move again."
+    },
+    {
+      "time": "2026-07-26T16:00:00Z",
+      "action": "Measured node id integrity while writing the guard and found 13 of 1731 nodes whose id generate_node_id does not reproduce from their stored type and label, plus 5 pairs of nodes holding identical content under different ids. Content addressing is the deduplication mechanism, so those 5 are split evidence today. Not truncation and not a prefix change; filed #3367 rather than widening this PR."
+    },
+    {
+      "time": "2026-07-26T20:45:00Z",
+      "action": "Review flagged load_causal_graph annotating its parse result dict[str, Any] without checking it. Probed the shipped loader against every non-object JSON shape: '[]' returns a list and crashes at graph['nodes'] with \"list indices must be integers\", '\"a string\"' with \"string indices must be integers\", '42' with \"'int' object is not subscriptable\", 'null' with \"'NoneType' object is not subscriptable\". None names the graph, so a corrupt graph file reads as a code bug in whatever touched it first. Wrote a fallback to _empty_graph first, then read the caller and threw that away: git_hook_policy.update_causal_graph snapshots the file at line 1238 and restores that snapshot only when the script exits non-zero (line 1242), returning 0 either way so the commit is never blocked. A fallback therefore exits 0 and lets _stage_causal_graph commit the empty graph over whatever the file held. The autofix bot's raise is the correct contract and it landed first; adopted it."
+    },
+    {
+      "time": "2026-07-26T20:50:00Z",
+      "action": "The bot's test landed only in .claude/skills/memory/tests and the src/copilot-cli mirror. pyproject sets testpaths = ['tests'], so CI collects neither: the guard shipped untested. Ported it to tests/skills/memory/test_update_causal_graph.py, the one copy a default run reaches, widened to six payloads including a populated array. The two skill-bundle suites also cannot run in one pytest invocation because both conftest.py files register as module 'memory.conftest'. Negative control with the raise removed: 6 red. Restored: 54 pass."
+    },
+    {
+      "time": "2026-07-26T21:25:00Z",
+      "action": "Review caught .serena/memories/decision-branch-context-merged-history.md riding along in this branch. Checked the cited rule and it is verbatim: .claude/rules/claude-agents.md MUST NOT 2, 'MUST NOT bundle skill code changes with memory changes in the same PR'. This PR changes .claude/skills/memory and src/copilot-cli/skills/memory, so the bundle is exactly the prohibited one. The memory also has nothing to do with this PR: it records the branch-context exemption decision from PR #3344 (issue #3343). Removed here; relanding it on its own branch rather than deleting, because it is a first-principles contradiction entry (recency was the wrong discriminator, upstream presence is the right one) that the knowledge-persistence rule wants kept."
+    },
+    {
+      "task": "Close the UnicodeDecodeError hole on both sides of the causal graph file",
+      "outcome": "UnicodeDecodeError is a ValueError subclass, not an OSError one, so it slipped past every handler in this module. In load_causal_graph the outcome was already correct, since git_hook_policy restores its snapshot on any non-zero exit, but the operator got a raw traceback about a byte position where every other corruption produces a sentence naming the file; it now raises the same shaped ValueError. In save_causal_graph the outcome was wrong: the short-circuit read that decides whether the rendered content already matches disk guarded only OSError, so undecodable bytes aborted the save instead of replacing them, and a graph that cannot be read is exactly the graph that most needs replacing. The asymmetry between the two is deliberate and now documented in the save docstring: the load asks what the current state is, the save only asks whether its own output is already there.",
+      "evidence": "Four tests in tests/skills/memory/test_update_causal_graph.py, the only copy pyproject collects. Negative control A stripped both new guards: 2 red. Negative control B dropped OSError from the save tuple: 8 red, because the missing-file case is a FileNotFoundError. Restored, 57 pass in the file, 312 across tests/skills/memory, 326 in each of the two skill mirror suites run separately. ruff clean on all five touched files; the only ruff format drift in update_causal_graph.py sits at lines 176 through 396, which predates this branch."
+    },
+    {
+      "task": "Retire the present tense on the removed seed rows",
+      "outcome": "backfill_episode_provenance.py said 'Two things still mark them as hand-seeded rather than derived' about node n001 and patterns p001 through p004, which #3352 removed from the committed graph two sentences earlier. The marks are still worth recording, because anyone reading a graph that predates #3352 needs them, so the sentence now scopes them to that case instead of implying the rows are present.",
+      "evidence": "Both mirrors patched from one script and verified byte-identical with diff -q."
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Stamp generated metadata only when serialized content changes",
+        "context": "The causal graph update runs on every commit, so an unconditional updated timestamp would dirty an unchanged graph and create merge conflicts.",
+        "application": "Compare the rendered graph with the file before restamping updated, then skip the write when the bytes match."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Allocate sequential ids inside a content-merged artifact",
+        "consequence": "Two branches can allocate the same next id to different patterns, leaving the merge driver unable to distinguish them.",
+        "correction": "Derive each pattern id from its existing name identity so independent branches produce stable values."
+      }
+    ]
+  },
+  "endingCommit": "9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
+  "nextSteps": []
+}
