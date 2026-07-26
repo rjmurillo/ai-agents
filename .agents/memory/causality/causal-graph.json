@@ -15446,6 +15446,60 @@
         "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
       ],
       "created": "2026-07-26T04:13:25.358593+00:00"
+    },
+    {
+      "id": "4f0a19284fad",
+      "type": "milestone",
+      "label": "milestone: Verify that #3362 was superseded before reworking it",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219464+00:00"
+    },
+    {
+      "id": "0d66572d61c9",
+      "type": "milestone",
+      "label": "milestone: Measure the temporary-file leak before fixing it",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219528+00:00"
+    },
+    {
+      "id": "e7bac2969db0",
+      "type": "milestone",
+      "label": "milestone: Harden the atomic write",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219584+00:00"
+    },
+    {
+      "id": "b01c5bf32f1a",
+      "type": "test",
+      "label": "test: 73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, each reverting one change: dropping the BaseException handler turns 2 red, dropping the fsync turns 2 red, dropping the mkstemp prefix turns 1 red; restoring returns 73 passed. ruff check and ruff format clean on both files.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219639+00:00"
+    },
+    {
+      "id": "ea94677bc372",
+      "type": "commit",
+      "label": "commit: Commit: 2796f956e5",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219700+00:00"
+    },
+    {
+      "id": "d5f97ca01ecb",
+      "type": "outcome",
+      "label": "Outcome: success - Close the two gaps left in _atomic_write_text after #3359: the temporary leaks on any non-OSError exit, and nothing flushes it to disk before the rename.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219757+00:00"
     }
   ],
   "patterns": [

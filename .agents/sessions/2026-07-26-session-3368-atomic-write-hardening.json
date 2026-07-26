@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3368,
+    "date": "2026-07-26",
+    "branch": "fix/3368-atomic-write-hardening",
+    "startingCommit": "3d1f3b30d279785677ad87d5c3fafec215fecfbc",
+    "objective": "Close the two gaps left in _atomic_write_text after #3359: the temporary leaks on any non-OSError exit, and nothing flushes it to disk before the rename."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-* MCP tools resolved live in this harness; serena-list_memories returned the project memory index."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions is exposed by this harness and the Serena toolbox was used for memory retrieval during the session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read earlier in this session; treated as read-only per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working under the code-review-and-quality skill; validation entry points located through scripts/validation and lefthook.yml."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read earlier in this session."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read earlier in this session."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read validation/atomic-replace-preserve-metadata, which records that a temporary-file replacement must be tested for temporary cleanup. #3359 shipped without that test, which is what this change adds."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reports fix/3368-atomic-write-hardening, branched from origin/main at 3d1f3b30d2."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3368-atomic-write-hardening"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branch creation and before each commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "3d1f3b30d2"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed against this session's own evidence, not inherited from the log this file was templated from."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched; git status shows no entry for it."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote validation/atomic-write-cleanup-covers-interrupts, recording that OSError-only cleanup leaks the temporary on Ctrl-C and that os.replace needs an fsync ahead of it."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown changed in this branch; the change is one script and one test module."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hardening and tests committed as 2796f956e5."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, one per change: removing the BaseException handler turns 2 red, removing the fsync turns 2 red, removing the mkstemp prefix turns 1 red. ruff check and ruff format clean."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3368 created with the measured evidence and the acceptance criteria this branch satisfies."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked. This is a two-function change with three negative controls; there is no failure to reconstruct."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Verify that #3362 was superseded before reworking it",
+      "outcome": "PR #3359 landed the atomic write on 2026-07-26 and closed #3357, the issue PR #3362 targeted, so #3362 was a competing implementation of a shipped fix. Diffed the two rather than assuming the merged one was complete. Main is ahead on the exit-code contract: it separates exit 3 (filesystem refused the write) from exit 1 (malformed input) per ADR-035, and preserves the primary error when close() itself fails. The branch was ahead on two things main lacks, so those became #3368 instead of a rewrite of #3362.",
+      "evidence": "gh issue view 3357 reports CLOSED; gh pr view 3359 --json closingIssuesReferences returns 3357. git log on scripts/validation/merge_causal_graph.py shows 3d1f3b30d2 'write causal graph merges atomically (#3359)'."
+    },
+    {
+      "task": "Measure the temporary-file leak before fixing it",
+      "outcome": "Confirmed the leak is real, not theoretical. Cleanup in _atomic_write_text is attached to except OSError. KeyboardInterrupt is not an OSError, and a merge driver runs inside an interactive git merge, which is exactly where Ctrl-C lands. The destination survives; the temporary does not get removed, and tempfile.mkstemp's default name carries no link to what wrote it, so a leaked file in .agents/memory/causality/ is unattributable and one git add -A from being committed.",
+      "evidence": "Probe against origin/main at 3d1f3b30d2, forcing a BaseException out of the write: 'main leaks on BaseException: [tmpzh8km2lu.tmp]' with 'destination intact: {\"a\":1}'."
+    },
+    {
+      "task": "Harden the atomic write",
+      "outcome": "Added an except BaseException handler that discards the temporary and re-raises, so an interrupt cleans up. Added handle.flush() and os.fsync(handle.fileno()) before the chmod and rename, because os.replace is atomic against other processes but not against a crash: without the sync a power loss after the rename can leave the destination naming data that never reached disk, which is the partial-file outcome #3359 set out to prevent, relocated from the write to the rename. Gave mkstemp a prefix derived from the destination name so any leak is greppable. Extracted _discard() so both handlers share one unlink and neither replaces the primary error with a cleanup error.",
+      "evidence": "73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, each reverting one change: dropping the BaseException handler turns 2 red, dropping the fsync turns 2 red, dropping the mkstemp prefix turns 1 red; restoring returns 73 passed. ruff check and ruff format clean on both files."
+    }
+  ],
+  "endingCommit": "2796f956e5",
+  "nextSteps": [
+    "Open the PR for #3368 against main.",
+    "Merge only after the review-thread and CI gates pass."
+  ]
+}
