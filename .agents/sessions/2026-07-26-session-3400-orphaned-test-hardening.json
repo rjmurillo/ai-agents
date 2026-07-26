@@ -79,7 +79,7 @@
       "markdownLintRun": {
         "complete": true,
         "level": "MUST",
-        "evidence": "No markdown authored this session"
+        "evidence": "markdownlint-cli2 \".serena/memories/decision-session-protocol-workflow-stdlib-only.md\" \u2014 0 files linted (path excluded by .markdownlint-cli2.jsonc ignore glob .serena/**)"
       },
       "changesCommitted": {
         "complete": true,
