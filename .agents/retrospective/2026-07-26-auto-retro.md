@@ -44,7 +44,7 @@
    then reran the failed PR validation job.
 10. Merged #3348 at `f8b5f9a35f` after required CI and thread gates passed.
 11. Probed an atomic-write follow-up, found and corrected mode loss, and reached
-    67 focused tests with clean Ruff and mypy results.
+    68 focused tests with clean Ruff and mypy results.
 12. Deleted the accidentally recreated #3348 branch and opened issue #3357 for
     the focused follow-up.
 
@@ -151,7 +151,8 @@ Content-only verification was incomplete.
 - Remote SHA comparisons preserved concurrent commits `a20e67fa3c`,
   `bf60eab071`, `434721b64d`, and `f8b5f9a35f`.
 - The atomic-write follow-up now covers replace failure, partial writes, close
-  failure, cleanup failure, and mode preservation across 67 focused tests.
+  failure, cleanup failure, descriptor ownership, and mode preservation across
+  68 focused tests.
 
 ### What Could Improve
 

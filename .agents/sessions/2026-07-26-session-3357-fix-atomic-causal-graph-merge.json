@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code committed as 4033554b78; session artifacts staged for closing commit"
+        "Evidence": "Atomic-write fixes committed as 4033554b78 and c195050067"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "67 focused tests pass; Ruff, format check, and mypy pass"
+        "Evidence": "68 focused tests pass; Ruff, format check, and mypy pass"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -124,14 +124,18 @@
     },
     {
       "phase": "validation",
-      "summary": "67 targeted tests pass; Ruff, formatting, and mypy pass for both changed files."
+      "summary": "68 targeted tests pass; Ruff, formatting, and mypy pass for both changed files."
     },
     {
       "phase": "retrospective",
       "summary": "Filled the 2026-07-26 auto-retrospective and persisted three reusable memories."
+    },
+    {
+      "phase": "review",
+      "summary": "Fixed PR #3359 review finding by closing the raw mkstemp descriptor when os.fdopen fails."
     }
   ],
-  "endingCommit": "4033554b78",
+  "endingCommit": "c195050067",
   "nextSteps": [
     "Push fix/3357-atomic-causal-graph-write and open a PR that fixes #3357.",
     "Merge only after required CI and review-thread gates pass."

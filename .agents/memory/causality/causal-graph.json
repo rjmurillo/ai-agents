@@ -15419,6 +15419,33 @@
         "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
       ],
       "created": "2026-07-26T03:54:38.685517+00:00"
+    },
+    {
+      "id": "b8dbaa12a4a0",
+      "type": "milestone",
+      "label": "milestone: 68 targeted tests pass; Ruff, formatting, and mypy pass for both changed files.",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T04:13:25.358473+00:00"
+    },
+    {
+      "id": "1e45190c0837",
+      "type": "milestone",
+      "label": "milestone: Fixed PR #3359 review finding by closing the raw mkstemp descriptor when os.fdopen fails.",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T04:13:25.358537+00:00"
+    },
+    {
+      "id": "0013cdc2ffb2",
+      "type": "commit",
+      "label": "commit: Commit: c195050067",
+      "episodes": [
+        "episode-2026-07-26-session-3357-fix-atomic-causal-graph-merge"
+      ],
+      "created": "2026-07-26T04:13:25.358593+00:00"
     }
   ],
   "patterns": [

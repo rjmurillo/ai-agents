@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Created and claimed issue #3357 after confirming no existing PR.",
       "caused_by": [
-        "e005"
+        "e008"
       ],
       "leads_to": [
         "e002"
@@ -50,7 +50,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e005",
@@ -58,6 +60,40 @@
       "type": "commit",
       "content": "Commit: 4033554b78",
       "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "68 targeted tests pass; Ruff, formatting, and mypy pass for both changed files.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed PR #3359 review finding by closing the raw mkstemp descriptor when os.fdopen fails.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c195050067",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [
         "e001"
       ]
@@ -68,7 +104,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 8
   },
   "lessons": []
