@@ -141,7 +141,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 4
+    "files_changed": 5
   },
   "lessons": [
     "Measure the claim in an issue before implementing its remedy. The count was an artifact of asking about literal reference rather than reachability. Changing the question dropped it to six and made the allowlist small enough to be honest. Implementing the requested remedy directly would have reproduced the defect the issue was filed against.",

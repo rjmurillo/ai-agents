@@ -69,7 +69,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown file changed on this branch, so the scoped markdownlint run has an empty file set."
+        "Evidence": "npx markdownlint-cli2 templates/README.md exited 0 after the CI-gating guidance update."
       },
       "changesCommitted": {
         "level": "MUST",

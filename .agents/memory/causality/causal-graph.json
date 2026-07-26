@@ -15574,24 +15574,6 @@
       "created": "2026-07-26T08:43:49.213253+00:00"
     },
     {
-      "id": "c8364052abb4",
-      "type": "commit",
-      "label": "commit: Commit: 8847d08f519a370ba0c176c6f9786fd36c78dfa8",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T08:43:49.213307+00:00"
-    },
-    {
-      "id": "dafd4bcb6cfd",
-      "type": "commit",
-      "label": "commit: Commit: 0fc3df9a7f",
-      "episodes": [
-        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
-      ],
-      "created": "2026-07-26T08:43:49.213361+00:00"
-    },
-    {
       "id": "c72822b3783b",
       "type": "outcome",
       "label": "Outcome: success - Fully autofix PR 3361 review threads, CI, generated artifacts, and merge",
@@ -15626,6 +15608,24 @@
         "episode-2026-07-26-session-3341-extend-wiring-guard"
       ],
       "created": "2026-07-26T08:47:31.304400+00:00"
+    },
+    {
+      "id": "c03f28a6c7e8",
+      "type": "milestone",
+      "label": "milestone: Processed the final review batch before push",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:01:35.420805+00:00"
+    },
+    {
+      "id": "18322fd3732c",
+      "type": "commit",
+      "label": "commit: Commit: 826e9ba82dc0412077695df50772eb426b35fdaf",
+      "episodes": [
+        "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
+      ],
+      "created": "2026-07-26T09:01:35.420870+00:00"
     }
   ],
   "patterns": [
