@@ -132,6 +132,10 @@
     {
       "time": "2026-07-26T20:50:00Z",
       "action": "The bot's test landed only in .claude/skills/memory/tests and the src/copilot-cli mirror. pyproject sets testpaths = ['tests'], so CI collects neither: the guard shipped untested. Ported it to tests/skills/memory/test_update_causal_graph.py, the one copy a default run reaches, widened to six payloads including a populated array. The two skill-bundle suites also cannot run in one pytest invocation because both conftest.py files register as module 'memory.conftest'. Negative control with the raise removed: 6 red. Restored: 54 pass."
+    },
+    {
+      "time": "2026-07-26T21:25:00Z",
+      "action": "Review caught .serena/memories/decision-branch-context-merged-history.md riding along in this branch. Checked the cited rule and it is verbatim: .claude/rules/claude-agents.md MUST NOT 2, 'MUST NOT bundle skill code changes with memory changes in the same PR'. This PR changes .claude/skills/memory and src/copilot-cli/skills/memory, so the bundle is exactly the prohibited one. The memory also has nothing to do with this PR: it records the branch-context exemption decision from PR #3344 (issue #3343). Removed here; relanding it on its own branch rather than deleting, because it is a first-principles contradiction entry (recency was the wrong discriminator, upstream presence is the right one) that the knowledge-persistence rule wants kept."
     }
   ],
   "learnings": {

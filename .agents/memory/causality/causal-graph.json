@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T07:37:03.671789+00:00",
+  "updated": "2026-07-26T07:50:31.404220+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15743,6 +15743,24 @@
         "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
       ],
       "created": "2026-07-26T07:37:03.668400+00:00"
+    },
+    {
+      "id": "cf742a3a992a",
+      "type": "milestone",
+      "label": "milestone: Review caught .serena/memories/decision-branch-context-merged-history.md riding along in this branch. Checked the cited rule and it is verbatim: .claude/rules/claude-agents.md MUST NOT 2, 'MUST NOT bundle skill code changes with memory changes in the same PR'. This PR changes .claude/skills/memory and src/copilot-cli/skills/memory, so the bundle is exactly the prohibited one. The memory also has nothing to do with this PR: it records the branch-context exemption decision from PR #3344 (issue #3343). Removed here; relanding it on its own branch rather than deleting, because it is a first-principles contradiction entry (recency was the wrong discriminator, upstream presence is the right one) that the knowledge-persistence rule wants kept.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:50:31.400097+00:00"
+    },
+    {
+      "id": "78b90db33370",
+      "type": "milestone",
+      "label": "Review caught .serena/memories/decision-branch-context-merged-history.md riding along in this branch. Checked the cited rule and it is verbatim: .claude/rules/claude-agents.md MUST NOT 2, 'MUST NOT bundle skill code changes with memory changes in the same PR'. This PR changes .claude/skills/memory and src/copilot-cli/skills/memory, so the bundle is exactly the prohibited one. The memory also has nothing to do with this PR: it records the branch-context exemption decision from PR #3344 (issue #3343). Removed here; relanding it on its own branch rather than deleting, because it is a first-principles contradiction entry (recency was the wrong discriminator, upstream presence is the right one) that the knowledge-persistence rule wants kept.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T07:50:31.400751+00:00"
     }
   ],
   "patterns": [
@@ -16312,6 +16330,20 @@
         "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
       },
       "created": "2026-07-26T07:37:03.668405+00:00"
+    },
+    {
+      "source": "84e377e80d0f",
+      "target": "78b90db33370",
+      "type": "causes",
+      "weight": 0.6,
+      "evidence_count": 1,
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "contributions": {
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata": 0.6
+      },
+      "created": "2026-07-26T07:50:31.400760+00:00"
     }
   ]
 }
