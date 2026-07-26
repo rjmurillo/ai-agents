@@ -181,11 +181,79 @@
     {
       "phase": "memory",
       "summary": "Updated .serena/memories/pr-review/pr-comment-responder-skills with cumulative reviewer stats and a new PR #3347 breakdown."
+    },
+    {
+      "phase": "investigation",
+      "summary": "After pushing ebb6cf9365 and a28649c5e1, re-queried review threads and found a 4th unresolved thread (PRRT_kwDOQoWRls6TzlCz, copilot-pull-request-reviewer): validate_against_schema() built its validator without a format_checker, so the schema's format: \"date-time\" on developmentPhase.history[].timestamp was never enforced (jsonschema treats format as annotation-only by default). Confirmed real: the base jsonschema.FormatChecker lacks a date-time checker without the rfc3339-validator package, which is not a project dependency."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Registered a stdlib-only date-time format checker using datetime.fromisoformat (Python >=3.14 required by this project) instead of adding a new dependency, and passed it to the validator via validator_for(schema)(schema, format_checker=_FORMAT_CHECKER). Verified via a scripted scan of .agents/sessions/*.json that no committed session log uses developmentPhase.history, so enforcing the format introduces zero regressions on historical logs. Added test_malformed_history_timestamp_is_rejected and test_valid_history_timestamp_passes to tests/test_validate_session_json.py."
+    },
+    {
+      "phase": "validation",
+      "summary": "uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 680 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed."
+    },
+    {
+      "phase": "commit",
+      "summary": "Re-verified local HEAD matched origin (a28649c5e1) before committing; staged scripts/validate_session_json.py and tests/test_validate_session_json.py; committed as fix(validation): enforce date-time format on schema-declared timestamps with Refs #3346 and Copilot trailers -> 15d6ae2bc44968de01efaa0a0493ad8a89e3d222. Re-verified no concurrent push, then pushed (pre-push hook: 13798 tests passed)."
+    },
+    {
+      "phase": "reply",
+      "summary": "Replied to and resolved PRRT_kwDOQoWRls6TzlCz citing the fixing commit. Made a transcription error in the first reply (fabricated a full SHA instead of using the real one from git rev-parse); caught it immediately and posted a correction comment with the verified SHA before proceeding. Thread remained resolved throughout."
+    },
+    {
+      "phase": "investigation",
+      "summary": "Re-checked threads after the push and found a 5th unresolved thread (PRRT_kwDOQoWRls6TzpOY, copilot-pull-request-reviewer) on tests/test_validate_session_json.py: the TestMainNarrowsOnThePayload class docstring claimed main() branches on data is None, not on error, which is backwards from the actual implementation (main() branches on error is not None, letting a JSON null root reach schema validation). Confirmed by reading main()."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Fixed the docstring to state the correct condition (error is not None, not data is None). Single-line, single-file documentation fix; no behavior change."
+    },
+    {
+      "phase": "validation",
+      "summary": "uv run pytest tests/test_validate_session_json.py: 134 passed. ruff check clean."
+    },
+    {
+      "phase": "commit",
+      "summary": "Re-verified HEAD matched origin (15d6ae2bc4) before committing; committed as docs(tests): fix stale branching claim in TestMainNarrowsOnThePayload with Refs #3346 and Copilot trailers -> 31e3058e907671d75306e9d2efbd891fb450328c. Re-verified no concurrent push, then pushed."
+    },
+    {
+      "phase": "reply",
+      "summary": "Replied to and resolved PRRT_kwDOQoWRls6TzpOY citing the verified commit SHA (read from a file written by git rev-parse, not retyped by hand, after the earlier transcription error)."
+    },
+    {
+      "phase": "investigation",
+      "summary": "Re-checked threads after the push and found a 6th unresolved thread (PRRT_kwDOQoWRls6Tzr_g, copilot-pull-request-reviewer) on the new _check_date_time function: datetime.fromisoformat accepts a timestamp with no UTC offset, but RFC 3339 section 5.6 (what format: \"date-time\" means) requires one. Confirmed the project's requires-python (>=3.14) already made the Z-suffix concern moot, but the offset-optional acceptance was a real gap."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Tightened _check_date_time to reject a parse that comes back timezone-naive (parsed.tzinfo is not None). Added test_offset_naive_history_timestamp_is_rejected; the existing valid-timestamp test already used a Z-suffixed value so it needed no change."
+    },
+    {
+      "phase": "validation",
+      "summary": "uv run pytest tests/test_validate_session_json.py: 135 passed. ruff check and mypy clean. Broader uv run pytest tests/ -k session: 681 passed, 1 skipped, 6 xfailed. Ran scripts/validation/pre_pr.py --quick: all passed."
+    },
+    {
+      "phase": "commit",
+      "summary": "Re-verified HEAD matched origin (31e3058e90) before committing; committed as fix(validation): reject offset-naive timestamps in date-time format check with Refs #3346 and Copilot trailers -> ecebb1d5acb2d25a0b44fa1e2048837d0e1092c8. Re-verified no concurrent push, then pushed (pre-push hook: full suite green)."
+    },
+    {
+      "phase": "reply",
+      "summary": "Replied to and resolved PRRT_kwDOQoWRls6Tzr_g citing the verified commit SHA."
+    },
+    {
+      "phase": "verification",
+      "summary": "Waited and re-queried unresolved threads twice more after the final push: 0 unresolved both times. Ran get_pr_checks.py --wait: OverallState SUCCESS, 85 passed, 0 failed, 0 pending, AllPassing true. Ran check_pr_live_state.py: action=ACT, state=OPEN, not merged/closed/superseded. Final gh pr view: headRefOid=ecebb1d5ac (matches final push), mergeStateStatus=BLOCKED, mergeable=MERGEABLE, reviewDecision empty -- same pre-existing branch-protection gap (missing approving review), unchanged from before this session's work and explicitly out of scope."
+    },
+    {
+      "phase": "reconciliation",
+      "summary": "Before committing this update, git fetch on fix/3346-session-schema-enforcement found the remote had moved to 109453ecab (2 commits ahead of my last push ecebb1d5ac), pushed by a second, concurrent agent session (Copilot-Session 0cd84ba3, the branch's original session ID) working the same PR in parallel. That session's commit 22917af15a substantively revised the same function I had touched: (1) replaced the SchemaError-around-iter_errors handler with validator_cls.check_schema(schema) up front, because most malformed schemas raise UnknownType or AttributeError rather than SchemaError, so my handler alone still let the gate crash on two of three malformed-schema shapes; (2) reverted the error sort key from a stringified path back to the raw list(e.absolute_path), arguing the mixed str/int comparison my fix guarded against is unreachable (paths only compare past a shared prefix, whose child keys are then uniformly str or uniformly int), and that stringifying broke numeric ordering for indices >= 10; (3) deleted REQUIRED_SESSION_FIELDS as dead code; (4) replaced two monkeypatched-validator tests with tests driven by real malformed schemas. My format_checker/date-time work (4th and 6th threads) was left as written and cited as already covering 925 committed logs with zero rejections. Verified compatibility: git merge --ff-only origin/fix/3346-session-schema-enforcement fast-forwarded cleanly (no conflicts, since it only builds on top of my last commit); re-ran the full test file (138 passed, up from 135: the other session's tests plus mine both present), ruff, mypy, and the broader session-tagged suite (684 passed) -- all green with both sessions' changes combined. Did not re-litigate the sort-key disagreement: the other session's reasoning is sound (a shared path prefix cannot mix child key types) and its replacement tests exercise real schemas instead of a synthetic monkeypatch, which is the stronger test design; deferred to it rather than reverting or force-pushing over it."
     }
   ],
-  "endingCommit": "ebb6cf9365decd450d7b26c6aedd49ef3264b326",
+  "endingCommit": "ecebb1d5acb2d25a0b44fa1e2048837d0e1092c8",
   "nextSteps": [
     "PR #3347 needs at least one approving review to clear branch protection before it can merge; no code action required.",
-    "If a maintainer merges, the follow-up commit ebb6cf9365 will already be included; no further session action pending."
+    "All 6 review threads (across both sessions) are resolved and 0 remain unresolved; CI is fully green on ecebb1d5ac."
   ]
 }
