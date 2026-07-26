@@ -25,6 +25,7 @@ dev = [
     "mypy>=2.1.0",
     "semgrep==1.171.0",
     "lefthook==2.1.10",
+    "packaging>=24.0",
 ]
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
@@ -245,4 +246,5 @@ dev = [
     "mypy>=2.1.0",
     "semgrep==1.171.0",
     "lefthook==2.1.10",
+    "packaging>=24.0",
 ]
