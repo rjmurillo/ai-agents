@@ -5361,8 +5361,8 @@
       "episodes": [
         "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
         "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
-        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge",
         "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths",
+        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge",
         "episode-2026-06-11-session-2377-auto-retro-hook-block-and-fill-continuation-relocate"
       ],
       "created": "2026-06-07T20:00:30.167694+00:00"
@@ -8411,9 +8411,9 @@
       "type": "commit",
       "label": "commit: Commit: f13f73f",
       "episodes": [
+        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening",
         "episode-2026-07-02-session-2603-issues-2812-atomic-writes-2813",
         "episode-2026-07-03-session-2603-issue-2811-pr-b-subprocess-timeouts",
-        "episode-2026-07-02-session-2603-issue-2810-subprocess-timeout-staging-verification-hardening",
         "episode-2026-07-03-session-2603-issue-2828-add-auto-router"
       ],
       "created": "2026-07-02T15:29:52.544813+00:00"
@@ -14735,6 +14735,24 @@
         "episode-2026-07-25-session-3345-causal-graph-merge-driver"
       ],
       "created": "2026-07-26T01:11:32.565886+00:00"
+    },
+    {
+      "id": "594ed9921409",
+      "type": "milestone",
+      "label": "milestone: Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired.",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T01:31:52.189486+00:00"
+    },
+    {
+      "id": "0b90b99668bf",
+      "type": "commit",
+      "label": "commit: Commit: 0d3d41d58c6a8968fcc90108cfd6b408c07a7775",
+      "episodes": [
+        "episode-2026-07-25-session-3345-causal-graph-merge-driver"
+      ],
+      "created": "2026-07-26T01:31:52.189550+00:00"
     }
   ],
   "patterns": [

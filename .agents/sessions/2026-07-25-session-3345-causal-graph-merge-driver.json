@@ -130,9 +130,17 @@
         "scripts/validation/merge_causal_graph.py",
         "tests/validation/test_merge_causal_graph.py"
       ]
+    },
+    {
+      "phase": "correction",
+      "summary": "Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
+      "files": [
+        "scripts/validation/merge_causal_graph.py",
+        "tests/validation/test_merge_causal_graph.py"
+      ]
     }
   ],
-  "endingCommit": "d96e557bdea82d455e0b7f9102abf59d82d5ec31",
+  "endingCommit": "0ab20c06c900d3e1eb177bfebb31bfd5b1a543d4",
   "nextSteps": [
     "File the causal-graph drift finding: 41 of 242 episodes have no node in the committed graph and no hook path backfills them.",
     "File that the generator drops the version and updated keys when it writes a graph from scratch.",
