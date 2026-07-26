@@ -800,7 +800,9 @@ class TestCommitProvenanceConsistency:
         assert extract_session_episode._same_commit(full, full)
         # Distinct commits sharing a 6-char prefix are not the same commit.
         assert not extract_session_episode._same_commit(full, "e535a4e9abc")
-        # Below git's 7-char minimum abbreviation, do not treat as a match.
+        # Below the extractor's own seven-character floor, do not treat as a
+        # match. The floor is this module's rule; git's abbreviation length is
+        # repo-dependent (core.abbrev), so there is no git minimum to cite.
         assert not extract_session_episode._same_commit(full, "e535a4")
         assert not extract_session_episode._same_commit("", full)
 
@@ -1853,7 +1855,9 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
 
     def test_two_genuinely_different_commits_both_survive(self):
         """Negative control: the de-duplication must not collapse distinct
-        commits that merely share a short prefix below git's 7-char minimum.
+        commits that merely share a prefix shorter than the extractor's own
+        seven-character floor. That floor is _same_commit's rule, not a git
+        contract: git's abbreviation length is repo-dependent (core.abbrev).
         """
         other = "abfeed09876543210fedcba9876543210fedcba9"
         log = self._log(evidence=f"Two commits: {self._FULL} and {other}.", ending="")
@@ -1869,8 +1873,9 @@ class TestOneCommitCountsOnceAcrossAbbreviations:
         assert shas == [self._FULL]
 
     def test_already_seen_needs_seven_shared_characters(self):
-        """`_same_commit` requires git's minimum unambiguous length, so a
-        six-character prefix is not treated as the same commit.
+        """`_same_commit` requires seven shared characters, so a six-character
+        prefix is not treated as the same commit. Seven is this module's own
+        floor, not a git contract; git's abbreviation length varies by repo.
         """
         assert not extract_session_episode._already_seen("abc123", [self._FULL])
         assert extract_session_episode._already_seen(self._SHORT, [self._FULL])

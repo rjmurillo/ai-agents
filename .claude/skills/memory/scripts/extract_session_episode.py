@@ -716,7 +716,8 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     no SHA. Deleting the fallback would drop every commit those 15 sessions
     made. They are not a closed historical set: they run 2026-01-15 to
     2026-07-08, so the fallback is load-bearing for logs still being written.
-    Measured over 938 logs by the definition this docstring states: neither
+    Measured over the 941 logs present at the time of measurement, by the
+    definition this docstring states: neither
     ``endingCommit`` nor the ``changesCommitted`` evidence names a SHA other
     than the starting commit, and the work log does. It carries the existing
     hex-letter (issue #3301) and committer-date (issue #3328) filters.

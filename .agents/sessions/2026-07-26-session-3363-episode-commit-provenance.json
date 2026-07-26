@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "8 commits on the branch after rebasing onto main: 487eafe4e8, e6da3ec408, 088c5b2f6b, dbe076249f, c3d0db4f91, 1a1ed7daf9, efc1c93140, f5e9928335"
+        "Evidence": "Commits 487eafe4e8, e6da3ec408, 088c5b2f6b, dbe076249f, c3d0db4f91, 1a1ed7daf9, efc1c93140, f5e9928335, and 3ecc83eaf2"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "164 passed in tests/skills/memory/test_extract_session_episode.py; three negative controls fired (7 red on dropping the changesCommitted source, 2 red on restoring prose-primary); ruff check and ruff format clean"
+        "Evidence": "uv run --frozen python -m pytest tests/skills/memory/test_extract_session_episode.py passed; three negative controls fired (dropping the changesCommitted source turned 7 red, restoring prose-primary turned 2 red); ruff check and ruff format clean"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -121,18 +121,18 @@
     },
     {
       "phase": "Measure",
-      "summary": "Measured all 933 session logs before designing, so the fallback policy follows the data rather than a guess.",
-      "evidence": "194 logs name SHAs in changesCommitted evidence; 192 carry endingCommit with no prose SHAs; 15 are prose-only; 483 record no commit. Prose-only means neither endingCommit nor the changesCommitted evidence names a SHA other than the starting commit, while the work log does: 12 carry an evidence string with no SHA in it, 3 carry no evidence string at all. Measured over 938 logs. 44 sit in the contested shape (endingCommit set, evidence has no SHAs, prose does): of the 83 prose SHAs there, 46 are unresolvable by git, 23 are provably not in the session's line, and the 14 remaining are ancestors of the ending commit, which every prior commit on main also is. No evidence prose names own commits in that shape."
+      "summary": "Measured every session log in the tree before designing, so the fallback policy follows the data rather than a guess.",
+      "evidence": "194 logs name SHAs in changesCommitted evidence; 192 carry endingCommit with no prose SHAs; 15 are prose-only; 483 record no commit. Prose-only means neither endingCommit nor the changesCommitted evidence names a SHA other than the starting commit, while the work log does: 12 carry an evidence string with no SHA in it, 3 carry no evidence string at all. Measured over the 941 logs present at the time of measurement; the counts above are from that same pass. 44 sit in the contested shape (endingCommit set, evidence has no SHAs, prose does): of the 83 prose SHAs there, 46 are unresolvable by git, 23 are provably not in the session's line, and the 14 remaining are ancestors of the ending commit, which every prior commit on main also is. No evidence prose names own commits in that shape."
     },
     {
       "phase": "Implement",
-      "summary": "Made endingCommit plus the changesCommitted evidence authoritative and demoted work-log prose to a fallback used only when both are empty, which keeps the 15 prose-only logs working. json_metrics and json_events already share _collect_shas, so the count cannot drift from the event stream.",
+      "summary": "Made endingCommit plus the changesCommitted evidence authoritative and demoted work-log prose to a fallback taken when neither endingCommit nor the changesCommitted evidence yields a SHA, so an evidence string like \"Committed.\" still reaches it, which keeps the 15 prose-only logs working. json_metrics and json_events already share _collect_shas, so the count cannot drift from the event stream.",
       "evidence": "Added _changes_committed_evidence reading both Evidence and evidence casings and tolerating a missing or non-dict compliance section. Regenerated the fix/3342 episode: 7 commit events exactly matching the 7 SHAs changesCommitted names, zero extra, zero missing."
     },
     {
       "phase": "Test",
       "summary": "Added 9 provenance tests and corrected 12 existing tests that asserted the disproven prose-primary contract, preserving each one's intent.",
-      "evidence": "162 passed. The #2170 multi-commit tests now source from changesCommitted; the #3123 events-equal-metrics invariant is unchanged; the #3328 predating fixtures now take the fallback shape so that filter is still exercised. Negative controls: dropping the changesCommitted source turned 7 red, restoring prose-primary turned 2 red including the exact foreign-SHA case."
+      "evidence": "The suite passes. The #2170 multi-commit tests now source from changesCommitted; the #3123 events-equal-metrics invariant is unchanged; the #3328 predating fixtures now take the fallback shape so that filter is still exercised. Negative controls: dropping the changesCommitted source turned 7 red, restoring prose-primary turned 2 red including the exact foreign-SHA case."
     },
     {
       "phase": "implementation",
