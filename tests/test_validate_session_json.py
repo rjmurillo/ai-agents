@@ -7,6 +7,7 @@ per ADR-042.
 
 from __future__ import annotations
 
+import inspect
 import json
 import subprocess
 import sys
@@ -30,10 +31,12 @@ from scripts.validate_session_json import (
     ValidationResult,
     build_summary,
     count_must_failures,
+    filename_session_number,
     get_case_insensitive,
     has_case_insensitive,
     load_session_file,
     validate_checklist_section,
+    validate_filename_number,
     validate_protocol_compliance,
     validate_session_end,
     validate_session_log,
@@ -1569,3 +1572,243 @@ class TestBuildSummary:
     def test_the_summary_is_json_serialisable(self, tmp_path: Path) -> None:
         summary = build_summary(tmp_path / "s.json", ValidationResult(errors=["boom"]))
         assert json.loads(json.dumps(summary)) == summary
+
+
+class TestFilenameSessionNumber:
+    """The number encoded in a session log filename."""
+
+    def test_reads_the_number_from_a_conventional_stem(self, tmp_path: Path) -> None:
+        assert filename_session_number(tmp_path / "2026-07-26-session-3355.json") == 3355
+
+    def test_reads_the_number_when_a_slug_follows(self, tmp_path: Path) -> None:
+        path = tmp_path / "2026-07-26-session-3355-validate-session-number.json"
+        assert filename_session_number(path) == 3355
+
+    def test_leading_zeros_read_as_the_integer(self, tmp_path: Path) -> None:
+        """`session-09` and `session-9` name the same session."""
+        assert filename_session_number(tmp_path / "2026-01-18-session-09-slug.json") == 9
+
+    def test_a_non_numeric_discriminator_returns_none(self, tmp_path: Path) -> None:
+        """Six committed logs predate the convention; they are skipped, not failed."""
+        for stem in (
+            "2026-03-01-session-64a-slug",
+            "2026-03-01-session-critic-468-slug",
+            "2026-03-01-session-pr513-slug",
+            "2026-03-01-session-qa-issue-500-slug",
+            "2026-03-01-session-chain1-slug",
+            "2026-03-01-session-2993b-slug",
+        ):
+            assert filename_session_number(tmp_path / f"{stem}.json") is None, stem
+
+    def test_a_stem_without_the_date_prefix_returns_none(self, tmp_path: Path) -> None:
+        assert filename_session_number(tmp_path / "session-3355.json") is None
+
+    def test_a_number_elsewhere_in_the_stem_is_not_read(self, tmp_path: Path) -> None:
+        """The pattern anchors at the start; a slug number must not be mistaken."""
+        assert filename_session_number(tmp_path / "2026-07-26-session-12-fix-3355.json") == 12
+
+
+class TestValidateFilenameNumber:
+    """session.number must agree with the number in the filename (issue #3355)."""
+
+    @staticmethod
+    def _check(path: Path, number: object) -> ValidationResult:
+        result = ValidationResult()
+        validate_filename_number(path, {"session": {"number": number}}, result)
+        return result
+
+    def test_agreement_passes(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-07-26-session-3355-slug.json", 3355)
+        assert result.errors == []
+
+    def test_disagreement_is_an_error(self, tmp_path: Path) -> None:
+        """The reported bite: filename 3342 carrying number 3343."""
+        result = self._check(tmp_path / "2026-07-26-session-3342-slug.json", 3343)
+        assert len(result.errors) == 1
+        assert "3343" in result.errors[0]
+        assert "3342" in result.errors[0]
+
+    def test_the_error_names_both_repairs(self, tmp_path: Path) -> None:
+        """Either side can be the wrong one, so the message must not assume."""
+        result = self._check(tmp_path / "2026-07-26-session-3342-slug.json", 3343)
+        assert "Set session.number" in result.errors[0]
+        assert "rename the file" in result.errors[0]
+
+    def test_the_error_names_the_file(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-07-26-session-3342-slug.json", 3343)
+        assert "2026-07-26-session-3342-slug.json" in result.errors[0]
+
+    def test_leading_zeros_still_agree(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-01-18-session-09-slug.json", 9)
+        assert result.errors == []
+
+    def test_an_unparseable_stem_is_skipped(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-03-01-session-64a-slug.json", 999)
+        assert result.errors == []
+
+    def test_a_missing_number_is_left_to_the_schema(self, tmp_path: Path) -> None:
+        """Reporting it here would print the same defect under two spellings."""
+        result = ValidationResult()
+        validate_filename_number(tmp_path / "2026-07-26-session-3355.json", {"session": {}}, result)
+        assert result.errors == []
+
+    def test_a_string_number_is_left_to_the_schema(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-07-26-session-3355.json", "3355")
+        assert result.errors == []
+
+    def test_a_bool_number_is_left_to_the_schema(self, tmp_path: Path) -> None:
+        """bool is an int subclass, so the type check has to exclude it explicitly.
+
+        The filename number is deliberately not 1: ``True == 1`` in Python, so a
+        ``session-1`` filename would agree by coercion and pass either way.
+        """
+        result = self._check(tmp_path / "2026-07-26-session-3355.json", True)
+        assert result.errors == []
+
+    def test_a_missing_session_object_is_skipped(self, tmp_path: Path) -> None:
+        result = ValidationResult()
+        validate_filename_number(tmp_path / "2026-07-26-session-3355.json", {}, result)
+        assert result.errors == []
+
+    def test_a_non_mapping_session_is_skipped(self, tmp_path: Path) -> None:
+        result = ValidationResult()
+        validate_filename_number(tmp_path / "2026-07-26-session-3355.json", {"session": []}, result)
+        assert result.errors == []
+
+    def test_a_non_mapping_root_is_skipped(self, tmp_path: Path) -> None:
+        result = ValidationResult()
+        validate_filename_number(tmp_path / "2026-07-26-session-3355.json", [1, 2], result)
+        assert result.errors == []
+
+    def test_the_legacy_snake_case_shape_is_skipped(self, tmp_path: Path) -> None:
+        """Pre-convention logs carry `session_number` at the root and no `session`."""
+        result = ValidationResult()
+        validate_filename_number(
+            tmp_path / "2026-01-09-session-389.json", {"session_number": 389}, result
+        )
+        assert result.errors == []
+
+    def test_the_violation_is_not_counted_as_a_must_failure(self, tmp_path: Path) -> None:
+        """It is a naming defect, not a protocol MUST the session skipped."""
+        result = self._check(tmp_path / "2026-07-26-session-3342.json", 3343)
+        assert count_must_failures(result) == 0
+
+
+# One historical log violates the invariant and cannot be corrected.
+#
+# 2026-02-11-session-1-... carries number 1198, and its neighbours (1197
+# before it, 1199 after) confirm 1198 is the true number: the filename lost
+# its digits. Fixing it means either renaming the file or editing the number,
+# and both make it a changed file. The session-protocol workflow validates
+# every changed log against today's required-items set, which this log
+# predates: it is missing sessionEnd.validationPassed and
+# sessionEnd.markdownLintRun. Sampling 30 pre-2026-03 logs, 22 fail the
+# current validator the same way, so this is the schema having moved, not
+# this log being unusually bad.
+#
+# Touching it therefore turns a green PR red for a schema gap the log did not
+# introduce and this change cannot close. The invariant is recorded here
+# instead, and the retro at
+# .agents/retrospective/2026-07-26-pr-3354-session-log-churn.md names the
+# same file. Tracked in issue #3385.
+_UNFIXABLE_LEGACY_LOGS = {"2026-02-11-session-1-pr-review-1146-security-fixes.json"}
+
+
+class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
+    """The guard is only trustworthy if the corpus it governs already passes."""
+
+    def test_no_committed_session_log_violates_it(self) -> None:
+        sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
+        violations = []
+        checked = 0
+        for path in sorted(sessions.glob("*.json")):
+            if path.name in _UNFIXABLE_LEGACY_LOGS:
+                continue
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                # The validator treats an unreadable log as a failure, so
+                # skipping one here would let a corrupt log land while this
+                # guard stayed green on the strength of its sibling count.
+                violations.append(f"{path.name}: cannot be read as JSON: {exc}")
+                continue
+            result = ValidationResult()
+            validate_filename_number(path, data, result)
+            if filename_session_number(path) is not None:
+                checked += 1
+            violations.extend(result.errors)
+
+        assert violations == [], "\n".join(violations)
+        assert checked > 900, f"expected the whole corpus, only reached {checked}"
+
+    def test_the_exemption_list_stays_honest(self) -> None:
+        """An exemption that no longer violates anything must be deleted.
+
+        Without this, the list becomes a place to hide new violations: a
+        future correction to the log would leave a stale entry that silently
+        exempts the filename from the guard forever.
+        """
+        sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
+        for name in _UNFIXABLE_LEGACY_LOGS:
+            path = sessions / name
+            assert path.is_file(), f"exemption names a log that does not exist: {name}"
+            result = ValidationResult()
+            validate_filename_number(path, json.loads(path.read_text(encoding="utf-8")), result)
+            assert result.errors, (
+                f"{name} no longer violates the invariant; remove it from "
+                "_UNFIXABLE_LEGACY_LOGS so the guard covers it again"
+            )
+
+
+class TestTheCorpusGuardDoesNotSkipUnreadableLogs:
+    """The guard above walks every committed log. It used to `continue` past any
+    log that failed to decode or parse, which meant a corrupt log could land
+    while the test stayed green on the strength of its sibling count. The
+    validator itself treats an unreadable log as a failure, so this one has to
+    as well, and it has to name the file.
+    """
+
+    @staticmethod
+    def _walk(sessions: Path) -> list[str]:
+        """The loop under test, lifted so a temporary corpus can drive it."""
+        violations: list[str] = []
+        for path in sorted(sessions.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                violations.append(f"{path.name}: cannot be read as JSON: {exc}")
+                continue
+            result = ValidationResult()
+            validate_filename_number(path, data, result)
+            violations.extend(result.errors)
+        return violations
+
+    def test_a_log_that_is_not_json_is_reported_not_skipped(self, tmp_path: Path) -> None:
+        (tmp_path / "2026-07-26-session-1-x.json").write_text("{ not json", encoding="utf-8")
+        violations = self._walk(tmp_path)
+        assert len(violations) == 1
+        assert "2026-07-26-session-1-x.json" in violations[0]
+
+    def test_a_log_that_is_not_utf8_is_reported_not_skipped(self, tmp_path: Path) -> None:
+        (tmp_path / "2026-07-26-session-2-x.json").write_bytes(b'{"a": "\xff\xfe"}')
+        violations = self._walk(tmp_path)
+        assert len(violations) == 1
+        assert "2026-07-26-session-2-x.json" in violations[0]
+
+    def test_a_readable_log_produces_no_read_violation(self, tmp_path: Path) -> None:
+        """Negative control: the new branch must not fire on a healthy log."""
+        (tmp_path / "2026-07-26-session-7-x.json").write_text(
+            json.dumps({"session": {"number": 7}}), encoding="utf-8"
+        )
+        assert self._walk(tmp_path) == []
+
+    def test_the_shipped_guard_shares_this_loop(self) -> None:
+        """Ties the lifted copy to the real one: if the guard stops reporting
+        read failures, this catches the divergence.
+
+        Reads the guard through inspect rather than slicing this file's text,
+        so renaming a neighbouring test or reindenting cannot break it.
+        """
+        guard = TestEveryCommittedLogSatisfiesTheFilenameInvariant
+        body = inspect.getsource(guard.test_no_committed_session_log_violates_it)
+        assert "cannot be read as JSON" in body
