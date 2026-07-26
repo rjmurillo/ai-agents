@@ -8,6 +8,7 @@ a `.gitattributes` entry from becoming a no-op.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import stat
@@ -435,6 +436,30 @@ class TestDriverExitContract:
         monkeypatch.setattr(merge_causal_graph.os, "fdopen", fail_after_partial_write)
 
         assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_text(encoding="utf-8") == before
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_fdopen_failure_closes_descriptor_and_leaves_ours_untouched(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        before = ours.read_text(encoding="utf-8")
+        captured_fd: list[int] = []
+
+        def refuse_fdopen(fd: int, _mode: str, *, encoding: str) -> TextIO:
+            assert encoding == "utf-8"
+            captured_fd.append(fd)
+            raise OSError(24, "Too many open files")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", refuse_fdopen)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert len(captured_fd) == 1
+        with pytest.raises(OSError) as closed:
+            os.fstat(captured_fd[0])
+        assert closed.value.errno == errno.EBADF
         assert ours.read_text(encoding="utf-8") == before
         assert list(tmp_path.glob("*.tmp")) == []
 

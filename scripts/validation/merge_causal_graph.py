@@ -81,7 +81,18 @@ def _atomic_write_text(path: Path, text: str) -> None:
     """Replace ``path`` only after its full content reaches a sibling file."""
     fd, temporary = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
-        handle = os.fdopen(fd, "w", encoding="utf-8")
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except OSError as fdopen_error:
+            try:
+                os.close(fd)
+            except OSError as close_error:
+                message = (
+                    f"{fdopen_error.strerror or fdopen_error}; failed to close "
+                    f"temporary file descriptor {fd}: {close_error}"
+                )
+                raise OSError(fdopen_error.errno, message) from fdopen_error
+            raise
         try:
             handle.write(text)
         except OSError as write_error:
