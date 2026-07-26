@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "1960 passed, 1 skipped across tests/hooks, tests/build_scripts, tests/test_lefthook_integration.py; manifest parity 0.6.113"
+        "Evidence": "1960 passed, 1 skipped across tests/hooks, tests/build_scripts, tests/test_lefthook_integration.py; manifest parity 0.6.115"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -156,7 +156,7 @@
     },
     {
       "phase": "validation",
-      "summary": "1960 passed, 1 skipped across tests/hooks, tests/build_scripts and tests/test_lefthook_integration.py. Regenerated the copilot skill mirrors with build_all.py and bumped both project-toolkit manifests to 0.6.113, leaving room for PR #3354 at 0.6.112 to land first."
+      "summary": "1960 passed, 1 skipped across tests/hooks, tests/build_scripts and tests/test_lefthook_integration.py. Regenerated the copilot skill mirrors with build_all.py and bumped both project-toolkit manifests to 0.6.115 after main advanced past the original 0.6.113 reservation, keeping 0.6.114 free for PR #3376 to land first."
     }
   ],
   "endingCommit": "876fa0b06b",
