@@ -1,5 +1,7 @@
 | Keywords | File |
 |----------|------|
+| worktree identity core.worktree git status clean invisible writes before editing | [analysis/analysis-worktree-identity-before-writes](analysis/analysis-worktree-identity-before-writes.md) |
+| pr-autofix audit resolver stale plugin copy skill contract test exit codes | [analysis/analysis-pr-autofix-audit-findings](analysis/analysis-pr-autofix-audit-findings.md) |
 | gap analysis template severity root cause remediation affected | [analysis/analysis-001-capability-gap-template-88](analysis/analysis-001-capability-gap-template-88.md) |
 | outline recommendation specs analyst section structure template | [analysis/analysis-002-comprehensive-analysis-standard-95](analysis/analysis-002-comprehensive-analysis-standard-95.md) |
 | git blame author commit PR investigation history context annotate | [analysis/analysis-git-blame](analysis/analysis-git-blame.md) |
