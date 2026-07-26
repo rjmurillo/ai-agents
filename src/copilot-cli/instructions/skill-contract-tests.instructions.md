@@ -15,7 +15,7 @@ All of these were verified correct on `9768d541` by execution. None of them are 
 
 ## What a skill that documents a contract MUST have
 
-A test that reads the `SKILL.md`, extracts the documented contract, and asserts the script actually honors it. The established in-repo pattern is `tests/validation/test_check_skill_md_exec_portability.py`, which parses `SKILL.md` files as test input — content-testing a `SKILL.md` is a solved problem here, not a new capability.
+A test that reads the `SKILL.md`, extracts the documented contract, and asserts the script actually honors it. The established in-repo pattern is `tests/validation/test_check_skill_md_exec_portability.py`, which parses `SKILL.md` files as test input. Content-testing a `SKILL.md` is a solved problem here, not a new capability.
 
 The test asserts the pairing, not either side alone:
 
@@ -25,11 +25,11 @@ The test asserts the pairing, not either side alone:
 
 ## Why grep is insufficient for these checks
 
-Auditing `pr-autofix` produced a false alarm: `grep -c -- "--output-format"` returned `0` in the script, suggesting the `SKILL.md` invoked an unsupported flag. Executing the script disproved it — the flag is registered by an imported helper and is fully supported. A contract test must invoke, not scan.
+Auditing `pr-autofix` produced a false alarm: `grep -c -- "--output-format"` returned `0` in the script, suggesting the `SKILL.md` invoked an unsupported flag. Executing the script disproved it. The flag is registered by an imported helper and is fully supported. A contract test must invoke, not scan.
 
 The negative control matters equally: confirm `argparse` rejects a bogus flag (`--bogus-flag` → exit `2`, usage line) before concluding that a real flag was accepted. An acceptance that cannot fail proves nothing.
 
 ## What the reviewer MUST verify
 
-- If a diff changes a script's exit codes, output schema, or flag surface, confirm a test binds the new behavior to the `SKILL.md` text — or that the `SKILL.md` stops making the claim.
+- If a diff changes a script's exit codes, output schema, or flag surface, confirm a test binds the new behavior to the `SKILL.md` text, or that the `SKILL.md` stops making the claim.
 - If a diff adds a contract statement to a `SKILL.md` (an exit-code table, a documented field, a tier table mirrored from a protocol doc), confirm a test asserts it. An unbound contract is a comment.
