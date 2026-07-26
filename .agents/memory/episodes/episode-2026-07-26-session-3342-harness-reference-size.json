@@ -98,7 +98,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e012"
+      ]
     },
     {
       "id": "e009",
@@ -133,6 +135,16 @@
       "leads_to": [
         "e005"
       ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct the session number the autofix bot moved the wrong way",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": []
     }
   ],
   "metrics": {

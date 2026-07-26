@@ -15374,6 +15374,15 @@
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
       "created": "2026-07-26T02:36:17.987446+00:00"
+    },
+    {
+      "id": "50e5f4dd99d1",
+      "type": "milestone",
+      "label": "milestone: Correct the session number the autofix bot moved the wrong way",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:41:16.345521+00:00"
     }
   ],
   "patterns": [
