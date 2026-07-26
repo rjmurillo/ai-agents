@@ -15491,6 +15491,51 @@
         "episode-2026-07-26-session-3341-extend-wiring-guard"
       ],
       "created": "2026-07-26T05:54:20.572514+00:00"
+    },
+    {
+      "id": "8765f71323b7",
+      "type": "milestone",
+      "label": "milestone: Review found the same prose-manufactures-reachability defect one layer up: _entry_points read lefthook.yml, .githooks/*, and skill scripts raw, so a comment there seeds an entry point, which is worse than a false edge because an entry point seeds the whole closure.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.419948+00:00"
+    },
+    {
+      "id": "69503f649f61",
+      "type": "milestone",
+      "label": "milestone: _text_of now takes a cleaner and runs it per file. Per file matters: _scannable_text cannot parse a concatenation of unrelated modules and falls back to returning it unchanged, so cleaning the joined result is a silent no-op. A test pins the call order.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420013+00:00"
+    },
+    {
+      "id": "21d094721829",
+      "type": "milestone",
+      "label": "milestone: Left SKILL.md deliberately raw. A workflow comment naming a script does not run it, but a skill instructing its agent to run one is the invocation, and there is no other spelling; '#' also opens a heading in markdown, so the line cleaner would delete real instructions.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420069+00:00"
+    },
+    {
+      "id": "e304508c724f",
+      "type": "milestone",
+      "label": "milestone: Measured: 492 entry points raw against 479 cleaned. All 13 of the difference are also reached by a real import, so the allowlist did not move. That means no existing test notices the cleaners being removed, so added a canary asserting cleaned is a strict subset of raw.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420123+00:00"
+    },
+    {
+      "id": "6dae821622b7",
+      "type": "milestone",
+      "label": "milestone: First version of that canary was worthless: it called a private copy of the entry-point logic, so deleting the cleaners from the real path left it green. Collapsed the two implementations into one function with the switch as a keyword argument. Control now works: removing the cleaners turns it red.",
+      "episodes": [
+        "episode-2026-07-26-session-3341-extend-wiring-guard"
+      ],
+      "created": "2026-07-26T06:19:30.420178+00:00"
     }
   ],
   "patterns": [

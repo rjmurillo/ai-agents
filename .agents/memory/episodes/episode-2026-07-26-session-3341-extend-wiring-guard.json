@@ -156,6 +156,66 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review found the same prose-manufactures-reachability defect one layer up: _entry_points read lefthook.yml, .githooks/*, and skill scripts raw, so a comment there seeds an entry point, which is worse than a false edge because an entry point seeds the whole closure.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "_text_of now takes a cleaner and runs it per file. Per file matters: _scannable_text cannot parse a concatenation of unrelated modules and falls back to returning it unchanged, so cleaning the joined result is a silent no-op. A test pins the call order.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Left SKILL.md deliberately raw. A workflow comment naming a script does not run it, but a skill instructing its agent to run one is the invocation, and there is no other spelling; '#' also opens a heading in markdown, so the line cleaner would delete real instructions.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ]
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured: 492 entry points raw against 479 cleaned. All 13 of the difference are also reached by a real import, so the allowlist did not move. That means no existing test notices the cleaners being removed, so added a canary asserting cleaned is a strict subset of raw.",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "First version of that canary was worthless: it called a private copy of the entry-point logic, so deleting the cleaners from the real path left it green. Collapsed the two implementations into one function with the switch as a keyword argument. Control now works: removing the cleaners turns it red.",
+      "caused_by": [
+        "e017"
+      ],
       "leads_to": []
     }
   ],

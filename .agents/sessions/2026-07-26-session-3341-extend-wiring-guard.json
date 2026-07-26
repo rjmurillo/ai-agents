@@ -143,6 +143,26 @@
     {
       "time": "2026-07-26T15:40:00Z",
       "action": "Review caught two caps that had drifted apart: the spelled-out number table stopped at eight while the allowlist size test permitted twelve, so a ninth entry would have crashed the docstring check with a KeyError instead of reporting the stale docstring it exists to report. Both now read one constant, and a test pins the table to span it."
+    },
+    {
+      "time": "2026-07-26T16:40:00Z",
+      "action": "Review found the same prose-manufactures-reachability defect one layer up: _entry_points read lefthook.yml, .githooks/*, and skill scripts raw, so a comment there seeds an entry point, which is worse than a false edge because an entry point seeds the whole closure."
+    },
+    {
+      "time": "2026-07-26T16:40:00Z",
+      "action": "_text_of now takes a cleaner and runs it per file. Per file matters: _scannable_text cannot parse a concatenation of unrelated modules and falls back to returning it unchanged, so cleaning the joined result is a silent no-op. A test pins the call order."
+    },
+    {
+      "time": "2026-07-26T16:40:00Z",
+      "action": "Left SKILL.md deliberately raw. A workflow comment naming a script does not run it, but a skill instructing its agent to run one is the invocation, and there is no other spelling; '#' also opens a heading in markdown, so the line cleaner would delete real instructions."
+    },
+    {
+      "time": "2026-07-26T16:40:00Z",
+      "action": "Measured: 492 entry points raw against 479 cleaned. All 13 of the difference are also reached by a real import, so the allowlist did not move. That means no existing test notices the cleaners being removed, so added a canary asserting cleaned is a strict subset of raw."
+    },
+    {
+      "time": "2026-07-26T16:40:00Z",
+      "action": "First version of that canary was worthless: it called a private copy of the entry-point logic, so deleting the cleaners from the real path left it green. Collapsed the two implementations into one function with the switch as a keyword argument. Control now works: removing the cleaners turns it red."
     }
   ],
   "learnings": {

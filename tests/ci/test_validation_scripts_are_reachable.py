@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import ast
 import functools
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -270,17 +271,33 @@ def _module_path(rel: str) -> str:
     return rel[: -len(".py")].replace("/", ".")
 
 
-def _text_of(patterns: tuple[str, ...]) -> str:
+def _unchanged(text: str) -> str:
+    """The default cleaner: read the file as written."""
+    return text
+
+
+def _text_of(
+    patterns: tuple[str, ...],
+    clean: Callable[[str], str] = _unchanged,
+) -> str:
+    """Concatenate the matched files, running ``clean`` over each one first.
+
+    Per file, not over the joined result: a cleaner that parses (``_scannable_text``)
+    cannot parse a concatenation of unrelated modules, and one that scans line by
+    line (``_strip_commented_lines``) would still be reading the wrong file's
+    syntax. Getting this backwards silently over-approximates, because both
+    cleaners fall back to returning the text unchanged.
+    """
     chunks: list[str] = []
     for pattern in patterns:
         for path in _REPO_ROOT.glob(pattern):
             if path.is_file():
-                chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+                chunks.append(clean(path.read_text(encoding="utf-8", errors="replace")))
     return "\n".join(chunks)
 
 
-@functools.lru_cache(maxsize=1)
-def _entry_points() -> frozenset[str]:
+@functools.lru_cache(maxsize=2)
+def _entry_points(*, clean_sources: bool = True) -> frozenset[str]:
     """Scripts named directly by a workflow step, a git hook, or a skill.
 
     Three spellings count, because all three appear in this repository:
@@ -294,16 +311,23 @@ def _entry_points() -> frozenset[str]:
     workflow_text = "\n".join(_strip_commented_lines(body) for _, body in _live_run_blocks())
     hook_text = _text_of(
         ("lefthook.yml", ".config/lefthook.yml", ".githooks/*"),
+        clean=_strip_commented_lines if clean_sources else _unchanged,
     )
-    skill_text = _text_of(
+    skill_code_text = _text_of(
         (
-            ".claude/skills/*/SKILL.md",
-            "src/copilot-cli/skills/*/SKILL.md",
             ".claude/skills/*/scripts/**/*.py",
             "src/copilot-cli/skills/*/scripts/**/*.py",
         ),
+        clean=_scannable_text if clean_sources else _unchanged,
     )
-    corpus = "\n".join((workflow_text, hook_text, skill_text))
+    # SKILL.md prose is read raw on purpose. A workflow comment naming a script
+    # does not run it, but a skill telling its agent to run one is the
+    # invocation; there is no other spelling. "#" also opens a heading here,
+    # not a comment, so the line-based cleaner would delete real instructions.
+    skill_prose_text = _text_of(
+        (".claude/skills/*/SKILL.md", "src/copilot-cli/skills/*/SKILL.md"),
+    )
+    corpus = "\n".join((workflow_text, hook_text, skill_code_text, skill_prose_text))
     named: set[str] = set()
     for path in _python_sources():
         rel = path.relative_to(_REPO_ROOT).as_posix()
@@ -533,3 +557,77 @@ class TestProseDoesNotManufactureReachability:
             pytest.skip("yaml_loader.py has moved")
         edges = _reference_graph().get("build/scripts/yaml_loader.py", frozenset())
         assert "build/scripts/validate_templates_schema.py" not in edges
+
+
+class TestEntryPointsComeFromInvocationsNotComments:
+    """A hook comment names a script; it does not run one.
+
+    The reachability scan learned this for Python sources first. `_entry_points`
+    read hooks and skill code raw for one round longer, which left the same hole
+    one layer up: an entry point manufactured here seeds the closure, so it can
+    hide an unwired script rather than merely mislabel one file.
+    """
+
+    def test_the_cleaners_are_actually_engaged(self) -> None:
+        """A canary, because deleting `clean=` leaves every other test green.
+
+        Measured when this landed: reading hooks and skill code raw produces 492
+        entry points against 479 cleaned. All 13 of the difference are also
+        reached by a real import, which is why the allowlist did not move and
+        why nothing else here notices. That makes this the only test that fails
+        when the argument is dropped, so it asserts the mechanism rather than
+        the outcome: at least one name must reach the corpus only through a
+        comment, or the cleaning is not happening.
+        """
+        cleaned = _entry_points(clean_sources=True)
+        raw = _entry_points(clean_sources=False)
+
+        assert cleaned < raw, (
+            "hook and skill-code comments are seeding entry points again; "
+            "_text_of is being called without its cleaner"
+        )
+
+    def test_the_cleaner_runs_per_file_not_over_the_concatenation(self) -> None:
+        """Both cleaners degrade to identity, so the wrong order fails silently.
+
+        `_scannable_text` cannot parse two unrelated modules joined by a newline
+        and falls back to the raw text, which is exactly the behaviour the
+        cleaner exists to prevent. The only visible difference is that the
+        per-file form strips and the joined form does not.
+        """
+        seen: list[str] = []
+
+        def record(text: str) -> str:
+            seen.append(text)
+            return text
+
+        _text_of((".claude/skills/*/scripts/**/*.py",), clean=record)
+        assert len(seen) > 1, "cleaner should be called once per matched file"
+        assert not any("\x00" in chunk for chunk in seen)
+
+    def test_skill_code_comments_do_not_seed_entry_points(self) -> None:
+        source = "# run scripts/validation/nonexistent_probe.py nightly\nx = 1\n"
+        assert "nonexistent_probe.py" not in _scannable_text(source)
+
+    def test_skill_prose_still_seeds_entry_points(self) -> None:
+        """Deliberate asymmetry: a skill instructing its agent is the invocation."""
+        prose = _text_of((".claude/skills/*/SKILL.md", "src/copilot-cli/skills/*/SKILL.md"))
+        assert "python" in prose.lower(), "SKILL.md corpus should be read raw"
+
+    def test_every_script_dropped_as_a_false_entry_point_is_still_reachable(self) -> None:
+        """The cleaner removed 13 comment-only entry points and no script fell out.
+
+        That is the result worth pinning. Each of those files is genuinely
+        imported by something, so the closure keeps them; had any been reachable
+        only through the comment, the allowlist would have had to grow, and this
+        guard's answer would have been quietly wrong before the fix.
+        """
+        unreachable = {
+            script.name
+            for script in _guarded_scripts()
+            if script.relative_to(_REPO_ROOT).as_posix() not in _reachable()
+        }
+        assert unreachable <= set(_NO_CALLER), (
+            f"{sorted(unreachable - set(_NO_CALLER))} fell out of the closure "
+            f"when comment-only entry points stopped counting"
+        )
