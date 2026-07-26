@@ -345,12 +345,13 @@ def validate_copilot_version_pin(repo_root: Path) -> bool:
 
 
 def validate_ci_dependency_pins(repo_root: Path) -> bool:
-    """Assert every hand-written pkg==version pin in .github/ agrees with
+    """Assert every hand-written pkg==version pin in .github/ YAML agrees with
     pyproject.toml (Issue #3377).
 
-    Thin wrapper over ``check_ci_dependency_pins.check``. The .github tree is
-    absent in downstream installs, so SKIP rather than FAIL when it is not
-    present.
+    Thin wrapper over ``check_ci_dependency_pins.check``, whose module docstring
+    holds the full scope. In short: workflow and action YAML only, and only for
+    packages pyproject declares. The .github tree is absent in downstream
+    installs, so SKIP rather than FAIL when it is not present.
     """
     from check_ci_dependency_pins import EXIT_OK as PIN_OK
     from check_ci_dependency_pins import check as check_pins

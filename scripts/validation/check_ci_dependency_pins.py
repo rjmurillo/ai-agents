@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Assert every hand-written ``pkg==version`` pin in ``.github/`` agrees with
-``pyproject.toml`` (Issue #3377).
+"""Assert every hand-written ``pkg==version`` pin in ``.github/`` YAML agrees
+with ``pyproject.toml`` (Issue #3377).
 
 Two CI install steps pinned pytest by hand and disagreed with each other::
 
@@ -20,9 +20,17 @@ an autofix commit downgraded the correct pin.
 This is the converse-assertion shape of Issues #3341 and #3371: something
 asserts the pin exists, nothing asserts it agrees with the source of truth.
 
-Scope: a pin is checked only when ``pyproject.toml`` declares that package.
-CI installs tools the project does not depend on (``pip`` itself, for one), and
-those carry no constraint to disagree with.
+Scope, stated so a reader does not infer coverage that is not here:
+
+* Workflow and action YAML under ``.github/`` only. A pin in a requirements
+  file, a shell script, a Dockerfile, or a composite action written in another
+  format is not read.
+* A pin is checked only when ``pyproject.toml`` declares that package. CI
+  installs tools the project does not depend on (``pip`` itself, for one), and
+  those carry no constraint to disagree with.
+* Quoted and unquoted pins both count. ``pytest==9.0.3`` and
+  ``'pytest==9.0.3'`` install the same version, so keying on the quotes would
+  let an unquoted pin drift silently.
 
 Call sites, because a guard with none protects nothing (Issue #3329):
 
@@ -61,10 +69,16 @@ EXIT_CONFIG = 2
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# A quoted pin as it appears in a shell ``run:`` line: 'pytest==9.0.3'.
-# Quoting is required so a bare ``==`` inside prose or a comparison in a
-# script body is not read as a dependency pin.
-_PIN_RE = re.compile(r"""['"]([A-Za-z0-9][A-Za-z0-9._-]*)==([0-9][^'"\s]*)['"]""")
+# A pin as it appears in a shell ``run:`` line: pytest==9.0.3, quoted or not.
+# Both spellings install the same version, so keying on the quotes would let an
+# unquoted pin drift silently.
+#
+# What keeps YAML's own ``==`` out: GitHub expressions space their operator
+# (``env.FOO == '1'``), the lookbehind rejects ``===`` and mid-token matches,
+# and a version must start with a digit, so ``foo==bar`` is not a pin.
+_PIN_RE = re.compile(
+    r"""(?<![A-Za-z0-9._=-])['"]?([A-Za-z][A-Za-z0-9._-]*)==([0-9][A-Za-z0-9._*+!-]*)"""
+)
 
 
 @dataclass(frozen=True)
@@ -141,7 +155,7 @@ def find_pins(root: Path) -> list[Pin]:
     """
     pins: list[Pin] = []
     for path in sorted(root.rglob("*")):
-        if path.suffix not in {".yml", ".yaml"} or not path.is_file():
+        if path.suffix.lower() not in {".yml", ".yaml"} or not path.is_file():
             continue
         try:
             content = path.read_text(encoding="utf-8")

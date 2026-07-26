@@ -71,10 +71,38 @@ class TestFindPins:
         root = _write(tmp_path, "run: pip install 'PyYAML==6.0.3' 'pytest==9.0.3'\n")
         assert {p.name for p in gate.find_pins(root)} == {"PyYAML", "pytest"}
 
-    def test_an_unquoted_equality_is_not_a_pin(self, tmp_path):
-        """Negative control: a bare == in a script body is a comparison."""
+    def test_an_unquoted_pin_is_still_a_pin(self, tmp_path):
+        """pip does not require the quotes, so neither can the gate.
+
+        Keying on quotes made the coverage a spelling accident: the same pin
+        one shell-quoting style over drifts silently.
+        """
+        root = _write(tmp_path, "run: pip install pytest==8.3.3\n")
+        (pin,) = gate.find_pins(root)
+        assert (pin.name, pin.version) == ("pytest", "8.3.3")
+
+    def test_a_spaced_comparison_is_not_a_pin(self, tmp_path):
+        """Negative control: a spaced == in a script body is a comparison."""
         root = _write(tmp_path, "run: if [ $x == 1.0 ]; then echo hi; fi\n")
         assert gate.find_pins(root) == []
+
+    def test_a_github_expression_comparison_is_not_a_pin(self, tmp_path):
+        """The shape that dropping the quote requirement could have caught."""
+        root = _write(tmp_path, "if: ${{ github.ref == 'refs/heads/main' }}\n")
+        assert gate.find_pins(root) == []
+
+    def test_a_triple_equals_is_not_a_pin(self, tmp_path):
+        """The lookbehind's job: === is an operator, not a pin."""
+        assert gate.find_pins(_write(tmp_path, "run: test a===1.0\n")) == []
+
+    def test_a_version_must_start_with_a_digit(self, tmp_path):
+        """foo==bar is a comparison of two words, not a pinned release."""
+        assert gate.find_pins(_write(tmp_path, "run: echo foo==bar\n")) == []
+
+    def test_an_uppercase_suffix_is_still_yaml(self, tmp_path):
+        """Suffix matching is casefolded so a .YML file is not skipped."""
+        root = _write(tmp_path, "run: pip install 'pytest==8.3.3'\n", name="w.YML")
+        assert len(gate.find_pins(root)) == 1
 
     def test_non_yaml_files_are_not_scanned(self, tmp_path):
         root = _write(tmp_path, "x = 'pytest==8.3.3'\n", name="s.py")
