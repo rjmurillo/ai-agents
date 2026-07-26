@@ -623,6 +623,79 @@ def validate_session_log(data: object) -> ValidationResult:
     return result
 
 
+_FILENAME_NUMBER_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}-session-(\d+)(?:-|$)")
+
+
+def filename_session_number(session_path: Path) -> int | None:
+    """Read the session number encoded in a session log filename.
+
+    Args:
+        session_path: Path to the session log file.
+
+    Returns:
+        The integer following ``session-`` in a ``YYYY-MM-DD-session-N`` stem,
+        or None when the stem does not carry one. The digit run must end at a
+        hyphen or the end of the stem: six committed logs predate the convention
+        and use a non-numeric discriminator (``session-64a-``, ``session-2993b-``,
+        ``session-critic-468-``), and reading a truncated ``64`` out of ``64a``
+        would fail a file the convention never covered.
+    """
+    match = _FILENAME_NUMBER_PATTERN.match(session_path.stem)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def validate_filename_number(
+    session_path: Path,
+    data: object,
+    result: ValidationResult,
+) -> None:
+    """Check that ``session.number`` matches the number in the filename.
+
+    session-init derives the log filename from ``session.number`` and downstream
+    tooling reads the number back out of the filename, so the two are one fact
+    stored twice. Nothing enforced the agreement, which let an autofix bot seed a
+    counter value that disagreed with the name it was written under (issue #3355).
+
+    The related invariant proposed in that issue, that the number tracks the issue
+    in the branch name, is not the convention: 207 of 276 committed logs on an
+    issue branch disagree, because sessions routinely work a branch owned by a
+    different issue. Branch-to-log correspondence is enforced separately by the
+    branch-context policy at push time.
+
+    Args:
+        session_path: Path the log was loaded from.
+        data: Parsed session log.
+        result: Result to append any violation to.
+    """
+    expected = filename_session_number(session_path)
+    if expected is None:
+        return
+
+    if not isinstance(data, dict):
+        return
+
+    session = data.get("session")
+    if not isinstance(session, dict):
+        return
+
+    number = session.get("number")
+    # A missing or mistyped number is the schema's finding to report, not this
+    # one. Restating it here would print the same defect under two spellings.
+    # bool is an int subclass, so it has to be excluded explicitly.
+    if not isinstance(number, int) or isinstance(number, bool):
+        return
+
+    if number != expected:
+        result.errors.append(
+            f"session.number ({number}) does not match the number in the filename "
+            f"({expected}): {session_path.name}. These are the same fact stored twice. "
+            f"Set session.number to {expected}, or rename the file to carry {number} "
+            f"if the number is the correct one."
+        )
+
+
 def load_session_file(session_path: Path) -> tuple[object | None, str | None]:
     """Load and parse a session log file.
 
@@ -786,6 +859,7 @@ def main() -> int:
 
         # Validate session log
         result = validate_session_log(data)
+        validate_filename_number(validated_path, data, result)
 
         # Report results
         report_results(validated_path, result, args.pre_commit)

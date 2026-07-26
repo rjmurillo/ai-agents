@@ -30,10 +30,12 @@ from scripts.validate_session_json import (
     ValidationResult,
     build_summary,
     count_must_failures,
+    filename_session_number,
     get_case_insensitive,
     has_case_insensitive,
     load_session_file,
     validate_checklist_section,
+    validate_filename_number,
     validate_protocol_compliance,
     validate_session_end,
     validate_session_log,
@@ -1569,3 +1571,150 @@ class TestBuildSummary:
     def test_the_summary_is_json_serialisable(self, tmp_path: Path) -> None:
         summary = build_summary(tmp_path / "s.json", ValidationResult(errors=["boom"]))
         assert json.loads(json.dumps(summary)) == summary
+
+
+class TestFilenameSessionNumber:
+    """The number encoded in a session log filename."""
+
+    def test_reads_the_number_from_a_conventional_stem(self, tmp_path: Path) -> None:
+        assert filename_session_number(tmp_path / "2026-07-26-session-3355.json") == 3355
+
+    def test_reads_the_number_when_a_slug_follows(self, tmp_path: Path) -> None:
+        path = tmp_path / "2026-07-26-session-3355-validate-session-number.json"
+        assert filename_session_number(path) == 3355
+
+    def test_leading_zeros_read_as_the_integer(self, tmp_path: Path) -> None:
+        """`session-09` and `session-9` name the same session."""
+        assert filename_session_number(tmp_path / "2026-01-18-session-09-slug.json") == 9
+
+    def test_a_non_numeric_discriminator_returns_none(self, tmp_path: Path) -> None:
+        """Six committed logs predate the convention; they are skipped, not failed."""
+        for stem in (
+            "2026-03-01-session-64a-slug",
+            "2026-03-01-session-critic-468-slug",
+            "2026-03-01-session-pr513-slug",
+            "2026-03-01-session-qa-issue-500-slug",
+            "2026-03-01-session-chain1-slug",
+            "2026-03-01-session-2993b-slug",
+        ):
+            assert filename_session_number(tmp_path / f"{stem}.json") is None, stem
+
+    def test_a_stem_without_the_date_prefix_returns_none(self, tmp_path: Path) -> None:
+        assert filename_session_number(tmp_path / "session-3355.json") is None
+
+    def test_a_number_elsewhere_in_the_stem_is_not_read(self, tmp_path: Path) -> None:
+        """The pattern anchors at the start; a slug number must not be mistaken."""
+        assert filename_session_number(tmp_path / "2026-07-26-session-12-fix-3355.json") == 12
+
+
+class TestValidateFilenameNumber:
+    """session.number must agree with the number in the filename (issue #3355)."""
+
+    @staticmethod
+    def _check(path: Path, number: object) -> ValidationResult:
+        result = ValidationResult()
+        validate_filename_number(path, {"session": {"number": number}}, result)
+        return result
+
+    def test_agreement_passes(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-07-26-session-3355-slug.json", 3355)
+        assert result.errors == []
+
+    def test_disagreement_is_an_error(self, tmp_path: Path) -> None:
+        """The reported bite: filename 3342 carrying number 3343."""
+        result = self._check(tmp_path / "2026-07-26-session-3342-slug.json", 3343)
+        assert len(result.errors) == 1
+        assert "3343" in result.errors[0]
+        assert "3342" in result.errors[0]
+
+    def test_the_error_names_both_repairs(self, tmp_path: Path) -> None:
+        """Either side can be the wrong one, so the message must not assume."""
+        result = self._check(tmp_path / "2026-07-26-session-3342-slug.json", 3343)
+        assert "Set session.number" in result.errors[0]
+        assert "rename the file" in result.errors[0]
+
+    def test_the_error_names_the_file(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-07-26-session-3342-slug.json", 3343)
+        assert "2026-07-26-session-3342-slug.json" in result.errors[0]
+
+    def test_leading_zeros_still_agree(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-01-18-session-09-slug.json", 9)
+        assert result.errors == []
+
+    def test_an_unparseable_stem_is_skipped(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-03-01-session-64a-slug.json", 999)
+        assert result.errors == []
+
+    def test_a_missing_number_is_left_to_the_schema(self, tmp_path: Path) -> None:
+        """Reporting it here would print the same defect under two spellings."""
+        result = ValidationResult()
+        validate_filename_number(tmp_path / "2026-07-26-session-3355.json", {"session": {}}, result)
+        assert result.errors == []
+
+    def test_a_string_number_is_left_to_the_schema(self, tmp_path: Path) -> None:
+        result = self._check(tmp_path / "2026-07-26-session-3355.json", "3355")
+        assert result.errors == []
+
+    def test_a_bool_number_is_left_to_the_schema(self, tmp_path: Path) -> None:
+        """bool is an int subclass, so the type check has to exclude it explicitly.
+
+        The filename number is deliberately not 1: ``True == 1`` in Python, so a
+        ``session-1`` filename would agree by coercion and pass either way.
+        """
+        result = self._check(tmp_path / "2026-07-26-session-3355.json", True)
+        assert result.errors == []
+
+    def test_a_bool_number_does_not_agree_by_coercion(self, tmp_path: Path) -> None:
+        """``True == 1`` must not read as a valid number for session 1."""
+        result = self._check(tmp_path / "2026-07-26-session-1.json", True)
+        assert result.errors == []
+
+    def test_a_missing_session_object_is_skipped(self, tmp_path: Path) -> None:
+        result = ValidationResult()
+        validate_filename_number(tmp_path / "2026-07-26-session-3355.json", {}, result)
+        assert result.errors == []
+
+    def test_a_non_mapping_session_is_skipped(self, tmp_path: Path) -> None:
+        result = ValidationResult()
+        validate_filename_number(tmp_path / "2026-07-26-session-3355.json", {"session": []}, result)
+        assert result.errors == []
+
+    def test_a_non_mapping_root_is_skipped(self, tmp_path: Path) -> None:
+        result = ValidationResult()
+        validate_filename_number(tmp_path / "2026-07-26-session-3355.json", [1, 2], result)
+        assert result.errors == []
+
+    def test_the_legacy_snake_case_shape_is_skipped(self, tmp_path: Path) -> None:
+        """Pre-convention logs carry `session_number` at the root and no `session`."""
+        result = ValidationResult()
+        validate_filename_number(
+            tmp_path / "2026-01-09-session-389.json", {"session_number": 389}, result
+        )
+        assert result.errors == []
+
+    def test_the_violation_is_not_counted_as_a_must_failure(self, tmp_path: Path) -> None:
+        """It is a naming defect, not a protocol MUST the session skipped."""
+        result = self._check(tmp_path / "2026-07-26-session-3342.json", 3343)
+        assert count_must_failures(result) == 0
+
+
+class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
+    """The guard is only trustworthy if the corpus it governs already passes."""
+
+    def test_no_committed_session_log_violates_it(self) -> None:
+        sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
+        violations = []
+        checked = 0
+        for path in sorted(sessions.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            result = ValidationResult()
+            validate_filename_number(path, data, result)
+            if filename_session_number(path) is not None:
+                checked += 1
+            violations.extend(result.errors)
+
+        assert checked > 900, f"expected the whole corpus, only reached {checked}"
+        assert violations == [], "\n".join(violations)
