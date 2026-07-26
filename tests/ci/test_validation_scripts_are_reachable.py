@@ -357,16 +357,27 @@ def _module_path(rel: str) -> str:
     return rel[: -len(".py")].replace("/", ".")
 
 
+def _read_surface(path: Path) -> str:
+    """Read one entry surface, naming the file when it cannot be read.
+
+    Both callers below scan the same SKILL.md corpus. Without the path in the
+    message an unreadable file surfaces as a bare OSError from somewhere inside
+    a reachability computation, which tells the next reader nothing about which
+    surface to go look at.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        rel = path.relative_to(_REPO_ROOT).as_posix()
+        raise RuntimeError(f"Cannot inspect entry surface {rel}: {exc}") from exc
+
+
 def _text_of(patterns: tuple[str, ...]) -> str:
     chunks: list[str] = []
     for pattern in patterns:
         for path in _REPO_ROOT.glob(pattern):
             if path.is_file():
-                try:
-                    chunks.append(path.read_text(encoding="utf-8"))
-                except (OSError, UnicodeError) as exc:
-                    rel = path.relative_to(_REPO_ROOT).as_posix()
-                    raise RuntimeError(f"Cannot inspect entry surface {rel}: {exc}") from exc
+                chunks.append(_read_surface(path))
     return "\n".join(chunks)
 
 
@@ -403,7 +414,7 @@ def _entry_points() -> frozenset[str]:
     }
     for pattern in skill_patterns:
         for skill_md in _REPO_ROOT.glob(pattern):
-            text = skill_md.read_text(encoding="utf-8")
+            text = _read_surface(skill_md)
             skill_dir = skill_md.parent
             local_tokens = set(_SCRIPT_TOKEN_RE.findall(text))
             local_names = {Path(token).name for token in local_tokens}
@@ -712,3 +723,34 @@ class TestCommentedHookLinesDoNotSeedReachability:
             )
         finally:
             _entry_points.cache_clear()
+
+
+class TestUnreadableEntrySurfacesNameTheFile:
+    """An unreadable SKILL.md reports its path, not a bare decode error.
+
+    `_text_of` already wrapped its reads. The per-skill SKILL.md scan in
+    `_entry_points` read the same corpus with a raw `read_text`. In practice
+    `_text_of` runs first over the same glob, so an unreadable SKILL.md already
+    failed with its path named; the raw read could only lose that context in
+    the TOCTOU window between the two passes. Routing both through
+    `_read_surface` closes that window and removes the near-duplicate handler.
+    A behavioral test cannot distinguish the two orderings for exactly the
+    reason above, so these tests cover `_read_surface` directly.
+    """
+
+    def test_read_surface_names_the_path_on_a_decode_error(self, tmp_path) -> None:
+        bad = _REPO_ROOT / "tests" / "ci" / "__unreadable_probe__.md"
+        bad.write_bytes(b"\xff\xfe\x00 not utf-8 \xc3\x28")
+        try:
+            with pytest.raises(RuntimeError, match=r"__unreadable_probe__\.md"):
+                _read_surface(bad)
+        finally:
+            bad.unlink()
+
+    def test_read_surface_returns_text_for_a_readable_file(self, tmp_path) -> None:
+        good = _REPO_ROOT / "tests" / "ci" / "__readable_probe__.md"
+        good.write_text("# heading\n", encoding="utf-8")
+        try:
+            assert _read_surface(good) == "# heading\n"
+        finally:
+            good.unlink()

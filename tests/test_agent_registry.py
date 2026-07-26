@@ -111,8 +111,22 @@ class TestParseAgentFile:
                 "name: first\nname: second\ndescription: duplicate\nmodel: sonnet",
                 "duplicate frontmatter key 'name'",
             ),
+            # A YAML complex key (sequence or mapping used as a key) makes
+            # key_node.value a list, which the duplicate-key set in
+            # _parse_frontmatter cannot hash. It never gets that far: safe_load
+            # runs first and raises ConstructorError, a YAMLError. These two
+            # cases lock that ordering. Move the safe_load call below the
+            # duplicate-key loop and they turn into an unhandled TypeError.
+            (
+                "? [a, b]\n: value\nname: seqkey\n",
+                "invalid YAML frontmatter",
+            ),
+            (
+                "? {a: 1}\n: value\nname: mapkey\n",
+                "invalid YAML frontmatter",
+            ),
         ],
-        ids=["invalid-yaml", "duplicate-key"],
+        ids=["invalid-yaml", "duplicate-key", "sequence-key", "mapping-key"],
     )
     def test_malformed_yaml_is_rejected(
         self,
