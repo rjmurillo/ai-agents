@@ -1285,7 +1285,7 @@ def update_causal_graph(repo_root: Path) -> int:
         # "original graph restored" line below would be a lie if it ran. Name
         # both failures and block, because a partially mutated graph must not be
         # committed. Issue #3389.
-        print(f"ERROR: causal graph update failed (exit {result})", file=sys.stderr)
+        print(f"ERROR: causal graph update failed (updater exit {result})", file=sys.stderr)
         print(
             f"ERROR: restoring the original causal graph also failed: {exc}\n"
             f"       {graph_path} may be partially written. Rebuild it before"
