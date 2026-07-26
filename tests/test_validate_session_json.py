@@ -10,8 +10,10 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from unittest import mock
 
 import pytest
 
@@ -20,7 +22,6 @@ from scripts.validate_session_json import (
     BRANCH_PATTERN,
     COMMIT_SHA_PATTERN,
     CONTRADICTION_PATTERNS,
-    REQUIRED_SESSION_FIELDS,
     SESSION_END_REQUIRED_ITEMS,
     SESSION_START_REQUIRED_ITEMS,
     ValidationResult,
@@ -61,17 +62,62 @@ def _make_complete_end_section(**overrides: dict) -> dict:
     section.update(overrides)
     return section
 
+
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from _pytest.capture import CaptureFixture
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture
+def scratch() -> Iterator[Path]:
+    """A throwaway directory inside the repo.
+
+    `validate_safe_path` rejects any path outside the project root, so a
+    `tmp_path` fixture would make every CLI case exit 1 for a path reason and
+    prove nothing about the load or the schema.
+    """
+    with tempfile.TemporaryDirectory(dir=_REPO_ROOT) as name:
+        yield Path(name)
+
+
+def _run_cli(path: Path) -> subprocess.CompletedProcess[str]:
+    """Drive the validator as the hooks and the workflow drive it."""
+    return subprocess.run(
+        [sys.executable, "scripts/validate_session_json.py", str(path)],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 class TestConstants:
     """Tests for module constants."""
 
-    def test_required_session_fields(self) -> None:
-        """REQUIRED_SESSION_FIELDS contains expected values."""
-        expected = {"number", "date", "branch", "startingCommit", "objective"}
-        assert REQUIRED_SESSION_FIELDS == expected
+    def test_the_schema_requires_the_session_fields_the_protocol_names(self) -> None:
+        """The schema is the only enforcer of session shape, so pin what it requires.
+
+        This replaces an assertion on a Python constant that duplicated the
+        schema's own ``required`` list. The constant was deleted once the
+        duplicate presence check went with it; a test that echoes a literal back
+        at itself catches nothing.
+        """
+        import scripts.validate_session_json as vsj
+
+        schema = json.loads(vsj.SCHEMA_PATH.read_text(encoding="utf-8"))
+
+        assert set(schema["properties"]["session"]["required"]) == {
+            "number",
+            "date",
+            "branch",
+            "startingCommit",
+            "objective",
+        }
 
     def test_branch_pattern_matches_conventional(self) -> None:
         """BRANCH_PATTERN matches conventional branch names."""
@@ -196,8 +242,8 @@ class TestValidateSessionSection:
         assert result.is_valid
         assert len(result.warnings) == 0
 
-    def test_missing_required_field(self) -> None:
-        """Missing required field causes error."""
+    def test_missing_required_field_defers_to_schema(self) -> None:
+        """Missing required fields are NOT reported here; schema owns shape."""
         session = {
             "number": 1,
             "date": "2026-01-18",
@@ -207,8 +253,9 @@ class TestValidateSessionSection:
 
         validate_session_section(session, result)
 
-        assert not result.is_valid
-        assert "Missing: session.branch" in result.errors
+        # No errors from validate_session_section; schema validation catches these
+        assert result.is_valid
+        assert not any("Missing: session." in e for e in result.errors)
 
     def test_invalid_branch_name_warning(self) -> None:
         """Invalid branch name causes warning."""
@@ -364,9 +411,7 @@ class TestChecklistSectionValidation:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert not result.is_valid
         assert any("usageMandatoryRead" in e for e in result.errors)
@@ -378,9 +423,7 @@ class TestChecklistSectionValidation:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert result.is_valid
 
@@ -391,9 +434,7 @@ class TestChecklistSectionValidation:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert result.is_valid
 
@@ -421,9 +462,7 @@ class TestChecklistSectionValidation:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert result.is_valid
 
@@ -456,9 +495,7 @@ class TestEvidenceContradiction:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert any("Evidence contradiction" in w for w in result.warnings)
 
@@ -473,9 +510,7 @@ class TestEvidenceContradiction:
         }
         result = ValidationResult()
 
-        validate_checklist_section(
-            section_data, frozenset(), "sessionStart", result
-        )
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
 
         assert not any("Evidence contradiction" in w for w in result.warnings)
 
@@ -617,29 +652,36 @@ class TestEvidenceContradiction:
 class TestValidateProtocolCompliance:
     """Tests for validate_protocol_compliance function."""
 
-    def test_missing_session_start(self) -> None:
-        """Missing sessionStart causes error."""
-        protocol = {"sessionEnd": {}}
+    def test_missing_session_start_is_left_to_the_schema(self) -> None:
+        """The schema's protocolCompliance.required already names it (issue #3346).
+
+        This layer only walks the section it was given; it must not restate the
+        absence under a second spelling. The one-message guarantee is pinned in
+        TestSectionAbsenceIsReportedOnce, which drives the full validator.
+        """
         result = ValidationResult()
 
-        validate_protocol_compliance(protocol, result)
+        validate_protocol_compliance({"sessionEnd": {}}, result)
 
-        assert not result.is_valid
-        assert "Missing: protocolCompliance.sessionStart" in result.errors
+        assert not any("protocolCompliance.sessionStart" in error for error in result.errors)
+        assert any(
+            error.startswith("Missing required item: sessionEnd.") for error in result.errors
+        )
 
-    def test_missing_session_end(self) -> None:
-        """Missing sessionEnd causes error."""
-        protocol = {"sessionStart": {}}
+    def test_missing_session_end_is_left_to_the_schema(self) -> None:
+        """Mirror of the sessionStart case."""
         result = ValidationResult()
 
-        validate_protocol_compliance(protocol, result)
+        validate_protocol_compliance({"sessionStart": {}}, result)
 
-        assert not result.is_valid
-        assert "Missing: protocolCompliance.sessionEnd" in result.errors
+        assert not any("protocolCompliance.sessionEnd" in error for error in result.errors)
+        assert any(
+            error.startswith("Missing required item: sessionStart.") for error in result.errors
+        )
 
     def test_both_sections_present(self) -> None:
         """Both sections present passes section validation."""
-        protocol = {
+        protocol: dict[str, Any] = {
             "sessionStart": {},
             "sessionEnd": {},
         }
@@ -677,14 +719,16 @@ class TestValidateSessionLog:
 
     def test_missing_session_section(self) -> None:
         """Missing session section causes error."""
-        data = {
+        data: dict[str, Any] = {
             "protocolCompliance": {"sessionStart": {}, "sessionEnd": {}},
         }
 
         result = validate_session_log(data)
 
         assert not result.is_valid
-        assert "Missing: session" in result.errors
+        # The schema owns presence reporting since #3346; the
+        # hand-rolled "Missing: session" duplicate was removed.
+        assert any("'session' is a required property" in e for e in result.errors)
 
     def test_missing_protocol_section(self) -> None:
         """Missing protocolCompliance section causes error."""
@@ -701,7 +745,9 @@ class TestValidateSessionLog:
         result = validate_session_log(data)
 
         assert not result.is_valid
-        assert "Missing: protocolCompliance" in result.errors
+        # The schema owns presence reporting since #3346; the
+        # hand-rolled "Missing: protocolCompliance" duplicate was removed.
+        assert any("'protocolCompliance' is a required property" in e for e in result.errors)
 
 
 class TestLoadSessionFile:
@@ -724,6 +770,7 @@ class TestLoadSessionFile:
         data, error = load_session_file(session_file)
 
         assert data is None
+        assert error is not None
         assert "not found" in error
 
     def test_error_for_invalid_json(self, tmp_path: Path) -> None:
@@ -734,6 +781,7 @@ class TestLoadSessionFile:
         data, error = load_session_file(session_file)
 
         assert data is None
+        assert error is not None
         assert "Invalid JSON" in error
         assert "line" in error
         assert "Common fixes" in error
@@ -765,7 +813,7 @@ class TestMainFunction:
     @pytest.fixture
     def invalid_session_file(self, tmp_path: Path) -> Path:
         """Create an invalid session log file."""
-        data = {
+        data: dict[str, Any] = {
             # Missing session section
             "protocolCompliance": {},
         }
@@ -909,7 +957,7 @@ class TestEdgeCases:
 
     def test_empty_session_object(self) -> None:
         """Empty session object fails validation."""
-        data = {
+        data: dict[str, Any] = {
             "session": {},
             "protocolCompliance": {"sessionStart": {}, "sessionEnd": {}},
         }
@@ -961,3 +1009,468 @@ class TestEdgeCases:
         result = validate_session_log(data)
 
         assert result.is_valid
+
+
+def _make_valid_log(**session_overrides: object) -> dict:
+    """Build a session log that satisfies both the schema and the protocol checks."""
+    session: dict[str, object] = {
+        "number": 3346,
+        "date": "2026-07-25",
+        "branch": "fix/3346-session-schema-enforcement",
+        "startingCommit": "1ffee3834e910608ed6c03c374fb71ff7c39bdc3",
+        "objective": "Enforce the committed schema in the session log validator.",
+    }
+    session.update(session_overrides)
+    return {
+        "session": session,
+        "protocolCompliance": {
+            "sessionStart": _make_complete_start_section(),
+            "sessionEnd": _make_complete_end_section(),
+        },
+    }
+
+
+class TestSchemaIsActuallyEnforced:
+    """The docstring promises schema validation; these prove the schema runs.
+
+    Issue #3346: the validator advertised schema validation and never loaded the
+    schema, so a bot reviewer caught by hand a `session.number` the gate passed.
+    """
+
+    def test_valid_log_passes(self) -> None:
+        result = validate_session_log(_make_valid_log())
+        assert result.errors == []
+
+    def test_string_session_number_is_rejected(self) -> None:
+        """The exact shape a bot reviewer caught by hand on PR #3344."""
+        result = validate_session_log(_make_valid_log(number="3343-branch-context-merge"))
+        assert any("number" in e and e.startswith("Schema:") for e in result.errors)
+
+    def test_null_session_number_is_rejected(self) -> None:
+        """The shape sitting in 2026-01-09-session-389.json."""
+        result = validate_session_log(_make_valid_log(number=None))
+        assert any("number" in e and e.startswith("Schema:") for e in result.errors)
+
+    def test_session_number_below_minimum_is_rejected(self) -> None:
+        """`minimum: 1` is a schema-only rule; no hand-rolled check covers it."""
+        result = validate_session_log(_make_valid_log(number=0))
+        assert any("number" in e and e.startswith("Schema:") for e in result.errors)
+
+    def test_malformed_date_is_rejected(self) -> None:
+        result = validate_session_log(_make_valid_log(date="July 25, 2026"))
+        assert any("date" in e and e.startswith("Schema:") for e in result.errors)
+
+    def test_wrong_type_for_a_declared_object_is_rejected(self) -> None:
+        log = _make_valid_log()
+        log["protocolCompliance"] = ["sessionStart", "sessionEnd"]
+        result = validate_session_log(log)
+        assert any(e.startswith("Schema:") for e in result.errors)
+
+    def test_every_violation_is_reported_not_just_the_first(self) -> None:
+        """One commit round should fix the log, not one field per round."""
+        result = validate_session_log(_make_valid_log(number="x", date="nope"))
+        schema_errors = [e for e in result.errors if e.startswith("Schema:")]
+        assert len(schema_errors) >= 2
+
+    def test_violation_names_the_field_path(self) -> None:
+        result = validate_session_log(_make_valid_log(number="x"))
+        assert any("session.number" in e for e in result.errors)
+
+    def test_missing_section_is_reported_once_not_twice(self) -> None:
+        """The schema owns presence; the hand-rolled check must not restate it."""
+        log = _make_valid_log()
+        del log["session"]
+        result = validate_session_log(log)
+        assert sum("'session' is a required property" in e for e in result.errors) == 1
+        assert "Missing: session" not in result.errors
+
+    def test_unloadable_schema_is_an_error_not_a_silent_pass(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A gate that cannot load its contract has checked nothing; say so."""
+        import scripts.validate_session_json as vsj
+
+        monkeypatch.setattr(vsj, "SCHEMA_PATH", Path("/nonexistent/session-log.schema.json"))
+        result = ValidationResult()
+        vsj.validate_against_schema(_make_valid_log(), result)
+        assert any("schema layer skipped" in e for e in result.errors)
+
+    def test_unloadable_schema_does_not_claim_the_whole_gate_checked_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """validate_session_log still runs protocol checks; the message must not
+        claim total silence when only the schema layer was skipped."""
+        import scripts.validate_session_json as vsj
+
+        monkeypatch.setattr(vsj, "SCHEMA_PATH", Path("/nonexistent/session-log.schema.json"))
+        log = _make_valid_log()
+        log["protocolCompliance"]["sessionStart"]["handoffRead"] = {
+            "complete": False,
+            "evidence": "",
+            "level": "MUST",
+        }
+        result = vsj.validate_session_log(log)
+        assert not any("nothing was checked" in e for e in result.errors)
+        assert any("handoffRead" in e for e in result.errors)
+
+    @pytest.mark.parametrize(
+        ("schema", "reason"),
+        [
+            ({"type": "nope"}, "unknown type name raises UnknownType"),
+            (
+                {"$schema": "http://json-schema.org/draft-07/schema#", "properties": "notadict"},
+                "non-object properties raises AttributeError",
+            ),
+            ({"required": "notalist"}, "non-array required raises nothing until use"),
+        ],
+    )
+    def test_an_invalid_schema_is_an_error_not_a_crash(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        schema: dict[str, object],
+        reason: str,
+    ) -> None:
+        """Driven with real malformed schemas, not a mock of ``validator_for``.
+
+        Mocking the constructor to raise ``SchemaError`` proves only that the
+        handler is reachable. It does not prove the handler catches what
+        jsonschema actually raises, and for two of these three it does not:
+        ``UnknownType`` and ``AttributeError`` are not ``SchemaError``.
+        """
+        import scripts.validate_session_json as vsj
+
+        schema_path = tmp_path / "broken.schema.json"
+        schema_path.write_text(json.dumps(schema), encoding="utf-8")
+        monkeypatch.setattr(vsj, "SCHEMA_PATH", schema_path)
+
+        result = ValidationResult()
+        vsj.validate_against_schema(_make_valid_log(), result)
+
+        assert any("not a valid schema" in e for e in result.errors), reason
+
+    def test_a_valid_schema_is_not_reported_as_malformed(self) -> None:
+        """Negative control: the guard must not fire on the committed schema."""
+        import scripts.validate_session_json as vsj
+
+        result = ValidationResult()
+        vsj.validate_against_schema(_make_valid_log(), result)
+
+        assert not any("not a valid schema" in e for e in result.errors)
+
+    def test_array_indices_are_ordered_numerically_not_lexically(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pins why the sort key stays raw.
+
+        Stringifying every path element to dodge a mixed str/int comparison
+        would order index 10 ahead of index 2. Session logs carry workLog arrays
+        well past ten entries, so the reordering is reachable on real data.
+
+        The mixed comparison the stringify guards against is not: two paths are
+        only compared past a shared prefix, and a shared prefix names one
+        container, whose child keys are all strings or all integers.
+        """
+        import scripts.validate_session_json as vsj
+
+        schema_path = tmp_path / "array.schema.json"
+        schema_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    "type": "array",
+                    "items": {"type": "string"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(vsj, "SCHEMA_PATH", schema_path)
+
+        document: list[object] = ["ok"] * 12
+        document[2] = 2
+        document[10] = 10
+
+        result = ValidationResult()
+        vsj.validate_against_schema(document, result)
+
+        assert [e.split(":")[1].strip() for e in result.errors] == ["2", "10"]
+
+    def test_committed_schema_is_readable(self) -> None:
+        """Guards against a schema edit that leaves the file unparseable."""
+        import scripts.validate_session_json as vsj
+
+        assert vsj.SCHEMA_PATH.is_file()
+        assert isinstance(vsj._load_schema(), dict)
+
+    def test_malformed_history_timestamp_is_rejected(self) -> None:
+        """The schema declares `format: "date-time"` on
+        developmentPhase.history[].timestamp. jsonschema treats "format" as
+        annotation-only unless a FormatChecker covering it is supplied, so
+        this was previously accepted silently."""
+        log = _make_valid_log()
+        log["developmentPhase"] = {
+            "current": "refinement",
+            "history": [{"phase": "refinement", "timestamp": "not-a-date"}],
+        }
+        result = validate_session_log(log)
+        assert any(
+            "developmentPhase.history" in e and "not a" in e and e.startswith("Schema:")
+            for e in result.errors
+        )
+
+    def test_valid_history_timestamp_passes(self) -> None:
+        """A real RFC 3339 date-time must not be rejected by the new check."""
+        log = _make_valid_log()
+        log["developmentPhase"] = {
+            "current": "refinement",
+            "history": [{"phase": "refinement", "timestamp": "2026-07-26T01:12:11Z"}],
+        }
+        result = validate_session_log(log)
+        assert result.errors == []
+
+    def test_offset_naive_history_timestamp_is_rejected(self) -> None:
+        """`datetime.fromisoformat` accepts a timestamp with no UTC offset,
+        but RFC 3339 section 5.6 (what the schema's `format: "date-time"`
+        means) requires one. A naive parse must not pass as RFC 3339."""
+        log = _make_valid_log()
+        log["developmentPhase"] = {
+            "current": "refinement",
+            "history": [{"phase": "refinement", "timestamp": "2026-07-26T01:12:11"}],
+        }
+        result = validate_session_log(log)
+        assert any(
+            "developmentPhase.history" in e and e.startswith("Schema:") for e in result.errors
+        )
+
+
+class TestProtocolChecksSurviveSchemaEnforcement:
+    """The schema cannot express these; adding it must not displace them."""
+
+    def test_incomplete_must_item_still_fails(self) -> None:
+        log = _make_valid_log()
+        log["protocolCompliance"]["sessionStart"]["handoffRead"] = {
+            "complete": False,
+            "evidence": "",
+            "level": "MUST",
+        }
+        result = validate_session_log(log)
+        assert any("handoffRead" in e for e in result.errors)
+
+    def test_both_checklist_casings_still_accepted(self) -> None:
+        """`definitions.checklistItem` is an anyOf over Complete/complete.
+
+        Note the asymmetry: the anyOf varies the casing of Complete and
+        Evidence but declares `level` lowercase in both branches, and all
+        16675 checklist items in .agents/sessions/ agree. A log spelling it
+        `Level` passes the Python check (which is case-insensitive) and fails
+        the schema; that is the schema's call to make, so this test pins the
+        casing the corpus actually uses.
+        """
+        log = _make_valid_log()
+        log["protocolCompliance"]["sessionStart"] = {
+            name: {"Complete": True, "Evidence": "Evidence", "level": "MUST"}
+            for name in SESSION_START_REQUIRED_ITEMS
+        }
+        result = validate_session_log(log)
+        assert result.errors == []
+
+
+class TestHistoricalLogsAreExemptByConstruction:
+    """Issue #3346 accepted exemption-by-changed-files over backfilling 131 logs.
+
+    The exemption is not a flag anyone can forget to set: it holds because both
+    call sites hand the validator one changed path at a time. These tests fail
+    if a future change points the validator at the whole directory, which would
+    turn every historical log into a blocking failure.
+    """
+
+    @staticmethod
+    def _invoked_paths(paths: list[str]) -> list[str]:
+        """Return the session paths validate_branch_sessions actually shelled out for."""
+        from scripts.validation import git_hook_policy
+
+        seen: list[str] = []
+
+        def _record(command: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            seen.append(command[-1])
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(git_hook_policy, "_run_command", _record):
+            git_hook_policy.validate_branch_sessions(paths, Path.cwd())
+        return seen
+
+    def test_git_hook_policy_validates_only_the_paths_it_is_given(self) -> None:
+        given = ["a/one.json", "b/two.json"]
+        assert self._invoked_paths(given) == given
+
+    def test_git_hook_policy_validates_nothing_when_given_nothing(self) -> None:
+        """No path list means no work. A directory fallback would fail 131 logs."""
+        assert self._invoked_paths([]) == []
+
+    def test_workflow_validates_one_file_per_invocation(self) -> None:
+        workflow = (
+            Path(__file__).resolve().parents[1] / ".github/workflows/ai-session-protocol.yml"
+        ).read_text(encoding="utf-8")
+        assert "validate_session_json.py $sessionFile" in workflow
+        assert "validate_session_json.py .agents/sessions/*" not in workflow
+
+
+class TestMainNarrowsOnThePayload:
+    """`main` branches on `error is not None`, not on `data is None` (issue #3346).
+
+    The old form left `data` optional and carried a type suppression. These
+    pin the observable behavior so the narrowing cannot be reverted silently.
+
+    Fixtures live inside the repo on purpose: `validate_safe_path` rejects any
+    path outside the project root, so a `tmp_path` fixture would make every
+    case exit 1 for a path reason and prove nothing about the load or the
+    schema.
+    """
+
+    def test_missing_file_exits_one_with_the_load_error(self, scratch: Path) -> None:
+        proc = _run_cli(scratch / "absent.json")
+        assert proc.returncode == 1
+        assert "not found" in (proc.stdout + proc.stderr)
+
+    def test_unparseable_file_exits_one(self, scratch: Path) -> None:
+        bad = scratch / "bad.json"
+        bad.write_text("{not json", encoding="utf-8")
+        proc = _run_cli(bad)
+        assert proc.returncode == 1
+        assert "Invalid JSON" in (proc.stdout + proc.stderr)
+
+    def test_schema_violation_exits_one(self, scratch: Path) -> None:
+        """The headline acceptance criterion, driven through the CLI."""
+        log = scratch / "log.json"
+        log.write_text(json.dumps(_make_valid_log(number="not-an-integer")), encoding="utf-8")
+        proc = _run_cli(log)
+        assert proc.returncode == 1
+        assert "Schema:" in (proc.stdout + proc.stderr)
+
+    def test_valid_file_exits_zero(self, scratch: Path) -> None:
+        log = scratch / "log.json"
+        log.write_text(json.dumps(_make_valid_log()), encoding="utf-8")
+        proc = _run_cli(log)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+class TestNonObjectPayloadsAreReportedNotCrashed:
+    """A session log is an object, but any JSON value can reach the validator.
+
+    Before issue #3346's review, a top-level array reached ``data.get`` and
+    exited 2 with ``'list' object has no attribute 'get'``: a crash, reported as
+    an internal error, for input the schema already describes.
+    """
+
+    @pytest.mark.parametrize("payload", [[1, 2, 3], "a string", 7, True])
+    def test_the_schema_reports_the_type_instead_of_crashing(self, payload: object) -> None:
+        result = validate_session_log(payload)
+        assert not result.is_valid
+        assert any("is not of type 'object'" in error for error in result.errors)
+
+    def test_protocol_checks_do_not_run_on_a_non_object(self) -> None:
+        """Only the schema speaks. A protocol message here means a mapping was assumed."""
+        result = validate_session_log([1, 2, 3])
+        assert all(error.startswith("Schema:") for error in result.errors)
+
+    def test_a_non_object_file_exits_one_not_two(self, scratch: Path) -> None:
+        path = scratch / "array.json"
+        path.write_text("[1, 2, 3]", encoding="utf-8")
+        assert _run_cli(path).returncode == 1
+
+    def test_json_null_reaches_the_schema_rather_than_looking_like_a_load_error(
+        self, scratch: Path
+    ) -> None:
+        """`json.loads('null')` succeeds, so the loader reports no error for it.
+
+        `main` therefore branches on `error`, not on the payload. Branching on
+        the payload would print `ERROR: None` for a file that parsed fine.
+        """
+        path = scratch / "null.json"
+        path.write_text("null", encoding="utf-8")
+
+        data, error = load_session_file(path)
+        assert data is None
+        assert error is None
+
+        proc = _run_cli(path)
+        assert proc.returncode == 1
+        assert "ERROR: None" not in (proc.stdout + proc.stderr)
+        assert "is not of type 'object'" in (proc.stdout + proc.stderr)
+
+
+class TestValidatorFollowsTheSchemaDeclaration:
+    """The committed schema declares draft-07; pinning another draft changes meaning.
+
+    Asserting `validator_for` returns Draft7Validator would only test jsonschema.
+    These drive `validate_against_schema` against a schema whose result differs
+    between the two drafts, so a hard-coded validator fails them.
+    """
+
+    # Array-form `items` is tuple validation in draft-07. Draft 2020-12 replaced
+    # it with `prefixItems` and ignores this spelling, so the two drafts disagree
+    # on whether [1] is valid here.
+    _DIVERGENT = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "array",
+        "items": [{"type": "string"}],
+    }
+
+    def test_draft_seven_semantics_are_applied(
+        self, scratch: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import scripts.validate_session_json as module
+
+        schema_path = scratch / "divergent.schema.json"
+        schema_path.write_text(json.dumps(self._DIVERGENT), encoding="utf-8")
+        monkeypatch.setattr(module, "SCHEMA_PATH", schema_path)
+
+        result = ValidationResult()
+        module.validate_against_schema([1], result)
+
+        assert result.errors, "draft-07 tuple validation was not applied"
+        assert any("is not of type 'string'" in error for error in result.errors)
+
+    def test_the_committed_schema_declares_draft_seven(self) -> None:
+        """Pins the premise. If the schema is upgraded, the test above must be revisited."""
+        import scripts.validate_session_json as module
+
+        schema = json.loads(module.SCHEMA_PATH.read_text(encoding="utf-8"))
+        assert schema["$schema"].startswith("http://json-schema.org/draft-07/")
+
+    def test_the_committed_schema_is_itself_valid(self) -> None:
+        """A malformed schema would silently accept everything."""
+        from jsonschema.validators import validator_for
+
+        import scripts.validate_session_json as module
+
+        schema = json.loads(module.SCHEMA_PATH.read_text(encoding="utf-8"))
+        validator_for(schema).check_schema(schema)
+
+
+class TestSectionAbsenceIsReportedOnce:
+    """protocolCompliance.required names both sections, so Python must not restate it."""
+
+    def test_a_missing_session_start_is_named_once(self) -> None:
+        log = _make_valid_log()
+        del log["protocolCompliance"]["sessionStart"]
+        result = validate_session_log(log)
+        naming = [error for error in result.errors if "sessionStart" in error]
+        assert len(naming) == 1
+        assert naming[0].startswith("Schema:")
+
+    def test_a_missing_session_end_is_named_once(self) -> None:
+        log = _make_valid_log()
+        del log["protocolCompliance"]["sessionEnd"]
+        result = validate_session_log(log)
+        naming = [error for error in result.errors if "sessionEnd" in error]
+        assert len(naming) == 1
+        assert naming[0].startswith("Schema:")
+
+    def test_a_non_mapping_section_does_not_reach_the_protocol_checks(self) -> None:
+        log = _make_valid_log()
+        log["protocolCompliance"]["sessionStart"] = "not a mapping"
+        result = validate_session_log(log)
+        assert any(
+            "sessionStart" in error and error.startswith("Schema:") for error in result.errors
+        )

@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
-"""Validate session logs in JSON format against schema.
+"""Validate a session log against the committed JSON Schema and protocol rules.
 
-Simple, unambiguous validation using JSON schema instead of regex parsing.
+Two layers run, and they own different questions:
+
+* ``.agents/schemas/session-log.schema.json`` owns shape: which fields exist,
+  what type each holds, which values are in range. It is the single source of
+  truth for that, loaded and enforced here rather than restated in Python.
+* The protocol checks below own meaning: that a MUST checklist item is actually
+  complete, that its evidence is not an empty string, that a branch name and a
+  commit SHA look like one. A JSON Schema cannot express those.
+
+Scope: this validates the one file it is handed. Both call sites
+(``git_hook_policy.validate_branch_sessions`` and the ai-session-protocol
+workflow) pass only session logs changed on the branch, so enabling schema
+enforcement binds new and edited logs. Logs written before enforcement are not
+re-validated; editing one surfaces its violations, which is the intended signal.
 
 This is a Python port of Validate-SessionJson.ps1 following ADR-042 migration.
 
@@ -19,8 +32,14 @@ import argparse
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+import jsonschema
+from jsonschema import FormatChecker
+from jsonschema.exceptions import SchemaError
+from jsonschema.validators import validator_for
 
 # Add project root to path for imports
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -30,8 +49,42 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
 
-# Required session fields
-REQUIRED_SESSION_FIELDS = frozenset({"number", "date", "branch", "startingCommit", "objective"})
+SCHEMA_PATH = _PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
+
+# jsonschema's built-in FormatChecker ships without a "date-time" checker
+# unless the "format" extra (rfc3339-validator) is installed; that extra is
+# not a project dependency. The committed schema declares `format:
+# "date-time"` (developmentPhase.history[].timestamp), and by default
+# jsonschema treats "format" as annotation-only, so that constraint was
+# silently unenforced. datetime.fromisoformat (Python 3.11+, this project
+# requires >=3.14) accepts RFC 3339's "Z" suffix, so a stdlib-only checker
+# covers the one format the schema uses without adding a dependency. It is
+# also looser than RFC 3339 on its own (see _check_date_time), which the
+# tzinfo check below closes.
+_FORMAT_CHECKER = FormatChecker()
+
+
+@_FORMAT_CHECKER.checks("date-time")
+def _check_date_time(value: object) -> bool:
+    """Return whether ``value`` is an RFC 3339 date-time, per the schema's format.
+
+    Non-strings are not this keyword's concern: JSON Schema's "format" applies
+    only to the type it names, and "type": "string" elsewhere in the schema
+    already rejects a non-string value.
+
+    RFC 3339 section 5.6 requires a time-offset (``Z`` or a numeric offset);
+    ``datetime.fromisoformat`` is looser and also accepts a naive timestamp
+    with no offset at all, which would defeat the point of enforcing this
+    format. Reject a parse that came back timezone-naive.
+    """
+    if not isinstance(value, str):
+        return True
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
 
 # Branch naming pattern
 BRANCH_PATTERN = re.compile(r"^(feat|fix|docs|chore|refactor|test|ci)/")
@@ -173,15 +226,13 @@ def has_case_insensitive(data: dict[str, Any], key: str) -> bool:
 def validate_session_section(session: dict[str, Any], result: ValidationResult) -> None:
     """Validate the session section of the log.
 
+    The schema owns shape: which fields exist and what types they hold. This
+    function owns meaning: protocol checks the schema cannot express.
+
     Args:
         session: The session section data.
         result: ValidationResult to update with errors/warnings.
     """
-    # Check required fields
-    for field_name in REQUIRED_SESSION_FIELDS:
-        if field_name not in session or not session.get(field_name):
-            result.errors.append(f"Missing: session.{field_name}")
-
     # Validate branch pattern
     branch = session.get("branch")
     if branch and not BRANCH_PATTERN.match(branch):
@@ -416,9 +467,7 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         is_complete = get_case_insensitive(check_data, "complete")
         level = get_case_insensitive(check_data, "level")
         if level == "MUST NOT" and is_complete:
-            result.errors.append(
-                "MUST NOT violated: HANDOFF.md was modified (read-only)"
-            )
+            result.errors.append("MUST NOT violated: HANDOFF.md was modified (read-only)")
 
 
 def validate_protocol_compliance(
@@ -431,43 +480,122 @@ def validate_protocol_compliance(
         protocol: The protocolCompliance section data.
         result: ValidationResult to update with errors/warnings.
     """
-    if "sessionStart" in protocol:
+    # protocolCompliance.required already names both sections, so the schema
+    # reports either one missing. These guards exist only to hand the checks
+    # below a mapping, not to restate that fact.
+    if isinstance(protocol.get("sessionStart"), dict):
         validate_session_start(protocol["sessionStart"], result)
-    else:
-        result.errors.append("Missing: protocolCompliance.sessionStart")
 
-    if "sessionEnd" in protocol:
+    if isinstance(protocol.get("sessionEnd"), dict):
         validate_session_end(protocol["sessionEnd"], result)
-    else:
-        result.errors.append("Missing: protocolCompliance.sessionEnd")
 
 
-def validate_session_log(data: dict[str, Any]) -> ValidationResult:
-    """Validate a session log against the expected schema.
+def _load_schema() -> dict[str, Any]:
+    """Read the committed schema.
+
+    Not cached: this process validates one file and exits, so a cache would
+    only hide a read error behind a stale hit.
+    """
+    schema: dict[str, Any] = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return schema
+
+
+def _describe(error: jsonschema.ValidationError) -> str:
+    """Render a schema violation with the path a contributor can act on."""
+    location = ".".join(str(part) for part in error.absolute_path) or "(root)"
+    return f"Schema: {location}: {error.message}"
+
+
+def validate_against_schema(data: object, result: ValidationResult) -> None:
+    """Append every schema violation in ``data`` to ``result``.
+
+    Reports all violations rather than the first, so one commit round fixes the
+    log instead of one field per round. A missing or unreadable schema file, or
+    a schema that is itself invalid, is an error, not a silent pass: the schema
+    layer has checked nothing and must say so. This does not stop the protocol
+    checks in ``validate_session_log``, which do not depend on the schema and
+    still run for a dict-shaped payload.
+
+    The validator comes from ``validator_for``, which reads the schema's own
+    ``$schema`` key. The committed schema declares draft-07, and pinning a
+    different draft here would silently change what several keywords mean.
+
+    Passes ``_FORMAT_CHECKER`` so ``format`` keywords (currently just
+    ``date-time``) are actually enforced instead of treated as annotations.
+
+    ``check_schema`` runs before ``iter_errors`` rather than wrapping it in a
+    ``SchemaError`` handler, because most malformed schemas do not raise that.
+    A bad ``type`` name raises ``UnknownType`` and a non-object ``properties``
+    raises ``AttributeError``, neither of which is a ``SchemaError``, so a
+    handler alone still lets the gate die with a traceback. ``check_schema``
+    validates against the metaschema and turns all of them into ``SchemaError``.
+    It costs about 4ms against the committed schema.
+    """
+    try:
+        schema = _load_schema()
+    except (OSError, json.JSONDecodeError) as exc:
+        result.errors.append(f"Schema: cannot load {SCHEMA_PATH.name}, schema layer skipped: {exc}")
+        return
+
+    if not isinstance(schema, dict):
+        result.errors.append(
+            f"Schema: {SCHEMA_PATH.name} root is not a JSON object, schema layer skipped"
+        )
+        return
+
+    validator_cls = validator_for(schema)
+    try:
+        validator_cls.check_schema(schema)
+    except SchemaError as exc:
+        result.errors.append(
+            f"Schema: {SCHEMA_PATH.name} is not a valid schema, schema layer skipped: {exc.message}"
+        )
+        return
+
+    # Sorting by the raw path is safe. Two paths are only compared past a
+    # shared prefix, and a shared prefix names one container, whose child keys
+    # are therefore all strings (object) or all integers (array). Stringifying
+    # to dodge a mixed comparison would order array index 10 before 2.
+    validator = validator_cls(schema, format_checker=_FORMAT_CHECKER)
+    for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
+        result.errors.append(_describe(error))
+
+
+def validate_session_log(data: object) -> ValidationResult:
+    """Validate a session log against the committed schema and protocol rules.
 
     Args:
-        data: Parsed JSON data from session log.
+        data: Whatever ``json.loads`` produced. A session log is an object, but
+            any JSON value can reach here, so the type is the parser's, not the
+            schema's. The schema reports a non-object; the protocol checks below
+            need a mapping and are skipped without one.
 
     Returns:
         ValidationResult with errors and warnings.
     """
     result = ValidationResult()
 
-    # Required top-level sections
-    if "session" not in data:
-        result.errors.append("Missing: session")
-    else:
+    validate_against_schema(data, result)
+
+    # A valid session log must be a JSON object at the root. If it's not (e.g.,
+    # an array or primitive), the schema validation above already reported the
+    # error; we cannot run protocol checks on a non-mapping value.
+    if not isinstance(data, dict):
+        return result
+
+    # The schema already reported either section as missing. Restating it here
+    # would print the same fact twice under two spellings; these branches exist
+    # only so the protocol checks below get a mapping to walk.
+    if isinstance(data.get("session"), dict):
         validate_session_section(data["session"], result)
 
-    if "protocolCompliance" not in data:
-        result.errors.append("Missing: protocolCompliance")
-    else:
+    if isinstance(data.get("protocolCompliance"), dict):
         validate_protocol_compliance(data["protocolCompliance"], result)
 
     return result
 
 
-def load_session_file(session_path: Path) -> tuple[dict[str, Any] | None, str | None]:
+def load_session_file(session_path: Path) -> tuple[object | None, str | None]:
     """Load and parse a session log file.
 
     Args:
@@ -475,6 +603,7 @@ def load_session_file(session_path: Path) -> tuple[dict[str, Any] | None, str | 
 
     Returns:
         Tuple of (parsed data, error message). Data is None if error occurred.
+        The data may be any valid JSON value (object, array, string, etc.).
     """
     if not session_path.exists():
         return None, f"Session file not found: {session_path}"
@@ -585,13 +714,17 @@ def main() -> int:
             return 1
 
         # Load session file using the validated path
+        # load_session_file returns (data, error) where error is non-None only
+        # for I/O or parse failures. A JSON `null` root is valid JSON that
+        # parses to Python None with no error; that case must reach schema
+        # validation, which will reject the non-object root with a clear message.
         data, error = load_session_file(validated_path)
-        if error:
+        if error is not None:
             print(f"ERROR: {error}", file=sys.stderr)
             return 1
 
         # Validate session log
-        result = validate_session_log(data)  # type: ignore[arg-type]
+        result = validate_session_log(data)
 
         # Report results
         report_results(validated_path, result, args.pre_commit)
