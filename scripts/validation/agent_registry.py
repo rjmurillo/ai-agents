@@ -27,14 +27,35 @@ from yaml.nodes import MappingNode, ScalarNode
 logger = logging.getLogger(__name__)
 
 
-def _load_read_yaml_frontmatter() -> Callable[[str], dict[str, str] | None]:
-    path = Path(__file__).resolve().parents[2] / "build" / "generate_agents_common.py"
+def _build_utility_path() -> Path:
+    """Absolute path of the build helper this module borrows its parser from."""
+    return Path(__file__).resolve().parents[2] / "build" / "generate_agents_common.py"
+
+
+def _load_read_yaml_frontmatter(path: Path | None = None) -> Callable[[str], dict[str, str] | None]:
+    """Load `read_yaml_frontmatter` from the build tree without touching sys.path.
+
+    This runs at import time, so a failure here takes down every caller of this
+    module. `spec_from_file_location` returns a populated spec even when the
+    file does not exist, so the spec guard below only covers an unloadable
+    suffix; a missing or broken file surfaces from `exec_module` instead. Both
+    paths are wrapped so the failure says which utility could not be loaded,
+    rather than a bare FileNotFoundError from inside a validation script.
+    """
+    path = path or _build_utility_path()
     spec = importlib.util.spec_from_file_location("_agent_registry_build_common", path)
     if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load build utility: {path}")
+        raise ImportError(f"Cannot load build utility {path}: no import spec")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return cast(Callable[[str], dict[str, str] | None], module.read_yaml_frontmatter)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        raise ImportError(f"Cannot load build utility {path}: {exc}") from exc
+    try:
+        loaded = module.read_yaml_frontmatter
+    except AttributeError as exc:
+        raise ImportError(f"Build utility {path} does not define read_yaml_frontmatter") from exc
+    return cast(Callable[[str], dict[str, str] | None], loaded)
 
 
 read_yaml_frontmatter = _load_read_yaml_frontmatter()

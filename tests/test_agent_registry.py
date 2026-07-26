@@ -20,6 +20,8 @@ from scripts.validation.agent_registry import (
     AgentDefinition,
     MalformedAgentFileError,
     ValidationResult,
+    _build_utility_path,
+    _load_read_yaml_frontmatter,
     main,
     parse_agent_file,
     parse_agent_files,
@@ -399,3 +401,42 @@ class TestAMalformedFileFailsInsteadOfDisappearing:
         assert agents == []
         assert errors == []
         assert main(["--agent-dir", str(tmp_agent_dir)]) == 1
+
+
+class TestBuildUtilityLoaderNamesTheFailure:
+    """The import-time loader must say which build utility it could not load.
+
+    This code runs at module import, so a bare FileNotFoundError or SyntaxError
+    from inside importlib leaves a CI reader with no hint that a *validation*
+    script died because a *build* utility was unloadable.
+    """
+
+    def test_a_missing_build_utility_is_reported_as_an_import_error(self, tmp_path: Path) -> None:
+        """spec_from_file_location succeeds for a missing path; exec_module is the guard."""
+        missing = tmp_path / "generate_agents_common.py"
+        with pytest.raises(ImportError) as excinfo:
+            _load_read_yaml_frontmatter(missing)
+        assert str(missing) in str(excinfo.value)
+
+    def test_a_broken_build_utility_is_reported_as_an_import_error(self, tmp_path: Path) -> None:
+        """A SyntaxError inside the utility must not escape as a SyntaxError."""
+        broken = tmp_path / "generate_agents_common.py"
+        broken.write_text("def (\n", encoding="utf-8")
+        with pytest.raises(ImportError) as excinfo:
+            _load_read_yaml_frontmatter(broken)
+        assert str(broken) in str(excinfo.value)
+
+    def test_a_utility_missing_the_symbol_is_reported_as_an_import_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Importing cleanly is not enough; the symbol has to be there."""
+        empty = tmp_path / "generate_agents_common.py"
+        empty.write_text("# no read_yaml_frontmatter here\n", encoding="utf-8")
+        with pytest.raises(ImportError) as excinfo:
+            _load_read_yaml_frontmatter(empty)
+        assert "read_yaml_frontmatter" in str(excinfo.value)
+
+    def test_the_default_path_points_at_the_real_build_utility(self) -> None:
+        """The production default must resolve to a file that actually loads."""
+        assert _build_utility_path().is_file()
+        assert callable(_load_read_yaml_frontmatter())
