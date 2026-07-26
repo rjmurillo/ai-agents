@@ -9,6 +9,8 @@ Covers:
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -296,6 +298,23 @@ class TestValidate:
 
 @pytest.mark.skipif(not AGENT_DIR.is_dir(), reason="src/claude/ not found")
 class TestIntegration:
+    def test_import_does_not_mutate_sys_path(self) -> None:
+        code = textwrap.dedent(
+            """\
+            import sys
+
+            before = sys.path.copy()
+            import scripts.validation.agent_registry
+            raise SystemExit(sys.path != before)
+            """
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=REPO_ROOT,
+            check=False,
+        )
+        assert result.returncode == 0
+
     def test_parse_real_agents(self) -> None:
         agents, _errors = parse_agent_files(AGENT_DIR)
         assert len(agents) >= 15, f"Expected at least 15 agents, got {len(agents)}"

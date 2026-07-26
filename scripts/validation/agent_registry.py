@@ -13,19 +13,31 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import logging
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import yaml
 from yaml.nodes import MappingNode, ScalarNode
 
 logger = logging.getLogger(__name__)
 
-# Reuse existing frontmatter parsing from build utilities
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "build"))
-from generate_agents_common import read_yaml_frontmatter  # noqa: E402
+
+def _load_read_yaml_frontmatter() -> Callable[[str], dict[str, str] | None]:
+    path = Path(__file__).resolve().parents[2] / "build" / "generate_agents_common.py"
+    spec = importlib.util.spec_from_file_location("_agent_registry_build_common", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load build utility: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return cast(Callable[[str], dict[str, str] | None], module.read_yaml_frontmatter)
+
+
+read_yaml_frontmatter = _load_read_yaml_frontmatter()
 
 # Files in src/claude/ that are not agent definitions
 _EXCLUDED_FILES = frozenset({"AGENTS.md", "claude-instructions.template.md"})
