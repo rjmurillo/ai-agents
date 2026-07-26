@@ -291,8 +291,22 @@ def _lowercase_gate(complete):
     return {"level": "MUST", "complete": complete, "evidence": "x"}
 
 
-def _json_log(work_log, end_complete=True):
+def _json_log(work_log, end_complete=True, committed=None):
+    """``committed`` populates the session-end changesCommitted evidence, which
+    is the protocol's authoritative record of what the session committed and
+    the source commit provenance reads first (issue #3363).
+
+    Left at None the evidence keeps the gate default: a non-empty string that
+    names no SHA, which is the majority shape among prose-only logs. Pass
+    ``committed=""`` for the minority shape, where the evidence is absent
+    entirely. Both reach the prose fallback, and both are exercised below. The
+    corpus split behind that claim lives in the extractor docstring, so it has
+    one home to re-measure.
+    """
     gate = _gate(end_complete)
+    committed_gate = dict(gate)
+    if committed is not None:
+        committed_gate["Evidence"] = committed
     return {
         "session": {
             "number": 1,
@@ -305,7 +319,7 @@ def _json_log(work_log, end_complete=True):
             "sessionStart": {},
             "sessionEnd": {
                 "checklistComplete": gate,
-                "changesCommitted": gate,
+                "changesCommitted": committed_gate,
                 "validationPassed": gate,
             },
         },
@@ -654,26 +668,25 @@ class TestJsonLessonsObjectShape:
 
 
 class TestJsonCommitMetric:
-    """`json_metrics["commits"]` counts every distinct documented commit (#2170)."""
+    """`json_metrics["commits"]` counts every distinct documented commit (#2170).
 
-    def test_counts_ending_and_worklog_shas(self):
-        data = _json_log(
-            [
-                {"task": "Commit A", "outcome": "1234abc. Added parser"},
-                {"task": "Commit B", "outcome": "5678def0. Fixed lint"},
-            ]
-        )
-        # endingCommit bbbbbbb1234 + two work-log SHAs = 3 distinct.
+    #2170 established that a session's commit count is not just ``endingCommit``.
+    #3363 corrected where the rest come from: the session-end changesCommitted
+    evidence, not work-log narrative, which also cites commits the session read
+    rather than authored.
+    """
+
+    def test_counts_ending_and_changes_committed_shas(self):
+        data = _json_log([], committed="Commits: 1234abc (parser), 5678def0 (lint).")
+        # endingCommit bbbbbbb1234 + two changesCommitted SHAs = 3 distinct.
         assert extract_session_episode.json_metrics(data)["commits"] == 3
 
     def test_dedupes_repeated_sha(self):
         data = _json_log(
-            [
-                {"task": "Commit A", "outcome": "1234abc. Added parser"},
-                {"task": "Re-reference", "evidence": "see 1234abc for details"},
-            ]
+            [{"task": "Re-reference", "evidence": "see 1234abc for details"}],
+            committed="Commit 1234abc, verified again as 1234abc.",
         )
-        # endingCommit + one distinct work-log SHA (1234abc counted once) = 2.
+        # endingCommit + one distinct evidence SHA (1234abc counted once) = 2.
         assert extract_session_episode.json_metrics(data)["commits"] == 2
 
     def test_no_sha_yields_zero(self):
@@ -710,9 +723,7 @@ class TestJsonCommitMetric:
 
     def test_prose_mixes_comment_id_and_sha_counts_only_sha(self):
         # #3301 edge: prose with both a decimal ID and a real SHA counts one.
-        data = _json_log(
-            [{"task": "t", "outcome": "fixed in abc1234 per run 29708719280"}]
-        )
+        data = _json_log([{"task": "t", "outcome": "fixed in abc1234 per run 29708719280"}])
         data["endingCommit"] = ""
         assert extract_session_episode.json_metrics(data)["commits"] == 1
 
@@ -743,17 +754,14 @@ class TestCommitProvenanceConsistency:
         return data
 
     def test_fresh_events_equal_metrics(self):
-        data = self._log(
-            "e07f40f",
-            [
-                {"task": "Commit A", "outcome": "45576b6. parser"},
-                {"task": "Commit B", "outcome": "24da6b2. lint"},
-            ],
+        data = self._log("e07f40f")
+        data["protocolCompliance"]["sessionEnd"]["changesCommitted"]["Evidence"] = (
+            "Commits: 45576b6 (parser), 24da6b2 (lint)."
         )
         commit_events = self._commit_events(
             {"events": extract_session_episode.json_events(data, self._NOW)}
         )
-        # endingCommit + two work-log SHAs = 3 documented commits, all retained.
+        # endingCommit + two changesCommitted SHAs = 3 documented, all retained.
         assert len(commit_events) == 3
         assert len(commit_events) == extract_session_episode.json_metrics(data)["commits"]
 
@@ -792,7 +800,9 @@ class TestCommitProvenanceConsistency:
         assert extract_session_episode._same_commit(full, full)
         # Distinct commits sharing a 6-char prefix are not the same commit.
         assert not extract_session_episode._same_commit(full, "e535a4e9abc")
-        # Below git's 7-char minimum abbreviation, do not treat as a match.
+        # Below the extractor's own seven-character floor, do not treat as a
+        # match. The floor is this module's rule; git's abbreviation length is
+        # repo-dependent (core.abbrev), so there is no git minimum to cite.
         assert not extract_session_episode._same_commit(full, "e535a4")
         assert not extract_session_episode._same_commit("", full)
 
@@ -826,16 +836,12 @@ class TestCommitProvenanceConsistency:
             self._log("e07f40f"), archive_fallback=False
         )
         once = extract_session_episode.merge_preserving(
-            extract_session_episode.extract_from_json(
-                self._log("e07f40f"), archive_fallback=False
-            ),
+            extract_session_episode.extract_from_json(self._log("e07f40f"), archive_fallback=False),
             base,
             session_id="s",
         )
         twice = extract_session_episode.merge_preserving(
-            extract_session_episode.extract_from_json(
-                self._log("e07f40f"), archive_fallback=False
-            ),
+            extract_session_episode.extract_from_json(self._log("e07f40f"), archive_fallback=False),
             once,
             session_id="s",
         )
@@ -1475,7 +1481,6 @@ class TestSequentialEventLinks:
                 assert ref in ids, f"dangling reference {ref} in {e['id']}"
 
 
-
 def _git(repo, *args, when=None):
     env = None
     if when is not None:
@@ -1548,17 +1553,25 @@ class TestPredatingProseShaExclusion:
 
     @staticmethod
     def _log(anchor, prose, *, date=SESSION_DAY):
-        data = _json_log([{"task": "Cited", "outcome": prose}])
+        """A log with no structured commit record, so prose is consulted.
+
+        Since #3363 work-log prose is a fallback, reached only when neither
+        ``endingCommit`` nor the changesCommitted evidence yields a SHA. The
+        fixture takes the majority prose-only shape: an evidence string that
+        names no SHA. The predating filter guards that fallback, so the fixture
+        has to reach it.
+        """
+        data = _json_log([{"task": "Cited", "outcome": prose}], committed="Committed.")
         data["session"]["date"] = date
         data["session"]["startingCommit"] = anchor
-        data["endingCommit"] = anchor
+        data["endingCommit"] = ""
         return data
 
     def test_sha_predating_the_session_is_not_counted(self, tmp_path, monkeypatch):
         repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"reproduced against {cited}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 1
+        assert extract_session_episode.json_metrics(data)["commits"] == 0
 
     def test_own_commit_from_the_evening_before_is_counted(self, tmp_path, monkeypatch):
         # Regression for the ancestor form of this check. ``evening`` is an
@@ -1568,7 +1581,7 @@ class TestPredatingProseShaExclusion:
         repo, _cited, evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"spec committed in {evening}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_squash_merge_of_own_work_is_counted(self, tmp_path, monkeypatch):
         # Regression for the descendant form. A squash commit shares no
@@ -1576,20 +1589,20 @@ class TestPredatingProseShaExclusion:
         repo, _cited, _evening, anchor, squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"merged as {squashed}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_commit_made_during_the_session_day_is_counted(self, tmp_path, monkeypatch):
         repo, _cited, _evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         later = _commit(repo, "later.txt", "later", when=SESSION_DAY_NOON)
         data = self._log(anchor, f"landed {later}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_unresolvable_sha_fails_open(self, tmp_path, monkeypatch):
         repo, _cited, _evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, "see deadbee for context")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_non_commit_object_fails_open(self, tmp_path, monkeypatch):
         # A blob SHA cannot be peeled to a commit, so git exits nonzero and the
@@ -1598,20 +1611,23 @@ class TestPredatingProseShaExclusion:
         monkeypatch.chdir(repo)
         blob = _git(repo, "rev-parse", "HEAD:anchor.txt")
         data = self._log(anchor, f"blob {blob}")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_missing_session_date_fails_open(self, tmp_path, monkeypatch):
         repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"reproduced against {cited}", date="")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_outside_a_git_repo_fails_open(self, tmp_path, monkeypatch):
         outside = tmp_path / "not-a-repo"
         outside.mkdir()
         monkeypatch.chdir(outside)
-        data = _json_log([{"task": "Cited", "outcome": "1234abc. Added parser"}])
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        data = _json_log(
+            [{"task": "Cited", "outcome": "1234abc. Added parser"}], committed="Committed."
+        )
+        data["endingCommit"] = ""
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
 
     def test_events_and_metrics_agree(self, tmp_path, monkeypatch):
         repo, cited, _evening, anchor, _squashed = self._repo(tmp_path)
@@ -1654,4 +1670,244 @@ class TestPredatingProseShaExclusion:
         anchor = _commit(repo, "anchor.txt", "anchor", when="2026-05-10T12:00:00+00:00")
         monkeypatch.chdir(repo)
         data = self._log(anchor, f"landed in {early}", date="2026-05-11T00:00:00+14:00")
-        assert extract_session_episode.json_metrics(data)["commits"] == 2
+        assert extract_session_episode.json_metrics(data)["commits"] == 1
+
+
+class TestChangesCommittedIsTheCommitSource:
+    """Issue #3363: commits come from the protocol's record, not from prose.
+
+    A work-log entry legitimately cites SHAs the session did not author: a
+    bot's housekeeping commits, a commit it bisected, the base of a PR it read.
+    Counting those inflated metrics.commits and seeded causal-graph commit
+    nodes for work the session never did, while the session's own commits,
+    recorded only in changesCommitted, were missed entirely.
+    """
+
+    @staticmethod
+    def _log(*, evidence: str, ending: str, work_log: list) -> dict:
+        log = _json_log(work_log)
+        log["endingCommit"] = ending
+        log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": evidence,
+        }
+        return log
+
+    def test_changes_committed_shas_become_commits(self):
+        log = self._log(
+            evidence="Two commits: the fix (abc1234def) and the test (fed4321abc).",
+            ending="abc1234def",
+            work_log=[],
+        )
+        shas = extract_session_episode._collect_shas(log)
+        assert set(shas) == {"abc1234def", "fed4321abc"}
+
+    def test_a_sha_only_in_work_log_prose_is_not_a_commit(self):
+        """The fix/3342 shape: narrative cites a bot commit the session did not author."""
+        log = self._log(
+            evidence="One commit: the fix (abc1234def).",
+            ending="abc1234def",
+            work_log=[{"phase": "Merge", "summary": "Took the bot's commit deadbee1234."}],
+        )
+        shas = extract_session_episode._collect_shas(log)
+        assert shas == ["abc1234def"]
+        assert "deadbee1234" not in shas
+
+    def test_a_session_commit_named_only_in_evidence_is_not_dropped(self):
+        """The other half of #3363: prose-only extraction missed real commits."""
+        log = self._log(
+            evidence="Three commits: aaa1111bbb, ccc2222ddd, and eee3333fff.",
+            ending="eee3333fff",
+            work_log=[{"phase": "Implement", "summary": "Did the work."}],
+        )
+        shas = extract_session_episode._collect_shas(log)
+        assert set(shas) == {"aaa1111bbb", "ccc2222ddd", "eee3333fff"}
+
+    def test_metrics_and_events_agree_on_the_commit_set(self):
+        """A count that disagrees with the events is the bug that was reported."""
+        log = self._log(
+            evidence="Two commits: abc1234def and fed4321abc.",
+            ending="abc1234def",
+            work_log=[{"phase": "Note", "summary": "Mentioned deadbee1234 in passing."}],
+        )
+        events = [
+            e["content"].replace("Commit: ", "")
+            for e in extract_session_episode.json_events(log, "2026-05-31T00:00:00+00:00")
+            if e["type"] == "commit"
+        ]
+        assert extract_session_episode.json_metrics(log)["commits"] == len(events)
+        assert set(events) == {"abc1234def", "fed4321abc"}
+
+    def test_the_starting_commit_is_still_excluded_from_evidence(self):
+        """changesCommitted evidence often restates the base; it is not output."""
+        log = self._log(
+            evidence="Based on aaaaaaa, committed abc1234def.",
+            ending="abc1234def",
+            work_log=[],
+        )
+        shas = extract_session_episode._collect_shas(log)
+        assert shas == ["abc1234def"]
+
+    def test_evidence_naming_only_the_base_still_reaches_the_prose_fallback(self):
+        """The base is not a commit the session produced, so it cannot count.
+
+        Discriminating case for the fallback condition. If the filter ran after
+        the "did any source yield a SHA" check instead of before it, the base
+        would populate the set, suppress the work log, and the session's real
+        commit would be lost.
+        """
+        log = _json_log(
+            [{"phase": "Implement", "summary": "committed as abc1234def"}],
+            committed="Based on aaaaaaa. Committed the work.",
+        )
+        log["endingCommit"] = ""
+        assert extract_session_episode._collect_shas(log) == ["abc1234def"]
+
+    def test_a_decimal_only_token_in_the_evidence_is_not_a_commit(self):
+        """Evidence is a sentence, so it carries CI run ids and issue numbers.
+
+        Scanning it with the unfiltered structured-field pattern read a 20-digit
+        run id as a commit: it counted toward metrics.commits, emitted a commit
+        event, and populated the set well enough to suppress the work log.
+        """
+        log = _json_log(
+            [{"phase": "Implement", "summary": "committed as abc1234def"}],
+            committed="Verified in CI run 12345678901234567890.",
+        )
+        log["endingCommit"] = ""
+        assert extract_session_episode._collect_shas(log) == ["abc1234def"]
+
+    def test_prose_still_works_when_there_is_no_structured_record(self):
+        """Logs that record their commits only in the work log still resolve.
+
+        No count is pinned here on purpose: the figure is measured in the
+        source docstring, and repeating it turns every re-measurement into a
+        comment-only fix.
+        """
+        log = _json_log([{"phase": "Implement", "summary": "committed as abc1234def"}])
+        log["endingCommit"] = ""
+        log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": "Committed the work.",
+        }
+        shas = extract_session_episode._collect_shas(log)
+        assert "abc1234def" in shas
+
+    def test_prose_is_reached_when_the_evidence_string_is_empty(self):
+        """The other prose-only shape: no evidence string at all.
+
+        Three of the 15 prose-only logs are in this shape rather than carrying a
+        SHA-less sentence. Both have to reach the fallback, which is why the
+        condition is "neither source yielded a SHA" and not "both are empty".
+        """
+        log = _json_log(
+            [{"phase": "Implement", "summary": "committed as abc1234def"}],
+            committed="",
+        )
+        log["endingCommit"] = ""
+        shas = extract_session_episode._collect_shas(log)
+        assert "abc1234def" in shas
+
+    def test_a_sha_in_the_evidence_suppresses_the_prose_fallback(self):
+        """The fallback must not fire when evidence already named a commit.
+
+        This is the discriminating case: if the condition were "both fields are
+        empty" the foreign prose SHA would be picked up here too.
+        """
+        log = _json_log(
+            [{"phase": "Read", "summary": "reviewed base fed4321abc"}],
+            committed="Committed abc1234def.",
+        )
+        log["endingCommit"] = ""
+        shas = extract_session_episode._collect_shas(log)
+        assert shas == ["abc1234def"]
+
+    def test_lowercase_evidence_key_is_read(self):
+        """Session logs use both Evidence and evidence casings."""
+        log = _json_log([])
+        log["endingCommit"] = ""
+        log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
+            "level": "MUST",
+            "complete": True,
+            "evidence": "One commit: abc1234def.",
+        }
+        assert extract_session_episode._collect_shas(log) == ["abc1234def"]
+
+    def test_a_missing_compliance_section_does_not_raise(self):
+        log = _json_log([{"phase": "x", "summary": "committed as abc1234def"}])
+        log["endingCommit"] = ""
+        del log["protocolCompliance"]
+        assert extract_session_episode._collect_shas(log) == ["abc1234def"]
+
+    def test_a_non_dict_compliance_section_does_not_raise(self):
+        log = _json_log([])
+        log["protocolCompliance"] = "not a dict"
+        assert extract_session_episode._collect_shas(log) == ["bbbbbbb1234"]
+
+
+class TestOneCommitCountsOnceAcrossAbbreviations:
+    """Issue #3363: `_collect_shas` promises distinct commits, so two fields
+    that spell one commit at different abbreviation lengths must not both land.
+    Exact string membership let a full 40-char `endingCommit` and a 7-char
+    abbreviation of it in the evidence through as two entries, double-counting
+    `metrics.commits` and emitting two causal-graph nodes for one commit.
+    """
+
+    _FULL = "abc1234def5678901234567890abcdef12345678"
+    _SHORT = "abc1234"
+
+    @staticmethod
+    def _log(*, evidence: str, ending: str) -> dict:
+        log = _json_log([])
+        log["endingCommit"] = ending
+        log["protocolCompliance"]["sessionEnd"]["changesCommitted"] = {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": evidence,
+        }
+        return log
+
+    def test_an_abbreviation_of_the_ending_commit_is_not_a_second_commit(self):
+        log = self._log(evidence=f"Committed as {self._SHORT}.", ending=self._FULL)
+        shas = extract_session_episode._collect_shas(log)
+        assert shas == [self._FULL]
+
+    def test_the_first_spelling_seen_is_the_one_kept(self):
+        """Ordering has to stay stable: endingCommit is read first, so its
+        spelling wins even when the evidence names the longer form.
+        """
+        log = self._log(evidence=f"Committed as {self._FULL}.", ending=self._SHORT)
+        shas = extract_session_episode._collect_shas(log)
+        assert shas == [self._SHORT]
+
+    def test_two_genuinely_different_commits_both_survive(self):
+        """Negative control: the de-duplication must not collapse distinct
+        commits that merely share a prefix shorter than the extractor's own
+        seven-character floor. That floor is _same_commit's rule, not a git
+        contract: git's abbreviation length is repo-dependent (core.abbrev).
+        """
+        other = "abfeed09876543210fedcba9876543210fedcba9"
+        log = self._log(evidence=f"Two commits: {self._FULL} and {other}.", ending="")
+        shas = extract_session_episode._collect_shas(log)
+        assert shas == [self._FULL, other]
+
+    def test_a_prose_fallback_sha_matching_a_structured_one_is_not_added_twice(self):
+        log = _json_log(
+            [{"phase": "implementation", "summary": f"Committed {self._SHORT}."}]
+        )
+        log["endingCommit"] = self._FULL
+        shas = extract_session_episode._collect_shas(log)
+        assert shas == [self._FULL]
+
+    def test_already_seen_needs_seven_shared_characters(self):
+        """`_same_commit` requires seven shared characters, so a six-character
+        prefix is not treated as the same commit. Seven is this module's own
+        floor, not a git contract; git's abbreviation length varies by repo.
+        """
+        assert not extract_session_episode._already_seen("abc123", [self._FULL])
+        assert extract_session_episode._already_seen(self._SHORT, [self._FULL])
+
+    def test_an_empty_seen_list_matches_nothing(self):
+        assert not extract_session_episode._already_seen(self._FULL, [])
