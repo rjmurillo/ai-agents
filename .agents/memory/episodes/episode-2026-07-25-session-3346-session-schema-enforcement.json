@@ -1,0 +1,159 @@
+{
+  "id": "episode-2026-07-25-session-3346-session-schema-enforcement",
+  "session": "2026-07-25-session-3346-session-schema-enforcement",
+  "timestamp": "2026-07-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Make scripts/validate_session_json.py do what its docstring claims: load .agents/schemas/session-log.schema.json and enforce it, keeping the protocol-compliance checks a JSON Schema cannot express (issue #3346).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the claim empirically. The module never referenced the schema file and never imported jsonschema; it hand-rolled presence checks and type-checked nothing. Measured the blast radius of turning the schema on: 131 of the 923 logs in .agents/sessions/ fail Draft202012Validator against the committed schema.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #3346 named two calls the fix had to make. First, jsonschema was a transitive-only package; declared it a direct dependency in pyproject.toml and relocked, since a blocking commit hook should not import a package nothing declares. Second, took the exemption path the issue offered over backfilling 131 historical logs: both call sites hand the validator one changed path at a time, so enforcement binds new and edited logs by construction. Rewriting settled history to satisfy a new gate would fabricate the record.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added validate_against_schema, which reports every violation rather than the first so one commit round fixes a log instead of one field per round, and names the field path in each message. A schema file that cannot be read is an error, not a silent pass: a gate that cannot load its contract has checked nothing. Removed the hand-rolled 'Missing: session' and 'Missing: protocolCompliance' errors, which now restated what the schema already reports; the surviving branches exist only to hand the protocol checks a mapping to walk. Rewrote the docstring to describe the two layers and their scope.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests covering the acceptance criteria: non-integer, null, and below-minimum session.number; malformed date; wrong type for a declared object; all violations reported, not just the first; the field path named. Added regression tests that the protocol checks still fire and both checklist casings still pass, and a guard class that fails if either call site starts walking the whole sessions directory, which is what makes the historical exemption structural rather than a flag someone can forget.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Two negative controls fired. Removing the validate_against_schema call turned 10 tests red; making validate_branch_sessions glob the sessions directory turned the exemption guard red. Full run: 799 tests pass across tests/test_validate_session_json.py and tests/validation/. ruff check, ruff format, and mypy are clean on both changed files, with no new type: ignore.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A test asserted the schema accepted 'Level' as a checklist key. It does not: the checklistItem anyOf varies the casing of Complete and Evidence but declares level lowercase in both branches, and all 16675 checklist items in .agents/sessions/ agree. Fixed the test literal rather than loosening the schema, and recorded the asymmetry in the test docstring.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it: load_session_file returns data or an error, never both and never neither, so branching on `data is None` narrows exactly where branching on `error` left the payload optional. Added CLI-level tests for the four exit paths; the negative control shows the unguarded form crashes with exit 2 on a load failure instead of exiting 1 cleanly. The file now carries zero suppressions.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a59eb0886e",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The push gate flagged a type suppression on the line that calls validate_session_log. It predates this branch but is grandfathered only while the file is untouched. Removed it idiomatically rather than carrying it, and added CLI-level tests for the four exit paths. The narrowing this first pass used was itself wrong and the review round replaced it; see the review entry below. The file carries zero suppressions.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed five defects the PR #3347 review found. The validator was pinned to draft 2020-12 while the committed schema declares draft-07, so it now comes from validator_for. A top-level array reached data.get and exited 2 with an internal error, so the schema now reports the type and the protocol checks are skipped without a mapping. main branches on error rather than on the payload, because a file holding JSON null parses to None with no error and must reach the schema instead of printing ERROR: None. validate_protocol_compliance stopped restating sessionStart and sessionEnd as missing, which protocolCompliance.required already covers. The exemption test grepped a function's source for the word glob, which any docstring would break, and now drives validate_branch_sessions with a mocked runner. Four negative controls fired; a fifth draft of the draft-07 test passed under both validators and was rewritten to discriminate.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the SchemaError handler with check_schema, restored the raw error sort key, deleted the dead REQUIRED_SESSION_FIELDS constant, and replaced two mocked tests with real malformed-schema tests",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-25T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 22917af15aaaafe7fb52b5d6eef7b55ee05ad9e0",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e001"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}
