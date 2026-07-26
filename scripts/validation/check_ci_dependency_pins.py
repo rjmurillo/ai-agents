@@ -57,11 +57,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - 3.10 fallback path
-    tomllib = None  # type: ignore[assignment]
-
+import tomllib
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.utils import canonicalize_name
@@ -106,9 +102,15 @@ class Violation:
     pin: Pin
     constraint: str
 
-    def render(self, root: Path) -> str:
+    def render(self, repo_root: Path) -> str:
+        """Render relative to the repository root, not the scan root.
+
+        The scan root is ``.github/``; showing a path relative to it would
+        print ``workflows/pytest.yml``, which is not a path anyone can open
+        from where they are standing.
+        """
         try:
-            shown = self.pin.path.relative_to(root)
+            shown = self.pin.path.relative_to(repo_root)
         except ValueError:
             shown = self.pin.path
         return (
@@ -147,7 +149,7 @@ def declared_constraints(pyproject: Path) -> dict[str, SpecifierSet]:
 
 
 def find_pins(root: Path) -> list[Pin]:
-    """Return every quoted ``pkg==version`` literal under ``root``.
+    """Return every ``pkg==version`` literal under ``root``, quoted or not.
 
     Scans ``.yml`` and ``.yaml`` only. A pin in a Python or shell file is
     installed the same way, but those files are covered by the dependency
@@ -193,13 +195,6 @@ def violations(pins: list[Pin], constraints: dict[str, SpecifierSet]) -> list[Vi
 
 def check(root: Path, pyproject: Path) -> int:
     """Validate every pin under ``root`` and return an exit code."""
-    if tomllib is None:  # pragma: no cover - 3.10 fallback path
-        print(
-            "::error::tomllib unavailable (Python 3.11+ required); "
-            "skipping CI dependency pin check",
-            file=sys.stderr,
-        )
-        return EXIT_CONFIG
     if not pyproject.is_file():
         print(f"::error::pyproject.toml not found: {pyproject}", file=sys.stderr)
         return EXIT_CONFIG

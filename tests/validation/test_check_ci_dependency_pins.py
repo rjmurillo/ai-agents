@@ -224,5 +224,60 @@ class TestTheRealTree:
         assert checked, "no CI pin is covered by a pyproject constraint"
 
 
+class TestPinsInstallIntoTheSelectedInterpreter:
+    """A correct version installed into the wrong interpreter is still absent.
+
+    The version gate above answers "which pytest". This answers "whose
+    site-packages". Bare ``pip`` resolves through PATH, which on a runner need
+    not be the interpreter ``actions/setup-python`` just selected; the module
+    form ``python3 -m pip`` cannot disagree with the python that runs it.
+
+    Kept as a test rather than folded into the validator: the validator's
+    subject is a pkg==version literal, and this is about the command around it.
+    """
+
+    _INSTALL_FILES = sorted(
+        list((_REPO_ROOT / ".github" / "workflows").glob("*.yml"))
+        + list((_REPO_ROOT / ".github" / "actions").glob("*/action.yml"))
+    )
+
+    @staticmethod
+    def _bare_pip_lines(path: Path) -> list[str]:
+        try:
+            shown: Path | str = path.relative_to(_REPO_ROOT)
+        except ValueError:
+            shown = path
+        out = []
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.strip().removeprefix("- ").lstrip()
+            stripped = stripped.removeprefix("run:").strip()
+            if stripped.startswith(("pip install", "pip3 install")):
+                out.append(f"{shown}:{number}")
+        return out
+
+    def test_no_workflow_or_action_calls_bare_pip_install(self):
+        offenders = [entry for path in self._INSTALL_FILES for entry in self._bare_pip_lines(path)]
+        assert not offenders, (
+            "use `python3 -m pip install` so the package lands in the interpreter "
+            f"actions/setup-python selected: {offenders}"
+        )
+
+    def test_the_scan_reads_files(self):
+        """Vacuity control: a glob that matches nothing passes for free."""
+        assert len(self._INSTALL_FILES) > 5
+
+    def test_the_detector_recognizes_a_bare_call(self, tmp_path: Path):
+        """Negative control on the detector, not on the tree."""
+        bad = tmp_path / "action.yml"
+        bad.write_text("runs:\n  steps:\n    - run: pip install 'x==1'\n", encoding="utf-8")
+        assert self._bare_pip_lines(bad) == [f"{bad}:3"]
+
+    def test_the_detector_accepts_the_module_form(self, tmp_path: Path):
+        good = tmp_path / "action.yml"
+        body = "runs:\n  steps:\n    - run: python3 -m pip install 'x==1'\n"
+        good.write_text(body, encoding="utf-8")
+        assert self._bare_pip_lines(good) == []
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))

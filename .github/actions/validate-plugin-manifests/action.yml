@@ -45,7 +45,11 @@ runs:
       # disagreeing literals and proposed aligning the correct one down to it.
       # scripts/validation/check_ci_dependency_pins.py now fails when any pin
       # under .github/ contradicts pyproject. Refs #3377.
-      run: pip install 'pytest==9.0.3'
+      # python3 -m pip, not bare pip: bare pip resolves through PATH and can
+      # install into an interpreter other than the one actions/setup-python
+      # selected. The other three install sites under .github/ already use the
+      # module form.
+      run: python3 -m pip install 'pytest==9.0.3'
 
     - name: Run validator unit tests
       if: inputs.run-tests == 'true'
