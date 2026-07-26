@@ -6,7 +6,7 @@
     "branch": "fix/3342-harness-reference-size",
     "startingCommit": "c798e0df7d",
     "objective": "Issue #3342: agent-harness-reference SKILL.md sat at 495 of the 500-line budget. Delete the 261-line GitHub Copilot CLI Contract section that duplicated references/official-hook-contracts.md, keep only the repository decisions the skill's own Authority Order assigns to SKILL.md, and repoint the content-pin tests at the file that now owns each fact.",
-    "id": "2026-07-26-session-3342-harness-reference-size"
+    "id": "2026-07-26-session-3344-harness-reference-size"
   },
   "protocolCompliance": {
     "sessionStart": {
