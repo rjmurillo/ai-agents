@@ -218,7 +218,7 @@ class TestContractBindingNegativeControl:
 
 
 class TestBaselineRatchet:
-    """The checked-in baseline must shrink, never grow."""
+    """The checked-in baseline file must be well-formed and non-empty."""
 
     def test_baseline_entries_are_still_unbound(self) -> None:
         baseline_path = (

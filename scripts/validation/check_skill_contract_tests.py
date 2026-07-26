@@ -143,7 +143,13 @@ def main(argv: list[str] | None = None) -> int:
         skill_name = skill_file.parent.name
         if skill_name in baseline:
             continue
-        if re.search(r"(?<![a-zA-Z0-9_-])" + re.escape(skill_name) + r"(?![a-zA-Z0-9_-])", corpus):
+        # Match skill name as a whole token: not preceded or followed by
+        # characters that form part of a skill identifier (alnum, hyphen, underscore).
+        bound = re.search(
+            r"(?<![a-zA-Z0-9_-])" + re.escape(skill_name) + r"(?![a-zA-Z0-9_-])",
+            corpus,
+        )
+        if bound:
             continue
         unbound.append(Unbound(skill=skill_name, path=skill_file, exit_codes=codes))
 
