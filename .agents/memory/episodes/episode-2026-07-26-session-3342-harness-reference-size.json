@@ -59,7 +59,9 @@
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "test",
       "content": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
-      "caused_by": [],
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [
         "e007"
       ]
@@ -72,7 +74,9 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -85,6 +89,50 @@
       "leads_to": [
         "e001"
       ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Take the autofix bot's corrections",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f65741cbea",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9f69ff63e6",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f3f7dbe0df",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e005"
+      ]
     }
   ],
   "metrics": {
@@ -92,7 +140,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 3,
     "files_changed": 2
   },
   "lessons": []

@@ -75,7 +75,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Two atomic commits on fix/3342-harness-reference-size: the content move (b09c57cfe), and the test repointing plus manifest bumps (da5401a16)."
+        "Evidence": "Three authored commits on fix/3342-harness-reference-size: the content move (b09c57cfe1), the test repointing plus manifest bumps (da5401a16f), and this log (34e2d9cb62). Two merge commits follow: origin/main, whose causal-graph conflict was resolved with the merge_causal_graph.py driver from PR #3348 (1634 plus 1693 minus 1626 base equals 1701 nodes, an exact union with no loss), and the autofix bot's two corrections."
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,9 +114,14 @@
       "task": "Negative controls",
       "outcome": "Proved the guard moved to the sidecar rather than weakening. Six controls, six reds.",
       "evidence": "Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed."
+    },
+    {
+      "task": "Take the autofix bot's corrections",
+      "outcome": "The bot pushed two commits to the branch while the push hook was running. Both were correct, so they were merged rather than reverted: the session number was still 3343, cloned from the log this one was seeded from, and test_reference_preserves_single_structured_output_boundary carried a duplicated PreCompact assertion my edit script introduced.",
+      "evidence": "git diff of 9f69ff63e6 and f3f7dbe0df shows number 3343 to 3344 and one removed duplicate assert line. The bot also rewrote the commit-count evidence to two and set endingCommit to a code commit; both were corrected here because the branch carries three authored commits and the session ends at the merge."
     }
   ],
-  "endingCommit": "da5401a16",
+  "endingCommit": "f65741cbea",
   "nextSteps": [
     "Open the PR for #3342 and drive checks green.",
     "Merge PR #3347 (#3346) and PR #3348 (#3345); both have zero unresolved threads.",
