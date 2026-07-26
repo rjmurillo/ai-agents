@@ -88,6 +88,8 @@ def _run_warning_validator(argv: list[str], *, timeout: int) -> str | None:
             env=_git_env(),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except (OSError, subprocess.SubprocessError) as exc:
         print(f"  ERROR: {name} could not be run: {exc}", file=sys.stderr)
@@ -128,6 +130,8 @@ def get_repo_root() -> str:
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         env=_git_env(),
     )
@@ -275,6 +279,8 @@ def run_validations(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         env=_git_env(),
     )
@@ -321,6 +327,8 @@ def run_validations(
                             ],
                             capture_output=True,
                             text=True,
+                            encoding="utf-8",
+                            errors="replace",
                             timeout=60,
                         )
                         if vresult.returncode != 0:
@@ -378,7 +386,14 @@ def run_validations(
             val_args.extend(["--body", body])
         elif body_file:
             val_args.extend(["--body-file", body_file])
-        val_result = subprocess.run(val_args, capture_output=True, text=True, timeout=30)
+        val_result = subprocess.run(
+            val_args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
         # Print human-readable output (on stderr from validator)
         if val_result.stderr:
             print(val_result.stderr, end="", file=sys.stderr)
@@ -514,6 +529,8 @@ def main(argv: list[str] | None = None) -> int:
         ["gh", "--version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
     )
     if gh_check.returncode != 0:
@@ -527,6 +544,8 @@ def main(argv: list[str] | None = None) -> int:
             ["git", "branch", "--show-current"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             env=_git_env(),
         )

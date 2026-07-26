@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import os
 import subprocess
@@ -812,3 +813,110 @@ class TestACrashedValidatorIsNotSuccess:
         """Negative control: the block must be keyed on the failure."""
         self._run(tmp_path, coverage_rc=0)
         assert "All pre-creation validations passed" in capsys.readouterr().out
+
+
+class TestCapturedOutputPinsItsCodec:
+    """Every capturing subprocess.run must pin utf-8, on both mirrors.
+
+    subprocess.run(text=True) with no encoding decodes with
+    locale.getpreferredencoding(False). On Windows that is cp1252, and the
+    reader thread raises UnicodeDecodeError on the UTF-8 bytes git and gh
+    routinely emit (branch names, commit subjects, gh's status glyphs). The
+    exception surfaces in a helper thread rather than the caller, so
+    subprocess.run returns with stdout set to None instead of raising. Callers
+    that then do result.stdout.strip() die with AttributeError; callers that
+    check truthiness silently treat a crashed tool as one that printed nothing.
+
+    That last shape is the exact failure issue #3391 exists to prevent, so this
+    file must not reintroduce it. An AST check rather than a grep so a new call
+    site is covered the day it is written.
+
+    Scoped to calls that both capture and decode. A run() with no capture
+    inherits the parent's stdio and never decodes, so text= is inert there and
+    the codec is not its concern.
+    """
+
+    _MIRRORS = (
+        Path(__file__).resolve().parents[1]
+        / ".claude" / "skills" / "github" / "scripts" / "pr" / "new_pr.py",
+        Path(__file__).resolve().parents[1]
+        / "src" / "copilot-cli" / "skills" / "github" / "scripts" / "pr" / "new_pr.py",
+    )
+
+    @staticmethod
+    def _set_true(kwargs: dict[str, ast.expr], name: str) -> bool:
+        """True when the keyword is present and spelled as a truthy literal."""
+        value = kwargs.get(name)
+        return isinstance(value, ast.Constant) and bool(value.value)
+
+    @staticmethod
+    def _capturing_runs(source: str):
+        """(lineno, {kwarg names}) for each subprocess.run that decodes output."""
+        found = []
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Attribute) and func.attr == "run"):
+                continue
+            if not (isinstance(func.value, ast.Name) and func.value.id == "subprocess"):
+                continue
+            kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+            set_true = TestCapturedOutputPinsItsCodec._set_true
+            captures = (
+                set_true(kwargs, "capture_output")
+                or "stdout" in kwargs
+                or "stderr" in kwargs
+            )
+            decodes = (
+                set_true(kwargs, "text")
+                or set_true(kwargs, "universal_newlines")
+                or "encoding" in kwargs
+            )
+            if captures and decodes:
+                found.append((node.lineno, set(kwargs)))
+        return found
+
+    @pytest.mark.parametrize("mirror", _MIRRORS, ids=lambda p: p.parts[-6])
+    def test_every_capturing_run_pins_utf8(self, mirror):
+        offenders = [
+            lineno
+            for lineno, kwargs in self._capturing_runs(mirror.read_text(encoding="utf-8"))
+            if "encoding" not in kwargs
+        ]
+        assert not offenders, (
+            f"{mirror}: subprocess.run at line(s) {offenders} captures and decodes "
+            "output without encoding='utf-8'; this crashes the reader thread on "
+            "Windows cp1252 and returns stdout=None"
+        )
+
+    @pytest.mark.parametrize("mirror", _MIRRORS, ids=lambda p: p.parts[-6])
+    def test_every_capturing_run_survives_undecodable_bytes(self, mirror):
+        """errors= must be set too: a pinned codec still raises without it."""
+        offenders = [
+            lineno
+            for lineno, kwargs in self._capturing_runs(mirror.read_text(encoding="utf-8"))
+            if "errors" not in kwargs
+        ]
+        assert not offenders, (
+            f"{mirror}: subprocess.run at line(s) {offenders} pins a codec but no "
+            "errors= policy, so undecodable bytes raise instead of degrading"
+        )
+
+    def test_the_check_finds_something_to_check(self):
+        """Vacuity control: an AST walk that matches nothing proves nothing."""
+        runs = self._capturing_runs(self._MIRRORS[0].read_text(encoding="utf-8"))
+        assert len(runs) >= 5
+
+    def test_a_bare_text_run_is_reported(self):
+        """Negative control on the walker itself."""
+        offenders = self._capturing_runs(
+            "import subprocess\nsubprocess.run(['x'], capture_output=True, text=True)\n"
+        )
+        assert offenders == [(2, {"capture_output", "text"})]
+
+    def test_a_non_capturing_run_is_out_of_scope(self):
+        """text= without capture never decodes, so it is not this rule's business."""
+        assert self._capturing_runs(
+            "import subprocess\nsubprocess.run(['x'], text=True, check=False)\n"
+        ) == []
