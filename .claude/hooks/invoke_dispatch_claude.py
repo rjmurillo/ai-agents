@@ -18,10 +18,16 @@ context injection (observed live: duplicated ADR-007 and Serena guidance
 on each prompt). In that case the dispatcher exits 0 immediately: one
 cheap spawn instead of N duplicated hook bodies.
 
+Exit codes: 0 allows the tool call, 2 blocks it. On a blocking event
+(PreToolUse, UserPromptSubmit) the harness reads exit 2 as a deny and shows
+stderr to the model, so every exit here is a policy decision, not just a
+status.
+
 Failure policy: an unreadable or malformed manifest, stdin read failure, or
 unexpected grouped-runtime exception exits 2 (loud, fail-closed) regardless of mode, per
 ``.claude/rules/generated-artifacts.md`` (never silently disable a hook
-surface).
+surface). Fail-closed means a broken dispatcher blocks rather than waves
+through.
 """
 
 from __future__ import annotations
@@ -42,8 +48,7 @@ try:
 except (Exception, SystemExit) as exc:  # noqa: BLE001 - launcher must fail closed
     if __name__ == "__main__":
         print(
-            "claude-hook-dispatch: entrypoint initialization failed: "
-            f"{type(exc).__name__}: {exc}",
+            f"claude-hook-dispatch: entrypoint initialization failed: {type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
         raise SystemExit(2) from None

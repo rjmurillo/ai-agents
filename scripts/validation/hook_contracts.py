@@ -55,7 +55,17 @@ _SCRIPT_PATH_PATTERN = re.compile(r"python3?\s+(?:-\w+\s+)*\"?(.+?\.py)\"?(?:\s|
 # Plugin registrations address their scripts through the harness-provided
 # plugin root. Inside the checkout that publishes the plugin, that root is
 # .claude, so resolving it lets the same contract cover the published surface.
-_PLUGIN_ROOT_PATTERN = re.compile(r"\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT(?::-[^}]*)?\}")
+#
+# The default clause excludes both braces, so a nested fallback like
+# ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}} is not consumed up to the inner
+# brace. The shipped copilot-cli registrations use exactly that form; a pattern
+# that allowed { in the default matched only the inner expansion and left a
+# stray } in the extracted path, which reads as a missing script.
+_PLUGIN_ROOT_PATTERN = re.compile(r"\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT(?::-[^{}]*)?\}")
+
+# A nested default needs more than one pass: the inner expansion resolves
+# first, which turns the outer one into the simple form the pattern matches.
+_MAX_PLUGIN_ROOT_PASSES = 5
 
 # Pattern to detect PowerShell commands
 _PWSH_PATTERN = re.compile(r"(?:pwsh|powershell)\s+.*\.ps1(?:\s|$)", re.IGNORECASE)
@@ -113,15 +123,35 @@ def _resolve_script_path(base_path: Path, script_path: str) -> Path | None:
     return candidate
 
 
+def _resolve_plugin_root(path: str) -> str:
+    """Substitute plugin-root expansions until none are left.
+
+    One pass is not enough for a nested default: resolving the inner
+    ${CLAUDE_PLUGIN_ROOT} is what turns the outer expansion into a form the
+    pattern can match. The pass count is bounded so a pathological string
+    cannot spin.
+    """
+    for _ in range(_MAX_PLUGIN_ROOT_PASSES):
+        resolved = _PLUGIN_ROOT_PATTERN.sub(".claude", path)
+        if resolved == path:
+            return resolved
+        path = resolved
+    return path
+
+
 def extract_script_path(command: str) -> str | None:
     """Extract the Python script path from a hook command string."""
     match = _SCRIPT_PATH_PATTERN.search(command)
     if not match:
         return None
-    return _PLUGIN_ROOT_PATTERN.sub(".claude", match.group(1)).strip("\"'")
+    return _resolve_plugin_root(match.group(1)).strip("\"'")
 
 
 _GROUP_FLAG_PATTERN = re.compile(r"--group\s+([A-Za-z0-9_.-]+)")
+
+# Only the dispatcher fans a registration out to a group. Keying expansion on
+# the bare --group flag would mis-expand any hook that happens to take one.
+DISPATCHER_SCRIPT_NAME = "invoke_dispatch_claude.py"
 
 DISPATCH_GROUPS_PATH = Path(".claude") / "hooks" / "dispatch_groups.json"
 PLUGIN_HOOKS_PATH = Path(".claude") / "hooks" / "hooks.json"
@@ -163,20 +193,32 @@ def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
 def _expand_dispatch_group(
     entry: HookEntry, groups: dict
 ) -> tuple[list[HookEntry], list[Violation]]:
-    """Replace a dispatcher registration with the shims it actually runs.
+    """Add the shims a dispatcher registration actually runs.
 
     Since group dispatch (#3153) a registration names a group, not a script, so
     validating the command alone checks the dispatcher over and over and never
     checks the hooks. The shims are the code that runs, so they are what the
     contract has to cover.
+
+    The dispatcher entry is kept alongside the shims rather than replaced by
+    them. The harness runs it either way, so dropping it on an unresolvable
+    group would stop checking that the dispatcher itself exists and documents
+    its exit codes, on exactly the registrations most likely to be broken.
+
+    Expansion is keyed on the dispatcher script name, not on the presence of a
+    --group flag, so an ordinary hook that takes a --group argument is left
+    alone.
     """
+    script = extract_script_path(entry.command)
+    if script is None or Path(script).name != DISPATCHER_SCRIPT_NAME:
+        return [entry], []
     match = _GROUP_FLAG_PATTERN.search(entry.command)
     if not match:
         return [entry], []
     name = match.group(1)
     spec = groups.get(name)
     if not isinstance(spec, dict):
-        return [], [
+        return [entry], [
             Violation(
                 hook_type=entry.hook_type,
                 script=entry.script_path,
@@ -189,7 +231,7 @@ def _expand_dispatch_group(
         ]
     shims = spec.get("shims")
     if not isinstance(shims, list) or not shims:
-        return [], [
+        return [entry], [
             Violation(
                 hook_type=entry.hook_type,
                 script=entry.script_path,
@@ -200,7 +242,7 @@ def _expand_dispatch_group(
                 ),
             )
         ]
-    expanded: list[HookEntry] = []
+    expanded: list[HookEntry] = [entry]
     violations: list[Violation] = []
     for shim in shims:
         if not isinstance(shim, dict) or not isinstance(shim.get("file"), str):
@@ -434,19 +476,23 @@ def validate_all(
     # the whole published surface unvalidated.
     plugin_path = base_path / PLUGIN_HOOKS_PATH
     if plugin_path.is_file():
+        # Attribute a failure here to the plugin file. Letting it escape would
+        # surface as "Invalid settings.json" in main(), which names the wrong
+        # file and loses the category.
         try:
             _, plugin_entries, plugin_violations = parse_settings(plugin_path)
-            entries.extend(plugin_entries)
-            parse_violations.extend(plugin_violations)
-        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError) as exc:
             parse_violations.append(
                 Violation(
                     hook_type="plugin",
                     script=str(PLUGIN_HOOKS_PATH),
                     category="invalid_plugin_hooks",
-                    message=f"Cannot read {PLUGIN_HOOKS_PATH}: {exc}",
+                    message=f"Plugin hook registrations cannot be read: {exc}",
                 )
             )
+        else:
+            entries.extend(plugin_entries)
+            parse_violations.extend(plugin_violations)
 
     groups, group_violations = _load_dispatch_groups(base_path)
     parse_violations.extend(group_violations)

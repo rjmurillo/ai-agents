@@ -164,7 +164,6 @@ class TestParseSettings:
         assert len(entries) == 1
         assert entries[0].matcher is None
 
-
     def test_powershell_command_reported(self, tmp_path):
         settings = {
             "hooks": {
@@ -821,10 +820,17 @@ class TestMain:
 _DOC = '"""H.\n\nExit Codes:\n    0 = ok\n"""\n'
 
 
-def _tree(root, *, settings, groups=None, plugin=None, shims=()):
-    """Build a checkout with the two hook registration surfaces."""
+def _tree(root, *, settings, groups=None, plugin=None, shims=(), dispatcher=_DOC):
+    """Build a checkout with the two hook registration surfaces.
+
+    The dispatcher is written by default because a real checkout always has
+    one, and expansion keeps its entry so it is validated like any other hook.
+    Pass ``dispatcher=None`` to model a checkout that is missing it.
+    """
     hooks = root / ".claude" / "hooks"
     hooks.mkdir(parents=True)
+    if dispatcher is not None:
+        (hooks / "invoke_dispatch_claude.py").write_text(dispatcher)
     (root / ".claude" / "settings.json").write_text(json.dumps(settings))
     if groups is not None:
         (hooks / "dispatch_groups.json").write_text(json.dumps(groups))
@@ -845,9 +851,7 @@ def _dispatch(group, *, quoted=False):
             "PreToolUse": [
                 {
                     "matcher": "",
-                    "hooks": [
-                        {"type": "command", "command": f"python3 -u {body} --group {group}"}
-                    ],
+                    "hooks": [{"type": "command", "command": f"python3 -u {body} --group {group}"}],
                 }
             ]
         }
@@ -870,10 +874,11 @@ class TestDispatcherExpansion:
             groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"file": "A/a.py"}]}}},
             shims=["A/a.py"],
         )
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
-        assert [e.script_path for e in report.entries] == [".claude/hooks/A/a.py"]
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert [e.script_path for e in report.entries] == [
+            ".claude/hooks/invoke_dispatch_claude.py",
+            ".claude/hooks/A/a.py",
+        ]
         assert report.is_valid
 
     def test_a_missing_shim_is_a_violation(self, tmp_path):
@@ -884,9 +889,7 @@ class TestDispatcherExpansion:
             settings=_dispatch("g1"),
             groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"file": "A/gone.py"}]}}},
         )
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert not report.is_valid
         assert any(v.category == "missing_script" for v in report.violations)
 
@@ -898,16 +901,12 @@ class TestDispatcherExpansion:
         )
         (tmp_path / ".claude" / "hooks" / "A").mkdir(parents=True, exist_ok=True)
         (tmp_path / ".claude" / "hooks" / "A" / "a.py").write_text('"""No contract."""\n')
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert not report.is_valid
 
     def test_an_undefined_group_is_a_violation(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("ghost"), groups={"groups": {}})
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "unknown_dispatch_group" for v in report.violations)
 
     def test_a_group_with_no_shims_is_a_violation(self, tmp_path):
@@ -917,9 +916,7 @@ class TestDispatcherExpansion:
             settings=_dispatch("g1"),
             groups={"groups": {"g1": {"event": "PreToolUse", "shims": []}}},
         )
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "empty_dispatch_group" for v in report.violations)
 
     def test_a_shim_entry_without_a_file_is_a_violation(self, tmp_path):
@@ -928,9 +925,7 @@ class TestDispatcherExpansion:
             settings=_dispatch("g1"),
             groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"timeout": 5}]}}},
         )
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "malformed_shim" for v in report.violations)
 
     def test_a_non_dispatch_command_is_still_validated_directly(self, tmp_path):
@@ -951,35 +946,27 @@ class TestDispatcherExpansion:
             groups={"groups": {}},
             shims=["A/a.py"],
         )
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert [e.script_path for e in report.entries] == [".claude/hooks/A/a.py"]
 
     def test_a_malformed_dispatch_groups_file_is_reported(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"))
         (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("{ not json")
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
 
     def test_dispatch_groups_with_invalid_utf8_is_reported(self, tmp_path):
         """Invalid UTF-8 bytes must be caught, not raise UnicodeDecodeError."""
         _tree(tmp_path, settings=_dispatch("g1"))
         (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_bytes(b"\xff\xfe")
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
 
     def test_dispatch_groups_with_non_object_root_is_reported(self, tmp_path):
         """A JSON array or primitive root must be reported, not raise AttributeError."""
         _tree(tmp_path, settings=_dispatch("g1"))
         (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("[]")
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
         assert any("must be a JSON object" in v.message for v in report.violations)
 
@@ -1001,9 +988,7 @@ class TestDispatcherExpansion:
             },
             shims=["A/a.py"],
         )
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert report.is_valid
 
 
@@ -1018,10 +1003,11 @@ class TestPluginSurfaceIsCovered:
             groups={"groups": {"p1": {"event": "PreToolUse", "shims": [{"file": "P/p.py"}]}}},
             shims=["P/p.py"],
         )
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
-        assert [e.script_path for e in report.entries] == [".claude/hooks/P/p.py"]
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert [e.script_path for e in report.entries] == [
+            ".claude/hooks/invoke_dispatch_claude.py",
+            ".claude/hooks/P/p.py",
+        ]
 
     def test_a_missing_plugin_shim_is_caught(self, tmp_path):
         _tree(
@@ -1030,20 +1016,15 @@ class TestPluginSurfaceIsCovered:
             plugin=_dispatch("p1", quoted=True),
             groups={"groups": {"p1": {"event": "PreToolUse", "shims": [{"file": "P/gone.py"}]}}},
         )
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert not report.is_valid
 
     def test_a_quoted_plugin_root_command_resolves(self):
         """Unquoted parsed; quoted returned None, so the plugin surface was
         silently invisible rather than reported."""
-        command = (
-            'python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py" --group g'
-        )
+        command = 'python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/invoke_dispatch_claude.py" --group g'
         assert (
-            hook_contracts.extract_script_path(command)
-            == ".claude/hooks/invoke_dispatch_claude.py"
+            hook_contracts.extract_script_path(command) == ".claude/hooks/invoke_dispatch_claude.py"
         )
 
     def test_copilot_plugin_root_resolves_too(self):
@@ -1056,27 +1037,21 @@ class TestPluginSurfaceIsCovered:
 
     def test_an_absent_plugin_hooks_file_is_not_a_violation(self, tmp_path):
         _tree(tmp_path, settings={"hooks": {}}, groups={"groups": {}})
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert report.is_valid
 
     def test_a_malformed_plugin_hooks_file_is_reported(self, tmp_path):
         """Invalid JSON in hooks.json must be caught and reported as a violation."""
         _tree(tmp_path, settings={"hooks": {}}, groups={"groups": {}})
         (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{ not json")
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_plugin_hooks" for v in report.violations)
 
     def test_plugin_hooks_with_invalid_utf8_is_reported(self, tmp_path):
         """Invalid UTF-8 bytes in hooks.json must be caught as a violation."""
         _tree(tmp_path, settings={"hooks": {}}, groups={"groups": {}})
         (tmp_path / ".claude" / "hooks" / "hooks.json").write_bytes(b"\xff\xfe")
-        report = hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_plugin_hooks" for v in report.violations)
 
 
@@ -1092,18 +1067,14 @@ class TestTheShippedTreeSatisfiesTheContract:
             (PROJECT_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text()
         )["groups"]
         expected_shims = {
-            f".claude/hooks/{s['file']}"
-            for spec in groups.values()
-            for s in spec.get("shims", [])
+            f".claude/hooks/{s['file']}" for spec in groups.values() for s in spec.get("shims", [])
         }
         validated_paths = {e.script_path for e in report.entries}
         assert expected_shims <= validated_paths
 
         # Also verify direct (non-dispatch) registrations are validated.
         # Build the expected set from both settings.json and hooks.json.
-        settings = json.loads(
-            (PROJECT_ROOT / ".claude" / "settings.json").read_text()
-        )
+        settings = json.loads((PROJECT_ROOT / ".claude" / "settings.json").read_text())
         plugin_path = PROJECT_ROOT / ".claude" / "hooks" / "hooks.json"
         plugin = json.loads(plugin_path.read_text()) if plugin_path.is_file() else {}
 
@@ -1120,15 +1091,171 @@ class TestTheShippedTreeSatisfiesTheContract:
                         if not isinstance(hook, dict) or hook.get("type") != "command":
                             continue
                         command = hook.get("command", "")
-                        # Skip dispatch commands; their shims are already in expected_shims
-                        if "--group" in command:
-                            continue
                         script = hook_contracts.extract_script_path(command)
-                        if script:
-                            paths.add(script)
+                        if not script:
+                            continue
+                        # Skip the dispatcher; its shims are already in
+                        # expected_shims. Gate on the script name, matching
+                        # the validator: a --group flag on an ordinary hook
+                        # does not make it a dispatcher.
+                        if Path(script).name == hook_contracts.DISPATCHER_SCRIPT_NAME:
+                            continue
+                        paths.add(script)
             return paths
 
         expected_direct = _direct_paths(settings) | _direct_paths(plugin)
         assert expected_direct <= validated_paths, (
             f"Direct hooks not validated: {expected_direct - validated_paths}"
         )
+
+
+class TestNestedPluginRootExpansion:
+    """The shipped copilot-cli registrations nest the plugin-root default."""
+
+    def test_the_nested_fallback_form_resolves_cleanly(self):
+        """``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}`` leaves no stray brace.
+
+        A pattern whose default clause allows ``{`` matches only the inner
+        expansion and yields ``.claude}/hooks/x.py``, which reads as a missing
+        script. That is the exact form in src/copilot-cli/hooks/hooks.json.
+        """
+        command = 'python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/x.py"'
+        assert hook_contracts.extract_script_path(command) == ".claude/hooks/x.py"
+
+    def test_the_simple_form_still_resolves(self):
+        command = 'python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/x.py"'
+        assert hook_contracts.extract_script_path(command) == ".claude/hooks/x.py"
+
+    def test_a_literal_default_still_resolves(self):
+        command = 'python3 -u "${COPILOT_PLUGIN_ROOT:-.claude}/hooks/x.py"'
+        assert hook_contracts.extract_script_path(command) == ".claude/hooks/x.py"
+
+    def test_no_brace_survives_any_supported_form(self):
+        for command in (
+            'python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/x.py"',
+            'python3 -u "${COPILOT_PLUGIN_ROOT:-.claude}/hooks/x.py"',
+            'python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/x.py"',
+        ):
+            resolved = hook_contracts.extract_script_path(command)
+            assert resolved is not None
+            assert "{" not in resolved and "}" not in resolved, command
+
+    def test_substitution_is_bounded(self):
+        """A pathological string must terminate rather than spin."""
+        command = 'python3 -u "' + "${CLAUDE_PLUGIN_ROOT:-" * 40 + 'x.py"'
+        hook_contracts.extract_script_path(command)
+
+
+class TestExpansionIsKeyedOnTheDispatcher:
+    """Only the dispatcher fans out to a group."""
+
+    def test_an_ordinary_hook_taking_group_is_not_expanded(self, tmp_path):
+        """A --group flag on a normal hook must not be read as dispatch."""
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "python3 -u .claude/hooks/A/a.py --group g1",
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        _tree(tmp_path, settings=settings, groups={"groups": {}}, shims=["A/a.py"])
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert [e.script_path for e in report.entries] == [".claude/hooks/A/a.py"]
+        assert report.is_valid
+
+    def test_the_dispatcher_is_still_expanded(self, tmp_path):
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"file": "A/a.py"}]}}},
+            shims=["A/a.py"],
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert ".claude/hooks/A/a.py" in [e.script_path for e in report.entries]
+
+
+class TestTheDispatcherItselfIsValidated:
+    """Dropping the dispatcher entry stopped checking the one script that always runs."""
+
+    def test_an_unknown_group_still_validates_the_dispatcher(self, tmp_path):
+        _tree(tmp_path, settings=_dispatch("nope"), groups={"groups": {}})
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert ".claude/hooks/invoke_dispatch_claude.py" in [e.script_path for e in report.entries]
+        assert "unknown_dispatch_group" in {v.category for v in report.violations}
+
+    def test_an_empty_group_still_validates_the_dispatcher(self, tmp_path):
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PreToolUse", "shims": []}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert ".claude/hooks/invoke_dispatch_claude.py" in [e.script_path for e in report.entries]
+        assert "empty_dispatch_group" in {v.category for v in report.violations}
+
+    def test_a_missing_dispatcher_is_reported(self, tmp_path):
+        """Without keeping the entry this passed while the dispatcher was absent."""
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"file": "A/a.py"}]}}},
+            shims=["A/a.py"],
+            dispatcher=None,
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert not report.is_valid
+        assert "missing_script" in {v.category for v in report.violations}
+
+    def test_an_undocumented_dispatcher_is_reported_on_a_blocking_event(self, tmp_path):
+        """PreToolUse is blocking, so the dispatcher owes exit-code semantics."""
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"file": "A/a.py"}]}}},
+            shims=["A/a.py"],
+            dispatcher='"""No semantics here."""\n',
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert "missing_exit_docs" in {v.category for v in report.violations}
+
+
+class TestMalformedPluginHooksAreAttributed:
+    """A broken hooks.json must not surface as an invalid settings.json."""
+
+    def test_malformed_plugin_json_is_its_own_category(self, tmp_path):
+        _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json")
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert "invalid_plugin_hooks" in {v.category for v in report.violations}
+
+    def test_the_message_names_the_plugin_file(self, tmp_path):
+        _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json")
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        messages = [v.message for v in report.violations if v.category == "invalid_plugin_hooks"]
+        assert messages and "cannot be read" in messages[0]
+
+    def test_a_non_object_plugin_file_is_attributed(self, tmp_path):
+        _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("[1, 2, 3]")
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert "invalid_plugin_hooks" in {v.category for v in report.violations}
+
+    def test_a_valid_plugin_file_raises_nothing(self, tmp_path):
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"file": "A/a.py"}]}}},
+            shims=["A/a.py"],
+            plugin={"hooks": {}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert "invalid_plugin_hooks" not in {v.category for v in report.violations}
