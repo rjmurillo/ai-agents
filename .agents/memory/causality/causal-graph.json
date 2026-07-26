@@ -16445,6 +16445,78 @@
         "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
       ],
       "created": "2026-07-26T10:23:28.036133+00:00"
+    },
+    {
+      "id": "4f0a19284fad",
+      "type": "milestone",
+      "label": "milestone: Verify that #3362 was superseded before reworking it",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219464+00:00"
+    },
+    {
+      "id": "0d66572d61c9",
+      "type": "milestone",
+      "label": "milestone: Measure the temporary-file leak before fixing it",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219528+00:00"
+    },
+    {
+      "id": "e7bac2969db0",
+      "type": "milestone",
+      "label": "milestone: Harden the atomic write",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219584+00:00"
+    },
+    {
+      "id": "b01c5bf32f1a",
+      "type": "test",
+      "label": "test: 73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, each reverting one change: dropping the BaseException handler turns 2 red, dropping the fsync turns 2 red, dropping the mkstemp prefix turns 1 red; restoring returns 73 passed. ruff check and ruff format clean on both files.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219639+00:00"
+    },
+    {
+      "id": "ea94677bc372",
+      "type": "commit",
+      "label": "commit: Commit: 2796f956e5",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219700+00:00"
+    },
+    {
+      "id": "d5f97ca01ecb",
+      "type": "outcome",
+      "label": "Outcome: success - Close the two gaps left in _atomic_write_text after #3359: the temporary leaks on any non-OSError exit, and nothing flushes it to disk before the rename.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:12:55.219757+00:00"
+    },
+    {
+      "id": "f5fd153a5d6e",
+      "type": "milestone",
+      "label": "milestone: Review found the BaseException cleanup unlinking the temporary without closing it. Correct: the two interrupt tests already written both unwind with the handle closed, so neither reached the case. On POSIX the unlink succeeds and leaks only a descriptor; on Windows an open file cannot be unlinked at all, so the cleanup added to stop the leak would itself leak. Added _release, which closes before discarding and returns a description of whichever step failed, and collapsed the five nested try blocks and three duplicated message builders in _atomic_write_text down to two try blocks and one. Dropped the untested 'failed to close temporary file descriptor' branch and replaced it with a suppressed os.close, since that path is only reachable while already unwinding. New test interrupts inside handle.write and asserts close ran, which is what makes it fail on Linux rather than only on Windows. Negative control removing the close from _release: 2 red, including the pre-existing close-failure test. Restored: 74 pass, up from 73.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:46:03.997902+00:00"
+    },
+    {
+      "id": "73d004958dc4",
+      "type": "milestone",
+      "label": "milestone: Review found markdownLintRun claiming no markdown changed while the branch adds a .serena memory. True as stated and wrong. Ran the scoped lint: 0 files, because .markdownlint-cli2.yaml excludes .serena/**. Rewrote the evidence to say that, since an exclusion and a pass are not the same result.",
+      "episodes": [
+        "episode-2026-07-26-session-3368-atomic-write-hardening"
+      ],
+      "created": "2026-07-26T07:46:03.997966+00:00"
     }
   ],
   "patterns": [

@@ -35,13 +35,14 @@ which is why registration is automatic.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import stat
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import Any, TextIO, TypeAlias
 
 # A value as it comes out of json.load. Naming it beats `Any`: these helpers
 # genuinely accept whatever the generated graph holds, and the alias says so
@@ -77,46 +78,84 @@ class GraphMergeError(Exception):
     """An input could not be read or was not a causal graph."""
 
 
+def _discard(temporary: str) -> OSError | None:
+    """Remove the sibling temporary, returning any failure instead of raising.
+
+    The caller is already unwinding a more interesting error. Raising from
+    cleanup would replace it.
+    """
+    try:
+        Path(temporary).unlink(missing_ok=True)
+    except OSError as cleanup:
+        return cleanup
+    return None
+
+
+def _release(handle: TextIO | None, temporary: str) -> str | None:
+    """Close the temporary and remove it, describing the first failure.
+
+    Closing comes first because Windows refuses to unlink an open file: a
+    temporary that was still open when the write unwound would survive the
+    cleanup that exists to remove it. On POSIX the unlink succeeds either way
+    and the damage is a leaked descriptor instead, which is quieter and just as
+    real inside a long-lived `git merge`.
+    """
+    if handle is not None:
+        try:
+            handle.close()
+        except OSError as close_error:
+            _discard(temporary)
+            return f"failed to close temporary file {temporary}: {close_error}"
+    cleanup = _discard(temporary)
+    if cleanup is not None:
+        return f"failed to remove temporary file {temporary}: {cleanup}"
+    return None
+
+
 def _atomic_write_text(path: Path, text: str) -> None:
     """Replace ``path`` only after its full content reaches a sibling file."""
-    fd, temporary = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
-        try:
-            handle = os.fdopen(fd, "w", encoding="utf-8")
-        except OSError as fdopen_error:
-            try:
-                os.close(fd)
-            except OSError as close_error:
-                message = (
-                    f"{fdopen_error.strerror or fdopen_error}; failed to close "
-                    f"temporary file descriptor {fd}: {close_error}"
-                )
-                raise OSError(fdopen_error.errno, message) from fdopen_error
-            raise
-        try:
-            handle.write(text)
-        except OSError as write_error:
-            try:
-                handle.close()
-            except OSError as close_error:
-                message = (
-                    f"{write_error.strerror or write_error}; failed to close temporary "
-                    f"file {temporary}: {close_error}"
-                )
-                raise OSError(write_error.errno, message) from write_error
-            raise
+        handle = os.fdopen(fd, "w", encoding="utf-8")
+    except BaseException as primary:
+        # Whether the descriptor is still ours depends on how far io.open got.
+        # Measured on CPython: an invalid mode raises before it wraps the
+        # descriptor and leaves it open, an unknown encoding raises after and
+        # closes it on the way out. An interrupt can land on either side. So
+        # this close is required in the first case and answers EBADF in the
+        # second, which is the first reason for the suppress. The second is
+        # that we are already unwinding, and a cleanup failure here would
+        # replace the error that actually explains the write.
+        with contextlib.suppress(OSError):
+            os.close(fd)
+        # No handle to close: fdopen did not return one, and the descriptor is
+        # already settled above. _release still owns the message, so a failure
+        # to remove the temporary reads the same here as on the write path.
+        detail = _release(None, temporary)
+        if detail is not None and isinstance(primary, OSError):
+            raise OSError(primary.errno, f"{primary.strerror or primary}; {detail}") from primary
+        raise
+
+    open_handle: TextIO | None = handle
+    try:
+        handle.write(text)
+        handle.flush()
+        # os.replace is atomic against another process, not against a crash.
+        # Without the fsync the rename can land while the content is still in
+        # the page cache, leaving a name that points at nothing.
+        os.fsync(handle.fileno())
         handle.close()
+        open_handle = None
         os.chmod(temporary, stat.S_IMODE(path.stat().st_mode))
         os.replace(temporary, path)
-    except OSError as primary:
-        try:
-            Path(temporary).unlink(missing_ok=True)
-        except OSError as cleanup:
-            message = (
-                f"{primary.strerror or primary}; failed to remove temporary file "
-                f"{temporary}: {cleanup}"
-            )
-            raise OSError(primary.errno, message) from primary
+    except BaseException as primary:
+        # BaseException rather than OSError: a merge driver runs inside an
+        # interactive `git merge`, so the realistic failure is Ctrl-C, and
+        # KeyboardInterrupt would otherwise leave the temporary beside the
+        # graph it failed to replace.
+        detail = _release(open_handle, temporary)
+        if detail is not None and isinstance(primary, OSError):
+            raise OSError(primary.errno, f"{primary.strerror or primary}; {detail}") from primary
         raise
 
 
