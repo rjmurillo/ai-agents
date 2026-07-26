@@ -23,6 +23,7 @@ from scripts.maintenance import install_merge_drivers
 from scripts.validation import merge_causal_graph
 from scripts.validation.merge_causal_graph import (
     GraphMergeError,
+    _atomic_write_text,
     _load,
     main,
     merge_graphs,
@@ -406,7 +407,7 @@ class TestDriverExitContract:
 
         assert main([str(base), str(ours), str(theirs)]) == 3
         assert ours.read_text(encoding="utf-8") == before
-        assert list(tmp_path.glob("*.tmp")) == []
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
     def test_a_partial_temporary_write_leaves_ours_untouched(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -437,7 +438,7 @@ class TestDriverExitContract:
 
         assert main([str(base), str(ours), str(theirs)]) == 3
         assert ours.read_text(encoding="utf-8") == before
-        assert list(tmp_path.glob("*.tmp")) == []
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
     def test_fdopen_failure_closes_descriptor_and_leaves_ours_untouched(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -461,7 +462,71 @@ class TestDriverExitContract:
             os.fstat(captured_fd[0])
         assert closed.value.errno == errno.EBADF
         assert ours.read_text(encoding="utf-8") == before
-        assert list(tmp_path.glob("*.tmp")) == []
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
+
+    def test_fdopen_that_closed_the_descriptor_before_failing_is_survivable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The sibling test covers fdopen raising before it took the descriptor.
+
+        io.open also raises after taking it: an unknown encoding gets past the
+        FileIO construction and the descriptor is closed on the way out. An
+        interrupt can land on either side of that line, so the cleanup has to
+        survive closing a descriptor that is already closed. Without the
+        suppress around os.close the EBADF would propagate from the cleanup and
+        replace the error that actually explains the write.
+        """
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+        before = ours.read_text(encoding="utf-8")
+
+        def close_then_refuse(fd: int, _mode: str, *, encoding: str) -> TextIO:
+            assert encoding == "utf-8"
+            os.close(fd)
+            raise OSError(24, "Too many open files")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", close_then_refuse)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_text(encoding="utf-8") == before
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
+
+    def test_fdopen_cleanup_failure_is_reported_beside_the_primary_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The fdopen path composes cleanup detail the way the write path does.
+
+        Both handlers unwind past a temporary that has to be removed, so a
+        removal failure is equally invisible in both. Reporting it on one and
+        dropping it on the other would make the same disk fault legible or
+        silent depending on which call happened to fail first, which is the
+        opposite of what _discard returning its failure is for.
+        """
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+
+        def refuse_fdopen(fd: int, _mode: str, *, encoding: str) -> TextIO:
+            assert encoding == "utf-8"
+            os.close(fd)
+            raise OSError(24, "Too many open files")
+
+        def refuse_cleanup(_path: Path, missing_ok: bool = False) -> None:
+            assert missing_ok
+            raise OSError(13, "Permission denied")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", refuse_fdopen)
+        monkeypatch.setattr(Path, "unlink", refuse_cleanup)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        error = capsys.readouterr().err
+        assert "Too many open files" in error
+        assert "failed to remove temporary file" in error
+        assert "Permission denied" in error
 
     def test_close_failure_does_not_mask_a_partial_write_failure(
         self,
@@ -500,7 +565,7 @@ class TestDriverExitContract:
         assert "failed to close temporary file" in error
         assert "Input/output error" in error
         assert ours.read_text(encoding="utf-8") == before
-        assert list(tmp_path.glob("*.tmp")) == []
+        assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
     def test_cleanup_failure_reports_primary_and_cleanup_errors(
         self,
@@ -932,3 +997,179 @@ class TestTopLevelKeyOrderMatchesTheGeneratedSchema:
         merged = merge_graphs(_graph(), _graph(), _graph())
         collection_keys = [key for key in merged if key in {"nodes", "patterns", "edges"}]
         assert collection_keys == ["nodes", "patterns", "edges"]
+
+
+class _Interrupt(BaseException):
+    """Stands in for KeyboardInterrupt without stopping the test runner."""
+
+
+class TestTheTemporaryNeverOutlivesTheWrite:
+    """Refs #3368. The destination surviving is only half the guarantee.
+
+    A merge driver runs inside an interactive `git merge`, so the realistic
+    failure is Ctrl-C, not ENOSPC. KeyboardInterrupt is not an OSError, so a
+    cleanup path attached to OSError alone never sees it and the sibling
+    temporary is left in the graph directory.
+    """
+
+    def _destination(self, tmp_path: Path) -> Path:
+        path = tmp_path / "causal-graph.json"
+        path.write_text('{"nodes": []}\n', encoding="utf-8")
+        return path
+
+    def _siblings(self, path: Path) -> list[str]:
+        return sorted(p.name for p in path.parent.iterdir() if p != path)
+
+    def test_an_interrupt_mid_write_leaves_only_the_destination(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = self._destination(tmp_path)
+        real_fdopen = os.fdopen
+
+        def interrupting_fdopen(fd: int, *args: Any, **kwargs: Any) -> TextIO:
+            handle = real_fdopen(fd, *args, **kwargs)
+            handle.close()
+            raise _Interrupt()
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", interrupting_fdopen)
+        with pytest.raises(_Interrupt):
+            _atomic_write_text(path, "replacement")
+
+        assert self._siblings(path) == []
+        assert path.read_text(encoding="utf-8") == '{"nodes": []}\n'
+
+    def test_an_interrupt_before_the_rename_leaves_only_the_destination(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The window is widest here: the temporary holds a full copy."""
+        path = self._destination(tmp_path)
+
+        def interrupting_replace(source: Any, target: Any) -> None:
+            raise _Interrupt()
+
+        monkeypatch.setattr(merge_causal_graph.os, "replace", interrupting_replace)
+        with pytest.raises(_Interrupt):
+            _atomic_write_text(path, "replacement")
+
+        assert self._siblings(path) == []
+        assert path.read_text(encoding="utf-8") == '{"nodes": []}\n'
+
+    def test_an_interrupt_with_the_temporary_open_closes_it_before_removing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The other interrupt tests all unwind with the handle already closed.
+
+        Interrupting the write itself leaves it open, and cleanup that unlinks
+        without closing leaks the descriptor on POSIX and fails outright on
+        Windows, where an open file cannot be unlinked at all. Asserting on the
+        close rather than on the leftover file is what makes this fail on Linux
+        too.
+        """
+        path = self._destination(tmp_path)
+        real_fdopen = os.fdopen
+        closed: list[str] = []
+
+        class InterruptingHandle:
+            def __init__(self, fd: int) -> None:
+                self._handle: TextIO = real_fdopen(fd, "w", encoding="utf-8")
+
+            def write(self, _text: str) -> int:
+                raise _Interrupt()
+
+            def flush(self) -> None:
+                self._handle.flush()
+
+            def fileno(self) -> int:
+                return self._handle.fileno()
+
+            def close(self) -> None:
+                closed.append("closed")
+                self._handle.close()
+
+        def interrupting_fdopen(fd: int, *_args: Any, **_kwargs: Any) -> Any:
+            return InterruptingHandle(fd)
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", interrupting_fdopen)
+        with pytest.raises(_Interrupt):
+            _atomic_write_text(path, "replacement")
+
+        assert closed == ["closed"], "cleanup removed the temporary without closing it"
+        assert self._siblings(path) == []
+        assert path.read_text(encoding="utf-8") == '{"nodes": []}\n'
+
+    def test_a_leaked_temporary_would_name_the_file_it_failed_to_replace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """mkstemp's default name points at nothing; a leak must be greppable."""
+        path = self._destination(tmp_path)
+        seen: list[str] = []
+        real_mkstemp = merge_causal_graph.tempfile.mkstemp
+
+        def recording_mkstemp(*args: Any, **kwargs: Any) -> tuple[int, str]:
+            fd, name = real_mkstemp(*args, **kwargs)
+            seen.append(Path(name).name)
+            return fd, name
+
+        monkeypatch.setattr(merge_causal_graph.tempfile, "mkstemp", recording_mkstemp)
+        _atomic_write_text(path, "replacement")
+
+        assert len(seen) == 1
+        assert path.name in seen[0]
+
+
+class TestTheContentReachesDiskBeforeTheRename:
+    """Refs #3368. os.replace is atomic against processes, not against a crash.
+
+    Renaming over the destination without flushing the temporary can leave the
+    destination naming data that never reached disk, which is the partial-file
+    outcome the atomic write exists to prevent, moved from the write to the
+    rename.
+    """
+
+    def test_fsync_runs_before_replace(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "causal-graph.json"
+        path.write_text("{}\n", encoding="utf-8")
+        order: list[str] = []
+        real_fsync = os.fsync
+        real_replace = os.replace
+
+        def recording_fsync(fd: int) -> None:
+            order.append("fsync")
+            real_fsync(fd)
+
+        def recording_replace(source: Any, target: Any) -> None:
+            order.append("replace")
+            real_replace(source, target)
+
+        monkeypatch.setattr(merge_causal_graph.os, "fsync", recording_fsync)
+        monkeypatch.setattr(merge_causal_graph.os, "replace", recording_replace)
+        _atomic_write_text(path, "replacement")
+
+        assert order == ["fsync", "replace"]
+        assert path.read_text(encoding="utf-8") == "replacement"
+
+    def test_a_failed_fsync_exits_three_without_touching_the_destination(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A sync failure is a filesystem failure, not malformed input."""
+        base = tmp_path / "base.json"
+        ours = tmp_path / "ours.json"
+        theirs = tmp_path / "theirs.json"
+        base.write_text(json.dumps(_graph()), encoding="utf-8")
+        ours.write_text(json.dumps(_graph(nodes=[_node("ours")])), encoding="utf-8")
+        theirs.write_text(json.dumps(_graph(nodes=[_node("theirs")])), encoding="utf-8")
+        before = ours.read_text(encoding="utf-8")
+
+        def failing_fsync(fd: int) -> None:
+            raise OSError(errno.EIO, "sync failed")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fsync", failing_fsync)
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        assert ours.read_text(encoding="utf-8") == before
+        assert sorted(p.name for p in tmp_path.iterdir()) == [
+            "base.json",
+            "ours.json",
+            "theirs.json",
+        ]

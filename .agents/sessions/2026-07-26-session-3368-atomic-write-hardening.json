@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3368,
+    "date": "2026-07-26",
+    "branch": "fix/3368-atomic-write-hardening",
+    "startingCommit": "3d1f3b30d279785677ad87d5c3fafec215fecfbc",
+    "objective": "Close the two gaps left in _atomic_write_text after #3359: the temporary leaks on any non-OSError exit, and nothing flushes it to disk before the rename."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-* MCP tools resolved live in this harness; serena-list_memories returned the project memory index."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions is exposed by this harness and the Serena toolbox was used for memory retrieval during the session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read earlier in this session; treated as read-only per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Working under the code-review-and-quality skill; validation entry points located through scripts/validation and lefthook.yml."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read earlier in this session."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read earlier in this session."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read validation/atomic-replace-preserve-metadata, which records that a temporary-file replacement must be tested for temporary cleanup. #3359 shipped without that test, which is what this change adds."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reports fix/3368-atomic-write-hardening, branched from origin/main at 3d1f3b30d2."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3368-atomic-write-hardening"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branch creation and before each commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "3d1f3b30d2"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed against this session's own evidence, not inherited from the log this file was templated from."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched; git status shows no entry for it."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote validation/atomic-write-cleanup-covers-interrupts, recording that OSError-only cleanup leaks the temporary on Ctrl-C and that os.replace needs an fsync ahead of it."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "One markdown file changed: .serena/memories/validation/atomic-write-cleanup-covers-interrupts.md. Ran markdownlint-cli2 scoped to it; it linted 0 files because .markdownlint-cli2.yaml excludes .serena/** (alongside .agents/** and .claude/skills/**). Reported as 'Summary: 0 issues in 0 files', which is an exclusion, not a pass. The remaining changed files are two Python modules and two generated JSON documents."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hardening and tests committed as 2796f956e5."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "76 tests pass in tests/validation/test_merge_causal_graph.py. Four negative controls, one per change: removing the BaseException handler turns 2 red, removing the fsync turns 2 red, removing the mkstemp prefix turns 1 red, and restoring the dropped _discard return in the fdopen path turns 1 red. ruff check, ruff format and mypy clean."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3368 created with the measured evidence and the acceptance criteria this branch satisfies."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked. This is a two-function change with three negative controls; there is no failure to reconstruct."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Verify that #3362 was superseded before reworking it",
+      "outcome": "PR #3359 landed the atomic write on 2026-07-26 and closed #3357, the issue PR #3362 targeted, so #3362 was a competing implementation of a shipped fix. Diffed the two rather than assuming the merged one was complete. Main is ahead on the exit-code contract: it separates exit 3 (filesystem refused the write) from exit 1 (malformed input) per ADR-035, and preserves the primary error when close() itself fails. The branch was ahead on two things main lacks, so those became #3368 instead of a rewrite of #3362.",
+      "evidence": "gh issue view 3357 reports CLOSED; gh pr view 3359 --json closingIssuesReferences returns 3357. git log on scripts/validation/merge_causal_graph.py shows 3d1f3b30d2 'write causal graph merges atomically (#3359)'."
+    },
+    {
+      "task": "Measure the temporary-file leak before fixing it",
+      "outcome": "Confirmed the leak is real, not theoretical. Cleanup in _atomic_write_text is attached to except OSError. KeyboardInterrupt is not an OSError, and a merge driver runs inside an interactive git merge, which is exactly where Ctrl-C lands. The destination survives; the temporary does not get removed, and tempfile.mkstemp's default name carries no link to what wrote it, so a leaked file in .agents/memory/causality/ is unattributable and one git add -A from being committed.",
+      "evidence": "Probe against origin/main at 3d1f3b30d2, forcing a BaseException out of the write: 'main leaks on BaseException: [tmpzh8km2lu.tmp]' with 'destination intact: {\"a\":1}'."
+    },
+    {
+      "task": "Harden the atomic write",
+      "outcome": "Added an except BaseException handler that discards the temporary and re-raises, so an interrupt cleans up. Added handle.flush() and os.fsync(handle.fileno()) before the chmod and rename, because os.replace is atomic against other processes but not against a crash: without the sync a power loss after the rename can leave the destination naming data that never reached disk, which is the partial-file outcome #3359 set out to prevent, relocated from the write to the rename. Gave mkstemp a prefix derived from the destination name so any leak is greppable. Extracted _discard() so both handlers share one unlink and neither replaces the primary error with a cleanup error.",
+      "evidence": "73 tests pass in tests/validation/test_merge_causal_graph.py. Three negative controls, each reverting one change: dropping the BaseException handler turns 2 red, dropping the fsync turns 2 red, dropping the mkstemp prefix turns 1 red; restoring returns 73 passed. ruff check and ruff format clean on both files."
+    },
+    {
+      "time": "2026-07-26T21:10:00Z",
+      "action": "Review found the BaseException cleanup unlinking the temporary without closing it. Correct: the two interrupt tests already written both unwind with the handle closed, so neither reached the case. On POSIX the unlink succeeds and leaks only a descriptor; on Windows an open file cannot be unlinked at all, so the cleanup added to stop the leak would itself leak. Added _release, which closes before discarding and returns a description of whichever step failed, and collapsed the five nested try blocks and three duplicated message builders in _atomic_write_text down to two try blocks and one. Dropped the untested 'failed to close temporary file descriptor' branch and replaced it with a suppressed os.close, since that path is only reachable while already unwinding. New test interrupts inside handle.write and asserts close ran, which is what makes it fail on Linux rather than only on Windows. Negative control removing the close from _release: 2 red, including the pre-existing close-failure test. Restored: 74 pass, up from 73."
+    },
+    {
+      "time": "2026-07-26T21:15:00Z",
+      "action": "Review found markdownLintRun claiming no markdown changed while the branch adds a .serena memory. True as stated and wrong. Ran the scoped lint: 0 files, because .markdownlint-cli2.yaml excludes .serena/**. Rewrote the evidence to say that, since an exclusion and a pass are not the same result."
+    },
+    {
+      "task": "Correct the fdopen ownership claim and cover the case it denied",
+      "outcome": "The cleanup comment said 'fdopen never took ownership, so the raw descriptor is still ours', which is true for only one of the two ways io.open can fail. Measured on CPython: an invalid mode raises before it wraps the descriptor and leaves it open, while an unknown encoding raises after the FileIO exists and closes it on the way out. Because the handler catches BaseException, an interrupt can land on either side of that line. The behavior was already right, since the os.close sits inside contextlib.suppress(OSError), but the comment asserted the opposite of what the suppress exists for, so anyone tidying the code would have read the suppress as dead and deleted it. Rewrote the comment around the measurement and added the missing test for the branch it denied.",
+      "evidence": "Probe: os.fdopen(fd, 'not-a-mode') raises ValueError and a following os.close(fd) succeeds; os.fdopen(fd, 'w', encoding='definitely-not-a-codec') raises LookupError and os.close(fd) answers EBADF. New test test_fdopen_that_closed_the_descriptor_before_failing_is_survivable patches fdopen to close then raise. Negative control removed the suppress: 2 red, the new test and test_an_interrupt_mid_write_leaves_only_the_destination, which reaches the same state incidentally because the discarded handle is collected before the cleanup runs. Restored, 75 pass. ruff and mypy clean."
+    },
+    {
+      "task": "Report a cleanup failure on the fdopen path, not only on the write path",
+      "outcome": "_discard exists to return its failure rather than raise, so the caller can report it without replacing the error that explains the write. The write handler used that return value; the fdopen handler called _discard and threw the return away. Same disk fault, legible or silent depending on which call happened to fail first. Switched the fdopen handler to _release(None, temporary) and composed the detail into the primary when it is an OSError, exactly as the write handler does. Passing None for the handle is correct and not a shortcut: fdopen did not return one, and the raw descriptor is already settled by the suppressed os.close above.",
+      "evidence": "Added test_fdopen_cleanup_failure_is_reported_beside_the_primary_error: fdopen raises EMFILE after closing the descriptor and Path.unlink raises EACCES, so stderr must carry all three of 'Too many open files', 'failed to remove temporary file', and 'Permission denied'. 76 pass. Negative control restored the dropped-return form and only that test went red, so the assertion is pinned to the composition and not to the exit code. ruff check, ruff format and mypy all clean."
+    },
+    {
+      "phase": "validation",
+      "summary": "Corrected the validationPassed count from 73 to 76. It was true when written and went stale when the review round added the fdopen cleanup test. sessionEnd evidence describes the shipped state rather than a moment in the session, so it carries the final number; workLog entries that were true when written keep their original figures instead."
+    }
+  ],
+  "endingCommit": "2796f956e5",
+  "nextSteps": [
+    "Open the PR for #3368 against main.",
+    "Merge only after the review-thread and CI gates pass."
+  ]
+}
