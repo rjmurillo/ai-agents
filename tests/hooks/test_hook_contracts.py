@@ -1883,6 +1883,54 @@ class TestTheCopilotSurfaceIsOptional:
         report = _run(root)
         assert "invalid_plugin_hooks" in _categories(report)
 
+    def test_a_file_with_no_hooks_key_is_reported_not_ignored(self, tmp_path):
+        """The #3384 failure mode: a present file the validator never read."""
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"version": 1}), encoding="utf-8"
+        )
+        report = _run(root)
+        assert "invalid_plugin_hooks" in _categories(report)
+
+    def test_a_top_level_non_object_is_reported_not_ignored(self, tmp_path):
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps([{"hooks": {}}]), encoding="utf-8"
+        )
+        report = _run(root)
+        assert "invalid_plugin_hooks" in _categories(report)
+
+    def test_a_non_list_event_is_reported_not_ignored(self, tmp_path):
+        """A malformed event must not read like an event with nothing on it."""
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": {"type": "command", "bash": "x"}}}),
+            encoding="utf-8",
+        )
+        report = _run(root)
+        bad = [v for v in report.violations if v.category == "invalid_plugin_hooks"]
+        assert bad, "a non-list event value produced no violation"
+        assert any(v.hook_type == "PreToolUse" for v in bad)
+
+    def test_a_non_object_registration_is_reported_not_ignored(self, tmp_path):
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": ["not-an-object"]}}), encoding="utf-8"
+        )
+        report = _run(root)
+        bad = [v for v in report.violations if v.category == "invalid_plugin_hooks"]
+        assert bad, "a non-object registration produced no violation"
+        assert any(v.hook_type == "PreToolUse" for v in bad)
+
+    def test_a_well_formed_empty_event_is_still_accepted(self, tmp_path):
+        """The guards above must not turn a legitimately empty event red."""
+        root = _copilot_tree(tmp_path)
+        (root / "src" / "copilot-cli" / "hooks" / "hooks.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": []}}), encoding="utf-8"
+        )
+        report = _run(root)
+        assert "invalid_plugin_hooks" not in _categories(report)
+
 
 class TestThePluginRootResolvesPerSurface:
     """The same expansion text means a different directory on each surface.

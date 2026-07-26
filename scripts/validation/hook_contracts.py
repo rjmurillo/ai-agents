@@ -430,9 +430,23 @@ def parse_copilot_hooks(hooks_path: Path) -> tuple[list[HookEntry], list[Violati
     content = hooks_path.read_text(encoding="utf-8")
     data = json.loads(content)
 
-    hooks_config = data.get("hooks", {})
     entries: list[HookEntry] = []
     violations: list[Violation] = []
+    if not isinstance(data, dict) or "hooks" not in data:
+        # Defaulting to an empty mapping here would turn a file with no
+        # registrations at all into a clean zero-entry pass, which is the exact
+        # #3384 failure mode: the validator reported success over a surface it
+        # had never read.
+        return entries, [
+            Violation(
+                hook_type="plugin",
+                script=str(COPILOT_HOOKS_PATH),
+                category="invalid_plugin_hooks",
+                message="Copilot registrations declare no top-level 'hooks' key",
+            )
+        ]
+
+    hooks_config = data["hooks"]
     if not isinstance(hooks_config, dict):
         return entries, [
             Violation(
@@ -448,9 +462,34 @@ def parse_copilot_hooks(hooks_path: Path) -> tuple[list[HookEntry], list[Violati
 
     for hook_type, registrations in hooks_config.items():
         if not isinstance(registrations, list):
+            # Skipping here would zero out coverage for this event while the
+            # run still reported success, so a malformed event reads exactly
+            # like an event with nothing registered.
+            violations.append(
+                Violation(
+                    hook_type=hook_type,
+                    script=str(COPILOT_HOOKS_PATH),
+                    category="invalid_plugin_hooks",
+                    message=(
+                        f"Copilot registrations for '{hook_type}' are "
+                        f"{type(registrations).__name__}, not a list"
+                    ),
+                )
+            )
             continue
         for registration in registrations:
             if not isinstance(registration, dict):
+                violations.append(
+                    Violation(
+                        hook_type=hook_type,
+                        script=str(COPILOT_HOOKS_PATH),
+                        category="invalid_plugin_hooks",
+                        message=(
+                            f"Copilot registration under '{hook_type}' is "
+                            f"{type(registration).__name__}, not an object"
+                        ),
+                    )
+                )
                 continue
             if registration.get("type") != "command":
                 continue
