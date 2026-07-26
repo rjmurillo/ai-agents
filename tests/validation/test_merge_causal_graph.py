@@ -567,6 +567,11 @@ class TestTopLevelFieldsGoThroughTheSamePolicyTable:
         merged = merge_graphs(base, {"nodes": []}, {"version": "1.0", "nodes": []})
         assert merged["version"] == "1.0"
 
+    def test_version_survives_when_both_sides_omit_it(self) -> None:
+        base = {"version": "1.0", "nodes": []}
+        merged = merge_graphs(base, {"nodes": []}, {"nodes": []})
+        assert merged["version"] == "1.0"
+
     def test_updated_takes_the_later_timestamp(self) -> None:
         merged = merge_graphs(
             {"updated": "2026-01-01T00:00:00Z", "nodes": []},

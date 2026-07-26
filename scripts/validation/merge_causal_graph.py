@@ -25,10 +25,11 @@ Failure is loud. If any input will not parse, the driver exits nonzero and git
 leaves the conflict markers in place for a human. Silently taking a side is the
 behavior that caused the drift this driver exists to stop.
 
-Registered by ``git_hook_policy.py install-merge-drivers``, which runs from the
-pre-commit hook so a clone self-heals on first commit rather than depending on a
-setup step someone can skip. A ``.gitattributes`` entry without the matching
-``git config`` is a silent no-op, which is why registration is automatic.
+Registered by the pre-commit hook through
+``scripts/maintenance/install_merge_drivers.py``, so a clone self-heals on its
+first commit rather than depending on a setup step someone can skip. A
+``.gitattributes`` entry without the matching ``git config`` is a silent no-op,
+which is why registration is automatic.
 """
 
 from __future__ import annotations
@@ -229,7 +230,13 @@ def _merge_fields(
         elif field in _LATEST:
             merged[field] = _extreme(base_value, ours_value, theirs_value, latest=True)
         elif field in _PREFER_PRESENT:
-            merged[field] = ours_value if ours_value is not None else theirs_value
+            merged[field] = (
+                ours_value
+                if ours_value is not None
+                else theirs_value
+                if theirs_value is not None
+                else base_value
+            )
         else:
             merged[field] = _prefer_diverged(base_value, ours_value, theirs_value)
     return merged
@@ -275,6 +282,9 @@ def merge_graphs(
     # Every top-level key either side carries, including ones the schema grows
     # later. Collections have their own union rule and are merged below.
     scalars = [key for key in _ordered_keys(ours, theirs) if key not in _COLLECTIONS]
+    scalars.extend(
+        sorted(field for field in _PREFER_PRESENT if field in base and field not in scalars)
+    )
     merged = _merge_fields(base, ours, theirs, scalars)
 
     for collection, fields in _COLLECTIONS.items():
