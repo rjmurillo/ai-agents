@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Applied the three ADR-057 reference normalizations and verified against source",
       "caused_by": [
-        "e006"
+        "e011"
       ],
       "leads_to": [
         "e002"
@@ -50,7 +50,9 @@
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e005",
@@ -71,6 +73,64 @@
         "e005"
       ],
       "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #3357 and confirmed the defect against the driver source",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the write with a sibling temporary and a rename",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated the exit-3 test and added coverage for the acceptance criteria",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran three negative controls",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 25d482155bbfc6d01fc0af8fd6a88d135da09d29",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
         "e001"
       ]
     }
@@ -80,11 +140,13 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 4
   },
   "lessons": [
     "Right-size the adr-review panel to the change surface and record omitted lenses. Convene only the lenses with real surface (architect, critic), run them for real, and document in the debate log why the others were not convened, instead of producing empty six-agent verdicts.",
-    "Avoid: Claiming a six-agent debate ran when it did not, to satisfy the gate. Run the reviews that genuinely apply, verify their claims independently, and state the panel scope honestly in the artifact."
+    "Avoid: Claiming a six-agent debate ran when it did not, to satisfy the gate. Run the reviews that genuinely apply, verify their claims independently, and state the panel scope honestly in the artifact.",
+    "A test that fails when the implementation changes shape is evidence the change is real. Read the failure as confirmation, then rewrite the test against the new failure point rather than preserving the old patch target.",
+    "Avoid: Assuming os.replace preserves the destination mode. Read the destination mode before the write and reapply it to the temporary before the rename."
   ]
 }

@@ -15396,6 +15396,51 @@
         "episode-2026-07-26-session-3357-atomic-merge-write"
       ],
       "created": "2026-07-26T04:20:25.446481+00:00"
+    },
+    {
+      "id": "5ffe6bd5edde",
+      "type": "milestone",
+      "label": "milestone: Read issue #3357 and confirmed the defect against the driver source",
+      "episodes": [
+        "episode-2026-07-26-session-3357-atomic-merge-write"
+      ],
+      "created": "2026-07-26T04:36:02.356152+00:00"
+    },
+    {
+      "id": "4782f612e13f",
+      "type": "milestone",
+      "label": "milestone: Replaced the write with a sibling temporary and a rename",
+      "episodes": [
+        "episode-2026-07-26-session-3357-atomic-merge-write"
+      ],
+      "created": "2026-07-26T04:36:02.356222+00:00"
+    },
+    {
+      "id": "9425a62b3160",
+      "type": "milestone",
+      "label": "milestone: Updated the exit-3 test and added coverage for the acceptance criteria",
+      "episodes": [
+        "episode-2026-07-26-session-3357-atomic-merge-write"
+      ],
+      "created": "2026-07-26T04:36:02.356280+00:00"
+    },
+    {
+      "id": "514a35efbdf7",
+      "type": "milestone",
+      "label": "milestone: Ran three negative controls",
+      "episodes": [
+        "episode-2026-07-26-session-3357-atomic-merge-write"
+      ],
+      "created": "2026-07-26T04:36:02.356336+00:00"
+    },
+    {
+      "id": "d042aa72f66a",
+      "type": "commit",
+      "label": "commit: Commit: 25d482155bbfc6d01fc0af8fd6a88d135da09d29",
+      "episodes": [
+        "episode-2026-07-26-session-3357-atomic-merge-write"
+      ],
+      "created": "2026-07-26T04:36:02.356392+00:00"
     }
   ],
   "patterns": [

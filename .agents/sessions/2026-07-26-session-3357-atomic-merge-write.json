@@ -70,7 +70,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 scoped run on the three changed markdown files reported 0 issues; files under .agents are config-excluded from the lint glob."
+        "Evidence": "No markdown file changed on this branch, so the scoped markdownlint run has an empty file set."
       },
       "changesCommitted": {
         "level": "MUST",
@@ -80,7 +80,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py --pre-commit exits 0 on this log."
+        "Evidence": "68 tests pass in tests/validation/test_merge_causal_graph.py, ruff check and ruff format --check and mypy are clean on both changed files, and three negative controls each turn the new tests red."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -91,34 +91,39 @@
   },
   "workLog": [
     {
-      "time": "2026-07-26T04:00:00Z",
-      "action": "Implemented atomic write for causal graph merge driver",
-      "result": "Updated merge_causal_graph.py to write to a temporary file and rename over the destination, preserving the original file on failure."
+      "time": "2026-07-26T04:40:00Z",
+      "action": "Read issue #3357 and confirmed the defect against the driver source",
+      "result": "main() wrote the merge result with Path.write_text, which truncates the destination before writing. A partial write leaves a damaged graph in git %A, and the nonzero exit tells git to keep exactly that instead of falling back to ours."
     },
     {
-      "time": "2026-07-26T04:15:00Z",
-      "action": "Added tests for atomic write behavior",
-      "result": "Five tests added: byte-identical destination after refused rename and mid-payload write, no temporary left behind, and preserved mode on success."
+      "time": "2026-07-26T04:50:00Z",
+      "action": "Replaced the write with a sibling temporary and a rename",
+      "result": "Failures before the rename leave the destination byte-identical and the temporary is unlinked on the way out. The destination mode is read first and reapplied, because mkstemp creates at 0600 and os.replace carries the temporary mode."
     },
     {
-      "time": "2026-07-26T04:20:00Z",
-      "action": "Committed the fix",
-      "result": "Commit 25d482155 on branch fix/3357-atomic-merge-write fixes #3357."
+      "time": "2026-07-26T05:00:00Z",
+      "action": "Updated the exit-3 test and added coverage for the acceptance criteria",
+      "result": "The old test drove the failure through Path.write_text, which the driver no longer calls, so it failed. It now fails os.replace. Five tests cover byte-identity after a refused rename and after a refused mid-payload write, no temporary left behind, and a preserved mode on success. 68 pass, up from 63."
+    },
+    {
+      "time": "2026-07-26T05:10:00Z",
+      "action": "Ran three negative controls",
+      "result": "Restoring the plain write turns 3 red, dropping the chmod turns 1 red, dropping the temporary cleanup turns 2 red."
     }
   ],
   "learnings": {
     "patterns": [
       {
-        "pattern": "Write to temporary then rename for atomic file updates",
-        "context": "A truncating write that fails mid-stream leaves partial data; rename is atomic on POSIX.",
-        "application": "Use mkstemp to create the temporary, write the payload, preserve the original mode, then os.replace over the destination."
+        "pattern": "A test that fails when the implementation changes shape is evidence the change is real",
+        "context": "The exit-3 test monkeypatched Path.write_text, the exact call the fix removes.",
+        "application": "Read the failure as confirmation, then rewrite the test against the new failure point rather than preserving the old patch target."
       }
     ],
     "avoidances": [
       {
-        "antipattern": "Writing directly to the destination file in a merge driver",
-        "consequence": "Disk-full or interrupted write leaves a half-written file; git's fallback cannot help because the damage is already in the destination.",
-        "correction": "Write to a sibling temporary and rename, so every failure before the rename leaves the original byte-identical."
+        "antipattern": "Assuming os.replace preserves the destination mode",
+        "consequence": "mkstemp creates at 0600, so the merged graph would have come back private to whoever ran the merge.",
+        "correction": "Read the destination mode before the write and reapply it to the temporary before the rename."
       }
     ]
   },
