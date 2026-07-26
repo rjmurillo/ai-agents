@@ -53,7 +53,7 @@ jobs:
               # address scripts through a different plugin root, so covering
               # them needs a per-surface root the validator does not yet take.
               # Listing the path here would run a job that validates none of
-              # the changed files. Tracked separately.
+              # the changed files. Tracked in issue #3384.
               - '.claude/settings.json'
               - '.claude/hooks/**'
               - 'build/scripts/generate_hooks_shim.py'

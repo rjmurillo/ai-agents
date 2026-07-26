@@ -99,12 +99,12 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Both bundle trees green (1120 and 1085 passed, 4 skipped each); 1985 passed across tests/test_paths.py, tests/skills/, tests/test_chaos_experiment_scripts.py, tests/validation/test_check_vendor_portability.py; 8 passed in tests/test_skill_bundle_suites_run.py; ruff check and ruff format clean"
+        "Evidence": "94 passed in tests/hooks/test_hook_contracts.py; five negative controls each turned the matching tests red before restore; ruff check, ruff format and mypy clean; actionlint clean on the workflow"
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Issue #3371 commented with the corrected 82-directory scope"
+        "Evidence": "Issue #3384 filed for the ungated copilot-cli hook surface"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -142,8 +142,8 @@
   ],
   "endingCommit": "d655c5237b",
   "nextSteps": [
-    "Push fix/3371-collect-mirror-suites and open a PR that fixes #3371.",
-    "Comment on #3371 with the corrected scope: 82 directories, not 2.",
-    "Re-poll the four open PRs for new review threads."
+    "Wire the other two arms of #3360: traceability.py (orphaned designs) and consistency.py (4 of 7 features).",
+    "Extend hook_contracts.py to the copilot-cli surface per #3384.",
+    "Re-poll the open PRs for new review threads."
   ]
 }
