@@ -879,16 +879,14 @@ def test_configuration_and_tree_have_no_payload_scripts() -> None:
     policy_text = (PROJECT_ROOT / "scripts/validation/git_hook_policy.py").read_text(
         encoding="utf-8"
     )
-    auto_retro_text = (PROJECT_ROOT / ".claude/hooks/Stop/invoke_auto_retrospective.py").read_text(
-        encoding="utf-8"
-    )
-
     assert "scripts/hooks/pre-commit" not in config_text
     assert "scripts/hooks/pre-push" not in config_text
     assert "scripts/hooks/commit-msg" not in config_text
     assert "auto-retro-suppress" not in config_text
     assert "auto-retrospective.suppress" not in policy_text
-    assert "auto-retrospective.suppress" not in auto_retro_text
+    # The hook that owned the sentinel is gone (#3349), so the third read is
+    # replaced by the stronger claim: nothing named it survives the tree.
+    assert not (PROJECT_ROOT / ".claude/hooks/Stop").exists()
     assert all(not path.exists() for path in HOOK_PAYLOADS)
 
 

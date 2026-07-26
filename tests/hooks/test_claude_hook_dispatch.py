@@ -1391,7 +1391,7 @@ def test_runtime_contract_context_group_allows():
             "-u",
             ".claude/hooks/invoke_dispatch_claude.py",
             "--group",
-            "sessionstart-1-session_initialization_enforcer",
+            "sessionstart-1-context_loader",
         ],
         cwd=REPO_ROOT,
         env=_entry_env(),

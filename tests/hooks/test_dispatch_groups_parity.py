@@ -175,3 +175,55 @@ def test_plugin_registrations_are_dispatcher_only():
         if "invoke_dispatch_claude.py" not in (hook.get("command") or "")
     ]
     assert direct == []
+
+
+# Every hook authorized to run, with the decision that authorized it. This is
+# the ledger #3197 kept only in issue prose, which is how two retired hooks
+# (invoke_auto_retrospective.py, invoke_context_loader.py) stayed registered
+# and firing for weeks with 103 tests over this manifest reporting green.
+#
+# The gate deliberately asserts identity, not naming. A group-name coherence
+# assertion was tried first and falsified: replayed over the last 14 revisions
+# of dispatch_groups.json it flagged healthy descriptive groups such as
+# `pretooluse-write-edit` in 12 of them, because ADR-082 makes group ids
+# opaque dispatcher keys with no semantic contract. Names are not a gate.
+#
+# The authorized set is small and shrinking while the running set is what
+# drifts, so this stays cheap and gets stronger as the ROI program completes.
+AUTHORIZED_HOOKS = {
+    "invoke_markdownlint_guard.py": "ADR-084 keeper (customer value)",
+    "invoke_markdown_auto_lint.py": "ADR-084 keeper (customer value)",
+    "invoke_observation_sync.py": "#3217: relocate to .githooks/CI, authorized until then",
+    "invoke_compact_checkpoint.py": "#3217 KEEP, trimmed by #3273",
+    "invoke_context_loader.py": "#3349 KEEP: read-only, fail-open, automates the "
+    "SESSION-PROTOCOL start gate for this repo's own sessions",
+    "session-start.sh": "#3244 deterministic .githooks activation",
+}
+
+
+def _every_running_basename() -> set[str]:
+    return (
+        _group_shim_basenames(surface_is_plugin=True)
+        | _group_shim_basenames(surface_is_plugin=False)
+        | _settings_direct_basenames()
+    )
+
+
+def test_every_dispatched_hook_is_authorized():
+    unauthorized = _every_running_basename() - set(AUTHORIZED_HOOKS)
+    assert unauthorized == set(), (
+        f"hooks run with no recorded authorization: {sorted(unauthorized)}. "
+        f"Either delete them or add an entry to AUTHORIZED_HOOKS naming the "
+        f"ADR or issue that authorized the keep."
+    )
+
+
+def test_no_authorization_outlives_the_hook_it_authorizes():
+    # The converse. Without it the ledger only grows: an entry whose hook was
+    # deleted keeps claiming a decision that no longer applies to anything,
+    # and the next reader has to diff it against the tree by hand.
+    stale = set(AUTHORIZED_HOOKS) - _every_running_basename()
+    assert stale == set(), (
+        f"authorized but not running: {sorted(stale)}. Delete these entries; "
+        f"the ledger records what runs, not what once did."
+    )

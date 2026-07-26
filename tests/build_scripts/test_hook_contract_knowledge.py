@@ -278,7 +278,19 @@ def test_reference_preserves_cross_harness_decision_shapes() -> None:
     assert '"decision": "block"' in text
 
 
-def test_stop_policy_is_local_only_after_vendored_hook_purge() -> None:
+def test_no_stop_hook_is_registered_on_any_surface() -> None:
+    """Stop is unregistered everywhere, and no dispatch group targets it.
+
+    The vendored and generated surfaces were purged under ADR-084. The local
+    surface kept one Stop group whose only remaining shim was
+    invoke_auto_retrospective.py, which #3187 measured net-negative and #3349
+    found still firing: it wrote a retrospective skeleton into the working
+    tree at session end and returned a block decision to force another turn.
+    Deleting it emptied the group, so the whole Stop path is gone rather than
+    reduced. Asserting absence on all four surfaces, and on group ids as well
+    as registrations, is what keeps it gone: a group with no registration
+    would still be dispatchable by hand.
+    """
     local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
     vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
     generated_hooks = _read_json(
@@ -287,24 +299,17 @@ def test_stop_policy_is_local_only_after_vendored_hook_purge() -> None:
     dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")[
         "groups"
     ]
-    stop_commands = [
-        hook["command"]
-        for group in local_hooks["Stop"]
-        for hook in group["hooks"]
-    ]
 
-    assert len(local_hooks["Stop"]) == 1
-    assert len(stop_commands) == 1
-    assert stop_commands[0].endswith("--group stop-1-skill_learning")
-    assert dispatch_groups["stop-1-skill_learning"]["shims"] == [
-        {
-            "file": "Stop/invoke_auto_retrospective.py",
-            "statusMessage": "Auto-generating session retrospective (#1703)",
-        }
-    ]
+    assert "Stop" not in local_hooks
     assert "Stop" not in vendored_hooks
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
+    assert [group_id for group_id in dispatch_groups if group_id.startswith("stop-")] == []
+    assert [
+        group_id
+        for group_id, spec in dispatch_groups.items()
+        if spec.get("event") in {"Stop", "SubagentStop", "agentStop"}
+    ] == []
 
     sidecar = OFFICIAL_SOURCES.read_text(encoding="utf-8")
     assert "Shared Stop producers can emit this shape on" in sidecar
