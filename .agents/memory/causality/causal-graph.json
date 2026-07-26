@@ -1,16 +1,7 @@
 {
   "version": "1.0",
-  "updated": "2026-02-10T17:55:46.0988089-08:00",
+  "updated": "2026-07-26T03:47:08.171555+00:00",
   "nodes": [
-    {
-      "episodes": [],
-      "label": "Status test node",
-      "success_rate": 1.0,
-      "frequency": 1,
-      "id": "n001",
-      "type": "decision",
-      "created": null
-    },
     {
       "id": "b1cc1534da48",
       "type": "outcome",
@@ -14525,7 +14516,8 @@
       "type": "milestone",
       "label": "milestone: Applied the three ADR-057 reference normalizations and verified against source",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization",
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
       ],
       "created": "2026-07-25T07:04:38.859304+00:00"
     },
@@ -14534,7 +14526,8 @@
       "type": "milestone",
       "label": "milestone: Ran a proportionate adr-review under the ADR Review Protocol",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization",
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
       ],
       "created": "2026-07-25T07:04:38.859367+00:00"
     },
@@ -14543,7 +14536,8 @@
       "type": "milestone",
       "label": "milestone: Re-verified the reviewers' factual claims directly against the working tree",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization",
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
       ],
       "created": "2026-07-25T07:04:38.859420+00:00"
     },
@@ -14552,7 +14546,8 @@
       "type": "milestone",
       "label": "milestone: Produced the governance artifacts and prepared the stacked commit",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization",
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
       ],
       "created": "2026-07-25T07:04:38.859471+00:00"
     },
@@ -15365,50 +15360,38 @@
         "episode-2026-07-26-session-3347-resolve-remaining-3347-review-threads"
       ],
       "created": "2026-07-26T02:02:26.671569+00:00"
+    },
+    {
+      "id": "5b1f3ecd25c4",
+      "type": "commit",
+      "label": "commit: Commit: b2c8a534e79785f80fa237a089d1a35256b62c40",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T03:47:08.168130+00:00"
+    },
+    {
+      "id": "86ba34f6f06c",
+      "type": "commit",
+      "label": "commit: Commit: b2c8a534e7",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T03:47:08.168193+00:00"
+    },
+    {
+      "id": "25532ef523e0",
+      "type": "outcome",
+      "label": "Outcome: success - Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T03:47:08.168249+00:00"
     }
   ],
   "patterns": [
     {
-      "success_rate": 0.9,
-      "occurrences": 1,
-      "id": "p001",
-      "name": "Good pattern",
-      "last_used": "2026-02-10T17:55:45.9796943-08:00",
-      "description": "",
-      "action": "A1",
-      "trigger": "T1"
-    },
-    {
-      "success_rate": 0.2,
-      "occurrences": 2,
-      "id": "p002",
-      "name": "Bad pattern",
-      "last_used": "2026-02-10T17:55:45.9892911-08:00",
-      "description": "",
-      "action": "A2",
-      "trigger": "T2"
-    },
-    {
-      "success_rate": 0.1,
-      "occurrences": 2,
-      "id": "p003",
-      "name": "Worse pattern",
-      "last_used": "2026-02-10T17:55:46.0158342-08:00",
-      "description": "",
-      "action": "A3",
-      "trigger": "T3"
-    },
-    {
-      "success_rate": 1.0,
-      "occurrences": 1,
-      "id": "p004",
-      "name": "Status test pattern",
-      "last_used": "2026-02-10T17:55:46.0986929-08:00",
-      "description": "",
-      "action": "A",
-      "trigger": "T"
-    },
-    {
+      "id": "cd31b49ba963",
       "name": "test pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
       "trigger": "Testing second",
@@ -15418,6 +15401,7 @@
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
+      "id": "44cf38dbd357",
       "name": "design pattern",
       "description": "Pattern from episode-2026-01-01-sequence-001",
       "trigger": "Designing first",
@@ -15427,6 +15411,7 @@
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
+      "id": "035cc531262d",
       "name": "unknown anti-pattern",
       "description": "Anti-pattern from episode-2026-01-05-session-318",
       "trigger": "When unknown decision needed",
@@ -15436,6 +15421,7 @@
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
+      "id": "5bbe1bcd6123",
       "name": "implementation pattern",
       "description": "Pattern from episode-2026-01-09-session-317",
       "trigger": "When implementation decision needed",
@@ -15449,6 +15435,7 @@
       ]
     },
     {
+      "id": "471934685dd8",
       "name": "recovery pattern",
       "description": "Pattern from episode-2026-07-04-session-2606-babysit-2843-fixcluster-vendor-merge",
       "trigger": "Adopted concurrent timeout fixes and rebumped plugin manifests.",
@@ -15458,6 +15445,7 @@
       "created": "2026-07-04T06:31:50.952133+00:00"
     },
     {
+      "id": "e86a9c97156b",
       "name": "routing pattern",
       "description": "Pattern from episode-2026-07-07-session-2608",
       "trigger": "Repair the corrupted main-repo working tree (owner chose surgical option B)",

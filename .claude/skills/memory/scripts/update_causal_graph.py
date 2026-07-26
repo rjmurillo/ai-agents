@@ -21,20 +21,62 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+GRAPH_VERSION = "1.0"
+
+
+def _empty_graph() -> dict[str, Any]:
+    """The graph this module writes when there is nothing on disk to read.
+
+    ``version`` and ``updated`` are part of the file's schema, so a fresh write
+    has to carry them. Returning a bare ``nodes``/``edges``/``patterns`` dict
+    here is how the committed graph came to hold a ``version`` and an
+    ``updated`` stamp that no live writer had touched since 2026-02-10: the
+    fields survived only because every write so far happened to load a file
+    that already had them (issue #3351).
+    """
+    return {
+        "version": GRAPH_VERSION,
+        "updated": datetime.now(UTC).isoformat(),
+        "nodes": [],
+        "edges": [],
+        "patterns": [],
+    }
+
 
 def load_causal_graph(graph_path: Path) -> dict[str, Any]:
     """Load causal graph from JSON file or return empty graph."""
     if not graph_path.is_file():
-        return {"nodes": [], "edges": [], "patterns": []}
+        return _empty_graph()
     try:
         data: dict[str, Any] = json.loads(graph_path.read_text(encoding="utf-8"))
         return data
     except (json.JSONDecodeError, OSError):
-        return {"nodes": [], "edges": [], "patterns": []}
+        return _empty_graph()
 
 
 def save_causal_graph(graph_path: Path, graph: dict[str, Any]) -> None:
-    """Save causal graph to JSON file."""
+    """Save causal graph to JSON file.
+
+    Supplies ``version`` when the loaded graph lacks one and restamps
+    ``updated`` when the content actually changed (issue #3351).
+
+    The stamp is conditional on purpose. This runs from the
+    ``update-causal-graph`` job on every commit, so an unconditional stamp
+    would rewrite the file on every commit even when no episode added
+    anything, dirtying the tree and manufacturing merge conflicts in a file
+    that is already the repo's worst conflict source. When the rendered
+    content matches what is on disk, the write is skipped entirely and the
+    file stays byte-identical.
+    """
+    graph.setdefault("version", GRAPH_VERSION)
+    graph.setdefault("updated", datetime.now(UTC).isoformat())
+    unchanged = json.dumps(graph, indent=2) + "\n"
+    try:
+        if graph_path.read_text(encoding="utf-8") == unchanged:
+            return
+    except OSError:
+        pass
+    graph["updated"] = datetime.now(UTC).isoformat()
     graph_path.parent.mkdir(parents=True, exist_ok=True)
     graph_path.write_text(
         json.dumps(graph, indent=2) + "\n",
@@ -46,6 +88,21 @@ def generate_node_id(node_type: str, label: str) -> str:
     """Generate a deterministic node ID from type and label."""
     content = f"{node_type}:{label}"
     return hashlib.sha256(content.encode()).hexdigest()[:12]
+
+
+def generate_pattern_id(name: str) -> str:
+    """Generate a deterministic pattern ID from its name.
+
+    ``name`` is already the identity ``add_pattern`` dedupes on, so deriving the
+    id from it keeps the two in agreement. Content-derived rather than
+    sequential (``p001``, ``p002``) because this file is merged by the
+    content-aware driver in ``scripts/validation/merge_causal_graph.py``: two
+    branches that each allocate the next number both produce ``p005`` for
+    different patterns, and no merge can tell them apart. A hash of the name
+    collides only when the names match, which is exactly when the two records
+    are the same pattern. Refs #3353.
+    """
+    return hashlib.sha256(f"pattern:{name}".encode()).hexdigest()[:12]
 
 
 def add_causal_node(
@@ -209,6 +266,10 @@ def add_pattern(
     # Check for existing pattern with same name
     for existing in graph["patterns"]:
         if existing["name"] == name:
+            # Patterns written before #3353 carry no id. Derive it now so a
+            # graph that predates this fix converges as its patterns are
+            # touched, rather than only on records created from here on.
+            existing.setdefault("id", generate_pattern_id(name))
             contributions = _legacy_backfill_contributions(existing, "success_rate", "occurrences")
             if contributions.get(episode_id) == success_rate:
                 # Same episode, same value: reprocess is a no-op.
@@ -219,6 +280,7 @@ def add_pattern(
             return pattern_result
 
     pattern = {
+        "id": generate_pattern_id(name),
         "name": name,
         "description": description,
         "trigger": trigger,

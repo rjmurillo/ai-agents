@@ -538,3 +538,176 @@ class TestChangedLabelRetraction:
         # `created` timestamps: the committed graph stays byte-stable.
         assert self._run(graph_path, episode_path) == 0
         assert graph_path.read_text(encoding="utf-8") == first_bytes
+
+
+class TestGraphMetadataSurvivesAFreshWrite:
+    """The graph's own schema requires version and updated (issue #3351).
+
+    The committed graph carried both for months without any live writer
+    touching them: they survived only because every write happened to load a
+    file that already had them. A graph written from nothing dropped them, and
+    the loss was invisible because that path never ran in production.
+    """
+
+    def test_a_graph_loaded_from_nothing_carries_version_and_updated(self, tmp_path):
+        graph = update_causal_graph.load_causal_graph(tmp_path / "absent.json")
+
+        assert graph["version"] == update_causal_graph.GRAPH_VERSION
+        assert graph["updated"]
+
+    def test_a_graph_loaded_from_corruption_carries_version_and_updated(self, tmp_path):
+        corrupt = tmp_path / "corrupt.json"
+        corrupt.write_text("{ not json", encoding="utf-8")
+
+        graph = update_causal_graph.load_causal_graph(corrupt)
+
+        assert graph["version"] == update_causal_graph.GRAPH_VERSION
+        assert graph["updated"]
+
+    def test_a_fresh_write_lands_version_and_updated_on_disk(self, tmp_path):
+        path = tmp_path / "g.json"
+
+        update_causal_graph.save_causal_graph(path, {"nodes": [], "edges": [], "patterns": []})
+
+        on_disk = json.loads(path.read_text(encoding="utf-8"))
+        assert on_disk["version"] == update_causal_graph.GRAPH_VERSION
+        assert on_disk["updated"]
+
+    def test_each_write_restamps_updated(self, tmp_path):
+        path = tmp_path / "g.json"
+        graph = {"version": "1.0", "updated": "2026-02-10T17:55:46+00:00",
+                 "nodes": [], "edges": [], "patterns": []}
+        update_causal_graph.save_causal_graph(path, graph)
+        first = json.loads(path.read_text(encoding="utf-8"))["updated"]
+
+        graph["nodes"].append({"id": "abc", "type": "decision", "label": "x"})
+        update_causal_graph.save_causal_graph(path, graph)
+
+        assert json.loads(path.read_text(encoding="utf-8"))["updated"] != first
+
+    def test_a_write_that_changes_nothing_leaves_the_file_untouched(self, tmp_path):
+        # This runs on every commit. An unconditional stamp would dirty the
+        # graph each time and manufacture conflicts in the repo's worst
+        # conflict source.
+        path = tmp_path / "g.json"
+        graph = {"version": "1.0", "nodes": [], "edges": [], "patterns": []}
+        update_causal_graph.save_causal_graph(path, graph)
+        first_bytes = path.read_text(encoding="utf-8")
+
+        update_causal_graph.save_causal_graph(path, dict(graph))
+
+        assert path.read_text(encoding="utf-8") == first_bytes
+
+    def test_a_graph_that_already_declares_a_version_keeps_it(self, tmp_path):
+        path = tmp_path / "g.json"
+
+        update_causal_graph.save_causal_graph(
+            path, {"version": "2.0", "nodes": [], "edges": [], "patterns": []},
+        )
+
+        assert json.loads(path.read_text(encoding="utf-8"))["version"] == "2.0"
+
+
+class TestPatternIdentityIsStableAndMergeSafe:
+    """Patterns are written with a content-derived id (issue #3353)."""
+
+    def test_a_new_pattern_carries_an_id(self):
+        graph = {"nodes": [], "edges": [], "patterns": []}
+
+        pattern = update_causal_graph.add_pattern(
+            graph, "routing pattern", "d", "t", "a", 1.0, "ep-1",
+        )
+
+        assert pattern is not None
+        assert pattern["id"] == update_causal_graph.generate_pattern_id("routing pattern")
+
+    def test_the_id_is_a_function_of_the_name_alone(self):
+        # Two branches processing the same pattern from different episodes,
+        # with different success rates, must agree on the id. A sequential
+        # allocator would give the same number to two different patterns.
+        first = {"nodes": [], "edges": [], "patterns": []}
+        second = {"nodes": [], "edges": [], "patterns": []}
+
+        update_causal_graph.add_pattern(first, "shared", "d", "t", "a", 1.0, "ep-1")
+        update_causal_graph.add_pattern(second, "shared", "other", "t2", "a2", 0.5, "ep-2")
+
+        assert first["patterns"][0]["id"] == second["patterns"][0]["id"]
+
+    def test_different_names_get_different_ids(self):
+        graph = {"nodes": [], "edges": [], "patterns": []}
+
+        update_causal_graph.add_pattern(graph, "one", "d", "t", "a", 1.0, "ep-1")
+        update_causal_graph.add_pattern(graph, "two", "d", "t", "a", 1.0, "ep-1")
+
+        assert graph["patterns"][0]["id"] != graph["patterns"][1]["id"]
+
+    def test_a_pattern_written_before_this_fix_gains_an_id_when_touched(self):
+        graph = {
+            "nodes": [], "edges": [],
+            "patterns": [{
+                "name": "legacy", "description": "d", "trigger": "t", "action": "a",
+                "success_rate": 1.0, "occurrences": 1,
+            }],
+        }
+
+        update_causal_graph.add_pattern(graph, "legacy", "d", "t", "a", 1.0, "ep-9")
+
+        assert graph["patterns"][0]["id"] == update_causal_graph.generate_pattern_id("legacy")
+
+    def test_reprocessing_an_episode_does_not_change_the_id(self):
+        graph = {"nodes": [], "edges": [], "patterns": []}
+        update_causal_graph.add_pattern(graph, "stable", "d", "t", "a", 1.0, "ep-1")
+        original = graph["patterns"][0]["id"]
+
+        update_causal_graph.add_pattern(graph, "stable", "d", "t", "a", 1.0, "ep-1")
+
+        assert graph["patterns"][0]["id"] == original
+
+
+class TestTheCommittedGraphCarriesNoTestFixtures:
+    """The production graph held test seed rows for months (issue #3352).
+
+    Node ``n001`` and patterns ``p001`` through ``p004`` were written by the
+    retired ``reflexion_memory`` writer during a test run on 2026-02-10. They
+    carry sequential ids the live generator never emits, empty descriptions,
+    and no episodes. No episode reproduces them, so nothing regenerates them.
+    """
+
+    GRAPH = (
+        Path(__file__).resolve().parents[3]
+        / ".agents" / "memory" / "causality" / "causal-graph.json"
+    )
+
+    def _graph(self) -> dict:
+        return json.loads(self.GRAPH.read_text(encoding="utf-8"))
+
+    def test_no_node_carries_a_sequential_fixture_id(self):
+        stragglers = [n["id"] for n in self._graph()["nodes"] if n["id"].startswith("n")]
+
+        assert stragglers == []
+
+    def test_no_pattern_carries_a_sequential_fixture_id(self):
+        stragglers = [p["id"] for p in self._graph()["patterns"] if p.get("id", "").startswith("p")]
+
+        assert stragglers == []
+
+    def test_every_pattern_carries_an_id_derived_from_its_name(self):
+        mismatched = [
+            p["name"] for p in self._graph()["patterns"]
+            if p.get("id") != update_causal_graph.generate_pattern_id(p["name"])
+        ]
+
+        assert mismatched == []
+
+    def test_every_pattern_describes_a_real_episode(self):
+        # The fixtures were identifiable by an empty description; real
+        # patterns name the episode they came from.
+        undescribed = [p["name"] for p in self._graph()["patterns"] if not p.get("description")]
+
+        assert undescribed == []
+
+    def test_the_committed_graph_declares_its_version_and_updated(self):
+        graph = self._graph()
+
+        assert graph["version"]
+        assert graph["updated"]
