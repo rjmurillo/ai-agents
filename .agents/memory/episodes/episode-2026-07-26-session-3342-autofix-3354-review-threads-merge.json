@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge",
-  "session": "2026-07-26-session-3354-autofix-3354-review-threads-merge",
+  "id": "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge",
+  "session": "2026-07-26-session-3342-autofix-3354-review-threads-merge",
   "timestamp": "2026-07-26T00:00:00+00:00",
   "outcome": "success",
   "task": "Autofix PR #3354 review threads and prepare merge",

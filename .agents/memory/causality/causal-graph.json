@@ -15605,7 +15605,7 @@
       "type": "milestone",
       "label": "milestone: Run the live-state and comment inventory gates",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489454+00:00"
     },
@@ -15614,7 +15614,7 @@
       "type": "milestone",
       "label": "milestone: Address all five unresolved review threads",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489520+00:00"
     },
@@ -15623,7 +15623,7 @@
       "type": "milestone",
       "label": "milestone: Reconcile concurrent remote changes",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489577+00:00"
     },
@@ -15632,7 +15632,7 @@
       "type": "milestone",
       "label": "milestone: Run targeted and required validation",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489633+00:00"
     },
@@ -15641,7 +15641,7 @@
       "type": "test",
       "label": "test: 30 targeted tests; build_all check exit 0; plugin-version-bump OK; pre_pr 30 passed, 0 failed, 4 skipped; full pytest 13,869 passed, 23 skipped, 45 xfailed.",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489696+00:00"
     },
@@ -15650,7 +15650,7 @@
       "type": "commit",
       "label": "commit: Commit: 2e153a9eda",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489751+00:00"
     },
@@ -15659,7 +15659,7 @@
       "type": "commit",
       "label": "commit: Commit: 827a4c699c",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489805+00:00"
     },
@@ -15668,7 +15668,7 @@
       "type": "commit",
       "label": "commit: Commit: f673788d4b",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489860+00:00"
     },
@@ -15677,7 +15677,7 @@
       "type": "commit",
       "label": "commit: Commit: 58bd9ce0dd",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489915+00:00"
     },
@@ -15686,7 +15686,7 @@
       "type": "outcome",
       "label": "Outcome: success - Autofix PR #3354 review threads and prepare merge",
       "episodes": [
-        "episode-2026-07-26-session-3354-autofix-3354-review-threads-merge"
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T05:54:28.489971+00:00"
     }
