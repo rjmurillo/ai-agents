@@ -213,12 +213,12 @@ def _execution_string_literals(tree: ast.AST) -> set[str]:
     bindings: dict[str, set[str]] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
-            targets = node.targets
+            targets, value = node.targets, node.value
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            targets = [node.target]
+            targets, value = [node.target], node.value
         else:
             continue
-        strings = _string_literals(node.value)
+        strings = _string_literals(value)
         for target in targets:
             if isinstance(target, ast.Name):
                 bindings.setdefault(target.id, set()).update(strings)
