@@ -5283,8 +5283,14 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    results = iter([_completed(0), _completed(1)])
-    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: next(results))
+    validator_results = iter([_completed(0), _completed(1)])
+
+    def _dispatch(command, *_args, **_kwargs):
+        if command[0] == "git":
+            return _completed(0, stdout="deadbee\n")
+        return next(validator_results)
+
+    monkeypatch.setattr(policy, "_run_command", _dispatch)
     assert policy.validate_branch_sessions(["one.json", "two.json"], tmp_path) == 1
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))

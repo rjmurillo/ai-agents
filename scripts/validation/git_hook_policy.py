@@ -24,6 +24,7 @@ from typing import TextIO, cast
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -3011,11 +3012,12 @@ def run_cli_e2e(test_file: str, repo_root: Path) -> int:
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
+    new_logs = new_session_logs(paths, repo_root)
     for path in paths:
-        result = _run_command(
-            [sys.executable, "scripts/validate_session_json.py", path],
-            repo_root,
-        )
+        command = [sys.executable, "scripts/validate_session_json.py", path]
+        if path not in new_logs:
+            command.append("--existing-log")
+        result = _run_command(command, repo_root)
         _print_process_output(result)
         failed |= result.returncode != 0
     return 1 if failed else 0

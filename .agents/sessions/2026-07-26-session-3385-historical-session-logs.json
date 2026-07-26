@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3385,
+    "date": "2026-07-26",
+    "branch": "fix/3385-historical-session-logs",
+    "startingCommit": "17b8945708",
+    "objective": "Let a committed session log be corrected: validate it as a record, not as a compliance claim it can no longer satisfy"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Branch matches the session log branch field; branch-context-policy hook enforces it on push"
+      },
+      "constraintsRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/governance/PROJECT-CONSTRAINTS.md Language Constraints read; Python-first honored"
+      },
+      "gitStateVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/3385-historical-session-logs; base 17b8945708"
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md read; left unmodified per ADR-014"
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "git branch --show-current = fix/3385-historical-session-logs"
+      },
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-read_memory returned usage-mandatory; serena-* tools live in this session"
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "serena-initial_instructions called and read before this log was written"
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": ".claude/skills/github/scripts/pr listed to find the PR helper before opening the PR"
+      },
+      "usageMandatoryRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena memory usage-mandatory read via serena-read_memory"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "This section"
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md untouched; git status shows no modification"
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena memory consulted; no new durable fact this session beyond the ADR-006 rule now encoded in code"
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "No markdown authored; .agents/** is excluded from markdownlint"
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Two commits on fix/3385-historical-session-logs, head 8f4fb83ddd"
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "uv run pytest tests/ (ignoring e2e): 14092 passed. mypy clean on the three changed modules. Ruff ratchet passed. Four negative controls each turned the matching tests red."
+      },
+      "tasksUpdated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Issue #3385 to be closed by the PR"
+      },
+      "retrospectiveInvoked": {
+        "complete": false,
+        "level": "SHOULD",
+        "evidence": "Deferred to the objective-level retrospective"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Measure the real scope of the problem before designing a fix",
+      "outcome": "473 of 943 committed session logs fail today's validator, concentrated in 2025-12 (268 of 277). Six logs crash it outright with AttributeError, reported as FATAL exit 2."
+    },
+    {
+      "task": "Test the issue's own premise",
+      "outcome": "Refuted. The exemption comment blamed a schema move, but git log -S puts validationPassed and markdownLintRun at 2026-01-09 (#830), a month before the 2026-02-11 log they blocked. A date-versioned required-items set would not have unblocked the named case."
+    },
+    {
+      "task": "Split record validation from compliance-claim validation",
+      "outcome": "Shape is a property of the record and always binds. The checklist is a claim about a session that already ended. A log this branch adds is validated as both; a log it only edits is validated as a record. Corpus failures drop 473 to 131, all 131 shape errors."
+    },
+    {
+      "task": "Give the rule one owner",
+      "outcome": "scripts/validation/session_scope.py, imported by the git hook and by the validator's --scope-from-git flag. Standard library only: the workflow's validate job installs no dependencies and runs a bare python3, so importing git_hook_policy would pull in PyYAML and fail. Verified the job has no uv and no Python setup step."
+    },
+    {
+      "task": "Close three holes found by probing the implementation",
+      "outcome": "A pathspec suppresses rename detection (same rename reports A limited, R100 unlimited), so the diff runs unlimited and intersects in Python. An untracked log never appears in git diff, so ls-files decides tracked-ness. An unresolvable merge base returns every path as new, keeping a shallow checkout from becoming a bypass."
+    },
+    {
+      "task": "Fix an unrelated crash found while measuring",
+      "outcome": "A checklist item holding a bare boolean raised AttributeError. Now a reported shape error naming the section, the item, and the type found."
+    }
+  ],
+  "endingCommit": "8f4fb83ddd",
+  "nextSteps": [
+    "Issue #3383 (session-log copy-paste contamination) was blocked on this and is now unblocked",
+    "The workflow's CUTOFF_DATE shell filter is logic in YAML (ADR-006) and now overlaps this rule",
+    "131 logs still fail on shape; determine which are correctable without inventing data"
+  ]
+}
