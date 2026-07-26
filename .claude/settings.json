@@ -18,9 +18,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-1-session_initialization_enforcer",
+            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-1-context_loader",
             "timeout": 125,
-            "statusMessage": "Running sessionstart-1-session_initialization_enforcer hooks (grouped, #3075)"
+            "statusMessage": "Running sessionstart-1-context_loader hooks (grouped, #3075)"
           }
         ]
       }
@@ -34,18 +34,6 @@
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
             "timeout": 30,
             "statusMessage": "Syncing observation memories to Forgetful"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/invoke_dispatch_claude.py --group stop-1-skill_learning",
-            "timeout": 90,
-            "statusMessage": "Running stop-1-skill_learning hooks (grouped, #3075)"
           }
         ]
       }
