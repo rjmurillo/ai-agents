@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
+from jsonschema.exceptions import SchemaError
 from jsonschema.validators import validator_for
 
 # Add project root to path for imports
@@ -475,9 +476,11 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
     """Append every schema violation in ``data`` to ``result``.
 
     Reports all violations rather than the first, so one commit round fixes the
-    log instead of one field per round. A missing or unreadable schema file is
-    an error, not a silent pass: a gate that cannot load its contract has not
-    checked anything and must say so.
+    log instead of one field per round. A missing or unreadable schema file, or
+    a schema that is itself invalid, is an error, not a silent pass: the schema
+    layer has checked nothing and must say so. This does not stop the protocol
+    checks in ``validate_session_log``, which do not depend on the schema and
+    still run for a dict-shaped payload.
 
     The validator comes from ``validator_for``, which reads the schema's own
     ``$schema`` key. The committed schema declares draft-07, and pinning a
@@ -486,11 +489,26 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
     try:
         schema = _load_schema()
     except (OSError, json.JSONDecodeError) as exc:
-        result.errors.append(f"Schema: cannot load {SCHEMA_PATH.name}, nothing was checked: {exc}")
+        result.errors.append(f"Schema: cannot load {SCHEMA_PATH.name}, schema layer skipped: {exc}")
         return
 
-    validator = validator_for(schema)(schema)
-    for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
+    try:
+        validator = validator_for(schema)(schema)
+        # Sort by the stringified path, not the raw one: absolute_path mixes
+        # str (object keys) and int (array indices), and comparing across
+        # errors whose paths share a prefix but diverge in element type
+        # raises TypeError before a single result reaches the caller.
+        errors = sorted(
+            validator.iter_errors(data),
+            key=lambda e: tuple(str(part) for part in e.absolute_path),
+        )
+    except SchemaError as exc:
+        result.errors.append(
+            f"Schema: {SCHEMA_PATH.name} is not a valid schema, schema layer skipped: {exc}"
+        )
+        return
+
+    for error in errors:
         result.errors.append(_describe(error))
 
 

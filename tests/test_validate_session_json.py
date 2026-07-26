@@ -1077,7 +1077,65 @@ class TestSchemaIsActuallyEnforced:
         monkeypatch.setattr(vsj, "SCHEMA_PATH", Path("/nonexistent/session-log.schema.json"))
         result = ValidationResult()
         vsj.validate_against_schema(_make_valid_log(), result)
-        assert any("nothing was checked" in e for e in result.errors)
+        assert any("schema layer skipped" in e for e in result.errors)
+
+    def test_unloadable_schema_does_not_claim_the_whole_gate_checked_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """validate_session_log still runs protocol checks; the message must not
+        claim total silence when only the schema layer was skipped."""
+        import scripts.validate_session_json as vsj
+
+        monkeypatch.setattr(vsj, "SCHEMA_PATH", Path("/nonexistent/session-log.schema.json"))
+        log = _make_valid_log()
+        log["protocolCompliance"]["sessionStart"]["handoffRead"] = {
+            "complete": False,
+            "evidence": "",
+            "level": "MUST",
+        }
+        result = vsj.validate_session_log(log)
+        assert any("nothing was checked" not in e for e in result.errors)
+        assert any("handoffRead" in e for e in result.errors)
+
+    def test_invalid_schema_is_an_error_not_a_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A schema that fails its own meta-validation must not crash the gate
+        with an uncaught SchemaError."""
+        from jsonschema.exceptions import SchemaError
+
+        import scripts.validate_session_json as vsj
+
+        def _raise_schema_error(schema: object) -> object:
+            raise SchemaError("bad schema")
+
+        monkeypatch.setattr(vsj, "validator_for", _raise_schema_error)
+        result = ValidationResult()
+        vsj.validate_against_schema(_make_valid_log(), result)
+        assert any("not a valid schema" in e for e in result.errors)
+
+    def test_sort_survives_mixed_path_element_types(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """iter_errors can report an array-index error and a property-key error
+        under the same parent path; sorting raw path elements compares int to
+        str and raises TypeError. Sorting by stringified path must not crash."""
+        from jsonschema.exceptions import ValidationError
+
+        import scripts.validate_session_json as vsj
+
+        class _FakeValidator:
+            def __init__(self, schema: object) -> None:
+                del schema
+
+            def iter_errors(self, data: object) -> list[ValidationError]:
+                del data
+                return [
+                    ValidationError("second error", path=["a", "b"]),
+                    ValidationError("first error", path=["a", 0]),
+                ]
+
+        monkeypatch.setattr(vsj, "validator_for", lambda schema: _FakeValidator)
+        result = ValidationResult()
+        vsj.validate_against_schema(_make_valid_log(), result)
+        assert any("second error" in e for e in result.errors)
+        assert any("first error" in e for e in result.errors)
 
     def test_committed_schema_is_readable(self) -> None:
         """Guards against a schema edit that leaves the file unparseable."""
