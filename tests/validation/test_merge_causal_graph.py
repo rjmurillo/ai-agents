@@ -492,6 +492,42 @@ class TestDriverExitContract:
         assert ours.read_text(encoding="utf-8") == before
         assert [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
 
+    def test_fdopen_cleanup_failure_is_reported_beside_the_primary_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The fdopen path composes cleanup detail the way the write path does.
+
+        Both handlers unwind past a temporary that has to be removed, so a
+        removal failure is equally invisible in both. Reporting it on one and
+        dropping it on the other would make the same disk fault legible or
+        silent depending on which call happened to fail first, which is the
+        opposite of what _discard returning its failure is for.
+        """
+        base = self._write(tmp_path, "base.json", _graph())
+        ours = self._write(tmp_path, "ours.json", _graph(nodes=[_node("ours")]))
+        theirs = self._write(tmp_path, "theirs.json", _graph(nodes=[_node("theirs")]))
+
+        def refuse_fdopen(fd: int, _mode: str, *, encoding: str) -> TextIO:
+            assert encoding == "utf-8"
+            os.close(fd)
+            raise OSError(24, "Too many open files")
+
+        def refuse_cleanup(_path: Path, missing_ok: bool = False) -> None:
+            assert missing_ok
+            raise OSError(13, "Permission denied")
+
+        monkeypatch.setattr(merge_causal_graph.os, "fdopen", refuse_fdopen)
+        monkeypatch.setattr(Path, "unlink", refuse_cleanup)
+
+        assert main([str(base), str(ours), str(theirs)]) == 3
+        error = capsys.readouterr().err
+        assert "Too many open files" in error
+        assert "failed to remove temporary file" in error
+        assert "Permission denied" in error
+
     def test_close_failure_does_not_mask_a_partial_write_failure(
         self,
         tmp_path: Path,

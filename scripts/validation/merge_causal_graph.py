@@ -117,7 +117,7 @@ def _atomic_write_text(path: Path, text: str) -> None:
     fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         handle = os.fdopen(fd, "w", encoding="utf-8")
-    except BaseException:
+    except BaseException as primary:
         # Whether the descriptor is still ours depends on how far io.open got.
         # Measured on CPython: an invalid mode raises before it wraps the
         # descriptor and leaves it open, an unknown encoding raises after and
@@ -128,7 +128,12 @@ def _atomic_write_text(path: Path, text: str) -> None:
         # replace the error that actually explains the write.
         with contextlib.suppress(OSError):
             os.close(fd)
-        _discard(temporary)
+        # No handle to close: fdopen did not return one, and the descriptor is
+        # already settled above. _release still owns the message, so a failure
+        # to remove the temporary reads the same here as on the write path.
+        detail = _release(None, temporary)
+        if detail is not None and isinstance(primary, OSError):
+            raise OSError(primary.errno, f"{primary.strerror or primary}; {detail}") from primary
         raise
 
     open_handle: TextIO | None = handle
