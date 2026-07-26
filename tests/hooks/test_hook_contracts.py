@@ -830,16 +830,16 @@ def _tree(root, *, settings, groups=None, plugin=None, shims=(), dispatcher=_DOC
     hooks = root / ".claude" / "hooks"
     hooks.mkdir(parents=True)
     if dispatcher is not None:
-        (hooks / "invoke_dispatch_claude.py").write_text(dispatcher)
-    (root / ".claude" / "settings.json").write_text(json.dumps(settings))
+        (hooks / "invoke_dispatch_claude.py").write_text(dispatcher, encoding="utf-8")
+    (root / ".claude" / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
     if groups is not None:
-        (hooks / "dispatch_groups.json").write_text(json.dumps(groups))
+        (hooks / "dispatch_groups.json").write_text(json.dumps(groups), encoding="utf-8")
     if plugin is not None:
-        (hooks / "hooks.json").write_text(json.dumps(plugin))
+        (hooks / "hooks.json").write_text(json.dumps(plugin), encoding="utf-8")
     for rel in shims:
         target = hooks / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_DOC)
+        target.write_text(_DOC, encoding="utf-8")
     return root
 
 
@@ -1064,7 +1064,7 @@ class TestTheShippedTreeSatisfiesTheContract:
         )
         assert report.is_valid, [v.message for v in report.violations]
         groups = json.loads(
-            (PROJECT_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text()
+            (PROJECT_ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(encoding="utf-8")
         )["groups"]
         expected_shims = {
             f".claude/hooks/{s['file']}" for spec in groups.values() for s in spec.get("shims", [])
@@ -1074,9 +1074,9 @@ class TestTheShippedTreeSatisfiesTheContract:
 
         # Also verify direct (non-dispatch) registrations are validated.
         # Build the expected set from both settings.json and hooks.json.
-        settings = json.loads((PROJECT_ROOT / ".claude" / "settings.json").read_text())
+        settings = json.loads((PROJECT_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
         plugin_path = PROJECT_ROOT / ".claude" / "hooks" / "hooks.json"
-        plugin = json.loads(plugin_path.read_text()) if plugin_path.is_file() else {}
+        plugin = json.loads(plugin_path.read_text(encoding="utf-8")) if plugin_path.is_file() else {}
 
         def _direct_paths(hooks_config: dict) -> set:
             """Extract script paths from non-dispatch registrations."""

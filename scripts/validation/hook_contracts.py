@@ -481,7 +481,7 @@ def validate_all(
         # settings path and loses the category.
         try:
             _, plugin_entries, plugin_violations = parse_settings(plugin_path)
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError) as exc:
             parse_violations.append(
                 Violation(
                     hook_type="plugin",
