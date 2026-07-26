@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T15:54:29.827462+00:00",
+  "updated": "2026-07-26T21:44:36.629341+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -16634,6 +16634,42 @@
         "episode-2026-07-26-session-3388"
       ],
       "created": "2026-07-26T15:54:29.823811+00:00"
+    },
+    {
+      "id": "9cd858b422a8",
+      "type": "milestone",
+      "label": "milestone: Both improvements are on a branch off main rather than lost with their deleted source branches",
+      "episodes": [
+        "episode-2026-07-26-session-3400-orphaned-test-hardening"
+      ],
+      "created": "2026-07-26T21:44:36.625392+00:00"
+    },
+    {
+      "id": "9e2436c31114",
+      "type": "commit",
+      "label": "commit: Commit: af7c0a453b",
+      "episodes": [
+        "episode-2026-07-26-session-3400-orphaned-test-hardening"
+      ],
+      "created": "2026-07-26T21:44:36.625463+00:00"
+    },
+    {
+      "id": "850b77e74be4",
+      "type": "commit",
+      "label": "commit: Commit: 5b69d082cb",
+      "episodes": [
+        "episode-2026-07-26-session-3400-orphaned-test-hardening"
+      ],
+      "created": "2026-07-26T21:44:36.625524+00:00"
+    },
+    {
+      "id": "31da4797f42b",
+      "type": "outcome",
+      "label": "Outcome: success - Reland two test-hardening changes orphaned when PRs #3381 and #3398 merged mid-push",
+      "episodes": [
+        "episode-2026-07-26-session-3400-orphaned-test-hardening"
+      ],
+      "created": "2026-07-26T21:44:36.625585+00:00"
     }
   ],
   "patterns": [

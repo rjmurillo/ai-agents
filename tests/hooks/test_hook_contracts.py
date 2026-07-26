@@ -72,7 +72,7 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
 
@@ -99,7 +99,7 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -130,14 +130,14 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 2
 
     def test_no_hooks_section(self, tmp_path):
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps({"other": "config"}))
+        settings_path.write_text(json.dumps({"other": "config"}), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -158,7 +158,7 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 1
@@ -180,7 +180,7 @@ class TestParseSettings:
             }
         }
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, violations = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -190,7 +190,7 @@ class TestParseSettings:
     def test_malformed_group_skipped(self, tmp_path):
         settings = {"hooks": {"PreToolUse": [None]}}
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -198,7 +198,7 @@ class TestParseSettings:
     def test_malformed_hook_skipped(self, tmp_path):
         settings = {"hooks": {"PreToolUse": [{"hooks": [None]}]}}
         settings_path = tmp_path / "settings.json"
-        settings_path.write_text(json.dumps(settings))
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
 
         _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
@@ -213,7 +213,7 @@ class TestValidateScriptExists:
     def test_existing_script(self, tmp_path):
         script = tmp_path / ".claude" / "hooks" / "guard.py"
         script.parent.mkdir(parents=True)
-        script.write_text("# hook")
+        script.write_text("# hook", encoding="utf-8")
 
         entry = hook_contracts.HookEntry(
             hook_type="PreToolUse",
@@ -378,7 +378,8 @@ class TestValidateExitCodeDocs:
                 0 = Allow
                 2 = Block
             """
-        ''')
+        '''),
+            encoding="utf-8",
         )
         entry = hook_contracts.HookEntry(
             hook_type="PreToolUse",
@@ -393,7 +394,8 @@ class TestValidateExitCodeDocs:
             textwrap.dedent('''\
             """Simple guard hook."""
             import sys
-        ''')
+        '''),
+            encoding="utf-8",
         )
         entry = hook_contracts.HookEntry(
             hook_type="PreToolUse",
@@ -406,7 +408,7 @@ class TestValidateExitCodeDocs:
 
     def test_non_blocking_hook_skips_check(self, tmp_path):
         script = tmp_path / "hook.py"
-        script.write_text('"""No exit docs."""\n')
+        script.write_text('"""No exit docs."""\n', encoding="utf-8")
         entry = hook_contracts.HookEntry(
             hook_type="PostToolUse",
             script_path="hook.py",
@@ -448,7 +450,8 @@ class TestValidateExitCodeDocs:
             textwrap.dedent('''\
             """Hook that can block operations."""
             import sys
-        ''')
+        '''),
+            encoding="utf-8",
         )
         entry = hook_contracts.HookEntry(
             hook_type="PreToolUse",
@@ -462,7 +465,7 @@ class TestValidateExitCodeDocs:
         # None here would treat it as "docs present"; instead it must flag an
         # unreadable_script violation (issue #2809).
         script = tmp_path / "hook.py"
-        script.write_text('"""Guard hook."""\n')
+        script.write_text('"""Guard hook."""\n', encoding="utf-8")
 
         def _raise(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
             raise PermissionError("permission denied")
@@ -550,7 +553,7 @@ class TestValidateAll:
     def _create_settings(self, tmp_path, hooks_config):
         settings_path = tmp_path / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(json.dumps({"hooks": hooks_config}))
+        settings_path.write_text(json.dumps({"hooks": hooks_config}), encoding="utf-8")
         return settings_path
 
     def _create_script(self, tmp_path, script_path, content=""):
@@ -565,7 +568,8 @@ class TestValidateAll:
                 0 = Allow
                 2 = Block
             """
-        ''')
+        '''),
+            encoding="utf-8",
         )
         return full
 
@@ -723,14 +727,14 @@ class TestMain:
     def test_invalid_json(self, tmp_path):
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
-        (settings_dir / "settings.json").write_text("{invalid json}")
+        (settings_dir / "settings.json").write_text("{invalid json}", encoding="utf-8")
         exit_code = hook_contracts.main(["--path", str(tmp_path)])
         assert exit_code == 2
 
     def test_valid_settings_returns_zero(self, tmp_path):
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
-        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {}}))
+        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
         exit_code = hook_contracts.main(["--path", str(tmp_path)])
         assert exit_code == 0
 
@@ -751,7 +755,7 @@ class TestMain:
                 ],
             }
         }
-        (settings_dir / "settings.json").write_text(json.dumps(settings))
+        (settings_dir / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
         exit_code = hook_contracts.main(
             [
                 "--path",
@@ -779,14 +783,14 @@ class TestMain:
                 ],
             }
         }
-        (settings_dir / "settings.json").write_text(json.dumps(settings))
+        (settings_dir / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
         exit_code = hook_contracts.main(["--path", str(tmp_path)])
         assert exit_code == 0
 
     def test_json_output_format(self, tmp_path, capsys):
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
-        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {}}))
+        (settings_dir / "settings.json").write_text(json.dumps({"hooks": {}}), encoding="utf-8")
         hook_contracts.main(
             [
                 "--path",
@@ -801,7 +805,7 @@ class TestMain:
 
     def test_custom_settings_path(self, tmp_path):
         custom = tmp_path / "custom.json"
-        custom.write_text(json.dumps({"hooks": {}}))
+        custom.write_text(json.dumps({"hooks": {}}), encoding="utf-8")
         exit_code = hook_contracts.main(
             [
                 "--path",
@@ -1164,7 +1168,9 @@ class TestDispatcherExpansion:
 
     def test_a_malformed_dispatch_groups_file_is_reported(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"))
-        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("{ not json")
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
+            "{ not json", encoding="utf-8"
+        )
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
 
@@ -1178,7 +1184,7 @@ class TestDispatcherExpansion:
     def test_dispatch_groups_with_non_object_root_is_reported(self, tmp_path):
         """A JSON array or primitive root must be reported, not raise AttributeError."""
         _tree(tmp_path, settings=_dispatch("g1"))
-        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("[]")
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text("[]", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
         assert any("must be a JSON object" in v.message for v in report.violations)
@@ -1201,7 +1207,9 @@ class TestDispatcherExpansion:
             },
             shims=["A/a.py"],
         )
-        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text('{"groups": null}')
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
+            '{"groups": null}', encoding="utf-8"
+        )
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
         assert any("'groups' property must be an object" in v.message for v in report.violations)
@@ -1224,7 +1232,9 @@ class TestDispatcherExpansion:
             },
             shims=["A/a.py"],
         )
-        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text('{"version": 1}')
+        (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
+            '{"version": 1}', encoding="utf-8"
+        )
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_dispatch_groups" for v in report.violations)
         assert any("missing" in v.message for v in report.violations)
@@ -1302,7 +1312,7 @@ class TestPluginSurfaceIsCovered:
     def test_a_malformed_plugin_hooks_file_is_reported(self, tmp_path):
         """Invalid JSON in hooks.json must be caught and reported as a violation."""
         _tree(tmp_path, settings={"hooks": {}}, groups={"groups": {}})
-        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{ not json")
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{ not json", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert any(v.category == "invalid_plugin_hooks" for v in report.violations)
 
@@ -1515,20 +1525,20 @@ class TestMalformedPluginHooksAreAttributed:
 
     def test_malformed_plugin_json_is_its_own_category(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
-        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json")
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert "invalid_plugin_hooks" in {v.category for v in report.violations}
 
     def test_the_message_names_the_plugin_file(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
-        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json")
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("{not json", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         messages = [v.message for v in report.violations if v.category == "invalid_plugin_hooks"]
         assert messages and "cannot be read" in messages[0]
 
     def test_a_non_object_plugin_file_is_attributed(self, tmp_path):
         _tree(tmp_path, settings=_dispatch("g1"), groups={"groups": {}})
-        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("[1, 2, 3]")
+        (tmp_path / ".claude" / "hooks" / "hooks.json").write_text("[1, 2, 3]", encoding="utf-8")
         report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
         assert "invalid_plugin_hooks" in {v.category for v in report.violations}
 
