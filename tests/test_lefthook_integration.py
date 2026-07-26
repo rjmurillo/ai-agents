@@ -879,16 +879,18 @@ def test_configuration_and_tree_have_no_payload_scripts() -> None:
     policy_text = (PROJECT_ROOT / "scripts/validation/git_hook_policy.py").read_text(
         encoding="utf-8"
     )
-    auto_retro_text = (PROJECT_ROOT / ".claude/hooks/Stop/invoke_auto_retrospective.py").read_text(
-        encoding="utf-8"
-    )
-
     assert "scripts/hooks/pre-commit" not in config_text
     assert "scripts/hooks/pre-push" not in config_text
     assert "scripts/hooks/commit-msg" not in config_text
     assert "auto-retro-suppress" not in config_text
     assert "auto-retrospective.suppress" not in policy_text
-    assert "auto-retrospective.suppress" not in auto_retro_text
+    # The hook that owned the sentinel is gone (#3349). Assert that file, not
+    # the whole Stop directory: this test's subject is the auto-retro payload,
+    # and a future Stop hook added for an unrelated reason should not fail a
+    # test named "no payload scripts". The broader claim that no Stop hook is
+    # registered on any surface has its own gate in
+    # tests/build_scripts/test_hook_contract_knowledge.py.
+    assert not (PROJECT_ROOT / ".claude/hooks/Stop/invoke_auto_retrospective.py").exists()
     assert all(not path.exists() for path in HOOK_PAYLOADS)
 
 

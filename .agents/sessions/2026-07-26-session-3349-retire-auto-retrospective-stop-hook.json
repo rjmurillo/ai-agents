@@ -1,0 +1,167 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3349,
+    "date": "2026-07-26",
+    "branch": "fix/3349-retired-hooks-still-fire",
+    "startingCommit": "663bbac488",
+    "objective": "Delete the retired auto-retrospective Stop hook and add the authorized-hook ledger that would have caught it (issue 3349)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; initial_instructions returned successfully"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read after session initialization"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; confirmed read-only status"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "session-init and github skill script catalogs loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded hook-registration and plugin-versioning memories before touching dispatch_groups.json"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3349-retired-hooks-still-fire"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3349-retired-hooks-still-fire"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branch creation and commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "663bbac488"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Recorded that dispatch_groups.json records what runs while AUTHORIZED_HOOKS records what may run"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint over the changed markdown files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Four atomic commits: 1673234ea4, db398560a8, 03355a4a9e, 876fa0b06b"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1960 passed, 1 skipped across tests/hooks, tests/build_scripts, tests/test_lefthook_integration.py; manifest parity 0.6.115"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3349 tracked to PR"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Retrospectives are now on demand after the Stop hook deletion; none warranted for a single-issue fix"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "issue",
+      "summary": "Read issue #3349 in full including all four comments. The issue is one I filed and already contains a falsified remedy of my own: a group-name coherence gate replayed over 14 revisions of dispatch_groups.json false-positives on healthy descriptive groups in 12 of them. The corrected remedy named in the discourse is an authorized-hook inventory."
+    },
+    {
+      "phase": "investigation",
+      "summary": "Confirmed the defect live rather than from prose. The hook-state ledger records status created at 02:14 UTC today and the retrospective that run wrote is committed at 3d1f3b30d2, so invoke_auto_retrospective.py was still firing on this repo's own sessions after #3197 retired it. A clean-clone probe skipped with 'not the ai-agents project repo (consumer repo)', so live ledger evidence stands in for a fresh reproduction."
+    },
+    {
+      "phase": "investigation",
+      "summary": "Measured the guard gap. Eight files carrying 103 tests read dispatch_groups.json and every one validates structure, wiring or counts. test_operational_skills_match_current_hook_registration_counts pinned '4 events, 5 groups', a figure both leaked hooks satisfied. No artifact recorded which hooks are authorized to run, so nothing could compare intent to registration."
+    },
+    {
+      "phase": "decision",
+      "summary": "Kept invoke_context_loader.py and deleted invoke_auto_retrospective.py rather than treating both #3349 hooks alike. The retrospective hook dirties the working tree at session end and emits decision: block to force another turn, measured net-negative by #3187. The context loader is read-only, fail-open, and automates the documented SESSION-PROTOCOL start gate for this repo's own sessions; its customer-facing copy was already purged under ADR-084. The keep is recorded in AUTHORIZED_HOOKS with that rationale, which satisfies acceptance criterion 2."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Deleted the 829-line hook, its test file, its CLAUDE.md and its directory; dropped stop-1-skill_learning from dispatch_groups.json and the whole Stop key from settings.json; renamed sessionstart-1-session_initialization_enforcer to sessionstart-1-context_loader now that the group holds one shim."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Added AUTHORIZED_HOOKS to test_dispatch_groups_parity.py, one entry per hook naming the ADR or issue that authorized it, plus test_every_dispatched_hook_is_authorized and its converse test_no_authorization_outlives_the_hook_it_authorizes. Adding a hook now requires stating its authorization in the same PR."
+    },
+    {
+      "phase": "validation",
+      "summary": "Replayed the new gate over history as its negative control. origin/main reports exactly invoke_auto_retrospective.py with zero false positives; 8318d1c3 adds invoke_test_auto_approval.py, correct because it was genuinely registered then; df34cd43 reports 18, the true size of the un-purged backlog. The falsified name-coherence gate was rejected on the same replay."
+    },
+    {
+      "phase": "implementation",
+      "summary": "Rewrote test_stop_policy_is_local_only_after_vendored_hook_purge as test_no_stop_hook_is_registered_on_any_surface. The Stop path is gone rather than reduced, so absence across all four surfaces plus group-id and group-event absence is the assertion."
+    },
+    {
+      "phase": "documentation",
+      "summary": "Corrected four skills, the retro command and CONTRIBUTING, which all described the hook in the present tense. Two CONTRIBUTING rows went rather than one: the PermissionRequest row named invoke_test_auto_approval.py, absent from disk since #3295. Registration counts in the two operational skills moved to 3 events / 4 groups."
+    },
+    {
+      "phase": "decision",
+      "summary": "Left ADR-008 untouched and flagged it instead. Its two implementation tables already carry three hooks deleted in #3184 and #3295 without amendment, so the staleness predates this change; an ADR edit also fires the adr-review gate for a historical record that is out of scope for #3349."
+    },
+    {
+      "phase": "validation",
+      "summary": "1960 passed, 1 skipped across tests/hooks, tests/build_scripts and tests/test_lefthook_integration.py. Regenerated the copilot skill mirrors with build_all.py and bumped both project-toolkit manifests to 0.6.115 after main advanced past the original 0.6.113 reservation, keeping 0.6.114 free for PR #3376 to land first."
+    }
+  ],
+  "endingCommit": "876fa0b06b",
+  "nextSteps": [
+    "Push fix/3349-retired-hooks-still-fire and open a PR closing #3349.",
+    "File a follow-up issue for ADR-008's two stale implementation tables and for ADR-082 gaining one sentence that group ids are opaque dispatcher keys."
+  ]
+}

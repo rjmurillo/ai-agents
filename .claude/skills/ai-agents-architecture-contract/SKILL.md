@@ -75,7 +75,7 @@ parity twins:
 
 | Surface | File | Registered (re-verified 2026-07-22) |
 |---|---|---|
-| Claude Code direct | `.claude/settings.json` `hooks` key | 4 events, 5 groups |
+| Claude Code direct | `.claude/settings.json` `hooks` key | 3 events, 4 groups |
 | Vendored plugin source | `.claude/hooks/hooks.json` | 2 events, 2 groups |
 | Copilot CLI mirror | `src/copilot-cli/hooks/` plus its `hooks.json` | 2 events, 2 registrations |
 
@@ -149,7 +149,7 @@ State these plainly when working near them; do not design as if they were sound.
 
 | Weak point | Evidence (as of 2026-07-03) | Consequence |
 |---|---|---|
-| Hook sources serve different consumers | `.claude/settings.json` has 4 events and 5 groups; `.claude/hooks/hooks.json` has 2 events and 3 groups | Do not force parity. Verify whether a hook is repository-only or vendored before editing either source |
+| Hook sources serve different consumers | `.claude/settings.json` has 3 events and 4 groups; `.claude/hooks/hooks.json` has 2 events and 2 groups | Do not force parity. Verify whether a hook is repository-only or vendored before editing either source |
 | `src/claude/` manual dual-edit | `templates/README.md:131` | Shared-template edits silently skip the Claude surface unless you remember the second edit |
 | Stale docs contradict reality | `CONTRIBUTING.md:155` said the removed PowerShell Generate-Agents command until PR #2871 repointed it to `python3 build/generate_agents.py`; zero `.ps1` files exist outside `.venv/` (ADR-042). `GENERATOR-FILES.md` lists `src/claude/` as a `generate_agents.py` output ("`src/claude/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML)"), but `generate_agents.py` contains no `src/claude` write and no claude platform YAML exists | Following docs verbatim fails; quote the canonical source when correcting (FM-9) |
 | ruff is advisory in CI | `pytest.yml` comments around lines 107-119, issue #2194 style backlog | Lint debt accumulates invisibly; only syntax parsing blocks |
@@ -189,7 +189,7 @@ Verified 2026-07-03 against the working tree. Volatile facts are date-stamped in
 | REQ-003-010 no-write invariant | `build/scripts/build_all.py:962` | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | src/claude manual sync | `templates/README.md:131`; ADR-036 Accepted | `grep -n "MANUAL" templates/README.md` |
 | lib sync pairs | `scripts/sync_plugin_lib.py:27` SYNC_PAIRS | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
-| Local 4 events / 5 groups; vendored 2 events / 2 groups; generated 2 events / 2 registrations | `.claude/settings.json`, `.claude/hooks/hooks.json`, `src/copilot-cli/hooks/hooks.json` | `python3 -c "import json; from pathlib import Path; [print(p, len((d:=json.loads(Path(p).read_text()))['hooks']), sum(map(len,d['hooks'].values()))) for p in ('.claude/settings.json','.claude/hooks/hooks.json','src/copilot-cli/hooks/hooks.json')]"` |
+| Local 3 events / 4 groups; vendored 2 events / 2 groups; generated 2 events / 2 registrations | `.claude/settings.json`, `.claude/hooks/hooks.json`, `src/copilot-cli/hooks/hooks.json` | `python3 -c "import json; from pathlib import Path; [print(p, len((d:=json.loads(Path(p).read_text()))['hooks']), sum(map(len,d['hooks'].values()))) for p in ('.claude/settings.json','.claude/hooks/hooks.json','src/copilot-cli/hooks/hooks.json')]"` |
 | Per-event hook failure policy | `agent-harness-reference`; ADR-071 | Read the reference's exit and failure matrices |
 | Fail-closed reversal, #2205 rationale | `.agents/architecture/ADR-066-*.md`, ADR-071 (Accepted) | `grep -n -A2 "## Status" .agents/architecture/ADR-066*.md .agents/architecture/ADR-071*.md` |
 | Dispatcher modes and current inventory | generated manifests; ADR-068 | `find src/copilot-cli/hooks -name _manifest.json -print -exec cat {} \;` |

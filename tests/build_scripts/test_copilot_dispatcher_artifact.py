@@ -124,6 +124,7 @@ class TestDispatcherArtifacts:
             "invoke_session_log_field_guard.py",
             "invoke_session_log_guard.py",
             "invoke_session_start_memory_first.py",
+            "invoke_auto_retrospective.py",
             "invoke_session_validator.py",
             "invoke_test_auto_approval.py",
             "invoke_topical_memory_injection.py",
@@ -133,10 +134,9 @@ class TestDispatcherArtifacts:
             "invoke_markdown_auto_lint.py",
             "invoke_markdownlint_guard.py",
         )
-        internal_keepers = (
-            "invoke_auto_retrospective.py",
-            "invoke_context_loader.py",
-        )
+        # invoke_auto_retrospective.py left this list in #3349: it was the
+        # last shim in the Stop group and was deleted, not relocated.
+        internal_keepers = ("invoke_context_loader.py",)
 
         for manifest in manifests:
             serialized = json.dumps(manifest) + json.dumps(_effective_commands(manifest))

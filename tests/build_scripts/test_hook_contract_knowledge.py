@@ -340,27 +340,36 @@ def test_reference_preserves_cross_harness_decision_shapes() -> None:
     assert "A translated `ask` emits nothing" in normalized
 
 
-def test_stop_policy_is_local_only_after_vendored_hook_purge() -> None:
+def test_no_stop_hook_is_registered_on_any_surface() -> None:
+    """Stop is unregistered everywhere, and no dispatch group targets it.
+
+    The vendored and generated surfaces were purged under ADR-084. The local
+    surface kept one Stop group whose only remaining shim was
+    invoke_auto_retrospective.py, which #3187 measured net-negative and #3349
+    found still firing: it wrote a retrospective skeleton into the working
+    tree at session end and returned a block decision to force another turn.
+    Deleting it emptied the group, so the whole Stop path is gone rather than
+    reduced. Asserting absence on all four surfaces, and on group ids as well
+    as registrations, is what keeps it gone: a group with no registration
+    would still be dispatchable by hand.
+    """
     local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
     vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
     generated_hooks = _read_json(REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json")[
         "hooks"
     ]
     dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")["groups"]
-    stop_commands = [hook["command"] for group in local_hooks["Stop"] for hook in group["hooks"]]
 
-    assert len(local_hooks["Stop"]) == 1
-    assert len(stop_commands) == 1
-    assert stop_commands[0].endswith("--group stop-1-skill_learning")
-    assert dispatch_groups["stop-1-skill_learning"]["shims"] == [
-        {
-            "file": "Stop/invoke_auto_retrospective.py",
-            "statusMessage": "Auto-generating session retrospective (#1703)",
-        }
-    ]
+    assert "Stop" not in local_hooks
     assert "Stop" not in vendored_hooks
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
+    assert [group_id for group_id in dispatch_groups if group_id.startswith("stop-")] == []
+    assert [
+        group_id
+        for group_id, spec in dispatch_groups.items()
+        if spec.get("event") in {"Stop", "SubagentStop", "agentStop"}
+    ] == []
 
     sidecar = _normalized_text(OFFICIAL_SOURCES)
     assert "Shared Stop producers can emit this shape on both harnesses." in sidecar
@@ -371,10 +380,7 @@ def test_reference_preserves_single_structured_output_boundary() -> None:
     rule = (REPO_ROOT / ".claude" / "rules" / "generated-artifacts.md").read_text(encoding="utf-8")
 
     assert "performs one `JSON.parse`" in sidecar
-    assert (
-        "Two final JSON objects concatenate into invalid JSON and are ignored."
-        in sidecar
-    )
+    assert "Two final JSON objects concatenate into invalid JSON and are ignored." in sidecar
     normalized = _normalized_text(REFERENCE)
     assert '`{"additionalContext":"..."}` object' in normalized
     assert "Failed-observer partial output is discarded." in normalized
@@ -394,8 +400,7 @@ def test_official_sidecar_pins_sources_and_refresh_procedure() -> None:
     assert "https://code.claude.com/docs/en/hooks" in text
     assert (
         "Sources: GitHub Copilot hook reference, agentStop / subagentStop "
-        "decision control; Claude Code hooks reference, Stop decision control."
-        in text
+        "decision control; Claude Code hooks reference, Stop decision control." in text
     )
     assert "## Refresh procedure" in text
     assert "DOCS SILENT" in text
@@ -526,6 +531,26 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
         "expected 7 and 14",
         "8 events / 23 matcher groups",
     )
+
+    # The weak-point table restates the same counts in prose ("N events and M
+    # groups") rather than the comma form asserted above. That phrasing went
+    # unchecked, so hooks.json drifted to "2 events and 3 groups" and
+    # contradicted the re-verify table in the same document. Pin both trees.
+    settings_prose = f"{len(settings)} events and {sum(map(len, settings.values()))} groups"
+    plugin_prose = f"{len(plugin)} events and {sum(map(len, plugin.values()))} groups"
+    for surface in (
+        architecture,
+        (
+            REPO_ROOT
+            / "src"
+            / "copilot-cli"
+            / "skills"
+            / "ai-agents-architecture-contract"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8"),
+    ):
+        assert settings_prose in surface
+        assert plugin_prose in surface
 
 
 def test_dispatcher_adrs_match_current_generated_metrics() -> None:
