@@ -455,6 +455,15 @@ def test_every_no_caller_entry_still_exists() -> None:
     )
 
 
+def test_no_caller_entries_are_still_unreachable() -> None:
+    """A newly wired script must leave the allowlist before it can regress."""
+    reachable_exemptions = sorted(set(_NO_CALLER) & _reachable())
+    assert not reachable_exemptions, (
+        f"_NO_CALLER entries are now reachable: {reachable_exemptions}. Remove "
+        "their exemptions so a future caller regression fails this guard."
+    )
+
+
 def test_the_allowlist_stays_small_enough_to_read() -> None:
     """The failure this guards is a list nobody reads.
 
