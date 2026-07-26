@@ -1347,8 +1347,8 @@ def test_act_limitation_hint_downgrades_when_every_annotation_is_explained() -> 
 
 def test_act_limitation_hint_explains_paths_filter_git_rev_parse_annotation() -> None:
     combined = (
-        "fatal: not a git repository: (null)\n"
-        "::error::The process 'git rev-parse --abbrev-ref HEAD' failed with exit code 128"
+        "::error::The process 'git rev-parse --abbrev-ref HEAD' "
+        "failed with exit code 128"
     )
     assert w._act_limitation_hint(combined, "push") is not None
 
