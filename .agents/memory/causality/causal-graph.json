@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T05:23:46.561195+00:00",
+  "updated": "2026-07-26T05:37:29.468361+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15518,6 +15518,96 @@
         "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
       ],
       "created": "2026-07-26T05:23:46.557424+00:00"
+    },
+    {
+      "id": "7bb14fff4ca0",
+      "type": "milestone",
+      "label": "milestone: Ran the live-state gate and created an isolated worktree at remote head 9f1e0b949a.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464574+00:00"
+    },
+    {
+      "id": "f5c37a69128e",
+      "type": "milestone",
+      "label": "milestone: Corrected session 3351 evidence, regenerated its episode and graph contribution, and fixed the collision claim.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464639+00:00"
+    },
+    {
+      "id": "39d101931847",
+      "type": "milestone",
+      "label": "milestone: Stopped the first push when the remote SHA changed from 9f1e0b949a to e503aaff56.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464704+00:00"
+    },
+    {
+      "id": "139b300f7e75",
+      "type": "milestone",
+      "label": "milestone: Replied to and resolved all three current review threads.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464759+00:00"
+    },
+    {
+      "id": "ae62c47b43ea",
+      "type": "milestone",
+      "label": "milestone: Completed local and remote validation.",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464813+00:00"
+    },
+    {
+      "id": "363cd404d155",
+      "type": "commit",
+      "label": "commit: Commit: 6610eb791f6ca5429d4a7266aba11d8fdb58f438",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464867+00:00"
+    },
+    {
+      "id": "b44e1d5e6450",
+      "type": "commit",
+      "label": "commit: Commit: b2c8a534",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464922+00:00"
+    },
+    {
+      "id": "0e63b8a1817b",
+      "type": "commit",
+      "label": "commit: Commit: e503aaff56",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.464976+00:00"
+    },
+    {
+      "id": "1cf1d6eaa0c2",
+      "type": "commit",
+      "label": "commit: Commit: 6610eb791f",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.465030+00:00"
+    },
+    {
+      "id": "01efe9abb501",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix PR 3358 review threads, validate changes, and merge",
+      "episodes": [
+        "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
+      ],
+      "created": "2026-07-26T05:37:29.465087+00:00"
     }
   ],
   "patterns": [

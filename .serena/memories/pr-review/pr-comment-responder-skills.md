@@ -32,13 +32,29 @@ Aggregated from 152 PRs over last 28 days (rolling window).
 | rjmurillo-bot | 19 | 120 | 120 | **100%** | → |
 | claude | 4 | 7 | 7 | **100%** | → |
 | rjmurillo | 46 | 149 | 145 | **97%** | → |
-| copilot-pull-request-reviewer | 79 | 723 | 684 | **95%** | → |
-| cursor | 36 | 122 | 112 | **92%** | → |
+| copilot-pull-request-reviewer | 80 | 727 | 688 | **95%** | → |
+| cursor | 37 | 125 | 115 | **92%** | → |
 | diffray | 8 | 28 | 25 | 89% | → |
 | gemini-code-assist | 95 | 256 | 210 | 82% | → |
 | chatgpt-codex-connector | 20 | 28 | 11 | 39% | → |
 
 ## Per-PR Breakdown
+
+### PR #3358 (2026-07-26)
+
+**PR**: fix(memory): restore causal graph metadata, stabilize pattern ids, remove test seed rows
+
+| Reviewer | Comments | Actionable | Rate | Outcomes |
+|----------|----------|------------|------|----------|
+| cursor[bot] | 3 | 3 | 100% | Session branch, starting commit, and ending commit evidence |
+| Copilot | 4 | 4 | 100% | Session ending commit, episode provenance, and two collision claims |
+
+**Session Notes**:
+
+- Three threads required current fixes: one regenerated session episode and two canonical/generated docstring corrections.
+- Four comments were already fixed before intake. All seven review comments ended resolved.
+- The pre-push SHA gate blocked a concurrent remote update. A merge preserved both histories without force pushing.
+- CI passed 91 checks after reconciliation.
 
 ### PR #987 (2026-01-23)
 
@@ -428,11 +444,11 @@ $pr = $data.repository.pullRequest  # NO .data prefix needed
 
 | Metric | Value |
 |--------|-------|
-| Total PRs Processed | 10 |
-| Total Comments Triaged | 35 |
-| Total Comments Implemented | 24 |
-| Total Comments Already Fixed | 9 |
-| Total Comments Resolved | 35 |
+| Total PRs Processed | 11 |
+| Total Comments Triaged | 42 |
+| Total Comments Implemented | 27 |
+| Total Comments Already Fixed | 13 |
+| Total Comments Resolved | 42 |
 | Security Vulnerabilities Found | 11 |
 | Critical Workflow Bugs Found | 2 |
 | Performance Improvements | 1 (88% faster reactions) |
