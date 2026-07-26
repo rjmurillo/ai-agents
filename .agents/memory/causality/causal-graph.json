@@ -14665,78 +14665,6 @@
       "created": "2026-07-25T14:05:27.596517+00:00"
     },
     {
-      "id": "3d2ca1906efc",
-      "type": "milestone",
-      "label": "milestone: Audit the duplication before cutting anything",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:25:52.277594+00:00"
-    },
-    {
-      "id": "bb34e74bff32",
-      "type": "milestone",
-      "label": "milestone: Replace the duplicate with a repository-policy section",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:25:52.277663+00:00"
-    },
-    {
-      "id": "bd8f970c1c78",
-      "type": "milestone",
-      "label": "milestone: Give the one orphaned vendor fact a home in the sidecar",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:25:52.277716+00:00"
-    },
-    {
-      "id": "199856c8a72f",
-      "type": "milestone",
-      "label": "milestone: Repoint the content-pin tests at the owning file",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:25:52.277768+00:00"
-    },
-    {
-      "id": "795b23624fd0",
-      "type": "test",
-      "label": "test: 30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:25:52.277820+00:00"
-    },
-    {
-      "id": "353efba5263f",
-      "type": "milestone",
-      "label": "milestone: Negative controls",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:25:52.277871+00:00"
-    },
-    {
-      "id": "b8c5f9bb2475",
-      "type": "test",
-      "label": "test: Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed.",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:25:52.277925+00:00"
-    },
-    {
-      "id": "5178d54cf13a",
-      "type": "outcome",
-      "label": "Outcome: success - Issue #3342: agent-harness-reference SKILL.md sat at 495 of the 500-line budget. Delete the 261-line GitHub Copilot CLI Contract section that duplicated references/official-hook-contracts.md, keep only the repository decisions the skill's own Authority Order assigns to SKILL.md, and repoint the content-pin tests at the file that now owns each fact.",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:25:52.277978+00:00"
-    },
-    {
       "id": "041a4ffad23c",
       "type": "milestone",
       "label": "milestone: Confirmed the claim empirically. The module never referenced the schema file and never imported jsonschema; it hand-rolled presence checks and type-checked nothing. Measured the blast radius of turning the schema on: 131 of the 923 logs in .agents/sessions/ fail Draft202012Validator against the committed schema.",
@@ -15340,42 +15268,6 @@
       "created": "2026-07-26T02:02:26.671569+00:00"
     },
     {
-      "id": "f4431adb3683",
-      "type": "milestone",
-      "label": "milestone: Take the autofix bot's corrections",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:36:17.987276+00:00"
-    },
-    {
-      "id": "a1fc21797f4e",
-      "type": "commit",
-      "label": "commit: Commit: 9f69ff63e6",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:36:17.987393+00:00"
-    },
-    {
-      "id": "60c4f8053be8",
-      "type": "commit",
-      "label": "commit: Commit: f3f7dbe0df",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:36:17.987446+00:00"
-    },
-    {
-      "id": "50e5f4dd99d1",
-      "type": "milestone",
-      "label": "milestone: Correct the session number the autofix bot moved the wrong way",
-      "episodes": [
-        "episode-2026-07-26-session-3342-harness-reference-size"
-      ],
-      "created": "2026-07-26T02:41:16.345521+00:00"
-    },
-    {
       "id": "5c02899361f5",
       "type": "milestone",
       "label": "milestone: Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
@@ -15475,13 +15367,85 @@
       "created": "2026-07-26T02:05:18.496436+00:00"
     },
     {
-      "id": "22607683e6a1",
-      "type": "commit",
-      "label": "commit: Commit: 006a88767",
+      "id": "3d2ca1906efc",
+      "type": "milestone",
+      "label": "milestone: Audit the duplication before cutting anything",
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T05:20:26.354959+00:00"
+      "created": "2026-07-26T05:45:39.680562+00:00"
+    },
+    {
+      "id": "bb34e74bff32",
+      "type": "milestone",
+      "label": "milestone: Replace the duplicate with a repository-policy section",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.680635+00:00"
+    },
+    {
+      "id": "bd8f970c1c78",
+      "type": "milestone",
+      "label": "milestone: Give the one orphaned vendor fact a home in the sidecar",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.680708+00:00"
+    },
+    {
+      "id": "199856c8a72f",
+      "type": "milestone",
+      "label": "milestone: Repoint the content-pin tests at the owning file",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.680769+00:00"
+    },
+    {
+      "id": "795b23624fd0",
+      "type": "test",
+      "label": "test: 30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.680830+00:00"
+    },
+    {
+      "id": "353efba5263f",
+      "type": "milestone",
+      "label": "milestone: Negative controls",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.680891+00:00"
+    },
+    {
+      "id": "b8c5f9bb2475",
+      "type": "test",
+      "label": "test: Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.680951+00:00"
+    },
+    {
+      "id": "f4431adb3683",
+      "type": "milestone",
+      "label": "milestone: Take the autofix bot's corrections",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.681011+00:00"
+    },
+    {
+      "id": "50e5f4dd99d1",
+      "type": "milestone",
+      "label": "milestone: Correct the session number the autofix bot moved the wrong way",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.681074+00:00"
     },
     {
       "id": "c91028991273",
@@ -15490,7 +15454,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T05:22:10.117591+00:00"
+      "created": "2026-07-26T05:45:39.681133+00:00"
     },
     {
       "id": "ff531ab50669",
@@ -15499,7 +15463,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T05:22:10.117662+00:00"
+      "created": "2026-07-26T05:45:39.681191+00:00"
     },
     {
       "id": "9fe69287ecc6",
@@ -15508,7 +15472,52 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T05:26:29.537418+00:00"
+      "created": "2026-07-26T05:45:39.681250+00:00"
+    },
+    {
+      "id": "22607683e6a1",
+      "type": "commit",
+      "label": "commit: Commit: 006a88767",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.681309+00:00"
+    },
+    {
+      "id": "cde373ab57a8",
+      "type": "commit",
+      "label": "commit: Commit: b09c57cfe1",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.681368+00:00"
+    },
+    {
+      "id": "5ea79dd737f0",
+      "type": "commit",
+      "label": "commit: Commit: da5401a16f",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.681427+00:00"
+    },
+    {
+      "id": "7bde60220cd1",
+      "type": "commit",
+      "label": "commit: Commit: 618d8e1a70",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.681486+00:00"
+    },
+    {
+      "id": "5178d54cf13a",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #3342: agent-harness-reference SKILL.md sat at 495 of the 500-line budget. Delete the 261-line GitHub Copilot CLI Contract section that duplicated references/official-hook-contracts.md, keep only the repository decisions the skill's own Authority Order assigns to SKILL.md, and repoint the content-pin tests at the file that now owns each fact.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T05:45:39.681549+00:00"
     }
   ],
   "patterns": [

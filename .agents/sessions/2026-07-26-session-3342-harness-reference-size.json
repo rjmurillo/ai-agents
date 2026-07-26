@@ -118,12 +118,12 @@
     {
       "task": "Take the autofix bot's corrections",
       "outcome": "The bot pushed two commits to the branch while the push hook was running. Both were correct, so they were merged rather than reverted: the session number was still 3343, cloned from the log this one was seeded from, and test_reference_preserves_single_structured_output_boundary carried a duplicated PreCompact assertion my edit script introduced.",
-      "evidence": "git diff of 9f69ff63e6 and f3f7dbe0df shows number 3343 to 3344 and one removed duplicate assert line. The bot also rewrote the commit-count evidence to two and set endingCommit to a code commit; both were corrected here because the branch carries three authored commits and the session ends at the merge."
+      "evidence": "The two bot correction commits changed session number 3343 to 3344 and removed one duplicate assert line. The bot also rewrote the commit-count evidence to two and set endingCommit to a code commit; both were corrected here because the branch carries four authored commits and the session ends at the final documentation correction."
     },
     {
       "task": "Correct the session number the autofix bot moved the wrong way",
       "outcome": "session.number keys off the issue number in the branch name, not a monotonic counter. The branch is fix/3342-harness-reference-size, so the number is 3342 and the original filename was already right. The bot read 3343 as a collision, incremented to 3344, then renamed the file to match its own wrong value.",
-      "evidence": "Across the eight most recent logs, session.number equals the issue number in session.branch every time: 3324, 3328, 3330, 3332, 3343, 3346, and 3347. Nothing in scripts/validate_session_json.py checks that relationship, which is why both the seeded 3343 and the bot's 3344 validated clean. Filed as a tooling gap."
+      "evidence": "Across the eight most recent logs, session.number equals the issue number in session.branch every time: 3324, 3328, 3330, 3332, 3343, 3346, and 3347. Nothing in scripts/validate_session_json.py checks that relationship, which is why both the seeded 3343 and the bot's 3344 validated clean. Authored commits before endingCommit: b09c57cfe1, da5401a16f, and 618d8e1a70."
     },
     {
       "task": "Address the PR #3354 review round",

@@ -60,7 +60,7 @@
       "type": "test",
       "content": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
       "caused_by": [
-        "e012"
+        "e016"
       ],
       "leads_to": [
         "e007"
@@ -111,15 +111,17 @@
         "e008"
       ],
       "leads_to": [
-        "e013"
+        "e010"
       ]
     },
     {
       "id": "e010",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 006a88767",
-      "caused_by": [],
+      "type": "milestone",
+      "content": "Address the PR #3354 review round",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [
         "e011"
       ]
@@ -127,8 +129,8 @@
     {
       "id": "e011",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 9f69ff63e6",
+      "type": "milestone",
+      "content": "Reword the SKILL.md pointer and re-extract the episode",
       "caused_by": [
         "e010"
       ],
@@ -139,23 +141,19 @@
     {
       "id": "e012",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: f3f7dbe0df",
+      "type": "milestone",
+      "content": "Reconcile the manifest version with the PR description",
       "caused_by": [
         "e011"
       ],
-      "leads_to": [
-        "e005"
-      ]
+      "leads_to": []
     },
     {
       "id": "e013",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Address the PR #3354 review round",
-      "caused_by": [
-        "e009"
-      ],
+      "type": "commit",
+      "content": "Commit: 006a88767",
+      "caused_by": [],
       "leads_to": [
         "e014"
       ]
@@ -163,8 +161,8 @@
     {
       "id": "e014",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Reword the SKILL.md pointer and re-extract the episode",
+      "type": "commit",
+      "content": "Commit: b09c57cfe1",
       "caused_by": [
         "e013"
       ],
@@ -175,12 +173,26 @@
     {
       "id": "e015",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Reconcile the manifest version with the PR description",
+      "type": "commit",
+      "content": "Commit: da5401a16f",
       "caused_by": [
         "e014"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e016"
+      ]
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 618d8e1a70",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e005"
+      ]
     }
   ],
   "metrics": {
@@ -188,7 +200,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 598
   },
   "lessons": []
