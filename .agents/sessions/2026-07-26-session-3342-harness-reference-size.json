@@ -1,0 +1,185 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3342,
+    "date": "2026-07-26",
+    "branch": "fix/3342-harness-reference-size",
+    "startingCommit": "c798e0df7d",
+    "objective": "Issue #3342: agent-harness-reference SKILL.md sat at 495 of the 500-line budget. Delete the 261-line GitHub Copilot CLI Contract section that duplicated references/official-hook-contracts.md, keep only the repository decisions the skill's own Authority Order assigns to SKILL.md, and repoint the content-pin tests at the file that now owns each fact.",
+    "id": "2026-07-26-session-3342-harness-reference-size"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live on this Copilot CLI harness; serena-list_memories returned the project memory index earlier in this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions read earlier in this session; Serena remains active on this harness."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3342-harness-reference-size, cut from origin/main at c798e0df7d."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits land on fix/3342-harness-reference-size; main was only read."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-manifest parity rule and the branch-context touch requirement."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching; pre-existing untracked retrospective, Serena memory, and the pr3097-worktree checkout left alone."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "SKILL.md is 312 lines, the duplicated 261-line vendor block is gone, the one orphaned Copilot Stop fact was added to the sidecar, and seven content-pin tests now assert against the owning file."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new durable convention emerged; the Authority Order that drove this cut is already stated in the skill itself, so no memory was written."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run over .claude/skills/agent-harness-reference/**/*.md; the repo config excludes .claude/skills/**, so it linted 0 files and reported 0 issues. Size is gated instead by scripts/validation/skill_size.py, which reports Failed: 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Seven code commits on fix/3342-harness-reference-size: the content move (b09c57cfe1), the test repointing plus manifest bumps (da5401a16f), the exit-2 semantics and contract pins (618d8e1a7), the sidecar wording correction (006a88767), the test normalization for PR review (827a4c699), the manifest bump (f673788d4), and the Stop contract citations (199a5c04c)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "30 tests pass across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Six negative controls each turned the suite red before restore."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3342 addressed; PR opened against it."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Audit the duplication before cutting anything",
+      "outcome": "references/official-hook-contracts.md carries a section-for-section counterpart for every subsection of the 261-line Copilot contract block, with sources cited and more detail. SKILL.md's own Authority Order already assigns exact event sets and output fields to the sidecar and leaves SKILL.md only the repository decisions derived from them. The section violated the file's own rule, so the fix is deleting a duplicate, not progressive disclosure.",
+      "evidence": "Mapped 9 SKILL.md headings to 9 sidecar headings: Locations and schema to Configuration contract, Exact native event set to Exact native events, Matchers to Matchers, PreToolUse/PermissionRequest/Stop decisions to their output-and-failure counterparts, Exit and timeout to Exit codes and stderr, Output fields to Other output fields, Cloud agent to Cloud agent."
+    },
+    {
+      "task": "Replace the duplicate with a repository-policy section",
+      "outcome": "SKILL.md is 312 lines, down from 495. The new section keeps the shipped-registration inventory, the 10-row Claude-to-Copilot event policy table, the defense-in-depth matcher line, the PermissionRequest adapter semantics, the PostToolUse additionalContext merger behavior, and the Claude grouped-dispatcher terminal shapes, plus pointers to the sidecars.",
+      "evidence": "wc -l reports 312 for both the canonical file and the generated mirror. scripts/validation/skill_size.py reports Failed: 0 across 96 skills. Swept 30 distinguishable facts from the deleted section against SKILL.md plus both sidecars: 0 missing."
+    },
+    {
+      "task": "Give the one orphaned vendor fact a home in the sidecar",
+      "outcome": "The sidecar documented Stop decision semantics for Claude Code but not for Copilot. Added the Copilot sentence so the deleted SKILL.md text loses nothing.",
+      "evidence": "Added to the agentStop / subagentStop section: block forces another turn, omitting decision permits completion, and Claude Code uses the same top-level shape so a shared Stop producer needs no adapter."
+    },
+    {
+      "task": "Repoint the content-pin tests at the owning file",
+      "outcome": "Seven tests in tests/build_scripts/test_hook_contract_knowledge.py asserted vendor facts against SKILL.md. Each assertion now runs against whichever file the Authority Order makes the owner: vendor wire shapes, exit and timeout rows, and SDK-only fields against the sidecar; event policy rows, adapter behavior, and the cross-harness delta against SKILL.md. Deleted test_reference_lists_exact_copilot_event_set because test_official_sidecar_lists_both_exact_event_sets already asserts the same 14-event set against the file that owns it. Rewrote the mirror test to byte-compare the generated SKILL.md against the canonical one instead of spot-checking four strings.",
+      "evidence": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing."
+    },
+    {
+      "task": "Negative controls",
+      "outcome": "Proved the guard moved to the sidecar rather than weakening. Six controls, six reds.",
+      "evidence": "Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed."
+    },
+    {
+      "task": "Take the autofix bot's corrections",
+      "outcome": "The bot pushed two commits to the branch while the push hook was running. Both were correct, so they were merged rather than reverted: the session number was still 3343, cloned from the log this one was seeded from, and test_reference_preserves_single_structured_output_boundary carried a duplicated PreCompact assertion my edit script introduced.",
+      "evidence": "The two bot correction commits changed session number 3343 to 3344 and removed one duplicate assert line. The bot also rewrote the commit-count evidence to two and set endingCommit to a code commit; both were corrected here because the branch carries four authored commits and the session ends at the final documentation correction."
+    },
+    {
+      "task": "Correct the session number the autofix bot moved the wrong way",
+      "outcome": "session.number must match the number encoded in the log filename. The file is 2026-07-26-session-3342-harness-reference-size.json, so the number is 3342 and the original value was already right. The bot read 3343 as a collision, incremented to 3344, then renamed the file to match its own wrong value, desynchronizing the pair in both directions at once.",
+      "evidence": "Measured filename against session.number across all of .agents/sessions: 1150 of 1153 logs agree. The 3 exceptions are 2026-01-18-session-09 (7), 2026-02-11-session-1 (1198), and 2026-04-20-session-1711 (1), all pre-2026-05. Nothing in scripts/validate_session_json.py checks that relationship, which is why both the seeded 3343 and the bot's 3344 validated clean; #3355 tracks adding it. An earlier version of this entry claimed the number keys off the issue in the branch name, drawn from an eight-log sample. Review disproved it: 2026-07-26-session-3347-resolve-remaining-3347-review-threads.json carries session.number 3347 on branch fix/3346-session-schema-enforcement. Authored commits before endingCommit: b09c57cfe1, da5401a16f, and 618d8e1a70."
+    },
+    {
+      "task": "Address the PR #3354 review round",
+      "outcome": "Every sidecar read that pins a fact now goes through _normalized_text. The reviewer flagged one site; the same defect was in four, and one of them asserted the two halves of a wrapped sentence separately, which would break on any reflow while proving nothing about content. Two raw reads stay raw because normalizing would defeat them: one parses a fenced code block by line structure, the other asserts byte-for-byte mirror equality.",
+      "evidence": "Rewrapping that sentence leaves all 24 content tests green where it previously failed one. Changing a real fact ('block forces another turn' to 'block ends the turn') still turns test_reference_separates_stop_from_session_end red. 25 pass in tests/build_scripts/test_hook_contract_knowledge.py."
+    },
+    {
+      "task": "Reword the SKILL.md pointer and re-extract the episode",
+      "outcome": "'the two rows below' became 'the two facts repeated below', because what follows is prose rather than table rows. Applied to the canonical copy and mirrored with build/scripts/generate_skills.py. The episode was re-extracted from the final session log so the derived artifacts match their source.",
+      "evidence": "Both SKILL.md copies carry the new wording at line 90; generate_skills.py wrote 598 files across 95 skills with no residual diff."
+    },
+    {
+      "task": "Reconcile the manifest version with the PR description",
+      "outcome": "That round took both plugin manifests to 0.6.111, matching what the PR description claimed at the time. The review had found the description at 0.6.111 against manifests at 0.6.110. The round changed .claude/skills/agent-harness-reference/SKILL.md, so the bump was earned rather than cosmetic. A later round rewrote the Copilot Stop source line and moved both manifests to 0.6.112. The final main merge resolved that branch value against main 0.6.109 at 0.6.113, which is the version this branch ships.",
+      "evidence": "check_plugin_manifest_parity.py reported 0.6.111 for the first review round, 0.6.112 after the dual citation, and 0.6.113 after the final main merge. The strictly-greater gate holds at each point."
+    },
+    {
+      "task": "Correct the false session.number claim in the PR-3354 retrospective",
+      "outcome": "Renamed .agents/retrospective/PR-3354-needs-split-analysis.md to 2026-07-26-pr-3354-session-log-churn.md so the filename carries a date and names the failure rather than a verdict. Removed the claim that session.number keys off the issue number in the branch name; the review supplied a counterexample and it holds. Replaced it with the invariant that actually holds, session.number equals the number encoded in the log filename, and linked #3355 where that validation belongs. Added issue, PR, and CI-run links to the header, linked every SHA in the execution trace, and added a Snapshot note recording that the tables are as-of commit 15 while the PR reached 22.",
+      "evidence": "2026-07-26-session-3347-resolve-remaining-3347-review-threads.json carries session.number 3347 on branch fix/3346-session-schema-enforcement, disproving the branch-name claim. Measured the filename-to-session.number invariant across .agents/sessions: 1150 of 1153 logs agree; the 3 exceptions are 2026-01-18-session-09 (7), 2026-02-11-session-1 (1198), and 2026-04-20-session-1711 (1)."
+    },
+    {
+      "task": "Purge the disproven branch-name invariant from this log",
+      "outcome": "Rewrote work-log entry 7, which still asserted that session.number derives from the issue number in the branch name after a later entry had already recorded the counterexample. A session log that carries a known-false invariant is worse than one that carries none: it is the artifact a future session reads for the convention.",
+      "evidence": "Review flagged the contradiction between entry 7 and the later correction. Replaced the eight-log sample with the full measurement over .agents/sessions (1150 of 1153 agree on filename to session.number) and named the three exceptions."
+    },
+    {
+      "task": "Attribute the shared Stop shape to both vendor references",
+      "outcome": "The Copilot Stop section claimed 'Current Claude Code uses the same top-level decision and reason shape' and then cited 'hook reference, agentStop / subagentStop decision control'. That is the Copilot reference, and agentStop / subagentStop are Copilot event names; Claude Code calls them Stop and SubagentStop. Two fixes were available: delete the sentence as a mis-attributed duplicate of the correctly sourced claim in the Claude Code section at line 384, or keep it and cite both references. The dual citation shipped. It answers the complaint in place, so a reader working through the Copilot section learns the shape is shared without scrolling 165 lines, and the assertion added to test_official_sidecar_pins_sources_and_refresh_procedure pins the wording so the attribution cannot silently regress. Deletion would have saved three lines in a 412-line sidecar that is not the file issue #3342 exists to shrink.",
+      "evidence": "Source line now reads 'Sources: GitHub Copilot hook reference, agentStop / subagentStop decision control; Claude Code hooks reference, Stop decision control.' tests/build_scripts/test_hook_contract_knowledge.py asserts that string against _normalized_text, which collapses the line wrap. Both plugin manifests moved to 0.6.112 for that round, then to the shipped 0.6.113 during the final main merge. The src/copilot-cli sidecar was regenerated byte-identical."
+    },
+    {
+      "task": "Reconcile every recorded manifest version with what the branch ships",
+      "outcome": "Three artifacts still asserted 0.6.111 after the Stop-citation commit moved both manifests to 0.6.112: two work-log entries and the retrospective's file inventory. The work-log entries were true when written, so they now name the round they describe and then state the shipped version. The retrospective table is a net-change inventory rather than a chronology, so its rows were corrected outright. The final main merge moved the shipped version to 0.6.113 and this evidence was updated in the same merge.",
+      "evidence": "Both plugin.json files now read 0.6.113. Every surviving 0.6.111 or 0.6.112 mention is explicitly historical and paired with the shipped value. Both session logs pass validate_session_json.py; zero em or en dashes remain in the authored evidence."
+    },
+    {
+      "task": "Make the module's negative assertions survive a rewrap",
+      "outcome": "A negative substring check against raw markdown is defeated by a line break inside the banned phrase, and prose is exactly what gets reflowed, so these guards go quietly green on the reintroduction they exist to catch. The review flagged one test. The defect was module-wide: eight sites checked raw text, and the two that already normalized did so as a local convention nobody was obliged to repeat. Rather than add a normalized alias at each site, added _refute(document, *phrases) and routed every markdown negative through it, so the guarantee is one function instead of a habit. The three remaining `not in` assertions are dict-key checks on parsed hooks.json and are unaffected. Table-row positives stay on raw text because their formatting is the assertion.",
+      "evidence": "Two independent negative controls, each appending a line-broken copy of a banned phrase to its own source. Reference SKILL.md gained 'The host merges structured\\ndecisions from every observer.': the raw assertion passed, _refute failed. Generation SKILL.md gained 'Drops are unsupported\\nCopilot events, by design.': same result. Both sources restored; 25 tests pass. ruff check clean. The two ruff format hunks in this file sit at lines 371 and 391, predate the branch, and are #2993 backlog."
+    },
+    {
+      "task": "Regenerate memory artifacts after the final review fixes",
+      "outcome": "Re-extracted the PR-3354 episode after the module-wide negative-assertion fix and refreshed the causal graph so the durable memory layer matches the final session log.",
+      "evidence": "The episode parses, its metric matches its commit-event count, and the causal graph parses after pruning and reprocessing the session episode identifier."
+    },
+    {
+      "task": "Merge current main and resolve plugin manifest versions",
+      "outcome": "Merged origin/main at 663bbac488. The only conflicts were the paired plugin manifests: this branch held 0.6.112 and main held 0.6.109, so the merge-resolver rule selected one patch above the higher side, 0.6.113.",
+      "evidence": "The causal-graph merge driver completed without text conflicts but retained five pre-main fixture rows. Commit a2487c4ac1 removed only node n001 and patterns p001 through p004; 34 hex-id branch nodes remain and the edge count stays 57. The five committed-graph regression tests pass. Both manifests read 0.6.113, the session evidence and retrospective inventory match that shipped version, and the PR body was updated to the same value."
+    }
+  ],
+  "endingCommit": "199a5c04c",
+  "nextSteps": [
+    "Open the PR for #3342 and drive checks green.",
+    "Merge PR #3347 (#3346) and PR #3348 (#3345); both have zero unresolved threads.",
+    "Classify the unwired scripts for #3341 by hand."
+  ]
+}

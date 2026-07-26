@@ -16112,6 +16112,330 @@
         "episode-2026-07-26-session-3341-extend-wiring-guard"
       ],
       "created": "2026-07-26T06:38:54.427133+00:00"
+    },
+    {
+      "id": "3d2ca1906efc",
+      "type": "milestone",
+      "label": "milestone: Audit the duplication before cutting anything",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.609913+00:00"
+    },
+    {
+      "id": "bb34e74bff32",
+      "type": "milestone",
+      "label": "milestone: Replace the duplicate with a repository-policy section",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.609987+00:00"
+    },
+    {
+      "id": "bd8f970c1c78",
+      "type": "milestone",
+      "label": "milestone: Give the one orphaned vendor fact a home in the sidecar",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610057+00:00"
+    },
+    {
+      "id": "199856c8a72f",
+      "type": "milestone",
+      "label": "milestone: Repoint the content-pin tests at the owning file",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610120+00:00"
+    },
+    {
+      "id": "795b23624fd0",
+      "type": "test",
+      "label": "test: 30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610182+00:00"
+    },
+    {
+      "id": "353efba5263f",
+      "type": "milestone",
+      "label": "milestone: Negative controls",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610242+00:00"
+    },
+    {
+      "id": "b8c5f9bb2475",
+      "type": "test",
+      "label": "test: Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610303+00:00"
+    },
+    {
+      "id": "f4431adb3683",
+      "type": "milestone",
+      "label": "milestone: Take the autofix bot's corrections",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610366+00:00"
+    },
+    {
+      "id": "50e5f4dd99d1",
+      "type": "milestone",
+      "label": "milestone: Correct the session number the autofix bot moved the wrong way",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610428+00:00"
+    },
+    {
+      "id": "c91028991273",
+      "type": "milestone",
+      "label": "milestone: Address the PR #3354 review round",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610490+00:00"
+    },
+    {
+      "id": "ff531ab50669",
+      "type": "milestone",
+      "label": "milestone: Reword the SKILL.md pointer and re-extract the episode",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610556+00:00"
+    },
+    {
+      "id": "9fe69287ecc6",
+      "type": "milestone",
+      "label": "milestone: Reconcile the manifest version with the PR description",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610620+00:00"
+    },
+    {
+      "id": "c0b66f070299",
+      "type": "milestone",
+      "label": "milestone: Correct the false session.number claim in the PR-3354 retrospective",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610687+00:00"
+    },
+    {
+      "id": "0c13c4960ab5",
+      "type": "milestone",
+      "label": "milestone: Purge the disproven branch-name invariant from this log",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610749+00:00"
+    },
+    {
+      "id": "d3a693a1a80b",
+      "type": "milestone",
+      "label": "milestone: Attribute the shared Stop shape to both vendor references",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610811+00:00"
+    },
+    {
+      "id": "144d24ff4cf0",
+      "type": "milestone",
+      "label": "milestone: Reconcile every recorded manifest version with what the branch ships",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610873+00:00"
+    },
+    {
+      "id": "824a01990a02",
+      "type": "milestone",
+      "label": "milestone: Make the module's negative assertions survive a rewrap",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610934+00:00"
+    },
+    {
+      "id": "1c46c9bfba78",
+      "type": "milestone",
+      "label": "milestone: Regenerate memory artifacts after the final review fixes",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.610995+00:00"
+    },
+    {
+      "id": "b88f9763ea9c",
+      "type": "milestone",
+      "label": "milestone: Merge current main and resolve plugin manifest versions",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611057+00:00"
+    },
+    {
+      "id": "db382cd47afe",
+      "type": "commit",
+      "label": "commit: Commit: 199a5c04c",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611118+00:00"
+    },
+    {
+      "id": "cde373ab57a8",
+      "type": "commit",
+      "label": "commit: Commit: b09c57cfe1",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611179+00:00"
+    },
+    {
+      "id": "5ea79dd737f0",
+      "type": "commit",
+      "label": "commit: Commit: da5401a16f",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611242+00:00"
+    },
+    {
+      "id": "7bde60220cd1",
+      "type": "commit",
+      "label": "commit: Commit: 618d8e1a70",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611304+00:00"
+    },
+    {
+      "id": "8986a66e4e1e",
+      "type": "commit",
+      "label": "commit: Commit: 663bbac488",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611367+00:00"
+    },
+    {
+      "id": "6dc514f1d663",
+      "type": "commit",
+      "label": "commit: Commit: a2487c4ac1",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611431+00:00"
+    },
+    {
+      "id": "5178d54cf13a",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #3342: agent-harness-reference SKILL.md sat at 495 of the 500-line budget. Delete the 261-line GitHub Copilot CLI Contract section that duplicated references/official-hook-contracts.md, keep only the repository decisions the skill's own Authority Order assigns to SKILL.md, and repoint the content-pin tests at the file that now owns each fact.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:39:53.611499+00:00"
+    },
+    {
+      "id": "274401978212",
+      "type": "milestone",
+      "label": "milestone: Run the live-state and comment inventory gates",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.683811+00:00"
+    },
+    {
+      "id": "2946c354e7ba",
+      "type": "milestone",
+      "label": "milestone: Address all five unresolved review threads",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.683884+00:00"
+    },
+    {
+      "id": "0d723b81a814",
+      "type": "milestone",
+      "label": "milestone: Reconcile concurrent remote changes",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.683959+00:00"
+    },
+    {
+      "id": "66a6d3bdd046",
+      "type": "milestone",
+      "label": "milestone: Run targeted and required validation",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684024+00:00"
+    },
+    {
+      "id": "caef27eecefb",
+      "type": "test",
+      "label": "test: 30 targeted tests; build_all check exit 0; plugin-version-bump OK; pre_pr 30 passed, 0 failed, 4 skipped; full pytest 13,869 passed, 23 skipped, 45 xfailed.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684087+00:00"
+    },
+    {
+      "id": "c7d13b1c1550",
+      "type": "commit",
+      "label": "commit: Commit: 2e153a9eda",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684151+00:00"
+    },
+    {
+      "id": "95d00f87781a",
+      "type": "commit",
+      "label": "commit: Commit: 827a4c699c",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684214+00:00"
+    },
+    {
+      "id": "9fca38c495b8",
+      "type": "commit",
+      "label": "commit: Commit: f673788d4b",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684276+00:00"
+    },
+    {
+      "id": "f817552c11ae",
+      "type": "commit",
+      "label": "commit: Commit: 58bd9ce0dd",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684340+00:00"
+    },
+    {
+      "id": "1c35e8a9d313",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix PR #3354 review threads and prepare merge",
+      "episodes": [
+        "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
+      ],
+      "created": "2026-07-26T09:39:53.684404+00:00"
     }
   ],
   "patterns": [
