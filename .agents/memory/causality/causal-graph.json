@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T05:37:29.468361+00:00",
+  "updated": "2026-07-26T06:29:55.519952+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -15439,87 +15439,6 @@
       "created": "2026-07-26T04:13:25.358593+00:00"
     },
     {
-      "id": "0e7df0e4f5ed",
-      "type": "milestone",
-      "label": "milestone: Diagnosed missing fresh-write metadata, unstable sequential pattern ids, and unreproducible seed rows",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.556904+00:00"
-    },
-    {
-      "id": "82e1a0850825",
-      "type": "milestone",
-      "label": "milestone: Restored graph metadata and added stable pattern ids in the canonical generator",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.556981+00:00"
-    },
-    {
-      "id": "74dc1b2c83ee",
-      "type": "milestone",
-      "label": "milestone: Removed production graph seed rows and aligned provenance documentation",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.557050+00:00"
-    },
-    {
-      "id": "1306374f40b9",
-      "type": "milestone",
-      "label": "milestone: Ran targeted and causal-graph validation",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.557113+00:00"
-    },
-    {
-      "id": "808e22f3e69e",
-      "type": "test",
-      "label": "test: Ran targeted and causal-graph validation      48 tests passed in the touched test file and 370 passed across the causal-graph surface. Ruff and mypy passed on every touched Python file.",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.557175+00:00"
-    },
-    {
-      "id": "467d4df7b417",
-      "type": "commit",
-      "label": "commit: Commit: 9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.557237+00:00"
-    },
-    {
-      "id": "7f59a57f4574",
-      "type": "commit",
-      "label": "commit: Commit: 29f35db5f4",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.557299+00:00"
-    },
-    {
-      "id": "a26f057873d9",
-      "type": "commit",
-      "label": "commit: Commit: ae4a112ebc",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.557360+00:00"
-    },
-    {
-      "id": "25532ef523e0",
-      "type": "outcome",
-      "label": "Outcome: success - Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T05:23:46.557424+00:00"
-    },
-    {
       "id": "7bb14fff4ca0",
       "type": "milestone",
       "label": "milestone: Ran the live-state gate and created an isolated worktree at remote head 9f1e0b949a.",
@@ -15608,6 +15527,123 @@
         "episode-2026-07-26-session-3358-autofix-3358-review-threads-validate"
       ],
       "created": "2026-07-26T05:37:29.465087+00:00"
+    },
+    {
+      "id": "0e7df0e4f5ed",
+      "type": "milestone",
+      "label": "milestone: Diagnosed missing fresh-write metadata, unstable sequential pattern ids, and unreproducible seed rows",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515382+00:00"
+    },
+    {
+      "id": "82e1a0850825",
+      "type": "milestone",
+      "label": "milestone: Restored graph metadata and added stable pattern ids in the canonical generator",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515455+00:00"
+    },
+    {
+      "id": "74dc1b2c83ee",
+      "type": "milestone",
+      "label": "milestone: Removed production graph seed rows and aligned provenance documentation",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515518+00:00"
+    },
+    {
+      "id": "1306374f40b9",
+      "type": "milestone",
+      "label": "milestone: Ran targeted and causal-graph validation",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515580+00:00"
+    },
+    {
+      "id": "808e22f3e69e",
+      "type": "test",
+      "label": "test: Ran targeted and causal-graph validation      48 tests passed in the touched test file and 370 passed across the causal-graph surface. Ruff and mypy passed on every touched Python file.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515654+00:00"
+    },
+    {
+      "id": "a580ddfb2b28",
+      "type": "milestone",
+      "label": "milestone: Review round 3. Corrected the backfill script's provenance note: it said the retired seed rows carried id fields the generator never writes, which this PR made false, since add_pattern now writes and backfills pattern ids. The properties that still separate a seeded row from a derived one are the last_used field, which the generator writes nowhere, and the sequential id shape against a 12-character sha256 prefix.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515713+00:00"
+    },
+    {
+      "id": "010d700ae517",
+      "type": "milestone",
+      "label": "milestone: Replaced the fixture guard's startswith checks with the shape the generator actually produces. 'Does not start with n' is both too broad and too narrow as a test for 'is not n001'; [0-9a-f]{12} is the real contract and rejects every hand-seeded shape. Control: reinserting n001 and p001 turns 3 red.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515772+00:00"
+    },
+    {
+      "id": "1259e2ca5302",
+      "type": "milestone",
+      "label": "milestone: Dropped the per-PR review metrics entry the autofix bot added. It is unrelated to the generator fixes, and it was also wrong: it recorded seven comments all resolved while the review was still running, and four more threads landed afterwards. Reverted the file to main rather than correcting a number that will move again.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515831+00:00"
+    },
+    {
+      "id": "d6ad1ae05d0b",
+      "type": "milestone",
+      "label": "milestone: Measured node id integrity while writing the guard and found 13 of 1731 nodes whose id generate_node_id does not reproduce from their stored type and label, plus 5 pairs of nodes holding identical content under different ids. Content addressing is the deduplication mechanism, so those 5 are split evidence today. Not truncation and not a prefix change; filed #3367 rather than widening this PR.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515892+00:00"
+    },
+    {
+      "id": "467d4df7b417",
+      "type": "commit",
+      "label": "commit: Commit: 9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.515952+00:00"
+    },
+    {
+      "id": "7f59a57f4574",
+      "type": "commit",
+      "label": "commit: Commit: 29f35db5f4",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.516013+00:00"
+    },
+    {
+      "id": "a26f057873d9",
+      "type": "commit",
+      "label": "commit: Commit: ae4a112ebc",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.516073+00:00"
+    },
+    {
+      "id": "25532ef523e0",
+      "type": "outcome",
+      "label": "Outcome: success - Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T06:29:55.516142+00:00"
     }
   ],
   "patterns": [

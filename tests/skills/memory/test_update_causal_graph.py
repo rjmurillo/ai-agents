@@ -1,6 +1,7 @@
 """Tests for update_causal_graph.py."""
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -27,9 +28,7 @@ class TestAddCausalNode:
 
     def test_adds_new_node(self):
         graph = {"nodes": [], "edges": [], "patterns": []}
-        node = update_causal_graph.add_causal_node(
-            graph, "decision", "Use Python", "ep-1"
-        )
+        node = update_causal_graph.add_causal_node(graph, "decision", "Use Python", "ep-1")
         assert node is not None
         assert node["type"] == "decision"
         assert node["label"] == "Use Python"
@@ -48,9 +47,7 @@ class TestAddCausalEdge:
 
     def test_adds_new_edge(self):
         graph = {"nodes": [], "edges": [], "patterns": []}
-        edge = update_causal_graph.add_causal_edge(
-            graph, "n001", "n002", "causes", 0.8, "ep-1"
-        )
+        edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.8, "ep-1")
         assert edge is not None
         assert edge["source"] == "n001"
         assert edge["weight"] == 0.8
@@ -74,9 +71,7 @@ class TestAddCausalEdge:
         # same episode must not manufacture evidence (#3034 follow-up).
         graph = {"nodes": [], "edges": [], "patterns": []}
         update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.8, "ep-1")
-        result = update_causal_graph.add_causal_edge(
-            graph, "n001", "n002", "causes", 0.8, "ep-1"
-        )
+        result = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.8, "ep-1")
         assert result is None
         assert len(graph["edges"]) == 1
         assert graph["edges"][0]["evidence_count"] == 1
@@ -172,12 +167,14 @@ class TestGetDecisionPatterns:
     def test_success_pattern(self):
         episode = {
             "id": "ep-1",
-            "decisions": [{
-                "type": "design",
-                "chosen": "Use factory pattern",
-                "outcome": "success",
-                "context": "Need flexible creation",
-            }],
+            "decisions": [
+                {
+                    "type": "design",
+                    "chosen": "Use factory pattern",
+                    "outcome": "success",
+                    "context": "Need flexible creation",
+                }
+            ],
         }
         patterns = update_causal_graph.get_decision_patterns(episode)
         assert len(patterns) == 1
@@ -187,12 +184,14 @@ class TestGetDecisionPatterns:
     def test_failure_antipattern(self):
         episode = {
             "id": "ep-1",
-            "decisions": [{
-                "type": "test",
-                "chosen": "Skip tests",
-                "outcome": "failure",
-                "context": "",
-            }],
+            "decisions": [
+                {
+                    "type": "test",
+                    "chosen": "Skip tests",
+                    "outcome": "failure",
+                    "context": "",
+                }
+            ],
         }
         patterns = update_causal_graph.get_decision_patterns(episode)
         assert len(patterns) == 1
@@ -254,12 +253,8 @@ class TestGetEpisodeFiles:
         assert files == []
 
     def test_since_filter(self, tmp_path):
-        (tmp_path / "episode-old.json").write_text(
-            json.dumps({"timestamp": "2025-01-01T00:00:00"})
-        )
-        (tmp_path / "episode-new.json").write_text(
-            json.dumps({"timestamp": "2026-06-01T00:00:00"})
-        )
+        (tmp_path / "episode-old.json").write_text(json.dumps({"timestamp": "2025-01-01T00:00:00"}))
+        (tmp_path / "episode-new.json").write_text(json.dumps({"timestamp": "2026-06-01T00:00:00"}))
         # Source expects since as ISO string, not datetime
         files = update_causal_graph.get_episode_files(tmp_path, "2026-01-01")
         assert len(files) == 1
@@ -313,9 +308,13 @@ class TestRemoveEpisodeContributions:
     def test_legacy_anonymous_evidence_survives_prune(self):
         # A bare-count legacy edge plus one real episode; pruning the episode
         # keeps the anonymous legacy evidence.
-        graph = {"nodes": [], "edges": [
-            {"source": "a", "target": "b", "type": "causes", "weight": 0.8, "count": 3},
-        ], "patterns": []}
+        graph = {
+            "nodes": [],
+            "edges": [
+                {"source": "a", "target": "b", "type": "causes", "weight": 0.8, "count": 3},
+            ],
+            "patterns": [],
+        }
         update_causal_graph.add_causal_edge(graph, "a", "b", "causes", 0.4, "ep-1")
         # mean of {0.8,0.8,0.8,0.4} = 0.7
         assert graph["edges"][0]["weight"] == 0.7
@@ -333,18 +332,14 @@ class TestRemoveEpisodeContributions:
         # unrelated orphans on any prune.
         graph = {
             "nodes": [
-                {"id": "n001", "type": "decision", "label": "orphan-empty",
-                 "episodes": []},
+                {"id": "n001", "type": "decision", "label": "orphan-empty", "episodes": []},
                 {"id": "n002", "type": "decision", "label": "orphan-absent"},
-                {"id": "n003", "type": "decision", "label": "other-ep",
-                 "episodes": ["ep-keep"]},
+                {"id": "n003", "type": "decision", "label": "other-ep", "episodes": ["ep-keep"]},
             ],
             "edges": [],
             "patterns": [],
         }
-        removed = update_causal_graph.remove_episode_contributions(
-            graph, "ep-does-not-exist"
-        )
+        removed = update_causal_graph.remove_episode_contributions(graph, "ep-does-not-exist")
         surviving = {n["id"] for n in graph["nodes"]}
         assert surviving == {"n001", "n002", "n003"}
         assert removed["nodes"] == 0
@@ -355,17 +350,18 @@ class TestRemoveEpisodeContributions:
         # also has another supporter keeps that supporter.
         graph = {
             "nodes": [
-                {"id": "n001", "type": "decision", "label": "sole",
-                 "episodes": ["ep-gone"]},
-                {"id": "n002", "type": "decision", "label": "shared",
-                 "episodes": ["ep-gone", "ep-keep"]},
+                {"id": "n001", "type": "decision", "label": "sole", "episodes": ["ep-gone"]},
+                {
+                    "id": "n002",
+                    "type": "decision",
+                    "label": "shared",
+                    "episodes": ["ep-gone", "ep-keep"],
+                },
             ],
             "edges": [],
             "patterns": [],
         }
-        removed = update_causal_graph.remove_episode_contributions(
-            graph, "ep-gone"
-        )
+        removed = update_causal_graph.remove_episode_contributions(graph, "ep-gone")
         surviving = {n["id"] for n in graph["nodes"]}
         assert surviving == {"n002"}
         assert graph["nodes"][0]["episodes"] == ["ep-keep"]
@@ -376,17 +372,20 @@ class TestReplaceSemanticsOnEdit:
     """Issue #3039: editing an episode to shrink it retracts stale content."""
 
     def _episode(self, tmp_path, name, events):
-        ep = {"id": name, "task": "t", "outcome": "success", "events": events,
-              "decisions": []}
+        ep = {"id": name, "task": "t", "outcome": "success", "events": events, "decisions": []}
         path = tmp_path / f"episode-{name}.json"
         path.write_text(json.dumps(ep), encoding="utf-8")
         return path
 
     def _run(self, tmp_path, graph_path, episode_path):
-        return update_causal_graph.main([
-            "--episode-path", str(episode_path),
-            "--graph-path", str(graph_path),
-        ])
+        return update_causal_graph.main(
+            [
+                "--episode-path",
+                str(episode_path),
+                "--graph-path",
+                str(graph_path),
+            ]
+        )
 
     def test_edit_shrink_removes_stale_edge(self, tmp_path):
         graph_path = tmp_path / "graph.json"
@@ -401,11 +400,18 @@ class TestReplaceSemanticsOnEdit:
         assert len(graph["edges"]) == 1
 
         # Edit the episode to drop the recovery milestone -> chain gone.
-        ep.write_text(json.dumps({
-            "id": "1", "task": "t", "outcome": "success",
-            "events": [{"type": "error", "content": "boom happened"}],
-            "decisions": [],
-        }), encoding="utf-8")
+        ep.write_text(
+            json.dumps(
+                {
+                    "id": "1",
+                    "task": "t",
+                    "outcome": "success",
+                    "events": [{"type": "error", "content": "boom happened"}],
+                    "decisions": [],
+                }
+            ),
+            encoding="utf-8",
+        )
         assert self._run(tmp_path, graph_path, ep) == 0
         graph = json.loads(graph_path.read_text())
         # The stale edge must be gone (pre-#3039 it stayed frozen).
@@ -422,11 +428,16 @@ class TestPruneCli:
         update_causal_graph.add_causal_node(graph, "decision", "d", "gone")
         graph_path.write_text(json.dumps(graph), encoding="utf-8")
 
-        rc = update_causal_graph.main([
-            "--episode-path", str(tmp_path / "no-such-dir"),
-            "--graph-path", str(graph_path),
-            "--prune-episode-ids", "gone",
-        ])
+        rc = update_causal_graph.main(
+            [
+                "--episode-path",
+                str(tmp_path / "no-such-dir"),
+                "--graph-path",
+                str(graph_path),
+                "--prune-episode-ids",
+                "gone",
+            ]
+        )
         assert rc == 0
         result = json.loads(graph_path.read_text())
         assert result["edges"] == []
@@ -434,17 +445,33 @@ class TestPruneCli:
 
     def test_prune_dry_run_makes_no_change(self, tmp_path):
         graph_path = tmp_path / "graph.json"
-        graph = {"nodes": [], "edges": [
-            {"source": "a", "target": "b", "type": "causes", "weight": 1.0,
-             "evidence_count": 1, "episodes": ["gone"],
-             "contributions": {"gone": 1.0}},
-        ], "patterns": []}
+        graph = {
+            "nodes": [],
+            "edges": [
+                {
+                    "source": "a",
+                    "target": "b",
+                    "type": "causes",
+                    "weight": 1.0,
+                    "evidence_count": 1,
+                    "episodes": ["gone"],
+                    "contributions": {"gone": 1.0},
+                },
+            ],
+            "patterns": [],
+        }
         graph_path.write_text(json.dumps(graph), encoding="utf-8")
-        rc = update_causal_graph.main([
-            "--episode-path", str(tmp_path / "no-such-dir"),
-            "--graph-path", str(graph_path),
-            "--prune-episode-ids", "gone", "--dry-run",
-        ])
+        rc = update_causal_graph.main(
+            [
+                "--episode-path",
+                str(tmp_path / "no-such-dir"),
+                "--graph-path",
+                str(graph_path),
+                "--prune-episode-ids",
+                "gone",
+                "--dry-run",
+            ]
+        )
         assert rc == 0
         assert len(json.loads(graph_path.read_text())["edges"]) == 1
 
@@ -469,24 +496,30 @@ class TestChangedLabelRetraction:
         # future --since run parses timestamp (missing-key files are silently
         # skipped by get_episode_files).
         path.write_text(
-            json.dumps({
-                "id": "episode-2026-07-16-session-3056",
-                "session": "session-3056",
-                "timestamp": "2026-07-16T00:00:00Z",
-                "task": "close 3097",
-                "outcome": "success",
-                "decisions": [],
-                "events": [{"type": "milestone", "content": milestone}],
-                "metrics": {},
-            }),
+            json.dumps(
+                {
+                    "id": "episode-2026-07-16-session-3056",
+                    "session": "session-3056",
+                    "timestamp": "2026-07-16T00:00:00Z",
+                    "task": "close 3097",
+                    "outcome": "success",
+                    "decisions": [],
+                    "events": [{"type": "milestone", "content": milestone}],
+                    "metrics": {},
+                }
+            ),
             encoding="utf-8",
         )
 
     def _run(self, graph_path: Path, episode_path: Path) -> int:
-        return update_causal_graph.main([
-            "--episode-path", str(episode_path),
-            "--graph-path", str(graph_path),
-        ])
+        return update_causal_graph.main(
+            [
+                "--episode-path",
+                str(episode_path),
+                "--graph-path",
+                str(graph_path),
+            ]
+        )
 
     def _milestone_nodes(self, graph_path: Path) -> list[dict]:
         graph = json.loads(graph_path.read_text(encoding="utf-8"))
@@ -499,7 +532,8 @@ class TestChangedLabelRetraction:
         # First commit attempt: milestone ends in #3141. The graph is written
         # and staged before a later gate blocks the commit.
         self._write_episode(
-            episode_path, "filed #3137, #3138, #3139, #3140, and #3141",
+            episode_path,
+            "filed #3137, #3138, #3139, #3140, and #3141",
         )
         assert self._run(graph_path, episode_path) == 0
         first = self._milestone_nodes(graph_path)
@@ -509,7 +543,8 @@ class TestChangedLabelRetraction:
         # Retry after correcting the milestone to include newly filed #3142.
         # The corrected content hashes to a new node id.
         self._write_episode(
-            episode_path, "filed #3137, #3138, #3139, #3140, #3141, and #3142",
+            episode_path,
+            "filed #3137, #3138, #3139, #3140, #3141, and #3142",
         )
         assert self._run(graph_path, episode_path) == 0
         final = self._milestone_nodes(graph_path)
@@ -529,7 +564,8 @@ class TestChangedLabelRetraction:
         graph_path = tmp_path / "graph.json"
         episode_path = tmp_path / "episode-3056.json"
         self._write_episode(
-            episode_path, "filed #3137, #3138, #3139, #3140, and #3141",
+            episode_path,
+            "filed #3137, #3138, #3139, #3140, and #3141",
         )
         assert self._run(graph_path, episode_path) == 0
         first_bytes = graph_path.read_text(encoding="utf-8")
@@ -575,8 +611,13 @@ class TestGraphMetadataSurvivesAFreshWrite:
 
     def test_each_write_restamps_updated(self, tmp_path):
         path = tmp_path / "g.json"
-        graph = {"version": "1.0", "updated": "2026-02-10T17:55:46+00:00",
-                 "nodes": [], "edges": [], "patterns": []}
+        graph = {
+            "version": "1.0",
+            "updated": "2026-02-10T17:55:46+00:00",
+            "nodes": [],
+            "edges": [],
+            "patterns": [],
+        }
         update_causal_graph.save_causal_graph(path, graph)
         first = json.loads(path.read_text(encoding="utf-8"))["updated"]
 
@@ -602,7 +643,8 @@ class TestGraphMetadataSurvivesAFreshWrite:
         path = tmp_path / "g.json"
 
         update_causal_graph.save_causal_graph(
-            path, {"version": "2.0", "nodes": [], "edges": [], "patterns": []},
+            path,
+            {"version": "2.0", "nodes": [], "edges": [], "patterns": []},
         )
 
         assert json.loads(path.read_text(encoding="utf-8"))["version"] == "2.0"
@@ -615,7 +657,13 @@ class TestPatternIdentityIsStableAndMergeSafe:
         graph = {"nodes": [], "edges": [], "patterns": []}
 
         pattern = update_causal_graph.add_pattern(
-            graph, "routing pattern", "d", "t", "a", 1.0, "ep-1",
+            graph,
+            "routing pattern",
+            "d",
+            "t",
+            "a",
+            1.0,
+            "ep-1",
         )
 
         assert pattern is not None
@@ -643,11 +691,18 @@ class TestPatternIdentityIsStableAndMergeSafe:
 
     def test_a_pattern_written_before_this_fix_gains_an_id_when_touched(self):
         graph = {
-            "nodes": [], "edges": [],
-            "patterns": [{
-                "name": "legacy", "description": "d", "trigger": "t", "action": "a",
-                "success_rate": 1.0, "occurrences": 1,
-            }],
+            "nodes": [],
+            "edges": [],
+            "patterns": [
+                {
+                    "name": "legacy",
+                    "description": "d",
+                    "trigger": "t",
+                    "action": "a",
+                    "success_rate": 1.0,
+                    "occurrences": 1,
+                }
+            ],
         }
 
         update_causal_graph.add_pattern(graph, "legacy", "d", "t", "a", 1.0, "ep-9")
@@ -664,6 +719,12 @@ class TestPatternIdentityIsStableAndMergeSafe:
         assert graph["patterns"][0]["id"] == original
 
 
+# The shape generate_node_id and generate_pattern_id both produce: a
+# 12-character lowercase sha256 prefix. Sequential fixture ids (n001, p001)
+# fail it on the letter, which is not a hex digit.
+_GENERATED_ID = re.compile(r"[0-9a-f]{12}")
+
+
 class TestTheCommittedGraphCarriesNoTestFixtures:
     """The production graph held test seed rows for months (issue #3352).
 
@@ -675,31 +736,43 @@ class TestTheCommittedGraphCarriesNoTestFixtures:
 
     GRAPH = (
         Path(__file__).resolve().parents[3]
-        / ".agents" / "memory" / "causality" / "causal-graph.json"
+        / ".agents"
+        / "memory"
+        / "causality"
+        / "causal-graph.json"
     )
 
     def _graph(self) -> dict:
         return json.loads(self.GRAPH.read_text(encoding="utf-8"))
 
-    def test_no_node_carries_a_sequential_fixture_id(self):
-        stragglers = [
-            n["id"] for n in self._graph()["nodes"]
-            if n["id"].startswith("n") and n["id"][1:].isdigit()
+    def test_every_node_id_has_the_shape_the_generator_produces(self):
+        """ "Does not start with n" was the wrong test for "is not n001".
+
+        generate_node_id returns a 12-character sha256 prefix, so the shape is
+        the contract and anything else is hand-seeded. The old guard read
+        startswith("n"), which is both too broad, it would reject a future
+        scheme that happened to begin with that letter, and too narrow, it
+        passes any other fixture shape. Asserting the real shape is neither.
+        """
+        wrong_shape = [
+            n["id"] for n in self._graph()["nodes"] if not _GENERATED_ID.fullmatch(n["id"])
         ]
 
-        assert stragglers == []
+        assert wrong_shape == []
 
-    def test_no_pattern_carries_a_sequential_fixture_id(self):
-        stragglers = [
-            p["id"] for p in self._graph()["patterns"]
-            if p.get("id", "").startswith("p") and p["id"][1:].isdigit()
+    def test_every_pattern_id_has_the_shape_the_generator_produces(self):
+        wrong_shape = [
+            p.get("id")
+            for p in self._graph()["patterns"]
+            if not _GENERATED_ID.fullmatch(p.get("id") or "")
         ]
 
-        assert stragglers == []
+        assert wrong_shape == []
 
     def test_every_pattern_carries_an_id_derived_from_its_name(self):
         mismatched = [
-            p["name"] for p in self._graph()["patterns"]
+            p["name"]
+            for p in self._graph()["patterns"]
             if p.get("id") != update_causal_graph.generate_pattern_id(p["name"])
         ]
 
