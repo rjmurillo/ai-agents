@@ -1287,3 +1287,172 @@ class TestTheContentIsFlushedBeforeTheRename:
             "ours.json",
             "theirs.json",
         ]
+
+
+class TestADeletionIsNotUndoneByTheUnion:
+    """Issue #3375: a purge came back whenever a branch predating it merged.
+
+    The union kept everything either side ever had, so #3358's removal of the
+    seeded test rows was reintroduced by every open branch, and each one paid
+    the same manual strip. Presence in the common ancestor tells the two cases
+    apart without writing tombstones into the artifact.
+    """
+
+    def test_a_node_ours_removed_stays_removed(self) -> None:
+        base = _graph(nodes=[_node("keep"), _node("purged")])
+        ours = _graph(nodes=[_node("keep")])
+        theirs = _graph(nodes=[_node("keep"), _node("purged")])
+        merged = merge_graphs(base, ours, theirs)
+        assert [n["id"] for n in merged["nodes"]] == ["keep"]
+
+    def test_a_node_theirs_removed_stays_removed(self) -> None:
+        base = _graph(nodes=[_node("keep"), _node("purged")])
+        ours = _graph(nodes=[_node("keep"), _node("purged")])
+        theirs = _graph(nodes=[_node("keep")])
+        merged = merge_graphs(base, ours, theirs)
+        assert [n["id"] for n in merged["nodes"]] == ["keep"]
+
+    def test_removal_is_independent_of_which_side_git_calls_ours(self) -> None:
+        base = _graph(nodes=[_node("keep"), _node("purged")])
+        stale = _graph(nodes=[_node("keep"), _node("purged")])
+        purged = _graph(nodes=[_node("keep")])
+        forward = {n["id"] for n in merge_graphs(base, stale, purged)["nodes"]}
+        reverse = {n["id"] for n in merge_graphs(base, purged, stale)["nodes"]}
+        assert forward == reverse == {"keep"}
+
+    def test_a_record_absent_from_the_ancestor_is_an_addition_not_a_deletion(self) -> None:
+        """The guard against over-dropping: new work on one side must survive."""
+        base = _graph(nodes=[_node("shared")])
+        ours = _graph(nodes=[_node("shared"), _node("ours")])
+        theirs = _graph(nodes=[_node("shared"), _node("theirs")])
+        merged = merge_graphs(base, ours, theirs)
+        assert {n["id"] for n in merged["nodes"]} == {"shared", "ours", "theirs"}
+
+    def test_an_empty_ancestor_drops_nothing(self) -> None:
+        """A file new on both sides has no ancestor, so nothing can be a removal."""
+        ours = _graph(nodes=[_node("ours")])
+        theirs = _graph(nodes=[_node("theirs")])
+        merged = merge_graphs({}, ours, theirs)
+        assert {n["id"] for n in merged["nodes"]} == {"ours", "theirs"}
+
+    def test_a_removal_beats_the_other_sides_edit(self) -> None:
+        """Delete wins over modify, on purpose.
+
+        A removal here is always deliberate (a purge of something that should
+        not be committed); an edit is usually the generator bumping a counter.
+        Keeping the record to preserve the counter would undo the purge.
+        """
+        base = _graph(nodes=[_node("purged", episodes=["a"])])
+        ours = _graph(nodes=[])
+        theirs = _graph(nodes=[_node("purged", episodes=["a", "b"])])
+        assert merge_graphs(base, ours, theirs)["nodes"] == []
+
+    def test_a_removed_pattern_stays_removed(self) -> None:
+        base = _graph(patterns=[{"name": "keep"}, {"name": "seeded"}])
+        ours = _graph(patterns=[{"name": "keep"}])
+        theirs = _graph(patterns=[{"name": "keep"}, {"name": "seeded"}])
+        merged = merge_graphs(base, ours, theirs)
+        assert [p["name"] for p in merged["patterns"]] == ["keep"]
+
+    def test_a_removed_edge_stays_removed(self) -> None:
+        keep = {"source": "a", "target": "b", "evidence_count": 1}
+        gone = {"source": "c", "target": "d", "evidence_count": 1}
+        merged = merge_graphs(
+            _graph(edges=[keep, gone]), _graph(edges=[keep]), _graph(edges=[keep, gone])
+        )
+        assert [(e["source"], e["target"]) for e in merged["edges"]] == [("a", "b")]
+
+    def test_both_sides_removing_the_same_record_is_not_an_error(self) -> None:
+        base = _graph(nodes=[_node("keep"), _node("purged")])
+        graph = _graph(nodes=[_node("keep")])
+        assert [n["id"] for n in merge_graphs(base, graph, graph)["nodes"]] == ["keep"]
+
+
+class TestTheRealPurgeReplaysWithoutResurrecting:
+    """Issue #3375 AC: replay the merge that actually caused it, not a fixture.
+
+    Commit 663bbac48 (PR #3358) removed the seeded test rows. Any branch cut
+    before it and merged afterwards brought them back. This drives a real
+    `git merge` over the two real graphs from this repository's history.
+    """
+
+    PURGE = "663bbac488ec4b53412dcd925be273b074367818"
+    GRAPH = ".agents/memory/causality/causal-graph.json"
+
+    def _git(self, repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+    def _revision(self, rev: str) -> dict[str, Any]:
+        shown = self._git(_ROOT, "show", f"{rev}:{self.GRAPH}")
+        if shown.returncode != 0:
+            pytest.skip(f"{rev} is unreachable; this needs unshallowed history")
+        return json.loads(shown.stdout)
+
+    @pytest.fixture
+    def purge(self) -> tuple[dict[str, Any], dict[str, Any]]:
+        """The graph immediately before and after the real purge commit."""
+        return self._revision(f"{self.PURGE}^"), self._revision(self.PURGE)
+
+    def test_the_purge_commit_removed_the_rows_this_guards(
+        self, purge: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        """Anchor the replay: name what that commit took out, from git itself."""
+        before, after = purge
+        assert {n["id"] for n in before["nodes"]} - {n["id"] for n in after["nodes"]} == {"n001"}
+        assert {p["name"] for p in before["patterns"]} - {p["name"] for p in after["patterns"]} == {
+            "Bad pattern",
+            "Good pattern",
+            "Status test pattern",
+            "Worse pattern",
+        }
+
+    def test_a_branch_cut_before_the_purge_does_not_bring_it_back(
+        self, tmp_path: Path, purge: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        before, after = purge
+        repo = tmp_path / "repo"
+        (repo / ".agents/memory/causality").mkdir(parents=True)
+        (repo / "scripts/validation").mkdir(parents=True)
+        (repo / "scripts/validation/merge_causal_graph.py").write_text(
+            (_ROOT / _DRIVER).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        (repo / ".gitattributes").write_text(f"{self.GRAPH} merge=causal-graph\n", encoding="utf-8")
+        graph = repo / self.GRAPH
+        graph.write_text(json.dumps(before), encoding="utf-8")
+
+        self._git(repo, "init", "-q", ".")
+        self._git(repo, "config", "user.email", "test@example.com")
+        self._git(repo, "config", "user.name", "test")
+        self._git(repo, "config", "merge.causal-graph.name", "causal graph")
+        self._git(repo, "config", "merge.causal-graph.driver", _DRIVER_COMMAND)
+        self._git(repo, "add", "-A")
+        self._git(repo, "commit", "-qm", "before the purge")
+        trunk = self._git(repo, "branch", "--show-current").stdout.strip()
+
+        # Trunk purges the seeded rows, exactly as PR #3358 did.
+        graph.write_text(json.dumps(after), encoding="utf-8")
+        self._git(repo, "commit", "-qam", "purge the seeded rows")
+
+        # A branch cut before the purge adds unrelated work, then merges trunk.
+        self._git(repo, "checkout", "-qb", "stale", "HEAD~1")
+        stale = json.loads(json.dumps(before))
+        stale["nodes"].append(_node("work-done-on-the-stale-branch"))
+        graph.write_text(json.dumps(stale), encoding="utf-8")
+        self._git(repo, "commit", "-qam", "unrelated work")
+        merged = self._git(repo, "merge", trunk)
+
+        assert merged.returncode == 0, merged.stdout + merged.stderr
+        resolved = json.loads(graph.read_text(encoding="utf-8"))
+        assert "n001" not in {n["id"] for n in resolved["nodes"]}
+        assert {p["name"] for p in resolved["patterns"]}.isdisjoint(
+            {"Bad pattern", "Good pattern", "Status test pattern", "Worse pattern"}
+        )
+        assert "work-done-on-the-stale-branch" in {n["id"] for n in resolved["nodes"]}

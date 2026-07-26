@@ -243,6 +243,38 @@ def _index(
     return {_key(record, fields): record for record in records}
 
 
+def _survives(
+    key: tuple[str, ...],
+    base_index: dict[tuple[str, ...], dict[str, Any]],
+    ours_index: dict[tuple[str, ...], dict[str, Any]],
+    theirs_index: dict[tuple[str, ...], dict[str, Any]],
+) -> bool:
+    """Decide whether a record one side dropped was deleted or never held.
+
+    A union keeps everything either side ever had, so a deliberate removal comes
+    back the moment a branch that predates it merges. Every branch open across a
+    purge then pays the same manual strip (issue #3375).
+
+    Tombstones are the usual answer to that, and they are not needed here. Git
+    hands a merge driver the common ancestor, and presence in it is the whole
+    discriminator: a record in the ancestor that one side no longer carries was
+    removed by that side. A record absent from the ancestor was added by
+    whichever side has it. Nothing has to be written into the artifact.
+
+    Delete beats modify. In this file a removal is always deliberate, a purge of
+    something that should not be committed, while a modification is usually the
+    generator bumping a counter. Keeping the record to preserve a counter would
+    undo the purge, which is the bug. Measured over the file's whole history:
+    of 85 commits that touched it, 3 removed rows, and all three were
+    deliberate (663bbac48 the #3358 purge, c2264799b the PowerShell to Python
+    migration, bdacb6b19 a session protocol change). The generator itself only
+    ever adds.
+    """
+    if key not in base_index:
+        return True
+    return key in ours_index and key in theirs_index
+
+
 def _merge_counter(base: JsonValue, ours: JsonValue, theirs: JsonValue) -> JsonValue:
     """Apply both sides' deltas to the ancestor.
 
@@ -409,6 +441,7 @@ def _merge_collection(
     return [
         _merge_record(base_index.get(key), ours_index.get(key), theirs_index.get(key))
         for key in ordered
+        if _survives(key, base_index, ours_index, theirs_index)
     ]
 
 
