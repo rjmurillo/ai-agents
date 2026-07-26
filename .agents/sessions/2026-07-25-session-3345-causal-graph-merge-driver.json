@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3345,
+    "date": "2026-07-25",
+    "branch": "fix/3345-causal-graph-merge-driver",
+    "startingCommit": "c798e0df7df28ae194ea966f7f1801b3a5c219a1",
+    "objective": "Stop .agents/memory/causality/causal-graph.json conflicting on every merge (issue #3345) without the data loss the issue's own workaround causes. Resolve by content union through a git merge driver instead of by line."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live on this Copilot CLI harness; serena-initial_instructions returned the manual and serena-write_memory recorded the finding."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions read; Serena symbolic tools used for lookup in this repo."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3345-causal-graph-merge-driver, cut from origin/main at c798e0df7d."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work performed on fix/3345-causal-graph-merge-driver; no commit touched main."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-parity bump rule and the branch-protection ruleset entry."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short inspected before and after moving the work onto this branch; the embedded pr3097-worktree checkout was left untracked and never staged."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Causal-graph merge driver implemented, registered from pre-commit, and tested with 32 tests covering union semantics, counter reconciliation, field policies, and end-to-end git merges."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Recorded that update_causal_graph is incremental over staged episodes, so the issue's checkout-and-regenerate workaround permanently drops the other side's nodes."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed on this branch, so the scoped markdownlint pass had no in-scope input."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All work committed on this branch; nothing left uncommitted except pre-existing untracked paths that predate the session."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen pytest tests/validation/ tests/ci/ -q reported 844 passed with the new merge-driver tests included; ruff check, ruff format and mypy clean on both new scripts and the new test module; scripts/validate_workflows.py passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3345 tracked in the session todo list and moved to done once the driver, its registration and its tests were green."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "investigation",
+      "summary": "Measured the conflict rather than assuming its shape. update_causal_graph processes only staged episode paths and returns immediately when none are staged, so it is incremental, never a rebuild, and the update-causal-graph hook job is skipped on merge anyway. That makes the issue's recommended workaround (check out one side then rerun the generator) the drift cause: 41 of 242 episodes on disk had no node in the committed graph. A from-scratch rebuild does not reproduce the committed graph and stamps per-node wall-clock timestamps, so the issue's byte-identical acceptance criterion is unachievable.",
+      "files": [
+        "scripts/validation/git_hook_policy.py",
+        "lefthook.yml"
+      ]
+    },
+    {
+      "phase": "implementation",
+      "summary": "Added a content-union merge driver for the causal graph and registered it. Records key on stable identities, counters reconcile three-way against the ancestor instead of summing, episode lists union, created takes the earliest and last_used the latest. A side that will not parse exits nonzero so git leaves the conflict for a human rather than silently taking one side. Registration runs from pre-commit because merge=<name> in .gitattributes is a no-op without per-clone git config.",
+      "files": [
+        "scripts/validation/merge_causal_graph.py",
+        "scripts/maintenance/install_merge_drivers.py",
+        ".gitattributes",
+        "lefthook.yml"
+      ]
+    },
+    {
+      "phase": "testing",
+      "summary": "32 tests covering union semantics, counter reconciliation, field policies, malformed-record tolerance, load-time refusal, the driver exit contract, and two end-to-end git merges in a scratch repo. The end-to-end set includes a control that omits git config and asserts the merge still conflicts, proving the .gitattributes entry alone does nothing. Three negative controls fired: taking ours instead of the union turned 7 tests red, summing counters instead of three-way reconciliation turned 3 red, and swallowing parse errors turned 4 red.",
+      "files": [
+        "tests/validation/test_merge_causal_graph.py"
+      ]
+    },
+    {
+      "phase": "review",
+      "summary": "Addressed the PR #3348 review. Two flagged claims were false and were rejected with probe evidence rather than patched around: git runs a merge driver from the top of the working tree even when git merge is invoked in a subdirectory, so the relative script path resolves, and %O %A %B substitute to bare temp names like .merge_file_yvRBP2 that cannot carry a space. The arguments are quoted anyway as shell hygiene. Four findings were real. Top-level version and updated were special-cased ahead of the field loop, which is how a key only one side carried came to be dropped; the field dispatch is now shared by records and the document. version joins the policy table under a prefer-present rule because the generator drops it on a fresh write (issue #3351) and that omission is not a deletion. _merge_counter discarded a valid number when the other side was malformed. _load read an empty ours or theirs as an empty graph, which would let a truncated file delete the other side. Four negative controls fired.",
+      "files": [
+        "scripts/validation/merge_causal_graph.py",
+        "scripts/maintenance/install_merge_drivers.py",
+        "tests/validation/test_merge_causal_graph.py"
+      ]
+    },
+    {
+      "phase": "review",
+      "summary": "Addressed the second PR #3348 review round. One finding remained from the first pass, and one new finding arrived: merge_graphs still drops a top-level key that survives only in the ancestor when both sides have stopped emitting it, which is accepted as intentional (an agreed deletion should stay deleted; the only known case where an omission is a defect rather than a deletion is `version`, already fixed via issue #3351's prefer-present rule) and closed with a rebuttal rather than a further code change. The genuinely new finding was real: _COLLECTIONS was ordered nodes, edges, patterns, so a no-op merge reordered the top-level JSON relative to the generator's nodes, patterns, edges schema and produced a noisy diff. Reordered _COLLECTIONS to match; one negative control (reverting the order) turned the new ordering test red.",
+      "files": [
+        "scripts/validation/merge_causal_graph.py",
+        "tests/validation/test_merge_causal_graph.py"
+      ]
+    },
+    {
+      "phase": "correction",
+      "summary": "Used the driver to resolve a real causal-graph conflict on the sibling branch and it lost data. Six of the ten patterns in the committed graph carry no id, so _key gave all six the same empty key and the union kept one: ten patterns in, five out. A record carrying none of its identity fields now falls back to its content, which still matches an untouched record across sides and at worst carries an edited one through twice. Partially keyed records are unaffected. Re-verified against the three real stages: ten patterns in and ten out, nodes 1635 base, 1641 ours, 1657 theirs, merging to 1663. Negative control fired. Filed the upstream defect as issue #3353.",
+      "files": [
+        "scripts/validation/merge_causal_graph.py",
+        "tests/validation/test_merge_causal_graph.py"
+      ]
+    },
+    {
+      "action": "Replaced the uv-routed merge driver registration with the installer's own interpreter path after a probe showed a missing uv makes git fall back to the text merge",
+      "outcome": "50 tests pass; two negative controls fired; probe: uv-routed driver with uv off PATH produced CONFLICT, interpreter-routed driver merged 3 nodes cleanly",
+      "files": [
+        "scripts/maintenance/install_merge_drivers.py",
+        "tests/validation/test_merge_causal_graph.py"
+      ]
+    }
+  ],
+  "endingCommit": "9ba22151f30121b311e1fc8cb3fdedd8c401856d",
+  "nextSteps": [
+    "File the causal-graph drift finding: 41 of 242 episodes have no node in the committed graph and no hook path backfills them.",
+    "File that the generator drops the version and updated keys when it writes a graph from scratch.",
+    "File that fixture-shaped records n001 'Status test node' and p001 'Good pattern' are committed in the production graph.",
+    "Post the measurement to issue #3345 disproving its byte-identical acceptance criterion."
+  ]
+}
