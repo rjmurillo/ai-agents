@@ -1276,7 +1276,24 @@ def update_causal_graph(repo_root: Path) -> int:
     result = _apply_causal_graph_updates(staged, deleted, graph_path, repo_root)
     if result == 0:
         return _stage_causal_graph(graph_path, repo_root)
-    _restore_file(graph_path, snapshot)
+    try:
+        _restore_file(graph_path, snapshot)
+    except OSError as exc:
+        # The updater already failed, so the graph on disk is mid-write. Letting
+        # the OSError propagate ends the hook with a traceback that says nothing
+        # about which of the two failures the operator is looking at, and the
+        # "original graph restored" line below would be a lie if it ran. Name
+        # both failures and block, because a partially mutated graph must not be
+        # committed. Issue #3389.
+        print(f"ERROR: causal graph update failed (exit {result})", file=sys.stderr)
+        print(
+            f"ERROR: restoring the original causal graph also failed: {exc}\n"
+            f"       {graph_path} may be partially written. Rebuild it before"
+            " committing:\n"
+            f"           {_causal_repair_command(graph_path, repo_root)}",
+            file=sys.stderr,
+        )
+        return 2
     print("WARNING: causal graph update failed; original graph restored", file=sys.stderr)
     # The restore preserves the file as found, so a corrupt graph stays corrupt
     # and this warning repeats on every commit. Name the repair (issue #3370).
@@ -1349,7 +1366,6 @@ def _prune_deleted_episodes(
     if result.returncode != 0:
         _print_process_output(result)
     return result.returncode
-
 
 
 def _deleted_episode_id(relative_path: str, repo_root: Path) -> str:
