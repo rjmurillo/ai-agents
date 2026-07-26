@@ -51,6 +51,7 @@ from checks_spec import (  # noqa: E402
 )
 from checks_tooling import (  # noqa: E402
     validate_agent_drift,
+    validate_ci_dependency_pins,
     validate_copilot_version_pin,
     validate_markdown_lint,
     validate_path_normalization,
@@ -150,6 +151,16 @@ def run_all_validations(
         "Copilot CLI Version Pin",
         state,
         lambda: validate_copilot_version_pin(repo_root),
+    )
+
+    # 3.57 CI Dependency Pins (Issue #3377). Fails when a hand-written
+    # pkg==version literal under .github/ contradicts the pyproject constraint
+    # for that package. Two pytest pins disagreed and one sat a major below the
+    # declared floor; a review then proposed aligning the correct one down.
+    run_validation(
+        "CI Dependency Pins",
+        state,
+        lambda: validate_ci_dependency_pins(repo_root),
     )
 
     # 3.6 Design Review Frontmatter

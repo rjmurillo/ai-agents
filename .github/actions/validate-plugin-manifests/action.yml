@@ -40,7 +40,16 @@ runs:
     - name: Install pytest (pinned for deterministic CI)
       if: inputs.run-tests == 'true'
       shell: bash
-      run: pip install 'pytest==8.3.3'
+      # Must satisfy the pyproject.toml floor (pytest>=9.0.3). This pin sat at
+      # 8.3.3, one major below the floor, and a PR #3361 review read the two
+      # disagreeing literals and proposed aligning the correct one down to it.
+      # scripts/validation/check_ci_dependency_pins.py now fails when any pin
+      # under .github/ contradicts pyproject. Refs #3377.
+      # python3 -m pip, not bare pip: bare pip resolves through PATH and can
+      # install into an interpreter other than the one actions/setup-python
+      # selected. The other three install sites under .github/ already use the
+      # module form.
+      run: python3 -m pip install 'pytest==9.0.3'
 
     - name: Run validator unit tests
       if: inputs.run-tests == 'true'

@@ -93,6 +93,7 @@ from checks_tooling import (  # noqa: E402, F401
     _find_latest_session_log,
     _markdown_lint_targets,
     validate_agent_drift,
+    validate_ci_dependency_pins,
     validate_copilot_version_pin,
     validate_markdown_lint,
     validate_path_normalization,
