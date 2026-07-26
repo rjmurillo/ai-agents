@@ -174,9 +174,9 @@ def _merge_set(ours: JsonValue, theirs: JsonValue) -> JsonValue:
     return [seen[rendering] for rendering in sorted(seen)]
 
 
-def _extreme(ours: JsonValue, theirs: JsonValue, *, latest: bool) -> JsonValue:
-    """Pick the earliest or latest of two comparable values, tolerating None."""
-    candidates = [value for value in (ours, theirs) if isinstance(value, str) and value]
+def _extreme(base: JsonValue, ours: JsonValue, theirs: JsonValue, *, latest: bool) -> JsonValue:
+    """Pick the earliest or latest of three comparable values, tolerating None."""
+    candidates = [value for value in (base, ours, theirs) if isinstance(value, str) and value]
     if not candidates:
         return ours if ours is not None else theirs
     return max(candidates) if latest else min(candidates)
@@ -221,9 +221,9 @@ def _merge_fields(
         elif field in _SET_VALUED:
             merged[field] = _merge_set(ours_value, theirs_value)
         elif field in _EARLIEST:
-            merged[field] = _extreme(ours_value, theirs_value, latest=False)
+            merged[field] = _extreme(base_value, ours_value, theirs_value, latest=False)
         elif field in _LATEST:
-            merged[field] = _extreme(ours_value, theirs_value, latest=True)
+            merged[field] = _extreme(base_value, ours_value, theirs_value, latest=True)
         elif field in _PREFER_PRESENT:
             merged[field] = ours_value if ours_value is not None else theirs_value
         else:
