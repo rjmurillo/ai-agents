@@ -85,8 +85,6 @@ def _check_date_time(value: object) -> bool:
         return False
     return parsed.tzinfo is not None
 
-# Required session fields
-REQUIRED_SESSION_FIELDS = frozenset({"number", "date", "branch", "startingCommit", "objective"})
 
 # Branch naming pattern
 BRANCH_PATTERN = re.compile(r"^(feat|fix|docs|chore|refactor|test|ci)/")
@@ -524,6 +522,14 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
 
     Passes ``_FORMAT_CHECKER`` so ``format`` keywords (currently just
     ``date-time``) are actually enforced instead of treated as annotations.
+
+    ``check_schema`` runs before ``iter_errors`` rather than wrapping it in a
+    ``SchemaError`` handler, because most malformed schemas do not raise that.
+    A bad ``type`` name raises ``UnknownType`` and a non-object ``properties``
+    raises ``AttributeError``, neither of which is a ``SchemaError``, so a
+    handler alone still lets the gate die with a traceback. ``check_schema``
+    validates against the metaschema and turns all of them into ``SchemaError``.
+    It costs about 4ms against the committed schema.
     """
     try:
         schema = _load_schema()
@@ -531,23 +537,21 @@ def validate_against_schema(data: object, result: ValidationResult) -> None:
         result.errors.append(f"Schema: cannot load {SCHEMA_PATH.name}, schema layer skipped: {exc}")
         return
 
+    validator_cls = validator_for(schema)
     try:
-        validator = validator_for(schema)(schema, format_checker=_FORMAT_CHECKER)
-        # Sort by the stringified path, not the raw one: absolute_path mixes
-        # str (object keys) and int (array indices), and comparing across
-        # errors whose paths share a prefix but diverge in element type
-        # raises TypeError before a single result reaches the caller.
-        errors = sorted(
-            validator.iter_errors(data),
-            key=lambda e: tuple(str(part) for part in e.absolute_path),
-        )
+        validator_cls.check_schema(schema)
     except SchemaError as exc:
         result.errors.append(
-            f"Schema: {SCHEMA_PATH.name} is not a valid schema, schema layer skipped: {exc}"
+            f"Schema: {SCHEMA_PATH.name} is not a valid schema, schema layer skipped: {exc.message}"
         )
         return
 
-    for error in errors:
+    # Sorting by the raw path is safe. Two paths are only compared past a
+    # shared prefix, and a shared prefix names one container, whose child keys
+    # are therefore all strings (object) or all integers (array). Stringifying
+    # to dodge a mixed comparison would order array index 10 before 2.
+    validator = validator_cls(schema, format_checker=_FORMAT_CHECKER)
+    for error in sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path)):
         result.errors.append(_describe(error))
 
 

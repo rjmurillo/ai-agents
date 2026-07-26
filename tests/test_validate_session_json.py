@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import pytest
@@ -22,7 +22,6 @@ from scripts.validate_session_json import (
     BRANCH_PATTERN,
     COMMIT_SHA_PATTERN,
     CONTRADICTION_PATTERNS,
-    REQUIRED_SESSION_FIELDS,
     SESSION_END_REQUIRED_ITEMS,
     SESSION_START_REQUIRED_ITEMS,
     ValidationResult,
@@ -100,10 +99,25 @@ def _run_cli(path: Path) -> subprocess.CompletedProcess[str]:
 class TestConstants:
     """Tests for module constants."""
 
-    def test_required_session_fields(self) -> None:
-        """REQUIRED_SESSION_FIELDS contains expected values."""
-        expected = {"number", "date", "branch", "startingCommit", "objective"}
-        assert REQUIRED_SESSION_FIELDS == expected
+    def test_the_schema_requires_the_session_fields_the_protocol_names(self) -> None:
+        """The schema is the only enforcer of session shape, so pin what it requires.
+
+        This replaces an assertion on a Python constant that duplicated the
+        schema's own ``required`` list. The constant was deleted once the
+        duplicate presence check went with it; a test that echoes a literal back
+        at itself catches nothing.
+        """
+        import scripts.validate_session_json as vsj
+
+        schema = json.loads(vsj.SCHEMA_PATH.read_text(encoding="utf-8"))
+
+        assert set(schema["properties"]["session"]["required"]) == {
+            "number",
+            "date",
+            "branch",
+            "startingCommit",
+            "objective",
+        }
 
     def test_branch_pattern_matches_conventional(self) -> None:
         """BRANCH_PATTERN matches conventional branch names."""
@@ -667,7 +681,7 @@ class TestValidateProtocolCompliance:
 
     def test_both_sections_present(self) -> None:
         """Both sections present passes section validation."""
-        protocol = {
+        protocol: dict[str, Any] = {
             "sessionStart": {},
             "sessionEnd": {},
         }
@@ -705,7 +719,7 @@ class TestValidateSessionLog:
 
     def test_missing_session_section(self) -> None:
         """Missing session section causes error."""
-        data = {
+        data: dict[str, Any] = {
             "protocolCompliance": {"sessionStart": {}, "sessionEnd": {}},
         }
 
@@ -756,6 +770,7 @@ class TestLoadSessionFile:
         data, error = load_session_file(session_file)
 
         assert data is None
+        assert error is not None
         assert "not found" in error
 
     def test_error_for_invalid_json(self, tmp_path: Path) -> None:
@@ -766,6 +781,7 @@ class TestLoadSessionFile:
         data, error = load_session_file(session_file)
 
         assert data is None
+        assert error is not None
         assert "Invalid JSON" in error
         assert "line" in error
         assert "Common fixes" in error
@@ -797,7 +813,7 @@ class TestMainFunction:
     @pytest.fixture
     def invalid_session_file(self, tmp_path: Path) -> Path:
         """Create an invalid session log file."""
-        data = {
+        data: dict[str, Any] = {
             # Missing session section
             "protocolCompliance": {},
         }
@@ -941,7 +957,7 @@ class TestEdgeCases:
 
     def test_empty_session_object(self) -> None:
         """Empty session object fails validation."""
-        data = {
+        data: dict[str, Any] = {
             "session": {},
             "protocolCompliance": {"sessionStart": {}, "sessionEnd": {}},
         }
@@ -1094,48 +1110,90 @@ class TestSchemaIsActuallyEnforced:
             "level": "MUST",
         }
         result = vsj.validate_session_log(log)
-        assert any("nothing was checked" not in e for e in result.errors)
+        assert not any("nothing was checked" in e for e in result.errors)
         assert any("handoffRead" in e for e in result.errors)
 
-    def test_invalid_schema_is_an_error_not_a_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A schema that fails its own meta-validation must not crash the gate
-        with an uncaught SchemaError."""
-        from jsonschema.exceptions import SchemaError
+    @pytest.mark.parametrize(
+        ("schema", "reason"),
+        [
+            ({"type": "nope"}, "unknown type name raises UnknownType"),
+            (
+                {"$schema": "http://json-schema.org/draft-07/schema#", "properties": "notadict"},
+                "non-object properties raises AttributeError",
+            ),
+            ({"required": "notalist"}, "non-array required raises nothing until use"),
+        ],
+    )
+    def test_an_invalid_schema_is_an_error_not_a_crash(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        schema: dict[str, object],
+        reason: str,
+    ) -> None:
+        """Driven with real malformed schemas, not a mock of ``validator_for``.
 
+        Mocking the constructor to raise ``SchemaError`` proves only that the
+        handler is reachable. It does not prove the handler catches what
+        jsonschema actually raises, and for two of these three it does not:
+        ``UnknownType`` and ``AttributeError`` are not ``SchemaError``.
+        """
         import scripts.validate_session_json as vsj
 
-        def _raise_schema_error(schema: object) -> object:
-            raise SchemaError("bad schema")
+        schema_path = tmp_path / "broken.schema.json"
+        schema_path.write_text(json.dumps(schema), encoding="utf-8")
+        monkeypatch.setattr(vsj, "SCHEMA_PATH", schema_path)
 
-        monkeypatch.setattr(vsj, "validator_for", _raise_schema_error)
         result = ValidationResult()
         vsj.validate_against_schema(_make_valid_log(), result)
-        assert any("not a valid schema" in e for e in result.errors)
 
-    def test_sort_survives_mixed_path_element_types(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """iter_errors can report an array-index error and a property-key error
-        under the same parent path; sorting raw path elements compares int to
-        str and raises TypeError. Sorting by stringified path must not crash."""
-        from jsonschema.exceptions import ValidationError
+        assert any("not a valid schema" in e for e in result.errors), reason
 
+    def test_a_valid_schema_is_not_reported_as_malformed(self) -> None:
+        """Negative control: the guard must not fire on the committed schema."""
         import scripts.validate_session_json as vsj
 
-        class _FakeValidator:
-            def __init__(self, schema: object, format_checker: object = None) -> None:
-                del schema, format_checker
-
-            def iter_errors(self, data: object) -> list[ValidationError]:
-                del data
-                return [
-                    ValidationError("second error", path=["a", "b"]),
-                    ValidationError("first error", path=["a", 0]),
-                ]
-
-        monkeypatch.setattr(vsj, "validator_for", lambda schema: _FakeValidator)
         result = ValidationResult()
         vsj.validate_against_schema(_make_valid_log(), result)
-        assert any("second error" in e for e in result.errors)
-        assert any("first error" in e for e in result.errors)
+
+        assert not any("not a valid schema" in e for e in result.errors)
+
+    def test_array_indices_are_ordered_numerically_not_lexically(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pins why the sort key stays raw.
+
+        Stringifying every path element to dodge a mixed str/int comparison
+        would order index 10 ahead of index 2. Session logs carry workLog arrays
+        well past ten entries, so the reordering is reachable on real data.
+
+        The mixed comparison the stringify guards against is not: two paths are
+        only compared past a shared prefix, and a shared prefix names one
+        container, whose child keys are all strings or all integers.
+        """
+        import scripts.validate_session_json as vsj
+
+        schema_path = tmp_path / "array.schema.json"
+        schema_path.write_text(
+            json.dumps(
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    "type": "array",
+                    "items": {"type": "string"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(vsj, "SCHEMA_PATH", schema_path)
+
+        document: list[object] = ["ok"] * 12
+        document[2] = 2
+        document[10] = 10
+
+        result = ValidationResult()
+        vsj.validate_against_schema(document, result)
+
+        assert [e.split(":")[1].strip() for e in result.errors] == ["2", "10"]
 
     def test_committed_schema_is_readable(self) -> None:
         """Guards against a schema edit that leaves the file unparseable."""
