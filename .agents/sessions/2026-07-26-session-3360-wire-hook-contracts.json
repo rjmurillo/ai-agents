@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Six commits on the branch, tips 630d38325c and de1edd59c0; three interleaved autofix commits from the review bot were rebased under them"
+        "Evidence": "15 commits on the branch after rebasing onto main: e1bb1a4e11, 3d8149cab5, 329df70fe2, 90b172cadf, 7edb0deac8, fa1e5c5e50, dac853c937, 413f1c5e6a, 1ce8dd8d78, 8be978845b, 440e987227, d10ccb0f8e, f143fc70a4, e405069a59, e75904528b"
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,9 +150,18 @@
         "scripts/validation/hook_contracts.py",
         "tests/hooks/test_hook_contracts.py"
       ]
+    },
+    {
+      "phase": "Review",
+      "summary": "Stopped an unusable dispatch manifest from reporting once per registration on top of its own root cause.",
+      "evidence": "Expansion ran against the empty map _load_dispatch_groups returns alongside invalid_dispatch_groups, so every dispatcher registration also reported unknown_dispatch_group. Expansion is now skipped on that failure while the registrations stay in the entry list, so script existence and exit-code docs are still checked. Four tests added including a negative control that a well-formed manifest still expands; forcing expansion back on fails the new test.",
+      "files": [
+        "scripts/validation/hook_contracts.py",
+        "tests/hooks/test_hook_contracts.py"
+      ]
     }
   ],
-  "endingCommit": "4fe4855627",
+  "endingCommit": "e75904528b",
   "nextSteps": [
     "Wire the other two arms of #3360: traceability.py (orphaned designs) and consistency.py (4 of 7 features).",
     "Extend hook_contracts.py to the copilot-cli surface per #3384.",
