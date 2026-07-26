@@ -169,6 +169,13 @@ def find_pins(root: Path) -> list[Pin]:
             print(f"::warning::skipping {path}: {exc}", file=sys.stderr)
             continue
         for number, text in enumerate(content.splitlines(), 1):
+            # Skip YAML/shell comment lines: a pin mentioned in a comment is not
+            # an active install (Issue #3377 comment-stripping fix).  Only
+            # leading-# lines are dropped; trailing # can appear inside quotes
+            # or parameter expansions (${VAR#pat}), so stripping there mangles
+            # live commands.
+            if text.lstrip().startswith("#"):
+                continue
             for name, version in _PIN_RE.findall(text):
                 pins.append(Pin(path=path, line=number, name=name, version=version))
     return pins

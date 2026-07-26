@@ -108,6 +108,18 @@ class TestFindPins:
         root = _write(tmp_path, "x = 'pytest==8.3.3'\n", name="s.py")
         assert gate.find_pins(root) == []
 
+    def test_a_comment_line_is_not_a_pin(self, tmp_path):
+        """A pin mentioned in a YAML/shell comment is not an active install."""
+        root = _write(tmp_path, "# previously pytest==8.3.3\nrun: pip install pytest==9.0.3\n")
+        (pin,) = gate.find_pins(root)
+        assert pin.version == "9.0.3"
+
+    def test_an_indented_comment_line_is_not_a_pin(self, tmp_path):
+        """Comments in run blocks are often indented."""
+        root = _write(tmp_path, "run: |\n    # old: pytest==8.3.3\n    pip install pytest==9.0.3\n")
+        (pin,) = gate.find_pins(root)
+        assert pin.version == "9.0.3"
+
     def test_it_recurses_into_subdirectories(self, tmp_path):
         root = tmp_path / "gh"
         nested = root / "actions" / "a"
