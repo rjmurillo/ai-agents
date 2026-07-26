@@ -12,7 +12,7 @@
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena project activated for /home/richard/src/GitHub/rjmurillo/ai-agents4"
+        "Evidence": "Serena project activated; project memories and symbolic tools became available"
       },
       "serenaInstructions": {
         "level": "MUST",
