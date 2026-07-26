@@ -74,7 +74,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Every change on this branch is committed and pushed; endingCommit 0fc3df9a7f is the last commit recorded at the time this log was written, and any commit after it is a review-response commit on the same branch."
+        "Evidence": "Every change on this branch is committed and pushed."
       },
       "validationPassed": {
         "level": "MUST",
@@ -156,6 +156,6 @@
       }
     ]
   },
-  "endingCommit": "0fc3df9a7f460a3390722c8238b9028d9c5c7030",
+  "endingCommit": "cd79a6dc308cdb8237560d9e4df81550110867d6",
   "nextSteps": []
 }
