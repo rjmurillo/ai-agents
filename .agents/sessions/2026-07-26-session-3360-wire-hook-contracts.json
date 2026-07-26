@@ -142,9 +142,17 @@
     {
       "phase": "implementation",
       "summary": "Review found the exit-code contract still had a hole: main() caught JSONDecodeError, TypeError, and AttributeError, but not OSError or UnicodeDecodeError, so an unreadable settings file or one holding invalid UTF-8 escaped as a traceback instead of the ADR-035 configuration code. Those are the two failure modes most likely on a real machine. Widened the tuple and made the message name the path actually read, since --settings can point at a file that is not settings.json. Added 4 tests; narrowing the tuple again turns 2 of them red. Bumped both manifests to 0.6.118 because the rebase pulled a change to .claude/hooks/invoke_dispatch_claude.py into the diff."
+    },
+    {
+      "phase": "review",
+      "summary": "Answered four review threads. One was a real gap: _load_dispatch_groups read a missing or non-object 'groups' field as an empty map and reported nothing, while invoke_dispatch_claude._load_group raises TypeError on that shape and the dispatcher fails closed, blocking every dispatched tool call. A manifest that stopped the runtime it describes passed the contract check. It now emits invalid_dispatch_groups naming the field and the type found. Six tests, including one that reads the dispatcher source so the rule and the runtime cannot drift; the negative control turned four red. Also made the docstring fixture model a real blocking hook (0=allow, 2=block), renamed a test whose name said directory while the setup used a permission bit, and wrapped four lines the ruff ratchet rejected after a local ruff check reported the files clean.",
+      "files": [
+        "scripts/validation/hook_contracts.py",
+        "tests/hooks/test_hook_contracts.py"
+      ]
     }
   ],
-  "endingCommit": "d655c5237b",
+  "endingCommit": "4fe4855627",
   "nextSteps": [
     "Wire the other two arms of #3360: traceability.py (orphaned designs) and consistency.py (4 of 7 features).",
     "Extend hook_contracts.py to the copilot-cli surface per #3384.",
