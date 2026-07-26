@@ -15544,7 +15544,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008283+00:00"
+      "created": "2026-07-26T09:09:52.311540+00:00"
     },
     {
       "id": "bb34e74bff32",
@@ -15553,7 +15553,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008361+00:00"
+      "created": "2026-07-26T09:09:52.311615+00:00"
     },
     {
       "id": "bd8f970c1c78",
@@ -15562,7 +15562,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008431+00:00"
+      "created": "2026-07-26T09:09:52.311692+00:00"
     },
     {
       "id": "199856c8a72f",
@@ -15571,7 +15571,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008500+00:00"
+      "created": "2026-07-26T09:09:52.311752+00:00"
     },
     {
       "id": "795b23624fd0",
@@ -15580,7 +15580,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008564+00:00"
+      "created": "2026-07-26T09:09:52.311817+00:00"
     },
     {
       "id": "353efba5263f",
@@ -15589,7 +15589,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008626+00:00"
+      "created": "2026-07-26T09:09:52.311878+00:00"
     },
     {
       "id": "b8c5f9bb2475",
@@ -15598,7 +15598,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008696+00:00"
+      "created": "2026-07-26T09:09:52.311938+00:00"
     },
     {
       "id": "f4431adb3683",
@@ -15607,7 +15607,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008758+00:00"
+      "created": "2026-07-26T09:09:52.311997+00:00"
     },
     {
       "id": "50e5f4dd99d1",
@@ -15616,7 +15616,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008820+00:00"
+      "created": "2026-07-26T09:09:52.312057+00:00"
     },
     {
       "id": "c91028991273",
@@ -15625,7 +15625,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008880+00:00"
+      "created": "2026-07-26T09:09:52.312116+00:00"
     },
     {
       "id": "ff531ab50669",
@@ -15634,7 +15634,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.008942+00:00"
+      "created": "2026-07-26T09:09:52.312175+00:00"
     },
     {
       "id": "9fe69287ecc6",
@@ -15643,7 +15643,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009004+00:00"
+      "created": "2026-07-26T09:09:52.312234+00:00"
     },
     {
       "id": "c0b66f070299",
@@ -15652,7 +15652,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009065+00:00"
+      "created": "2026-07-26T09:09:52.312294+00:00"
     },
     {
       "id": "0c13c4960ab5",
@@ -15661,7 +15661,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009126+00:00"
+      "created": "2026-07-26T09:09:52.312357+00:00"
     },
     {
       "id": "d3a693a1a80b",
@@ -15670,7 +15670,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009191+00:00"
+      "created": "2026-07-26T09:09:52.312416+00:00"
     },
     {
       "id": "144d24ff4cf0",
@@ -15679,16 +15679,25 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009252+00:00"
+      "created": "2026-07-26T09:09:52.312475+00:00"
     },
     {
-      "id": "25bb6397c70c",
+      "id": "824a01990a02",
       "type": "milestone",
-      "label": "milestone: Regenerate memory artifacts after the final evidence edits",
+      "label": "milestone: Make the module's negative assertions survive a rewrap",
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009314+00:00"
+      "created": "2026-07-26T09:09:52.312535+00:00"
+    },
+    {
+      "id": "1c46c9bfba78",
+      "type": "milestone",
+      "label": "milestone: Regenerate memory artifacts after the final review fixes",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T09:09:52.312594+00:00"
     },
     {
       "id": "db382cd47afe",
@@ -15697,7 +15706,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009376+00:00"
+      "created": "2026-07-26T09:09:52.312662+00:00"
     },
     {
       "id": "cde373ab57a8",
@@ -15706,7 +15715,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009438+00:00"
+      "created": "2026-07-26T09:09:52.312722+00:00"
     },
     {
       "id": "5ea79dd737f0",
@@ -15715,7 +15724,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009500+00:00"
+      "created": "2026-07-26T09:09:52.312781+00:00"
     },
     {
       "id": "7bde60220cd1",
@@ -15724,7 +15733,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009561+00:00"
+      "created": "2026-07-26T09:09:52.312841+00:00"
     },
     {
       "id": "5178d54cf13a",
@@ -15733,7 +15742,7 @@
       "episodes": [
         "episode-2026-07-26-session-3342-harness-reference-size"
       ],
-      "created": "2026-07-26T08:42:51.009625+00:00"
+      "created": "2026-07-26T09:09:52.312904+00:00"
     }
   ],
   "patterns": [

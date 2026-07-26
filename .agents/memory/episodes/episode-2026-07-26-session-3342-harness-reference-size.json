@@ -60,7 +60,7 @@
       "type": "test",
       "content": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
       "caused_by": [
-        "e021"
+        "e022"
       ],
       "leads_to": [
         "e007"
@@ -202,30 +202,30 @@
       "id": "e017",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Regenerate memory artifacts after the final evidence edits",
+      "content": "Make the module's negative assertions survive a rewrap",
       "caused_by": [
         "e016"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e018"
+      ]
     },
     {
       "id": "e018",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 199a5c04c",
-      "caused_by": [],
-      "leads_to": [
-        "e019"
-      ]
+      "type": "milestone",
+      "content": "Regenerate memory artifacts after the final review fixes",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": []
     },
     {
       "id": "e019",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: b09c57cfe1",
-      "caused_by": [
-        "e018"
-      ],
+      "content": "Commit: 199a5c04c",
+      "caused_by": [],
       "leads_to": [
         "e020"
       ]
@@ -234,7 +234,7 @@
       "id": "e020",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: da5401a16f",
+      "content": "Commit: b09c57cfe1",
       "caused_by": [
         "e019"
       ],
@@ -246,9 +246,21 @@
       "id": "e021",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 618d8e1a70",
+      "content": "Commit: da5401a16f",
       "caused_by": [
         "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 618d8e1a70",
+      "caused_by": [
+        "e021"
       ],
       "leads_to": [
         "e005"

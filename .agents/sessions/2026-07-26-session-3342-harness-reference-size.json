@@ -161,14 +161,14 @@
       "evidence": "git diff --numstat origin/main...HEAD reports 6/1 for both copies of official-hook-contracts.md and 1/1 for both plugin.json files, which now read 0.6.112. Every surviving 0.6.111 mention is explicitly past tense and paired with the shipped value. Both session logs pass validate_session_json.py; zero em or en dashes in all three files and in the PR body."
     },
     {
-      "task": "Regenerate memory artifacts after the final evidence edits",
-      "outcome": "Re-extracted both PR-3354 episodes from their final session logs and refreshed the causal graph so the durable memory layer matches the corrected manifest evidence.",
-      "evidence": "Both episode files parse, their metrics match their commit-event counts, and the causal graph parses after pruning and reprocessing both episode identifiers."
-    },
-    {
       "task": "Make the module's negative assertions survive a rewrap",
       "outcome": "A negative substring check against raw markdown is defeated by a line break inside the banned phrase, and prose is exactly what gets reflowed, so these guards go quietly green on the reintroduction they exist to catch. The review flagged one test. The defect was module-wide: eight sites checked raw text, and the two that already normalized did so as a local convention nobody was obliged to repeat. Rather than add a normalized alias at each site, added _refute(document, *phrases) and routed every markdown negative through it, so the guarantee is one function instead of a habit. The three remaining `not in` assertions are dict-key checks on parsed hooks.json and are unaffected. Table-row positives stay on raw text because their formatting is the assertion.",
       "evidence": "Two independent negative controls, each appending a line-broken copy of a banned phrase to its own source. Reference SKILL.md gained 'The host merges structured\\ndecisions from every observer.': the raw assertion passed, _refute failed. Generation SKILL.md gained 'Drops are unsupported\\nCopilot events, by design.': same result. Both sources restored; 25 tests pass. ruff check clean. The two ruff format hunks in this file sit at lines 371 and 391, predate the branch, and are #2993 backlog."
+    },
+    {
+      "task": "Regenerate memory artifacts after the final review fixes",
+      "outcome": "Re-extracted the PR-3354 episode after the module-wide negative-assertion fix and refreshed the causal graph so the durable memory layer matches the final session log.",
+      "evidence": "The episode parses, its metric matches its commit-event count, and the causal graph parses after pruning and reprocessing the session episode identifier."
     }
   ],
   "endingCommit": "199a5c04c",
