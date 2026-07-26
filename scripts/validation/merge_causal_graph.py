@@ -153,10 +153,13 @@ def _merge_counter(base: JsonValue, ours: JsonValue, theirs: JsonValue) -> JsonV
         if theirs_number:
             return theirs
         return ours if ours is not None else theirs
-    start = base if isinstance(base, (int, float)) else 0
-    ours_value = ours if isinstance(ours, (int, float)) else start
-    theirs_value = theirs if isinstance(theirs, (int, float)) else start
-    merged = start + (ours_value - start) + (theirs_value - start)
+    # When there is no ancestor value, both branches independently added this
+    # record. Take the maximum rather than summing deltas, which would
+    # double-count when both sides added the same content with the same count.
+    if not isinstance(base, (int, float)):
+        return max(ours, theirs)
+    # Three-way merge: apply both sides' deltas to the ancestor.
+    merged = base + (ours - base) + (theirs - base)
     return max(merged, 0)
 
 

@@ -179,6 +179,31 @@ class TestCounterReconciliation:
     def test_a_decrease_cannot_drive_the_counter_negative(self) -> None:
         assert self._counted(4, 0, 0) == 0
 
+    def test_new_shared_record_does_not_double_count(self) -> None:
+        """Both branches independently adding the same record takes max, not sum.
+
+        Regression test for a bug where a record absent from the ancestor but
+        present on both sides with the same counter value would double that
+        value (e.g., 5 and 5 became 10) instead of keeping a single copy.
+        """
+        edge = {"source": "a", "target": "b", "type": "causes", "evidence_count": 5}
+        merged = merge_graphs(
+            _graph(edges=[]),
+            _graph(edges=[edge]),
+            _graph(edges=[edge]),
+        )
+        assert merged["edges"][0]["evidence_count"] == 5
+
+    def test_new_shared_record_with_differing_counts_takes_max(self) -> None:
+        """When no ancestor exists, take the higher count, not the sum."""
+        edge = {"source": "a", "target": "b", "type": "causes"}
+        merged = merge_graphs(
+            _graph(edges=[]),
+            _graph(edges=[{**edge, "evidence_count": 3}]),
+            _graph(edges=[{**edge, "evidence_count": 7}]),
+        )
+        assert merged["edges"][0]["evidence_count"] == 7
+
 
 class TestFieldPolicies:
     def test_episode_lists_union_and_deduplicate(self) -> None:
