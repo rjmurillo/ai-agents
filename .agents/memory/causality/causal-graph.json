@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T03:47:08.171555+00:00",
+  "updated": "2026-07-26T05:11:38.226099+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -14516,8 +14516,7 @@
       "type": "milestone",
       "label": "milestone: Applied the three ADR-057 reference normalizations and verified against source",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859304+00:00"
     },
@@ -14526,8 +14525,7 @@
       "type": "milestone",
       "label": "milestone: Ran a proportionate adr-review under the ADR Review Protocol",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859367+00:00"
     },
@@ -14536,8 +14534,7 @@
       "type": "milestone",
       "label": "milestone: Re-verified the reviewers' factual claims directly against the working tree",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859420+00:00"
     },
@@ -14546,8 +14543,7 @@
       "type": "milestone",
       "label": "milestone: Produced the governance artifacts and prepared the stacked commit",
       "episodes": [
-        "episode-2026-07-25-session-3315-adr057-ref-normalization",
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+        "episode-2026-07-25-session-3315-adr057-ref-normalization"
       ],
       "created": "2026-07-25T07:04:38.859471+00:00"
     },
@@ -15362,24 +15358,6 @@
       "created": "2026-07-26T02:02:26.671569+00:00"
     },
     {
-      "id": "5b1f3ecd25c4",
-      "type": "commit",
-      "label": "commit: Commit: b2c8a534e79785f80fa237a089d1a35256b62c40",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T03:47:08.168130+00:00"
-    },
-    {
-      "id": "86ba34f6f06c",
-      "type": "commit",
-      "label": "commit: Commit: b2c8a534e7",
-      "episodes": [
-        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
-      ],
-      "created": "2026-07-26T03:47:08.168193+00:00"
-    },
-    {
       "id": "25532ef523e0",
       "type": "outcome",
       "label": "Outcome: success - Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
@@ -15387,6 +15365,78 @@
         "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
       ],
       "created": "2026-07-26T03:47:08.168249+00:00"
+    },
+    {
+      "id": "e46a1f982e5a",
+      "type": "milestone",
+      "label": "milestone: Reproduced #3351 by writing a causal graph from nothing: load_causal_graph's empty graph omitted version and updated, both schema-required. The committed file kept them only because every write happened to load a file that already had them.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T05:11:38.222228+00:00"
+    },
+    {
+      "id": "246a9271b82e",
+      "type": "milestone",
+      "label": "milestone: Fixed the empty graph to carry both fields and stamped updated on every write, so the schema holds on the path that had never run against the committed file.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T05:11:38.222296+00:00"
+    },
+    {
+      "id": "3fb3bbc6afce",
+      "type": "milestone",
+      "label": "milestone: Replaced sequential pattern ids with a content-derived id (#3353). Two branches each allocating the next number both produce p005 for different patterns, and the content-aware merge driver cannot tell them apart.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T05:11:38.222356+00:00"
+    },
+    {
+      "id": "440d1e21ce33",
+      "type": "milestone",
+      "label": "milestone: Identified five test seed rows in the production graph (#3352): node n001 and patterns p001 through p004, written by the retired reflexion_memory writer on 2026-02-10. No edge references n001 and no episode reproduces any of them, which is how they were found.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T05:11:38.222415+00:00"
+    },
+    {
+      "id": "55819abe799c",
+      "type": "milestone",
+      "label": "milestone: Removed the seed rows and corrected backfill_episode_provenance's docstring, which used the p001 fixture as its standing example of an unattributable record.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T05:11:38.222469+00:00"
+    },
+    {
+      "id": "b626c2ac73c5",
+      "type": "milestone",
+      "label": "milestone: Added 173 lines of tests in tests/skills/memory/test_update_causal_graph.py covering metadata survival, id determinism, and merge-safety of the new id.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T05:11:38.222523+00:00"
+    },
+    {
+      "id": "84a50ea97aaf",
+      "type": "milestone",
+      "label": "milestone: Regenerated the src/copilot-cli skill mirror and bumped both plugin manifests to keep the parity gate green.",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T05:11:38.222578+00:00"
+    },
+    {
+      "id": "467d4df7b417",
+      "type": "commit",
+      "label": "commit: Commit: 9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
+      "episodes": [
+        "episode-2026-07-26-session-3351-causal-graph-generator-metadata"
+      ],
+      "created": "2026-07-26T05:11:38.222634+00:00"
     }
   ],
   "patterns": [

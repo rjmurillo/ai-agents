@@ -10,9 +10,9 @@
       "id": "e001",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Applied the three ADR-057 reference normalizations and verified against source",
+      "content": "Reproduced #3351 by writing a causal graph from nothing: load_causal_graph's empty graph omitted version and updated, both schema-required. The committed file kept them only because every write happened to load a file that already had them.",
       "caused_by": [
-        "e006"
+        "e008"
       ],
       "leads_to": [
         "e002"
@@ -22,7 +22,7 @@
       "id": "e002",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran a proportionate adr-review under the ADR Review Protocol",
+      "content": "Fixed the empty graph to carry both fields and stamped updated on every write, so the schema holds on the path that had never run against the committed file.",
       "caused_by": [
         "e001"
       ],
@@ -34,7 +34,7 @@
       "id": "e003",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Re-verified the reviewers' factual claims directly against the working tree",
+      "content": "Replaced sequential pattern ids with a content-derived id (#3353). Two branches each allocating the next number both produce p005 for different patterns, and the content-aware merge driver cannot tell them apart.",
       "caused_by": [
         "e002"
       ],
@@ -46,18 +46,22 @@
       "id": "e004",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Produced the governance artifacts and prepared the stacked commit",
+      "content": "Identified five test seed rows in the production graph (#3352): node n001 and patterns p001 through p004, written by the retired reflexion_memory writer on 2026-02-10. No edge references n001 and no episode reproduces any of them, which is how they were found.",
       "caused_by": [
         "e003"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e005"
+      ]
     },
     {
       "id": "e005",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: b2c8a534e79785f80fa237a089d1a35256b62c40",
-      "caused_by": [],
+      "type": "milestone",
+      "content": "Removed the seed rows and corrected backfill_episode_provenance's docstring, which used the p001 fixture as its standing example of an unattributable record.",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [
         "e006"
       ]
@@ -65,11 +69,31 @@
     {
       "id": "e006",
       "timestamp": "2026-07-26T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: b2c8a534e7",
+      "type": "milestone",
+      "content": "Added 173 lines of tests in tests/skills/memory/test_update_causal_graph.py covering metadata survival, id determinism, and merge-safety of the new id.",
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the src/copilot-cli skill mirror and bumped both plugin manifests to keep the parity gate green.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
+      "caused_by": [],
       "leads_to": [
         "e001"
       ]
@@ -80,7 +104,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": [

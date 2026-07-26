@@ -5,8 +5,7 @@
     "date": "2026-07-26",
     "branch": "fix/3351-causal-graph-generator-metadata",
     "startingCommit": "aaaf9081f568db83665f79ba89261a5cd746fb01",
-    "objective": "Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)",
-    "endingCommit": "b2c8a534e79785f80fa237a089d1a35256b62c40"
+    "objective": "Restore causal graph metadata on fresh writes (#3351), give patterns a stable content-derived id (#3353), and remove the test seed rows from the committed graph (#3352)"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -43,7 +42,7 @@
       "gitStatusVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git status and git diff inspected; ADR-057, the debate log, the retrospective, and this session log are hand-authored, and the commit hooks additionally regenerate the memory episode and .agents/memory/causality/causal-graph.json, for six files total in commit b2c8a534e7."
+        "Evidence": "git status and git diff inspected. The generator sources, their src/copilot-cli mirror, the tests, and this session log are hand-authored; the commit hooks regenerate the memory episode and .agents/memory/causality/causal-graph.json. Both plugin manifests are bumped because .claude/ and src/copilot-cli/ both change."
       },
       "startingCommitNoted": {
         "level": "MUST",
@@ -80,7 +79,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py --pre-commit exits 0 on this log; the staged-dash and adr-review pre-commit gates pass with 0 dashes and a debate log referencing ADR-057."
+        "Evidence": "validate_session_json.py --pre-commit exits 0 on this log, and the staged-dash gate passes with 0 dashes."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -91,24 +90,32 @@
   },
   "workLog": [
     {
-      "time": "2026-07-25T00:10:00Z",
-      "action": "Applied the three ADR-057 reference normalizations and verified against source",
-      "result": "Lines 81, 220, 284 now use .github/workflows/slash-command-quality.yml; line 247 already full-path. Confirmed 4 total references, 0 bare, 0 em/en dashes, exactly a 3-line diff."
+      "time": "2026-07-26T09:10:00Z",
+      "action": "Reproduced #3351 by writing a causal graph from nothing: load_causal_graph's empty graph omitted version and updated, both schema-required. The committed file kept them only because every write happened to load a file that already had them."
     },
     {
-      "time": "2026-07-25T00:25:00Z",
-      "action": "Ran a proportionate adr-review under the ADR Review Protocol",
-      "result": "Convened architect and critic sub-agents as genuine independent reviews; both returned ACCEPT. Recorded the two omitted-lens decisions (security, analyst, independent-thinker, high-level-advisor) and their justifications in the debate log rather than convening empty reviews."
+      "time": "2026-07-26T09:35:00Z",
+      "action": "Fixed the empty graph to carry both fields and stamped updated on every write, so the schema holds on the path that had never run against the committed file."
     },
     {
-      "time": "2026-07-25T00:35:00Z",
-      "action": "Re-verified the reviewers' factual claims directly against the working tree",
-      "result": "Confirmed .github/workflows/slash-command-quality.yml exists, the reference count and full-path conversion, and no table breakage on line 284, before recording ACCEPT consensus in the debate log."
+      "time": "2026-07-26T10:05:00Z",
+      "action": "Replaced sequential pattern ids with a content-derived id (#3353). Two branches each allocating the next number both produce p005 for different patterns, and the content-aware merge driver cannot tell them apart."
     },
     {
-      "time": "2026-07-25T00:45:00Z",
-      "action": "Produced the governance artifacts and prepared the stacked commit",
-      "result": "Wrote the debate log, the retrospective, and this session log to satisfy the adr-review, session, and retrospective gates honestly, then staged those four hand-authored files; the commit hooks added the memory episode and causal-graph regeneration, so commit b2c8a534e7 carries six files."
+      "time": "2026-07-26T10:40:00Z",
+      "action": "Identified five test seed rows in the production graph (#3352): node n001 and patterns p001 through p004, written by the retired reflexion_memory writer on 2026-02-10. No edge references n001 and no episode reproduces any of them, which is how they were found."
+    },
+    {
+      "time": "2026-07-26T11:00:00Z",
+      "action": "Removed the seed rows and corrected backfill_episode_provenance's docstring, which used the p001 fixture as its standing example of an unattributable record."
+    },
+    {
+      "time": "2026-07-26T11:25:00Z",
+      "action": "Added 173 lines of tests in tests/skills/memory/test_update_causal_graph.py covering metadata survival, id determinism, and merge-safety of the new id."
+    },
+    {
+      "time": "2026-07-26T11:45:00Z",
+      "action": "Regenerated the src/copilot-cli skill mirror and bumped both plugin manifests to keep the parity gate green."
     }
   ],
   "learnings": {
@@ -127,6 +134,6 @@
       }
     ]
   },
-  "endingCommit": "b2c8a534e79785f80fa237a089d1a35256b62c40",
+  "endingCommit": "9f1e0b949a31dc394bb8536268ffb1e1a0c0f841",
   "nextSteps": []
 }

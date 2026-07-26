@@ -98,9 +98,11 @@ def generate_pattern_id(name: str) -> str:
     sequential (``p001``, ``p002``) because this file is merged by the
     content-aware driver in ``scripts/validation/merge_causal_graph.py``: two
     branches that each allocate the next number both produce ``p005`` for
-    different patterns, and no merge can tell them apart. A hash of the name
-    collides only when the names match, which is exactly when the two records
-    are the same pattern. Refs #3353.
+    different patterns, and no merge can tell them apart. Identical names
+    always produce the same id, which is the property the merge relies on.
+    Distinct names can collide in principle, since this is a 48-bit prefix of
+    a SHA-256: even odds arrive somewhere near 2**24 patterns, against a graph
+    that holds tens. Refs #3353.
     """
     return hashlib.sha256(f"pattern:{name}".encode()).hexdigest()[:12]
 
