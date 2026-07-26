@@ -135,12 +135,20 @@ def find_pins(root: Path) -> list[Pin]:
     installed the same way, but those files are covered by the dependency
     resolver rather than by hand-written literals, and widening the scan
     turns ordinary equality comparisons into false positives.
+
+    Per-file errors (I/O failures, encoding issues) are logged and skipped so
+    that one unreadable file does not abort the scan of other pins.
     """
     pins: list[Pin] = []
     for path in sorted(root.rglob("*")):
         if path.suffix not in {".yml", ".yaml"} or not path.is_file():
             continue
-        for number, text in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"::warning::skipping {path}: {exc}", file=sys.stderr)
+            continue
+        for number, text in enumerate(content.splitlines(), 1):
             for name, version in _PIN_RE.findall(text):
                 pins.append(Pin(path=path, line=number, name=name, version=version))
     return pins
@@ -176,7 +184,7 @@ def check(root: Path, pyproject: Path) -> int:
 
     try:
         constraints = declared_constraints(pyproject)
-    except (tomllib.TOMLDecodeError, InvalidSpecifier, OSError) as exc:
+    except (tomllib.TOMLDecodeError, InvalidSpecifier, OSError, UnicodeDecodeError) as exc:
         print(f"::error::cannot read constraints from {pyproject}: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
