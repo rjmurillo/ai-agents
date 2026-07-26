@@ -36,7 +36,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import stat
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, TypeAlias
 
@@ -72,6 +75,49 @@ _PREFER_PRESENT = frozenset({"version"})
 
 class GraphMergeError(Exception):
     """An input could not be read or was not a causal graph."""
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Replace ``path`` only after its full content reaches a sibling file."""
+    fd, temporary = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        try:
+            handle = os.fdopen(fd, "w", encoding="utf-8")
+        except OSError as fdopen_error:
+            try:
+                os.close(fd)
+            except OSError as close_error:
+                message = (
+                    f"{fdopen_error.strerror or fdopen_error}; failed to close "
+                    f"temporary file descriptor {fd}: {close_error}"
+                )
+                raise OSError(fdopen_error.errno, message) from fdopen_error
+            raise
+        try:
+            handle.write(text)
+        except OSError as write_error:
+            try:
+                handle.close()
+            except OSError as close_error:
+                message = (
+                    f"{write_error.strerror or write_error}; failed to close temporary "
+                    f"file {temporary}: {close_error}"
+                )
+                raise OSError(write_error.errno, message) from write_error
+            raise
+        handle.close()
+        os.chmod(temporary, stat.S_IMODE(path.stat().st_mode))
+        os.replace(temporary, path)
+    except OSError as primary:
+        try:
+            Path(temporary).unlink(missing_ok=True)
+        except OSError as cleanup:
+            message = (
+                f"{primary.strerror or primary}; failed to remove temporary file "
+                f"{temporary}: {cleanup}"
+            )
+            raise OSError(primary.errno, message) from primary
+        raise
 
 
 def _load(path: Path, label: str, *, may_be_empty: bool = False) -> dict[str, Any]:
@@ -335,7 +381,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Return 0 on a written merge, 1 when git must leave the conflict alone."""
+    """Return 0 on success, 1 for invalid input, or 3 for a write failure."""
     args = parse_args(argv)
     try:
         merged = merge_graphs(
@@ -343,7 +389,7 @@ def main(argv: list[str] | None = None) -> int:
             _load(args.ours, "ours"),
             _load(args.theirs, "theirs"),
         )
-        args.ours.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+        _atomic_write_text(args.ours, json.dumps(merged, indent=2) + "\n")
     except GraphMergeError as exc:
         print(f"ERROR: causal graph merge driver: {exc}", file=sys.stderr)
         print("Leaving the conflict in place; resolve it by hand.", file=sys.stderr)
