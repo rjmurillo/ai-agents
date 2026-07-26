@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3343,
+    "date": "2026-07-26",
+    "branch": "fix/3342-harness-reference-size",
+    "startingCommit": "c798e0df7d",
+    "objective": "Issue #3342: agent-harness-reference SKILL.md sat at 495 of the 500-line budget. Delete the 261-line GitHub Copilot CLI Contract section that duplicated references/official-hook-contracts.md, keep only the repository decisions the skill's own Authority Order assigns to SKILL.md, and repoint the content-pin tests at the file that now owns each fact.",
+    "id": "2026-07-26-session-3342-harness-reference-size"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is live on this Copilot CLI harness; serena-list_memories returned the project memory index earlier in this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions read earlier in this session; Serena remains active on this harness."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and honored the read-only rule (ADR-014); never modified on this branch."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file created under .agents/sessions/ during the session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/3342-harness-reference-size, cut from origin/main at c798e0df7d."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All commits land on fix/3342-harness-reference-size; main was only read."
+      },
+      "memoriesLoaded": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Copilot repository and user memories loaded at session start, including the plugin-manifest parity rule and the branch-context touch requirement."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branching; pre-existing untracked retrospective, Serena memory, and the pr3097-worktree checkout left alone."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "SKILL.md is 312 lines, the duplicated 261-line vendor block is gone, the one orphaned Copilot Stop fact was added to the sidecar, and seven content-pin tests now assert against the owning file."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read only, never modified (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No new durable convention emerged; the Authority Order that drove this cut is already stated in the skill itself, so no memory was written."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run over .claude/skills/agent-harness-reference/**/*.md; the repo config excludes .claude/skills/**, so it linted 0 files and reported 0 issues. Size is gated instead by scripts/validation/skill_size.py, which reports Failed: 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three atomic commits on fix/3342-harness-reference-size: the content move, the test repointing plus manifest bumps, and this log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "30 tests pass across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Six negative controls each turned the suite red before restore."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3342 addressed; PR opened against it."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Audit the duplication before cutting anything",
+      "outcome": "references/official-hook-contracts.md carries a section-for-section counterpart for every subsection of the 261-line Copilot contract block, with sources cited and more detail. SKILL.md's own Authority Order already assigns exact event sets and output fields to the sidecar and leaves SKILL.md only the repository decisions derived from them. The section violated the file's own rule, so the fix is deleting a duplicate, not progressive disclosure.",
+      "evidence": "Mapped 9 SKILL.md headings to 9 sidecar headings: Locations and schema to Configuration contract, Exact native event set to Exact native events, Matchers to Matchers, PreToolUse/PermissionRequest/Stop decisions to their output-and-failure counterparts, Exit and timeout to Exit codes and stderr, Output fields to Other output fields, Cloud agent to Cloud agent."
+    },
+    {
+      "task": "Replace the duplicate with a repository-policy section",
+      "outcome": "SKILL.md is 312 lines, down from 495. The new section keeps the shipped-registration inventory, the 10-row Claude-to-Copilot event policy table, the defense-in-depth matcher line, the PermissionRequest adapter semantics, the PostToolUse additionalContext merger behavior, and the Claude grouped-dispatcher terminal shapes, plus pointers to the sidecars.",
+      "evidence": "wc -l reports 312 for both the canonical file and the generated mirror. scripts/validation/skill_size.py reports Failed: 0 across 96 skills. Swept 30 distinguishable facts from the deleted section against SKILL.md plus both sidecars: 0 missing."
+    },
+    {
+      "task": "Give the one orphaned vendor fact a home in the sidecar",
+      "outcome": "The sidecar documented Stop decision semantics for Claude Code but not for Copilot. Added the Copilot sentence so the deleted SKILL.md text loses nothing.",
+      "evidence": "Added to the agentStop / subagentStop section: block forces another turn, omitting decision permits completion, and Claude Code uses the same top-level shape so a shared Stop producer needs no adapter."
+    },
+    {
+      "task": "Repoint the content-pin tests at the owning file",
+      "outcome": "Seven tests in tests/build_scripts/test_hook_contract_knowledge.py asserted vendor facts against SKILL.md. Each assertion now runs against whichever file the Authority Order makes the owner: vendor wire shapes, exit and timeout rows, and SDK-only fields against the sidecar; event policy rows, adapter behavior, and the cross-harness delta against SKILL.md. Deleted test_reference_lists_exact_copilot_event_set because test_official_sidecar_lists_both_exact_event_sets already asserts the same 14-event set against the file that owns it. Rewrote the mirror test to byte-compare the generated SKILL.md against the canonical one instead of spot-checking four strings.",
+      "evidence": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing."
+    },
+    {
+      "task": "Negative controls",
+      "outcome": "Proved the guard moved to the sidecar rather than weakening. Six controls, six reds.",
+      "evidence": "Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open the PR for #3342 and drive checks green.",
+    "Merge PR #3347 (#3346) and PR #3348 (#3345); both have zero unresolved threads.",
+    "Classify the unwired scripts for #3341 by hand."
+  ]
+}

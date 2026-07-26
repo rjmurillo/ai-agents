@@ -14663,6 +14663,78 @@
         "episode-2026-07-25-session-3343-branch-context-merge"
       ],
       "created": "2026-07-25T14:05:27.596517+00:00"
+    },
+    {
+      "id": "3d2ca1906efc",
+      "type": "milestone",
+      "label": "milestone: Audit the duplication before cutting anything",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:25:52.277594+00:00"
+    },
+    {
+      "id": "bb34e74bff32",
+      "type": "milestone",
+      "label": "milestone: Replace the duplicate with a repository-policy section",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:25:52.277663+00:00"
+    },
+    {
+      "id": "bd8f970c1c78",
+      "type": "milestone",
+      "label": "milestone: Give the one orphaned vendor fact a home in the sidecar",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:25:52.277716+00:00"
+    },
+    {
+      "id": "199856c8a72f",
+      "type": "milestone",
+      "label": "milestone: Repoint the content-pin tests at the owning file",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:25:52.277768+00:00"
+    },
+    {
+      "id": "795b23624fd0",
+      "type": "test",
+      "label": "test: 30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:25:52.277820+00:00"
+    },
+    {
+      "id": "353efba5263f",
+      "type": "milestone",
+      "label": "milestone: Negative controls",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:25:52.277871+00:00"
+    },
+    {
+      "id": "b8c5f9bb2475",
+      "type": "test",
+      "label": "test: Deleting each of 'Omitting decision permits completion.', the Timeout fail-open row, 'implementation-only SDK types', and 'performs one JSON.parse' from the sidecar turned 2 tests red each (the repointed pin plus the canonical-versus-mirror byte compare). Deleting 'Failed-observer partial output is discarded.' from SKILL.md turned 2 red. Appending one line to the generated mirror turned 1 red. Restoring every file returned 25 passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:25:52.277925+00:00"
+    },
+    {
+      "id": "5178d54cf13a",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #3342: agent-harness-reference SKILL.md sat at 495 of the 500-line budget. Delete the 261-line GitHub Copilot CLI Contract section that duplicated references/official-hook-contracts.md, keep only the repository decisions the skill's own Authority Order assigns to SKILL.md, and repoint the content-pin tests at the file that now owns each fact.",
+      "episodes": [
+        "episode-2026-07-26-session-3342-harness-reference-size"
+      ],
+      "created": "2026-07-26T02:25:52.277978+00:00"
     }
   ],
   "patterns": [
