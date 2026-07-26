@@ -154,6 +154,8 @@ def _merge_counter(base: JsonValue, ours: JsonValue, theirs: JsonValue) -> JsonV
         if theirs_number:
             return theirs
         return ours if ours is not None else theirs
+    assert isinstance(ours, (int, float))
+    assert isinstance(theirs, (int, float))
     # When there is no ancestor value, both branches independently added this
     # record. Take the maximum rather than summing deltas, which would
     # double-count when both sides added the same content with the same count.
