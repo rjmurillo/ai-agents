@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3363,
+    "date": "2026-07-26",
+    "branch": "fix/3363-episode-commit-provenance",
+    "startingCommit": "a366fe694416af511a0e7829245372d057c69987",
+    "objective": "Fix issue #3363: the episode extractor sourced session commits from work-log prose, counting SHAs the session cited but did not author and missing its own."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; serena-list_memories returned the project memory index"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions read at session initialization"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; treated as read-only per ADR-014"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "code-review-and-quality and github skill catalogs loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded plugin-versioning, testing-practices, and hooks memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/3371-collect-mirror-suites"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/3371-collect-mirror-suites, branched off main 663bbac488"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before branch creation and before each commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "663bbac488"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session-start and session-end fields completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged; git status shows no modification"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Stored the testpaths blackout finding and the per-tree collection workaround"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files in the diff; the change set is Python and JSON only, verified with git diff --name-only"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three commits: ccc84280fe, bec3366729, d655c5237b"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Both bundle trees green (1120 and 1085 passed, 4 skipped each); 1985 passed across tests/test_paths.py, tests/skills/, tests/test_chaos_experiment_scripts.py, tests/validation/test_check_vendor_portability.py; 8 passed in tests/test_skill_bundle_suites_run.py; ruff check and ruff format clean"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #3371 commented with the corrected 82-directory scope"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; this session is one issue in a multi-issue autopilot run whose retrospective covers the whole run"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "Investigate",
+      "summary": "Reproduced #3363 on the fix/3342 episode: 6 commit events against 7 named in changesCommitted, only 4 overlapping. _collect_shas sourced from endingCommit, startingCommit and work-log prose, and never read protocolCompliance.sessionEnd.changesCommitted, the protocol's own record.",
+      "evidence": "Foreign commits counted: 663bbac488 (a PR #3358 merge on main) and a2487c4ac1 (another session's fix), both same-day so the #3328 predating filter could not drop them. Missed: 006a88767, 827a4c699, f673788d4, present only in changesCommitted."
+    },
+    {
+      "phase": "Measure",
+      "summary": "Measured all 933 session logs before designing, so the fallback policy follows the data rather than a guess.",
+      "evidence": "194 logs name SHAs in changesCommitted evidence; 192 carry endingCommit with no prose SHAs; 20 are prose-only (all pre-2026-02); 483 record no commit. 44 sit in the contested shape (endingCommit set, evidence has no SHAs, prose does): of the 83 prose SHAs there, 46 are unresolvable by git, 23 are provably not in the session's line, and the 14 remaining are ancestors of the ending commit, which every prior commit on main also is. No evidence prose names own commits in that shape."
+    },
+    {
+      "phase": "Implement",
+      "summary": "Made endingCommit plus the changesCommitted evidence authoritative and demoted work-log prose to a fallback used only when both are empty, which keeps the 20 prose-only logs working. json_metrics and json_events already share _collect_shas, so the count cannot drift from the event stream.",
+      "evidence": "Added _changes_committed_evidence reading both Evidence and evidence casings and tolerating a missing or non-dict compliance section. Regenerated the fix/3342 episode: 7 commit events exactly matching the 7 SHAs changesCommitted names, zero extra, zero missing."
+    },
+    {
+      "phase": "Test",
+      "summary": "Added 9 provenance tests and corrected 12 existing tests that asserted the disproven prose-primary contract, preserving each one's intent.",
+      "evidence": "162 passed. The #2170 multi-commit tests now source from changesCommitted; the #3123 events-equal-metrics invariant is unchanged; the #3328 predating fixtures now take the fallback shape so that filter is still exercised. Negative controls: dropping the changesCommitted source turned 7 red, restoring prose-primary turned 2 red including the exact foreign-SHA case."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push fix/3371-collect-mirror-suites and open a PR that fixes #3371.",
+    "Comment on #3371 with the corrected scope: 82 directories, not 2.",
+    "Re-poll the four open PRs for new review threads."
+  ]
+}

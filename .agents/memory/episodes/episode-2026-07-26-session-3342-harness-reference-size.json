@@ -60,7 +60,7 @@
       "type": "test",
       "content": "30 passed across tests/build_scripts/test_hook_contract_knowledge.py and .claude/skills/agent-harness-reference/tests/. Assertions that span a wrapped line now run through _normalized_text so a reflow cannot turn them red without a fact changing.",
       "caused_by": [
-        "e025"
+        "e026"
       ],
       "leads_to": [
         "e007"
@@ -270,7 +270,7 @@
       "id": "e023",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 618d8e1a70",
+      "content": "Commit: 618d8e1a7",
       "caused_by": [
         "e022"
       ],
@@ -282,7 +282,7 @@
       "id": "e024",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 663bbac488",
+      "content": "Commit: 006a88767",
       "caused_by": [
         "e023"
       ],
@@ -294,9 +294,21 @@
       "id": "e025",
       "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: a2487c4ac1",
+      "content": "Commit: 827a4c699",
       "caused_by": [
         "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ]
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f673788d4",
+      "caused_by": [
+        "e025"
       ],
       "leads_to": [
         "e005"
@@ -308,7 +320,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 598
   },
   "lessons": []
