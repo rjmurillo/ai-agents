@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T09:39:53.688422+00:00",
+  "updated": "2026-07-26T11:26:02.980884+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -16193,6 +16193,51 @@
         "episode-2026-07-26-session-3342-autofix-3354-review-threads-merge"
       ],
       "created": "2026-07-26T09:39:53.684404+00:00"
+    },
+    {
+      "id": "7ef22e640644",
+      "type": "milestone",
+      "label": "milestone: Verify the merged PR still contained the review findings",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977039+00:00"
+    },
+    {
+      "id": "151872c1a1f1",
+      "type": "milestone",
+      "label": "milestone: Create a non-duplicating follow-up",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977110+00:00"
+    },
+    {
+      "id": "2524d88331b2",
+      "type": "milestone",
+      "label": "milestone: Apply and verify the cleanup fix",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977170+00:00"
+    },
+    {
+      "id": "e9becf02c454",
+      "type": "commit",
+      "label": "commit: Commit: f339de7aa3",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977227+00:00"
+    },
+    {
+      "id": "75d2ccd2fad6",
+      "type": "outcome",
+      "label": "Outcome: success - Report atomic causal graph cleanup failures without hiding the primary error",
+      "episodes": [
+        "episode-2026-07-26-session-3378-report-atomic-causal-graph-cleanup"
+      ],
+      "created": "2026-07-26T11:26:02.977286+00:00"
     }
   ],
   "patterns": [
