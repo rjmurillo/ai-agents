@@ -833,14 +833,23 @@ def test_marker_in_header_window_is_generated(tmp_path: Path) -> None:
     assert classify_file_category(generated) == "generated"
 
 
-def test_github_instructions_path_is_generated(tmp_path: Path) -> None:
+def test_github_instructions_path_is_generated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # .github/instructions/*.instructions.md are generated mirrors of
     # .claude/rules/* and carry no in-file markers; classify by path.
+    # _GENERATED_PATH_SEGMENTS are repo-root-anchored, so the path must be
+    # rooted at CWD the way a real diff-supplied path is.
     path = tmp_path / ".github" / "instructions" / "universal.instructions.md"
     path.parent.mkdir(parents=True)
     path.write_text("# Universal Rules\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
 
     assert classify_file_category(path) == "generated"
+    assert (
+        classify_file_category(Path(".github") / "instructions" / "universal.instructions.md")
+        == "generated"
+    )
 
 
 def test_classify_ignores_checkout_path_segments(
