@@ -188,7 +188,12 @@ def _entry_points() -> frozenset[str]:
         ("lefthook.yml", ".config/lefthook.yml", ".githooks/*"),
     )
     skill_text = _text_of(
-        (".claude/skills/*/SKILL.md", "src/copilot-cli/skills/*/SKILL.md"),
+        (
+            ".claude/skills/*/SKILL.md",
+            "src/copilot-cli/skills/*/SKILL.md",
+            ".claude/skills/*/scripts/**/*.py",
+            "src/copilot-cli/skills/*/scripts/**/*.py",
+        ),
     )
     corpus = "\n".join((workflow_text, hook_text, skill_text))
     named: set[str] = set()

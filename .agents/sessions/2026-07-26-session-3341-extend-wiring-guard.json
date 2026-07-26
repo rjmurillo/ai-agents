@@ -6,7 +6,7 @@
     "branch": "fix/3341-extend-wiring-guard",
     "startingCommit": "aaaf9081f568db83665f79ba89261a5cd746fb01",
     "objective": "Extend the CI wiring guard past scripts/ci using reachability rather than literal reference (#3341)",
-    "endingCommit": ""
+    "endingCommit": "77732a243f48f5dc303f75b842d8f81288d91854"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -142,6 +142,6 @@
       }
     ]
   },
-  "endingCommit": "",
+  "endingCommit": "77732a243f48f5dc303f75b842d8f81288d91854",
   "nextSteps": []
 }
