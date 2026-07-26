@@ -148,8 +148,8 @@ neutral in this ADR; only the publishing repo takes prunes.
    dropped is still dropped.
 10. **Group ids are opaque.** A group id is a dispatcher lookup key. It
     carries no contract with the shims the group holds, the matcher it uses,
-    the event it serves, or the order of anything. Nothing may assert on its
-    content. The decision is recorded because the silence reads as an
+    the event it serves, or the order of anything. Nothing may make semantic
+    assertions on its content. The decision is recorded because the silence reads as an
     invitation: a group-name coherence gate (an id should name the hooks it
     holds) was proposed while closing #3349 and looks like an obvious
     invariant. Replayed across the last 14 revisions of
