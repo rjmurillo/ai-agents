@@ -12,7 +12,7 @@
       "type": "milestone",
       "content": "Ran the PR live-state gate and created an isolated worktree",
       "caused_by": [
-        "e008"
+        "e009"
       ],
       "leads_to": [
         "e002"
@@ -86,13 +86,25 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e008",
       "timestamp": "2026-07-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the final pre-push gate failures",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-26T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 730339fedecf1e71fd8a88ceb386f313f0c5ce78",
+      "content": "Commit: ef99879c515852cfcff27c1a62b504e064ad7268",
       "caused_by": [],
       "leads_to": [
         "e001"

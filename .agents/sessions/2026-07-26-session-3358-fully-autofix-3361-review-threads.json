@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, review-response, and concurrent merge commits through the current main merge tip contain all code and workflow fixes; this commit removes merge-reintroduced graph fixtures."
+        "Evidence": "Implementation and gate-repair commits through ef99879c51 contain all code, workflow, graph, and evidence fixes; this commit refreshes the session artifacts."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The full pre-push suite reached 14,008 passes before four retired graph-fixture guards failed; the fixtures were removed and the focused five-test guard now passes."
+        "Evidence": "The repository suite passed 14,012 tests with 28 skips and 45 expected failures; mypy, full gh-act worktree handling, workflow validation, security, QA, and ruff passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -148,8 +148,13 @@
       "time": "2026-07-26T09:08:00Z",
       "action": "Fixed the pre-push graph fixture regression",
       "result": "Merging current main through the content union driver reintroduced one retired node and four retired patterns. Removed those unreproducible seed rows; all five committed-graph fixture guards pass."
+    },
+    {
+      "time": "2026-07-26T09:25:00Z",
+      "action": "Fixed the final pre-push gate failures",
+      "result": "Mypy now narrows annotated assignments. Reachability runs in the generated-agent workflow for every caller surface. The exact linked-worktree gh-act annotation is downgraded only when no unrelated error annotation exists."
     }
   ],
-  "endingCommit": "730339fedecf1e71fd8a88ceb386f313f0c5ce78",
+  "endingCommit": "ef99879c515852cfcff27c1a62b504e064ad7268",
   "nextSteps": []
 }
