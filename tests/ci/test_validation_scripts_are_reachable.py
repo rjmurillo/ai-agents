@@ -27,11 +27,11 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the same 89 scripts yield five unreachable, each of which is a
+Under that model the same 89 scripts yield four unreachable, each of which is a
 real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
-pass if run. Three of the entries below are unreachable precisely because
+pass if run. Two of the entries below are unreachable precisely because
 they fail against the current tree, which is tracked separately. Reachability
 is the floor, not the ceiling.
 """
@@ -106,12 +106,6 @@ _NO_CALLER: dict[str, str] = {
         "consistency.py: the schema it implements "
         "(.agents/governance/traceability-schema.md) is live, so the fix is to "
         "resolve the findings and then wire it. Tracked in #3360."
-    ),
-    "scripts/validation/hook_contracts.py": (
-        "Fails against the current tree: `--ci` exits 1 on hook docstrings that "
-        "do not document their exit-code semantics. This one is worth wiring "
-        "once the docstrings are fixed, because it guards the hook contract "
-        "that #3247 and #3295 both turned on. Tracked in #3360."
     ),
 }
 

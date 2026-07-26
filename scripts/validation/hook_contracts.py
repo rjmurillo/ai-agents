@@ -50,7 +50,12 @@ MIN_TIMEOUT = 1
 MAX_TIMEOUT = 300
 
 # Pattern to extract script path from command string
-_SCRIPT_PATH_PATTERN = re.compile(r"python3?\s+(?:-\w+\s+)*(.+\.py)(?:\s|$)")
+_SCRIPT_PATH_PATTERN = re.compile(r"python3?\s+(?:-\w+\s+)*\"?(.+?\.py)\"?(?:\s|$)")
+
+# Plugin registrations address their scripts through the harness-provided
+# plugin root. Inside the checkout that publishes the plugin, that root is
+# .claude, so resolving it lets the same contract cover the published surface.
+_PLUGIN_ROOT_PATTERN = re.compile(r"\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT(?::-[^}]*)?\}")
 
 # Pattern to detect PowerShell commands
 _PWSH_PATTERN = re.compile(r"(?:pwsh|powershell)\s+.*\.ps1(?:\s|$)", re.IGNORECASE)
@@ -111,9 +116,105 @@ def _resolve_script_path(base_path: Path, script_path: str) -> Path | None:
 def extract_script_path(command: str) -> str | None:
     """Extract the Python script path from a hook command string."""
     match = _SCRIPT_PATH_PATTERN.search(command)
-    if match:
-        return match.group(1)
-    return None
+    if not match:
+        return None
+    return _PLUGIN_ROOT_PATTERN.sub(".claude", match.group(1)).strip("\"'")
+
+
+_GROUP_FLAG_PATTERN = re.compile(r"--group\s+([A-Za-z0-9_.-]+)")
+
+DISPATCH_GROUPS_PATH = Path(".claude") / "hooks" / "dispatch_groups.json"
+PLUGIN_HOOKS_PATH = Path(".claude") / "hooks" / "hooks.json"
+
+
+def _load_dispatch_groups(base_path: Path) -> tuple[dict, list[Violation]]:
+    """Read the group membership map the dispatcher fans out to.
+
+    A missing file is not a violation: a checkout with no grouped hooks is
+    legitimate. Malformed JSON is, because the dispatcher would fail at runtime.
+    """
+    path = base_path / DISPATCH_GROUPS_PATH
+    if not path.is_file():
+        return {}, []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {}, [
+            Violation(
+                hook_type="dispatcher",
+                script=str(DISPATCH_GROUPS_PATH),
+                category="invalid_dispatch_groups",
+                message=f"Cannot read {DISPATCH_GROUPS_PATH}: {exc}",
+            )
+        ]
+    groups = data.get("groups")
+    return (groups if isinstance(groups, dict) else {}), []
+
+
+def _expand_dispatch_group(
+    entry: HookEntry, groups: dict
+) -> tuple[list[HookEntry], list[Violation]]:
+    """Replace a dispatcher registration with the shims it actually runs.
+
+    Since group dispatch (#3153) a registration names a group, not a script, so
+    validating the command alone checks the dispatcher over and over and never
+    checks the hooks. The shims are the code that runs, so they are what the
+    contract has to cover.
+    """
+    match = _GROUP_FLAG_PATTERN.search(entry.command)
+    if not match:
+        return [entry], []
+    name = match.group(1)
+    spec = groups.get(name)
+    if not isinstance(spec, dict):
+        return [], [
+            Violation(
+                hook_type=entry.hook_type,
+                script=entry.script_path,
+                category="unknown_dispatch_group",
+                message=(
+                    f"Hook dispatches to group '{name}', which "
+                    f"{DISPATCH_GROUPS_PATH} does not define"
+                ),
+            )
+        ]
+    shims = spec.get("shims")
+    if not isinstance(shims, list) or not shims:
+        return [], [
+            Violation(
+                hook_type=entry.hook_type,
+                script=entry.script_path,
+                category="empty_dispatch_group",
+                message=(
+                    f"Hook dispatches to group '{name}', which lists no shims, "
+                    "so the registration runs nothing"
+                ),
+            )
+        ]
+    expanded: list[HookEntry] = []
+    violations: list[Violation] = []
+    for shim in shims:
+        if not isinstance(shim, dict) or not isinstance(shim.get("file"), str):
+            violations.append(
+                Violation(
+                    hook_type=entry.hook_type,
+                    script=entry.script_path,
+                    category="malformed_shim",
+                    message=f"Group '{name}' has a shim entry with no file path",
+                )
+            )
+            continue
+        expanded.append(
+            HookEntry(
+                hook_type=spec.get("event") or entry.hook_type,
+                script_path=str(Path(".claude") / "hooks" / shim["file"]),
+                command=entry.command,
+                matcher=spec.get("matcher", entry.matcher),
+                timeout=shim.get("timeout", entry.timeout),
+                status_message=shim.get("statusMessage"),
+            )
+        )
+    return expanded, violations
 
 
 def parse_settings(settings_path: Path) -> tuple[dict, list[HookEntry], list[Violation]]:
@@ -319,6 +420,24 @@ def validate_all(
         ContractReport with all entries and violations found.
     """
     _, entries, parse_violations = parse_settings(settings_path)
+
+    # The plugin registers its own hooks, so a settings.json-only read leaves
+    # the whole published surface unvalidated.
+    plugin_path = base_path / PLUGIN_HOOKS_PATH
+    if plugin_path.is_file():
+        _, plugin_entries, plugin_violations = parse_settings(plugin_path)
+        entries.extend(plugin_entries)
+        parse_violations.extend(plugin_violations)
+
+    groups, group_violations = _load_dispatch_groups(base_path)
+    parse_violations.extend(group_violations)
+    expanded: list[HookEntry] = []
+    for entry in entries:
+        shims, violations = _expand_dispatch_group(entry, groups)
+        expanded.extend(shims)
+        parse_violations.extend(violations)
+    entries = expanded
+
     report = ContractReport(entries=entries)
     report.violations.extend(parse_violations)
 

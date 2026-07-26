@@ -1,0 +1,92 @@
+# Hook Contract Check (Issue #3360)
+#
+# Validates that every hook the harness will actually run exists and documents
+# its exit-code semantics. Two production incidents came from a broken hook
+# contract (#3247, #3295), and the validator that guards it had tests but no
+# call site, which is the protects-nothing shape #3329 describes.
+#
+# Coverage follows group dispatch (#3153): a registration in .claude/settings.json
+# or the plugin's hooks.json names a group, not a script, so the check expands
+# each group through dispatch_groups.json and validates the shims behind it.
+#
+# Logic lives in scripts/validation/hook_contracts.py per ADR-006 (thin
+# workflows) and ADR-042 (Python-first). Uses dorny/paths-filter (Issue #103)
+# so the workflow satisfies required-check contracts on every PR and skips with
+# a passing status when no hook registration changed.
+
+name: Hook Contract Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-paths:
+    name: Detect hook changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      should-run-hooks: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.hooks }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            hooks:
+              - '.claude/settings.json'
+              - '.claude/hooks/**'
+              - 'src/copilot-cli/hooks/**'
+              - 'build/scripts/generate_hooks_shim.py'
+              - 'build/scripts/generate_dispatcher.py'
+              - 'build/scripts/generate_hooks_events.py'
+              - 'scripts/validation/hook_contracts.py'
+              - '.github/workflows/hook-contract-check.yml'
+
+  validate-hook-contracts:
+    name: Validate hook contracts
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-hooks == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: Run hook contract validation
+        run: |
+          python3 scripts/validation/hook_contracts.py --ci
+
+  skip-hook-contracts:
+    name: Skip hook contracts (no hook changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-hooks != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    steps:
+      - name: Checkout code
+        # Required for dorny/paths-filter pattern consistency.
+        # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Skip message
+        run: |
+          echo "No hook registration changes detected - skipping hook contract check"
