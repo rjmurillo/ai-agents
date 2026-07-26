@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits 487eafe4e8, e6da3ec408, 088c5b2f6b, dbe076249f, c3d0db4f91, 1a1ed7daf9, efc1c93140, f5e9928335, and 3ecc83eaf2"
+        "Evidence": "Commits 487eafe4e8, e6da3ec408, 088c5b2f6b, dbe076249f, c3d0db4f91, 1a1ed7daf9, efc1c93140, f5e9928335, 3ecc83eaf2, and ade3b8d7a2"
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,7 +139,7 @@
       "summary": "Review caught a real defect: _collect_shas promised distinct commits but tested membership with exact string equality, so a full 40-char endingCommit and a 7-char abbreviation of the same commit in the changesCommitted evidence both landed. That double-counted metrics.commits and emitted two commit events and two causal-graph nodes for one commit. Added _already_seen, which compares through the existing _same_commit predicate, and routed all four membership checks through it while keeping the first spelling seen. Added 6 tests including a negative control proving two commits sharing a sub-7-character prefix still count separately; reverting to exact membership turned 3 of them red. Also wrapped a 101-character line the ruff ratchet rejected."
     }
   ],
-  "endingCommit": "f5e9928335",
+  "endingCommit": "ade3b8d7a2",
   "nextSteps": [
     "Re-poll PR #3380 for review threads landing after this push.",
     "Decide separately whether the markdown-path metrics.commits counter, which counts any line carrying a hex run, needs the same correction.",
