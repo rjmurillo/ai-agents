@@ -244,11 +244,18 @@ def _expand_dispatch_group(
             )
         ]
 
-    # The categories below mirror the four outcomes the Claude runtime already
-    # distinguishes in invoke_dispatch_claude._load_group: KeyError for an
-    # absent group, TypeError for a non-object group, TypeError for a non-list
-    # 'shims', and no error at all for an empty list. Reporting a wrong type as
-    # "does not define" sends the reader to add a group that is already there.
+    # The categories below mirror the outcomes the Claude runtime already
+    # distinguishes across invoke_dispatch_claude._load_group and
+    # claude_hook_dispatch.validate_group: KeyError for an absent group,
+    # TypeError for a non-object group, TypeError for a non-string or empty
+    # event, TypeError for a non-list 'shims', and no error at all for an empty
+    # list. Reporting a wrong type as "does not define" sends the reader to add
+    # a group that is already there.
+    #
+    # Not mirrored: the event-to-mode pairing. This module never reads 'mode',
+    # and tests/hooks/test_dispatch_groups_parity.py already asserts the pairing
+    # over the real manifest, so repeating it here would be two owners for one
+    # rule.
     if name not in groups:
         return _fail("unknown_dispatch_group", f"{DISPATCH_GROUPS_PATH} does not define")
     spec = groups[name]
@@ -257,6 +264,29 @@ def _expand_dispatch_group(
             "malformed_dispatch_group",
             f"{DISPATCH_GROUPS_PATH} defines as {type(spec).__name__}, not an object; "
             "the dispatcher fails closed on it",
+        )
+    event = spec.get("event")
+    if event is not None and (not isinstance(event, str) or not event):
+        # claude_hook_dispatch.validate_group raises TypeError on a non-string
+        # or empty event and the dispatcher exits 2. Reporting it is the point:
+        # coercing to the registration's own hook type instead would let a
+        # manifest the runtime refuses to load pass this gate silently. It also
+        # has to be caught here, because a non-string escaping into
+        # HookEntry.hook_type crashes validate_hook_type_known (unhashable set
+        # element) and validate_duplicate_entries (unhashable dict key).
+        found = "an empty string" if isinstance(event, str) else type(event).__name__
+        return _fail(
+            "malformed_dispatch_group",
+            f"declares 'event' as {found}, not a non-empty string; "
+            "the dispatcher fails closed on it",
+        )
+    matcher = spec.get("matcher", entry.matcher)
+    if matcher is not None and not isinstance(matcher, str):
+        # None is a legitimate manifest value (a group that matches every tool
+        # for its event), so the check is str-or-None rather than str.
+        return _fail(
+            "malformed_dispatch_group",
+            f"declares 'matcher' as {type(matcher).__name__}, not a string or null",
         )
     shims = spec.get("shims")
     if not isinstance(shims, list):
@@ -285,10 +315,10 @@ def _expand_dispatch_group(
             continue
         expanded.append(
             HookEntry(
-                hook_type=spec.get("event") or entry.hook_type,
+                hook_type=event or entry.hook_type,
                 script_path=str(Path(".claude") / "hooks" / shim["file"]),
                 command=entry.command,
-                matcher=spec.get("matcher", entry.matcher),
+                matcher=matcher,
                 timeout=shim.get("timeout", entry.timeout),
                 status_message=shim.get("statusMessage"),
             )

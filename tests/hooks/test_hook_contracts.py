@@ -980,6 +980,110 @@ class TestDispatcherExpansion:
         assert "empty_dispatch_group" in categories
         assert "malformed_dispatch_group" not in categories
 
+    def test_a_non_string_event_is_malformed_rather_than_a_crash(self, tmp_path):
+        """A manifest shape the runtime refuses must not take the gate with it.
+
+        claude_hook_dispatch.validate_group raises TypeError on a non-string
+        event and the dispatcher exits 2. Before this branch the value went
+        straight into HookEntry.hook_type, where validate_hook_type_known does
+        ``entry.hook_type in ALL_HOOK_TYPES`` against a frozenset and
+        validate_duplicate_entries builds a tuple dict key. Both raise
+        "unhashable type", so a manifest bug surfaced as a traceback from a
+        gate rather than as the violation it is.
+        """
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": ["PreToolUse"], "shims": [{"file": "A/a.py"}]}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        categories = {v.category for v in report.violations}
+        assert "malformed_dispatch_group" in categories
+
+    def test_an_empty_event_is_malformed_not_silently_inherited(self, tmp_path):
+        """``spec.get("event") or entry.hook_type`` hid this one.
+
+        An empty string is falsy, so it fell back to the registration's own
+        hook type and the group validated clean while the dispatcher refused
+        to load it.
+        """
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "", "shims": [{"file": "A/a.py"}]}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        message = next(
+            (v.message for v in report.violations if v.category == "malformed_dispatch_group"),
+            "",
+        )
+        assert "empty string" in message
+
+    def test_the_event_message_names_the_type_found(self, tmp_path):
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": 7, "shims": [{"file": "A/a.py"}]}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        message = next(
+            v.message for v in report.violations if v.category == "malformed_dispatch_group"
+        )
+        assert "int" in message and "event" in message
+
+    def test_a_non_string_matcher_is_malformed(self, tmp_path):
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={
+                "groups": {
+                    "g1": {
+                        "event": "PreToolUse",
+                        "matcher": ["Bash"],
+                        "shims": [{"file": "A/a.py"}],
+                    }
+                }
+            },
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        message = next(
+            v.message for v in report.violations if v.category == "malformed_dispatch_group"
+        )
+        assert "matcher" in message and "list" in message
+
+    def test_a_null_matcher_is_legitimate(self, tmp_path):
+        """Negative control: the real manifest ships one.
+
+        sessionstart-1-context_loader carries ``"matcher": null`` because the
+        event takes no tool filter. A str-only check would have failed the
+        shipped tree.
+        """
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={
+                "groups": {
+                    "g1": {
+                        "event": "PreToolUse",
+                        "matcher": None,
+                        "shims": [{"file": "A/a.py"}],
+                    }
+                }
+            },
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert "malformed_dispatch_group" not in {v.category for v in report.violations}
+
+    def test_a_well_formed_event_still_reaches_the_expanded_entry(self, tmp_path):
+        """Negative control: the new guard must not drop the value it checks."""
+        _tree(
+            tmp_path,
+            settings=_dispatch("g1"),
+            groups={"groups": {"g1": {"event": "PreToolUse", "shims": [{"file": "A/a.py"}]}}},
+        )
+        report = hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
+        assert "malformed_dispatch_group" not in {v.category for v in report.violations}
+
     def test_a_shim_entry_without_a_file_is_a_violation(self, tmp_path):
         _tree(
             tmp_path,
@@ -1206,9 +1310,7 @@ class TestTheShippedTreeSatisfiesTheContract:
         settings = json.loads(settings_path.read_text(encoding="utf-8"))
         plugin_path = PROJECT_ROOT / ".claude" / "hooks" / "hooks.json"
         plugin = (
-            json.loads(plugin_path.read_text(encoding="utf-8"))
-            if plugin_path.is_file()
-            else {}
+            json.loads(plugin_path.read_text(encoding="utf-8")) if plugin_path.is_file() else {}
         )
 
         def _direct_paths(hooks_config: dict) -> set:
@@ -1466,9 +1568,7 @@ class TestAMalformedGroupsFieldIsAViolationNotAnEmptyMap:
         (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
             payload, encoding="utf-8"
         )
-        return hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        return hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
 
     def test_an_absent_groups_field_is_reported(self, tmp_path):
         report = self._report(tmp_path, json.dumps({"version": 1}))
@@ -1485,22 +1585,18 @@ class TestAMalformedGroupsFieldIsAViolationNotAnEmptyMap:
     def test_the_message_names_the_field_and_the_type_found(self, tmp_path):
         report = self._report(tmp_path, json.dumps({"groups": []}))
         messages = [v.message for v in report.violations]
-        assert any(
-            "'groups' property must be an object" in m and "list" in m for m in messages
-        )
+        assert any("'groups' property must be an object" in m and "list" in m for m in messages)
 
     def test_an_empty_groups_object_is_still_legitimate(self, tmp_path):
         """A checkout that declares the field but groups nothing is valid."""
         report = self._report(tmp_path, json.dumps({"groups": {}}))
-        assert not any(
-            v.category == "invalid_dispatch_groups" for v in report.violations
-        )
+        assert not any(v.category == "invalid_dispatch_groups" for v in report.violations)
 
     def test_the_runtime_it_describes_raises_on_the_same_shape(self):
         """Tie the rule to the dispatcher, so the two cannot drift apart."""
-        source = (
-            PROJECT_ROOT / ".claude" / "hooks" / "invoke_dispatch_claude.py"
-        ).read_text(encoding="utf-8")
+        source = (PROJECT_ROOT / ".claude" / "hooks" / "invoke_dispatch_claude.py").read_text(
+            encoding="utf-8"
+        )
         assert "field 'groups' must be an object" in source
 
 
@@ -1519,21 +1615,15 @@ class TestAnUnusableManifestReportsOnceNotOncePerRegistration:
         (tmp_path / ".claude" / "hooks" / "dispatch_groups.json").write_text(
             payload, encoding="utf-8"
         )
-        return hook_contracts.validate_all(
-            tmp_path / ".claude" / "settings.json", tmp_path
-        )
+        return hook_contracts.validate_all(tmp_path / ".claude" / "settings.json", tmp_path)
 
     def test_an_unusable_manifest_reports_no_unknown_group(self, tmp_path):
         report = self._report(tmp_path, json.dumps({"groups": []}))
-        assert not any(
-            v.category == "unknown_dispatch_group" for v in report.violations
-        )
+        assert not any(v.category == "unknown_dispatch_group" for v in report.violations)
 
     def test_the_root_cause_is_still_reported(self, tmp_path):
         report = self._report(tmp_path, json.dumps({"groups": []}))
-        assert (
-            sum(v.category == "invalid_dispatch_groups" for v in report.violations) == 1
-        )
+        assert sum(v.category == "invalid_dispatch_groups" for v in report.violations) == 1
 
     def test_the_dispatcher_entry_survives_the_skipped_expansion(self, tmp_path):
         """Skipping expansion must not drop the registration itself.
