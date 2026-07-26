@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-07-26T11:26:02.980884+00:00",
+  "updated": "2026-07-26T15:54:29.827462+00:00",
   "nodes": [
     {
       "id": "b1cc1534da48",
@@ -16562,6 +16562,78 @@
         "episode-2026-07-26-session-3358-fully-autofix-3361-review-threads"
       ],
       "created": "2026-07-26T10:23:28.036133+00:00"
+    },
+    {
+      "id": "441aa6017392",
+      "type": "milestone",
+      "label": "milestone: Recovered two preserved fixes from PR #3358 and confirmed issue #3388 owns only read-boundary failures. Issue #3370 and merged PR #3387 own corrupt-content handling and the repair command.",
+      "episodes": [
+        "episode-2026-07-26-session-3388"
+      ],
+      "created": "2026-07-26T15:54:29.823378+00:00"
+    },
+    {
+      "id": "e85af0ea9ccd",
+      "type": "milestone",
+      "label": "milestone: Changed load_causal_graph to read directly, treating only FileNotFoundError as absence. Every other OSError now raises ValueError instead of allowing an unreadable graph to appear missing.",
+      "episodes": [
+        "episode-2026-07-26-session-3388"
+      ],
+      "created": "2026-07-26T15:54:29.823447+00:00"
+    },
+    {
+      "id": "c83d315b1f0b",
+      "type": "milestone",
+      "label": "milestone: Changed the hook snapshot boundary to read directly. A missing graph yields no snapshot; every other OSError returns exit code 2 before _apply_causal_graph_updates can mutate state.",
+      "episodes": [
+        "episode-2026-07-26-session-3388"
+      ],
+      "created": "2026-07-26T15:54:29.823509+00:00"
+    },
+    {
+      "id": "daa9663e35d2",
+      "type": "milestone",
+      "label": "milestone: Regenerated the Copilot memory skill mirror and bumped both project-toolkit manifests from 0.6.117 to 0.6.118 after merging the latest main.",
+      "episodes": [
+        "episode-2026-07-26-session-3388"
+      ],
+      "created": "2026-07-26T15:54:29.823571+00:00"
+    },
+    {
+      "id": "e3b067ef6d85",
+      "type": "milestone",
+      "label": "milestone: Added positive, negative, and edge checks for missing graphs, unreadable graphs, stat-preflight removal, and snapshot failure before mutation. Canonical, generated, and hook suites passed.",
+      "episodes": [
+        "episode-2026-07-26-session-3388"
+      ],
+      "created": "2026-07-26T15:54:29.823629+00:00"
+    },
+    {
+      "id": "32bd2e993d69",
+      "type": "milestone",
+      "label": "milestone: Code simplification found no removable code. Code review found no blocking defect. Security review verified the three issue invariants and identified an existing restore-failure gap, filed as issue #3389.",
+      "episodes": [
+        "episode-2026-07-26-session-3388"
+      ],
+      "created": "2026-07-26T15:54:29.823694+00:00"
+    },
+    {
+      "id": "1df461f46ce8",
+      "type": "commit",
+      "label": "commit: Commit: 61ddf65c21",
+      "episodes": [
+        "episode-2026-07-26-session-3388"
+      ],
+      "created": "2026-07-26T15:54:29.823752+00:00"
+    },
+    {
+      "id": "e6293c05c17c",
+      "type": "outcome",
+      "label": "Outcome: success - Fix causal graph unreadable-file and snapshot failure handling",
+      "episodes": [
+        "episode-2026-07-26-session-3388"
+      ],
+      "created": "2026-07-26T15:54:29.823811+00:00"
     }
   ],
   "patterns": [
