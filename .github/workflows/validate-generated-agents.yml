@@ -70,12 +70,15 @@ jobs:
 
       - name: Determine if validation should run
         id: determine
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          AGENTS_CHANGED: ${{ steps.filter.outputs.agents }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "should-run-agents=true" >> "$GITHUB_OUTPUT"
             echo "Decision: Run validation (manual trigger)"
           else
-            AGENTS="${{ steps.filter.outputs.agents }}"
+            AGENTS="$AGENTS_CHANGED"
 
             echo "Agent files changed: $AGENTS"
 
